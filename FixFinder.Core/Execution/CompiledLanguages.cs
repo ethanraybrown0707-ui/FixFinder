@@ -8,7 +8,30 @@ namespace FixFinder.Core.Execution;
 /// <param name="Compile">The build step. Runs first; if it fails, its output is the error.</param>
 /// <param name="Run">What to launch once the build succeeds.</param>
 /// <param name="Explanation">Which compiler was chosen, said out loud.</param>
-public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Explanation);
+public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Explanation)
+{
+    /// <summary>
+    /// The run step with the build step attached to it as its rebuild command.
+    /// </summary>
+    /// <remarks>
+    /// Without this every compiled language verifies as <c>Inconclusive</c>: the verifier refuses
+    /// to re-run a binary it knows is stale, and nothing was telling it how to rebuild one. The
+    /// command it needs already exists as <see cref="Compile"/>, so deriving it here keeps one
+    /// description of how to build a file rather than two that can quietly disagree.
+    /// </remarks>
+    public TargetSpec Runnable => new()
+    {
+        ExecutablePath = Run.ExecutablePath,
+        Arguments = Run.Arguments,
+        WorkingDirectory = Run.WorkingDirectory,
+        LaunchViaDotnet = Run.LaunchViaDotnet,
+        ExtraEnvironment = Run.ExtraEnvironment,
+        Timeout = Run.Timeout,
+        OutputEncoding = Run.OutputEncoding,
+        BuildCommand = Compile.DisplayCommandLine,
+        BuildWorkingDirectory = Compile.WorkingDirectory,
+    };
+}
 
 /// <summary>
 /// Builds C, C++ and Java source before running it.

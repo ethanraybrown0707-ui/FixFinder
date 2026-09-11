@@ -150,7 +150,7 @@ public static class TargetFactory
 
             if (built is null) return LaunchPlan.Failed(problem!);
 
-            return new LaunchPlan(built.Run, null, built.Explanation)
+            return new LaunchPlan(built.Runnable, null, built.Explanation)
             {
                 ChosenFile = full,
                 Compile = built.Compile,

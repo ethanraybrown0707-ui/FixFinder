@@ -39,7 +39,7 @@ public partial class MainWindow : Window
     private LaunchPlan? _launch;
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
-    private SessionOutcome? _outcome;
+    private LoopResult? _result;
 
     /// <param name="initialFile">
     /// A program named on the command line, or dropped onto the exe in Explorer. Selected but
@@ -115,7 +115,7 @@ public partial class MainWindow : Window
     private void Choose(string path)
     {
         _launch = TargetFactory.FromFile(path);
-        _outcome = null;
+        _result = null;
 
         ResultText.Visibility = Visibility.Collapsed;
         _output.Clear();
@@ -188,13 +188,25 @@ public partial class MainWindow : Window
                 Cache = OfflineCheckBox.IsChecked == true ? HttpCacheMode.CacheOnly : HttpCacheMode.Normal,
             };
 
-            _outcome = await session.RunAsync(_launch, budget, _cancellation.Token);
+            var loop = new FixLoop(session) { Ask = AskAboutAsync };
+            loop.Log += OnLog;
+            loop.RoundStarting += OnRoundStarting;
+
+            try
+            {
+                _result = await loop.RunAsync(_launch, budget, _cancellation.Token);
+            }
+            finally
+            {
+                loop.Log -= OnLog;
+                loop.RoundStarting -= OnRoundStarting;
+            }
 
             _logger.WriteSection("Result");
-            _logger.Write($"{_outcome.Result}: {_outcome.Headline}");
-            foreach (var warning in _outcome.Warnings) _logger.Write($"warning: {warning}");
+            _logger.Write($"{_result.End} after {_result.Rounds.Count} round(s): {_result.Headline}");
+            foreach (var warning in _result.Last.Warnings) _logger.Write($"warning: {warning}");
 
-            Show(_outcome);
+            Show(_result);
         }
         catch (OperationCanceledException)
         {
@@ -231,37 +243,76 @@ public partial class MainWindow : Window
     // ================================================================== reporting
 
     /// <summary>
-    /// Shows the outcome, and puts a prompt in front of the user when there is one worth making.
+    /// Puts one round's findings in front of the user, and reports the answer to the loop.
     /// </summary>
     /// <remarks>
-    /// Only two of the five outcomes open anything. A program that ran fine, or crashed with
-    /// nothing published about it, is a complete answer on its own - interrupting with a dialog
-    /// to say "nothing happened" would train people to dismiss the dialog that matters.
+    /// Only two of the outcomes open anything. A program that ran fine, or crashed with nothing
+    /// published about it, is a complete answer on its own - interrupting with a dialog to say
+    /// "nothing happened" would train people to dismiss the dialog that matters.
+    /// <para>
+    /// Runs on the UI thread: the loop is awaited from here, so its continuations come back to
+    /// the dispatcher and <c>ShowDialog</c> is legal. That is also what makes the loop block on
+    /// the answer rather than racing ahead of it.
+    /// </para>
     /// </remarks>
-    private void Show(SessionOutcome outcome)
+    private Task<RoundDecision> AskAboutAsync(SessionOutcome outcome, int round, CancellationToken cancellationToken)
     {
-        StatusText.Text = outcome.Headline;
+        if (round > 1) ShowOutputOf(outcome);
 
-        var problem = outcome.Result is SessionResult.CouldNotRun;
-        ShowResult(outcome.Detail, problem);
+        if (!outcome.WorthShowing || cancellationToken.IsCancellationRequested)
+            return Task.FromResult(RoundDecision.Stop);
 
-        if (outcome.Warnings.Count > 0)
-            ResultText.Text += "\n\n" + string.Join("\n", outcome.Warnings);
-
-        // The captured output is worth a glance when something went wrong, and is noise when
-        // nothing did.
-        DetailsExpander.IsExpanded = outcome.Error is not null && _output.Count > 0;
-
-        if (!outcome.WorthShowing) return;
-
-        var found = new FixFoundWindow(new FixFoundContext(outcome, _http, _logger)) { Owner = this };
+        var found = new FixFoundWindow(new FixFoundContext(outcome, _http, _logger, round)) { Owner = this };
         found.ShowDialog();
 
-        if (found.Applied)
-        {
-            StatusText.Text = "Applied.";
-            ShowResult(found.OutcomeSummary ?? "The change was applied.", problem: false);
-        }
+        return Task.FromResult(found.Decision ?? RoundDecision.Stop);
+    }
+
+    /// <summary>Says what happened across every round, once the loop has finished.</summary>
+    private void Show(LoopResult result)
+    {
+        StatusText.Text = result.Headline;
+
+        // An unattended run answers its own prompts, so nothing has refilled the pane since the
+        // first round. What is worth seeing is the run that ended it.
+        if (result.Looped) ShowOutputOf(result.Last);
+
+        ShowResult(result.Detail, problem: result.End is LoopEnd.CouldNotRun);
+
+        if (result.Last.Warnings.Count > 0)
+            ResultText.Text += "\n\n" + string.Join("\n", result.Last.Warnings);
+
+        // The captured output is worth a glance when something went wrong, and is noise when
+        // nothing did. After a loop it is the last round's output, which is the one still failing.
+        DetailsExpander.IsExpanded = result.Last.Error is not null && _output.Count > 0;
+    }
+
+    private void OnRoundStarting(int round) => Dispatcher.BeginInvoke(() =>
+    {
+        if (round > 1) StatusText.Text = $"That worked. Error {round} — looking for the next fix...";
+    });
+
+    /// <summary>
+    /// Replaces the output pane with the run this round is about.
+    /// </summary>
+    /// <remarks>
+    /// Only the first round streams. Every round after it is the verifier's re-run - the program
+    /// has already been built and run again to decide whether the last patch helped, and the loop
+    /// deliberately reuses that run rather than launching a third time. Its output arrives with
+    /// the result rather than line by line, so the pane is refilled from it here.
+    /// <para>
+    /// Replaced rather than appended: three crashes stacked in one list, with nothing marking
+    /// where each began, would bury the error actually being asked about.
+    /// </para>
+    /// </remarks>
+    private void ShowOutputOf(SessionOutcome outcome)
+    {
+        if (outcome.Run is not { } run) return;
+
+        _output.Clear();
+
+        foreach (var line in run.Lines)
+            _output.Add(new OutputRow { DisplayLine = line.DisplayLine, IsError = line.IsError });
     }
 
     private void ShowResult(string text, bool problem)

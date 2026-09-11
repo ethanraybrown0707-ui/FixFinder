@@ -11,8 +11,12 @@ using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 namespace FixFinder.Gui;
 
 /// <summary>What the prompt needs: the outcome it is about, and the means to act on it.</summary>
+/// <param name="Round">
+/// Which error of this run it is. Shown from the second onwards, so that a prompt appearing for
+/// the third time reads as the loop working rather than as the tool repeating itself.
+/// </param>
 public sealed record FixFoundContext(
-    SessionOutcome Outcome, FixFinderHttpClient Http, FixFinderLogger? Logger);
+    SessionOutcome Outcome, FixFinderHttpClient Http, FixFinderLogger? Logger, int Round = 1);
 
 /// <summary>
 /// The prompt: here is what went wrong, here is what was found, shall I apply it.
@@ -40,6 +44,16 @@ public partial class FixFoundWindow : Window
 
     public string? OutcomeSummary { get; private set; }
 
+    /// <summary>
+    /// What the user decided, and what was done about it. Null means the prompt was closed.
+    /// </summary>
+    /// <remarks>
+    /// The apply happens inside the preview, behind its typed confirmation, so the result is
+    /// handed back rather than left for the loop to redo - applying the same patch twice would
+    /// fail its own context check the second time and read as a broken patch.
+    /// </remarks>
+    public RoundDecision? Decision { get; private set; }
+
     public FixFoundWindow(FixFoundContext context)
     {
         InitializeComponent();
@@ -54,6 +68,14 @@ public partial class FixFoundWindow : Window
     {
         var outcome = _context.Outcome;
         var best = outcome.Best;
+
+        if (_context.Round > 1)
+        {
+            RoundText.Text =
+                $"Error {_context.Round} of this run — the last change worked, and this is what came next.";
+
+            RoundText.Visibility = Visibility.Visible;
+        }
 
         HeadlineText.Text = outcome.Headline;
         ErrorText.Text = outcome.Error?.Summary ?? "";
@@ -84,6 +106,17 @@ public partial class FixFoundWindow : Window
             foreach (var row in DiffRow.Render(outcome.Plan!)) _rows.Add(row);
 
             ApplyButton.IsEnabled = true;
+
+            // Offered only where it means something. On the first error of a run nobody knows yet
+            // whether there is a second, and a button promising to work through them all is worth
+            // having; where the program cannot be re-run afterwards there is no way to find the
+            // next error, so "all" would be a promise this tool cannot keep.
+            if (outcome.Spec is not null)
+            {
+                ApplyAllButton.IsEnabled = true;
+                ApplyAllButton.Visibility = Visibility.Visible;
+            }
+
             return;
         }
 
@@ -106,30 +139,58 @@ public partial class FixFoundWindow : Window
 
     // ================================================================== actions
 
-    private void ApplyButton_Click(object sender, RoutedEventArgs e)
+    private void ApplyButton_Click(object sender, RoutedEventArgs e) => Preview(keepGoing: false);
+
+    /// <summary>
+    /// Asks once for the whole sequence, then hands over to the same preview.
+    /// </summary>
+    /// <remarks>
+    /// The consent is real and it is given here, not weakened: what changes is its <i>scope</i>,
+    /// from one patch to however many this run turns up, so it is spelled out in those terms and
+    /// still ends at the typed confirmation in the preview. Everything that made the first write
+    /// safe is unchanged for the rest - the same score floor, the same containment inside the
+    /// source root, exact context with no fuzz, a backup of every file, and a rollback the moment
+    /// a change fails to help.
+    /// </remarks>
+    private void ApplyAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = MessageBox.Show(this,
+            "FixFinder will apply this fix, then run the program again. If a different error comes " +
+            "up, it will look that one up and apply its fix too, and keep going without asking again.\n\n" +
+            $"It stops after {FixLoop.DefaultMaxRounds} changes, the moment the program runs cleanly, or as " +
+            "soon as one of them fails to help.\n\n" +
+            "Nothing else changes: every file is copied to a backup first, a change that does not help is " +
+            "put straight back, and nothing outside your source folder is ever written.\n\n" +
+            "Carry on?",
+            "Apply every fix it finds?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        Preview(keepGoing: true);
+    }
+
+    private void Preview(bool keepGoing)
     {
         var outcome = _context.Outcome;
 
         if (outcome.Best is null || outcome.SourceRoot is null) return;
 
-        var preview = new PatchPreviewWindow(new PreviewContext(
-            outcome.Best,
-            _context.Http,
-            outcome.SourceRoot,
-            outcome.StackTraceFiles,
-            outcome.Spec,
-            outcome.Fingerprint,
-            _context.Logger,
-            HttpCacheMode.Normal))
+        var preview = new PatchPreviewWindow(
+            new PreviewContext(outcome, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing))
         {
             Owner = this,
         };
 
         preview.ShowDialog();
 
-        if (!preview.ChangedAnything) return;
+        // Closing the preview without applying is not an answer to this prompt, so this one stays
+        // up: the user is back where they were, free to read the page or to try again.
+        if (preview.Step is not { } step) return;
 
-        Applied = true;
+        Decision = new RoundDecision(
+            keepGoing ? RoundChoice.ApplyEverything : RoundChoice.Apply, step);
+
+        Applied = preview.ChangedAnything;
         OutcomeSummary = $"Applied: {outcome.Best.Title}";
 
         DialogResult = true;

@@ -1,6 +1,6 @@
 # Sample programs
 
-Eighteen deliberately-broken programs across six languages, one per thing FixFinder has to get
+Twenty deliberately-broken programs across six languages, one per thing FixFinder has to get
 right. They are chosen for
 **what the tool does with them**, not for variety of exception names — two of them do not crash
 at all, because "it found nothing" and "it did not break" are outcomes worth being able to see.
@@ -35,6 +35,23 @@ file** — it is built first, and if the build fails, *that* is the error it loo
 | 16 | `16-csharp-throws.cs` | `KeyNotFoundException` | Compiles, then throws from inside the framework, with real line numbers |
 | 17 | `Main17.java` | `cannot find symbol` | The commonest javac error |
 | 18 | `Main18.java` | `NullPointerException` | Since Java 14 the message names the expression that was null, which makes it far more searchable |
+
+## More than one error
+
+These two are the reason the loop exists. A program only ever reports one error per run - the
+first one ends it - so everything behind that error is invisible until it is gone. Fixing it and
+running again is the only way to find out what is next, and doing that by hand means pressing the
+same button four times and losing track of which change was which.
+
+| # | Program | What happens | Why it is here |
+|---|---|---|---|
+| 19 | `19-three-errors.py` | `ModuleNotFoundError: 'yaml'`, then `'requests'`, then a `TypeError` | Three errors deep, and all three are the kind search is good at. Only the first is visible on the first run |
+| 20 | `20-two-compiler-errors.c` | `error C2065` and `error C2143` from one build | A compiler reports everything at once, so both are printed - and fixing one still leaves a build that fails, which is the case the verifier has to tell apart from a patch that did nothing |
+
+**Apply all** answers the prompts for you. It asks once, then works through as many errors as it
+can: apply, rebuild, re-run, look up whatever comes next. It stops when the program runs cleanly,
+when a change fails to help, after five rounds, or the moment an error it has already seen comes
+back - because two patches undoing each other look like progress every single round.
 
 The Java files are named `Main17`/`Main18` because **javac requires the file name to match the
 public class** — rename them and they stop compiling for a reason that has nothing to do with

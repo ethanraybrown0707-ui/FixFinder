@@ -66,6 +66,20 @@ public class FixVerifierTests : IDisposable
         return FingerprintBuilder.Build(result.Error!);
     }
 
+    /// <summary>
+    /// A script that prints one compiler diagnostic to stderr and fails, standing in for a build.
+    /// </summary>
+    /// <remarks>
+    /// Python rather than a real compiler because what is being tested is the verifier's reading
+    /// of a failed build, not MSVC - and a test that needs Visual Studio installed to say anything
+    /// would be skipped on most machines, including the one running CI.
+    /// </remarks>
+    private static string Diagnostic(string line) => $"""
+        import sys
+        sys.stderr.write("{line}\n")
+        sys.exit(1)
+        """;
+
     private const string CrashingScript = """
         data = {}
         print("starting")
@@ -230,6 +244,73 @@ public class FixVerifierTests : IDisposable
         Assert.Equal(FixVerdict.BuildFailed, result.Verdict);
         Assert.True(result.RolledBack);
         Assert.Null(result.Rerun);
+        Assert.Equal(original, File.ReadAllBytes(script));
+    }
+
+    /// <summary>
+    /// Fixing one compiler error of several is progress, and is kept.
+    /// </summary>
+    /// <remarks>
+    /// The same observation - "the build still fails" - means opposite things depending on
+    /// whether the program compiled before. For one that did not, a fresh diagnostic is exactly
+    /// what correcting the first of two typos looks like, and rolling it back would undo real
+    /// work; for one that did, the patch has plainly broken it. The caller says which, and
+    /// <see cref="AFailingBuildRollsBackWithoutEvenRunningTheProgram"/> is the other half of this.
+    /// </remarks>
+    [Fact]
+    public async Task ADifferentCompilerDiagnosticIsProgressAndIsKept()
+    {
+        if (Python is null) return;
+
+        var before = await FingerprintOfRun(SpecFor(WriteScript("first.py", Diagnostic(
+            "cart.c(12,5): error C2065: 'avarage': undeclared identifier"))));
+
+        var spec = SpecFor(
+            WriteScript("target.py", "print('never reached')"),
+            buildCommand: $"\"{Python}\" \"{WriteScript("build.py", Diagnostic(
+                "cart.c(19,9): error C2143: syntax error: missing ';' before '}'"))}\"");
+
+        var backups = new BackupStore(Path.Combine(_temp.Path, "backups"));
+
+        var result = await new FixVerifier().VerifyAsync(
+            spec, before, backups, backupFolder: null, autoRollback: true, originalWasBuildFailure: true);
+
+        Assert.Equal(FixVerdict.DifferentError, result.Verdict);
+        Assert.False(result.RolledBack);
+
+        // The build is what the next round has to carry on from: the program was never reached.
+        Assert.Null(result.Rerun);
+        Assert.True(result.NextCameFromBuild);
+        Assert.Same(result.Build, result.Latest);
+    }
+
+    /// <summary>The same diagnostic back is the same bug, however the line numbers moved.</summary>
+    [Fact]
+    public async Task TheSameCompilerDiagnosticIsRolledBack()
+    {
+        if (Python is null) return;
+
+        var before = await FingerprintOfRun(SpecFor(WriteScript("first.py", Diagnostic(
+            "cart.c(12,5): error C2065: 'avarage': undeclared identifier"))));
+
+        var spec = SpecFor(
+            WriteScript("target.py", "print('never reached')"),
+            buildCommand: $"\"{Python}\" \"{WriteScript("build.py", Diagnostic(
+                "cart.c(41,17): error C2065: 'avarage': undeclared identifier"))}\"");
+
+        var script = WriteScript("patched.py", "# before the patch");
+        var original = File.ReadAllBytes(script);
+
+        var backups = new BackupStore(Path.Combine(_temp.Path, "backups"));
+        var folder = backups.Create(_temp.Path, [script]);
+
+        File.WriteAllText(script, "# what the patch wrote");
+
+        var result = await new FixVerifier().VerifyAsync(
+            spec, before, backups, folder, autoRollback: true, originalWasBuildFailure: true);
+
+        Assert.Equal(FixVerdict.BuildFailed, result.Verdict);
+        Assert.True(result.RolledBack);
         Assert.Equal(original, File.ReadAllBytes(script));
     }
 

@@ -34,7 +34,9 @@ engine that applies patches with exact context or refuses.
    gets looked up, which is often a better search term than a runtime message: `C2065` and
    `CS0103` are globally unique and everybody who hits one pastes it verbatim into a search box.
 3. **If it crashed and something was found, you get asked** - what went wrong, what was found,
-   and whether to apply it.
+   and whether to apply it. **Apply all** is the same thing without the asking: it applies, runs
+   the program again, and looks up whatever error comes next, until it runs cleanly or a change
+   fails to help.
 
 Nothing else is asked for. Where the source lives, what to search for, which of forty results
 to open, whether that result's patch fits your copy of the code - all of it is worked out, and
@@ -285,13 +287,13 @@ After applying, the build command runs and the target is re-run. The verdict com
 *fingerprints*, not output text — a patch moves line numbers, so anything comparing raw text
 would call every applied patch a different error:
 
-| Verdict | What happens |
-|---|---|
-| `Fixed` | Kept |
-| `SameErrorPersists` | **Rolled back automatically** |
-| `BuildFailed` | **Rolled back automatically**, without even re-running |
-| `DifferentError` | **Kept** — fixing the first of two bugs looks exactly like this |
-| `Inconclusive` | Kept, and says why it proved nothing |
+| Verdict | What happens | And the loop |
+|---|---|---|
+| `Fixed` | Kept | Finished |
+| `SameErrorPersists` | **Rolled back automatically** | Stops |
+| `BuildFailed` | **Rolled back automatically**, without even re-running | Stops |
+| `DifferentError` | **Kept** - fixing the first of two bugs looks exactly like this | **Goes round again** |
+| `Inconclusive` | Kept, and says why it proved nothing | Stops rather than stack a change on one it cannot vouch for |
 
 Re-running only proves anything when the crash reproduces from the same invocation with no
 interaction. Input-, timing-, network- and click-dependent failures cannot be verified this way,
@@ -299,6 +301,37 @@ and neither can a server that was still running happily when the timeout stopped
 `Inconclusive` rather than a verdict that would read as a guarantee. For a compiled language
 with no build command set, the re-run would run the binary from *before* the patch, so that is
 `Inconclusive` too rather than a wrong answer.
+
+### More than one error
+
+A program reports one error per run, because the first one ends it. Everything behind it is
+invisible until it is gone, so a tool that runs a program once is telling you about a fraction of
+the problem and has no way to know that.
+
+`DifferentError` is what makes the rest reachable. It already meant "the original error is gone
+and another one has appeared", and it was already never rolled back, because that is what fixing
+the first of two bugs looks like. So it is also the signal to go round again: search the new
+error, offer its fix, apply, rebuild, re-run. Every other verdict ends the run.
+
+The re-run the verifier has already done *is* the next round's run. Launching a third time would
+be slower and less honest - a fresh run can fail differently, and the search would then be about
+an error nobody was shown.
+
+**Apply all** asks once and then stops asking. It is the same code path as pressing Apply each
+time, with the same score floor, the same containment, the same exact-context matching, the same
+backup per round and the same automatic rollback; what it drops is the typed confirmation per
+round, which is why the one it does ask for is worded as covering the whole sequence.
+
+Two things stop it running away:
+
+- **Five rounds**, then it reports where it got to and leaves the rest to another run. A tool
+  that edits source should not keep doing so indefinitely while nobody is watching.
+- **An error it has already seen this run** ends it immediately, as does a candidate it has
+  already applied. Two patches that undo each other produce a different error every round and
+  would otherwise look like progress all the way to the limit.
+
+A round that turns up only advice brings the prompt back rather than closing on a result nobody
+saw - "all" cannot apply prose, so there is nothing for it to do quietly.
 
 ## Status
 

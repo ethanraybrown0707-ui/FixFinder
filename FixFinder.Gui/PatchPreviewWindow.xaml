@@ -192,7 +192,8 @@
 
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                     <TextBlock Text="To write these changes, type" VerticalAlignment="Center"/>
-                    <TextBlock Text=" APPLY " FontWeight="Bold" FontFamily="Consolas" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ConfirmationWordText" AutomationProperties.AutomationId="ConfirmationWordText"
+                               Text=" APPLY " FontWeight="Bold" FontFamily="Consolas" VerticalAlignment="Center"/>
                     <TextBlock Text="here:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <TextBox x:Name="ConfirmationText" AutomationProperties.AutomationId="ConfirmationText"
                              AutomationProperties.Name="Type APPLY to confirm"

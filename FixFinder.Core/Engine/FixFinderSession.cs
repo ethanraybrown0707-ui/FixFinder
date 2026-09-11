@@ -101,7 +101,7 @@ public sealed record SessionOutcome
 /// applying stays behind the preview, the dry-run default and the typed confirmation.
 /// </para>
 /// </remarks>
-public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources)
+public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources) : IFixSession
 {
     /// <summary>Candidates whose patches are fetched before giving up on finding an appliable one.</summary>
     /// <remarks>
@@ -264,6 +264,30 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
+        return await ContinueFromAsync(
+            run, spec, budget, sourceFolder, failedToCompile: false,
+            warnings: warnings, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Does everything after the running: read the error, find the source, search, rank, plan.
+    /// </summary>
+    /// <remarks>
+    /// Public so a run that has already happened elsewhere can be picked up without repeating it.
+    /// The loop needs exactly this: after a patch, the verifier has already built and re-run the
+    /// program to reach its verdict, and launching a third time to search for the error it just
+    /// reported would be both slower and less honest - a fresh run can fail differently, and the
+    /// search would then be about an error nobody was shown.
+    /// </remarks>
+    public async Task<SessionOutcome> ContinueFromAsync(
+        TargetRunResult run,
+        TargetSpec spec,
+        SearchBudget? budget = null,
+        string? sourceFolder = null,
+        bool failedToCompile = false,
+        List<string>? warnings = null,
+        CancellationToken cancellationToken = default)
+    {
         if (run.Error is null)
         {
             var wentWrong = run.Outcome is RunOutcome.Crashed or RunOutcome.ExitedNonZero;
@@ -274,11 +298,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Headline = NoErrorHeadline(run),
                 Detail = NoErrorDetail(run),
                 Spec = spec, Run = run,
+                SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
             };
         }
 
         return await SearchForAsync(
-            run, run.Error, spec, budget, sourceFolder, failedToCompile: false,
+            run, run.Error, spec, budget, sourceFolder, failedToCompile,
             warnings: warnings, cancellationToken: cancellationToken);
     }
 
@@ -441,6 +466,21 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
         };
     }
+
+    // ------------------------------------------------------------------ the loop's view
+
+    // Explicit, because the interface carries no warnings list and the public methods do. Hiding
+    // the parameter here rather than dropping it from the session keeps the loop's dependency as
+    // small as it really is without narrowing what a caller holding the session itself can ask.
+
+    Task<SessionOutcome> IFixSession.RunAsync(
+        LaunchPlan launch, SearchBudget? budget, CancellationToken cancellationToken) =>
+        RunAsync(launch, budget, cancellationToken);
+
+    Task<SessionOutcome> IFixSession.ContinueFromAsync(
+        TargetRunResult run, TargetSpec spec, SearchBudget? budget, string? sourceFolder,
+        bool failedToCompile, CancellationToken cancellationToken) =>
+        ContinueFromAsync(run, spec, budget, sourceFolder, failedToCompile, null, cancellationToken);
 
     // ------------------------------------------------------------------ wording
 

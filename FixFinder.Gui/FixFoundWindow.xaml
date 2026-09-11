@@ -26,6 +26,10 @@
 
         <!-- ================================= headline ================================= -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="RoundText" AutomationProperties.AutomationId="RoundText"
+                       Style="{StaticResource Hint}" Margin="0,0,0,4" Visibility="Collapsed"
+                       FontWeight="SemiBold" Foreground="#8A6D00"/>
+
             <TextBlock x:Name="HeadlineText" AutomationProperties.AutomationId="HeadlineText"
                        FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
 
@@ -115,6 +119,10 @@
                 <Button x:Name="ApplyButton" AutomationProperties.AutomationId="ApplyItButton"
                         Content="Apply it..." Padding="16,6" FontSize="13"
                         Click="ApplyButton_Click"/>
+                <Button x:Name="ApplyAllButton" AutomationProperties.AutomationId="ApplyAllButton"
+                        Content="Apply all..." Padding="12,6" Margin="8,0,0,0" FontSize="13"
+                        IsEnabled="False" Visibility="Collapsed" Click="ApplyAllButton_Click"
+                        ToolTip="Apply this one, then keep going: if a different error appears, look that one up and apply its fix too, without asking again."/>
                 <Button x:Name="OpenPageButton" AutomationProperties.AutomationId="OpenPageButton"
                         Content="Open the page" Padding="12,6" Margin="8,0,0,0"
                         Click="OpenPageButton_Click"/>

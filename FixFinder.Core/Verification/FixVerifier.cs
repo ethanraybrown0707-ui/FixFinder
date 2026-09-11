@@ -42,6 +42,18 @@ public sealed record VerificationResult(
 {
     public bool Succeeded => Verdict == FixVerdict.Fixed;
 
+    /// <summary>
+    /// The run this verdict is about: the re-run, or the build when that is what failed.
+    /// </summary>
+    /// <remarks>
+    /// A caller working through several errors needs whichever run produced the error now
+    /// showing, and for a compiled language that is as often the build as the program.
+    /// </remarks>
+    public TargetRunResult? Latest => Rerun ?? Build;
+
+    /// <summary>True when <see cref="Latest"/> is a build rather than a run of the program.</summary>
+    public bool NextCameFromBuild => Rerun is null && Build is not null;
+
     /// <summary>One line for the window, saying both what happened and what was done about it.</summary>
     public string Headline => Verdict switch
     {
@@ -108,12 +120,19 @@ public sealed class FixVerifier(ParserRegistry? parsers = null)
     /// Whether a failure should undo the patch. On by default; the window offers no way to turn
     /// it off for a failed build or a repeated error, only for the ambiguous cases.
     /// </param>
+    /// <param name="originalWasBuildFailure">
+    /// True when the error being fixed was itself a compiler diagnostic. It changes what a failing
+    /// build after the patch means: for a program that would not compile in the first place, a
+    /// different diagnostic is the ordinary next step, while for one that built fine before, the
+    /// patch has plainly broken something.
+    /// </param>
     public async Task<VerificationResult> VerifyAsync(
         TargetSpec spec,
         ErrorFingerprint? before,
         BackupStore backups,
         string? backupFolder,
         bool autoRollback = true,
+        bool originalWasBuildFailure = false,
         CancellationToken cancellationToken = default)
     {
         if (before is null)
@@ -134,13 +153,36 @@ public sealed class FixVerifier(ParserRegistry? parsers = null)
 
             if (build.Outcome is not RunOutcome.ExitedClean)
             {
+                var afterBuild = build.Error is not null ? FingerprintBuilder.Build(build.Error) : null;
+
+                var moved =
+                    afterBuild is not null &&
+                    !string.Equals(afterBuild.Hash, before.Hash, StringComparison.Ordinal);
+
+                // A program that already would not compile is the one case where a failing build
+                // afterwards can be progress: fixing the first diagnostic in a file reveals the
+                // second, exactly the way fixing the first of two runtime bugs does. Where the
+                // program built cleanly before, though, the same observation means the opposite -
+                // the patch has broken it - so the distinction is the caller's to supply and is
+                // never inferred from the build output.
+                if (originalWasBuildFailure && moved)
+                {
+                    return new VerificationResult(FixVerdict.DifferentError,
+                        "That diagnostic is gone and the build now stops on a different one: " +
+                        $"{build.Error!.Summary}. The change has been kept - this is what fixing one " +
+                        "of several compiler errors looks like.",
+                        before.Hash, afterBuild!.Hash, build, null);
+                }
+
                 var rollback = Rollback(backups, backupFolder, autoRollback, out var summary);
 
                 return new VerificationResult(FixVerdict.BuildFailed,
                     $"The build command exited {build.ExitCode?.ToString() ?? "abnormally"}. " +
-                    "A patch that does not compile is not a fix." +
+                    (originalWasBuildFailure
+                        ? "The same diagnostic came back, so the change did not address it."
+                        : "A patch that does not compile is not a fix.") +
                     (rollback ? $" {summary}" : ""),
-                    before.Hash, null, build, null, rollback, summary);
+                    before.Hash, afterBuild?.Hash, build, null, rollback, summary);
             }
 
             Log?.Invoke("Build succeeded.");

@@ -17,18 +17,38 @@ using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 namespace FixFinder.Gui;
 
 /// <summary>Everything the preview needs to fetch, plan, apply and verify one candidate.</summary>
-/// <param name="Candidate">The candidate being previewed.</param>
-/// <param name="SourceRoot">The confirmed source root. Nothing outside it is ever written.</param>
-/// <param name="StackTraceFiles">Files named in the crash, for tie-breaking and the relevance gate.</param>
+/// <param name="Outcome">
+/// The round this preview is about. Carried whole rather than picked apart, because applying goes
+/// through <see cref="FixStep"/>, which takes an outcome - and rebuilding one here from separate
+/// fields is how the interactive path and the unattended path would start to differ.
+/// </param>
+/// <param name="KeepGoing">
+/// True when the user asked for everything to be applied. It does not change what this window
+/// does to the files; it changes the word that has to be typed, and whether the window closes
+/// itself once there is plainly another error waiting.
+/// </param>
 public sealed record PreviewContext(
-    FixCandidate Candidate,
+    SessionOutcome Outcome,
     FixFinderHttpClient Http,
-    string SourceRoot,
-    IReadOnlyList<string> StackTraceFiles,
-    TargetSpec? Target,
-    ErrorFingerprint? Fingerprint,
     FixFinderLogger? Logger,
-    HttpCacheMode CacheMode);
+    HttpCacheMode CacheMode,
+    bool KeepGoing = false)
+{
+    public FixCandidate Candidate => Outcome.Best!;
+
+    /// <summary>The confirmed source root. Nothing outside it is ever written.</summary>
+    public string SourceRoot => Outcome.SourceRoot!;
+
+    /// <summary>Files named in the crash, for tie-breaking and the relevance gate.</summary>
+    public IReadOnlyList<string> StackTraceFiles => Outcome.StackTraceFiles;
+
+    public TargetSpec? Target => Outcome.Spec;
+
+    public ErrorFingerprint? Fingerprint => Outcome.Fingerprint;
+
+    /// <summary>The word that has to be typed in full before anything is written.</summary>
+    public string ConfirmationWord => KeepGoing ? "APPLY ALL" : "APPLY";
+}
 
 /// <summary>
 /// Shows exactly what a patch would do, and is the only place FixFinder ever writes a file.
@@ -48,11 +68,12 @@ public partial class PatchPreviewWindow : Window
 {
     private readonly PreviewContext _context;
     private readonly BackupStore _backups = new();
-    private readonly PatchApplier _applier = new();
 
     private readonly ObservableCollection<DiffRow> _diffRows = [];
     private readonly ObservableCollection<DiffRow> _snippetRows = [];
     private readonly ObservableCollection<DiffRow> _pathRows = [];
+
+    private readonly PatchApplier _applier = new();
 
     private ApplyPlan? _plan;
     private string? _backupFolder;
@@ -61,11 +82,24 @@ public partial class PatchPreviewWindow : Window
     /// <summary>True once files were actually written, so the caller can refresh.</summary>
     public bool ChangedAnything { get; private set; }
 
+    /// <summary>
+    /// What applying did, once it has been tried. Null while nothing has been written.
+    /// </summary>
+    /// <remarks>
+    /// Handed back so the loop can read the verdict rather than apply the same patch a second
+    /// time to find out what it was.
+    /// </remarks>
+    public StepResult? Step { get; private set; }
+
     public PatchPreviewWindow(PreviewContext context)
     {
         InitializeComponent();
 
         _context = context;
+
+        ConfirmationWordText.Text = $" {context.ConfirmationWord} ";
+        System.Windows.Automation.AutomationProperties.SetName(
+            ConfirmationText, $"Type {context.ConfirmationWord} to confirm");
 
         DiffListBox.ItemsSource = _diffRows;
         SnippetsListBox.ItemsSource = _snippetRows;
@@ -212,7 +246,10 @@ public partial class PatchPreviewWindow : Window
     private void UpdateGate()
     {
         var dryRun = DryRunCheckBox.IsChecked == true;
-        var confirmed = string.Equals(ConfirmationText.Text.Trim(), "APPLY", StringComparison.Ordinal);
+
+        var confirmed = string.Equals(
+            ConfirmationText.Text.Trim(), _context.ConfirmationWord, StringComparison.Ordinal);
+
         var planned = _plan is { CanApply: true };
 
         ConfirmationText.IsEnabled = planned && !dryRun && !_applied;
@@ -223,10 +260,14 @@ public partial class PatchPreviewWindow : Window
             : _applied
                 ? "Already applied. Use Roll back to undo it."
                 : dryRun
-                    ? "Dry run is on, so nothing will be written. Untick it and type APPLY to make the change."
+                    ? "Dry run is on, so nothing will be written. Untick it and type " +
+                      $"{_context.ConfirmationWord} to make the change."
                     : confirmed
-                        ? "Ready. Apply will back every file up first, then write the change."
-                        : "Type APPLY in full to enable the button.";
+                        ? _context.KeepGoing
+                            ? "Ready. Every file is backed up first, and if a different error appears " +
+                              "afterwards FixFinder will look that one up and apply its fix too, without asking again."
+                            : "Ready. Apply will back every file up first, then write the change."
+                        : $"Type {_context.ConfirmationWord} in full to enable the button.";
     }
 
     // ================================================================== applying
@@ -239,51 +280,82 @@ public partial class PatchPreviewWindow : Window
         DryRunCheckBox.IsEnabled = false;
         ConfirmationText.IsEnabled = false;
 
-        _applier.Log += OnApplierLog;
+        // The plan shown is the one applied. The session planned this candidate too, but what the
+        // user has just read is what came out of this window's own harvest, and applying anything
+        // else would make the preview a description of a different change.
+        var outcome = _context.Outcome with { Plan = _plan };
+
+        var step = new FixStep(_backups);
+        step.Log += OnApplierLog;
+
+        VerificationText.Text = _context.Target is null
+            ? ""
+            : "Building and re-running to see whether the error is gone...";
 
         try
         {
-            var result = _applier.Apply(
-                _plan, _backups, _context.SourceRoot, dryRun: false,
-                _context.Candidate.Id, _context.Candidate.Title, _context.Candidate.Url);
+            var result = await step.ApplyAsync(outcome);
 
-            _context.Logger?.Write($"Apply: {result.Summary}");
+            Step = result;
+
+            _context.Logger?.Write($"Apply: {result.Apply.Summary}");
 
             OutcomeBorder.Visibility = Visibility.Visible;
 
-            if (!result.Ok)
+            if (!result.Apply.Ok)
             {
-                OutcomeText.Text = result.Summary;
+                OutcomeText.Text = result.Apply.Summary;
                 OutcomeText.Foreground = Brushes.Firebrick;
-                BackupPathText.Text = result.BackupFolder ?? "";
-                UpdateGate();
+                BackupPathText.Text = result.Apply.BackupFolder ?? "";
+                VerificationText.Text = "";
                 return;
             }
 
             _applied = true;
             ChangedAnything = true;
-            _backupFolder = result.BackupFolder;
+            _backupFolder = result.Apply.BackupFolder;
 
-            OutcomeText.Text = $"Written to {result.Written.Count} file(s).";
+            OutcomeText.Text = $"Written to {result.Apply.Written.Count} file(s).";
             OutcomeText.Foreground = Brushes.Black;
-            BackupPathText.Text = $"Backup: {result.BackupFolder}";
+            BackupPathText.Text = $"Backup: {result.Apply.BackupFolder}";
             RollbackButton.IsEnabled = true;
 
-            await VerifyAsync();
+            ShowVerification(result.Verification);
+        }
+        catch (Exception ex)
+        {
+            // Applying is guarded; verifying runs a build and a program, and those can fail in
+            // ways nothing here anticipates. Saying where the backup is matters more than the
+            // exception text, because that is what makes the change undoable by hand.
+            OutcomeBorder.Visibility = Visibility.Visible;
+
+            VerificationText.Text = _backupFolder is null
+                ? $"Applying failed part-way through: {ex.Message}"
+                : $"The change was applied, but checking it failed: {ex.Message}. " +
+                  $"Nothing was rolled back. The backup is at {_backupFolder}.";
+
+            VerificationText.Foreground = Brushes.Firebrick;
         }
         finally
         {
-            _applier.Log -= OnApplierLog;
+            step.Log -= OnApplierLog;
             UpdateGate();
+        }
+
+        // Only when there is plainly another round to do. "Apply all" is a promise not to ask
+        // again, not a promise to hide the answer: if this was the end of it - fixed, rolled
+        // back, or unverifiable - nothing is waiting on the window, so it stays open and says so.
+        if (_context.KeepGoing && Step?.Verdict == FixVerdict.DifferentError)
+        {
+            DialogResult = true;
+            Close();
         }
     }
 
-    /// <summary>
-    /// Builds, re-runs and reports - then rolls back by itself where the answer is unambiguous.
-    /// </summary>
-    private async Task VerifyAsync()
+    /// <summary>Renders a verdict, and stops offering a rollback that has already happened.</summary>
+    private void ShowVerification(VerificationResult? result)
     {
-        if (_context.Target is null || _context.Fingerprint is null)
+        if (result is null)
         {
             VerificationText.Text =
                 "The change was not verified: there is no target run to repeat. Run the program again yourself " +
@@ -292,50 +364,26 @@ public partial class PatchPreviewWindow : Window
             return;
         }
 
-        VerificationText.Text = "Building and re-running to see whether the error is gone...";
+        _context.Logger?.WriteSection("Verification");
+        _context.Logger?.Write($"{result.Verdict}: {result.Explanation}");
 
-        var verifier = new FixVerifier();
-        verifier.Log += OnApplierLog;
+        VerificationText.Text = $"{result.Headline}\n{result.Explanation}";
 
-        try
+        VerificationText.Foreground = result.Verdict switch
         {
-            var result = await verifier.VerifyAsync(
-                _context.Target, _context.Fingerprint, _backups, _backupFolder);
+            FixVerdict.Fixed => new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32)),
+            FixVerdict.DifferentError => new SolidColorBrush(Color.FromRgb(0x8A, 0x6D, 0x00)),
+            FixVerdict.Inconclusive => Brushes.Gray,
+            _ => Brushes.Firebrick,
+        };
 
-            _context.Logger?.WriteSection("Verification");
-            _context.Logger?.Write($"{result.Verdict}: {result.Explanation}");
+        if (!result.RolledBack) return;
 
-            VerificationText.Text = $"{result.Headline}\n{result.Explanation}";
-
-            VerificationText.Foreground = result.Verdict switch
-            {
-                FixVerdict.Fixed => new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32)),
-                FixVerdict.DifferentError => new SolidColorBrush(Color.FromRgb(0x8A, 0x6D, 0x00)),
-                FixVerdict.Inconclusive => Brushes.Gray,
-                _ => Brushes.Firebrick,
-            };
-
-            if (result.RolledBack)
-            {
-                // The applier put everything back, so the window must not still offer to.
-                _applied = false;
-                ChangedAnything = false;
-                RollbackButton.IsEnabled = false;
-                OutcomeText.Text = "The change was applied, then rolled back automatically.";
-            }
-        }
-        catch (Exception ex)
-        {
-            VerificationText.Text =
-                $"The change was applied, but verifying it failed: {ex.Message}. " +
-                $"Nothing was rolled back. The backup is at {_backupFolder}.";
-
-            VerificationText.Foreground = Brushes.Firebrick;
-        }
-        finally
-        {
-            verifier.Log -= OnApplierLog;
-        }
+        // The verifier put everything back, so the window must not still offer to.
+        _applied = false;
+        ChangedAnything = false;
+        RollbackButton.IsEnabled = false;
+        OutcomeText.Text = "The change was applied, then rolled back automatically.";
     }
 
     private void RollbackButton_Click(object sender, RoutedEventArgs e)

@@ -1,4 +1,5 @@
 using FixFinder.Core.Execution;
+using FixFinder.Core.Verification;
 
 namespace FixFinder.Tests;
 
@@ -115,6 +116,39 @@ public class CompiledLanguageTests : IDisposable
         // The thing that gets run is the built binary, not the source.
         Assert.EndsWith(".exe", plan.Spec!.ExecutablePath, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(source, plan.ChosenFile);
+    }
+
+    /// <summary>
+    /// The build step is also the rebuild command, or nothing compiled can ever be verified.
+    /// </summary>
+    /// <remarks>
+    /// The verifier refuses to re-run a binary it knows is stale, so without this every compiled
+    /// language reaches <c>Inconclusive</c> however good the patch was - and the loop, which only
+    /// continues on a verdict, never gets a second round for C, C++ or Java at all. The command
+    /// is derived from the compile step rather than guessed again, so the two cannot disagree.
+    /// </remarks>
+    [Fact]
+    public void TheBuildStepIsAlsoTheRebuildCommand()
+    {
+        if (Toolchains.FindGnu(false) is null && Toolchains.FindMsvc() is null) return;
+
+        var plan = TargetFactory.FromFile(Write("rebuild.c", "int main(void){return 0;}"));
+
+        Assert.True(plan.Ok, plan.Problem);
+        Assert.NotNull(plan.Spec!.BuildCommand);
+        Assert.Equal(plan.Compile!.DisplayCommandLine, plan.Spec.BuildCommand);
+        Assert.Equal(plan.Compile.WorkingDirectory, plan.Spec.BuildWorkingDirectory);
+
+        // The verifier splits it back into a program and arguments, so that has to survive the
+        // round trip - the MSVC route is "cmd.exe /c <batch>", with quoting either side of it.
+        var (program, arguments) = FixVerifier.SplitCommand(plan.Spec.BuildCommand!);
+
+        // Either a real path, or a name the shell can find - the MSVC route uses a bare "cmd.exe"
+        // and leaves resolving it to the process start, exactly as typing it would.
+        Assert.True(File.Exists(program) || TargetFactory.FindOnPath(program) is not null, program);
+
+        // Whatever is being built has to survive the split, or the rebuild compiles nothing.
+        Assert.NotEmpty(arguments);
     }
 
     /// <summary>
