@@ -1,0 +1,63 @@
+# Runs the test suite on every push and pull request.
+#
+# windows-latest rather than ubuntu, for two reasons. The suite drives real processes and reads
+# real compiler output, and most of what it knows about - MSVC, the dotnet host, Windows path
+# handling, DPAPI - only exists here. The runner image also ships Visual Studio, a JDK and
+# Python, so the C, C++, Java and Python paths are genuinely exercised rather than skipped.
+#
+# Only FixFinder.Tests and the Core project it references are built. FixFinder.Gui is WPF and
+# has no tests of its own; leaving it out keeps the job honest about what it is checking.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: dotnet test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Built once so the sample's own assembly and portable PDB exist. One test reads that PDB
+      # to prove source-root detection works against a real one rather than a hand-made file,
+      # and quietly returns early when it is absent - which would make it look like it passed.
+      - name: Build the .NET sample target
+        run: dotnet build TestTargets/CrashDotNet/CrashDotNet.csproj -c Debug --nologo
+
+      - name: Restore
+        run: dotnet restore FixFinder.Tests/FixFinder.Tests.csproj
+
+      - name: Build
+        run: dotnet build FixFinder.Tests/FixFinder.Tests.csproj -c Release --no-restore --nologo
+
+      # No network access is needed or wanted: searches run against recorded responses through a
+      # handler that throws on anything unrecorded, so a test cannot quietly reach the internet.
+      - name: Test
+        run: dotnet test FixFinder.Tests/FixFinder.Tests.csproj -c Release --no-build --nologo --verbosity normal
+
+      - name: Report which toolchains the runner had
+        if: always()
+        shell: pwsh
+        run: |
+          # Several tests return early when a compiler is missing, so it is worth recording what
+          # was actually available - a green run with everything skipped is not a green run.
+          foreach ($tool in 'dotnet', 'python', 'javac', 'java') {
+            $found = (Get-Command $tool -ErrorAction SilentlyContinue).Source
+            Write-Host ("{0,-8} {1}" -f $tool, $(if ($found) { $found } else { 'not present' }))
+          }
+
+          $vs = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+          Write-Host ("{0,-8} {1}" -f 'MSVC', $(if ($vs) { $vs.FullName } else { 'not present' }))
