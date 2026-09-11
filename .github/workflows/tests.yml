@@ -60,8 +60,10 @@ jobs:
       # Committed back to the branch so the badge reads a file in this repository instead of a
       # gist, which would need a personal token. Only written when the number actually changes,
       # and marked [skip ci] so the push does not start another run of this workflow.
+      # Runs for a push to main and for a manual dispatch, but never for a pull request, which
+      # has nothing to write to and may come from a fork with no permission to try.
       - name: Publish the test count for the badge
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           $trx = Get-ChildItem TestResults -Filter *.trx -Recurse | Select-Object -First 1
