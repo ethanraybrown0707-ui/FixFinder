@@ -1,5 +1,7 @@
 # FixFinder
 
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 Run a program in any language, catch its crash, look for a published fix, and — with your
 explicit approval — apply it and check whether it worked.
 
