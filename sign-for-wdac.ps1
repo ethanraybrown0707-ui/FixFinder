@@ -30,7 +30,29 @@ $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $TargetPath)) { throw "Not found: $TargetPath" }
 
-$candidates = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Sort-Object NotAfter -Descending
+# -CodeSigningCert is a dynamic parameter contributed by the certificate provider, and it is not
+# always there - on a CI runner the call fails outright with "A parameter cannot be found that
+# matches parameter name 'CodeSigningCert'". This script promises to be a no-op where there is
+# no certificate, so any failure to enumerate one has to mean "none", not an exception.
+$candidates = @()
+
+try {
+    $candidates = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction Stop)
+}
+catch {
+    try {
+        # Same question asked without the dynamic parameter: a usable signing certificate needs
+        # a private key and the Code Signing enhanced key usage.
+        $candidates = @(Get-ChildItem Cert:\CurrentUser\My -ErrorAction Stop | Where-Object {
+            $_.HasPrivateKey -and ($_.EnhancedKeyUsageList.FriendlyName -contains 'Code Signing')
+        })
+    }
+    catch {
+        $candidates = @()
+    }
+}
+
+$candidates = $candidates | Sort-Object NotAfter -Descending
 
 if ($CertificateSubject) {
     $candidates = $candidates | Where-Object { $_.Subject -eq $CertificateSubject }

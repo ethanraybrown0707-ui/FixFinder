@@ -82,7 +82,15 @@ Move-Item $published $final
 # Signing comes after the rename: Authenticode covers the file's bytes, and renaming afterwards
 # would be fine, but signing the final artifact keeps "what was signed" unambiguous.
 if (-not $SkipSigning) {
-    $candidates = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Sort-Object NotAfter -Descending
+    # -CodeSigningCert is a dynamic parameter from the certificate provider and is not always
+    # available; where it is missing the call throws rather than returning nothing. Publishing
+    # unsigned is a warning, not a failure, so the lookup must degrade to "no certificate".
+    $candidates = @()
+
+    try { $candidates = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction Stop) }
+    catch { $candidates = @() }
+
+    $candidates = $candidates | Sort-Object NotAfter -Descending
     if ($CertificateSubject) { $candidates = $candidates | Where-Object { $_.Subject -eq $CertificateSubject } }
 
     $cert = $candidates | Select-Object -First 1
