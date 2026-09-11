@@ -47,6 +47,30 @@ public sealed partial class PythonTracebackParser : IStackTraceParser
     [GeneratedRegex(@"^(?<type>[A-Za-z_][A-Za-z0-9_.]*)(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex TerminatorPattern();
 
+    /// <summary>
+    /// A <c>File "...", line N</c> line with no <c>, in &lt;symbol&gt;</c> after it.
+    /// </summary>
+    /// <remarks>
+    /// The form Python uses when it never got as far as calling anything, so there is no function
+    /// name to report. <see cref="FramePattern"/> requires the symbol and therefore does not match
+    /// this at all - which is the whole reason a syntax error used to lose its file and line.
+    /// </remarks>
+    [GeneratedRegex(@"^\s+File\s+""(?<file>.+?)"",\s+line\s+(?<line>\d+)\s*$")]
+    private static partial Regex LocationPattern();
+
+    /// <summary>
+    /// The errors Python raises while reading a file, before running a line of it.
+    /// </summary>
+    /// <remarks>
+    /// Listed by name rather than matched loosely, and these three are the whole list -
+    /// <c>IndentationError</c> and <c>TabError</c> are subclasses of <c>SyntaxError</c>. Being
+    /// strict matters because the block they appear in has no header to anchor on: all that is
+    /// left to recognise is "a File line, then a name at column 0", which is a shape ordinary
+    /// output could stumble into.
+    /// </remarks>
+    [GeneratedRegex(@"^(?<type>SyntaxError|IndentationError|TabError)(?:\s*:\s*(?<msg>.*))?$")]
+    private static partial Regex CompileTimePattern();
+
     private static readonly string[] ChainMarkers =
     [
         "During handling of the above exception, another exception occurred:",
@@ -56,14 +80,25 @@ public sealed partial class PythonTracebackParser : IStackTraceParser
     public int Detect(IReadOnlyList<string> lines)
     {
         var score = 0;
+        var located = false;
+        var compileTime = false;
 
         foreach (var line in lines)
         {
             if (line.Contains(TracebackHeader, StringComparison.Ordinal)) score += 70;
             if (FramePattern().IsMatch(line)) score += 15;
+            if (LocationPattern().IsMatch(line)) located = true;
+            if (CompileTimePattern().IsMatch(line)) compileTime = true;
+
             foreach (var marker in ChainMarkers)
                 if (line.Contains(marker, StringComparison.Ordinal)) score += 20;
         }
+
+        // Scored only as a pair. A file that will not parse prints no "Traceback" header - there
+        // is no call stack, because nothing was ever called - so on its own this block scores
+        // nothing and the generic parser wins with a confidence of 20, an empty exception type
+        // and no file or line at all.
+        if (compileTime && located) score += 85;
 
         return Math.Min(score, 100);
     }
@@ -75,7 +110,7 @@ public sealed partial class PythonTracebackParser : IStackTraceParser
             if (lines[i].Text.TrimEnd().EndsWith(TracebackHeader, StringComparison.Ordinal))
                 headers.Add(i);
 
-        if (headers.Count == 0) return null;
+        if (headers.Count == 0) return ParseCompileTimeError(lines);
 
         var blocks = new List<Block>();
         for (var b = 0; b < headers.Count; b++)
@@ -109,6 +144,83 @@ public sealed partial class PythonTracebackParser : IStackTraceParser
 
         return built;
     }
+
+    /// <summary>
+    /// Reads the block Python prints for a file it could not parse.
+    /// </summary>
+    /// <remarks>
+    /// There is no traceback, because nothing ran:
+    /// <code>
+    ///   File "reader.py", line 4
+    ///     return payload.get("user_id"
+    ///                       ^
+    /// SyntaxError: '(' was never closed
+    /// </code>
+    /// Worth parsing properly rather than leaving to the generic reader, which kept the message
+    /// and threw away everything else - no type, no file, no line, and a confidence of 20, for
+    /// what is probably the most common error anybody writing Python ever sees. The query it
+    /// produced was three loose words, and it matched strangers' unrelated questions.
+    /// <para>
+    /// It is also, always, first-party. A syntax error is in the file being read by definition,
+    /// so the frame recovered here is what lets the rest of FixFinder say the useful thing -
+    /// that this one is yours to fix and no amount of searching will turn up a patch for it.
+    /// </para>
+    /// </remarks>
+    private ParsedError? ParseCompileTimeError(IReadOnlyList<CapturedLine> lines)
+    {
+        // Searched from the end: when a program prints its own diagnostics before dying, the
+        // real error is the last thing said, not the first.
+        for (var i = lines.Count - 1; i >= 0; i--)
+        {
+            var error = CompileTimePattern().Match(lines[i].Text);
+            if (!error.Success) continue;
+
+            for (var j = i - 1; j >= 0 && j >= i - LocationLookBehind; j--)
+            {
+                var location = LocationPattern().Match(lines[j].Text);
+                if (!location.Success) continue;
+
+                var message = error.Groups["msg"].Success && error.Groups["msg"].Value.Trim().Length > 0
+                    ? error.Groups["msg"].Value.Trim()
+                    : null;
+
+                return new ParsedError
+                {
+                    LanguageId = LanguageId,
+                    Confidence = 90,
+                    RawText = ParserHelpers.RawTextOf(lines, j, i + 1),
+                    FirstLineSequence = lines[j].Sequence,
+                    ExceptionType = error.Groups["type"].Value,
+                    Message = message,
+                    Frames =
+                    [
+                        new ErrorFrame
+                        {
+                            Order = 0,
+                            File = ParserHelpers.CleanFilePath(location.Groups["file"].Value),
+                            Line = int.Parse(location.Groups["line"].Value),
+                            RawLine = lines[j].Text,
+                        },
+                    ],
+                };
+            }
+
+            // An error with no file above it is not this shape. Keep looking rather than
+            // returning a type with nothing to locate it by.
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// How far above the error line the <c>File</c> line may sit.
+    /// </summary>
+    /// <remarks>
+    /// Between them come the echoed source and its caret, plus the occasional extra note, so a
+    /// handful of lines is plenty. Searching the whole output instead would happily pair an error
+    /// with a file name printed by something else entirely.
+    /// </remarks>
+    private const int LocationLookBehind = 8;
 
     private static Block? ParseBlock(IReadOnlyList<CapturedLine> lines, int start, int limit)
     {

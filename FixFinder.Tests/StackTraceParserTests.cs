@@ -1,4 +1,5 @@
 using FixFinder.Core.Parsing;
+using FixFinder.Core.Fingerprinting;
 
 namespace FixFinder.Tests;
 
@@ -27,6 +28,9 @@ public class StackTraceParserTests
     [InlineData("python/keyerror.txt", "python")]
     [InlineData("python/chained.txt", "python")]
     [InlineData("python/inside-json-logs.txt", "python")]
+    [InlineData("python/syntax-error.txt", "python")]
+    [InlineData("python/indentation-error.txt", "python")]
+    [InlineData("python/syntax-error-after-output.txt", "python")]
     [InlineData("node/typeerror.txt", "node")]
     [InlineData("java/caused-by.txt", "java")]
     [InlineData("go/panic.txt", "go")]
@@ -50,6 +54,82 @@ public class StackTraceParserTests
     /// The chain is the whole point of the .NET parser: frames printed before the
     /// end-of-inner marker belong to the inner exception, not the wrapper.
     /// </summary>
+    // ------------------------------------------------------------------ Python, unparseable
+
+    /// <summary>
+    /// A file that will not parse prints no traceback at all, and used to be lost entirely.
+    /// </summary>
+    /// <remarks>
+    /// There is no call stack because nothing was ever called, so the "Traceback (most recent
+    /// call last):" header this parser anchors on is simply absent. The generic reader picked it
+    /// up instead and kept only the message: no type, no file, no line, confidence 20. For what
+    /// is probably the most common error anybody writing Python ever meets, the search query came
+    /// out as three loose words and matched strangers' unrelated questions.
+    /// </remarks>
+    [Fact]
+    public void Python_ASyntaxErrorKeepsItsTypeFileAndLine()
+    {
+        var error = Parse("python/syntax-error.txt");
+
+        Assert.Equal("python", error.LanguageId);
+        Assert.Equal("SyntaxError", error.ExceptionType);
+        Assert.Equal("'(' was never closed", error.Message);
+        Assert.True(error.Confidence >= 90);
+
+        var frame = Assert.Single(error.Frames);
+        Assert.Equal(4, frame.Line);
+        Assert.EndsWith("reader.py", frame.File!, StringComparison.Ordinal);
+    }
+
+    /// <summary>IndentationError and TabError are SyntaxError, and print the same shape.</summary>
+    [Fact]
+    public void Python_AnIndentationErrorIsReadTheSameWay()
+    {
+        var error = Parse("python/indentation-error.txt");
+
+        Assert.Equal("IndentationError", error.ExceptionType);
+        Assert.Equal("unexpected indent", error.Message);
+        Assert.Equal(12, Assert.Single(error.Frames).Line);
+    }
+
+    /// <summary>
+    /// The file is taken from just above the error, not from anywhere in the output.
+    /// </summary>
+    /// <remarks>
+    /// Programs print before they die. Pairing an error with the first file name anywhere in the
+    /// output would attribute a syntax error to whatever a log line happened to mention.
+    /// </remarks>
+    [Fact]
+    public void Python_ASyntaxErrorIsFoundAfterOrdinaryOutput()
+    {
+        var error = Parse("python/syntax-error-after-output.txt");
+
+        Assert.Equal("SyntaxError", error.ExceptionType);
+        Assert.StartsWith("invalid syntax.", error.Message!, StringComparison.Ordinal);
+        Assert.EndsWith("worker.py", Assert.Single(error.Frames).File!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A syntax error is in the file being read, by definition - so it is always your own.
+    /// </summary>
+    /// <remarks>
+    /// This is the part that makes the answer useful. With a first-party culprit FixFinder says
+    /// the true and helpful thing - no published issue exists for a typo only your file has - 
+    /// instead of presenting the best of forty weak matches as though it were relevant.
+    /// </remarks>
+    [Fact]
+    public void Python_ASyntaxErrorIsAlwaysFirstParty()
+    {
+        var error = Parse("python/syntax-error.txt");
+        var fingerprint = FingerprintBuilder.Build(error);
+
+        Assert.True(fingerprint.CulpritIsFirstParty);
+        Assert.Equal("SyntaxError", fingerprint.ShortExceptionType);
+
+        // The type has to reach the query, or the search is three loose words again.
+        Assert.Contains("SyntaxError", fingerprint.Tight.Text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DotNet_WalksTheInnerExceptionChain()
     {

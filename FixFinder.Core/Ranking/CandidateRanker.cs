@@ -50,6 +50,17 @@ public static partial class CandidateRanker
     private const double StalePenalty = 20;
 
     /// <summary>
+    /// For a question the site closed as unfit to answer, with nothing accepted on it.
+    /// </summary>
+    /// <remarks>
+    /// Large enough to keep it off the top, not so large that it disappears: such a question
+    /// sometimes still carries the only write-up of an obscure error anywhere. The carve-out for
+    /// an accepted answer matters more than the number - plenty of closed questions were closed
+    /// long after somebody had already answered them well.
+    /// </remarks>
+    private const double RejectedPenalty = 20;
+
+    /// <summary>
     /// A patch must clear this before its tier is allowed to float it above better matches.
     /// </summary>
     /// <remarks>
@@ -335,6 +346,20 @@ public static partial class CandidateRanker
             return 0.2;
         }
 
+        // Checked before the reasons below, which all read "closed" as GitHub means it. On Stack
+        // Overflow a closed question is one the community turned down - off topic, opinion-based,
+        // too little detail to answer - and treating that as settled promotes exactly the threads
+        // the site decided were not worth answering. An accepted answer is handled above and
+        // still wins, because a rejected question can perfectly well have a good answer on it.
+        if (candidate.IsClosed && candidate.Closure == ClosureMeaning.Rejected)
+        {
+            reason = candidate.ClosedReason is { Length: > 0 } why
+                ? $"closed by the site as \"{why}\" - turned down rather than answered"
+                : "closed by the site - turned down rather than answered";
+
+            return 0.1;
+        }
+
         if (candidate.IsClosed)
         {
             // "not_planned" means it was closed without being fixed, which is nearly the
@@ -492,6 +517,20 @@ public static partial class CandidateRanker
         {
             yield return new Penalty("Penalty: duplicate", DuplicatePenalty,
                 "closed as a duplicate - the question it points at is usually the better read");
+        }
+        else if (candidate.IsClosed &&
+                 candidate.Closure == ClosureMeaning.Rejected &&
+                 !candidate.HasAcceptedAnswer)
+        {
+            // Separate from the resolution signal, which is only a tenth of the score and can be
+            // outweighed by a title that happens to match well. That is precisely how a question
+            // closed as "not suitable for this site" came top for a syntax error: the exception
+            // type was right there in its title, and nothing accounted for the site having
+            // already judged the question itself unanswerable.
+            yield return new Penalty("Penalty: turned down", RejectedPenalty,
+                candidate.ClosedReason is { Length: > 0 } why
+                    ? $"the site closed this question as \"{why}\", and no answer on it was accepted"
+                    : "the site closed this question rather than answering it");
         }
 
         if (IsStale(candidate, fingerprint, out var breakReason))

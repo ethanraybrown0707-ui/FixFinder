@@ -28,6 +28,7 @@ public class CandidateRankerTests
 
     private static ErrorFingerprint PythonKeyError => FingerprintOf("python/keyerror.txt");
     private static ErrorFingerprint DotNetNullReference => FingerprintOf("csharp/inner-exception.txt");
+    private static ErrorFingerprint PythonSyntaxError => FingerprintOf("python/syntax-error.txt");
 
     /// <summary>Builds a candidate with everything neutral unless a test says otherwise.</summary>
     private static FixCandidate Candidate(
@@ -43,7 +44,8 @@ public class CandidateRankerTests
         string[]? tags = null,
         string[]? patches = null,
         int yearsOld = 1,
-        FixTier tier = FixTier.Advisory) =>
+        FixTier tier = FixTier.Advisory,
+        ClosureMeaning closure = ClosureMeaning.Resolved) =>
         new()
         {
             SourceName = "test",
@@ -57,6 +59,7 @@ public class CandidateRankerTests
             HasAcceptedAnswer = accepted,
             IsClosed = closed,
             ClosedReason = closedReason,
+            Closure = closure,
             DuplicateOfUrl = duplicateOf,
             Tags = tags ?? [],
             LinkedPatchUrls = patches ?? [],
@@ -67,6 +70,73 @@ public class CandidateRankerTests
 
     private static IReadOnlyList<string> Order(IEnumerable<FixCandidate> ranked) =>
         ranked.Select(c => c.Id).ToArray();
+
+    // ------------------------------------------------------------------ what "closed" means
+
+    /// <summary>
+    /// "Closed" means opposite things on the two sites, and reading it one way promotes junk.
+    /// </summary>
+    /// <remarks>
+    /// The bug this was written for. A question Stack Overflow had closed as "Not suitable for
+    /// this site" came top for a Python syntax error, at 81/100, because the exception type was
+    /// in its title and closure was scored as though the thread had been settled. The site had
+    /// already judged the question unanswerable; that has to count against it, not for it.
+    /// </remarks>
+    [Fact]
+    public void AQuestionTheSiteTurnedDownLosesToOneItAnswered()
+    {
+        var fingerprint = PythonSyntaxError;
+
+        var turnedDown = Candidate("rejected", "python SyntaxError: '(' was never closed",
+            body: "SyntaxError somewhere in my crontab script",
+            answers: 1, closed: true, closedReason: "Not suitable for this site",
+            closure: ClosureMeaning.Rejected);
+
+        var answered = Candidate("answered", "SyntaxError: '(' was never closed in my script",
+            body: "SyntaxError raised when a bracket is left open",
+            answers: 2, accepted: true, closure: ClosureMeaning.Rejected);
+
+        var ranked = CandidateRanker.Rank([turnedDown, answered], fingerprint);
+
+        Assert.Equal(["answered", "rejected"], Order(ranked));
+        Assert.True(turnedDown.Score < CandidateRanker.AutoAppliableFloor,
+            $"a turned-down question scored {turnedDown.Score:0}");
+    }
+
+    /// <summary>A closed GitHub issue is the good case, and must not be caught by the same rule.</summary>
+    [Fact]
+    public void AClosedGitHubIssueIsStillGoodNews()
+    {
+        var fingerprint = PythonKeyError;
+
+        var closed = Candidate("gh-closed", "KeyError: user_id when loading a payload",
+            body: "KeyError raised for user_id", closed: true, closedReason: "completed");
+
+        var open = Candidate("gh-open", "KeyError: user_id when loading a payload",
+            body: "KeyError raised for user_id", answers: 1);
+
+        var ranked = CandidateRanker.Rank([open, closed], fingerprint);
+
+        Assert.Equal(["gh-closed", "gh-open"], Order(ranked));
+    }
+
+    /// <summary>
+    /// An accepted answer survives the closure, because plenty of good answers predate it.
+    /// </summary>
+    [Fact]
+    public void AnAcceptedAnswerOnAClosedQuestionIsNotPenalised()
+    {
+        var fingerprint = PythonSyntaxError;
+
+        var accepted = Candidate("accepted", "SyntaxError: '(' was never closed",
+            body: "SyntaxError from an unclosed bracket", answers: 3, accepted: true,
+            closed: true, closedReason: "Needs details or clarity",
+            closure: ClosureMeaning.Rejected);
+
+        CandidateRanker.Score(accepted, fingerprint);
+
+        Assert.DoesNotContain(accepted.ScoreComponents, c => c.Name.Contains("turned down", StringComparison.Ordinal));
+    }
 
     // ------------------------------------------------------------------ type matching
 

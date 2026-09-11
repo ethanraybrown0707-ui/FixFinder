@@ -1,0 +1,6 @@
+loading config
+starting worker 3
+  File "C:\work\shop\worker.py", line 88
+    if ready = True:
+       ^^^^^^^^^^^^
+SyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?

@@ -455,11 +455,22 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
+        // The same bar, used for the second of the two things it should govern. A score below the
+        // point at which FixFinder would act on a result is also below the point at which it
+        // should claim the result looks relevant - the top of a weak set is still the top of a
+        // weak set, and announcing it as a find is how a search tool teaches people to stop
+        // believing it. It is still shown; only the claim about it changes.
+        var convincing = best.Score >= CandidateRanker.AutoAppliableFloor;
+
         return new SessionOutcome
         {
             Result = SessionResult.FoundAdvice,
-            Headline = "Found something that looks relevant.",
-            Detail = AdviceDetail(best, fingerprint, sourceRoot),
+            Headline = convincing
+                ? "Found something that looks relevant."
+                : "Nothing matched this well.",
+            Detail = convincing
+                ? AdviceDetail(best, fingerprint, sourceRoot)
+                : WeakMatchDetail(best, fingerprint, ranked.Count),
             Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
@@ -566,6 +577,30 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
               "is worth trying again in a moment."
             : "Nothing on GitHub or Stack Overflow matches this error closely enough to be worth " +
               "showing you.";
+    }
+
+    /// <summary>
+    /// Said when the best of everything found is still not much, so the window does not oversell it.
+    /// </summary>
+    /// <remarks>
+    /// Written for the case that produced it: a Python syntax error, where the closest result was
+    /// a question Stack Overflow had itself closed as unsuitable. The score is quoted because a
+    /// number with the reasons behind it - which the detail pane lists - is something a person can
+    /// disagree with, where "looks relevant" is only an assertion.
+    /// </remarks>
+    private static string WeakMatchDetail(FixCandidate best, ErrorFingerprint fingerprint, int count)
+    {
+        var yours = fingerprint.CulpritIsFirstParty && !IsEnvironmental(fingerprint)
+            ? " That is the expected answer here: the error is in your own code, and nothing is " +
+              "published anywhere about a mistake only your file has. This one is yours to fix."
+            : "";
+
+        return
+            $"The closest of {count} result{(count == 1 ? "" : "s")} scored {best.Score:0} out of 100, " +
+            $"below the {CandidateRanker.AutoAppliableFloor:0} FixFinder wants before treating " +
+            $"something as an answer.{yours}\n\n" +
+            "It is shown below as the best of a weak set, not as a match. Read it if you like - " +
+            "just do not expect it to be about your program.";
     }
 
     private static string AdviceDetail(FixCandidate best, ErrorFingerprint fingerprint, string? sourceRoot)

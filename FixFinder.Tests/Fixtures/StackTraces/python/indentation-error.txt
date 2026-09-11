@@ -1,0 +1,4 @@
+  File "C:\work\shop\totals.py", line 12
+    return total
+    ^
+IndentationError: unexpected indent

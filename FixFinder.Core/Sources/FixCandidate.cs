@@ -53,6 +53,16 @@ public sealed record ScoreComponent(string Name, double Weight, double Value, st
 /// inside it has been parsed, path-checked and confirmed by hand.
 /// </para>
 /// </remarks>
+/// <summary>Why a thread being closed is good news, or bad.</summary>
+public enum ClosureMeaning
+{
+    /// <summary>Closed because it was dealt with. A GitHub issue.</summary>
+    Resolved,
+
+    /// <summary>Closed because it should not have been asked. A Stack Overflow question.</summary>
+    Rejected,
+}
+
 public sealed class FixCandidate
 {
     /// <summary>Which source produced it - "GitHub" or "Stack Overflow".</summary>
@@ -103,6 +113,23 @@ public sealed class FixCandidate
 
     /// <summary>GitHub's state reason ("completed", "not_planned") or the Stack Overflow close reason.</summary>
     public string? ClosedReason { get; init; }
+
+    /// <summary>
+    /// What being closed means on the site this came from.
+    /// </summary>
+    /// <remarks>
+    /// The most misleading field on this record if it is not carried, because the word is shared
+    /// and the meaning is opposite. GitHub closes an issue when it is <i>done</i>; Stack Overflow
+    /// closes a question when the community has decided it should not have been asked - off
+    /// topic, opinion-based, or without enough detail to answer. Reading both as "settled" ranks
+    /// the questions a site rejected above the ones it answered.
+    /// <para>
+    /// Set by the source rather than worked out from <see cref="SourceName"/>, so that a source
+    /// added later has to say which it means instead of inheriting whichever happened to be the
+    /// default.
+    /// </para>
+    /// </remarks>
+    public ClosureMeaning Closure { get; init; } = ClosureMeaning.Resolved;
 
     /// <summary>
     /// Where a duplicate points, when the API named it.

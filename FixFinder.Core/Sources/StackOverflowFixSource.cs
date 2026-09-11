@@ -307,6 +307,9 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
 
             IsClosed = question.ClosedReason is { Length: > 0 },
             ClosedReason = question.ClosedReason,
+
+            // A closed question here is one the site turned down, not one it settled.
+            Closure = ClosureMeaning.Rejected,
             DuplicateOfUrl = duplicate ? question.Link : null,
 
             Attribution = attribution,

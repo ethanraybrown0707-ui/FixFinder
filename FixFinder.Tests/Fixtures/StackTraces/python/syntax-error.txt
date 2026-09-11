@@ -1,0 +1,4 @@
+  File "C:\work\shop\reader.py", line 4
+    return payload.get("user_id"
+                      ^
+SyntaxError: '(' was never closed
