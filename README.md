@@ -1,6 +1,7 @@
 # FixFinder
 
 [![tests](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml/badge.svg)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
+[![test count](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fethanraybrown0707-ui%2FFixFinder%2Fmain%2F.github%2Fbadges%2Ftests.json)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/ethanraybrown0707-ui/FixFinder?style=flat&label=stars)](https://github.com/ethanraybrown0707-ui/FixFinder/stargazers)
 [![languages](https://img.shields.io/static/v1?label=languages&message=C,%20C%2B%2B,%20C%23,%20Go,%20Java,%20JavaScript,%20Python,%20Ruby,%20Rust&color=blue)](#languages)
