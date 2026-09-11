@@ -56,7 +56,7 @@ public static partial class ErrorNormalizer
     public static IReadOnlyList<NormalizationRule> Rules { get; } =
     [
         // Paths run first, and reduce to the bare file name rather than vanishing: "Program.cs"
-        // is a useful search term, "C:\Users\ethan\..." is not. Running these after the number
+        // is a useful search term, "C:\Users\dev\..." is not. Running these after the number
         // rules would leave mangled path fragments behind.
         new()
         {

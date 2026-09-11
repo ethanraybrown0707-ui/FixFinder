@@ -34,15 +34,17 @@ public class TierAEndToEndTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static string? FindPython()
-    {
-        var path = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Microsoft", "WindowsApps",
-            "PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0", "python.exe");
-
-        return File.Exists(path) ? path : null;
-    }
+    /// <summary>
+    /// Found the same way the tool finds it, rather than by a hard-coded path.
+    /// </summary>
+    /// <remarks>
+    /// Tests that need it return early when it is absent, so the suite reports on the code
+    /// rather than on whichever interpreters a given machine happens to have.
+    /// </remarks>
+    private static string? FindPython() =>
+        TargetFactory.FindOnPath("python") ??
+        TargetFactory.FindOnPath("py") ??
+        TargetFactory.FindOnPath("python3");
 
     /// <summary>The program under test: reads a key that is not there.</summary>
     private const string Broken = """

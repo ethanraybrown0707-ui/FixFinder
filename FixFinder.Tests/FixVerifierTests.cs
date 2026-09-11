@@ -19,7 +19,14 @@ public class FixVerifierTests : IDisposable
 {
     private readonly TempFolder _temp = new();
 
-    /// <summary>Python is one of only two runtimes on this machine, and the quickest to drive.</summary>
+    /// <summary>
+    /// Python, if this machine has it - the quickest real program to drive.
+    /// </summary>
+    /// <remarks>
+    /// Found the same way the tool finds it, rather than by a hard-coded path. Every test that
+    /// uses it returns early when it is absent, so the suite reports on the code rather than on
+    /// whichever interpreters happen to be installed.
+    /// </remarks>
     private static readonly string? Python = FindPython();
 
     public void Dispose()
@@ -28,17 +35,10 @@ public class FixVerifierTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private static string? FindPython()
-    {
-        var candidates = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Microsoft", "WindowsApps",
-                "PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0", "python.exe"),
-        };
-
-        return candidates.FirstOrDefault(File.Exists);
-    }
+    private static string? FindPython() =>
+        TargetFactory.FindOnPath("python") ??
+        TargetFactory.FindOnPath("py") ??
+        TargetFactory.FindOnPath("python3");
 
     private string WriteScript(string name, string body)
     {

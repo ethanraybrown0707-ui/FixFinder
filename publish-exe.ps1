@@ -11,10 +11,15 @@
   Compression is on. It roughly halves the output at the cost of a slower first start, which is
   the right trade for a tool launched by hand rather than in a loop.
 
-  The exe is Authenticode-signed with the same local "CN=Ethan Brown" certificate the Debug
-  DLLs use. Read the warning printed at the end before assuming that makes it runnable
-  everywhere: local trust satisfies this machine's Application Control policy, and it does not
-  satisfy Smart App Control, which judges by reputation rather than by signature.
+  The exe is Authenticode-signed with the same local certificate the Debug DLLs use. Read the
+  warning printed at the end before assuming that makes it runnable everywhere: local trust
+  satisfies an Application Control policy, and it does not satisfy Smart App Control, which
+  judges by reputation rather than by signature.
+
+.PARAMETER CertificateSubject
+  Which certificate to sign with, for example "CN=Your Name". Defaults to the
+  FIXFINDER_CERT_SUBJECT environment variable, and failing that to the newest code-signing
+  certificate in the personal store - so a fresh clone works without editing anything.
 #>
 [CmdletBinding()]
 param(
@@ -24,7 +29,9 @@ param(
     # Skip the runtime bundle: much smaller, but requires the .NET 8 desktop runtime installed.
     [switch]$FrameworkDependent,
 
-    [switch]$SkipSigning
+    [switch]$SkipSigning,
+
+    [string]$CertificateSubject = $env:FIXFINDER_CERT_SUBJECT
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,15 +82,16 @@ Move-Item $published $final
 # Signing comes after the rename: Authenticode covers the file's bytes, and renaming afterwards
 # would be fine, but signing the final artifact keeps "what was signed" unambiguous.
 if (-not $SkipSigning) {
-    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
-        Where-Object { $_.Subject -eq "CN=Ethan Brown" } |
-        Sort-Object NotAfter -Descending | Select-Object -First 1
+    $candidates = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Sort-Object NotAfter -Descending
+    if ($CertificateSubject) { $candidates = $candidates | Where-Object { $_.Subject -eq $CertificateSubject } }
+
+    $cert = $candidates | Select-Object -First 1
 
     if ($cert) {
         $sig = Set-AuthenticodeSignature -FilePath $final -Certificate $cert -HashAlgorithm SHA256
-        Write-Host "Signed: $($sig.Status)"
+        Write-Host "Signed: $($sig.Status)  [$($cert.Subject)]"
     } else {
-        Write-Warning "No 'CN=Ethan Brown' certificate found - the exe is unsigned."
+        Write-Warning "No code-signing certificate found - the exe is unsigned."
     }
 }
 

@@ -119,7 +119,7 @@ is drawn at its own scale rather than shrunk from one large image - downscaling 
 to 16px turns a thin ring into grey mush, and 16px is the size that appears in the taskbar.
 
 **On this machine it launches and runs.** That is worth stating because it is not guaranteed:
-the exe is signed with the local `CN=Ethan Brown` certificate, which satisfies the Application
+the exe is signed with a local self-signed certificate, which satisfies the Application
 Control policy, but Smart App Control judges an executable by *reputation* rather than by
 signature and a self-signed build has none. If a future build is ever blocked,
 `run-fixfinder.cmd` still works — it launches the DLL through `dotnet.exe`, which is already
@@ -136,8 +136,9 @@ dotnet FixFinder.Gui\bin\Debug\net8.0-windows\FixFinder.Gui.dll
 **The Debug build runs through `dotnet`, never as a raw `.exe`.** This machine's Application
 Control policy blocks a freshly-built, unsigned binary under the user profile with
 `0x800711C7`; `dotnet.exe` is already trusted. Each `.csproj` self-signs its Debug output via
-`..\sign-for-wdac.ps1` so the DLL itself loads, and that script is a no-op on a machine without
-the local `CN=Ethan Brown` certificate, such as CI.
+`..\sign-for-wdac.ps1` so the DLL itself loads, and that script is a no-op on a machine with no
+code-signing certificate, such as CI. It signs with the newest one in your personal store, or the
+one named by the `FIXFINDER_CERT_SUBJECT` environment variable.
 
 The published single-file exe is a different case and was measured rather than assumed: signed
 with the same certificate, it launches and runs here. Smart App Control did not refuse it.
@@ -279,3 +280,7 @@ Built in milestones, each one runnable on its own.
 - [x] **M5** — diff parsing and read-only patch preview
 - [x] **M6** — patch application, backups, typed-`APPLY` gate
 - [x] **M7** — build, re-run, verify, auto-rollback
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

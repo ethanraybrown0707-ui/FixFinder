@@ -21,7 +21,7 @@ public class FingerprintTests
     // ------------------------------------------------------------------ normalisation rules
 
     [Theory]
-    [InlineData(@"Could not find C:\Users\ethan\src\app\Program.cs", "Program.cs")]
+    [InlineData(@"Could not find C:\Users\dev\src\app\Program.cs", "Program.cs")]
     [InlineData("Could not find /srv/deploy/2026/app/main.py", "main.py")]
     [InlineData("Job 3f2504e0-4f89-11d3-9a0c-0305e82c3301 failed", "<guid>")]
     [InlineData("Access violation at 0x00007ffd2a1b", "<addr>")]
@@ -43,7 +43,7 @@ public class FingerprintTests
     [Fact]
     public void KeepsTheFileNameWhenStrippingAPath()
     {
-        var (text, _) = ErrorNormalizer.Normalize(@"in C:\Users\ethan\src\Cart.cs line 12", relaxed: false);
+        var (text, _) = ErrorNormalizer.Normalize(@"in C:\Users\dev\src\Cart.cs line 12", relaxed: false);
 
         Assert.Contains("Cart.cs", text);
         Assert.DoesNotContain("ethan", text);
