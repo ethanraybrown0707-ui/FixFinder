@@ -46,7 +46,14 @@ Write-Host ""
 Write-Host "Publishing FixFinder ($Configuration, $Runtime, $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }))..."
 Write-Host ""
 
-if (Test-Path $output) { Remove-Item $output -Recurse -Force }
+# Everything except Logs, which is not ours to throw away: it is the record of what FixFinder
+# ran and what it wrote, for a tool whose whole job is modifying source. Keeping it also means a
+# republish no longer fails outright when the app happens to be open holding today's log.
+if (Test-Path $output) {
+    Get-ChildItem $output -Force |
+        Where-Object { $_.Name -ne "Logs" } |
+        Remove-Item -Recurse -Force
+}
 
 $arguments = @(
     "publish", $project,
