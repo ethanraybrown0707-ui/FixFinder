@@ -1,0 +1,9 @@
+C:\src\web\server.js:12
+  const name = user.profile.name;
+                            ^
+
+TypeError: Cannot read properties of undefined (reading 'name')
+    at renderUser (C:\src\web\server.js:12:29)
+    at handle (C:\src\web\routes\users.js:8:12)
+    at Layer.handle [as handle_request] (C:\src\web\node_modules\express\lib\router\layer.js:95:5)
+    at async Module._load (node:internal/modules/cjs/loader:960:12)

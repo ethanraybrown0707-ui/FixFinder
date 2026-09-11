@@ -1,0 +1,7 @@
+{"level":"INFO","msg":"worker started","ts":"2026-09-10T09:00:00Z"}
+{"level":"INFO","msg":"processing batch 41","ts":"2026-09-10T09:00:01Z"}
+{"level":"ERROR","msg":"unhandled","ts":"2026-09-10T09:00:02Z"}
+Traceback (most recent call last):
+  File "/srv/worker/batch.py", line 88, in process
+    row = rows[index]
+IndexError: list index out of range

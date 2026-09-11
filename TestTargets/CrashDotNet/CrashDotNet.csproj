@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A console program that crashes on startup, used as FixFinder's live .NET target.
+
+    DebugType=portable and DebugSymbols=true are the point of this project, not incidental:
+    the PDB is what SourceRootResolver reads to find the source tree in M2, and it is also
+    what puts "in C:\...\Program.cs:line 27" on the end of each stack frame. Without it the
+    trace has symbol names but no file paths, and there is nothing to map a patch onto.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CrashDotNet</RootNamespace>
+    <AssemblyName>CrashDotNet</AssemblyName>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Self-sign the Debug build so Application Control lets `dotnet` load it (0x800711C7).
+       Without this the target refuses to start and FixFinder reports a launch failure rather
+       than the crash it is supposed to be studying. -->
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>

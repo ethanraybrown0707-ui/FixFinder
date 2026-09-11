@@ -1,0 +1,4 @@
+src/report/table.c: In function 'write_row':
+src/report/table.c:88:12: error: 'row_count' undeclared (first use in this function)
+   88 |   for (int i = 0; i < row_count; i++) {
+      |            ^~~~~~~~~

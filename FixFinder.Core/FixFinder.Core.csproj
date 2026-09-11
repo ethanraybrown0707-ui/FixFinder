@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    All of FixFinder's logic: launching a target and capturing its output, parsing stack
+    traces, fingerprinting errors, searching GitHub / Stack Overflow, ranking candidates,
+    parsing and applying unified diffs, and verifying a fix by re-running.
+
+    Deliberately targets plain net8.0, NOT net8.0-windows, and does not set UseWPF. That is
+    the whole reason this is a separate project from FixFinder.Gui: it makes it physically
+    impossible to put a MessageBox in a stack-trace parser, and it lets FixFinder.Tests run
+    the parsers, the diff engine and the ranker headlessly.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FixFinder.Core</RootNamespace>
+    <AssemblyName>FixFinder.Core</AssemblyName>
+    <Company>Ethan Brown</Company>
+    <Authors>Ethan Brown</Authors>
+    <Product>FixFinder</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The single NuGet dependency in the whole tool. DPAPI (ProtectedData) is not in the
+         net8.0 BCL, and Security\TokenStore uses it to encrypt the GitHub PAT / Stack
+         Exchange key at rest under the current user. Windows-only at runtime, which is fine
+         here; it compiles everywhere and only throws if actually called off-Windows.
+         Everything else FixFinder needs is in-box: System.Net.Http, System.Text.Json,
+         System.Text.RegularExpressions, System.Reflection.Metadata (portable PDB reading). -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Self-sign the Debug build so this machine's Application Control policy lets `dotnet`
+       load it (a fresh unsigned managed DLL under the user profile is blocked with
+       0x800711C7). No-op on a machine without the cert, e.g. CI. See ..\sign-for-wdac.ps1. -->
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>

@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "tags": [
+        "python",
+        "dictionary",
+        "keyerror"
+      ],
+      "answer_count": 3,
+      "accepted_answer_id": 3627880,
+      "score": 412,
+      "creation_date": 1283000000,
+      "last_activity_date": 1700000000,
+      "question_id": 3627270,
+      "link": "https://stackoverflow.com/questions/3627270/keyerror-user-id",
+      "title": "Why do I get &#39;KeyError: &#39;user_id&#39;&#39; reading a dict?",
+      "body": "<p>My code raises <code>KeyError: 'user_id'</code> on this line:</p>\n<pre><code>uid = payload[\"user_id\"]\n</code></pre>\n<p>The key is not always present in the response.</p>"
+    },
+    {
+      "tags": [
+        "python",
+        "json",
+        "dictionary"
+      ],
+      "answer_count": 1,
+      "score": 44,
+      "creation_date": 1500000000,
+      "last_activity_date": 1690000000,
+      "question_id": 4410101,
+      "link": "https://stackoverflow.com/questions/4410101/handling-missing-json-keys",
+      "title": "Handling missing JSON keys without try/except",
+      "body": "<p>What is the idiomatic way to read a key that may be absent?</p>"
+    },
+    {
+      "tags": [
+        "python"
+      ],
+      "answer_count": 0,
+      "score": 0,
+      "closed_reason": "Duplicate",
+      "creation_date": 1600000000,
+      "last_activity_date": 1600100000,
+      "question_id": 4410999,
+      "link": "https://stackoverflow.com/questions/4410999/keyerror-again",
+      "title": "KeyError again in my script",
+      "body": "<p>Same problem as everyone else.</p>"
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 297
+}

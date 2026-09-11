@@ -1,0 +1,148 @@
+<Window x:Class="FixFinder.Gui.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="FixFinder settings" Height="660" Width="640"
+        Icon="Assets/FixFinder.ico"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ============================== credentials =============================== -->
+        <GroupBox Grid.Row="0" Header="API credentials (both optional)" Margin="0,0,0,8">
+            <Grid Margin="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="GitHub token" Style="{StaticResource FieldLabel}"/>
+                <PasswordBox Grid.Row="0" Grid.Column="1" x:Name="GitHubTokenBox"
+                             AutomationProperties.AutomationId="GitHubTokenBox"
+                             AutomationProperties.Name="GitHub personal access token"
+                             Margin="0,2" Padding="2,1"/>
+                <Button    Grid.Row="0" Grid.Column="2" x:Name="ClearGitHubTokenButton"
+                           AutomationProperties.AutomationId="ClearGitHubTokenButton"
+                           Content="Clear" Padding="8,2" Margin="6,2,0,2"
+                           Click="ClearGitHubTokenButton_Click"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="GitHubTokenStateText"
+                           AutomationProperties.AutomationId="GitHubTokenStateText"
+                           Style="{StaticResource Hint}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,4,0,8"
+                           Text="Create a fine-grained token with NO permissions selected at all. FixFinder only reads public issues, and a token with no scopes still raises search from 10 requests a minute to 30, and everything else from 60 an hour to 5000. Do not paste a token with repo access - it would grant far more than this tool needs."/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Stack Apps key" Style="{StaticResource FieldLabel}"/>
+                <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="StackExchangeKeyBox"
+                             AutomationProperties.AutomationId="StackExchangeKeyBox"
+                             AutomationProperties.Name="Stack Exchange application key"
+                             Margin="0,2" Padding="2,1"/>
+                <Button    Grid.Row="3" Grid.Column="2" x:Name="ClearStackExchangeKeyButton"
+                           AutomationProperties.AutomationId="ClearStackExchangeKeyButton"
+                           Content="Clear" Padding="8,2" Margin="6,2,0,2"
+                           Click="ClearStackExchangeKeyButton_Click"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="StackExchangeKeyStateText"
+                           AutomationProperties.AutomationId="StackExchangeKeyStateText"
+                           Style="{StaticResource Hint}"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Hint}"
+                           Text="A free key from stackapps.com raises the daily allowance from 300 requests to 10,000. It is not a login and grants no access to any account."/>
+            </Grid>
+        </GroupBox>
+
+        <!-- ================================ storage ================================= -->
+        <GroupBox Grid.Row="1" Header="Where things are stored" Margin="0,0,0,8">
+            <StackPanel Margin="4">
+                <TextBlock x:Name="CredentialPathText"
+                           AutomationProperties.AutomationId="CredentialPathText"
+                           Style="{StaticResource Hint}" FontFamily="Consolas"/>
+
+                <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,6"
+                           Text="Encrypted with Windows DPAPI under your account, with extra entropy. It cannot be read by another user, on another machine, or by another program running as you."/>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="CacheStateText"
+                               AutomationProperties.AutomationId="CacheStateText"
+                               VerticalAlignment="Center" FontSize="11" Foreground="Gray"/>
+                    <Button x:Name="OpenCacheFolderButton"
+                            AutomationProperties.AutomationId="OpenCacheFolderButton"
+                            Content="Open folder" Padding="8,2" Margin="10,0,0,0"
+                            Click="OpenCacheFolderButton_Click"/>
+                    <Button x:Name="ClearCacheButton"
+                            AutomationProperties.AutomationId="ClearCacheButton"
+                            Content="Clear cache" Padding="8,2" Margin="6,0,0,0"
+                            Click="ClearCacheButton_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- ============================== what it can run ============================= -->
+        <GroupBox Grid.Row="2" Header="Languages it can run here" Margin="0,0,0,8">
+            <StackPanel Margin="4">
+                <TextBlock x:Name="ToolchainsText"
+                           AutomationProperties.AutomationId="ToolchainsText"
+                           FontFamily="Consolas" FontSize="11" TextWrapping="Wrap"/>
+                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                           Text="Python, JavaScript, Ruby and anything else that runs itself need nothing installed beyond their own interpreter. C, C++ and Java have to be compiled first, so they need a toolchain - FixFinder finds Visual Studio and a JDK automatically, neither has to be on PATH."/>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- ============================== what it sends ============================== -->
+        <GroupBox Grid.Row="3" Header="What FixFinder sends, and where">
+            <StackPanel Margin="4">
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                           Text="Searching sends the normalised text of the error - the exception type, the message with paths, addresses and timestamps stripped out, and the quoted values from it - to these two services:"/>
+                <TextBlock FontFamily="Consolas" FontSize="11" Margin="8,0,0,0"
+                           Text="api.stackexchange.com&#x0a;api.github.com&#x0a;github.com  (only when fetching a .patch or .diff)"/>
+                <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                           Text="It never sends your source code, your file paths, your machine name, or anything you have not run. Tick 'Cached results only' in the main window to search without any network request at all."/>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- ================================= buttons ================================ -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="SettingsStatusText"
+                       AutomationProperties.AutomationId="SettingsStatusText"
+                       VerticalAlignment="Center" Margin="0,0,12,0" FontStyle="Italic"/>
+            <Button x:Name="SaveSettingsButton" AutomationProperties.AutomationId="SaveSettingsButton"
+                    Content="Save" Padding="14,4" IsDefault="True" Click="SaveSettingsButton_Click"/>
+            <Button x:Name="CancelSettingsButton" AutomationProperties.AutomationId="CancelSettingsButton"
+                    Content="Cancel" Padding="14,4" Margin="8,0,0,0" IsCancel="True"
+                    Click="CancelSettingsButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

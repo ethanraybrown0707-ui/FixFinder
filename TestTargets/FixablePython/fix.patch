@@ -1,0 +1,7 @@
+--- a/reader.py
++++ b/reader.py
+@@ -10,3 +10,3 @@ import json
+ def read_user(payload):
+-    return payload["user_id"]
++    return payload.get("user_id")
+ 

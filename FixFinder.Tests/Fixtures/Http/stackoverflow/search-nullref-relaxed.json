@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "tags": [
+        "c#",
+        ".net",
+        "nullreferenceexception"
+      ],
+      "answer_count": 12,
+      "accepted_answer_id": 4660322,
+      "score": 3900,
+      "creation_date": 1290000000,
+      "last_activity_date": 1710000000,
+      "question_id": 4660142,
+      "link": "https://stackoverflow.com/questions/4660142/what-is-a-nullreferenceexception",
+      "title": "What is a NullReferenceException, and how do I fix it?",
+      "body": "<p>I have some code and when it executes, it throws a NullReferenceException.</p>"
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 294
+}

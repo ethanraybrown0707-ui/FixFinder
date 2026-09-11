@@ -1,0 +1,6 @@
+C:\src\app\Main.java:18: error: cannot find symbol
+        System.out.println("total " + total + ", average " + avg);
+                                                             ^
+  symbol:   variable avg
+  location: class Main
+1 error

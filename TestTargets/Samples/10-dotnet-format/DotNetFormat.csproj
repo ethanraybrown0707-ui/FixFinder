@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A deliberately-crashing sample. DebugType=portable keeps a .pdb beside the assembly, which
+       is what lets FixFinder find this source folder without being told where it is. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DotNetFormat</AssemblyName>
+    <RootNamespace>DotNetFormat</RootNamespace>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>

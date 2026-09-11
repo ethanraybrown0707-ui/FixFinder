@@ -1,0 +1,9 @@
+bin/
+obj/
+publish/
+Logs/
+# HTTP response cache + credential store live under %LOCALAPPDATA%, but a local
+# Cache/ can appear when a test overrides the root - never commit either.
+Cache/
+# machine-specific double-click shortcuts (absolute paths)
+*.lnk

@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "owner": {
+        "display_name": "Alex Martelli",
+        "reputation": 1000000
+      },
+      "is_accepted": true,
+      "score": 120,
+      "last_activity_date": 1700000000,
+      "answer_id": 3627880,
+      "question_id": 3627270,
+      "body": "<p>Use <code>dict.get</code>, which returns <code>None</code> instead of raising:</p>\n<pre><code>uid = payload.get(\"user_id\")\n</code></pre>\n<p>Or supply a default with <code>payload.get(\"user_id\", 0)</code>.</p>"
+    },
+    {
+      "owner": {
+        "display_name": "someone else"
+      },
+      "is_accepted": false,
+      "score": 510,
+      "last_activity_date": 1690000000,
+      "answer_id": 3627999,
+      "question_id": 3627270,
+      "body": "<p>Wrap it in <code>try/except KeyError</code>.</p>"
+    },
+    {
+      "owner": {
+        "display_name": "third answerer"
+      },
+      "is_accepted": false,
+      "score": 12,
+      "last_activity_date": 1688000000,
+      "answer_id": 4410202,
+      "question_id": 4410101,
+      "body": "<p>Use <code>collections.defaultdict</code> if every missing key should give the same value.</p>"
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 296
+}

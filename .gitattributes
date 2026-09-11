@@ -1,0 +1,18 @@
+# Default: let git normalise text, which keeps diffs sane across machines.
+* text=auto
+
+# These must survive byte for byte, so git is told not to touch them.
+#
+# A unified diff's line endings are load-bearing, and so is the trailing space on a context line
+# that happens to be blank - that lone space is what the applier matches on. Normalising either
+# turns a fixture that proves the parser works into one that proves it does not, and the failure
+# would appear only after a clone on a machine configured differently.
+*.patch   -text
+*.diff    -text
+
+# Captured crash output, kept exactly as the runtime printed it.
+FixFinder.Tests/Fixtures/** -text
+
+# Deliberately-broken sample programs. Their line numbers are quoted in expected output, and
+# fix.patch matches reader.py to the byte.
+TestTargets/** -text

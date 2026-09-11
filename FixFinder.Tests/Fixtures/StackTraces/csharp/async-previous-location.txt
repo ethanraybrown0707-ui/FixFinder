@@ -1,0 +1,5 @@
+Unhandled exception. System.Net.Http.HttpRequestException: No such host is known.
+   at System.Net.Http.HttpConnectionPool.ConnectAsync()
+   --- End of stack trace from previous location ---
+   at MyApp.Services.FeedClient.FetchAsync() in C:\src\MyApp\Services\FeedClient.cs:line 47
+   at MyApp.Program.Main() in C:\src\MyApp\Program.cs:line 14

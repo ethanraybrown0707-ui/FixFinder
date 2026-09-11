@@ -1,0 +1,13 @@
+starting up
+loaded 2 settings
+Traceback (most recent call last):
+  File "C:\src\app\crash.py", line 34, in <module>
+    main()
+    ~~~~^^
+  File "C:\src\app\crash.py", line 30, in main
+    print(connect(settings))
+          ~~~~~~~^^^^^^^^^^
+  File "C:\src\app\crash.py", line 23, in connect
+    return f"{settings['host']}:{settings['port']}/{settings['user_id']}"
+                                                    ~~~~~~~~^^^^^^^^^^^
+KeyError: 'user_id'

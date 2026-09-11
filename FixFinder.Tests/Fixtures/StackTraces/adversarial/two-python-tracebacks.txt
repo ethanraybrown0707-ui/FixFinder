@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/srv/app/retry.py", line 5, in attempt
+    connect()
+ConnectionRefusedError: [Errno 111] Connection refused
+retrying in 2s
+recovered, continuing
+Traceback (most recent call last):
+  File "/srv/app/main.py", line 91, in <module>
+    finish()
+  File "/srv/app/main.py", line 84, in finish
+    total = sum(values) / len(values)
+ZeroDivisionError: division by zero

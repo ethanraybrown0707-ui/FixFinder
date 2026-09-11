@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The only project that knows about WPF. It owns the numbered-GroupBox window, the patch
+    preview dialog and the settings dialog, and it does nothing except drive
+    FixFinder.Core's engine and marshal its events onto the UI thread.
+
+    Note there is no UseWindowsForms here, unlike the ShoppingCartAppVerifier front-ends -
+    that flag only exists over there to pull in the Accessibility assembly FlaUI.UIA3 needs
+    at runtime, and FixFinder does not use FlaUI.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>FixFinder.Gui</RootNamespace>
+    <AssemblyName>FixFinder.Gui</AssemblyName>
+    <Company>Ethan Brown</Company>
+    <Authors>Ethan Brown</Authors>
+    <Product>FixFinder</Product>
+
+    <!-- Embedded in the exe, so Explorer, the taskbar and Alt+Tab all show it without the
+         application having to be running. Assets\make-icon.py draws it. -->
+    <ApplicationIcon>Assets\FixFinder.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Also shipped as a WPF resource. ApplicationIcon covers the file on disk; a Window's
+         own Icon property is a separate thing entirely, and without this the title bar falls
+         back to the generic one while the Explorer icon looks right. -->
+    <Resource Include="Assets\FixFinder.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FixFinder.Core\FixFinder.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>

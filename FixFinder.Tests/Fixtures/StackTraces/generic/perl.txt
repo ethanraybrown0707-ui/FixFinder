@@ -1,0 +1,3 @@
+reading manifest
+Error: Can't locate object method "parse" via package "Manifest" at lib/Builder.pm:214.
+build aborted

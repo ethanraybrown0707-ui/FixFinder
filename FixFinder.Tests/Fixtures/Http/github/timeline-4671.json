@@ -1,0 +1,35 @@
+[
+  {
+    "event": "labeled",
+    "label": {
+      "name": "bug"
+    }
+  },
+  {
+    "event": "cross-referenced",
+    "source": {
+      "type": "issue",
+      "issue": {
+        "number": 4680,
+        "html_url": "https://github.com/expressjs/express/pull/4680",
+        "pull_request": {
+          "url": "https://api.github.com/repos/expressjs/express/pulls/4680"
+        }
+      }
+    }
+  },
+  {
+    "event": "cross-referenced",
+    "source": {
+      "type": "issue",
+      "issue": {
+        "number": 4690,
+        "html_url": "https://github.com/expressjs/express/issues/4690"
+      }
+    }
+  },
+  {
+    "event": "closed",
+    "commit_id": "9f1b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+  }
+]

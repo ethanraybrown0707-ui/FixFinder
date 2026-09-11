@@ -1,0 +1,10 @@
+CrashDotNet starting
+warning: this program is supposed to crash
+loading basket
+Unhandled exception. System.InvalidOperationException: Could not load the basket from the store.
+ ---> System.NullReferenceException: Object reference not set to an instance of an object.
+   at CrashDotNet.Program.ReadFromStore() in C:\src\CrashDotNet\Program.cs:line 53
+   at CrashDotNet.Program.LoadBasket() in C:\src\CrashDotNet\Program.cs:line 36
+   --- End of inner exception stack trace ---
+   at CrashDotNet.Program.LoadBasket() in C:\src\CrashDotNet\Program.cs:line 42
+   at CrashDotNet.Program.Main() in C:\src\CrashDotNet\Program.cs:line 28

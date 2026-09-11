@@ -1,0 +1,3 @@
+  Determining projects to restore...
+C:\src\MyApp\Program.cs(12,17): error CS0103: The name 'logger' does not exist in the current context [C:\src\MyApp\MyApp.csproj]
+    1 Error(s)

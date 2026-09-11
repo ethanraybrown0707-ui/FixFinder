@@ -1,0 +1,127 @@
+<Window x:Class="FixFinder.Gui.FixFoundWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="FixFinder" Height="540" Width="620" MinHeight="420" MinWidth="500"
+        Icon="Assets/FixFinder.ico"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================================= headline ================================= -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="HeadlineText" AutomationProperties.AutomationId="HeadlineText"
+                       FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+
+            <TextBlock x:Name="ErrorText" AutomationProperties.AutomationId="FoundErrorText"
+                       Margin="0,6,0,0" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12"
+                       Foreground="#C62828"/>
+        </StackPanel>
+
+        <!-- ================================ the candidate ============================= -->
+        <Border Grid.Row="1" x:Name="CandidateBorder"
+                BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="3"
+                Background="#F7F9FC" Padding="12" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock x:Name="CandidateTitleText" AutomationProperties.AutomationId="FoundCandidateTitleText"
+                           FontWeight="SemiBold" TextWrapping="Wrap" FontSize="13"/>
+
+                <TextBlock x:Name="CandidateSourceText" AutomationProperties.AutomationId="FoundCandidateSourceText"
+                           Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+
+                <TextBlock Margin="0,6,0,0" TextWrapping="Wrap">
+                    <Hyperlink x:Name="CandidateLink" RequestNavigate="Hyperlink_RequestNavigate"
+                               AutomationProperties.AutomationId="FoundCandidateLink">
+                        <TextBlock x:Name="CandidateUrlText" TextWrapping="Wrap" FontSize="11"/>
+                    </Hyperlink>
+                </TextBlock>
+
+                <TextBlock x:Name="AttributionText" AutomationProperties.AutomationId="FoundAttributionText"
+                           Style="{StaticResource Hint}" FontStyle="Italic" Margin="0,6,0,0"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ============================== what it would do ============================= -->
+        <TextBlock Grid.Row="2" x:Name="ExplanationText" AutomationProperties.AutomationId="FoundExplanationText"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <!-- ================================== the content ============================= -->
+        <GroupBox Grid.Row="3" x:Name="ContentGroup" Header="What it changes">
+            <ListBox x:Name="ContentListBox" AutomationProperties.AutomationId="FoundContentListBox"
+                     FontFamily="Consolas" FontSize="11"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Text}"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="MinHeight" Value="0"/>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Text}" TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#202020"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAdded}" Value="True">
+                                            <Setter Property="Foreground" Value="#2E7D32"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsRemoved}" Value="True">
+                                            <Setter Property="Foreground" Value="#C62828"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="Foreground" Value="#0D47A1"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsNote}" Value="True">
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                            <Setter Property="FontStyle" Value="Italic"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </GroupBox>
+
+        <!-- =================================== answer ================================= -->
+        <DockPanel Grid.Row="4" Margin="0,14,0,0">
+            <TextBlock DockPanel.Dock="Left" x:Name="OtherResultsText"
+                       AutomationProperties.AutomationId="OtherResultsText"
+                       Style="{StaticResource Hint}" VerticalAlignment="Center"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="ApplyButton" AutomationProperties.AutomationId="ApplyItButton"
+                        Content="Apply it..." Padding="16,6" FontSize="13"
+                        Click="ApplyButton_Click"/>
+                <Button x:Name="OpenPageButton" AutomationProperties.AutomationId="OpenPageButton"
+                        Content="Open the page" Padding="12,6" Margin="8,0,0,0"
+                        Click="OpenPageButton_Click"/>
+                <Button x:Name="CloseButton" AutomationProperties.AutomationId="FoundCloseButton"
+                        Content="No thanks" Padding="12,6" Margin="8,0,0,0"
+                        IsCancel="True" Click="CloseButton_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

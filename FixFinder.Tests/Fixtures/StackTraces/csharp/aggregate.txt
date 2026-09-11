@@ -1,0 +1,8 @@
+Unhandled exception. System.AggregateException: One or more errors occurred. (first) (second)
+ ---> System.InvalidOperationException: first
+   at Worker.RunA() in C:\src\Worker.cs:line 10
+   --- End of inner exception stack trace ---
+ ---> (Inner Exception #1) System.ArgumentException: second
+   at Worker.RunB() in C:\src\Worker.cs:line 20
+   at System.Threading.Tasks.Task.Wait()
+   at Program.Main() in C:\src\Program.cs:line 5

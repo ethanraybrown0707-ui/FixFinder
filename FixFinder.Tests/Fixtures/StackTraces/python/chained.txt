@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/srv/app/store.py", line 12, in load
+    return self._cache[key]
+KeyError: 'session'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/srv/app/main.py", line 40, in <module>
+    run()
+  File "/srv/app/main.py", line 33, in run
+    store.load("session")
+  File "/srv/app/store.py", line 14, in load
+    raise RuntimeError("cache miss") from None
+RuntimeError: cache miss

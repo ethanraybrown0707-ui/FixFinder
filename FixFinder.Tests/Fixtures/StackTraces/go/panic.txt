@@ -1,0 +1,13 @@
+starting worker
+panic: runtime error: index out of range [5] with length 3
+
+goroutine 1 [running]:
+main.process(0xc000018030, 0x3)
+	/src/worker/main.go:14 +0x1d
+main.main()
+	/src/worker/main.go:8 +0x45
+
+goroutine 6 [select]:
+net/http.(*persistConn).readLoop(0xc000112000)
+	/usr/local/go/src/net/http/transport.go:2213 +0xd85
+exit status 2

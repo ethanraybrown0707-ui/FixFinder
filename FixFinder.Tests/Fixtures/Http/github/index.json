@@ -1,0 +1,39 @@
+[
+  {
+    "url": "https://api.github.com/search/issues?q=%22TypeError%22%20%22name%22%20properties%20undefined%20reading%20read%20repo%3Aexpressjs%2Fexpress%20is%3Aissue&advanced_search=true&sort=updated&order=desc&per_page=30",
+    "file": "search-typeerror.json",
+    "headers": {
+      "x-ratelimit-limit": "10",
+      "x-ratelimit-remaining": "7",
+      "x-ratelimit-reset": "4102444800",
+      "x-ratelimit-resource": "search"
+    },
+    "note": "Confined to expressjs/express by KnownRepoMap, from the module in the stack trace."
+  },
+  {
+    "url": "https://api.github.com/repos/expressjs/express/issues/4671/timeline?per_page=100",
+    "file": "timeline-4671.json",
+    "note": "A closing commit and a cross-referenced pull request, plus events to ignore."
+  },
+  {
+    "url": "https://api.github.com/repos/expressjs/express/issues/4702/timeline?per_page=100",
+    "file": "timeline-4702.json",
+    "note": "A timeline with nothing linked, so an issue with no patch stays advisory."
+  },
+  {
+    "url": "https://api.github.com/search/issues?q=%22KeyError%22%20%22user_id%22%20is%3Aissue&advanced_search=true&sort=updated&order=desc&per_page=30",
+    "file": "search-empty.json",
+    "headers": {
+      "x-ratelimit-limit": "10",
+      "x-ratelimit-remaining": "7",
+      "x-ratelimit-reset": "4102444800",
+      "x-ratelimit-resource": "search"
+    },
+    "note": "No repository filter: the Python KeyError maps to no known package."
+  },
+  {
+    "url": "https://api.github.com/search/issues?q=KeyError%20is%3Aissue&advanced_search=true&sort=updated&order=desc&per_page=30",
+    "file": "search-empty.json",
+    "note": "The relaxed retry, which also finds nothing."
+  }
+]

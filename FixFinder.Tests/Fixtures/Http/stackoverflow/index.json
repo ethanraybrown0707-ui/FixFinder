@@ -1,0 +1,37 @@
+[
+  {
+    "url": "https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&site=stackoverflow&filter=withbody&pagesize=20&q=%22KeyError%22%20%22user_id%22",
+    "file": "search-keyerror.json",
+    "note": "The tight query for TestTargets/CrashPython. Three questions, one a duplicate."
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/questions/3627270;4410101;4410999/answers?order=desc&sort=votes&site=stackoverflow&filter=withbody&pagesize=100",
+    "file": "answers-keyerror.json",
+    "note": "One batched call covering every question the search returned."
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&site=stackoverflow&filter=withbody&pagesize=20&q=%22System.NullReferenceException%22%20reference%20instance%20object%20set",
+    "file": "search-empty.json",
+    "note": "Tight query that finds nothing, so the relaxed retry is exercised."
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&site=stackoverflow&filter=withbody&pagesize=20&q=NullReferenceException%20reference%20instance%20object%20set",
+    "file": "search-nullref-relaxed.json",
+    "note": "The relaxed retry of the query above."
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/questions/4660142/answers?order=desc&sort=votes&site=stackoverflow&filter=withbody&pagesize=100",
+    "file": "answers-nullref.json"
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&site=stackoverflow&filter=withbody&pagesize=20&q=%22BackoffProbe%22%20backoffprobe",
+    "file": "backoff.json",
+    "note": "Carries backoff: 10, which must be pushed into the rate limiter."
+  },
+  {
+    "url": "https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&site=stackoverflow&filter=withbody&pagesize=20&q=%22ThrottleProbe%22%20throttleprobe",
+    "file": "throttled.json",
+    "status": 400,
+    "note": "The API error wrapper, which carries a better message than the HTTP status."
+  }
+]

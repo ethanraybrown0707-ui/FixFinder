@@ -1,0 +1,144 @@
+<Window x:Class="FixFinder.Gui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="FixFinder" Height="600" Width="640" MinHeight="460" MinWidth="520"
+        Icon="Assets/FixFinder.ico"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="OutputItemContainerStyle" TargetType="ListBoxItem">
+            <Setter Property="AutomationProperties.Name" Value="{Binding DisplayLine}"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================================ what it does ============================== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="FixFinder" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" FontSize="12"
+                       Text="Pick a program. It gets run, and if it crashes FixFinder looks for a published fix and asks whether to apply it."/>
+        </StackPanel>
+
+        <!-- ================================ pick a file =============================== -->
+        <Border Grid.Row="1" x:Name="DropBorder"
+                AutomationProperties.AutomationId="DropBorder"
+                BorderBrush="#B9C6D4" BorderThickness="1.5" CornerRadius="4"
+                Background="#F7F9FC" Padding="16" Margin="0,0,0,14">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#EEF3F9"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="ChooseFileButton" AutomationProperties.AutomationId="ChooseFileButton"
+                            Content="Choose a program..." Padding="14,6" FontSize="13"
+                            Click="ChooseFileButton_Click"/>
+                    <TextBlock Text="or drag one onto this window"
+                               Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </StackPanel>
+
+                <TextBlock x:Name="ChosenFileText" AutomationProperties.AutomationId="ChosenFileText"
+                           Text="Nothing chosen yet." Margin="0,12,0,0"
+                           FontFamily="Consolas" TextWrapping="Wrap"/>
+
+                <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
+                           Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ================================== go ====================================== -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="FindFixButton" AutomationProperties.AutomationId="FindFixButton"
+                    Content="Run it and find a fix" Padding="18,8" FontSize="14"
+                    IsEnabled="False" Click="FindFixButton_Click"/>
+            <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"
+                    Content="Stop" Padding="14,8" Margin="10,0,0,0" IsEnabled="False"
+                    Click="StopButton_Click"/>
+        </StackPanel>
+
+        <!-- ================================= status =================================== -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,10">
+            <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
+                       Text="Waiting for a program." FontStyle="Italic" TextWrapping="Wrap"/>
+
+            <ProgressBar x:Name="BusyBar" AutomationProperties.AutomationId="BusyBar"
+                         Height="3" Margin="0,8,0,0" IsIndeterminate="True" Visibility="Collapsed"/>
+
+            <TextBlock x:Name="ResultText" AutomationProperties.AutomationId="ResultText"
+                       Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+        </StackPanel>
+
+        <!-- ============================== what happened ================================ -->
+        <Expander Grid.Row="4" x:Name="DetailsExpander"
+                  AutomationProperties.AutomationId="DetailsExpander"
+                  Header="What the program printed" IsExpanded="False">
+            <ListBox x:Name="OutputListBox" AutomationProperties.AutomationId="OutputListBox"
+                     FontFamily="Consolas" FontSize="11" Margin="0,6,0,0"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ItemContainerStyle="{StaticResource OutputItemContainerStyle}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding DisplayLine}" TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#202020"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                                            <Setter Property="Foreground" Value="#C62828"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Expander>
+
+        <!-- ================================ the small print =========================== -->
+        <DockPanel Grid.Row="5" Margin="0,12,0,0">
+            <TextBlock DockPanel.Dock="Left" x:Name="LogPathText"
+                       AutomationProperties.AutomationId="LogPathText"
+                       Style="{StaticResource Hint}" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <CheckBox x:Name="OfflineCheckBox" AutomationProperties.AutomationId="OfflineCheckBox"
+                          Content="Offline" VerticalAlignment="Center" Margin="0,0,12,0"
+                          ToolTip="Search only what is already stored on this machine, and make no network request at all."/>
+                <Button x:Name="BackupsButton" AutomationProperties.AutomationId="BackupsButton"
+                        Content="Backups" Padding="10,3" Click="BackupsButton_Click"
+                        ToolTip="Opens the folder holding a copy of every file FixFinder has changed. Nothing in it is deleted automatically."/>
+                <Button x:Name="SettingsButton" AutomationProperties.AutomationId="SettingsButton"
+                        Content="Settings" Padding="10,3" Margin="8,0,0,0" Click="SettingsButton_Click"
+                        ToolTip="Optional API tokens, which raise the search limits, and where things are stored."/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

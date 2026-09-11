@@ -1,0 +1,5 @@
+=================================================================
+==31337==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000018
+    #0 0x55b1a2 in write_row /src/report/table.c:88:14
+    #1 0x55b3f1 in render /src/report/table.c:120:3
+    #2 0x7f0e21 in __libc_start_main /usr/lib/csu/libc-start.c:308:16

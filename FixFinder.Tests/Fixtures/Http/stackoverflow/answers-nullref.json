@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "owner": {
+        "display_name": "John Saunders"
+      },
+      "is_accepted": true,
+      "score": 2600,
+      "last_activity_date": 1710000000,
+      "answer_id": 4660322,
+      "question_id": 4660142,
+      "body": "<p>You are trying to use something that is <code>null</code>. Check the reference before you use it:</p>\n<pre><code>if (basket != null) { basket.Add(item); }\n</code></pre>"
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 293
+}

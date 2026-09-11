@@ -1,0 +1,3 @@
+loading configuration
+processing 4096 records
+Segmentation fault (core dumped)
