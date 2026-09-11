@@ -3,6 +3,7 @@
 [![tests](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml/badge.svg)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/ethanraybrown0707-ui/FixFinder?style=flat&label=stars)](https://github.com/ethanraybrown0707-ui/FixFinder/stargazers)
+[![languages](https://img.shields.io/static/v1?label=languages&message=C,%20C%2B%2B,%20C%23,%20Go,%20Java,%20JavaScript,%20Python,%20Ruby,%20Rust&color=blue)](#languages)
 
 Run a program in any language, catch its crash, look for a published fix, and — with your
 explicit approval — apply it and check whether it worked.
@@ -41,6 +42,32 @@ the parts that could not be are said out loud rather than turned into questions 
 The prompt only appears when there is a real decision to make. A program that ran fine, or one
 that crashed with nothing published about it, is reported in the window and never interrupts.
 
+## Languages
+
+Nine languages have a dedicated stack-trace parser; anything else falls back to a generic one
+that harvests a file and line number, capped at low confidence so it can never outrank a real
+parse.
+
+| Language | Runtime errors | Compiler errors | Exercised end to end |
+|---|---|---|---|
+| Python | traceback, chained causes, 3.11+ carets | — | yes |
+| C# / .NET | inner exceptions, async resume frames | `CS####` | yes |
+| C | — *(a native crash on Windows prints nothing)* | `C####` via MSVC, or gcc/clang | yes |
+| C++ | assertions, aborts | `C####` via MSVC, or gcc/clang | yes |
+| Java | `Caused by` chains, `... N more` | javac `cannot find symbol` and friends | yes |
+| JavaScript / Node | stack frames, `node:` internals | — | parser only |
+| Go | two-line panic frames, goroutine blocks | — | parser only |
+| Rust | modern and legacy panic formats | — | parser only |
+| Ruby | Ruby 3.4 quoting and the older form | — | parser only |
+
+**"Parser only"** means the parser is tested against captured output from that runtime, but the
+runtime is not installed on the machine this was built on, so the full launch-and-catch loop has
+not been run against it here. The parsing is the part that is hard; running a program that
+already exists on your machine is not.
+
+Anything FixFinder cannot identify still gets a generic read, and it says so rather than
+pretending otherwise.
+
 ## What it can and cannot do
 
 FixFinder searches GitHub Issues and Stack Overflow. Those are mostly **prose**, so results
@@ -66,7 +93,7 @@ Three things are worth knowing before you use it:
 
 ## Consent
 
-Four gates, outermost first:
+Three gates, outermost first:
 
 1. A blocking prompt on startup naming all three capabilities (runs a program you pick · sends
    your error text to github.com and api.stackexchange.com · can modify source files under a
