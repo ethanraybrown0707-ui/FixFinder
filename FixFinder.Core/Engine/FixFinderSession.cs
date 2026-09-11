@@ -460,17 +460,27 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // should claim the result looks relevant - the top of a weak set is still the top of a
         // weak set, and announcing it as a find is how a search tool teaches people to stop
         // believing it. It is still shown; only the claim about it changes.
-        var convincing = best.Score >= CandidateRanker.AutoAppliableFloor;
+        // Nobody has written about a mistake only your program has, so when the culprit is your
+        // own code nothing found deserves to be called relevant - however well its title matches.
+        // The detail pane has always said as much, directly underneath a headline announcing a
+        // find, leaving the reader to work out which of the two to believe.
+        var yours = fingerprint.CulpritIsFirstParty && !IsEnvironmental(fingerprint);
+
+        var convincing = !yours && best.Score >= CandidateRanker.AutoAppliableFloor;
 
         return new SessionOutcome
         {
             Result = SessionResult.FoundAdvice,
-            Headline = convincing
-                ? "Found something that looks relevant."
-                : "Nothing matched this well.",
-            Detail = convincing
-                ? AdviceDetail(best, fingerprint, sourceRoot)
-                : WeakMatchDetail(best, fingerprint, ranked.Count),
+            Headline = yours
+                ? "This one is in your own code."
+                : convincing
+                    ? "Found something that looks relevant."
+                    : "Nothing matched this well.",
+            Detail = yours
+                ? FirstPartyDetail(fingerprint, ranked.Count)
+                : convincing
+                    ? AdviceDetail(best, fingerprint, sourceRoot)
+                    : WeakMatchDetail(best, fingerprint, ranked.Count),
             Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
@@ -577,6 +587,31 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
               "is worth trying again in a moment."
             : "Nothing on GitHub or Stack Overflow matches this error closely enough to be worth " +
               "showing you.";
+    }
+
+    /// <summary>
+    /// Said when the error is in the user's own code, where searching cannot answer it.
+    /// </summary>
+    /// <remarks>
+    /// The results are still shown, and still worth a glance - somebody else's version of the
+    /// same kind of mistake often explains the kind well. What is dropped is the claim that any
+    /// of them is about <i>this</i> program, because none of them can be, and saying so while the
+    /// paragraph below admits the opposite asks the reader to referee the tool against itself.
+    /// <para>
+    /// It is also the only honest answer to "why can I not apply any of these". A typo in one
+    /// file has no published patch anywhere; no ranking change would ever produce one.
+    /// </para>
+    /// </remarks>
+    private static string FirstPartyDetail(ErrorFingerprint fingerprint, int count)
+    {
+        var where = fingerprint.CulpritFile is { Length: > 0 } file ? $" in {file}" : "";
+
+        return
+            $"The error is{where}, in code you wrote, so nothing published anywhere is about it - " +
+            "and none of it can be applied, because a patch for your program does not exist to be " +
+            "found.\n\n" +
+            $"The {count} result{(count == 1 ? "" : "s")} below are other people's versions of the " +
+            "same kind of mistake. Read them if the kind is unfamiliar; the fix itself is yours.";
     }
 
     /// <summary>
