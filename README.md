@@ -120,6 +120,50 @@ suggestion, so there is nothing to read. Checking was worth it - gcc and clang p
 colon and puts the answer on the next line, so a pattern that looked like it covered all of them
 covered one.
 
+## When the fix is not a patch
+
+A missing package is one of the commonest Python errors there is, and nothing in your code is
+wrong when it happens - the environment is short of something. There is no file to edit, so
+`FixTier.Dependency`, reserved from the start for exactly this shape of answer, carries a command
+instead of a diff and the prompt offers **Install it** rather than Apply.
+
+```
+ModuleNotFoundError: No module named 'yaml'
+  -> "C:\...\python.EXE" -m pip install pyyaml
+```
+
+Three things that are not obvious:
+
+- **The import name is not the package name**, often enough to matter. `yaml` comes from `pyyaml`,
+  `cv2` from `opencv-python`, `PIL` from `pillow`, `bs4` from `beautifulsoup4`. Telling someone to
+  run `pip install yaml` sends them to a package that is missing or, worse, squatted, so the
+  mismatches are listed rather than guessed at. A submodule resolves to its distribution:
+  `yaml.loader` still installs `pyyaml`.
+- **It installs with the interpreter that actually crashed**, not with whichever `pip` is first on
+  PATH. On a machine with several Pythons those are different environments, and installing into
+  the wrong one produces the most confusing outcome available - a successful install and an
+  unchanged error.
+- **The package name arrives from untrusted output.** A program can print anything on stderr,
+  including a line shaped exactly like a `ModuleNotFoundError`, so the name is validated as a
+  plain Python identifier before it goes anywhere near a command line, passed as its own argument
+  rather than through a shell, and shown in full for confirmation. Anything carrying a switch, a
+  path, a URL or a shell separator is refused outright rather than cleaned up.
+
+Running it is never part of **Apply all**: fetching and executing code from the network is a
+bigger step than editing a file, and it is not one a single button should start. The program is
+re-run afterwards either way, so an install that did not help is reported like any other change
+that did not help.
+
+### What was tried and rejected
+
+Running the language's own fixer - `ruff --fix`, `eslint --fix`, `dotnet format` - sounds like it
+belongs here and does not. Measured on a file that crashes with `NameError: name 'avarage' is not
+defined`, `ruff --fix` removed two unused imports, reported *"no fixes available"* for the
+undefined name, and left the crash exactly as it was. Those tools fix lint, not crashes; wiring
+one in would mean FixFinder edits your code and the program still fails. `cargo fix` is the real
+exception, because it applies rustc's own machine-applicable suggestions - which is the same idea
+as reading a runtime's `Did you mean`, already covered above.
+
 ## What it can and cannot do
 
 FixFinder searches GitHub Issues and Stack Overflow. Those are mostly **prose**, so results

@@ -408,6 +408,16 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             ranked = [suggestion, .. ranked];
         }
 
+        // The other answer that does not come from searching. A missing package is not a patch to
+        // anything - the code is right and the environment is short - so it arrives as a command
+        // rather than a diff, which is what the Dependency tier was reserved for.
+        if (MissingModule.For(error, spec) is { } install)
+        {
+            Log?.Invoke($"The interpreter is missing a package: {install.Command}");
+
+            ranked = [install, .. ranked];
+        }
+
         if (ranked.Count == 0)
         {
             return new SessionOutcome
@@ -507,6 +517,28 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // should claim the result looks relevant - the top of a weak set is still the top of a
         // weak set, and announcing it as a find is how a search tool teaches people to stop
         // believing it. It is still shown; only the claim about it changes.
+        // A package to install is neither a patch nor advice, and calling it either misreports it.
+        // "Nothing attached to it is a patch, you can make the change yourself" is precisely
+        // wrong about an answer that is one command and no change to any file.
+        if (best is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
+        {
+            return new SessionOutcome
+            {
+                Result = SessionResult.FoundFix,
+                Headline = "A package is missing, and FixFinder can install it.",
+                Detail =
+                    $"Nothing in your code is wrong - the interpreter that ran it does not have this " +
+                    $"package. Installing it changes no files:\n\n    {command}\n\n" +
+                    "It runs only if you say so, and the program is run again afterwards to check it " +
+                    "helped.",
+                Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
+                FailedToCompile = failedToCompile,
+                Candidates = ranked, Best = best, Harvest = bestHarvest,
+                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
+                OtherErrors = others, Dependency = dependency,
+            };
+        }
+
         // Nobody has written about a mistake only your program has, so when the culprit is your
         // own code nothing found deserves to be called relevant - however well its title matches.
         // The detail pane has always said as much, directly underneath a headline announcing a

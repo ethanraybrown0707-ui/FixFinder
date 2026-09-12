@@ -39,6 +39,16 @@ public sealed record ScoreComponent(string Name, double Weight, double Value, st
     public double Contribution => Weight * Value;
 }
 
+/// <summary>Why a thread being closed is good news, or bad.</summary>
+public enum ClosureMeaning
+{
+    /// <summary>Closed because it was dealt with. A GitHub issue.</summary>
+    Resolved,
+
+    /// <summary>Closed because it should not have been asked. A Stack Overflow question.</summary>
+    Rejected,
+}
+
 /// <summary>
 /// A possible fix found by one of the sources, in the shape the ranker and the UI both use.
 /// </summary>
@@ -53,16 +63,6 @@ public sealed record ScoreComponent(string Name, double Weight, double Value, st
 /// inside it has been parsed, path-checked and confirmed by hand.
 /// </para>
 /// </remarks>
-/// <summary>Why a thread being closed is good news, or bad.</summary>
-public enum ClosureMeaning
-{
-    /// <summary>Closed because it was dealt with. A GitHub issue.</summary>
-    Resolved,
-
-    /// <summary>Closed because it should not have been asked. A Stack Overflow question.</summary>
-    Rejected,
-}
-
 public sealed class FixCandidate
 {
     /// <summary>Which source produced it - "GitHub" or "Stack Overflow".</summary>
@@ -168,6 +168,17 @@ public sealed class FixCandidate
 
     /// <summary>Set by the ranker in M4, and raised to AutoAppliable in M5 once a diff parses.</summary>
     public FixTier Tier { get; set; } = FixTier.Advisory;
+
+    /// <summary>
+    /// A command that fixes it, for a <see cref="FixTier.Dependency"/> answer.
+    /// </summary>
+    /// <remarks>
+    /// Not every fix is a patch. A missing package is fixed by installing it, and there is no
+    /// file in the tree to edit - which is what the Dependency tier is for. Anything reaching
+    /// here has already been validated by whatever produced it; nothing builds a command out of
+    /// untrusted text without checking it first.
+    /// </remarks>
+    public string? Command { get; init; }
 
     public double Score { get; set; }
 

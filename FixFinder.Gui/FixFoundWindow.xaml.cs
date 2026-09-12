@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using FixFinder.Core.Engine;
+using FixFinder.Core.Execution;
+using FixFinder.Core.Verification;
 using FixFinder.Core.Http;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
@@ -135,6 +137,8 @@ public partial class FixFoundWindow : Window
         ApplyButton.IsEnabled = false;
         ApplyAllButton.IsEnabled = false;
         ApplyAllButton.Visibility = Visibility.Collapsed;
+        InstallButton.IsEnabled = false;
+        InstallButton.Visibility = Visibility.Collapsed;
         AttributionText.Visibility = Visibility.Collapsed;
 
         UpdateSkip();
@@ -166,6 +170,26 @@ public partial class FixFoundWindow : Window
         OtherResultsText.Text = examined.Total > 1
             ? $"Result {examined.Position} of {examined.Total}."
             : "";
+
+        // A missing package is not a patch to anything, so it gets its own button rather than
+        // being squeezed through the preview. There is no diff to show and no file to back up -
+        // what there is is a command, and the decision is whether to run it.
+        if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
+        {
+            ContentGroup.Header = "What it runs";
+
+            _rows.Add(Note("The code is right; the environment is short of a package."));
+            _rows.Add(Note(""));
+            _rows.Add(new DiffRow { Kind = DiffRowKind.Added, Text = $"  {command}" });
+            _rows.Add(Note(""));
+            _rows.Add(Note("Nothing in your files changes. Only what is installed does."));
+
+            InstallButton.IsEnabled = true;
+            InstallButton.Visibility = Visibility.Visible;
+
+            ApplyButton.ToolTip = "This one is fixed by installing a package, not by editing a file.";
+            return;
+        }
 
         if (examined.CanApply)
         {
@@ -303,6 +327,98 @@ public partial class FixFoundWindow : Window
     // ================================================================== actions
 
     private void ApplyButton_Click(object sender, RoutedEventArgs e) => Preview(keepGoing: false);
+
+    /// <summary>
+    /// Runs the install, after showing the exact command.
+    /// </summary>
+    /// <remarks>
+    /// No preview and no typed word, because neither would be about anything: the preview exists
+    /// to show which files change and where each one resolved to, and this changes no files. What
+    /// it does instead is name the command in full - the package being fetched came out of the
+    /// program's own output, so the one thing worth reading before agreeing is exactly what is
+    /// about to be run.
+    /// <para>
+    /// Fetching and executing code from the network is a bigger step than editing a file, so it
+    /// is never part of Apply all and never happens without this answer.
+    /// </para>
+    /// </remarks>
+    private async void InstallButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_current?.Candidate is not { Command: { Length: > 0 } command } candidate) return;
+
+        var answer = MessageBox.Show(this,
+            "FixFinder is about to run this, as you:\n\n" +
+            $"{command}\n\n" +
+            "That downloads and installs a package from PyPI into the interpreter that ran your " +
+            "program. Nothing in your own files changes.\n\n" +
+            "The package name was read from what the program printed, so check it reads the way " +
+            "you expect before agreeing.\n\n" +
+            "Run it?",
+            "Install a package?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+
+        if (answer != MessageBoxResult.OK) return;
+
+        InstallButton.IsEnabled = false;
+        CandidateTitleText.Text = $"Running {command}...";
+
+        _context.Logger?.WriteSection("Install");
+        _context.Logger?.Write(command);
+
+        var (program, arguments) = FixVerifier.SplitCommand(command);
+
+        var spec = new TargetSpec
+        {
+            ExecutablePath = program,
+            Arguments = arguments,
+            WorkingDirectory = _context.Outcome.SourceRoot ?? Path.GetTempPath(),
+            Timeout = TimeSpan.FromMinutes(5),
+        };
+
+        TargetRunResult run;
+
+        try
+        {
+            run = await new TargetRunner().RunAsync(spec, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _context.Logger?.Write($"Install failed to start: {ex}");
+
+            MessageBox.Show(this, $"The install could not be started:\n\n{ex.Message}",
+                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            InstallButton.IsEnabled = true;
+            Render(_current);
+            return;
+        }
+
+        _context.Logger?.Write($"Install exited {run.ExitCode}: {run.Explanation}");
+
+        foreach (var line in run.Lines.TakeLast(40)) _context.Logger?.Write($"  {line.Text}");
+
+        if (run.Outcome != RunOutcome.ExitedClean)
+        {
+            var tail = string.Join("\n", run.Lines.TakeLast(6).Select(l => l.Text));
+
+            MessageBox.Show(this,
+                $"The install exited {run.ExitCode?.ToString() ?? "abnormally"}:\n\n{tail}",
+                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            InstallButton.IsEnabled = true;
+            Render(_current);
+            return;
+        }
+
+        Applied = true;
+        OutcomeSummary = $"Installed: {candidate.Title}";
+
+        // Reported as an ordinary applied round, so the loop re-runs the program and says whether
+        // it actually helped - the same proof any patch has to pass.
+        Decision = new RoundDecision(RoundChoice.Apply, null);
+
+        DialogResult = true;
+        Close();
+    }
 
     /// <summary>
     /// Asks once for the whole sequence, then hands over to the same preview.

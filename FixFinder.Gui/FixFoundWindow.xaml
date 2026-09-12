@@ -119,6 +119,9 @@
                 <Button x:Name="ApplyButton" AutomationProperties.AutomationId="ApplyItButton"
                         Content="Apply it..." Padding="16,6" FontSize="13"
                         Click="ApplyButton_Click"/>
+                <Button x:Name="InstallButton" AutomationProperties.AutomationId="InstallButton"
+                        Content="Install it..." Padding="16,6" Margin="8,0,0,0" FontSize="13"
+                        IsEnabled="False" Visibility="Collapsed" Click="InstallButton_Click"/>
                 <Button x:Name="ApplyAllButton" AutomationProperties.AutomationId="ApplyAllButton"
                         Content="Apply all..." Padding="12,6" Margin="8,0,0,0" FontSize="13"
                         IsEnabled="False" Visibility="Collapsed" Click="ApplyAllButton_Click"
