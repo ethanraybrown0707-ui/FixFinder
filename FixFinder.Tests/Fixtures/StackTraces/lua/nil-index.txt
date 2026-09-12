@@ -1,0 +1,6 @@
+lua: config.lua:14: attempt to index a nil value (global 'settings')
+stack traceback:
+	[C]: in ?
+	config.lua:14: in function 'load_settings'
+	main.lua:7: in main chunk
+	[C]: in ?

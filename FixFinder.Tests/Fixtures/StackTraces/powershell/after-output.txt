@@ -1,0 +1,8 @@
+Starting import
+Reading configuration
+Import-Csv : A parameter cannot be found that matches parameter name 'Deliminator'.
+At C:\scripts\Import-Report.ps1:20 char:22
++ $data = Import-Csv -Deliminator ','
++                    ~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Import-Csv], ParameterBindingException
+    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.ImportCsvCommand

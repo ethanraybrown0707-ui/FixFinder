@@ -1,0 +1,6 @@
+PHP Fatal error:  Uncaught TypeError: Unsupported operand types: string + int in /var/www/app/Calculator.php:18
+Stack trace:
+#0 /var/www/app/Report.php(42): App\Calculator->total('twelve')
+#1 /var/www/public/index.php(9): App\Report->render()
+#2 {main}
+  thrown in /var/www/app/Calculator.php on line 18

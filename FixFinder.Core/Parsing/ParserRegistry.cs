@@ -45,6 +45,12 @@ public sealed class ParserRegistry
             new GccClangParser(),
             new MsvcParser(),
             new RubyParser(),
+            new PhpParser(),
+            new PowerShellParser(),
+            new DartParser(),
+            new ElixirParser(),
+            new PerlParser(),
+            new LuaParser(),
             new GenericFileLineParser(),
         ];
     }

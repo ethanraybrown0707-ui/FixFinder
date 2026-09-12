@@ -180,6 +180,17 @@ public sealed class FixCandidate
     /// </remarks>
     public string? Command { get; init; }
 
+    /// <summary>
+    /// What <see cref="Command"/> is, in words, for the copy button's label and tooltip.
+    /// </summary>
+    /// <remarks>
+    /// Not every ecosystem has an install command. Maven and Gradle are configured by editing a
+    /// build file, so the fix there is a block of XML or a single Gradle line - text to paste, not
+    /// a line to run. Calling that "the command that installs it" would be telling someone to run
+    /// a fragment of XML, so the description travels with the text.
+    /// </remarks>
+    public string CommandDescription { get; init; } = "the command that installs it";
+
     public double Score { get; set; }
 
     public IReadOnlyList<ScoreComponent> ScoreComponents { get; set; } = [];

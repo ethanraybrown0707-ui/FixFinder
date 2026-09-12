@@ -35,7 +35,7 @@ public static class PasteableFix
     {
         // A missing package is fixed in a terminal, not in the file.
         if (examined.Candidate.Command is { Length: > 0 } command)
-            return new PasteableText(command, "the command that installs it");
+            return new PasteableText(command, examined.Candidate.CommandDescription);
 
         if (examined.Harvest is not { } harvest) return null;
 

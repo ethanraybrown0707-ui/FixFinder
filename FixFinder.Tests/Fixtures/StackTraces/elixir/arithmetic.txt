@@ -1,0 +1,5 @@
+** (ArithmeticError) bad argument in arithmetic expression
+    :erlang./(1, 0)
+    (my_app 0.1.0) lib/my_app/ledger.ex:42: MyApp.Ledger.average/1
+    (my_app 0.1.0) lib/my_app/report.ex:17: MyApp.Report.build/2
+    (elixir 1.16.0) lib/enum.ex:1700: Enum."-map/2-lists^map/1-0-"/2

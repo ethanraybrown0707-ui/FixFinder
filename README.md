@@ -4,14 +4,14 @@
 [![test count](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fethanraybrown0707-ui%2FFixFinder%2Fmain%2F.github%2Fbadges%2Ftests.json)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/ethanraybrown0707-ui/FixFinder?style=flat&label=stars)](https://github.com/ethanraybrown0707-ui/FixFinder/stargazers)
-[![languages](https://img.shields.io/static/v1?label=languages&message=C,%20C%2B%2B,%20C%23,%20Go,%20Java,%20JavaScript,%20Python,%20Ruby,%20Rust&color=blue)](#languages)
+[![languages](https://img.shields.io/static/v1?label=languages&message=15%20%2B%20generic&color=blue)](#languages)
 
-Run a program in any language, catch its crash, look for a published fix, and — with your
-explicit approval — apply it and check whether it worked.
+Run a program in any language, catch its crash, look for a published fix, and hand it to you as
+code you can paste. FixFinder never writes to your files.
 
 No local AI and no model calls. Everything here is deterministic: regex stack-trace parsers,
 rule-based normalisation, API search, a scored ranking formula you can read, and a unified-diff
-engine that applies patches with exact context or refuses.
+engine that turns a patch into the code it should end up as, with exact context or not at all.
 
 ## Using it
 
@@ -33,10 +33,9 @@ engine that applies patches with exact context or refuses.
    C, C++ and Java are compiled first — and if the build fails, the **compiler error** is what
    gets looked up, which is often a better search term than a runtime message: `C2065` and
    `CS0103` are globally unique and everybody who hits one pastes it verbatim into a search box.
-3. **If it crashed and something was found, you get asked** - what went wrong, what was found,
-   and whether to apply it. **Apply all** is the same thing without the asking: it applies, runs
-   the program again, and looks up whatever error comes next, until it runs cleanly or a change
-   fails to help.
+3. **If it crashed and something was found, you get shown it** - what went wrong, what was
+   found, and one button that copies the fix. **Skip problem** moves on to the next error, so a
+   program with several can be worked through in one sitting.
 
 Nothing else is asked for. Where the source lives, what to search for, which of forty results
 to open, whether that result's patch fits your copy of the code - all of it is worked out, and
@@ -47,7 +46,7 @@ that crashed with nothing published about it, is reported in the window and neve
 
 ## Languages
 
-Nine languages have a dedicated stack-trace parser; anything else falls back to a generic one
+Fifteen languages have a dedicated stack-trace parser; anything else falls back to a generic one
 that harvests a file and line number, capped at low confidence so it can never outrank a real
 parse.
 
@@ -62,11 +61,35 @@ parse.
 | Go | two-line panic frames, goroutine blocks | — | parser only |
 | Rust | modern and legacy panic formats | — | parser only |
 | Ruby | Ruby 3.4 quoting and the older form | — | parser only |
+| PHP | uncaught throwables, `#N` traces, `{main}` | parse errors | parser only |
+| PowerShell | error records, 5.1 and 7 layouts | — | parser only |
+| Dart / Flutter | `Unhandled exception`, SDK and package frames | — | parser only |
+| Elixir / Erlang | `** (Type)`, app frames, Erlang built-ins | — | parser only |
+| Perl | `die` and Carp `called at` chains | — | parser only |
+| Lua | error line plus `stack traceback:`, `[C]` frames | — | parser only |
 
 **"Parser only"** means the parser is tested against captured output from that runtime, but the
 runtime is not installed on the machine this was built on, so the full launch-and-catch loop has
 not been run against it here. The parsing is the part that is hard; running a program that
 already exists on your machine is not.
+
+Two details in that list are worth pulling out, because both are places a parser can be wrong
+without looking wrong:
+
+- **PHP writes the location two different ways.** An uncaught exception ends `in /app/x.php:12`;
+  a parse error ends `in /app/x.php on line 12`. A parser that knows only the first reads the
+  second file's path as `/app/x.php on line 12`, resolves it to nothing, and reports the crash
+  with no location at all.
+- **PowerShell's `FullyQualifiedErrorId` is the best search term it has.** The message is full of
+  your own paths and searches badly; `PathNotFound` is stable across every machine that ever hit
+  it. It is carried as an error code for the same reason MSVC's `C2065` is.
+
+The parsers are also held apart by a test rather than by hope: for each language's captured
+output, every *other* specific parser must score strictly lower on detection. A tie counts as a
+failure, because the registry only tries the top three - a parser that draws with the right one
+is a parser that can displace it on a slightly different transcript. That test found nothing at
+nine parsers and is doing real work at fifteen, where PHP and Dart both number frames `#0` and
+Lua and gcc share `file:line: message`.
 
 Anything FixFinder cannot identify still gets a generic read, and it says so rather than
 pretending otherwise.
@@ -88,8 +111,8 @@ That is not a guess this tool is making. The interpreter had the whole symbol ta
 it, established the answer, printed it, and every tool that reads the traceback throws it away.
 FixFinder now turns it into a one-line unified diff and runs it down exactly the same road as a
 patch downloaded from a stranger's repository: extracted, parsed, path-mapped, matched with exact
-context, previewed, backed up, applied, and verified by re-running. A locally produced fix that
-skipped any of those would be the one patch in the tool nobody had checked.
+context, and handed over as the corrected line. A locally produced fix that skipped any of that
+would be the one answer in the tool nobody had checked.
 
 It ranks above the search results rather than among them, because it is not one of them: every
 weight in the ranker estimates how likely a stranger's post is to be about this crash, and this
@@ -105,7 +128,7 @@ Which runtimes actually volunteer a correction, checked rather than assumed:
 
 | Runtime | Suggests? | Status here |
 |---|---|---|
-| Python 3.12+ | yes - `Did you mean: 'average'?` | **proven end to end**, applied and verified |
+| Python 3.12+ | yes - `Did you mean: 'average'?` | **proven end to end**, driven live and copied |
 | gcc | yes - `'avarage' undeclared ... did you mean 'average'?` | pattern tested against captured output |
 | clang | yes - `use of undeclared identifier 'avarage'; did you mean ...` | pattern tested against captured output |
 | Ruby | yes - `Did you mean?  average`, on its own line | pattern tested against captured output |
@@ -122,15 +145,37 @@ covered one.
 
 ## When the fix is not a patch
 
-A missing package is one of the commonest Python errors there is, and nothing in your code is
+A missing package is one of the commonest errors in any language, and nothing in your code is
 wrong when it happens - the environment is short of something. There is no file to edit, so
-`FixTier.Dependency`, reserved from the start for exactly this shape of answer, carries a command
-instead of a diff and the prompt offers **Install it** rather than Apply.
+`FixTier.Dependency`, reserved from the start for exactly this shape of answer, carries a line to
+copy instead of a diff.
 
-```
-ModuleNotFoundError: No module named 'yaml'
-  -> "C:\...\python.EXE" -m pip install pyyaml
-```
+This started as a Python-only answer, which meant nine languages could be *understood* and one
+could be *helped*. Eleven ecosystems now answer it:
+
+| Language | Reads | Hands you |
+|---|---|---|
+| Python | `No module named 'yaml'` | `<that python> -m pip install pyyaml` |
+| Node | `Cannot find module 'express'` | `npm install express`, or yarn/pnpm/bun |
+| Ruby | `cannot load such file -- nokogiri` | `gem install nokogiri`, or `bundle add` |
+| Go | `no required module provides package …` | `go get github.com/gorilla/mux` |
+| Rust | `can't find crate for 'serde'` | `cargo add serde` |
+| .NET | `Could not load file or assembly 'X'` | `dotnet add package X` |
+| Java | `ClassNotFoundException: org.apache…` | the `pom.xml` block, or the Gradle line |
+| PHP | `Class "GuzzleHttp\Client" not found` | `composer require guzzlehttp/guzzle` |
+| Perl | `Can't locate LWP/UserAgent.pm in @INC` | `cpanm LWP::UserAgent` |
+| Dart | `Couldn't resolve the package 'http'` | `dart pub add http` |
+| Lua | `module 'socket' not found` | `luarocks install socket` |
+
+**Java and PHP hand over a snippet, not a command**, because neither is configured from a command
+line - you edit `pom.xml` or `build.gradle`. That is a difference the copy button has to know
+about, so the description travels with the text rather than being assumed; calling a block of XML
+"the command that installs it" would be telling you to run it.
+
+**Which package manager is read off the project, not guessed.** A `pnpm-lock.yaml` gets
+`pnpm add`, a `Gemfile` gets `bundle add`, a `build.gradle` gets the Gradle line. Running npm in a
+pnpm workspace produces a second, conflicting lockfile, which is a worse day than the missing
+package was.
 
 Three things that are not obvious:
 
@@ -143,16 +188,35 @@ Three things that are not obvious:
   PATH. On a machine with several Pythons those are different environments, and installing into
   the wrong one produces the most confusing outcome available - a successful install and an
   unchanged error.
+- **A name nobody can map produces nothing at all.** Java and PHP are the two where the error
+  names a *class* and not a package, and there is no offline way to derive one from the other. A
+  guessed Maven `groupId` or Composer vendor would not merely be wrong, it would not resolve - so
+  an unmapped name is left to the search instead. The listed coordinates are hand-written.
 - **The package name arrives from untrusted output.** A program can print anything on stderr,
-  including a line shaped exactly like a `ModuleNotFoundError`, so the name is validated as a
-  plain Python identifier before it goes anywhere near a command line, passed as its own argument
-  rather than through a shell, and shown in full for confirmation. Anything carrying a switch, a
-  path, a URL or a shell separator is refused outright rather than cleaned up.
+  including a line shaped exactly like a missing-import error, so every ecosystem validates the
+  name against its own anchored allow-list before it goes anywhere near a command line, and none
+  accept a leading dash. Anything carrying a switch, a URL or a shell separator is refused
+  outright rather than cleaned up.
 
-Running it is never part of **Apply all**: fetching and executing code from the network is a
-bigger step than editing a file, and it is not one a single button should start. The program is
-re-run afterwards either way, so an install that did not help is reported like any other change
-that did not help.
+That last one has a failure mode subtler than injection, and three of the six new ecosystems
+shipped with it before it was caught by feeding hostile input through and *reading the output*
+rather than trusting the refusal tests - which passed, because each case happened to fail
+validation for an unrelated reason:
+
+```
+"...provides package github.com/x/y && curl evil.invalid"   ->   go get github.com/x/y
+```
+
+Nothing escapes: the trailing text is dropped, not run. The flaw is that a line the program made
+up silently became a *different, plausible* line - and a suggestion that looks perfectly ordinary
+is the one nobody checks. Stopping at the first space is what does it, so each pattern now reads
+to a real terminator and lets validation refuse the whole thing. Go ends the path with `;`, Ruby
+allows only its own `(LoadError)` suffix, and Java takes the rest of the line. Perl's frames
+needed the same care for a different reason: it stringifies arguments as `HASH(0x55f1)`, and
+brackets that nest made every real Carp trace parse as though a caller were the error.
+
+Nothing here is ever run for you. The line is text to copy, so the worst case for a mis-read is a
+command that does not work rather than one that does something.
 
 ### What was tried and rejected
 
@@ -171,7 +235,7 @@ arrive in two tiers:
 
 | Tier | Source | What happens |
 |---|---|---|
-| **A — auto-appliable** | Unified diffs found in GitHub issue/PR bodies, and linked commits fetched as `.patch` | Previewed, then applied on your confirmation, then verified by re-running |
+| **A — a real patch** | Unified diffs found in GitHub issue/PR bodies, and linked commits fetched as `.patch` | Parsed, path-mapped, and handed over as the corrected lines |
 | **B — advisory** | Everything else, including every Stack Overflow answer | Shown with the relevant code block. Never written to disk |
 
 Three things are worth knowing before you use it:

@@ -1,0 +1,6 @@
+Unhandled exception:
+RangeError (index): Invalid value: Not in inclusive range 0..2: 5
+#0      List.[] (dart:core-patch/growable_array.dart:264:36)
+#1      Basket.itemAt (package:shop/basket.dart:41:20)
+#2      main (file:///C:/work/shop/bin/main.dart:12:18)
+#3      _delayEntrypointInvocation.<anonymous closure> (dart:isolate-patch/isolate_patch.dart:297:19)

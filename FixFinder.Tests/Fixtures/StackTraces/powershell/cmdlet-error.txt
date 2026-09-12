@@ -1,0 +1,6 @@
+Get-Content : Cannot find path 'C:\reports\missing.csv' because it does not exist.
+At C:\scripts\Import-Report.ps1:12 char:9
++ $rows = Get-Content -Path $Path
++         ~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\reports\missing.csv:String) [Get-Content], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand

@@ -418,6 +418,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             ranked = [install, .. ranked];
         }
 
+        // The same answer for every other ecosystem FixFinder can read. Kept as a separate call
+        // rather than folded into the one above because Python's runs off the interpreter that
+        // crashed, and nothing else can: there is only ever one node or one cargo in play, but a
+        // machine with several Pythons will happily install into the wrong one.
+        else if (MissingDependency.For(error, spec) is { } dependencyInstall)
+        {
+            Log?.Invoke($"A dependency is missing: {dependencyInstall.Title}");
+
+            ranked = [dependencyInstall, .. ranked];
+        }
+
         if (ranked.Count == 0)
         {
             return new SessionOutcome

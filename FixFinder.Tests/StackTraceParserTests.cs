@@ -42,6 +42,15 @@ public class StackTraceParserTests
     [InlineData("msvc/cs0103.txt", "msvc")]
     [InlineData("ruby/zerodivision.txt", "ruby")]
     [InlineData("ruby/ruby34-quotes.txt", "ruby")]
+    [InlineData("php/uncaught-typeerror.txt", "php")]
+    [InlineData("php/parse-error.txt", "php")]
+    [InlineData("php/display-errors.txt", "php")]
+    [InlineData("powershell/cmdlet-error.txt", "powershell")]
+    [InlineData("powershell/after-output.txt", "powershell")]
+    [InlineData("dart/rangeerror.txt", "dart")]
+    [InlineData("elixir/arithmetic.txt", "elixir")]
+    [InlineData("perl/carp.txt", "perl")]
+    [InlineData("lua/nil-index.txt", "lua")]
     [InlineData("generic/perl.txt", "generic")]
     public void RoutesEachFixtureToTheRightParser(string fixture, string expectedLanguage)
     {

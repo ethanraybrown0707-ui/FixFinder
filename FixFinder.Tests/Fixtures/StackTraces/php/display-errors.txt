@@ -1,0 +1,5 @@
+Fatal error: Uncaught Error: Call to undefined function App\slugify() in /var/www/app/Post.php:31
+Stack trace:
+#0 /var/www/public/index.php(14): App\Post->permalink()
+#1 {main}
+  thrown in /var/www/app/Post.php on line 31

@@ -105,6 +105,11 @@ public static class TargetFactory
         [".sh"] = new("bash", "", "sh"),
         [".ps1"] = new("powershell", "-NoProfile -ExecutionPolicy Bypass -File"),
         [".go"] = new("go", "run"),
+
+        // Added alongside their parsers. Without an entry here the parser is unreachable: the
+        // file cannot be launched, so nothing ever produces output for it to read.
+        [".dart"] = new("dart", "run"),
+        [".exs"] = new("elixir"),
     };
 
     /// <summary>Project files that tell us how to rebuild after a patch.</summary>
