@@ -341,9 +341,18 @@ It can now write there, and only there:
   `site-packages` - so refusing to write outside the root is refusing to touch anything but the
   library named in the crash. A scoped npm package roots at `node_modules/@scope/thing` for the
   same reason.
-- **`vendor/` is deliberately unsupported.** Go lays it out as `vendor/github.com/org/repo` and
-  Composer as `vendor/org/package`; guessing one level down would put every dependency from a host
-  inside one patch's reach. Nothing is offered there rather than too much.
+- **Each ecosystem gets its own rule, because depth is not one thing.** `site-packages/requests`
+  and `node_modules/express` are one level down; `node_modules/@scope/thing` is two; a Cargo crate
+  is always `registry/src/<index>/<crate>-<version>`; and a Go module is identified by the
+  `@version` on its directory, since a module path is three segments for `github.com/pkg/errors`
+  and two for `gopkg.in/yaml.v2`. A shared guess at depth is wrong for at least one of them.
+- **Vendored Go reads `vendor/modules.txt`** rather than guessing, which is what makes that folder
+  safe to root in at all. Composer's `vendor/` has no equivalent here, so it is still left alone.
+- **Go's module cache is read-only on purpose**, so a patch there is refused - and says so, naming
+  `go mod vendor`, instead of stopping at "the file is read-only". Cargo re-extracts a crate whose
+  checksum stops matching, so that warns about `cargo vendor`. Those are the ecosystems telling you
+  their cache is not the place to edit, and the warning passes the message on rather than fighting
+  it.
 - **The runtime is never a package.** No issue asks you to hand-edit the standard library.
 - **The confirmation names the library.** You type `APPLY TO REQUESTS`, not `APPLY`, because
   "APPLY" typed for the hundredth time is a reflex and this one is not the usual thing.

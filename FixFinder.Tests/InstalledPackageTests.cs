@@ -59,20 +59,155 @@ public class InstalledPackageTests : IDisposable
     }
 
     /// <summary>
-    /// A vendor folder is deliberately not supported, because its depth varies by ecosystem.
+    /// A vendor folder with no manifest is still not guessed at.
     /// </summary>
     /// <remarks>
-    /// Go writes <c>vendor/github.com/org/repo</c> and Composer writes <c>vendor/org/package</c>.
-    /// Guessing one level down would root a Go dependency at <c>vendor/github.com</c> and put
-    /// every package from that host inside one patch's reach, so nothing is offered rather than
-    /// too much.
+    /// Go writes <c>vendor/github.com/org/repo</c> and Composer writes <c>vendor/org/package</c>,
+    /// so the depth cannot be read off the path. Go ships <c>vendor/modules.txt</c> listing the
+    /// module paths exactly, and that is what makes the Go case knowable - without it, or for
+    /// Composer, there is nothing to resolve the depth and nothing is offered.
     /// </remarks>
     [Theory]
     [InlineData(@"C:\go\vendor\github.com\pkg\errors.go")]
     [InlineData("/srv/app/vendor/monolog/monolog/src/Logger.php")]
-    public void AVendorFolderIsNotGuessedAt(string file)
+    public void AVendorFolderWithNoManifestIsNotGuessedAt(string file)
     {
         Assert.Null(InstalledPackages.For(file));
+    }
+
+    // ------------------------------------------------------------------ Go
+
+    /// <summary>
+    /// The Go module cache, where a version marker rather than the depth identifies the module.
+    /// </summary>
+    /// <remarks>
+    /// A module path is three segments for <c>github.com/pkg/errors</c> and two for
+    /// <c>gopkg.in/yaml.v2</c>, so any fixed depth is wrong for one of them. The <c>@version</c>
+    /// suffix sits on the module directory and on nothing else.
+    /// </remarks>
+    [Theory]
+    [InlineData(@"C:\Users\me\go\pkg\mod\github.com\pkg\errors@v0.9.1\errors.go", "errors")]
+    [InlineData(@"C:\Users\me\go\pkg\mod\gopkg.in\yaml.v2@v2.4.0\yaml.go", "yaml.v2")]
+    [InlineData("/home/me/go/pkg/mod/golang.org/x/text@v0.3.7/language/parse.go", "text")]
+    public void AGoModuleIsFoundByItsVersionMarker(string file, string expected)
+    {
+        var package = InstalledPackages.For(file);
+
+        Assert.NotNull(package);
+        Assert.Equal(expected, package!.Name);
+
+        // Rooted at the module-and-version directory, not at the host or the org above it.
+        Assert.Contains('@', Path.GetFileName(package.Root));
+    }
+
+    /// <summary>
+    /// The Go cache is read-only by design, so the answer explains itself rather than just failing.
+    /// </summary>
+    /// <remarks>
+    /// The applier refuses a read-only file, which is correct and, on its own, baffling. Naming
+    /// <c>go mod vendor</c> turns a dead end into the next step.
+    /// </remarks>
+    [Fact]
+    public void TheGoCacheSaysWhyItCannotBeWrittenTo()
+    {
+        var package = InstalledPackages.For(
+            @"C:\Users\me\go\pkg\mod\github.com\pkg\errors@v0.9.1\errors.go");
+
+        Assert.NotNull(package!.Caveat);
+        Assert.Contains("read-only", package.Caveat!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("go mod vendor", package.Caveat!, StringComparison.Ordinal);
+    }
+
+    /// <summary>A vendored Go module roots exactly where modules.txt says, not one level down.</summary>
+    [Fact]
+    public void AVendoredGoModuleUsesTheManifestForItsDepth()
+    {
+        var vendor = Path.Combine(_temp.Path, "vendor");
+        Directory.CreateDirectory(Path.Combine(vendor, "github.com", "pkg", "errors"));
+
+        File.WriteAllText(Path.Combine(vendor, "modules.txt"),
+            "# github.com/pkg/errors v0.9.1\n## explicit\ngithub.com/pkg/errors\n");
+
+        var file = Path.Combine(vendor, "github.com", "pkg", "errors", "errors.go");
+        File.WriteAllText(file, "package errors\n");
+
+        var package = InstalledPackages.For(file);
+
+        Assert.NotNull(package);
+        Assert.Equal("errors", package!.Name);
+        Assert.Equal(Path.Combine(vendor, "github.com", "pkg", "errors"), package.Root);
+
+        // Writable, unlike the cache, so there is nothing to warn about.
+        Assert.Null(package.Caveat);
+    }
+
+    /// <summary>
+    /// A module published under another module's path takes the longer match.
+    /// </summary>
+    /// <remarks>
+    /// <c>github.com/org/repo</c> and <c>github.com/org/repo/sub</c> are separate modules sharing
+    /// a prefix. Taking the first match would root a patch for the submodule in its parent,
+    /// putting both inside one patch's reach.
+    /// </remarks>
+    [Fact]
+    public void TheLongestMatchingModulePathWins()
+    {
+        var vendor = Path.Combine(_temp.Path, "vendor");
+        Directory.CreateDirectory(Path.Combine(vendor, "github.com", "org", "repo", "sub"));
+
+        File.WriteAllText(Path.Combine(vendor, "modules.txt"),
+            "# github.com/org/repo v1.0.0\n# github.com/org/repo/sub v1.2.0\n");
+
+        var file = Path.Combine(vendor, "github.com", "org", "repo", "sub", "thing.go");
+        File.WriteAllText(file, "package sub\n");
+
+        var package = InstalledPackages.For(file);
+
+        Assert.Equal("sub", package!.Name);
+        Assert.EndsWith(Path.Combine("repo", "sub"), package.Root, StringComparison.Ordinal);
+    }
+
+    // ------------------------------------------------------------------ Rust
+
+    [Theory]
+    [InlineData(@"C:\Users\me\.cargo\registry\src\index.crates.io-6f17d22bba15001f\serde-1.0.197\src\lib.rs", "serde")]
+    [InlineData("/home/me/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.10.2/src/lib.rs", "regex")]
+    public void ACrateIsFoundUnderTheRegistrySource(string file, string expected)
+    {
+        var package = InstalledPackages.For(file);
+
+        Assert.NotNull(package);
+        Assert.Equal(expected, package!.Name);
+    }
+
+    /// <summary>
+    /// The version is trimmed, but a dash that is part of the name is not.
+    /// </summary>
+    /// <remarks>
+    /// <c>pin-project-1.1.3</c> would become <c>pin</c> if the last dash were always taken as the
+    /// separator, so what follows it has to actually start with a digit.
+    /// </remarks>
+    [Theory]
+    [InlineData("pin-project-1.1.3", "pin-project")]
+    [InlineData("serde-1.0.197", "serde")]
+    [InlineData("regex", "regex")]
+    public void OnlyARealVersionIsTrimmedFromACrateName(string folder, string expected)
+    {
+        var package = InstalledPackages.For(
+            $"/home/me/.cargo/registry/src/index-abc/{folder}/src/lib.rs");
+
+        Assert.Equal(expected, package!.Name);
+    }
+
+    /// <summary>Cargo re-extracts a crate it has checksummed, which is worth saying up front.</summary>
+    [Fact]
+    public void TheCargoRegistrySaysThatAPatchWillNotSurvive()
+    {
+        var package = InstalledPackages.For(
+            "/home/me/.cargo/registry/src/index-abc/serde-1.0.197/src/lib.rs");
+
+        Assert.NotNull(package!.Caveat);
+        Assert.Contains("cargo vendor", package.Caveat!, StringComparison.Ordinal);
     }
 
     /// <summary>

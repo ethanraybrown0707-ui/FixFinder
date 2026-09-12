@@ -249,13 +249,23 @@ public partial class PatchPreviewWindow : Window
     {
         if (_context.Into is not { } package) return "";
 
-        return
-            $"This writes into {package.Name}, which is installed at {package.Root} - not into your " +
-            "own code.\n\n" +
+        var where = package.Ecosystem is { Length: > 0 } ecosystem
+            ? $"{package.Name}, in {ecosystem} at {package.Root}"
+            : $"{package.Name}, which is installed at {package.Root}";
+
+        var general =
+            $"This writes into {where} - not into your own code.\n\n" +
             $"Every program on this machine that uses {package.Name} will get this change, and the " +
             $"next time {package.Name} is installed or upgraded it will be overwritten. Upgrading to " +
             "a release that already contains the fix is the durable version of this. The backup is " +
             "taken either way, and Roll back puts it straight.";
+
+        // Some ecosystems have a specific answer to "why is this awkward", and it is more useful
+        // than the general warning - Go's cache is read-only on purpose and will simply refuse,
+        // which is worth knowing before typing a confirmation rather than after.
+        return package.Caveat is { Length: > 0 } caveat
+            ? $"{caveat}\n\n{general}"
+            : general;
     }
 
     private string BuildWarning()
