@@ -201,12 +201,14 @@ produces so the design stays editable rather than being an opaque binary. Every 
 is drawn at its own scale rather than shrunk from one large image - downscaling a 256px drawing
 to 16px turns a thin ring into grey mush, and 16px is the size that appears in the taskbar.
 
-**On this machine it launches and runs.** That is worth stating because it is not guaranteed:
-the exe is signed with a local self-signed certificate, which satisfies the Application
-Control policy, but Smart App Control judges an executable by *reputation* rather than by
-signature and a self-signed build has none. If a future build is ever blocked,
-`run-fixfinder.cmd` still works — it launches the DLL through `dotnet.exe`, which is already
-trusted.
+**Whether it launches varies from build to build, and that is the honest account.** The exe is
+signed with a local self-signed certificate, which satisfies the Application Control policy - but
+Smart App Control judges by *reputation*, not by signature, and reputation attaches to the exact
+bytes. Every republish produces a binary Windows has never seen, so one build starts and the next
+is refused with *"An Application Control policy has blocked this file"*. Both have happened here.
+
+`run-fixfinder.cmd` always works, because it launches the DLL through `dotnet.exe`, which is
+already trusted. Use it when the exe is refused.
 
 ### From the build output
 
@@ -223,8 +225,11 @@ Control policy blocks a freshly-built, unsigned binary under the user profile wi
 code-signing certificate, such as CI. It signs with the newest one in your personal store, or the
 one named by the `FIXFINDER_CERT_SUBJECT` environment variable.
 
-The published single-file exe is a different case and was measured rather than assumed: signed
-with the same certificate, it launches and runs here. Smart App Control did not refuse it.
+The published single-file exe is a different case, and this section previously claimed it had
+been measured to run here. It had been - once - and that turned out to be a fact about one build
+rather than about the exe. A later republish was blocked outright. Reputation is per-binary, so a
+single successful launch proves nothing about the next one, and the claim has been corrected
+rather than quietly dropped.
 
 ## Searching, and what it costs
 
