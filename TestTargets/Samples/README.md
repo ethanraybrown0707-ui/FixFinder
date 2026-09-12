@@ -1,6 +1,6 @@
 # Sample programs
 
-Twenty deliberately-broken programs across six languages, one per thing FixFinder has to get
+Twenty-one deliberately-broken programs across six languages, one per thing FixFinder has to get
 right. They are chosen for
 **what the tool does with them**, not for variety of exception names — two of them do not crash
 at all, because "it found nothing" and "it did not break" are outcomes worth being able to see.
@@ -35,6 +35,14 @@ file** — it is built first, and if the build fails, *that* is the error it loo
 | 16 | `16-csharp-throws.cs` | `KeyNotFoundException` | Compiles, then throws from inside the framework, with real line numbers |
 | 17 | `Main17.java` | `cannot find symbol` | The commonest javac error |
 | 18 | `Main18.java` | `NullPointerException` | Since Java 14 the message names the expression that was null, which makes it far more searchable |
+
+## The one search can never answer
+
+| # | Program | What happens | Why it is here |
+|---|---|---|---|
+| 21 | `21-typo-only-you-have.py` | `AttributeError: ... has no attribute 'heavey'. Did you mean: 'heavy'?` | Nobody has ever written an answer about `heavey`, because it exists in one file. Python worked it out anyway, and FixFinder applies what Python said - **with the network off** |
+
+This is the only sample where Apply lights up every time, and the only one that needs no network.
 
 ## More than one error
 

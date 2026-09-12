@@ -71,6 +71,36 @@ already exists on your machine is not.
 Anything FixFinder cannot identify still gets a generic read, and it says so rather than
 pretending otherwise.
 
+## The fix that does not come from the web
+
+Searching can only ever answer a problem somebody else also had. A typo in your own file is not
+that, and for a long time it was the commonest thing FixFinder could do nothing whatsoever about.
+
+The runtime already knows the answer. Python 3.12 and later, gcc and clang all compare the unknown
+name against what is really in scope and print the result:
+
+```
+AttributeError: 'Supply' object has no attribute 'heavey'. Did you mean: 'heavy'?
+NameError: name 'avarage' is not defined. Did you mean: 'average'?
+```
+
+That is not a guess this tool is making. The interpreter had the whole symbol table in front of
+it, established the answer, printed it, and every tool that reads the traceback throws it away.
+FixFinder now turns it into a one-line unified diff and runs it down exactly the same road as a
+patch downloaded from a stranger's repository: extracted, parsed, path-mapped, matched with exact
+context, previewed, backed up, applied, and verified by re-running. A locally produced fix that
+skipped any of those would be the one patch in the tool nobody had checked.
+
+It ranks above the search results rather than among them, because it is not one of them: every
+weight in the ranker estimates how likely a stranger's post is to be about this crash, and this
+came out of this crash, naming this file and this line.
+
+**It refuses to guess.** The replacement happens only when the wrong name appears exactly once on
+the line the error names. Twice, and there is no way to know which was meant, so nothing is
+offered - the same rule the path mapper applies to two files of the same name.
+
+**It needs no network at all.** Nothing is looked up, so it works with Offline ticked.
+
 ## What it can and cannot do
 
 FixFinder searches GitHub Issues and Stack Overflow. Those are mostly **prose**, so results

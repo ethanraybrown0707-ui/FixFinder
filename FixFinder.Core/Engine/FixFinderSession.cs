@@ -397,6 +397,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         var ranked = CandidateRanker.Rank(search.Candidates, fingerprint);
 
+        // Put in front of the search results rather than ranked among them, because it is not one
+        // of them. Every weight in the ranker estimates how likely a stranger's post is to be
+        // about this crash; this came out of this crash, and names this file and this line. It is
+        // also the only fix in the tool that can address code nobody else has ever seen.
+        if (RuntimeSuggestion.For(error, sourceRoot) is { } suggestion)
+        {
+            Log?.Invoke($"{error.LanguageId} suggested a correction itself: {suggestion.Title}");
+
+            ranked = [suggestion, .. ranked];
+        }
+
         if (ranked.Count == 0)
         {
             return new SessionOutcome
