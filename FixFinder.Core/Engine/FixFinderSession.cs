@@ -360,6 +360,13 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         var others = remaining ?? _parsers.Others(error, run.Lines);
         var dependency = InstalledPackages.From(stackFiles);
 
+        // Recorded because it is a place FixFinder may now be asked to write, and the log is the
+        // audit trail for everything it writes. Detecting it changes nothing on its own: the
+        // project is still tried first, and a patch only lands here if the user types the
+        // package's name to confirm it.
+        if (dependency is { } package)
+            Log?.Invoke($"The crash went through {package.Name}, installed at {package.Root}");
+
         Log?.Invoke($"Detected: {error.Summary} (confidence {error.Confidence})");
 
         // ---------------------------------------------------------- where does it live
