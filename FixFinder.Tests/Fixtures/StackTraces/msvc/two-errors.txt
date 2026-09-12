@@ -1,0 +1,4 @@
+mean.c
+mean.c(30): error C2065: 'avarage': undeclared identifier
+mean.c(41): error C2143: syntax error: missing ';' before '}'
+mean.c(52): warning C4101: 'unused': unreferenced local variable

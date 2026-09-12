@@ -72,6 +72,16 @@ public sealed record SessionOutcome
     /// <summary>Anything that went wrong on the way but did not stop the run.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
+    /// <summary>
+    /// Other independent errors in the same output, not yet looked at.
+    /// </summary>
+    /// <remarks>
+    /// Only ever populated for compiler output, where the tool reported everything it found
+    /// before exiting. A crashed program contributes nothing here, because the error that
+    /// stopped it is the only one that exists to be read.
+    /// </remarks>
+    public IReadOnlyList<ParsedError> OtherErrors { get; init; } = [];
+
     /// <summary>True when the failure was the build rather than the program.</summary>
     /// <remarks>
     /// Changes only the wording, not the handling: a compiler diagnostic is searched, ranked and
@@ -325,6 +335,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         string? sourceFolder,
         bool failedToCompile,
         List<string>? warnings = null,
+        IReadOnlyList<ParsedError>? remaining = null,
         CancellationToken cancellationToken = default)
     {
         warnings ??= [];
@@ -332,6 +343,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // ---------------------------------------------------------- understand it
         var fingerprint = FingerprintBuilder.Build(error);
         var stackFiles = FilesIn(error);
+
+        // What else this run reported, so a diagnostic nobody can act on can be stepped past
+        // rather than ending everything. Computed once here, and narrowed on each skip.
+        var others = remaining ?? _parsers.Others(error, run.Lines);
 
         Log?.Invoke($"Detected: {error.Summary} (confidence {error.Confidence})");
 
@@ -372,6 +387,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Detail = NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache),
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
                 SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings,
+                OtherErrors = others,
             };
         }
 
@@ -452,6 +468,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
                 SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
+            OtherErrors = others,
             };
         }
 
@@ -485,7 +502,33 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
             SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
+            OtherErrors = others,
         };
+    }
+
+    /// <summary>
+    /// Looks up one of the other errors from a run that has already happened.
+    /// </summary>
+    /// <remarks>
+    /// What Skip calls. The program is not run again - it reported all of these at once, and
+    /// running it a second time to reach an error already sitting in the output would be both
+    /// slower and a different run. The errors left after this one are passed through, so each
+    /// skip narrows what remains rather than offering the same list forever.
+    /// </remarks>
+    public Task<SessionOutcome> SearchForOtherAsync(
+        SessionOutcome from,
+        ParsedError error,
+        SearchBudget? budget = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (from.Run is null || from.Spec is null)
+            throw new InvalidOperationException("That outcome has no run to take another error from.");
+
+        var remaining = from.OtherErrors.Where(e => !ReferenceEquals(e, error)).ToList();
+
+        return SearchForAsync(
+            from.Run, error, from.Spec, budget, from.SourceRoot, from.FailedToCompile,
+            warnings: null, remaining: remaining, cancellationToken: cancellationToken);
     }
 
     // ------------------------------------------------------------------ the loop's view

@@ -41,6 +41,9 @@ public partial class MainWindow : Window
     private FixFinderLogger? _logger;
     private LoopResult? _result;
 
+    /// <summary>How the last round was answered, so the next prompt can say how it got there.</summary>
+    private RoundChoice? _previousChoice;
+
     /// <param name="initialFile">
     /// A program named on the command line, or dropped onto the exe in Explorer. Selected but
     /// never run - the confirmation before launching still has to be answered.
@@ -116,6 +119,7 @@ public partial class MainWindow : Window
     {
         _launch = TargetFactory.FromFile(path);
         _result = null;
+        _previousChoice = null;
 
         ResultText.Visibility = Visibility.Collapsed;
         _output.Clear();
@@ -262,10 +266,15 @@ public partial class MainWindow : Window
         if (!outcome.WorthShowing || cancellationToken.IsCancellationRequested)
             return Task.FromResult(RoundDecision.Stop);
 
-        var found = new FixFoundWindow(new FixFoundContext(outcome, _http, _logger, round)) { Owner = this };
+        var found = new FixFoundWindow(
+            new FixFoundContext(outcome, _http, _logger, round, _previousChoice)) { Owner = this };
+
         found.ShowDialog();
 
-        return Task.FromResult(found.Decision ?? RoundDecision.Stop);
+        var decision = found.Decision ?? RoundDecision.Stop;
+        _previousChoice = decision.Choice;
+
+        return Task.FromResult(decision);
     }
 
     /// <summary>Says what happened across every round, once the loop has finished.</summary>

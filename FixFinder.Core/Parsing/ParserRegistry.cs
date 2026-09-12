@@ -80,6 +80,67 @@ public sealed class ParserRegistry
         return fromBoth.LanguageId != GenericLanguageId ? fromBoth : fromStdErr;
     }
 
+    /// <summary>
+    /// The independent errors behind the one <see cref="Parse"/> returned, if the output holds any.
+    /// </summary>
+    /// <remarks>
+    /// Empty for everything except compiler output, and that is the honest answer rather than a
+    /// gap: a program that crashed has one error, because the first one stopped it. Whatever
+    /// would have failed next is unreachable until that one is fixed, so there is nothing to
+    /// return and no way to find it. See <see cref="IMultiErrorParser"/>.
+    /// <para>
+    /// The error already reported is excluded, matched by fingerprint rather than by position so
+    /// that the same diagnostic reported twice does not come back as something new to look at.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<ParsedError> Others(
+        ParsedError reported, IReadOnlyList<CapturedLine> lines, IReadOnlyList<string>? sourceRoots = null)
+    {
+        if (lines.Count == 0) return [];
+
+        var parser = Parsers.FirstOrDefault(p =>
+            p.LanguageId == reported.LanguageId && p is IMultiErrorParser);
+
+        if (parser is not IMultiErrorParser multi) return [];
+
+        IReadOnlyList<ParsedError> all;
+
+        try
+        {
+            all = multi.ParseAll(lines);
+        }
+        catch (Exception)
+        {
+            // Same rule as Detect: a parser is regexes over hostile input, and one throwing
+            // costs the skip button rather than the run.
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal) { FingerprintOf(reported) };
+        var others = new List<ParsedError>();
+
+        foreach (var error in all)
+        {
+            if (!seen.Add(FingerprintOf(error))) continue;
+
+            CulpritFrameSelector.Select(error, sourceRoots ?? []);
+            others.Add(error);
+        }
+
+        return others;
+    }
+
+    /// <summary>
+    /// Identity for "is this the same diagnostic", without reaching for the fingerprinter.
+    /// </summary>
+    /// <remarks>
+    /// Parsing lives below fingerprinting and should not start depending on it for this. The
+    /// code, message and location together are exact enough here: these all came out of one
+    /// compiler's output in one run, so there is no normalisation to do.
+    /// </remarks>
+    private static string FingerprintOf(ParsedError error) =>
+        $"{error.ErrorCode}|{error.Message}|{error.Frames.FirstOrDefault()?.File}|{error.Frames.FirstOrDefault()?.Line}";
+
     private ParsedError? TryParse(IReadOnlyList<CapturedLine> lines, IReadOnlyList<string>? sourceRoots)
     {
         if (lines.Count == 0) return null;

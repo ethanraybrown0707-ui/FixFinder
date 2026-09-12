@@ -317,6 +317,17 @@ The re-run the verifier has already done *is* the next round's run. Launching a 
 be slower and less honest - a fresh run can fail differently, and the search would then be about
 an error nobody was shown.
 
+**Skip** exists for the problems nothing can fix. Two buttons, because they answer different
+questions: **Next result** walks the thirty-odd other results found for the same error, and
+**Skip problem** leaves the error entirely for the next one the run reported. One button doing
+both would put "move past this" thirty-seven clicks away.
+
+Skipping the problem is live only for compiler output, and the reason is not a limitation to work
+around. A compiler reports everything it found and exits, so the second diagnostic is really there
+to be looked up; a program that crashed has exactly one error, because the first one ended it -
+whatever would have failed next has not happened yet and no parser could find it. Where there is
+nowhere to go the button is disabled carrying that sentence, rather than sitting dim.
+
 **Apply all** asks once and then stops asking. It is the same code path as pressing Apply each
 time, with the same score floor, the same containment, the same exact-context matching, the same
 backup per round and the same automatic rollback; what it drops is the typed confirmation per

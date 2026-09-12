@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FixFinder" Height="540" Width="620" MinHeight="420" MinWidth="500"
+        Title="FixFinder" Height="560" Width="740" MinHeight="420" MinWidth="620"
         Icon="Assets/FixFinder.ico"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Window.Resources>
@@ -123,6 +123,12 @@
                         Content="Apply all..." Padding="12,6" Margin="8,0,0,0" FontSize="13"
                         IsEnabled="False" Visibility="Collapsed" Click="ApplyAllButton_Click"
                         ToolTip="Apply this one, then keep going: if a different error appears, look that one up and apply its fix too, without asking again."/>
+                <Button x:Name="NextResultButton" AutomationProperties.AutomationId="NextResultButton"
+                        Content="Next result" Padding="12,6" Margin="8,0,0,0"
+                        Click="NextResultButton_Click"/>
+                <Button x:Name="SkipButton" AutomationProperties.AutomationId="SkipButton"
+                        Content="Skip problem" Padding="12,6" Margin="8,0,0,0"
+                        Click="SkipButton_Click"/>
                 <Button x:Name="OpenPageButton" AutomationProperties.AutomationId="OpenPageButton"
                         Content="Open the page" Padding="12,6" Margin="8,0,0,0"
                         Click="OpenPageButton_Click"/>

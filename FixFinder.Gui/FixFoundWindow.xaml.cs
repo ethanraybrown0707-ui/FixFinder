@@ -15,8 +15,17 @@ namespace FixFinder.Gui;
 /// Which error of this run it is. Shown from the second onwards, so that a prompt appearing for
 /// the third time reads as the loop working rather than as the tool repeating itself.
 /// </param>
+/// <param name="PreviousChoice">
+/// How the round before this one ended, so the banner can say how we got here. Applying a fix and
+/// stepping past a problem both land on a later error, and telling the user their last change
+/// worked when they skipped it would be describing something that did not happen.
+/// </param>
 public sealed record FixFoundContext(
-    SessionOutcome Outcome, FixFinderHttpClient Http, FixFinderLogger? Logger, int Round = 1);
+    SessionOutcome Outcome,
+    FixFinderHttpClient Http,
+    FixFinderLogger? Logger,
+    int Round = 1,
+    RoundChoice? PreviousChoice = null);
 
 /// <summary>
 /// The prompt: here is what went wrong, here is what was found, shall I apply it.
@@ -38,6 +47,9 @@ public partial class FixFoundWindow : Window
 {
     private readonly FixFoundContext _context;
     private readonly ObservableCollection<DiffRow> _rows = [];
+    private readonly CandidateBrowser _browser;
+
+    private ExaminedCandidate? _current;
 
     /// <summary>True when files were written, so the caller can say so.</summary>
     public bool Applied { get; private set; }
@@ -61,18 +73,24 @@ public partial class FixFoundWindow : Window
         _context = context;
         ContentListBox.ItemsSource = _rows;
 
-        Render();
+        _browser = new CandidateBrowser(context.Http, context.Outcome, HttpCacheMode.Normal);
+        _browser.Log += OnBrowserLog;
+
+        RenderError();
+
+        Loaded += async (_, _) => await ShowCurrentAsync();
     }
 
-    private void Render()
+    /// <summary>The parts that are about the error rather than about any one result.</summary>
+    private void RenderError()
     {
         var outcome = _context.Outcome;
-        var best = outcome.Best;
 
         if (_context.Round > 1)
         {
-            RoundText.Text =
-                $"Error {_context.Round} of this run — the last change worked, and this is what came next.";
+            RoundText.Text = _context.PreviousChoice == RoundChoice.Skip
+                ? $"Error {_context.Round} of this run — you skipped the last one, and this is what it reported next."
+                : $"Error {_context.Round} of this run — the last change worked, and this is what came next.";
 
             RoundText.Visibility = Visibility.Visible;
         }
@@ -80,38 +98,87 @@ public partial class FixFoundWindow : Window
         HeadlineText.Text = outcome.Headline;
         ErrorText.Text = outcome.Error?.Summary ?? "";
         ExplanationText.Text = outcome.Detail;
+    }
 
-        if (best is null) return;
+    /// <summary>Opens whichever result the browser is on, and shows it.</summary>
+    private async Task ShowCurrentAsync()
+    {
+        if (_context.Outcome.Best is null)
+        {
+            UpdateSkip();
+            return;
+        }
 
-        CandidateTitleText.Text = best.Title;
-        CandidateSourceText.Text = $"{best.SourceName}  ·  {best.StateLabel}  ·  scored {best.Score:0}/100";
-        CandidateUrlText.Text = best.Url;
+        NextResultButton.IsEnabled = false;
+        SkipButton.IsEnabled = false;
 
-        if (Uri.TryCreate(best.Url, UriKind.Absolute, out var uri)) CandidateLink.NavigateUri = uri;
+        try
+        {
+            _current = await _browser.CurrentAsync();
+        }
+        catch (Exception ex)
+        {
+            // Opening a result is a network call over untrusted input. Losing it costs this one
+            // result rather than the prompt.
+            _context.Logger?.Write($"Could not open result {_browser.Index + 1}: {ex}");
+            _current = null;
+        }
 
-        if (best.Attribution is { Length: > 0 } attribution)
+        Render(_current);
+    }
+
+    private void Render(ExaminedCandidate? examined)
+    {
+        _rows.Clear();
+
+        ApplyButton.IsEnabled = false;
+        ApplyAllButton.IsEnabled = false;
+        ApplyAllButton.Visibility = Visibility.Collapsed;
+        AttributionText.Visibility = Visibility.Collapsed;
+
+        UpdateSkip();
+
+        if (examined is null)
+        {
+            CandidateTitleText.Text = "That result could not be opened.";
+            CandidateSourceText.Text = "";
+            CandidateUrlText.Text = "";
+            ApplyButton.ToolTip = "Nothing was fetched, so there is nothing to apply.";
+            return;
+        }
+
+        var candidate = examined.Candidate;
+
+        CandidateTitleText.Text = candidate.Title;
+        CandidateSourceText.Text =
+            $"{candidate.SourceName}  ·  {candidate.StateLabel}  ·  scored {candidate.Score:0}/100";
+        CandidateUrlText.Text = candidate.Url;
+
+        if (Uri.TryCreate(candidate.Url, UriKind.Absolute, out var uri)) CandidateLink.NavigateUri = uri;
+
+        if (candidate.Attribution is { Length: > 0 } attribution)
         {
             AttributionText.Text = attribution;
             AttributionText.Visibility = Visibility.Visible;
         }
 
-        var others = outcome.Candidates.Count - 1;
-        OtherResultsText.Text = others > 0
-            ? $"{others} other result{(others == 1 ? "" : "s")} were found and ranked below this one."
+        OtherResultsText.Text = examined.Total > 1
+            ? $"Result {examined.Position} of {examined.Total}."
             : "";
 
-        if (outcome.CanApply)
+        if (examined.CanApply)
         {
             ContentGroup.Header = "What it changes";
-            foreach (var row in DiffRow.Render(outcome.Plan!)) _rows.Add(row);
+            foreach (var row in DiffRow.Render(examined.Plan!)) _rows.Add(row);
 
             ApplyButton.IsEnabled = true;
+            ApplyButton.ToolTip = null;
 
             // Offered only where it means something. On the first error of a run nobody knows yet
             // whether there is a second, and a button promising to work through them all is worth
             // having; where the program cannot be re-run afterwards there is no way to find the
             // next error, so "all" would be a promise this tool cannot keep.
-            if (outcome.Spec is not null)
+            if (_context.Outcome.Spec is not null)
             {
                 ApplyAllButton.IsEnabled = true;
                 ApplyAllButton.Visibility = Visibility.Visible;
@@ -124,18 +191,46 @@ public partial class FixFoundWindow : Window
         // cannot be honoured is disabled with the reason on it rather than hidden.
         ContentGroup.Header = "What it says";
 
-        if (outcome.Harvest is { } harvest)
+        if (examined.Harvest is { } harvest)
             foreach (var row in DiffRow.Render(harvest.Snippets)) _rows.Add(row);
 
         if (_rows.Count == 0)
             _rows.Add(new DiffRow { Kind = DiffRowKind.Note, Text = "  There is no code in it - open the page to read it." });
 
-        ApplyButton.IsEnabled = false;
-        ApplyButton.ToolTip =
-            outcome.SourceRoot is null
-                ? "FixFinder could not find your source code, so it has nothing to apply this to."
-                : "This one is an explanation rather than a patch, so it cannot be applied automatically.";
+        ApplyButton.ToolTip = _context.Outcome.SourceRoot is null
+            ? "FixFinder could not find your source code, so it has nothing to apply this to."
+            : examined.WhyNotAppliable;
     }
+
+    /// <summary>
+    /// Sets both ways of moving on, and says on the button when one of them is not possible.
+    /// </summary>
+    /// <remarks>
+    /// They are different questions. "Show me another answer to this problem" walks the ranked
+    /// results, which almost always exist; "this problem is not worth my time, what else broke"
+    /// needs another error, which only compiler output has. Where the second is impossible the
+    /// button carries the reason rather than sitting dim - the program stopped at this error, so
+    /// whatever would have failed next has not happened yet, and no parser could find it.
+    /// </remarks>
+    private void UpdateSkip()
+    {
+        var moreResults = _browser.HasNext;
+        var moreErrors = _context.Outcome.OtherErrors.Count;
+
+        NextResultButton.IsEnabled = moreResults;
+        NextResultButton.ToolTip = moreResults
+            ? $"Show the next of {_browser.Remaining} more result{(_browser.Remaining == 1 ? "" : "s")} for this error."
+            : "This is the last result that was found for this error.";
+
+        SkipButton.IsEnabled = moreErrors > 0;
+        SkipButton.ToolTip = moreErrors > 0
+            ? $"Leave this problem and look up the next error this run reported ({moreErrors} left)."
+            : _context.Outcome.FailedToCompile
+                ? "That was the last error this build reported."
+                : "The program stopped at this error, so there is nothing behind it to move on to until it is fixed.";
+    }
+
+    private void OnBrowserLog(string message) => _context.Logger?.Write(message);
 
     // ================================================================== actions
 
@@ -169,14 +264,72 @@ public partial class FixFoundWindow : Window
         Preview(keepGoing: true);
     }
 
+    /// <summary>
+    /// Shows the next of the ranked results for the same error.
+    /// </summary>
+    /// <remarks>
+    /// Kept separate from Skip rather than falling through to it. With thirty-odd results, one
+    /// button doing both would put "move past this problem" thirty-seven clicks away - which is
+    /// the one thing it was asked for.
+    /// </remarks>
+    private async void NextResultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_browser.HasNext) return;
+
+        _context.Logger?.Write($"Moving past result {_browser.Index + 1} to the next one.");
+
+        NextResultButton.IsEnabled = false;
+        CandidateTitleText.Text = "Opening the next result...";
+
+        try
+        {
+            _current = await _browser.NextAsync();
+        }
+        catch (Exception ex)
+        {
+            _context.Logger?.Write($"Could not open result {_browser.Index + 1}: {ex}");
+            _current = null;
+        }
+
+        Render(_current);
+    }
+
+    /// <summary>
+    /// Leaves this error alone and moves to the next one the run reported.
+    /// </summary>
+    /// <remarks>
+    /// The loop's business rather than this window's, because the run carries on afterwards, so
+    /// the answer leaves through <see cref="Decision"/> instead of being handled here.
+    /// </remarks>
+    private void SkipButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_context.Outcome.OtherErrors.Count == 0) return;
+
+        _context.Logger?.Write("Skipped this problem; moving to the next error this run reported.");
+
+        Decision = new RoundDecision(RoundChoice.Skip);
+
+        DialogResult = true;
+        Close();
+    }
+
     private void Preview(bool keepGoing)
     {
         var outcome = _context.Outcome;
 
-        if (outcome.Best is null || outcome.SourceRoot is null) return;
+        if (_current is null || outcome.SourceRoot is null) return;
+
+        // The result on screen, not the one the session opened with. After a Skip these are
+        // different, and previewing the other one would apply a patch nobody was looking at.
+        var shown = outcome with
+        {
+            Best = _current.Candidate,
+            Harvest = _current.Harvest,
+            Plan = _current.Plan,
+        };
 
         var preview = new PatchPreviewWindow(
-            new PreviewContext(outcome, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing))
+            new PreviewContext(shown, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing))
         {
             Owner = this,
         };
@@ -191,7 +344,7 @@ public partial class FixFoundWindow : Window
             keepGoing ? RoundChoice.ApplyEverything : RoundChoice.Apply, step);
 
         Applied = preview.ChangedAnything;
-        OutcomeSummary = $"Applied: {outcome.Best.Title}";
+        OutcomeSummary = $"Applied: {_current.Candidate.Title}";
 
         DialogResult = true;
         Close();

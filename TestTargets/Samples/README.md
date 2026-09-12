@@ -48,6 +48,13 @@ same button four times and losing track of which change was which.
 | 19 | `19-three-errors.py` | `ModuleNotFoundError: 'yaml'`, then `'requests'`, then a `TypeError` | Three errors deep, and all three are the kind search is good at. Only the first is visible on the first run |
 | 20 | `20-two-compiler-errors.c` | `error C2065` and `error C2143` from one build | A compiler reports everything at once, so both are printed - and fixing one still leaves a build that fails, which is the case the verifier has to tell apart from a patch that did nothing |
 
+**Skip problem** steps past a flagged error to the next one the same run reported. It is live only
+for a compiler, and sample 20 is why: a build reports everything it found and exits, so the second
+diagnostic is genuinely there to look up while the first is still unfixed. A crashed program has
+one error - the first one ended it - so the button is greyed out carrying that reason rather than
+pretending. **Next result** is the separate one: it walks the other thirty-odd results found for
+the *same* error, which is what to press when the top one is no use.
+
 **Apply all** answers the prompts for you. It asks once, then works through as many errors as it
 can: apply, rebuild, re-run, look up whatever comes next. It stops when the program runs cleanly,
 when a change fails to help, after five rounds, or the moment an error it has already seen comes

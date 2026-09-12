@@ -15,6 +15,16 @@ public enum RoundChoice
 
     /// <summary>Apply this one and every one after it without asking again.</summary>
     ApplyEverything,
+
+    /// <summary>
+    /// Leave this error alone and look at the next one this run reported.
+    /// </summary>
+    /// <remarks>
+    /// Only ever possible for compiler output, where every diagnostic was reported at once. The
+    /// caller decides whether to offer it by looking at <see cref="SessionOutcome.OtherErrors"/>;
+    /// choosing it when that is empty ends the loop, because there is genuinely nowhere to go.
+    /// </remarks>
+    Skip,
 }
 
 /// <summary>
@@ -59,6 +69,9 @@ public enum LoopEnd
     /// <summary>The user closed the prompt without applying.</summary>
     Stopped,
 
+    /// <summary>Every error left was skipped, so nothing was applied and nothing is pending.</summary>
+    Skipped,
+
     /// <summary>The patch made things no better, and was undone.</summary>
     RolledBack,
 
@@ -87,6 +100,9 @@ public sealed record LoopResult(
     /// <summary>True when more than one error was worked through.</summary>
     public bool Looped => Rounds.Count > 1;
 
+    /// <summary>How many problems were stepped past rather than acted on.</summary>
+    public int Skipped => Rounds.Count(r => r.Choice == RoundChoice.Skip);
+
     /// <summary>One line for the status bar.</summary>
     public string Headline => End switch
     {
@@ -97,6 +113,7 @@ public sealed record LoopResult(
         LoopEnd.RoundLimit => $"Stopped after {Rounds.Count} rounds.",
         LoopEnd.WentInCircles => "Stopped - it started going round in circles.",
         LoopEnd.RolledBack => "Rolled back.",
+        LoopEnd.Skipped => Skipped > 1 ? $"Skipped {Skipped} problems." : "Skipped.",
         _ => Last.Headline,
     };
 
@@ -137,6 +154,10 @@ public sealed record LoopResult(
                 LoopEnd.RolledBack =>
                     "That change did not help, so it was put back exactly as it was. Anything applied " +
                     "before it was left alone.",
+
+                LoopEnd.Skipped =>
+                    "That was the last error this run reported, so there is nothing further to move " +
+                    "on to. The ones you skipped are still there - they need fixing by hand.",
 
                 LoopEnd.Inconclusive =>
                     "Re-running could not show whether that helped, so the loop stopped rather than " +
@@ -272,6 +293,29 @@ public sealed class FixLoop(IFixSession session, FixStep? step = null)
                 // stop - there was nothing to say yes to - and reporting it as one would put the
                 // outcome down to the user rather than to what was found.
                 return new LoopResult(rounds, outcome.CanApply ? LoopEnd.Stopped : LoopEnd.AdviceOnly, outcome);
+            }
+
+            if (decision.Choice == RoundChoice.Skip)
+            {
+                rounds.Add(new FixRound(number, outcome, decision.Choice, null));
+
+                // The caller asked to move past this one. Only compiler output has anywhere to
+                // move to, and if it has run out there is nothing further to say - the program
+                // stopped at this error, and what is behind it stays unreachable until it is
+                // fixed by hand.
+                if (outcome.OtherErrors.Count == 0)
+                {
+                    Log?.Invoke($"Round {number}: skipped, and no other error was reported by this run.");
+
+                    return new LoopResult(rounds, LoopEnd.Skipped, outcome);
+                }
+
+                var other = outcome.OtherErrors[0];
+
+                Log?.Invoke($"Round {number}: skipped. Moving to {other.Summary}");
+
+                outcome = await session.SearchForOtherAsync(outcome, other, budget, cancellationToken);
+                continue;
             }
 
             everything |= decision.Choice == RoundChoice.ApplyEverything;

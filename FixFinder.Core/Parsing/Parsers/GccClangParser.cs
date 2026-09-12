@@ -13,7 +13,7 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// nothing but itself. That last one is still worth recognising - it is a real crash, and
 /// reporting "a segfault with no detail" is far more useful than reporting nothing at all.
 /// </remarks>
-public sealed partial class GccClangParser : IStackTraceParser
+public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "gcc";
     public string DisplayName => "gcc / clang";
@@ -120,15 +120,38 @@ public sealed partial class GccClangParser : IStackTraceParser
         };
     }
 
-    private ParsedError? ParseDiagnostic(IReadOnlyList<CapturedLine> lines)
+    /// <summary>
+    /// Every diagnostic the compiler reported, in source order.
+    /// </summary>
+    /// <remarks>
+    /// A sanitizer report or a fatal runtime message is a single failure and stays single: the
+    /// process died once. Only the compile path can hold several, because a compiler keeps going
+    /// after the first error and says so.
+    /// </remarks>
+    public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
     {
+        if (ParseSanitizer(lines) is { } sanitizer) return [sanitizer];
+
+        var diagnostics = ParseDiagnostics(lines);
+        if (diagnostics.Count > 0) return diagnostics;
+
+        return ParseFatalRuntime(lines) is { } fatal ? [fatal] : [];
+    }
+
+    private ParsedError? ParseDiagnostic(IReadOnlyList<CapturedLine> lines) =>
+        ParseDiagnostics(lines).FirstOrDefault();
+
+    private List<ParsedError> ParseDiagnostics(IReadOnlyList<CapturedLine> lines)
+    {
+        var errors = new List<ParsedError>();
+
         for (var i = 0; i < lines.Count; i++)
         {
             var diagnostic = DiagnosticPattern().Match(lines[i].Text);
             if (!diagnostic.Success) continue;
             if (diagnostic.Groups["sev"].Value is not ("error" or "fatal error")) continue;
 
-            return new ParsedError
+            errors.Add(new ParsedError
             {
                 LanguageId = LanguageId,
                 Confidence = 80,
@@ -147,10 +170,10 @@ public sealed partial class GccClangParser : IStackTraceParser
                         RawLine = lines[i].Text,
                     },
                 ],
-            };
+            });
         }
 
-        return null;
+        return errors;
     }
 
     private ParsedError? ParseFatalRuntime(IReadOnlyList<CapturedLine> lines)

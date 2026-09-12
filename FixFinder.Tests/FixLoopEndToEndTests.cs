@@ -1,6 +1,7 @@
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Fingerprinting;
+using FixFinder.Core.Parsing;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
 
@@ -87,6 +88,10 @@ public class FixLoopEndToEndTests : IDisposable
 
             return Answer(run, launch.Spec!);
         }
+
+        public Task<SessionOutcome> SearchForOtherAsync(
+            SessionOutcome from, ParsedError error, SearchBudget? budget, CancellationToken ct) =>
+            Task.FromResult(Answer(from.Run!, from.Spec!));
 
         public Task<SessionOutcome> ContinueFromAsync(
             TargetRunResult run, TargetSpec spec, SearchBudget? budget, string? sourceFolder,

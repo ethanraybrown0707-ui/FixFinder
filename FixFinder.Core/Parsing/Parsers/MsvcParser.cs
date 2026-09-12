@@ -13,7 +13,7 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// lifted into <see cref="ParsedError.ErrorCode"/> and given its own high weight in both the
 /// query builder and the ranker - rather than being left buried in the message text.
 /// </remarks>
-public sealed partial class MsvcParser : IStackTraceParser
+public sealed partial class MsvcParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "msvc";
     public string DisplayName => "MSVC / MSBuild";
@@ -36,17 +36,28 @@ public sealed partial class MsvcParser : IStackTraceParser
         return Math.Min(score, 100);
     }
 
-    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines)
+    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) => ParseAll(lines).FirstOrDefault();
+
+    /// <summary>
+    /// Every error the build reported, in source order.
+    /// </summary>
+    /// <remarks>
+    /// The first is still the one to start with - a build reports in source order and the first
+    /// error is usually the cause of the ones after it - but the rest are real, independent and
+    /// present in the same output, which is what lets a diagnostic nobody can fix be stepped past
+    /// rather than ending the run. Warnings stay out: they did not stop the build.
+    /// </remarks>
+    public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
     {
-        // First error, not last: a build reports errors in source order, and the first is
-        // usually the cause of the ones after it.
+        var errors = new List<ParsedError>();
+
         for (var i = 0; i < lines.Count; i++)
         {
             var diagnostic = DiagnosticPattern().Match(lines[i].Text);
             if (!diagnostic.Success) continue;
             if (diagnostic.Groups["sev"].Value != "error") continue;
 
-            return new ParsedError
+            errors.Add(new ParsedError
             {
                 LanguageId = LanguageId,
                 Confidence = 90,
@@ -66,9 +77,9 @@ public sealed partial class MsvcParser : IStackTraceParser
                         RawLine = lines[i].Text,
                     },
                 ],
-            };
+            });
         }
 
-        return null;
+        return errors;
     }
 }

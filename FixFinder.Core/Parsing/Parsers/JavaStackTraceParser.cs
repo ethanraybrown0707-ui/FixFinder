@@ -17,7 +17,7 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// stopped there.
 /// </para>
 /// </remarks>
-public sealed partial class JavaStackTraceParser : IStackTraceParser
+public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "java";
     public string DisplayName => "Java / JVM";
@@ -86,15 +86,37 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser
     }
 
     /// <summary>
-    /// Reads the first javac error, with the symbol and location it names underneath.
+    /// Every javac diagnostic, or the single exception when the program got as far as running.
+    /// </summary>
+    /// <remarks>
+    /// The two halves of this parser differ exactly here. javac reports every error it found and
+    /// then exits; a thrown exception ended the program, so there is only ever one of those
+    /// however deep its "Caused by" chain runs.
+    /// </remarks>
+    public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
+    {
+        var diagnostics = ParseJavacDiagnostics(lines);
+        if (diagnostics.Count > 0) return diagnostics;
+
+        return ParseStackTrace(lines) is { } thrown ? [thrown] : [];
+    }
+
+    /// <summary>
+    /// The first javac error, with the symbol and location it names underneath.
     /// </summary>
     /// <remarks>
     /// The first, not the last. javac reports errors in source order and later ones are usually
     /// consequences of the first - fix the missing declaration and the other four go away - so
-    /// the first is the one worth looking up.
+    /// the first is the one worth looking up. The rest are still returned by
+    /// <see cref="ParseAll"/>, for when the first turns out to be one nobody can act on.
     /// </remarks>
-    private static ParsedError? ParseJavacDiagnostic(IReadOnlyList<CapturedLine> lines)
+    private static ParsedError? ParseJavacDiagnostic(IReadOnlyList<CapturedLine> lines) =>
+        ParseJavacDiagnostics(lines).FirstOrDefault();
+
+    private static List<ParsedError> ParseJavacDiagnostics(IReadOnlyList<CapturedLine> lines)
     {
+        var errors = new List<ParsedError>();
+
         for (var i = 0; i < lines.Count; i++)
         {
             var match = JavacPattern().Match(lines[i].Text);
@@ -121,7 +143,7 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser
                 RawLine = lines[i].Text,
             };
 
-            return new ParsedError
+            errors.Add(new ParsedError
             {
                 LanguageId = "java",
                 Confidence = 88,
@@ -131,10 +153,10 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser
                 Message = details.Count > 0 ? $"{message} ({string.Join(", ", details)})" : message,
                 Frames = [frame],
                 CulpritFrame = frame,
-            };
+            });
         }
 
-        return null;
+        return errors;
     }
 
     private ParsedError? ParseStackTrace(IReadOnlyList<CapturedLine> lines)
