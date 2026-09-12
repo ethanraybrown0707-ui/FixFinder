@@ -133,6 +133,83 @@ public class RuntimeSuggestionTests : IDisposable
         Assert.Null(RuntimeSuggestion.Read(await CrashOf(script)));
     }
 
+    // ------------------------------------------------------------------ runtimes not installed here
+
+    /// <summary>
+    /// An error built from output the real toolchain prints, for the ones absent from this machine.
+    /// </summary>
+    private static ParsedError Captured(string language, string type, string message, string? raw = null) =>
+        new()
+        {
+            LanguageId = language,
+            Confidence = 90,
+            RawText = raw ?? $"{type}: {message}",
+            FirstLineSequence = 0,
+            ExceptionType = type,
+            Message = message,
+            Frames = [new ErrorFrame { Order = 0, File = "main.c", Line = 4, RawLine = "" }],
+        };
+
+    /// <summary>
+    /// gcc and clang put the name on opposite sides of the same word.
+    /// </summary>
+    /// <remarks>
+    /// One pattern looked like it covered both until it was checked against what each compiler
+    /// really prints - gcc writes <c>'avarage' undeclared</c> and clang
+    /// <c>undeclared identifier 'avarage'</c>. The gcc-shaped pattern silently matched nothing at
+    /// all on clang.
+    /// </remarks>
+    [Theory]
+    [InlineData("'avarage' undeclared (first use in this function); did you mean 'average'?")]
+    [InlineData("use of undeclared identifier 'avarage'; did you mean 'average'?")]
+    public void BothCCompilersAreRead(string message)
+    {
+        var correction = RuntimeSuggestion.Read(Captured("gcc", "compile error", message));
+
+        Assert.NotNull(correction);
+        Assert.Equal("avarage", correction!.Wrong);
+        Assert.Equal("average", correction.Right);
+    }
+
+    /// <summary>
+    /// Ruby writes a question mark where Python writes a colon, and puts it on the next line.
+    /// </summary>
+    /// <remarks>
+    /// Two separate reasons the first version of this found nothing in Ruby: "Did you mean?" does
+    /// not match a pattern expecting an optional colon, and the suggestion is not in the message
+    /// at all - it is a line of its own underneath it.
+    /// </remarks>
+    [Theory]
+    [InlineData("undefined local variable or method 'avarage' for main", "avarage", "average")]
+    [InlineData("undefined method 'heavey' for an instance of Supply", "heavey", "heavy")]
+    public void RubyIsReadFromTheLineUnderTheMessage(string message, string wrong, string right)
+    {
+        var raw = $"main.rb:3:in '<main>': {message} (NameError)\nDid you mean?  {right}";
+
+        var correction = RuntimeSuggestion.Read(Captured("ruby", "NameError", message, raw));
+
+        Assert.NotNull(correction);
+        Assert.Equal(wrong, correction!.Wrong);
+        Assert.Equal(right, correction.Right);
+    }
+
+    /// <summary>
+    /// A "did you mean" somewhere else in the output cannot invent a correction on its own.
+    /// </summary>
+    /// <remarks>
+    /// Looking at the whole captured block for the suggestion is what makes Ruby work, and it is
+    /// also the thing that could have gone wrong: the name being corrected still has to come from
+    /// the message, so a program that prints the phrase itself changes nothing.
+    /// </remarks>
+    [Fact]
+    public void APhraseInTheProgramsOwnOutputIsNotASuggestion()
+    {
+        var raw = "checking spelling... did you mean 'banana'?\nZeroDivisionError: division by zero";
+
+        Assert.Null(RuntimeSuggestion.Read(
+            Captured("python", "ZeroDivisionError", "division by zero", raw)));
+    }
+
     // ------------------------------------------------------------------ applying it
 
     /// <summary>

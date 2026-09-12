@@ -34,7 +34,7 @@ public static partial class RuntimeSuggestion
     /// are matched rather than normalised, because the punctuation is how you tell which runtime
     /// produced it if this ever needs to differ by language.
     /// </remarks>
-    [GeneratedRegex(@"[Dd]id you mean:?\s*['""`‘“]?(?<right>[A-Za-z_][A-Za-z0-9_]*)['""`’”]?\s*\??")]
+    [GeneratedRegex(@"[Dd]id you mean[:?]?\s*['""`‘“]?(?<right>[A-Za-z_][A-Za-z0-9_]*)['""`’”]?\s*\??")]
     private static partial Regex SuggestionPattern();
 
     /// <summary>
@@ -54,9 +54,21 @@ public static partial class RuntimeSuggestion
     [GeneratedRegex(@"cannot import name\s+['""](?<wrong>[A-Za-z_][A-Za-z0-9_]*)['""]")]
     private static partial Regex ImportPattern();
 
-    /// <summary>gcc and clang: <c>'avarage' undeclared</c>, then the suggestion.</summary>
+    /// <summary>gcc: <c>'avarage' undeclared</c>, with the name before the word.</summary>
     [GeneratedRegex(@"['""‘](?<wrong>[A-Za-z_][A-Za-z0-9_]*)['""’]\s+undeclared")]
     private static partial Regex UndeclaredPattern();
+
+    /// <summary>clang: <c>use of undeclared identifier 'avarage'</c>, with the name after it.</summary>
+    /// <remarks>
+    /// The two compilers put the name on opposite sides of the same word, which is the sort of
+    /// thing only checking against real output catches - one pattern looked like it covered both.
+    /// </remarks>
+    [GeneratedRegex(@"undeclared identifier\s+['""‘](?<wrong>[A-Za-z_][A-Za-z0-9_]*)['""’]")]
+    private static partial Regex UndeclaredIdentifierPattern();
+
+    /// <summary>Ruby, which names the method or variable rather than calling it undeclared.</summary>
+    [GeneratedRegex(@"undefined (?:local variable or method|method)\s+['""`‘](?<wrong>[A-Za-z_][A-Za-z0-9_]*[?!=]?)['""`’]")]
+    private static partial Regex UndefinedPattern();
 
     /// <summary>What the runtime said, once it has been read.</summary>
     /// <param name="Wrong">The name as written.</param>
@@ -69,13 +81,23 @@ public static partial class RuntimeSuggestion
         var text = error.Message ?? "";
 
         var suggestion = SuggestionPattern().Match(text);
+
+        // Ruby prints "Did you mean?" on the line after the message rather than within it, so the
+        // message alone finds nothing. The whole captured block is the honest place to look for
+        // something the runtime volunteered; the name it is correcting still has to come from the
+        // message, so a stray "did you mean" elsewhere in the output cannot invent a correction.
+        if (!suggestion.Success && error.RawText is { Length: > 0 } raw)
+            suggestion = SuggestionPattern().Match(raw);
+
         if (!suggestion.Success) return null;
 
         var wrong =
             FirstGroup(AttributePattern(), text) ??
             FirstGroup(NamePattern(), text) ??
             FirstGroup(ImportPattern(), text) ??
-            FirstGroup(UndeclaredPattern(), text);
+            FirstGroup(UndeclaredPattern(), text) ??
+            FirstGroup(UndeclaredIdentifierPattern(), text) ??
+            FirstGroup(UndefinedPattern(), text);
 
         if (wrong is null) return null;
 

@@ -101,6 +101,25 @@ offered - the same rule the path mapper applies to two files of the same name.
 
 **It needs no network at all.** Nothing is looked up, so it works with Offline ticked.
 
+Which runtimes actually volunteer a correction, checked rather than assumed:
+
+| Runtime | Suggests? | Status here |
+|---|---|---|
+| Python 3.12+ | yes - `Did you mean: 'average'?` | **proven end to end**, applied and verified |
+| gcc | yes - `'avarage' undeclared ... did you mean 'average'?` | pattern tested against captured output |
+| clang | yes - `use of undeclared identifier 'avarage'; did you mean ...` | pattern tested against captured output |
+| Ruby | yes - `Did you mean?  average`, on its own line | pattern tested against captured output |
+| javac | **no** - `cannot find symbol`, nothing more | measured on this machine |
+| C# / Roslyn | **no** - `'totl' does not exist in the current context` | measured on this machine |
+| MSVC | **no** - `error C2065: 'avarage': undeclared identifier` | measured on this machine |
+| Node, Go, Rust | not read yet | rustc carries machine-applicable suggestions in a different form |
+
+The three that say no are not a gap in FixFinder: those compilers genuinely do not compute a
+suggestion, so there is nothing to read. Checking was worth it - gcc and clang put the name on
+*opposite sides* of the word `undeclared`, and Ruby writes a question mark where Python writes a
+colon and puts the answer on the next line, so a pattern that looked like it covered all of them
+covered one.
+
 ## What it can and cannot do
 
 FixFinder searches GitHub Issues and Stack Overflow. Those are mostly **prose**, so results
