@@ -73,6 +73,17 @@ public sealed record SessionOutcome
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
     /// <summary>
+    /// The installed dependency this crash went through, when it went through one.
+    /// </summary>
+    /// <remarks>
+    /// Not a place FixFinder writes by default, and never without being asked for that run. It is
+    /// carried because the commonest published fix in existence is a fix to a library, and a
+    /// patch for a library changes that library's files - which are on this disk, outside the
+    /// project, and were previously resolving to nothing at all.
+    /// </remarks>
+    public InstalledPackage? Dependency { get; init; }
+
+    /// <summary>
     /// Other independent errors in the same output, not yet looked at.
     /// </summary>
     /// <remarks>
@@ -347,6 +358,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // What else this run reported, so a diagnostic nobody can act on can be stepped past
         // rather than ending everything. Computed once here, and narrowed on each skip.
         var others = remaining ?? _parsers.Others(error, run.Lines);
+        var dependency = InstalledPackages.From(stackFiles);
 
         Log?.Invoke($"Detected: {error.Summary} (confidence {error.Confidence})");
 
@@ -387,7 +399,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Detail = NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache),
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
                 SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings,
-                OtherErrors = others,
+                OtherErrors = others, Dependency = dependency,
             };
         }
 
@@ -468,7 +480,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
                 SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others,
+            OtherErrors = others, Dependency = dependency,
             };
         }
 
@@ -502,7 +514,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
             SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others,
+            OtherErrors = others, Dependency = dependency,
         };
     }
 

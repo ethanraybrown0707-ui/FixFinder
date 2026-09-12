@@ -46,8 +46,21 @@ public sealed record PreviewContext(
 
     public ErrorFingerprint? Fingerprint => Outcome.Fingerprint;
 
+    /// <summary>
+    /// Set when this patch writes into an installed dependency rather than the project.
+    /// </summary>
+    public InstalledPackage? Into { get; init; }
+
     /// <summary>The word that has to be typed in full before anything is written.</summary>
-    public string ConfirmationWord => KeepGoing ? "APPLY ALL" : "APPLY";
+    /// <remarks>
+    /// Naming the package is the point of it. "APPLY" typed for the hundredth time is a reflex;
+    /// "APPLY TO REQUESTS" cannot be typed without having read which library is about to be
+    /// edited, which is the one fact that makes this different from every other apply.
+    /// </remarks>
+    public string ConfirmationWord =>
+        Into is { } package
+            ? $"APPLY TO {package.Name.ToUpperInvariant()}"
+            : KeepGoing ? "APPLY ALL" : "APPLY";
 }
 
 /// <summary>
@@ -187,7 +200,17 @@ public partial class PatchPreviewWindow : Window
 
         if (_plan.CanApply)
         {
-            SetVerdict($"This patch applies cleanly. {_plan.Explanation}", BuildWarning(), neutral: false, good: true);
+            var into = _context.Into is { } package ? $" into {package.Name}" : "";
+
+            var notes = string.Join(
+                "\n\n", new[] { DependencyWarning(), BuildWarning() }.Where(n => n.Length > 0));
+
+            SetVerdict(
+                $"This patch applies cleanly{into}. {_plan.Explanation}",
+                notes,
+                neutral: false,
+                good: _context.Into is null);
+
             DryRunCheckBox.IsEnabled = true;
         }
         else
@@ -214,6 +237,27 @@ public partial class PatchPreviewWindow : Window
     /// Without one, the re-run afterwards runs the binary from before the patch, reports the
     /// original error, and rolls back a change that may have been perfectly correct.
     /// </remarks>
+    /// <summary>
+    /// Said loudly when the change lands in an installed package rather than in the project.
+    /// </summary>
+    /// <remarks>
+    /// Three facts, because each one surprises somebody: it is shared, so every program on this
+    /// machine that imports the library gets the change; it is temporary, because the next
+    /// install of that package overwrites it; and it is not the usual fix, which is to upgrade.
+    /// </remarks>
+    private string DependencyWarning()
+    {
+        if (_context.Into is not { } package) return "";
+
+        return
+            $"This writes into {package.Name}, which is installed at {package.Root} - not into your " +
+            "own code.\n\n" +
+            $"Every program on this machine that uses {package.Name} will get this change, and the " +
+            $"next time {package.Name} is installed or upgraded it will be overwritten. Upgrading to " +
+            "a release that already contains the fix is the durable version of this. The backup is " +
+            "taken either way, and Roll back puts it straight.";
+    }
+
     private string BuildWarning()
     {
         if (_context.Fingerprint is null) return "";

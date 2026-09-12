@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Http;
+using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
 
 // System.Windows.Media has a CacheMode of its own; alias the HTTP one apart from it.
@@ -174,11 +175,25 @@ public partial class FixFoundWindow : Window
             ApplyButton.IsEnabled = true;
             ApplyButton.ToolTip = null;
 
+            if (examined.Into is { } package)
+            {
+                ContentGroup.Header = $"What it changes in {package.Name}";
+
+                _rows.Insert(0, Note(""));
+                _rows.Insert(0, Note(
+                    $"This is a fix for {package.Name} itself, so it writes into the installed package " +
+                    "rather than into your code."));
+            }
+
             // Offered only where it means something. On the first error of a run nobody knows yet
             // whether there is a second, and a button promising to work through them all is worth
             // having; where the program cannot be re-run afterwards there is no way to find the
             // next error, so "all" would be a promise this tool cannot keep.
-            if (_context.Outcome.Spec is not null)
+            //
+            // Never for a dependency. Working unattended through a machine's installed packages
+            // is a different proposition from working through one project, and it is not one
+            // anybody should be able to start with a single button.
+            if (_context.Outcome.Spec is not null && examined.Into is null)
             {
                 ApplyAllButton.IsEnabled = true;
                 ApplyAllButton.Visibility = Visibility.Visible;
@@ -187,20 +202,73 @@ public partial class FixFoundWindow : Window
             return;
         }
 
-        // Advisory. The code blocks from the discussion are the useful part, and the button that
-        // cannot be honoured is disabled with the reason on it rather than hidden.
-        ContentGroup.Header = "What it says";
+        // Advisory. Why it is advisory goes on screen rather than into the button's tooltip:
+        // "Apply is greyed out" with the reason hidden behind a hover reads as the tool being
+        // broken, which is exactly how it was read. A patch that exists but belongs to somebody
+        // else's files is a specific, checkable fact, and saying which files it touches lets the
+        // reader confirm the refusal instead of taking it on trust.
+        if (examined.Plan is { CanApply: false } refused)
+        {
+            ContentGroup.Header = "Why this will not apply to your code";
+
+            _rows.Add(Note(refused.Explanation));
+
+            // The commonest refusal by far, and the least self-explanatory. A fix published for
+            // a library patches that library's files, which sit in site-packages or node_modules
+            // rather than in the project - so the patch is perfectly real, perfectly relevant,
+            // and lands nowhere FixFinder is allowed to write.
+            if (_context.Outcome.Fingerprint?.NearestThirdPartyModule is { Length: > 0 } library &&
+                refused.Outcome is ApplyOutcome.RejectedPathNotFound)
+            {
+                _rows.Add(Note(""));
+                _rows.Add(Note(
+                    $"This is a fix for {library} itself, and {library} is installed outside your project."));
+                _rows.Add(Note(
+                    "FixFinder only ever writes inside your own source folder, so it will not patch an"));
+                _rows.Add(Note(
+                    "installed package. Upgrading " + library + " is usually the real fix here."));
+            }
+
+            _rows.Add(Note(""));
+
+            if (refused.Files.Count > 0)
+            {
+                _rows.Add(Note("Where each file in the patch resolved to:"));
+
+                foreach (var file in refused.Files)
+                    _rows.Add(new DiffRow { Kind = DiffRowKind.Removed, Text = $"  {file.Path.Display}" });
+            }
+            else if (examined.Harvest?.Patches is [{ } patch, ..])
+            {
+                _rows.Add(Note("The patch changes these files, none of which are part of your program:"));
+
+                foreach (var file in patch.Files)
+                    _rows.Add(new DiffRow { Kind = DiffRowKind.Removed, Text = $"  {file.TargetPath}" });
+            }
+
+            _rows.Add(Note(""));
+        }
+        else
+        {
+            ContentGroup.Header = "What it says";
+        }
 
         if (examined.Harvest is { } harvest)
+        {
+            if (_rows.Count > 0 && harvest.Snippets.Count > 0) _rows.Add(Note("What it says:"));
+
             foreach (var row in DiffRow.Render(harvest.Snippets)) _rows.Add(row);
+        }
 
         if (_rows.Count == 0)
-            _rows.Add(new DiffRow { Kind = DiffRowKind.Note, Text = "  There is no code in it - open the page to read it." });
+            _rows.Add(Note("  There is no code in it - open the page to read it."));
 
         ApplyButton.ToolTip = _context.Outcome.SourceRoot is null
             ? "FixFinder could not find your source code, so it has nothing to apply this to."
             : examined.WhyNotAppliable;
     }
+
+    private static DiffRow Note(string text) => new() { Kind = DiffRowKind.Note, Text = text };
 
     /// <summary>
     /// Sets both ways of moving on, and says on the button when one of them is not possible.
@@ -319,17 +387,26 @@ public partial class FixFoundWindow : Window
 
         if (_current is null || outcome.SourceRoot is null) return;
 
-        // The result on screen, not the one the session opened with. After a Skip these are
-        // different, and previewing the other one would apply a patch nobody was looking at.
+        // The result on screen, not the one the session opened with. After stepping to another
+        // result these are different, and previewing the other one would apply a patch nobody
+        // was looking at.
+        //
+        // A patch that landed in a dependency is rooted there, so every containment check below
+        // measures against the package rather than against the project - the rule is unchanged,
+        // what it is applied to is what moved.
         var shown = outcome with
         {
             Best = _current.Candidate,
             Harvest = _current.Harvest,
             Plan = _current.Plan,
+            SourceRoot = _current.Into?.Root ?? outcome.SourceRoot,
         };
 
         var preview = new PatchPreviewWindow(
-            new PreviewContext(shown, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing))
+            new PreviewContext(shown, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing)
+            {
+                Into = _current.Into,
+            })
         {
             Owner = this,
         };

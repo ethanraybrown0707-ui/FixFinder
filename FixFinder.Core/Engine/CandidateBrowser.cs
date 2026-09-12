@@ -14,6 +14,16 @@ public sealed record ExaminedCandidate(
     HarvestResult? Harvest,
     ApplyPlan? Plan)
 {
+    /// <summary>
+    /// Set when the plan writes into an installed dependency rather than the project.
+    /// </summary>
+    /// <remarks>
+    /// Carried separately because it changes what the confirmation has to say. A patch inside the
+    /// project affects one program; a patch inside site-packages affects every program on the
+    /// machine that imports it, and pip will overwrite it on the next install.
+    /// </remarks>
+    public InstalledPackage? Into { get; init; }
+
     public bool CanApply => Plan is { CanApply: true };
 
     /// <summary>Why Apply is unavailable, in a sentence fit to put on the disabled button.</summary>
@@ -68,11 +78,20 @@ public sealed class CandidateBrowser
         // anywhere else would make the first Skip appear to go backwards.
         Index = outcome.Best is null ? 0 : Math.Max(0, IndexOf(outcome, outcome.Best));
 
-        if (outcome.Best is not null)
-        {
-            _examined[Index] = new ExaminedCandidate(
-                outcome.Best, Index + 1, Count, outcome.Harvest, outcome.Plan);
-        }
+        if (outcome.Best is null) return;
+
+        // Re-planned rather than taken as given. The session only ever tries the project, so a
+        // patch belonging to a library arrives here refused - and this is the result the prompt
+        // opens on, so taking the session's answer would mean the one case a dependency patch is
+        // most likely to appear in is the one case it is never offered for.
+        var plan = outcome.Plan;
+        InstalledPackage? into = null;
+
+        if (plan is not { CanApply: true } && outcome.Harvest is { } harvest)
+            (plan, into) = PlanFor(harvest);
+
+        _examined[Index] = new ExaminedCandidate(
+            outcome.Best, Index + 1, Count, outcome.Harvest, plan) { Into = into };
     }
 
     /// <summary>Zero-based position in the ranked list.</summary>
@@ -129,22 +148,51 @@ public sealed class CandidateBrowser
             harvester.Log -= Relay;
         }
 
-        var plan = PlanFor(harvest);
+        var (plan, into) = PlanFor(harvest);
 
-        var examined = new ExaminedCandidate(candidate, Index + 1, Count, harvest, plan);
+        var examined = new ExaminedCandidate(candidate, Index + 1, Count, harvest, plan) { Into = into };
         _examined[Index] = examined;
 
         return examined;
     }
 
-    private ApplyPlan? PlanFor(HarvestResult harvest)
+    /// <summary>
+    /// Plans a patch against the project, and failing that against the library it belongs to.
+    /// </summary>
+    /// <remarks>
+    /// The project always goes first, so a patch that fits the user's own code is never diverted
+    /// into a dependency. Only a patch the project cannot place at all is tried against the
+    /// package - which is the ordinary shape of an upstream fix, since it changes the library's
+    /// files and the library is not in the project.
+    /// <para>
+    /// The dependency attempt is contained to that one package's folder, not to the whole of
+    /// site-packages: the containment rule still refuses everything outside it, so a patch that
+    /// wanders is refused exactly as before.
+    /// </para>
+    /// </remarks>
+    private (ApplyPlan? Plan, InstalledPackage? Into) PlanFor(HarvestResult harvest)
     {
-        if (!harvest.HasAppliablePatch || _outcome.SourceRoot is null) return null;
+        if (!harvest.HasAppliablePatch) return (null, null);
 
-        return new PatchApplier().Plan(
-            harvest.Patches[0],
-            new SourcePathMapper(_outcome.SourceRoot, _outcome.StackTraceFiles),
-            _outcome.StackTraceFiles);
+        var patch = harvest.Patches[0];
+        ApplyPlan? planned = null;
+
+        if (_outcome.SourceRoot is { } root)
+        {
+            planned = new PatchApplier().Plan(
+                patch, new SourcePathMapper(root, _outcome.StackTraceFiles), _outcome.StackTraceFiles);
+
+            if (planned.CanApply) return (planned, null);
+        }
+
+        if (_outcome.Dependency is not { } package) return (planned, null);
+
+        var intoPackage = new PatchApplier().Plan(
+            patch, new SourcePathMapper(package.Root, _outcome.StackTraceFiles), _outcome.StackTraceFiles);
+
+        // Only reported as a dependency patch when it genuinely lands there. A failure inside the
+        // package is less informative than the project's own refusal, which named the file.
+        return intoPackage.CanApply ? (intoPackage, package) : (planned ?? intoPackage, null);
     }
 
     private static int IndexOf(SessionOutcome outcome, FixCandidate best)

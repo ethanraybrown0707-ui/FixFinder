@@ -276,6 +276,37 @@ who reads it.
 Refused as unsafe: read-only files, anything over 2 MB, files with NUL bytes, and any patch that
 deletes a file.
 
+### Patching a library, when the fix belongs to one
+
+The commonest published fix in existence is a fix to a library, and it changes that library's own
+files. Those files are on your disk - in `site-packages`, `node_modules` - and they are not in
+your project, so for a long time every one of them resolved to *"no file called adapters.py
+exists anywhere under the source root"*. True, and useless: the patch was real, relevant, and
+landed nowhere FixFinder was allowed to write.
+
+It can now write there, and only there:
+
+- **The project is always tried first.** A patch that fits your own code is never diverted into a
+  dependency.
+- **The root is the package, not the packages folder.** `site-packages/requests`, never
+  `site-packages` - so refusing to write outside the root is refusing to touch anything but the
+  library named in the crash. A scoped npm package roots at `node_modules/@scope/thing` for the
+  same reason.
+- **`vendor/` is deliberately unsupported.** Go lays it out as `vendor/github.com/org/repo` and
+  Composer as `vendor/org/package`; guessing one level down would put every dependency from a host
+  inside one patch's reach. Nothing is offered there rather than too much.
+- **The runtime is never a package.** No issue asks you to hand-edit the standard library.
+- **The confirmation names the library.** You type `APPLY TO REQUESTS`, not `APPLY`, because
+  "APPLY" typed for the hundredth time is a reflex and this one is not the usual thing.
+- **Apply all is withheld.** Working unattended through a machine's installed packages is a
+  different proposition from working through one project.
+
+Worth being plain about the limits. The patch is written against the library's latest code and you
+have a released version, so exact-context matching will often still refuse - this turns *never*
+into *sometimes*, not into *usually*. Every program on the machine that imports the library gets
+the change, and the next install of that package overwrites it. Upgrading to a release that
+already contains the fix is the durable version of the same thing.
+
 ### Backups and verification
 
 Every file is copied aside before it is touched, with a SHA-256 recorded per file and a
