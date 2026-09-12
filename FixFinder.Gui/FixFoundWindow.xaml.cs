@@ -31,7 +31,7 @@ public sealed record FixFoundContext(
     RoundChoice? PreviousChoice = null);
 
 /// <summary>
-/// The prompt: here is what went wrong, here is what was found, shall I apply it.
+/// The prompt: here is what went wrong, here is what was found, here is the fix to paste.
 /// </summary>
 /// <remarks>
 /// The one screen the whole tool exists to produce. It only ever appears when there is a real
@@ -39,11 +39,17 @@ public sealed record FixFoundContext(
 /// reported in the main window and never interrupts, because a dialog that sometimes says
 /// "nothing happened" is a dialog people learn to dismiss without reading.
 /// <para>
-/// Applying does not happen here. The button opens the preview, which shows every file that
-/// would change and where each one resolved to, defaults to a dry run, and asks for the word
-/// APPLY to be typed. Collapsing that into a single "yes" on this window would be the one
-/// simplification worth refusing: this dialog says what was <i>found</i>, and the preview is
-/// where you see what would actually be <i>done</i>.
+/// <b>FixFinder does not write to your files.</b> It finds the fix and hands it over; you paste
+/// it. That is a narrower promise than applying, and a much easier one to keep - the whole
+/// machinery of source roots, containment, exact-context matching, backups and rollback existed
+/// to make writing safe, and not writing is safer still. It also removes the limit that mattered
+/// most: a fix that cannot be applied to your tree can always be read and copied.
+/// </para>
+/// <para>
+/// What goes on the clipboard is never the diff. A unified diff is written for a machine - the
+/// markers and removed lines are instructions - so pasting one into a source file produces
+/// something that does not compile. <see cref="PasteableFix"/> hands over the code as it should
+/// end up instead.
 /// </para>
 /// </remarks>
 public partial class FixFoundWindow : Window
@@ -54,18 +60,12 @@ public partial class FixFoundWindow : Window
 
     private ExaminedCandidate? _current;
 
-    /// <summary>True when files were written, so the caller can say so.</summary>
-    public bool Applied { get; private set; }
-
-    public string? OutcomeSummary { get; private set; }
-
     /// <summary>
-    /// What the user decided, and what was done about it. Null means the prompt was closed.
+    /// What the user decided. Null means the prompt was closed without an answer.
     /// </summary>
     /// <remarks>
-    /// The apply happens inside the preview, behind its typed confirmation, so the result is
-    /// handed back rather than left for the loop to redo - applying the same patch twice would
-    /// fail its own context check the second time and read as a broken patch.
+    /// Only ever Skip now, since nothing here changes a file - the run carries on to the next
+    /// error this build reported, or it stops.
     /// </remarks>
     public RoundDecision? Decision { get; private set; }
 
@@ -134,11 +134,8 @@ public partial class FixFoundWindow : Window
     {
         _rows.Clear();
 
-        ApplyButton.IsEnabled = false;
-        ApplyAllButton.IsEnabled = false;
-        ApplyAllButton.Visibility = Visibility.Collapsed;
-        InstallButton.IsEnabled = false;
-        InstallButton.Visibility = Visibility.Collapsed;
+        CopyButton.IsEnabled = false;
+        CopiedText.Visibility = Visibility.Collapsed;
         AttributionText.Visibility = Visibility.Collapsed;
 
         UpdateSkip();
@@ -148,9 +145,18 @@ public partial class FixFoundWindow : Window
             CandidateTitleText.Text = "That result could not be opened.";
             CandidateSourceText.Text = "";
             CandidateUrlText.Text = "";
-            ApplyButton.ToolTip = "Nothing was fetched, so there is nothing to apply.";
+            CopyButton.ToolTip = "Nothing was fetched, so there is nothing to copy.";
             return;
         }
+
+        // What the button will put on the clipboard, worked out once so its state and its label
+        // cannot disagree with what it copies.
+        var pasteable = PasteableFix.For(examined);
+
+        CopyButton.IsEnabled = pasteable is not null;
+        CopyButton.ToolTip = pasteable is { } fix
+            ? $"Copies {fix.Description}, ready to paste."
+            : "There is no code in this one to copy - open the page to read it.";
 
         var candidate = examined.Candidate;
 
@@ -183,45 +189,32 @@ public partial class FixFoundWindow : Window
             _rows.Add(new DiffRow { Kind = DiffRowKind.Added, Text = $"  {command}" });
             _rows.Add(Note(""));
             _rows.Add(Note("Nothing in your files changes. Only what is installed does."));
+            _rows.Add(Note("Copy it and run it in a terminal."));
 
-            InstallButton.IsEnabled = true;
-            InstallButton.Visibility = Visibility.Visible;
-
-            ApplyButton.ToolTip = "This one is fixed by installing a package, not by editing a file.";
             return;
         }
 
         if (examined.CanApply)
         {
-            ContentGroup.Header = "What it changes";
-            foreach (var row in DiffRow.Render(examined.Plan!)) _rows.Add(row);
-
-            ApplyButton.IsEnabled = true;
-            ApplyButton.ToolTip = null;
+            ContentGroup.Header = "The change, and where it goes";
 
             if (examined.Into is { } package)
             {
-                ContentGroup.Header = $"What it changes in {package.Name}";
+                ContentGroup.Header = $"The change, in {package.Name}";
 
-                _rows.Insert(0, Note(""));
-                _rows.Insert(0, Note(
-                    $"This is a fix for {package.Name} itself, so it writes into the installed package " +
-                    "rather than into your code."));
+                _rows.Add(Note(
+                    $"This is a fix for {package.Name} itself, installed at {package.Root} - not a " +
+                    "change to your own code."));
+
+                _rows.Add(Note(""));
             }
-
-            // Offered only where it means something. On the first error of a run nobody knows yet
-            // whether there is a second, and a button promising to work through them all is worth
-            // having; where the program cannot be re-run afterwards there is no way to find the
-            // next error, so "all" would be a promise this tool cannot keep.
-            //
-            // Never for a dependency. Working unattended through a machine's installed packages
-            // is a different proposition from working through one project, and it is not one
-            // anybody should be able to start with a single button.
-            if (_context.Outcome.Spec is not null && examined.Into is null)
+            else if (pasteable?.Where is { Length: > 0 } where)
             {
-                ApplyAllButton.IsEnabled = true;
-                ApplyAllButton.Visibility = Visibility.Visible;
+                _rows.Add(Note($"Paste over {where}."));
+                _rows.Add(Note(""));
             }
+
+            foreach (var row in DiffRow.Render(examined.Plan!)) _rows.Add(row);
 
             return;
         }
@@ -287,165 +280,6 @@ public partial class FixFoundWindow : Window
         if (_rows.Count == 0)
             _rows.Add(Note("  There is no code in it - open the page to read it."));
 
-        ApplyButton.ToolTip = _context.Outcome.SourceRoot is null
-            ? "FixFinder could not find your source code, so it has nothing to apply this to."
-            : examined.WhyNotAppliable;
-    }
-
-    private static DiffRow Note(string text) => new() { Kind = DiffRowKind.Note, Text = text };
-
-    /// <summary>
-    /// Sets both ways of moving on, and says on the button when one of them is not possible.
-    /// </summary>
-    /// <remarks>
-    /// They are different questions. "Show me another answer to this problem" walks the ranked
-    /// results, which almost always exist; "this problem is not worth my time, what else broke"
-    /// needs another error, which only compiler output has. Where the second is impossible the
-    /// button carries the reason rather than sitting dim - the program stopped at this error, so
-    /// whatever would have failed next has not happened yet, and no parser could find it.
-    /// </remarks>
-    private void UpdateSkip()
-    {
-        var moreResults = _browser.HasNext;
-        var moreErrors = _context.Outcome.OtherErrors.Count;
-
-        NextResultButton.IsEnabled = moreResults;
-        NextResultButton.ToolTip = moreResults
-            ? $"Show the next of {_browser.Remaining} more result{(_browser.Remaining == 1 ? "" : "s")} for this error."
-            : "This is the last result that was found for this error.";
-
-        SkipButton.IsEnabled = moreErrors > 0;
-        SkipButton.ToolTip = moreErrors > 0
-            ? $"Leave this problem and look up the next error this run reported ({moreErrors} left)."
-            : _context.Outcome.FailedToCompile
-                ? "That was the last error this build reported."
-                : "The program stopped at this error, so there is nothing behind it to move on to until it is fixed.";
-    }
-
-    private void OnBrowserLog(string message) => _context.Logger?.Write(message);
-
-    // ================================================================== actions
-
-    private void ApplyButton_Click(object sender, RoutedEventArgs e) => Preview(keepGoing: false);
-
-    /// <summary>
-    /// Runs the install, after showing the exact command.
-    /// </summary>
-    /// <remarks>
-    /// No preview and no typed word, because neither would be about anything: the preview exists
-    /// to show which files change and where each one resolved to, and this changes no files. What
-    /// it does instead is name the command in full - the package being fetched came out of the
-    /// program's own output, so the one thing worth reading before agreeing is exactly what is
-    /// about to be run.
-    /// <para>
-    /// Fetching and executing code from the network is a bigger step than editing a file, so it
-    /// is never part of Apply all and never happens without this answer.
-    /// </para>
-    /// </remarks>
-    private async void InstallButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_current?.Candidate is not { Command: { Length: > 0 } command } candidate) return;
-
-        var answer = MessageBox.Show(this,
-            "FixFinder is about to run this, as you:\n\n" +
-            $"{command}\n\n" +
-            "That downloads and installs a package from PyPI into the interpreter that ran your " +
-            "program. Nothing in your own files changes.\n\n" +
-            "The package name was read from what the program printed, so check it reads the way " +
-            "you expect before agreeing.\n\n" +
-            "Run it?",
-            "Install a package?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        InstallButton.IsEnabled = false;
-        CandidateTitleText.Text = $"Running {command}...";
-
-        _context.Logger?.WriteSection("Install");
-        _context.Logger?.Write(command);
-
-        var (program, arguments) = FixVerifier.SplitCommand(command);
-
-        var spec = new TargetSpec
-        {
-            ExecutablePath = program,
-            Arguments = arguments,
-            WorkingDirectory = _context.Outcome.SourceRoot ?? Path.GetTempPath(),
-            Timeout = TimeSpan.FromMinutes(5),
-        };
-
-        TargetRunResult run;
-
-        try
-        {
-            run = await new TargetRunner().RunAsync(spec, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            _context.Logger?.Write($"Install failed to start: {ex}");
-
-            MessageBox.Show(this, $"The install could not be started:\n\n{ex.Message}",
-                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
-
-            InstallButton.IsEnabled = true;
-            Render(_current);
-            return;
-        }
-
-        _context.Logger?.Write($"Install exited {run.ExitCode}: {run.Explanation}");
-
-        foreach (var line in run.Lines.TakeLast(40)) _context.Logger?.Write($"  {line.Text}");
-
-        if (run.Outcome != RunOutcome.ExitedClean)
-        {
-            var tail = string.Join("\n", run.Lines.TakeLast(6).Select(l => l.Text));
-
-            MessageBox.Show(this,
-                $"The install exited {run.ExitCode?.ToString() ?? "abnormally"}:\n\n{tail}",
-                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
-
-            InstallButton.IsEnabled = true;
-            Render(_current);
-            return;
-        }
-
-        Applied = true;
-        OutcomeSummary = $"Installed: {candidate.Title}";
-
-        // Reported as an ordinary applied round, so the loop re-runs the program and says whether
-        // it actually helped - the same proof any patch has to pass.
-        Decision = new RoundDecision(RoundChoice.Apply, null);
-
-        DialogResult = true;
-        Close();
-    }
-
-    /// <summary>
-    /// Asks once for the whole sequence, then hands over to the same preview.
-    /// </summary>
-    /// <remarks>
-    /// The consent is real and it is given here, not weakened: what changes is its <i>scope</i>,
-    /// from one patch to however many this run turns up, so it is spelled out in those terms and
-    /// still ends at the typed confirmation in the preview. Everything that made the first write
-    /// safe is unchanged for the rest - the same score floor, the same containment inside the
-    /// source root, exact context with no fuzz, a backup of every file, and a rollback the moment
-    /// a change fails to help.
-    /// </remarks>
-    private void ApplyAllButton_Click(object sender, RoutedEventArgs e)
-    {
-        var answer = MessageBox.Show(this,
-            "FixFinder will apply this fix, then run the program again. If a different error comes " +
-            "up, it will look that one up and apply its fix too, and keep going without asking again.\n\n" +
-            $"It stops after {FixLoop.DefaultMaxRounds} changes, the moment the program runs cleanly, or as " +
-            "soon as one of them fails to help.\n\n" +
-            "Nothing else changes: every file is copied to a backup first, a change that does not help is " +
-            "put straight back, and nothing outside your source folder is ever written.\n\n" +
-            "Carry on?",
-            "Apply every fix it finds?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
-
-        if (answer != MessageBoxResult.OK) return;
-
-        Preview(keepGoing: true);
     }
 
     /// <summary>
@@ -497,50 +331,80 @@ public partial class FixFoundWindow : Window
         Close();
     }
 
-    private void Preview(bool keepGoing)
+    private static DiffRow Note(string text) => new() { Kind = DiffRowKind.Note, Text = text };
+
+    /// <summary>
+    /// Sets both ways of moving on, and says on the button when one of them is not possible.
+    /// </summary>
+    /// <remarks>
+    /// They are different questions. "Show me another answer to this problem" walks the ranked
+    /// results, which almost always exist; "this problem is not worth my time, what else broke"
+    /// needs another error, which only compiler output has. Where the second is impossible the
+    /// button carries the reason rather than sitting dim - the program stopped at this error, so
+    /// whatever would have failed next has not happened yet, and no parser could find it.
+    /// </remarks>
+    private void UpdateSkip()
     {
-        var outcome = _context.Outcome;
+        var moreResults = _browser.HasNext;
+        var moreErrors = _context.Outcome.OtherErrors.Count;
 
-        if (_current is null || outcome.SourceRoot is null) return;
+        NextResultButton.IsEnabled = moreResults;
+        NextResultButton.ToolTip = moreResults
+            ? $"Show the next of {_browser.Remaining} more result{(_browser.Remaining == 1 ? "" : "s")} for this error."
+            : "This is the last result that was found for this error.";
 
-        // The result on screen, not the one the session opened with. After stepping to another
-        // result these are different, and previewing the other one would apply a patch nobody
-        // was looking at.
-        //
-        // A patch that landed in a dependency is rooted there, so every containment check below
-        // measures against the package rather than against the project - the rule is unchanged,
-        // what it is applied to is what moved.
-        var shown = outcome with
+        SkipButton.IsEnabled = moreErrors > 0;
+        SkipButton.ToolTip = moreErrors > 0
+            ? $"Leave this problem and look up the next error this run reported ({moreErrors} left)."
+            : _context.Outcome.FailedToCompile
+                ? "That was the last error this build reported."
+                : "The program stopped at this error, so there is nothing behind it to move on to until it is fixed.";
+    }
+
+    private void OnBrowserLog(string message) => _context.Logger?.Write(message);
+
+    // ================================================================== actions
+
+    /// <summary>
+    /// Puts the fix on the clipboard in the form you can actually paste.
+    /// </summary>
+    /// <remarks>
+    /// Not the diff. Every diff here is written for a machine to apply - the markers, the hunk
+    /// header and the removed lines are instructions, and pasting them into a source file
+    /// produces something that does not compile. What goes on the clipboard is the code as it
+    /// should end up, context lines included, so it replaces the old block exactly.
+    /// </remarks>
+    private void CopyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_current is null || PasteableFix.For(_current) is not { } fix) return;
+
+        try
         {
-            Best = _current.Candidate,
-            Harvest = _current.Harvest,
-            Plan = _current.Plan,
-            SourceRoot = _current.Into?.Root ?? outcome.SourceRoot,
-        };
-
-        var preview = new PatchPreviewWindow(
-            new PreviewContext(shown, _context.Http, _context.Logger, HttpCacheMode.Normal, keepGoing)
-            {
-                Into = _current.Into,
-            })
+            Clipboard.SetText(fix.Text);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException)
         {
-            Owner = this,
-        };
+            // The clipboard is a shared OS resource and another process can be holding it open.
+            // Losing a copy is a nuisance; crashing the prompt over it is not acceptable.
+            _context.Logger?.Write($"Could not copy: {ex.Message}");
 
-        preview.ShowDialog();
+            MessageBox.Show(this,
+                "Windows would not let FixFinder use the clipboard just then - something else is " +
+                "holding it. Try again in a moment.",
+                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
 
-        // Closing the preview without applying is not an answer to this prompt, so this one stays
-        // up: the user is back where they were, free to read the page or to try again.
-        if (preview.Step is not { } step) return;
+            return;
+        }
 
-        Decision = new RoundDecision(
-            keepGoing ? RoundChoice.ApplyEverything : RoundChoice.Apply, step);
+        _context.Logger?.Write($"Copied {fix.Description} ({fix.Text.Length} characters).");
 
-        Applied = preview.ChangedAnything;
-        OutcomeSummary = $"Applied: {_current.Candidate.Title}";
+        var lines = fix.Text.Split('\n').Length;
 
-        DialogResult = true;
-        Close();
+        CopiedText.Text = fix.Where is { Length: > 0 } where
+            ? $"Copied {lines} line{(lines == 1 ? "" : "s")} - paste over {where}."
+            : $"Copied {fix.Description}.";
+
+        CopiedText.Visibility = Visibility.Visible;
     }
 
     private void OpenPageButton_Click(object sender, RoutedEventArgs e)

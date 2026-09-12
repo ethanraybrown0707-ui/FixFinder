@@ -496,14 +496,14 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.FoundFix,
-                Headline = "Found a fix that applies to your code.",
+                Headline = "Found a fix that fits your code.",
                 // The title is shown directly above this in the prompt, so repeating it here
                 // just pushes the part that matters further down the window.
                 Detail =
                     $"It changes {files} file{(files == 1 ? "" : "s")} " +
                     $"(+{bestPlan.Files.Sum(f => f.Patch.AddedCount)} " +
                     $"-{bestPlan.Files.Sum(f => f.Patch.RemovedCount)} lines). " +
-                    "Nothing has been written yet.",
+                    "Copy it and paste it in - FixFinder does not touch your files.",
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
@@ -529,8 +529,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Detail =
                     $"Nothing in your code is wrong - the interpreter that ran it does not have this " +
                     $"package. Installing it changes no files:\n\n    {command}\n\n" +
-                    "It runs only if you say so, and the program is run again afterwards to check it " +
-                    "helped.",
+                    "Copy it and run it in a terminal - FixFinder does not run anything for you.",
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest,
@@ -713,8 +712,8 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         return
             $"The error is{where}, in code you wrote, so nothing published anywhere is about it - " +
-            "and none of it can be applied, because a patch for your program does not exist to be " +
-            "found.\n\n" +
+            "and none of it is going to be the fix, because nothing was ever written about your " +
+            "file.\n\n" +
             $"The {count} result{(count == 1 ? "" : "s")} below are other people's versions of the " +
             "same kind of mistake. Read them if the kind is unfamiliar; the fix itself is yours.";
     }

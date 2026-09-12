@@ -111,21 +111,20 @@
 
         <!-- =================================== answer ================================= -->
         <DockPanel Grid.Row="4" Margin="0,14,0,0">
-            <TextBlock DockPanel.Dock="Left" x:Name="OtherResultsText"
-                       AutomationProperties.AutomationId="OtherResultsText"
-                       Style="{StaticResource Hint}" VerticalAlignment="Center"/>
+            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                <TextBlock x:Name="OtherResultsText"
+                           AutomationProperties.AutomationId="OtherResultsText"
+                           Style="{StaticResource Hint}"/>
+
+                <TextBlock x:Name="CopiedText" AutomationProperties.AutomationId="CopiedText"
+                           Style="{StaticResource Hint}" Foreground="#2E7D32" FontWeight="SemiBold"
+                           Margin="0,2,0,0" Visibility="Collapsed"/>
+            </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="ApplyButton" AutomationProperties.AutomationId="ApplyItButton"
-                        Content="Apply it..." Padding="16,6" FontSize="13"
-                        Click="ApplyButton_Click"/>
-                <Button x:Name="InstallButton" AutomationProperties.AutomationId="InstallButton"
-                        Content="Install it..." Padding="16,6" Margin="8,0,0,0" FontSize="13"
-                        IsEnabled="False" Visibility="Collapsed" Click="InstallButton_Click"/>
-                <Button x:Name="ApplyAllButton" AutomationProperties.AutomationId="ApplyAllButton"
-                        Content="Apply all..." Padding="12,6" Margin="8,0,0,0" FontSize="13"
-                        IsEnabled="False" Visibility="Collapsed" Click="ApplyAllButton_Click"
-                        ToolTip="Apply this one, then keep going: if a different error appears, look that one up and apply its fix too, without asking again."/>
+                <Button x:Name="CopyButton" AutomationProperties.AutomationId="CopyFixButton"
+                        Content="Copy the fix" Padding="16,6" FontSize="13"
+                        IsEnabled="False" Click="CopyButton_Click"/>
                 <Button x:Name="NextResultButton" AutomationProperties.AutomationId="NextResultButton"
                         Content="Next result" Padding="12,6" Margin="8,0,0,0"
                         Click="NextResultButton_Click"/>

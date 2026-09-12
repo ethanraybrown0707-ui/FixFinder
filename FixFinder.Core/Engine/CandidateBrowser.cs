@@ -31,7 +31,7 @@ public sealed record ExaminedCandidate(
         Harvest is null
             ? "This one has not been opened yet."
             : !Harvest.HasAppliablePatch
-                ? "This one is an explanation rather than a patch, so it cannot be applied automatically."
+                ? "This one is an explanation rather than a patch - open the page and read it."
                 : Plan is null
                     ? "FixFinder could not find your source code, so it has nothing to apply this to."
                     : $"Its patch will not apply here: {Plan.Explanation}";

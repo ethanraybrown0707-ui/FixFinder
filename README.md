@@ -189,23 +189,19 @@ Three things are worth knowing before you use it:
 
 ## Consent
 
-Three gates, outermost first:
+Two gates, and both are about running a program rather than about writing to one:
 
-1. A blocking prompt on startup naming all three capabilities (runs a program you pick · sends
-   your error text to github.com and api.stackexchange.com · can modify source files under a
-   folder it works out).
-2. A confirmation naming the exact command line and working directory, before anything launches.
-3. A typed `APPLY` before any file is written — with **dry-run on by default**, so the first
-   attempt is a preview even if you click through everything else.
+1. **`run-fixfinder.cmd`** asks you to type YES before the window opens, and the window itself
+   opens with a blocking notice naming what the tool does: it runs a program you choose, and it
+   sends your error text to github.com and api.stackexchange.com. Cancel shuts it down.
+2. **Before anything is launched**, a confirmation names the exact command line and working
+   directory. A compiled language runs two commands and the confirmation names both, because
+   showing only the second would be describing something other than what is about to happen.
 
-(`run-fixfinder.cmd`, which runs the Debug build, adds a typed `YES` in front of all three.)
-
-Simplifying the window did not touch any of these. The one that was tempting to collapse is the
-third: the prompt says what was *found*, and the preview that opens from it is where you see
-what would actually be *done* - which files, resolved to which paths on your disk, and where the
-backup goes. Those are different questions and they get different answers.
-
-Backups are written before every patch and are never deleted automatically.
+There used to be a third - a preview, a dry-run tick and the word APPLY typed in full - guarding
+the moment FixFinder wrote to your source. It is gone because the writing is gone. Nothing here
+modifies your files, so there is nothing left to guard; the fix goes to the clipboard and the
+decision to paste it is made in your editor, where you can see what you are replacing.
 
 ## Layout
 
@@ -338,149 +334,44 @@ Nothing here is learned or fitted. Every number is fixed, written down, and rend
 line in the detail pane, so "why is this one first" is always answerable — which is also how
 the weights get tuned.
 
-## Applying a patch
+## Handing the fix over
 
-The only part of FixFinder that writes to disk, and the rules are deliberately unforgiving.
+**FixFinder does not write to your files.** It finds the fix, shows it, and puts it on the
+clipboard; you paste it. That is a narrower promise than applying, and a far easier one to keep -
+the whole apparatus of source roots, containment, exact-context matching, backups, rollback and
+verify-by-rerun existed to make writing safe, and not writing is safer still.
 
-**Where it may write.** Every path in a patch is resolved with `Path.GetFullPath` and must then
-sit beneath the resolved source root. That is a structural check on a real path, not a scan of
-the patch text for `..` — the text scan is the version that misses absolute paths, alternate
-separators and encoding tricks. A diff naming
-`a/../../../../Windows/System32/drivers/etc/hosts` is refused and writes nothing.
+It also removes the limit that mattered most in practice. A patch that cannot be *applied* to your
+tree - because it was written against another version, or another project, or a library installed
+outside your project - can always be *read*. Everything found is now usable, where before most of
+it was shown with a greyed-out button.
 
-**Which file it means.** `src/cart/basket.py` may live at `app/cart/basket.py` here, so
-progressively shorter path suffixes are matched against an index of the source root. Two files
-that match equally well are reported as ambiguous and **never guessed between** — only a file
-named in the stack trace breaks a tie.
+**The clipboard never gets a diff.** This is the part worth stating plainly, because it is the
+one thing that would make the feature useless. A unified diff is written for a machine: the `+`
+and `-` markers, the `@@` header and the removed lines are instructions, and pasting them into a
+source file produces something that does not compile. What is copied is the code as it should end
+up - the new side of the hunk, context lines included, so the block replaces the old one exactly:
 
-**Exact context, zero fuzz.** Each hunk's context and removed lines must be found byte for byte
-within 200 lines of where the patch says. No whitespace-insensitive mode, no partial-context
-fallback, no `patch --fuzz` equivalent. Fuzz is how a patch tool silently corrupts a file, and
-there is nothing downstream here that would notice. A hunk that fits in two places is refused
-for the same reason: two equally good answers means the right one is not knowable.
+```
+ def read_user(payload):        ->    def read_user(payload):
+-    return payload["user_id"]            return payload.get("user_id")
++    return payload.get(...)          print("done")
+ print("done")
+```
 
-**Relevance, not just fit.** A patch whose files never appear in the crash is refused even when
-it applies perfectly. Context matching cannot tell a relevant patch from an irrelevant one that
-happens to fit.
+The window says where it goes - *"Copied 3 lines - paste over cart.py, from line 42"* - so the
+block can be lined up without counting.
 
-**All or nothing.** Every hunk in every file is located before a single byte is written. A
-half-applied cross-file patch compiles about as often as an unpatched tree and matches neither
-the original nor the fix.
+Three shapes, three sensible answers:
 
-**Preserved as found.** Line endings and the byte-order mark come from the file, never from the
-patch — otherwise a one-line fix to a CRLF file arrives as a whole-file diff for the next person
-who reads it.
+| What was found | What gets copied |
+|---|---|
+| A patch, from GitHub or from the runtime's own suggestion | the corrected lines, markers stripped |
+| A missing package | the install command, to paste into a terminal |
+| A prose answer | its code block, as the author wrote it |
 
-Refused as unsafe: read-only files, anything over 2 MB, files with NUL bytes, and any patch that
-deletes a file.
-
-### Patching a library, when the fix belongs to one
-
-The commonest published fix in existence is a fix to a library, and it changes that library's own
-files. Those files are on your disk - in `site-packages`, `node_modules` - and they are not in
-your project, so for a long time every one of them resolved to *"no file called adapters.py
-exists anywhere under the source root"*. True, and useless: the patch was real, relevant, and
-landed nowhere FixFinder was allowed to write.
-
-It can now write there, and only there:
-
-- **The project is always tried first.** A patch that fits your own code is never diverted into a
-  dependency.
-- **The root is the package, not the packages folder.** `site-packages/requests`, never
-  `site-packages` - so refusing to write outside the root is refusing to touch anything but the
-  library named in the crash. A scoped npm package roots at `node_modules/@scope/thing` for the
-  same reason.
-- **Each ecosystem gets its own rule, because depth is not one thing.** `site-packages/requests`
-  and `node_modules/express` are one level down; `node_modules/@scope/thing` is two; a Cargo crate
-  is always `registry/src/<index>/<crate>-<version>`; and a Go module is identified by the
-  `@version` on its directory, since a module path is three segments for `github.com/pkg/errors`
-  and two for `gopkg.in/yaml.v2`. A shared guess at depth is wrong for at least one of them.
-- **Vendored Go reads `vendor/modules.txt`** rather than guessing, which is what makes that folder
-  safe to root in at all. Composer's `vendor/` has no equivalent here, so it is still left alone.
-- **Go's module cache is read-only on purpose**, so a patch there is refused - and says so, naming
-  `go mod vendor`, instead of stopping at "the file is read-only". Cargo re-extracts a crate whose
-  checksum stops matching, so that warns about `cargo vendor`. Those are the ecosystems telling you
-  their cache is not the place to edit, and the warning passes the message on rather than fighting
-  it.
-- **The runtime is never a package.** No issue asks you to hand-edit the standard library.
-- **The confirmation names the library.** You type `APPLY TO REQUESTS`, not `APPLY`, because
-  "APPLY" typed for the hundredth time is a reflex and this one is not the usual thing.
-- **Apply all is withheld.** Working unattended through a machine's installed packages is a
-  different proposition from working through one project.
-
-Worth being plain about the limits. The patch is written against the library's latest code and you
-have a released version, so exact-context matching will often still refuse - this turns *never*
-into *sometimes*, not into *usually*. Every program on the machine that imports the library gets
-the change, and the next install of that package overwrites it. Upgrading to a release that
-already contains the fix is the durable version of the same thing.
-
-### Backups and verification
-
-Every file is copied aside before it is touched, with a SHA-256 recorded per file and a
-`manifest.json` naming the candidate responsible. Restoring re-checks every hash, so a backup
-that was itself damaged is refused rather than written over working code. **Backups are never
-deleted automatically.**
-
-After applying, the build command runs and the target is re-run. The verdict compares error
-*fingerprints*, not output text — a patch moves line numbers, so anything comparing raw text
-would call every applied patch a different error:
-
-| Verdict | What happens | And the loop |
-|---|---|---|
-| `Fixed` | Kept | Finished |
-| `SameErrorPersists` | **Rolled back automatically** | Stops |
-| `BuildFailed` | **Rolled back automatically**, without even re-running | Stops |
-| `DifferentError` | **Kept** - fixing the first of two bugs looks exactly like this | **Goes round again** |
-| `Inconclusive` | Kept, and says why it proved nothing | Stops rather than stack a change on one it cannot vouch for |
-
-Re-running only proves anything when the crash reproduces from the same invocation with no
-interaction. Input-, timing-, network- and click-dependent failures cannot be verified this way,
-and neither can a server that was still running happily when the timeout stopped it. Those are
-`Inconclusive` rather than a verdict that would read as a guarantee. For a compiled language
-with no build command set, the re-run would run the binary from *before* the patch, so that is
-`Inconclusive` too rather than a wrong answer.
-
-### More than one error
-
-A program reports one error per run, because the first one ends it. Everything behind it is
-invisible until it is gone, so a tool that runs a program once is telling you about a fraction of
-the problem and has no way to know that.
-
-`DifferentError` is what makes the rest reachable. It already meant "the original error is gone
-and another one has appeared", and it was already never rolled back, because that is what fixing
-the first of two bugs looks like. So it is also the signal to go round again: search the new
-error, offer its fix, apply, rebuild, re-run. Every other verdict ends the run.
-
-The re-run the verifier has already done *is* the next round's run. Launching a third time would
-be slower and less honest - a fresh run can fail differently, and the search would then be about
-an error nobody was shown.
-
-**Skip** exists for the problems nothing can fix. Two buttons, because they answer different
-questions: **Next result** walks the thirty-odd other results found for the same error, and
-**Skip problem** leaves the error entirely for the next one the run reported. One button doing
-both would put "move past this" thirty-seven clicks away.
-
-Skipping the problem is live only for compiler output, and the reason is not a limitation to work
-around. A compiler reports everything it found and exits, so the second diagnostic is really there
-to be looked up; a program that crashed has exactly one error, because the first one ended it -
-whatever would have failed next has not happened yet and no parser could find it. Where there is
-nowhere to go the button is disabled carrying that sentence, rather than sitting dim.
-
-**Apply all** asks once and then stops asking. It is the same code path as pressing Apply each
-time, with the same score floor, the same containment, the same exact-context matching, the same
-backup per round and the same automatic rollback; what it drops is the typed confirmation per
-round, which is why the one it does ask for is worded as covering the whole sequence.
-
-Two things stop it running away:
-
-- **Five rounds**, then it reports where it got to and leaves the rest to another run. A tool
-  that edits source should not keep doing so indefinitely while nobody is watching.
-- **An error it has already seen this run** ends it immediately, as does a candidate it has
-  already applied. Two patches that undo each other produce a different error every round and
-  would otherwise look like progress all the way to the limit.
-
-A round that turns up only advice brings the prompt back rather than closing on a result nobody
-saw - "all" cannot apply prose, so there is nothing for it to do quietly.
+Hunks that are not contiguous are kept apart with a marker rather than run together, because
+pasting them as one block would silently delete every line between them.
 
 ## Status
 
