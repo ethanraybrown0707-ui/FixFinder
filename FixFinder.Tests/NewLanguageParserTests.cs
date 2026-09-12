@@ -235,6 +235,107 @@ public class NewLanguageParserTests
         Assert.NotEqual("lua", parsed?.LanguageId);
     }
 
+    // ------------------------------------------------------------------ real crashes
+
+    /// <summary>
+    /// Output captured from the runtimes themselves, once they were installed on this machine.
+    /// </summary>
+    /// <remarks>
+    /// These six fixtures are the ones that earn their keep. The hand-written fixtures above were
+    /// written from knowledge of each format and every one of them passed; running the real
+    /// runtimes broke three parsers immediately, in ways no amount of re-reading would have shown.
+    /// Each case below is a transcript of a program actually crashing, kept verbatim - console
+    /// wrapping, absent line numbers, full interpreter paths and all.
+    /// </remarks>
+    [Theory]
+    [InlineData("php/live-typeerror.txt", "php")]
+    [InlineData("powershell/live-pathnotfound.txt", "powershell")]
+    [InlineData("dart/live-rangeerror.txt", "dart")]
+    [InlineData("elixir/live-arithmetic.txt", "elixir")]
+    [InlineData("perl/live-method.txt", "perl")]
+    [InlineData("lua/live-nil-index.txt", "lua")]
+    public void RealCapturedOutputRoutesToTheRightParser(string fixture, string expected) =>
+        Assert.Equal(expected, Parse(fixture).LanguageId);
+
+    /// <summary>
+    /// PowerShell wraps its location line to the console width even when redirected.
+    /// </summary>
+    /// <remarks>
+    /// The captured path splits mid-token across two lines with no separator. Before it was
+    /// rejoined this produced no frames at all and reported the orphaned tail -
+    /// <c>25\scratchpad\crashes\crash.ps1:2 char:1</c> - as the error message, with full
+    /// confidence. Wrong and confident is the combination worth a test.
+    /// </remarks>
+    [Fact]
+    public void AWrappedPowerShellLocationIsPutBackTogether()
+    {
+        var error = Parse("powershell/live-pathnotfound.txt");
+
+        Assert.Equal("PathNotFound", error.ErrorCode);
+        Assert.StartsWith("Cannot find path", error.Message!, StringComparison.Ordinal);
+        Assert.Single(error.Frames);
+        Assert.EndsWith("crash.ps1", error.Frames[0].File!, StringComparison.Ordinal);
+        Assert.Equal(2, error.Frames[0].Line);
+    }
+
+    /// <summary>
+    /// A real Dart trace opens with a frame that carries no line number.
+    /// </summary>
+    /// <remarks>
+    /// <c>#0      List.[] (dart:core-patch/growable_array.dart)</c>. Requiring a position meant
+    /// the first frame failed to match, the loop stopped on it, and all four frames were lost -
+    /// including the only one pointing at a file on this disk. The error still parsed, so nothing
+    /// looked wrong.
+    /// </remarks>
+    [Fact]
+    public void DartFramesWithoutALineNumberDoNotStopTheTrace()
+    {
+        var error = Parse("dart/live-rangeerror.txt");
+
+        Assert.Equal(4, error.Frames.Count);
+        Assert.Null(error.Frames[0].Line);
+
+        var mine = error.Frames.First(frame => frame.File?.EndsWith("crash.dart", StringComparison.Ordinal) == true);
+        Assert.Equal(4, mine.Line);
+    }
+
+    /// <summary>
+    /// Lua names itself by full path, not by the bare <c>lua:</c> the documentation shows.
+    /// </summary>
+    /// <remarks>
+    /// The real prefix is <c>C:\…\bin\lua.exe:</c>. Matching only the short form sent a genuine
+    /// Lua crash to the generic parser, which read <c>stack traceback:</c> as the message.
+    /// </remarks>
+    [Fact]
+    public void LuaIsRecognisedWhenItNamesItselfByFullPath()
+    {
+        var error = Parse("lua/live-nil-index.txt");
+
+        Assert.Equal("lua", error.LanguageId);
+        Assert.Equal("attempt to index a nil value (local 'settings')", error.Message);
+        Assert.Equal("crash.lua", error.Frames[0].File);
+        Assert.Equal(3, error.Frames[0].Line);
+    }
+
+    /// <summary>
+    /// PHP's command-line build writes its fatal error to <b>stdout</b>, not stderr.
+    /// </summary>
+    /// <remarks>
+    /// Every other runtime here writes its fatal output to stderr, and the registry reads stderr
+    /// first for exactly that reason. PHP does not, so this is the case that proves the fallback
+    /// to the merged stream is load-bearing rather than belt-and-braces.
+    /// </remarks>
+    [Fact]
+    public void PhpIsStillFoundWhenItWritesToStandardOutput()
+    {
+        var parsed = Registry.Parse(Fixtures.LoadSplit("php/live-typeerror.txt", _ => true));
+
+        Assert.NotNull(parsed);
+        Assert.Equal("php", parsed!.LanguageId);
+        Assert.Equal("TypeError", parsed.ExceptionType);
+        Assert.Equal("Unsupported operand types: string + int", parsed.Message);
+    }
+
     // ------------------------------------------------------------------ they stay out of each other's way
 
     /// <summary>

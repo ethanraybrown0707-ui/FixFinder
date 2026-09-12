@@ -1,0 +1,8 @@
+Get-Content : Cannot find path 'C:\definitely\missing.csv' because it does not exist.
+At C:\Users\ethan\AppData\Local\Temp\claude\C--Users-ethan-OneDrive-Documents-Claude\2eb7b1c4-de1b-451d-b9a0-699fe123bf
+25\scratchpad\crashes\crash.ps1:2 char:1
++ Get-Content -Path 'C:\definitely\missing.csv'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\definitely\missing.csv:String) [Get-Content], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 

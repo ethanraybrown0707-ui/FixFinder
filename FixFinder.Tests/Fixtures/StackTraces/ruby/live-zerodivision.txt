@@ -1,0 +1,2 @@
+crash.rb:2:in `/': divided by 0 (ZeroDivisionError)
+	from crash.rb:2:in `<main>'

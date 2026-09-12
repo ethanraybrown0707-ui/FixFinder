@@ -42,13 +42,57 @@ public sealed partial class PowerShellParser : IStackTraceParser
     [GeneratedRegex(@"^(?<sym>[A-Za-z][\w-]*)\s*:\s*(?<msg>.+?)\s*$")]
     private static partial Regex HeaderPattern();
 
+    /// <summary>The tail of a location line, wherever it ended up after wrapping.</summary>
+    [GeneratedRegex(@"char:\s*\d+\s*$")]
+    private static partial Regex LocationTailPattern();
+
+    /// <summary>
+    /// The location line, rejoined when the console has wrapped it.
+    /// </summary>
+    /// <remarks>
+    /// PowerShell formats an error record to the console's width even when its output is being
+    /// redirected, so a long script path splits across two lines mid-token and with no separator:
+    /// <code>
+    /// At C:\Users\...\2eb7b1c4-de1b-451d-b9a0-699fe123bf
+    /// 25\scratchpad\crashes\crash.ps1:2 char:1
+    /// </code>
+    /// Matching a single line then finds no location at all, and - worse - the orphaned tail is
+    /// the line the walk up from the record stops on, so <c>25\scratchpad\crashes\crash.ps1:2
+    /// char:1</c> gets reported as the error message. Rejoining is not cosmetic; without it the
+    /// parser confidently returns nonsense.
+    /// </remarks>
+    private static Match? Location(IReadOnlyList<CapturedLine> lines, int index)
+    {
+        if (!lines[index].Text.StartsWith("At ", StringComparison.Ordinal)) return null;
+
+        var joined = lines[index].Text;
+
+        // Two continuations is already a 240-character path; beyond that the line is not a
+        // location and joining further would only invent one.
+        for (var extra = 0; extra <= 2; extra++)
+        {
+            if (AtPattern().Match(joined) is { Success: true } match) return match;
+
+            var next = index + extra + 1;
+            if (next >= lines.Count) return null;
+
+            // Concatenated raw. A wrap inserts nothing, so anything added here would end up
+            // inside the path.
+            joined += lines[next].Text;
+        }
+
+        return null;
+    }
+
     public int Detect(IReadOnlyList<string> lines)
     {
         var score = 0;
 
         foreach (var line in lines)
         {
-            if (AtPattern().IsMatch(line)) score += 55;
+            // The tail rather than the whole line, so a wrapped location still counts. Detection
+            // that only recognised the unwrapped form would score a real record 40 instead of 95.
+            if (LocationTailPattern().IsMatch(line)) score += 55;
             if (ErrorIdPattern().IsMatch(line)) score += 40;
             if (CategoryPattern().IsMatch(line)) score += 25;
         }
@@ -62,7 +106,7 @@ public sealed partial class PowerShellParser : IStackTraceParser
         var anchor = -1;
         for (var i = lines.Count - 1; i >= 0; i--)
         {
-            if (!AtPattern().IsMatch(lines[i].Text) && !ErrorIdPattern().IsMatch(lines[i].Text)) continue;
+            if (Location(lines, i) is null && !ErrorIdPattern().IsMatch(lines[i].Text)) continue;
             anchor = i;
             break;
         }
@@ -89,7 +133,7 @@ public sealed partial class PowerShellParser : IStackTraceParser
         {
             var text = lines[i].Text;
 
-            if (AtPattern().Match(text) is { Success: true } at)
+            if (Location(lines, i) is { } at)
             {
                 file = ParserHelpers.CleanFilePath(at.Groups["file"].Value);
                 line = int.Parse(at.Groups["line"].Value);
@@ -146,6 +190,7 @@ public sealed partial class PowerShellParser : IStackTraceParser
     /// </remarks>
     private static bool IsRecordBody(string text) =>
         text.TrimStart().StartsWith('+') ||
-        AtPattern().IsMatch(text) ||
+        text.StartsWith("At ", StringComparison.Ordinal) ||
+        LocationTailPattern().IsMatch(text) ||
         text.Trim().Length == 0;
 }

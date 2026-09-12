@@ -35,7 +35,17 @@ public sealed partial class DartParser : IStackTraceParser
     [GeneratedRegex(@"^(?<type>[A-Za-z_]\w*(?:Error|Exception|Failure))(?:\s*\((?<detail>[^)]*)\))?:\s*(?<msg>.*)$")]
     private static partial Regex ErrorPattern();
 
-    [GeneratedRegex(@"^#(?<order>\d+)\s+(?<sym>.+?)\s+\((?<file>[^\s()]+?):(?<line>\d+)(?::(?<col>\d+))?\)\s*$")]
+    /// <summary>
+    /// A numbered frame. The line and column are optional, because SDK frames do not carry them.
+    /// </summary>
+    /// <remarks>
+    /// Requiring them looked safe and was not. A real trace opens with
+    /// <c>#0      List.[] (dart:core-patch/growable_array.dart)</c> - no position at all - so the
+    /// very first frame failed to match, the loop stopped there, and every frame below it was
+    /// lost, including the only one naming a file on this disk. The failure was silent: the error
+    /// still parsed, with its type and message intact and nowhere to go.
+    /// </remarks>
+    [GeneratedRegex(@"^#(?<order>\d+)\s+(?<sym>.+?)\s+\((?<file>[^\s()]+?)(?::(?<line>\d+)(?::(?<col>\d+))?)?\)\s*$")]
     private static partial Regex FramePattern();
 
     public int Detect(IReadOnlyList<string> lines)
@@ -91,8 +101,8 @@ public sealed partial class DartParser : IStackTraceParser
                 Order = frames.Count,
                 Symbol = frame.Groups["sym"].Value.Trim(),
                 File = ParserHelpers.CleanFilePath(frame.Groups["file"].Value),
-                Line = int.Parse(frame.Groups["line"].Value),
-                Column = frame.Groups["col"].Success ? int.Parse(frame.Groups["col"].Value) : 0,
+                Line = frame.Groups["line"].Success ? int.Parse(frame.Groups["line"].Value) : null,
+                Column = frame.Groups["col"].Success ? int.Parse(frame.Groups["col"].Value) : null,
                 RawLine = lines[i].Text,
             });
 

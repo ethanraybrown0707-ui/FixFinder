@@ -57,21 +57,25 @@ parse.
 | C | — *(a native crash on Windows prints nothing)* | `C####` via MSVC, or gcc/clang | yes |
 | C++ | assertions, aborts | `C####` via MSVC, or gcc/clang | yes |
 | Java | `Caused by` chains, `... N more` | javac `cannot find symbol` and friends | yes |
-| JavaScript / Node | stack frames, `node:` internals | — | parser only |
-| Go | two-line panic frames, goroutine blocks | — | parser only |
+| JavaScript / Node | stack frames, `node:` internals | — | yes |
+| Go | two-line panic frames, goroutine blocks | — | yes |
 | Rust | modern and legacy panic formats | — | parser only |
-| Ruby | Ruby 3.4 quoting and the older form | — | parser only |
-| PHP | uncaught throwables, `#N` traces, `{main}` | parse errors | parser only |
-| PowerShell | error records, 5.1 and 7 layouts | — | parser only |
-| Dart / Flutter | `Unhandled exception`, SDK and package frames | — | parser only |
-| Elixir / Erlang | `** (Type)`, app frames, Erlang built-ins | — | parser only |
-| Perl | `die` and Carp `called at` chains | — | parser only |
-| Lua | error line plus `stack traceback:`, `[C]` frames | — | parser only |
+| Ruby | Ruby 3.4 quoting and the older form | — | yes |
+| PHP | uncaught throwables, `#N` traces, `{main}` | parse errors | yes |
+| PowerShell | error records, 5.1 and 7 layouts | — | yes |
+| Dart / Flutter | `Unhandled exception`, SDK and package frames | — | yes |
+| Elixir / Erlang | `** (Type)`, app frames, Erlang built-ins | — | yes |
+| Perl | `die` and Carp `called at` chains | — | yes |
+| Lua | error line plus `stack traceback:`, `[C]` frames | — | yes |
 
-**"Parser only"** means the parser is tested against captured output from that runtime, but the
-runtime is not installed on the machine this was built on, so the full launch-and-catch loop has
-not been run against it here. The parsing is the part that is hard; running a program that
-already exists on your machine is not.
+**"Yes"** means a deliberately-crashing program in that language was written to disk, launched
+through FixFinder, and its error read back - the whole loop, not a fixture. Those runs are in the
+suite and skip themselves when the runtime is absent, so a clean machine still goes green.
+
+**Rust** is the one row still marked parser only. `rustc` and `cargo` are installed here, but a
+`.rs` file has no launch path yet: Rust is compiled, so it needs a build step in the same shape as
+C and Java rather than an interpreter entry. The parser is tested against captured output as
+before.
 
 Two details in that list are worth pulling out, because both are places a parser can be wrong
 without looking wrong:
@@ -90,6 +94,32 @@ failure, because the registry only tries the top three - a parser that draws wit
 is a parser that can displace it on a slightly different transcript. That test found nothing at
 nine parsers and is doing real work at fifteen, where PHP and Dart both number frames `#0` and
 Lua and gcc share `file:line: message`.
+
+### What running them actually changed
+
+Every parser above was written from a knowledge of its format and tested against hand-written
+fixtures, and all of those tests passed. Then the runtimes were installed and the same programs
+were run for real. **Three of the six new parsers broke immediately**, in ways re-reading the code
+would never have shown:
+
+| | What real output did | Effect |
+|---|---|---|
+| PowerShell | wrapped the `At …` line at console width, **even when redirected** | no location at all, and the orphaned tail — `25\scratchpad\crash.ps1:2 char:1` — reported as the error message |
+| Dart | opened with `#0 List.[] (dart:core-patch/growable_array.dart)`, **no line number** | first frame failed to match, loop stopped, all four frames lost including the only one on disk |
+| Lua | named itself `C:\…\bin\lua.EXE:` — full path, **upper-case extension** | scored 100, parsed nothing, fell through to the generic parser |
+
+None of those failed loudly. Each one still produced an error with a plausible type and message
+and nowhere to go, which is the failure mode worth the most care — a tool that says *"no location"*
+gets checked, and a tool that says `25\scratchpad\crash.ps1:2 char:1` gets believed.
+
+The captured transcripts are kept as `live-*.txt` fixtures next to the hand-written ones, so the
+real shapes cannot regress.
+
+There is a trap in the live tests themselves, recorded here because it very nearly worked. Each
+case skips when its runtime is missing, and a skip looks exactly like a pass. A process inherits
+`PATH` when it starts, so a test host launched before a runtime was installed cannot see it — the
+first full run reported **eight passing end-to-end tests that had not run anything at all**. The
+tell is the duration: single-digit milliseconds means nothing happened.
 
 Anything FixFinder cannot identify still gets a generic read, and it says so rather than
 pretending otherwise.

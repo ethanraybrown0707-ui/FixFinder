@@ -21,14 +21,41 @@ public sealed partial class LuaParser : IStackTraceParser
     public string LanguageId => "lua";
     public string DisplayName => "Lua";
 
-    /// <summary>The error line, with the interpreter's own <c>lua:</c> prefix optional.</summary>
-    [GeneratedRegex(@"^(?:lua(?:\d[\d.]*)?(?:\.exe)?:\s*)?(?<file>[^\s:]+):(?<line>\d+):\s*(?<msg>.+?)\s*$")]
+    /// <summary>The error line, with the interpreter's own prefix optional.</summary>
+    /// <remarks>
+    /// The prefix is whatever the shell invoked, which on Windows is the interpreter's full path:
+    /// <c>C:\…\bin\lua.exe: crash.lua:3: …</c>, not the bare <c>lua:</c> the documentation shows.
+    /// Matching only the short form sent a real Lua crash to the generic parser, which then read
+    /// <c>stack traceback:</c> as the message. The prefix is therefore any one unbroken token
+    /// ending in <c>lua</c> or <c>lua.exe</c> - still anchored, so it cannot swallow arbitrary
+    /// text before the error.
+    /// <para>
+    /// <b>The prefix is matched case-insensitively</b>, because the name Lua prints is the one it
+    /// was invoked with, and PATH resolution on Windows hands back <c>lua.EXE</c>. A case-sensitive
+    /// <c>\.exe</c> failed on that, and failed in the most confusing way available: detection still
+    /// scored 100, so Lua was tried first, returned null, and the registry fell through to the
+    /// generic parser - which read <c>stack traceback:</c> as the error message.
+    /// </para>
+    /// <para>
+    /// The file may also open with <c>...</c>: Lua truncates a chunk name longer than 60
+    /// characters, so a script under a deep temp path is reported as
+    /// <c>...\Temp\xyz\crash.lua:3</c>. That is a real path prefix as far as this is concerned and
+    /// needs no special handling, but it is why the file pattern cannot assume a drive or a root.
+    /// </para>
+    /// </remarks>
+    [GeneratedRegex(
+        @"^(?:(?i:\S*lua(?:\d[\d.]*)?(?:\.exe)?:)\s+)?(?<file>(?:[A-Za-z]:)?[^\s:]+):(?<line>\d+):\s*(?<msg>.+?)\s*$")]
     private static partial Regex HeaderPattern();
 
     [GeneratedRegex(@"^stack traceback:\s*$")]
     private static partial Regex TracebackPattern();
 
-    [GeneratedRegex(@"^\s+(?<file>[^\s:]+):(?<line>\d+):\s+in\s+(?<sym>.+?)\s*$")]
+    /// <summary>
+    /// A traceback frame. The optional drive letter is not decoration: run from anywhere but the
+    /// script's own folder, Lua prints an absolute path, and <c>C:</c> then reads as the
+    /// file/line separator - so the frame does not match and the trace stops at the first one.
+    /// </summary>
+    [GeneratedRegex(@"^\s+(?<file>(?:[A-Za-z]:)?[^\s:]+):(?<line>\d+):\s+in\s+(?<sym>.+?)\s*$")]
     private static partial Regex FramePattern();
 
     [GeneratedRegex(@"^\s+\[C\]:\s+in\s+(?<sym>.+?)\s*$")]

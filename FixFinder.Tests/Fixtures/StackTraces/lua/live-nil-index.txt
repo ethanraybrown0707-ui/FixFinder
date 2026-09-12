@@ -1,0 +1,4 @@
+C:\Users\ethan\AppData\Local\Programs\Lua\bin\lua.exe: crash.lua:3: attempt to index a nil value (local 'settings')
+stack traceback:
+	crash.lua:3: in main chunk
+	[C]: in ?

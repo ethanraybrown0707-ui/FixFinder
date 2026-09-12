@@ -1,0 +1,3 @@
+** (ArithmeticError) bad argument in arithmetic expression
+    crash.exs:2: Ledger.average/2
+    crash.exs:6: (file)

@@ -1,0 +1,6 @@
+panic: runtime error: index out of range [5] with length 3
+
+goroutine 1 [running]:
+main.main()
+	C:/Users/ethan/AppData/Local/Temp/claude/C--Users-ethan-OneDrive-Documents-Claude/2eb7b1c4-de1b-451d-b9a0-699fe123bf25/scratchpad/crashes/crash.go:8 +0x4a
+exit status 2
