@@ -50,6 +50,8 @@ public static class FrameClassifier
         "java.base/",
         "/jdk",
         "/microsoft visual studio/",
+        // Microsoft Store apps, Python among them - its standard library lives under here, as Lib\asyncio and the rest.
+        "/windowsapps/",
         "/windows kits/",
     ];
 

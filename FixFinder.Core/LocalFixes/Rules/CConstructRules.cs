@@ -211,50 +211,10 @@ public sealed partial class CUnterminatedString : ILocalFixRule
         var error = context.Error;
         var recognised = CCode.IsMsvc(error, "C2001") || CCode.GccMessage(error, GccMessage()) is not null;
 
-        if (!recognised || CCode.Locate(context) is not { } at || OpenQuote(at.Line) is not { } quote) return null;
+        if (!recognised || CCode.Locate(context) is not { } at) return null;
+        if (Blocks.CloseString(at.Line, Syntax.CLike) is not { } corrected) return null;
 
-        var (source, number, line) = at;
-        var before = CodeText.Mask(line[..quote], Syntax.CLike);
-        var open = before.Count(c => c == '(') - before.Count(c => c == ')');
-        if (open < 0) return null;
-
-        var rest = line[(quote + 1)..].TrimEnd();
-        var cut = rest.Length;
-        var semicolon = cut > 0 && rest[cut - 1] == ';';
-        if (semicolon) cut--;
-        if (!semicolon && open == 0) return null;
-
-        for (var k = 0; k < open; k++)
-        {
-            while (cut > 0 && rest[cut - 1] == ' ') cut--;
-            if (cut == 0 || rest[cut - 1] != ')') return null;
-            cut--;
-        }
-
-        return LocalFix.ReplaceLine(
-            Id, "Close the string",
-            $"The string on line {number} has no closing `\"`, so C reads the rest of the line as part of it.",
-            source.Path, number, line[..(quote + 1)] + rest[..cut] + "\"" + rest[cut..]);
-    }
-
-    /// <summary>Where the one string on the line that never closes begins.</summary>
-    private static int? OpenQuote(string line)
-    {
-        for (var i = 0; i < line.Length; i++)
-        {
-            var c = line[i];
-
-            if (c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return null;
-            if (c is not ('"' or '\'')) continue;
-
-            var start = i;
-            for (i++; i < line.Length && line[i] != c; i++)
-                if (line[i] == '\\') i++;
-
-            if (i >= line.Length) return c == '"' ? start : null;
-        }
-
-        return null;
+        return LocalFix.ReplaceLine(Id, "Close the string", Blocks.CloseStringExplanation, at.Source.Path, at.Number, corrected);
     }
 }
 
@@ -893,7 +853,7 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
     private static partial Regex Message();
 
     [GeneratedRegex(@"%(?:%|(?<flags>[-+ #0]*)(?<width>\*|\d+)?(?:\.(?<precision>\*|\d+))?(?<length>hh|h|ll|l|L|z|j|t|I64|I32|I)?(?<conversion>[diouxXeEfFgGaAcspn]))")]
-    private static partial Regex Conversion();
+    internal static partial Regex Conversion();
 
     private static readonly Dictionary<string, string> Conversions = new(StringComparer.Ordinal)
     {
@@ -902,9 +862,10 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
         ["char *"] = "s", ["const char *"] = "s",
     };
 
-    private static readonly Dictionary<string, int> FormatPosition = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, int> FormatPosition = new(StringComparer.Ordinal)
     {
         ["printf"] = 0, ["printf_s"] = 0, ["fprintf"] = 1, ["fprintf_s"] = 1, ["sprintf"] = 1, ["sprintf_s"] = 2, ["snprintf"] = 2,
+        ["scanf"] = 0, ["scanf_s"] = 0, ["fscanf"] = 1, ["sscanf"] = 1,
     };
 
     public LocalFix? Propose(LocalFixContext context)
@@ -944,6 +905,9 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
         var replacement = "%" + wrong.Groups["flags"].Value + wrong.Groups["width"].Value +
                           (keepPrecision ? "." + wrong.Groups["precision"].Value : "") + fits;
 
+        // A conversion that is already right is not what the warning is about - scanf's missing & is.
+        if (replacement == wrong.Value) return null;
+
         var from = literalStart + 1 + wrong.Index;
 
         return LocalFix.ReplaceLine(
@@ -957,7 +921,7 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
         };
     }
 
-    private static List<(int Start, int End)> Arguments(string masked, int from, int to)
+    internal static List<(int Start, int End)> Arguments(string masked, int from, int to)
     {
         var arguments = new List<(int, int)>();
         var depth = 0;

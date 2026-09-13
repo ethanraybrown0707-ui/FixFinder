@@ -14,7 +14,8 @@ public sealed partial class JavaMissingImport : ILocalFixRule
 {
     public string Id => "java-missing-import";
 
-    [GeneratedRegex(@"^cannot find symbol \(symbol:\s+class (?<name>[A-Za-z_$][\w$]*)")]
+    // A class used for a static call - Arrays.sort(values) - is reported as a variable, not a class.
+    [GeneratedRegex(@"^cannot find symbol \(symbol:\s+(?:class|variable) (?<name>[A-Z][\w$]*)")]
     private static partial Regex MissingClass();
 
     [GeneratedRegex(@"^\s*import\s+[\w.$]+(?:\.\*)?\s*;")]

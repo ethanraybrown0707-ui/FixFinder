@@ -210,6 +210,17 @@ added until what was left had no single right edit:
 | C, built by MSVC | 44 | 13 | 33 |
 | Java | 50 | 15 | 45 |
 
+**And then the mistakes of later years** - inheritance and interfaces, generics, collections and LINQ,
+closures, async, exceptions, pointers, macros and two-dimensional arrays. A third set, the same method:
+
+| | Programs | Before | Now | What is left |
+|---|---|---|---|---|
+| Python | 33 | 2 | 28 | recursion with no base case, an abstract class created, a missing file, a closed file, a missing key |
+| Java | 23 | 1 | 19 | an abstract method never written, a lambda changing a local, `new Runnable()`, a null from a map |
+| C# | 21 | 0 | 18 | an abstract class created, an interface member never written, `>` on a generic `T` |
+| C, built by gcc | 14 | 1 | 7 | five never failed at all under gcc; `switch` on a string; `strcpy` into an uninitialised pointer |
+| C, built by MSVC | 14 | 1 | 8 | four never failed at all under MSVC; the same two |
+
 **How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
 exactly one change:
 
@@ -225,6 +236,11 @@ exactly one change:
 | | `for i in 10`, `items[len(items) / 2]`, `age > 18` with `age = "20"`, `", ".join(numbers)`, `for n in numbers.sort()` | `range(10)`, `//`, `int(age) > 18`, `map(str, numbers)`, `sorted(numbers)` |
 | | `def bark():` in a class, `def greet:`, `import Math`, `raw_input`, `except ValueError, e`, `raise "oops"` | `self`, the brackets, `import math`, `input`, `as e`, `raise Exception("oops")` |
 | | an unclosed string or f-string brace, one `)` too many, a stray indent, tabs mixed with spaces | the quote, the brace, the bracket removed, the indentation |
+| | `c.area()` on a `@property`, `name = name` in `__init__`, `super().__init__()` without its arguments | `c.area`, `self.name = name`, `super().__init__(name)` |
+| | `except ValueError e:`, `[n for n in xs if n > 0 else 0]`, `await` outside `async def`, `asyncio.run(main)` | `as e`, `[n if n > 0 else 0 for n in xs]`, `async def`, `asyncio.run(main())` |
+| | `names[name]` inside `for name in names`, `for k, v in ages`, `for i, x in items`, `{price:.2f}` on text | `name`, `ages.items()`, `enumerate(items)`, `{float(price):.2f}` |
+| | `map(...)[0]`, a generator or `keys()` indexed, a tuple or a string item assigned, a list added to a set | `list(...)`, a list comprehension, a list or a rebuilt string, a tuple |
+| | an inner function changing its parent's variable, a function that never returns its result, `dataclass` or `defaultdict` unimported, `pprint(data)` | `nonlocal`, `return total`, the `from ... import`, `pprint.pprint` |
 | Java | `cannot find symbol: class List` | every missing import in the build at once, from a table of JDK classes |
 | | `cannot find symbol: variable avarage` | the one name within a letter or two - from the file, or for `System.out.printn` from the real JDK class, read with `javap` |
 | | `';' expected` | the semicolon, where javac's caret points |
@@ -238,6 +254,11 @@ exactly one change:
 | | `int cannot be dereferenced`, `int cannot be converted to boolean`, `unexpected type` for `ArrayList<int>` | `x == 5`, `if (x == 5)`, `ArrayList<Integer>` |
 | | `possible lossy conversion`, `Object cannot be converted to String`, `bad operand types` | `(int) 5.5`, `(String) value`, `Integer.parseInt(a) - 1`, `'a'` for a char compared with `"a"` |
 | | `'hello'`, `ArrayList<>()` without `new`, `reached end of file while parsing`, `variable total might not have been initialized`, `package system does not exist` | `"hello"`, `new`, the closing brace, `= 0`, `System` |
+| | an interface method implemented without `public`, `@Override` on a misspelt name, `implements` a class, `extends` an interface | `public`, the inherited name - `toString`, `speak` - `extends`, `implements` |
+| | `super(...)` after other statements, `void` on a constructor, `private` on a top-level class, `new T[10]` | `super(...)` first, no `void`, no `private`, `(T[]) new Object[10]` |
+| | `integer number too large`, a variable declared twice, `values.stream()` on an array, `Arrays` unimported | `L`, an assignment, `Arrays.stream(values)`, the import |
+| | `if (x); { ... } else`, catch clauses in the wrong order, an unclosed string | the semicolon removed, the specific catch first, the quote |
+| | `ConcurrentModificationException` from `remove` inside a for-each, `split(".")` | `removeIf(...)`, `split("\\.")` |
 | C | `'bool': undeclared identifier`, `'malloc' undefined` | the standard header |
 | | a misspelt variable, member or function | the nearest name, since MSVC never suggests one |
 | | `Cannot open include file: 'stdoi.h'` | `<stdio.h>` |
@@ -251,6 +272,8 @@ exactly one change:
 | | a function called before it is defined | its declaration, above the first call |
 | | AddressSanitizer's `attempting double-free`, and `stack-buffer-overflow` from a loop | the second `free` removed; the loop stopped at the array's size |
 | | `printf("%s", 5)`, which compiles with a warning and crashes | `%d` - from MSVC's `C4477`, or gcc's own fix-it under `-Wformat` |
+| | `#define SIZE 5;`, `Main` instead of `main`, `if (x); { ... } else`, `int grid[][]` as a parameter | the semicolon removed, `main`, the semicolon removed, the column count of the arrays it is called with |
+| | `*p` on a `void *`, `free` of a stack array, `scanf("%d", age)`, a `char` printed with `%s` | `*(int *)p`, the `free` removed, `&age`, `%c` - where gcc's own fix-it would say `%d` |
 | C# | `; expected`, `} expected`, `Syntax error, '(' expected`, `Too many characters in character literal` | the semicolon where Roslyn's column points, the brace, the brackets round `if x > 5`, double quotes |
 | | `The name 'print'`, `'True'`, `'None'`, `'len'` or a `for` loop's `'i'` `does not exist` | `Console.WriteLine`, `true`, `null`, `name.Length`, `int i` - or the one name in the file within a letter or two |
 | | `'Console' does not contain a definition for 'WriteLin'`, `'List<int>' ... 'Length'`, `'string' ... 'equals'` | the real member, read from .NET itself by reflection: `WriteLine`, `Count`, `Equals` |
@@ -259,6 +282,11 @@ exactly one change:
 | | `elif`, `System.out.println`, `foreach (item in items)`, `Lsit<int>`, `boolean`, `System.Collection` | `else if`, `Console.WriteLine`, `var item`, `List<int>`, `bool`, `System.Collections` |
 | | an instance method called from `static Main`, a private member, `await` outside `async`, a missing `using`, a method with no return type, `int total;` read before it is set | `static`, `public`, `async Task`, the `using`, the type its `return`s give, `= 0` |
 | | `IndexOutOfRangeException` from `i <= items.Length` | `<` |
+| | an interface member that is not public, `override` of a method not marked `virtual`, a misspelt override, `void` on a constructor | `public`, `virtual` on the base method, the inherited name, no `void` |
+| | a get-only property assigned, a static member reached through an object, a public method taking an internal class | `{ get; set; }`, the class name, `public` on the class |
+| | `word[0] == "a"`, `"10" - 1`, a string passed where an int is wanted, `Where(...)` assigned to a `List`, a `List` to an array | `'a'`, `int.Parse`, `int.Parse(...)`, `.ToList()`, `.ToArray()` |
+| | `x.ToString` without brackets, a variable declared twice, catch clauses out of order, `if (x); { ... } else`, a `case` with no `break` | `()`, an assignment, the specific catch first, the semicolon removed, `break;` |
+| | `Collection was modified` from `Remove` inside a `foreach` | `RemoveAll(...)` |
 
 **Every one is checked before you see it.** A copy of the file with the change made is compiled
 outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
@@ -307,9 +335,17 @@ about data; a `const` assigned to, too few arguments, a pointer used after `free
 right edit; and a third-party header. Some C runs never reached an error at all, because Windows'
 Application Control blocked the freshly built program - which is this machine, not the mistake.
 
+The later-years programs left the same kinds of thing again: recursion with no base case, an abstract
+class created, an abstract or interface method never written, a lambda changing a local variable, `>`
+on a generic `T`, a `switch` on a string - each with more than one reasonable fix. And **some C mistakes
+never fail at all**: `gets`, a string longer than its array, a `malloc` without its element size and a
+returned local array all ran to the end here, and MinGW's `scanf` quietly refuses the null address that
+MSVC's crashes on. FixFinder acts on what went wrong, so a mistake that happens to work is not found -
+a real limit of finding bugs by running the program.
+
 ### What checking caught
 
-Seven things were wrong, and each was found by running real programs rather than by trusting tests
+Eleven things were wrong, and each was found by running real programs rather than by trusting tests
 that passed:
 
 - **gcc on Windows was not being read at all.** A drive letter is a colon, gcc's file pattern stopped
@@ -334,6 +370,22 @@ that passed:
 - **gcc says nothing about `printf("%s", 5)`** unless asked with `-Wformat`, and the program simply dies.
   FixFinder now asks, and applies gcc's own fix-it. When the rebuilt program is then blocked from running,
   the warning alone is taken as the explanation of the silent crash, as `'malloc' undefined` already was.
+- **A fix that compiled could still be wrong.** For `int grid[][]`, the rule read the column count from
+  `grid[0][0]` in a `printf` instead of from the array's declaration, and offered `grid[][0]`. MSVC refused
+  it, but gcc - which allows a zero-length array as an extension - compiled it, so the compile check alone
+  would have let it through. The count now comes only from a declaration, and 0 is refused outright.
+- **The Microsoft Store Python's standard library looked like the user's code.** It lives under
+  `WindowsApps`, so a `ValueError` raised inside `asyncio` was blamed on `runners.py`, and the folder holding
+  it was taken as the project. Nothing under `WindowsApps` counts as user code now.
+- **A misspelt `main` under MinGW named no file.** The linker's `undefined reference to 'WinMain'` comes from
+  inside a library, gcc's parser did not recognise the line, and a generic parser won with `ld returned 1
+  exit status`. The line is recognised now, and the function a letter from `main` is found in the project.
+- **Reading that linker line let a wrong fix through.** gcc's own fix-it for `} elif (x == 1) {` is a
+  semicolon: `elif (x == 1);` compiles, as a call to a function called `elif`, and fails only when it links.
+  The linker's complaint had been unreadable, so the check used to refuse the change for an unexplained
+  failure; once it could be read, it passed as one more error uncovered behind a syntax error. It is not
+  one - a link error means the whole file compiled, so nothing was hidden - and a new link error now
+  refuses the change. The C `elif` test caught it.
 
 ## When the fix is not a patch
 
@@ -504,8 +556,10 @@ Smart App Control judges by *reputation*, not by signature, and reputation attac
 bytes. Every republish produces a binary Windows has never seen, so one build starts and the next
 is refused with *"An Application Control policy has blocked this file"*. Both have happened here.
 
-`run-fixfinder.cmd` always works, because it launches the DLL through `dotnet.exe`, which is
-already trusted. Use it when the exe is refused.
+`run-fixfinder.cmd` is the reliable way in when the exe is refused: it launches the DLL through
+`dotnet.exe`, which Windows already trusts. Reliable is not the same as guaranteed - on this machine
+Smart App Control has also refused a freshly rebuilt, signed DLL started through `dotnet`, and let it
+load only once a change to its source gave it bytes it had not seen before.
 
 ### From the build output
 

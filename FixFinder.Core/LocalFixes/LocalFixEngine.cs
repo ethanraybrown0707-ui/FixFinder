@@ -105,8 +105,42 @@ public static partial class LocalFixEngine
         new PythonChangedDuringIteration(),
 
         // Last of Python's: a nearest name is the weakest claim here, and every rule above is exact.
+        new PythonExceptAs(),
+        new PythonComprehensionCondition(),
+        new PythonAwaitOutsideAsync(),
+        new PythonCoroutineNotCalled(),
+        new PythonModuleCalled(),
+        new PythonMissingFromImport(),
+        new PythonPropertyCalled(),
+        new PythonMissingSelfAttribute(),
+        new PythonSuperArguments(),
+        new PythonNonlocal(),
+        new PythonMissingReturn(),
+        new PythonIndexWithElement(),
+        new PythonTupleToList(),
+        new PythonStringItemAssignment(),
+        new PythonNotSubscriptable(),
+        new PythonLoopUnpack(),
+        new PythonUnhashableList(),
+        new PythonFormatCodeOnText(),
+        new PythonSequenceTimesFloat(),
         new PythonNearestName(),
 
+        new JavaIfSemicolon(),
+        new JavaUnclosedString(),
+        new JavaCatchOrder(),
+        new JavaWeakerAccess(),
+        new JavaOverrideTypo(),
+        new JavaExtendsImplements(),
+        new JavaSuperFirst(),
+        new JavaConstructorReturnType(),
+        new JavaIllegalModifier(),
+        new JavaLongLiteral(),
+        new JavaRedefinition(),
+        new JavaGenericArray(),
+        new JavaArrayStream(),
+        new JavaRemoveInForEach(),
+        new JavaSplitRegex(),
         new JavaElif(),
         new JavaForEach(),
         new JavaForeignWord(),
@@ -151,8 +185,31 @@ public static partial class LocalFixEngine
         new CSharpOffByOneLoop(),
         new CSharpUnassignedLocal(),
         new CSharpMissingReturnType(),
+        new CSharpInterfaceMemberPublic(),
+        new CSharpVirtualBase(),
+        new CSharpOverrideTypo(),
+        new CSharpConstructorReturnType(),
+        new CSharpInconsistentAccessibility(),
+        new CSharpReadOnlyProperty(),
+        new CSharpStaticThroughInstance(),
+        new CSharpMethodGroup(),
+        new CSharpRedefinition(),
+        new CSharpOperandTypes(),
+        new CSharpArgumentConversion(),
+        new CSharpCollectionConversion(),
+        new CSharpSwitchFallThrough(),
+        new CSharpCatchOrder(),
+        new CSharpIfSemicolon(),
+        new CSharpRemoveInForEach(),
 
+        new CFormatArgument(),
         new CompilerFixIt(),
+        new CDefineSemicolon(),
+        new CMainName(),
+        new CFreeNonHeap(),
+        new CIfSemicolon(),
+        new CArrayParameterSize(),
+        new CVoidPointerDereference(),
         new CElif(),
         new CWordOperators(),
         new CConditionParentheses(),
@@ -327,18 +384,28 @@ public static partial class LocalFixEngine
         // A syntax error hides everything after it - javac and cl stop reading sense into a file
         // they cannot parse - so fixing one legitimately uncovers errors nobody could see before.
         // For anything else, a new error means the change broke something.
+        var known = baseline.Select(KeyOf).ToHashSet(StringComparer.Ordinal);
+
         if (!syntax)
         {
-            var known = baseline.Select(KeyOf).ToHashSet(StringComparer.Ordinal);
-
             if (check.Errors.FirstOrDefault(e => !known.Contains(KeyOf(e))) is { } added)
                 return new(false, $"the copy reports something new: {added.Message}");
         }
+
+        // The allowance above is for errors a syntax error hid. A link error hides nothing - it means the
+        // copy compiled from the top to the bottom - so one the original did not have was made by the change.
+        // gcc's own fix-it for `} elif (x == 1) {` is a semicolon, which compiles, and then fails to link
+        // as a call to a function called elif.
+        if (check.Errors.FirstOrDefault(e => IsLinkError(e) && !known.Contains(KeyOf(e))) is { } unlinked)
+            return new(false, $"the copy compiles but no longer links: {unlinked.Message}");
 
         return new(true, check.Clean
             ? "the copy compiles cleanly"
             : $"the error is gone from the copy; {check.Errors.Count} other error(s) remain, none in the changed lines");
     }
+
+    private static bool IsLinkError(ParsedError error) =>
+        error.ExceptionType == "link error" || error.ErrorCode?.StartsWith("LNK", StringComparison.Ordinal) == true;
 
     /// <summary>What an error is, without where it is: the same mistake reads the same in the copy.</summary>
     public static string KeyOf(ParsedError error) =>

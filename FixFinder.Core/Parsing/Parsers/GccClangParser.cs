@@ -40,6 +40,14 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
     [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^:\r\n]+?):(?:(?<line>\d+):)?\([^)]*\):\s*undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
     private static partial Regex LinkerPattern();
 
+    /// <summary>
+    /// The same error from inside a library, which names an object file rather than a source line - MinGW's
+    /// <c>libmingw32.a(...crtexewin.o):crtexewin.c:(.text+0x130): undefined reference to `WinMain'</c>
+    /// when there is no <c>main</c> to start from.
+    /// </summary>
+    [GeneratedRegex(@"undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
+    private static partial Regex LibraryLinkerPattern();
+
     [GeneratedRegex(@"^==\d+==\s*ERROR:\s*(?<tool>\w+Sanitizer):\s*(?<type>[\w \-]+?)(?:\s+on\s+.*)?$")]
     private static partial Regex SanitizerPattern();
 
@@ -80,7 +88,7 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
                 score += severity is "error" or "fatal error" ? 30 : 4;
             }
 
-            if (LinkerPattern().IsMatch(line)) score += 30;
+            if (LinkerPattern().IsMatch(line) || LibraryLinkerPattern().IsMatch(line)) score += 30;
 
             foreach (var fatal in FatalRuntimeMessages)
                 if (line.Contains(fatal, StringComparison.OrdinalIgnoreCase)) score += 45;
@@ -189,6 +197,22 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
 
         for (var i = 0; i < lines.Count; i++)
         {
+            if (LinkerPattern().Match(lines[i].Text) is not { Success: true } && LibraryLinkerPattern().Match(lines[i].Text) is { Success: true } library)
+            {
+                errors.Add(new ParsedError
+                {
+                    LanguageId = LanguageId,
+                    Confidence = 70,
+                    RawText = lines[i].Text,
+                    FirstLineSequence = lines[i].Sequence,
+                    ExceptionType = "link error",
+                    Message = $"undefined reference to '{library.Groups["symbol"].Value}'",
+                    Frames = [],
+                });
+
+                continue;
+            }
+
             if (LinkerPattern().Match(lines[i].Text) is { Success: true } linker)
             {
                 errors.Add(new ParsedError
