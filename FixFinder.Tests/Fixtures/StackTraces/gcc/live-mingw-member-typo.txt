@@ -1,0 +1,6 @@
+{FILE}: In function 'main':
+{FILE}:5:22: error: 'struct parcel' has no member named 'wieght'; did you mean 'weight'?
+    5 |     printf("%d\n", p.wieght);
+      |                      ^~~~~~
+      |                      weight
+fix-it:"{FILE_ESCAPED}":{5:22-5:28}:"weight"

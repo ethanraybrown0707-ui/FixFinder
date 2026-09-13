@@ -94,12 +94,14 @@ public static partial class CompiledLanguages
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
             // -g keeps debug info, and -O0 stops the optimiser from rearranging the very lines
-            // a stack trace would name.
+            // a stack trace would name. -fdiagnostics-parseable-fixits prints the fixes the
+            // compiler already knows - the missing header, the member a typo meant - a second
+            // time, in a form that can be applied exactly rather than read and retyped.
             var standard = cpp ? "-std=c++17 " : "";
 
             var compile = Spec(
                 gnu.Program,
-                $"-g -O0 {standard}-o \"{exe}\" \"{source}\"",
+                $"-g -O0 -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" \"{source}\"",
                 Path.GetDirectoryName(source)!,
                 timeout);
 
@@ -163,6 +165,76 @@ public static partial class CompiledLanguages
         File.WriteAllText(batch, text, new UTF8Encoding(false));
 
         return batch;
+    }
+
+    // ------------------------------------------------------------------ finding a silent crash
+
+    /// <summary>
+    /// A second build of a C or C++ file with AddressSanitizer, for when the first crashed without a word.
+    /// </summary>
+    /// <remarks>
+    /// A native crash on Windows prints nothing: an access violation, a divide by zero, a write past
+    /// the end of an array all end in an exit code and silence. AddressSanitizer ships with Visual
+    /// Studio and catches each of those at the instruction that did it, printing the file and line -
+    /// <c>stack-buffer-overflow ... app.c:4</c> - which turns "it crashed" back into something that can
+    /// be looked at.
+    /// <para>
+    /// Always MSVC, even when gcc did the first build. MinGW's gcc has no AddressSanitizer on
+    /// Windows, and a build that asks for it fails to link rather than quietly going without. A
+    /// second compiler for a second build is fine here: this build exists only to find a line, and
+    /// if MSVC cannot compile something gcc accepted, the rerun says so and nothing else changes.
+    /// The sanitizer's runtime DLL is copied next to the program, because the program runs outside
+    /// the environment vcvarsall sets up and would otherwise not start at all.
+    /// </para>
+    /// </remarks>
+    /// <param name="normalRun">How the program was run the first time; the second run matches it.</param>
+    public static BuildAndRun? PrepareSanitized(string source, TargetSpec normalRun)
+    {
+        var extension = Path.GetExtension(source).ToLowerInvariant();
+        if (extension is not (".c" or ".cpp" or ".cc" or ".cxx" or ".c++")) return null;
+
+        var cpp = extension != ".c";
+
+        if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall } msvc) return null;
+
+        var output = Path.Combine(OutputDirectory(source), "asan");
+        Directory.CreateDirectory(output);
+
+        var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
+        var flags = (cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3") + " /fsanitize=address";
+        var batch = Path.Combine(output, "build.cmd");
+
+        File.WriteAllText(batch, string.Join("\r\n",
+        [
+            "@echo off",
+            "rem Written by FixFinder: the same build with AddressSanitizer, to find where a silent crash happened.",
+            $"call \"{vcvarsall}\" x64 >nul",
+            "if errorlevel 1 (echo FixFinder: could not set up the MSVC environment & exit /b 1)",
+            $"cd /d \"{output}\"",
+            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" \"{source}\"",
+            "if errorlevel 1 exit /b %errorlevel%",
+            "for /f \"delims=\" %%d in ('where clang_rt.asan_dynamic-x86_64.dll 2^>nul') do (copy /y \"%%d\" . >nul & exit /b 0)",
+            "echo FixFinder: the AddressSanitizer runtime was not found & exit /b 1",
+            "",
+        ]), new UTF8Encoding(false));
+
+        var compile = new TargetSpec
+        {
+            ExecutablePath = "cmd.exe",
+            Arguments = $"/c \"{batch}\"",
+            WorkingDirectory = output,
+            Timeout = normalRun.Timeout,
+        };
+
+        var run = new TargetSpec
+        {
+            ExecutablePath = exe,
+            Arguments = normalRun.Arguments,
+            WorkingDirectory = normalRun.WorkingDirectory,
+            Timeout = normalRun.Timeout,
+        };
+
+        return new BuildAndRun(compile, run, $"Rebuilding it with {msvc.Name} and AddressSanitizer, then running it again.");
     }
 
     // ------------------------------------------------------------------ Java

@@ -47,9 +47,15 @@ public static partial class MissingDependency
     /// nokogiri (LoadError)</c>. It is a narrow, anchored exception rather than general
     /// trailing-junk tolerance.
     /// </para>
+    /// <para>
+    /// A <c>\r</c> is allowed before the end of the line, for the reason on
+    /// <see cref="JavaMissing"/>. Ruby's message carries the whole phrase, so a real crash matches
+    /// there first and never needed it - but the raw text is the fallback, and it has the same
+    /// Windows line endings as Java's.
+    /// </para>
     /// </remarks>
     [GeneratedRegex(
-        @"cannot load such file\s+--\s+(?<name>[^\r\n]+?)(?:\s+\([A-Za-z.:]*Error\))?[ \t]*$",
+        @"cannot load such file\s+--\s+(?<name>[^\r\n]+?)(?:\s+\([A-Za-z.:]*Error\))?[ \t\r]*$",
         RegexOptions.Multiline)]
     private static partial Regex RubyMissing();
 
@@ -123,9 +129,25 @@ public static partial class MissingDependency
     /// up outside the capture - while <c>NoClassDefFoundError: org/x/Y (wrong name: org/x/Z)</c>,
     /// which is a misplaced class file rather than a missing dependency, now fails validation
     /// instead of being answered with the wrong artifact.
+    /// <para>
+    /// <b>The line may end in <c>\r</c>.</b> In multiline mode <c>$</c> matches only before
+    /// <c>\n</c>, and the raw text is joined with <see cref="Environment.NewLine"/> - so on Windows
+    /// every line but the last carries a <c>\r</c> that <c>[ \t]*</c> will not step over. Java's
+    /// parsed message is the bare class name, which leaves the raw text as the only place the
+    /// exception type appears. Written with <c>[ \t]*</c>, a real <c>ClassNotFoundException</c> on
+    /// Windows produced nothing at all, while every test - each building the error as one line -
+    /// passed.
+    /// </para>
+    /// <para>
+    /// javac's <c>package com.google.gson does not exist</c> is read too. It is the same missing
+    /// library reported earlier - at compile time, which is where an ordinary program meets it, since
+    /// <c>ClassNotFoundException</c> needs the class to be loaded by name while running. A package
+    /// is a prefix of the classes in it, so the same coordinates answer both.
+    /// </para>
     /// </remarks>
     [GeneratedRegex(
-        @"(?:ClassNotFoundException|NoClassDefFoundError)[:\s]+(?<name>[^\r\n]+?)[ \t]*$",
+        @"(?:ClassNotFoundException|NoClassDefFoundError)[:\s]+(?<name>[^\r\n]+?)[ \t\r]*$" +
+        @"|^package\s+(?<name>[^\r\n]+?)\s+does not exist[ \t\r]*$",
         RegexOptions.Multiline)]
     private static partial Regex JavaMissing();
 

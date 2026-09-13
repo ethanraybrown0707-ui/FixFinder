@@ -1,0 +1,9 @@
+{FILE}: In function 'main':
+{FILE}:3:5: warning: implicit declaration of function 'prinft'; did you mean 'printf'? [-Wimplicit-function-declaration]
+    3 |     prinft("hello\n");
+      |     ^~~~~~
+      |     printf
+fix-it:"{FILE_ESCAPED}":{3:5-3:11}:"printf"
+C:/Strawberry/c/bin/../lib/gcc/x86_64-w64-mingw32/13.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: C:\Users\ethan\AppData\Local\Temp\ccqiSGBi.o: in function `main':
+{FILE_FORWARD}:3:(.text+0x18): undefined reference to `prinft'
+collect2.exe: error: ld returned 1 exit status

@@ -1,0 +1,4 @@
+{FILE}: In function 'main':
+{FILE}:4:5: error: expected ',' or ';' before 'printf'
+    4 |     printf("%d\n", x);
+      |     ^~~~~~

@@ -54,7 +54,7 @@ parse.
 |---|---|---|---|
 | Python | traceback, chained causes, 3.11+ carets | — | yes |
 | C# / .NET | inner exceptions, async resume frames | `CS####` | yes |
-| C | — *(a native crash on Windows prints nothing)* | `C####` via MSVC, or gcc/clang | yes |
+| C | access violations, overruns, divide by zero - located with AddressSanitizer | `C####` via MSVC, or gcc/clang with their fix-its | yes |
 | C++ | assertions, aborts | `C####` via MSVC, or gcc/clang | yes |
 | Java | `Caused by` chains, `... N more` | javac `cannot find symbol` and friends | yes |
 | JavaScript / Node | stack frames, `node:` internals | — | yes |
@@ -159,19 +159,121 @@ Which runtimes actually volunteer a correction, checked rather than assumed:
 | Runtime | Suggests? | Status here |
 |---|---|---|
 | Python 3.12+ | yes - `Did you mean: 'average'?` | **proven end to end**, driven live and copied |
-| gcc | yes - `'avarage' undeclared ... did you mean 'average'?` | pattern tested against captured output |
+| gcc | yes - `'avarage' undeclared ... did you mean 'average'?` | **proven end to end** with MinGW gcc 13, and its parseable fix-its are applied too |
 | clang | yes - `use of undeclared identifier 'avarage'; did you mean ...` | pattern tested against captured output |
 | Ruby | yes - `Did you mean?  average`, on its own line | pattern tested against captured output |
-| javac | **no** - `cannot find symbol`, nothing more | measured on this machine |
+| javac | **no** - `cannot find symbol`, nothing more | measured on this machine; FixFinder works the name out itself, below |
 | C# / Roslyn | **no** - `'totl' does not exist in the current context` | measured on this machine |
-| MSVC | **no** - `error C2065: 'avarage': undeclared identifier` | measured on this machine |
+| MSVC | **no** - `error C2065: 'avarage': undeclared identifier` | measured on this machine; FixFinder works the name out itself, below |
 | Node, Go, Rust | not read yet | rustc carries machine-applicable suggestions in a different form |
 
 The three that say no are not a gap in FixFinder: those compilers genuinely do not compute a
-suggestion, so there is nothing to read. Checking was worth it - gcc and clang put the name on
+suggestion, so there is nothing to read - which is why, for javac and MSVC, FixFinder now works the
+nearest name out from the file instead. Checking was worth it - gcc and clang put the name on
 *opposite sides* of the word `undeclared`, and Ruby writes a question mark where Python writes a
 colon and puts the answer on the next line, so a pattern that looked like it covered all of them
 covered one.
+
+## Fixes worked out from your code
+
+The runtime's own suggestion covers a handful of mistakes. Most of the commonest errors in Python,
+Java and C are a different kind: the message pins the answer down without spelling it out. A missing
+import, a missing semicolon, a loop that runs one step too far, a public class in the wrong file.
+Nobody else has written about *your* missing semicolon, so searching does worst on exactly these.
+
+That was measured rather than assumed. Forty-six small programs, each broken the way real programs
+break - nineteen Python, fifteen Java, twelve C - were run through FixFinder before and after:
+
+| | Python | Java | C | All 46 |
+|---|---|---|---|---|
+| Search, plus the runtime's own suggestions | 4 | 1 | 0 | **5** |
+| Now, with C built by MSVC | 11 | 10 | 8 | **29** |
+| Now, with C built by gcc | 11 | 10 | 7 | **28** |
+
+With search alone, 37 of the 46 came back as advice, and too much of it was beside the point: a
+missing semicolon in Java turned up questions about Xcode, and the top three for a missing
+`import java.util.List` included a list of working motherboards. Where search was relevant - Stack
+Overflow's canonical question about non-static methods, say - it was still prose to read, not the
+line to change.
+
+**How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
+exactly one change:
+
+| | The error | The fix handed over |
+|---|---|---|
+| Python | `Did you forget to import 'math'?` | `import math`, after the docstring and the existing imports |
+| | `expected ':'`, `Missing parentheses in call to 'print'`, `Maybe you meant '=='` | the colon, the call, the comparison |
+| | `expected an indented block after ... on line 1` | the named line, indented the way the file indents |
+| | `can only concatenate str (not "int") to str` | `str(total)`, placed by Python's own underline |
+| | `cannot access local variable 'count'` | `global count` - only when the module has a `count` and the function never sets its own |
+| Java | `cannot find symbol: class List` | every missing import in the build at once, from a table of JDK classes |
+| | `cannot find symbol: variable avarage` | the one name within a letter or two - from the file, or for `System.out.printn` from the real JDK class, read with `javap` |
+| | `';' expected` | the semicolon, where javac's caret points |
+| | `unreported exception InterruptedException` | `throws` on the enclosing method, fully qualified if it is not imported |
+| | `non-static method total() cannot be referenced from a static context` | `static` on the method |
+| | `class Main is public, should be declared in a file named Main.java` | the class renamed to match the file |
+| | `Index 3 out of bounds for length 3` | `<` instead of `<=` in the loop driving that index |
+| | `String cannot be converted to int` | `Integer.parseInt(...)` |
+| C | `'bool': undeclared identifier`, `'malloc' undefined` | the standard header |
+| | a misspelt variable, member or function | the nearest name, since MSVC never suggests one |
+| | `Cannot open include file: 'stdoi.h'` | `<stdio.h>` |
+| | `missing ';' before 'printf'` | the semicolon, at the end of the statement before |
+| | `'{': no matching token found`, `expected declaration or statement at end of input` | the closing brace |
+| | anything gcc or clang printed a fix-it for | the compiler's own edit - see below |
+
+**Every one is checked before you see it.** A copy of the file with the change made is compiled
+outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
+javac; C with the same compiler the build used - and the change is offered only if the error it was
+for has gone and nothing new has broken. Two equally near names is a refusal, not a pick: `printn` is
+one letter from `print`, `println` and `printf`, so nothing is offered. For a crash, the check can
+only prove the file still compiles, and the answer says exactly that rather than claiming the crash
+is gone.
+
+**gcc and clang already know many of the answers**, and print them for a person to read: `'bool' is
+defined in header '<stdbool.h>'`, `did you mean 'weight'?`. FixFinder builds with
+`-fdiagnostics-parseable-fixits`, which prints the same answers again as exact edits - a file, a byte
+range and the text to put there - and applies those rather than inferring anything.
+
+**A C crash that prints nothing is located.** An access violation, a write past the end of an array
+or a divide by zero on Windows ends in an exit code and silence. When that happens, FixFinder rebuilds
+the program with AddressSanitizer, which ships with Visual Studio, runs it once more, and reports the
+file and line: `stack-buffer-overflow` at `app.c:4`, `access-violation (a null pointer)` at `app.c:5`.
+If the build had warned `'malloc' undefined`, that warning is the explanation - C assumed an `int` and
+cut the 64-bit pointer in half - and adding `<stdlib.h>` is offered as the fix.
+
+### What is still not fixed, and why
+
+Seventeen of the 46 with MSVC, eighteen with gcc - and most of them are out of reach of any rule:
+
+- **The error depends on the data, not the code.** `KeyError: 'banana'`, `IndexError`, `'NoneType'
+  object has no attribute 'email'`, `NullPointerException`, `int("forty")`, dividing by zero, a missing
+  file. The message says what went wrong, never what the program should have done instead. These still
+  get search results, and a C crash still gets its location.
+- **The fix needs a value nobody stated**: `missing return statement`, `variable total might not have
+  been initialized`, `greet() missing 1 required positional argument`.
+- **The answer is genuinely ambiguous**: `printn`, above.
+- **The fix is not an edit.** A script called `random.py` shadowing the standard library needs
+  renaming, and `curl/curl.h` needs a library installed where the compiler looks.
+- **There is nothing wrong to fix.** gcc knows `malloc` as a built-in, so without `<stdlib.h>` the
+  program it builds simply works.
+
+### What checking caught
+
+Four things were wrong, and each was found by running real programs rather than by trusting tests
+that passed:
+
+- **gcc on Windows was not being read at all.** A drive letter is a colon, gcc's file pattern stopped
+  at the first one, and every gcc error fell to the generic parser. It surfaced only because Strawberry
+  Perl, installed for the Perl tests, puts MinGW gcc on PATH - which switched every C test from MSVC
+  to gcc and made the MSVC-only checks skip in a few milliseconds, looking exactly like passes.
+- **Every Python fix was refused, and four were let through unchecked.** Windows 11's default `python`
+  is the Microsoft Store build, which cannot see files other programs write under LocalAppData, so
+  `py_compile` could not find a single copy. Copies are now compiled in the temp folder, and a compiler
+  that fails without saying why counts as having checked nothing.
+- **A linker error names no file**, so a correct fix for `prinft` was shown as advice rather than as a
+  fix. A local fix now carries the file it was checked against.
+- **`0xC0000094`, integer divide by zero, was reported as "finished unhappily"** rather than as a
+  crash, so it was never located.
 
 ## When the fix is not a patch
 
@@ -276,7 +378,8 @@ Three things are worth knowing before you use it:
 - **Web search only helps for third-party errors.** The most common real crash is a
   `NullReferenceException` in your own method, and no issue or answer exists for that. FixFinder
   detects when the culprit frame is your own code and says so instead of listing 30 irrelevant
-  links.
+  links. For the mistakes whose message pins the answer down, it works the fix out from the file
+  instead - see [Fixes worked out from your code](#fixes-worked-out-from-your-code).
 - **A patch harvested from an issue comment is untrusted input.** Every file a patch touches
   must resolve inside the source root you picked, and must appear in the parsed stack trace,
   or it is refused.

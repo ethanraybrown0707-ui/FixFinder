@@ -1,0 +1,14 @@
+{FILE}: In function 'main':
+{FILE}:3:5: error: unknown type name 'bool'
+    3 |     bool ready = true;
+      |     ^~~~
+{FILE}:2:1: note: 'bool' is defined in header '<stdbool.h>'; did you forget to '#include <stdbool.h>'?
+    1 | #include <stdio.h>
+  +++ |+#include <stdbool.h>
+    2 | int main(void) {
+fix-it:"{FILE_ESCAPED}":{2:1-2:1}:"#include <stdbool.h>\n"
+{FILE}:3:18: error: 'true' undeclared (first use in this function)
+    3 |     bool ready = true;
+      |                  ^~~~
+{FILE}:3:18: note: 'true' is defined in header '<stdbool.h>'; did you forget to '#include <stdbool.h>'?
+{FILE}:3:18: note: each undeclared identifier is reported only once for each function it appears in

@@ -1,7 +1,10 @@
 using FixFinder.Core.Execution;
 using FixFinder.Core.Fingerprinting;
 using FixFinder.Core.Http;
+using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 using FixFinder.Core.Parsing;
+using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Ranking;
 using FixFinder.Core.Sources;
@@ -157,13 +160,59 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
+        IReadOnlyList<CapturedLine>? buildOutput = null;
+
         if (launch.Compile is { } compile)
         {
-            var built = await BuildAsync(compile, launch, budget, cancellationToken);
+            var (built, build) = await BuildAsync(compile, launch, budget, cancellationToken);
             if (built is not null) return built;
+
+            // Kept, because a build that succeeded can still hold the explanation for what happens
+            // next: C compiles a call to an undeclared malloc with only a warning, and the program
+            // then dies without printing a word.
+            buildOutput = build?.Lines;
         }
 
-        return await RunAsync(launch.Spec!, budget, cancellationToken, launch.SourceFolder);
+        var sanitizer = launch is { Compile: not null, ChosenFile: { } chosen }
+            ? SanitizerFor(chosen, launch.Spec!)
+            : null;
+
+        return await RunAsync(launch.Spec!, budget, cancellationToken, launch.SourceFolder, buildOutput, sanitizer);
+    }
+
+    /// <summary>
+    /// A way to rebuild and rerun a C or C++ program under AddressSanitizer, or null where there is none.
+    /// </summary>
+    private Func<CancellationToken, Task<TargetRunResult?>>? SanitizerFor(string source, TargetSpec run)
+    {
+        if (CompiledLanguages.PrepareSanitized(source, run) is not { } plan) return null;
+
+        return async cancellationToken =>
+        {
+            var runner = new TargetRunner(_parsers);
+
+            void ForwardLog(string message) => Log?.Invoke(message);
+            runner.Log += ForwardLog;
+
+            try
+            {
+                Log?.Invoke(plan.Explanation);
+
+                var build = await runner.RunAsync(plan.Compile, cancellationToken);
+
+                if (build.Outcome != RunOutcome.ExitedClean)
+                {
+                    Log?.Invoke($"The AddressSanitizer build did not work, so the crash stays unlocated: {build.Explanation}");
+                    return null;
+                }
+
+                return await runner.RunAsync(plan.Run, cancellationToken);
+            }
+            finally
+            {
+                runner.Log -= ForwardLog;
+            }
+        };
     }
 
     /// <summary>
@@ -175,7 +224,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// <c>error CS0103</c> are globally unique, and everyone who has hit one has pasted it
     /// verbatim into a search box.
     /// </remarks>
-    private async Task<SessionOutcome?> BuildAsync(
+    private async Task<(SessionOutcome? Outcome, TargetRunResult? Build)> BuildAsync(
         TargetSpec compile, LaunchPlan launch, SearchBudget? budget, CancellationToken cancellationToken)
     {
         Progress?.Invoke("Compiling...");
@@ -202,19 +251,19 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         if (build.Outcome == RunOutcome.LaunchFailed)
         {
-            return new SessionOutcome
+            return (new SessionOutcome
             {
                 Result = SessionResult.CouldNotRun,
                 Headline = "The compiler could not be started.",
                 Detail = build.LaunchError ?? "Windows refused to start it, and did not say why.",
                 Spec = compile, Run = build,
-            };
+            }, build);
         }
 
         if (build.Outcome == RunOutcome.ExitedClean)
         {
             Log?.Invoke("Build succeeded.");
-            return null;
+            return (null, build);
         }
 
         Log?.Invoke($"Build failed: {build.Explanation}");
@@ -223,7 +272,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // search for, and saying so is better than searching for the compiler's exit code.
         if (build.Error is null)
         {
-            return new SessionOutcome
+            return (new SessionOutcome
             {
                 Result = SessionResult.NothingFound,
                 Headline = "It did not compile.",
@@ -232,19 +281,21 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     "diagnostic, so there is no reliable text to look up. The full output is below.",
                 Spec = compile, Run = build, FailedToCompile = true,
                 SourceRoot = launch.SourceFolder,
-            };
+            }, build);
         }
 
-        return await SearchForAsync(
+        return (await SearchForAsync(
             build, build.Error, compile, budget, launch.SourceFolder, failedToCompile: true,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken), build);
     }
 
     public async Task<SessionOutcome> RunAsync(
         TargetSpec spec,
         SearchBudget? budget = null,
         CancellationToken cancellationToken = default,
-        string? sourceFolder = null)
+        string? sourceFolder = null,
+        IReadOnlyList<CapturedLine>? buildOutput = null,
+        Func<CancellationToken, Task<TargetRunResult?>>? rerunWithSanitizer = null)
     {
         var warnings = new List<string>();
 
@@ -287,7 +338,8 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         return await ContinueFromAsync(
             run, spec, budget, sourceFolder, failedToCompile: false,
-            warnings: warnings, cancellationToken: cancellationToken);
+            warnings: warnings, cancellationToken: cancellationToken,
+            buildOutput: buildOutput, rerunWithSanitizer: rerunWithSanitizer);
     }
 
     /// <summary>
@@ -307,11 +359,43 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         string? sourceFolder = null,
         bool failedToCompile = false,
         List<string>? warnings = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<CapturedLine>? buildOutput = null,
+        Func<CancellationToken, Task<TargetRunResult?>>? rerunWithSanitizer = null)
     {
         if (run.Error is null)
         {
             var wentWrong = run.Outcome is RunOutcome.Crashed or RunOutcome.ExitedNonZero;
+
+            // A native crash prints nothing, which leaves nothing to search for and nowhere to look.
+            // AddressSanitizer finds where it happened; the build's own warnings sometimes say why.
+            if (run.Outcome == RunOutcome.Crashed && rerunWithSanitizer is not null)
+            {
+                Progress?.Invoke("It crashed without a word - rebuilding it with AddressSanitizer to find where...");
+
+                if (await rerunWithSanitizer(cancellationToken) is { Error: { } located } sanitized)
+                {
+                    (warnings ??= []).Add(
+                        "It crashed without printing anything, so FixFinder rebuilt it with AddressSanitizer and ran " +
+                        "it once more to find where. The error shown is from that second run.");
+
+                    return await SearchForAsync(
+                        sanitized, located, spec, budget, sourceFolder, failedToCompile: false,
+                        warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput);
+                }
+            }
+
+            // Still nothing to read, but the build warned that a pointer-returning function was
+            // never declared - which on 64-bit Windows is, by itself, a silent crash.
+            if (wentWrong && buildOutput is { Count: > 0 } &&
+                MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
+                    w.ErrorCode == "C4013" && CStandardLibrary.ReturnsPointer.Any(name =>
+                        (w.Message ?? "").StartsWith($"'{name}' undefined", StringComparison.Ordinal))) is { } warned)
+            {
+                return await SearchForAsync(
+                    run, warned, spec, budget, sourceFolder, failedToCompile: false,
+                    warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput);
+            }
 
             return new SessionOutcome
             {
@@ -347,7 +431,8 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         bool failedToCompile,
         List<string>? warnings = null,
         IReadOnlyList<ParsedError>? remaining = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<CapturedLine>? buildOutput = null)
     {
         warnings ??= [];
 
@@ -406,6 +491,20 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             Log?.Invoke($"{error.LanguageId} suggested a correction itself: {suggestion.Title}");
 
             ranked = [suggestion, .. ranked];
+        }
+
+        // The same idea for the far larger set of mistakes whose message pins the answer down
+        // without spelling it out - a missing import, a semicolon, a loop one step too long. Worked
+        // out from the code, and offered only once a compiler has agreed with it.
+        else if (await LocalFixAsync(run, error, others, spec, sourceRoot, failedToCompile, buildOutput, cancellationToken) is { } local)
+        {
+            Log?.Invoke($"Worked out a fix from the code itself: {local.Candidate.Title}");
+
+            ranked = [local.Candidate, .. ranked];
+
+            // The planner applies a patch only to a file the error names. A linker error names no
+            // file at all, and this fix was worked out from - and checked against - exactly this one.
+            if (!stackFiles.Contains(local.File, StringComparer.OrdinalIgnoreCase)) stackFiles = [.. stackFiles, local.File];
         }
 
         // The other answer that does not come from searching. A missing package is not a patch to
@@ -576,6 +675,39 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
             OtherErrors = others, Dependency = dependency,
         };
+    }
+
+    /// <summary>
+    /// A fix worked out from the program's own code and checked by compiling a copy, or null.
+    /// </summary>
+    /// <remarks>
+    /// When the error is a crash the rules cannot read, the build's warnings get a turn, because
+    /// for C they are often the whole explanation.
+    /// </remarks>
+    private async Task<LocalFixFound?> LocalFixAsync(
+        TargetRunResult run, ParsedError error, IReadOnlyList<ParsedError> others, TargetSpec spec,
+        string? sourceRoot, bool failedToCompile, IReadOnlyList<CapturedLine>? buildOutput,
+        CancellationToken cancellationToken)
+    {
+        Progress?.Invoke("Working out a fix from your code...");
+
+        var context = new LocalFixContext
+        {
+            Error = error,
+            Others = others,
+            Output = error.ExceptionType == "compile warning" && buildOutput is not null ? buildOutput : run.Lines,
+            SourceRoot = sourceRoot,
+            FromBuild = failedToCompile,
+            PythonInterpreter = error.LanguageId == "python" ? spec.ExecutablePath : null,
+        };
+
+        void Relay(string message) => Log?.Invoke(message);
+
+        if (await LocalFixEngine.FindAsync(context, Relay, cancellationToken) is { } found) return found;
+
+        return buildOutput is { Count: > 0 } && !failedToCompile && error.ExceptionType != "compile warning"
+            ? await LocalFixEngine.ForBuildWarningsAsync(buildOutput, sourceRoot, Relay, cancellationToken)
+            : null;
     }
 
     /// <summary>

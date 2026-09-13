@@ -229,7 +229,7 @@ public static partial class RuntimeSuggestion
     }
 
     /// <summary>The path as the patch should state it, relative to the source root where it can be.</summary>
-    private static string RelativePath(string file, string? sourceRoot)
+    internal static string RelativePath(string file, string? sourceRoot)
     {
         if (sourceRoot is not { Length: > 0 }) return Path.GetFileName(file);
 

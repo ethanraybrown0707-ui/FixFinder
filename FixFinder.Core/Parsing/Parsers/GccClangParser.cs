@@ -18,11 +18,34 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
     public string LanguageId => "gcc";
     public string DisplayName => "gcc / clang";
 
-    [GeneratedRegex(@"^(?<file>[^\s:][^:]*?):(?<line>\d+):(?<col>\d+):\s*(?<sev>fatal error|error|warning|note):\s*(?<msg>.*)$")]
+    /// <summary>A compiler diagnostic: <c>app.c:3:18: error: ...</c></summary>
+    /// <remarks>
+    /// The optional drive letter is the difference between reading gcc on Windows and not reading
+    /// it at all. MinGW prints the path it was given, <c>C:\src\app.c:3:18:</c>, and a file pattern
+    /// that stops at the first colon read <c>C</c> as the file and matched nothing - so every gcc
+    /// error on Windows fell to the generic parser, which kept the whole line, path and all, as
+    /// the message.
+    /// </remarks>
+    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^\s:][^:]*?):(?<line>\d+):(?<col>\d+):\s*(?<sev>fatal error|error|warning|note):\s*(?<msg>.*)$")]
     private static partial Regex DiagnosticPattern();
+
+    /// <summary>
+    /// The linker's own error: <c>app.c:3:(.text+0x18): undefined reference to `prinft'</c>.
+    /// </summary>
+    /// <remarks>
+    /// A misspelt function in C is not a compile error - the compiler warns and carries on - so this
+    /// is the only error there is. Without it, the line read was <c>collect2.exe: error: ld returned
+    /// 1 exit status</c>, which names nothing.
+    /// </remarks>
+    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^:\r\n]+?):(?:(?<line>\d+):)?\([^)]*\):\s*undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
+    private static partial Regex LinkerPattern();
 
     [GeneratedRegex(@"^==\d+==\s*ERROR:\s*(?<tool>\w+Sanitizer):\s*(?<type>[\w \-]+?)(?:\s+on\s+.*)?$")]
     private static partial Regex SanitizerPattern();
+
+    /// <summary>What went wrong, without the process id in front or the registers behind.</summary>
+    [GeneratedRegex(@"^==\d+==\s*ERROR:\s*\w+Sanitizer:\s*(?<body>.+?)(?:\s+\(pc\s.*|\s+at pc\s.*)?$")]
+    private static partial Regex SanitizerHeader();
 
     [GeneratedRegex(@"^\s+#(?<n>\d+)\s+0x[0-9a-fA-F]+\s+in\s+(?<sym>.+?)\s+(?<file>[^\s]+?):(?<line>\d+)(?::(?<col>\d+))?\s*$")]
     private static partial Regex SanitizerFramePattern();
@@ -56,6 +79,8 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
                 var severity = diagnostic.Groups["sev"].Value;
                 score += severity is "error" or "fatal error" ? 30 : 4;
             }
+
+            if (LinkerPattern().IsMatch(line)) score += 30;
 
             foreach (var fatal in FatalRuntimeMessages)
                 if (line.Contains(fatal, StringComparison.OrdinalIgnoreCase)) score += 45;
@@ -108,6 +133,23 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             end = i + 1;
         }
 
+        // The header as printed is "==43860==ERROR: AddressSanitizer: access-violation on unknown
+        // address 0x0 (pc 0x7ff7... bp 0x0 sp 0x00fd... T0)". The process id and the registers
+        // change every run, and as a headline they bury the four words that matter.
+        var message = SanitizerHeader().Match(lines[index].Text) is { Success: true } body
+            ? body.Groups["body"].Value.Trim()
+            : lines[index].Text.Trim();
+
+        // AddressSanitizer says so itself when the address is in the zero page. That is a null
+        // pointer, which is the most useful thing anyone can be told about an access violation.
+        for (var i = index + 1; i < end; i++)
+        {
+            if (!lines[i].Text.Contains("address points to the zero page", StringComparison.Ordinal)) continue;
+
+            message += " (a null pointer)";
+            break;
+        }
+
         return new ParsedError
         {
             LanguageId = LanguageId,
@@ -115,7 +157,7 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             RawText = ParserHelpers.RawTextOf(lines, index, end),
             FirstLineSequence = lines[index].Sequence,
             ExceptionType = header.Groups["type"].Value.Trim(),
-            Message = lines[index].Text,
+            Message = message,
             Frames = frames,
         };
     }
@@ -147,6 +189,31 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
 
         for (var i = 0; i < lines.Count; i++)
         {
+            if (LinkerPattern().Match(lines[i].Text) is { Success: true } linker)
+            {
+                errors.Add(new ParsedError
+                {
+                    LanguageId = LanguageId,
+                    Confidence = 80,
+                    RawText = lines[i].Text,
+                    FirstLineSequence = lines[i].Sequence,
+                    ExceptionType = "link error",
+                    Message = $"undefined reference to '{linker.Groups["symbol"].Value}'",
+                    Frames =
+                    [
+                        new ErrorFrame
+                        {
+                            Order = 0,
+                            File = ParserHelpers.CleanFilePath(linker.Groups["file"].Value),
+                            Line = linker.Groups["line"].Success ? int.Parse(linker.Groups["line"].Value) : null,
+                            RawLine = lines[i].Text,
+                        },
+                    ],
+                });
+
+                continue;
+            }
+
             var diagnostic = DiagnosticPattern().Match(lines[i].Text);
             if (!diagnostic.Success) continue;
             if (diagnostic.Groups["sev"].Value is not ("error" or "fatal error")) continue;
