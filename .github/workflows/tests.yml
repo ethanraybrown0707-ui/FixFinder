@@ -103,9 +103,16 @@ jobs:
         run: |
           # Several tests return early when a compiler is missing, so it is worth recording what
           # was actually available - a green run with everything skipped is not a green run.
-          foreach ($tool in 'dotnet', 'python', 'javac', 'java') {
+          foreach ($tool in 'dotnet', 'python', 'javac', 'java', 'gcc', 'clang') {
             $found = (Get-Command $tool -ErrorAction SilentlyContinue).Source
             Write-Host ("{0,-8} {1}" -f $tool, $(if ($found) { $found } else { 'not present' }))
+          }
+
+          # gcc's version matters as much as its presence. The build prefers gcc to MSVC when it is on
+          # PATH, and gcc 15 defaults to C23 - where bool is a keyword and a missing <stdbool.h> is not
+          # an error at all - so which C cases have anything to fix depends on it.
+          if (Get-Command gcc -ErrorAction SilentlyContinue) {
+            Write-Host ("{0,-8} {1}" -f 'gcc ver', (& gcc -dumpfullversion))
           }
 
           $vs = Get-ChildItem 'C:\Program Files*\Microsoft Visual Studio\*\*\VC\Auxiliary\Build\vcvarsall.bat' -ErrorAction SilentlyContinue |

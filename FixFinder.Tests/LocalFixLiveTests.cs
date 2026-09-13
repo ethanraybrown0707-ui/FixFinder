@@ -77,10 +77,14 @@ public class LocalFixLiveTests
         },
 
         // ---------------------------------------------------------------- C, with whichever compiler the build picks
+        // uint8_t rather than bool, which is what this case first used. C23 made bool a keyword, gcc 15
+        // defaults to C23, and on the CI runner the program without <stdbool.h> simply compiled and ran
+        // - correctly reported as nothing to fix. A missing <stdint.h> is an error under every standard
+        // and both compilers.
         {
             "c", "app.c",
-            "#include <stdio.h>\nint main(void) {\n    bool ready = true;\n    printf(\"%d\\n\", ready);\n    return 0;\n}\n",
-            "c-missing-standard-header", "#include <stdbool.h>"
+            "#include <stdio.h>\nint main(void) {\n    uint8_t count = 3;\n    printf(\"%d\\n\", count);\n    return 0;\n}\n",
+            "c-missing-standard-header", "#include <stdint.h>"
         },
         {
             "c", "app.c",

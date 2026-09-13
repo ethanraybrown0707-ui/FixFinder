@@ -255,7 +255,8 @@ Seventeen of the 46 with MSVC, eighteen with gcc - and most of them are out of r
 - **The fix is not an edit.** A script called `random.py` shadowing the standard library needs
   renaming, and `curl/curl.h` needs a library installed where the compiler looks.
 - **There is nothing wrong to fix.** gcc knows `malloc` as a built-in, so without `<stdlib.h>` the
-  program it builds simply works.
+  program it builds simply works. Likewise `bool` without `<stdbool.h>` under C23, where `bool` is a
+  keyword - which gcc 15 uses by default, and which is how the CI runner first reported this.
 
 ### What checking caught
 
