@@ -94,6 +94,45 @@ public class PythonUniversityTests : IDisposable
         Assert.True(FrameClassifier.IsVendored(@"C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\Lib\asyncio\runners.py"));
     }
 
+    /// <summary>Any install's standard library is the runtime's - known by the python.exe beside its Lib folder, wherever that is.</summary>
+    [Fact]
+    public void AnyPythonInstallsStandardLibraryIsNotTheUsersCode()
+    {
+        var home = Path.Combine(_temp.Path, "toolcache", "3.12.10", "x64");
+        Directory.CreateDirectory(Path.Combine(home, "Lib", "asyncio"));
+        File.WriteAllText(Path.Combine(home, "python.exe"), "");
+
+        var runners = Path.Combine(home, "Lib", "asyncio", "runners.py");
+        File.WriteAllText(runners, "");
+
+        Assert.True(FrameClassifier.IsVendored(runners));
+        Assert.False(FrameClassifier.IsVendored(Write("app.py", "print(1)\n")));
+    }
+
+    /// <summary>asyncio raises from its own runners.py; the call to fix is found in whichever frame holds it.</summary>
+    [Fact]
+    public void TheMissingCallIsFoundInTheUsersFrameWhenAsyncioRaisesItself()
+    {
+        var app = Write("app.py", "import asyncio\n\nasync def main():\n    pass\n\nasyncio.run(main)\n");
+
+        var error = new ParsedError
+        {
+            LanguageId = "python",
+            Confidence = 90,
+            RawText = "ValueError: a coroutine was expected, got <function main at 0x000001>",
+            FirstLineSequence = 0,
+            ExceptionType = "ValueError",
+            Message = "a coroutine was expected, got <function main at 0x000001>",
+            Frames =
+            [
+                new ErrorFrame { Order = 0, File = @"C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\asyncio\runners.py", Line = 89, RawLine = "" },
+                new ErrorFrame { Order = 1, File = app, Line = 6, RawLine = "" },
+            ],
+        };
+
+        Assert.Equal("asyncio.run(main())", Propose("python-coroutine-not-called", error));
+    }
+
     // ------------------------------------------------------------------ live, through a real Python
 
     private static readonly Lazy<bool> Python = new(() =>

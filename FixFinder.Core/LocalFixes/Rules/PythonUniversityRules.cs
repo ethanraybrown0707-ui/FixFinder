@@ -322,24 +322,31 @@ public sealed partial class PythonCoroutineNotCalled : ILocalFixRule
     public LocalFix? Propose(LocalFixContext context)
     {
         if (!Py.Is(context, "ValueError") || Message().Match(context.Error.Message ?? "") is not { Success: true } message) return null;
-        if (Py.Locate(context) is not { } at) return null;
-
-        var (source, number, line) = at;
         var name = Regex.Escape(message.Groups["name"].Value);
-        var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
+        var call = new Regex($@"\(\s*(?<name>{name})\s*[,)]");
 
-        if (!masked.Any(text => Regex.IsMatch(text, $@"^\s*async\s+def\s+{name}\s*\("))) return null;
+        // asyncio raises this from inside its own runners.py, so the frame holding the call is further out -
+        // searched for rather than assumed, whichever Python install the standard library lives in.
+        foreach (var frame in context.Error.RootCause.Frames.Concat(context.Error.Frames))
+        {
+            if (frame.Line is not { } number || context.Read(frame.File) is not { } source || source.Line(number) is not { } line) continue;
 
-        var hits = Regex.Matches(masked[number - 1], $@"\(\s*(?<name>{name})\s*[,)]");
-        if (hits.Count != 1) return null;
+            var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
+            if (!masked.Any(text => Regex.IsMatch(text, $@"^\s*async\s+def\s+{name}\s*\("))) continue;
 
-        var end = hits[0].Groups["name"].Index + hits[0].Groups["name"].Length;
+            var hits = call.Matches(masked[number - 1]);
+            if (hits.Count != 1) continue;
 
-        return LocalFix.ReplaceLine(
-            Id, $"Call {message.Groups["name"].Value}() to make the coroutine",
-            "An `async def` does nothing until it is called: calling it makes the coroutine `asyncio.run` expects. Without the brackets it " +
-            "is the function itself.",
-            source.Path, number, line[..end] + "()" + line[end..]);
+            var end = hits[0].Groups["name"].Index + hits[0].Groups["name"].Length;
+
+            return LocalFix.ReplaceLine(
+                Id, $"Call {message.Groups["name"].Value}() to make the coroutine",
+                "An `async def` does nothing until it is called: calling it makes the coroutine `asyncio.run` expects. Without the brackets it " +
+                "is the function itself.",
+                source.Path, number, line[..end] + "()" + line[end..]);
+        }
+
+        return null;
     }
 }
 

@@ -72,7 +72,8 @@ public static class FrameClassifier
         var normalized = file.Replace('\\', '/');
 
         return VendorSegments.Any(s => normalized.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
-               RuntimeSegments.Any(s => normalized.Contains(s, StringComparison.OrdinalIgnoreCase));
+               RuntimeSegments.Any(s => normalized.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+               IsPythonStandardLibrary(normalized);
     }
 
     /// <summary>Assigns <see cref="ErrorFrame.Origin"/> to every frame of an error and its causes.</summary>
@@ -94,9 +95,40 @@ public static class FrameClassifier
             // java.util.ArrayList.get, or java.base/jdk.internal.util.Preconditions with its module.
             if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "java" && IsJdkSymbol(frame.Symbol))
                 frame.Origin = FrameOrigin.Runtime;
+
+            if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "python" && IsPythonStandardLibrary(frame.File))
+                frame.Origin = FrameOrigin.Runtime;
         }
 
         foreach (var cause in error.Causes) Classify(cause, sourceRoots);
+    }
+
+    /// <summary>
+    /// A file in a Python install's own <c>Lib</c> folder - the one with <c>python.exe</c> beside it.
+    /// </summary>
+    /// <remarks>
+    /// Python lives in too many places to list: the Microsoft Store, python.org's installer, Anaconda, a CI
+    /// runner's tool cache. What they share is the layout, so the standard library is recognised by that
+    /// rather than by where it happens to be installed.
+    /// </remarks>
+    private static bool IsPythonStandardLibrary(string? file)
+    {
+        if (file is null) return false;
+
+        var normalized = Normalize(file);
+        var lib = normalized.LastIndexOf("/lib/", StringComparison.OrdinalIgnoreCase);
+        if (lib <= 0) return false;
+
+        var home = normalized[..lib];
+
+        try
+        {
+            return File.Exists(home + "/python.exe") || File.Exists(home + "/python") || File.Exists(home + "/bin/python3");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static bool IsJdkSymbol(string? symbol) =>
