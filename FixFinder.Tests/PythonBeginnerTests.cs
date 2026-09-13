@@ -348,6 +348,15 @@ public class PythonBeginnerTests : IDisposable
     /// etree until it is imported - so this one is a package to install.
     /// </summary>
     [Fact]
+    public void AnInterpreterThatCouldNotBeAskedIsAskedAgainNextTime()
+    {
+        var missing = Path.Combine(_temp.Path, "no-such-python", "python.exe");
+
+        Assert.Empty(PythonStdlib.Names(missing));
+        Assert.False(PythonStdlib.IsRemembered(missing));
+    }
+
+    [Fact]
     public void APackageNamedLikeAStandardModuleIsStillOfferedForInstall()
     {
         if (Python.Value is not { } python) return;

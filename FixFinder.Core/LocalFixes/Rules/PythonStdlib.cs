@@ -41,10 +41,14 @@ internal static partial class PythonStdlib
             if (NamesByInterpreter.TryGetValue(interpreter, out var known)) return known;
         }
 
-        var output = Run(interpreter, ["-c", "import sys; print(*sorted(sys.stdlib_module_names))"]);
+        var output = RunWithRetry(interpreter, ["-c", "import sys; print(*sorted(sys.stdlib_module_names))"]);
         IReadOnlySet<string> names = new HashSet<string>(
             (output ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Where(n => Identifier().IsMatch(n)),
             StringComparer.Ordinal);
+
+        // Only a real answer is remembered. A Python that was slow to start once - a busy CI runner - would
+        // otherwise leave an empty list behind, and every typo after it would be offered as a package to install.
+        if (names.Count == 0) return names;
 
         lock (NamesByInterpreter)
         {
@@ -74,7 +78,7 @@ internal static partial class PythonStdlib
         var used = UsedNames(module, lines);
         if (used.Count == 0) return null;
 
-        var answer = Run(interpreter,
+        var answer = RunWithRetry(interpreter,
         [
             "-c",
             "import importlib, sys; m = importlib.import_module(sys.argv[1]); print(all(hasattr(m, a) for a in sys.argv[2:]))",
@@ -108,6 +112,19 @@ internal static partial class PythonStdlib
 
         return [.. used.Order(StringComparer.Ordinal)];
     }
+
+    /// <summary>Whether that interpreter's list is remembered - for tests of what a failure leaves behind.</summary>
+    internal static bool IsRemembered(string interpreter)
+    {
+        lock (NamesByInterpreter)
+        {
+            return NamesByInterpreter.ContainsKey(interpreter);
+        }
+    }
+
+    /// <summary>One more try when the first gives no answer: starting Python can stall on a busy machine.</summary>
+    private static string? RunWithRetry(string interpreter, IReadOnlyList<string> arguments) =>
+        Run(interpreter, arguments) ?? Run(interpreter, arguments);
 
     private static string? Run(string interpreter, IReadOnlyList<string> arguments)
     {
