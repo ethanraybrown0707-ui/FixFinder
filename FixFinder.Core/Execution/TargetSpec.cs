@@ -57,6 +57,30 @@ public sealed class TargetSpec
     /// </remarks>
     public Encoding OutputEncoding { get; init; } = Encoding.UTF8;
 
+    /// <summary>What to type into the program when it asks, one answer per line. Null to type nothing.</summary>
+    /// <remarks>
+    /// Without it the program reads end-of-input the moment it asks, which for a Python script is
+    /// <c>EOFError: EOF when reading a line</c> at its first <c>input()</c> - long before it reaches
+    /// whatever else is wrong. It belongs to the spec rather than to one run, so every re-run of the
+    /// program is typed the same answers.
+    /// </remarks>
+    public string? StandardInput { get; init; }
+
+    /// <summary>This spec, with <paramref name="input"/> typed into the program.</summary>
+    public TargetSpec WithInput(string? input) => new()
+    {
+        ExecutablePath = ExecutablePath,
+        Arguments = Arguments,
+        WorkingDirectory = WorkingDirectory,
+        LaunchViaDotnet = LaunchViaDotnet,
+        ExtraEnvironment = ExtraEnvironment,
+        Timeout = Timeout,
+        BuildCommand = BuildCommand,
+        BuildWorkingDirectory = BuildWorkingDirectory,
+        OutputEncoding = OutputEncoding,
+        StandardInput = string.IsNullOrEmpty(input) ? null : input,
+    };
+
     /// <summary>The command line as a user would type it, for logs and confirmation prompts.</summary>
     public string DisplayCommandLine
     {

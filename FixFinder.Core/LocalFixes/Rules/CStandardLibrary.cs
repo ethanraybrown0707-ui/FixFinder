@@ -103,6 +103,9 @@ internal static class CStandardLibrary
 
     public static string? CppHeaderOf(string name) => CppHeaders.GetValueOrDefault(name);
 
+    /// <summary>The C++ table as written, for the test that compiles every entry against its header.</summary>
+    internal static IReadOnlyDictionary<string, string> CppTable => CppHeaders;
+
     private static Dictionary<string, string> Build((string Header, string Names)[] table)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);

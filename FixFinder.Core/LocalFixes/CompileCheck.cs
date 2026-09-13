@@ -53,7 +53,7 @@ public static class CompileCheck
     /// <summary>True when there is a way to check a file of this kind at all.</summary>
     public static bool CanCheck(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
-        ".py" or ".java" => true,
+        ".py" or ".java" or ".cs" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         _ => false,
     };
@@ -139,6 +139,12 @@ public static class CompileCheck
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":
                 return Native(copy, originalFolder, folder);
 
+            case ".cs":
+                // The .NET SDK builds a single .cs file on its own, the same way FixFinder runs one.
+                if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;
+
+                return Spec(dotnet, $"build \"{copy}\" -nologo -v q", folder);
+
             default:
                 return null;
         }
@@ -157,7 +163,7 @@ public static class CompileCheck
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
             var standard = cpp ? "-std=c++17 " : "";
-            return Spec(gnu.Program, $"{standard}-I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"", folder);
+            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"", folder);
         }
 
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;

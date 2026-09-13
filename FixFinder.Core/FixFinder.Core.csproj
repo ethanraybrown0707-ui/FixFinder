@@ -40,4 +40,9 @@
           Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
   </Target>
 
+  <!-- The tests compile every entry of the standard header tables, which are internal. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FixFinder.Tests" />
+  </ItemGroup>
+
 </Project>

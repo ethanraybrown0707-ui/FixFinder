@@ -1,0 +1,15 @@
+{FILE}: In function 'int main()':
+{FILE}:2:10: error: 'cout' is not a member of 'std'
+    2 |     std::cout << "hello" << std::endl;
+      |          ^~~~
+{FILE}:1:1: note: 'std::cout' is defined in header '<iostream>'; did you forget to '#include <iostream>'?
+  +++ |+#include <iostream>
+    1 | int main() {
+fix-it:"{FILE_ESCAPED}":{1:1-1:1}:"#include <iostream>\n"
+{FILE}:2:34: error: 'endl' is not a member of 'std'
+    2 |     std::cout << "hello" << std::endl;
+      |                                  ^~~~
+{FILE}:1:1: note: 'std::endl' is defined in header '<ostream>'; did you forget to '#include <ostream>'?
+  +++ |+#include <ostream>
+    1 | int main() {
+fix-it:"{FILE_ESCAPED}":{1:1-1:1}:"#include <ostream>\n"

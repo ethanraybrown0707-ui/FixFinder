@@ -34,7 +34,7 @@ public static partial class RuntimeSuggestion
     /// are matched rather than normalised, because the punctuation is how you tell which runtime
     /// produced it if this ever needs to differ by language.
     /// </remarks>
-    [GeneratedRegex(@"[Dd]id you mean[:?]?\s*['""`‘“]?(?<right>[A-Za-z_][A-Za-z0-9_]*)['""`’”]?\s*\??")]
+    [GeneratedRegex(@"[Dd]id you mean[:?]?\s*['""`‘“]?(?<right>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)['""`’”]?\s*\??")]
     private static partial Regex SuggestionPattern();
 
     /// <summary>
@@ -73,7 +73,11 @@ public static partial class RuntimeSuggestion
     /// <summary>What the runtime said, once it has been read.</summary>
     /// <param name="Wrong">The name as written.</param>
     /// <param name="Right">The name the runtime says was meant.</param>
-    public sealed record Correction(string Wrong, string Right, string File, int Line);
+    public sealed record Correction(string Wrong, string Right, string File, int Line)
+    {
+        /// <summary>True when the name is an attribute, which is always reached through a dot.</summary>
+        public bool IsAttribute { get; init; }
+    }
 
     /// <summary>Reads a suggestion out of an error, or returns null when there is not one.</summary>
     public static Correction? Read(ParsedError error)
@@ -106,11 +110,11 @@ public static partial class RuntimeSuggestion
 
         // The frame that threw. Order 0 is where it went wrong in every parser here, Python
         // included, because that parser reverses the order the interpreter prints them in.
-        var frame = error.CulpritFrame ?? error.Frames.FirstOrDefault();
+        var frame = FixFinder.Core.LocalFixes.LocalFixContext.OwnFrame(error);
 
         if (frame?.File is not { Length: > 0 } file || frame.Line is not { } line) return null;
 
-        return new Correction(wrong, right, file, line);
+        return new Correction(wrong, right, file, line) { IsAttribute = FirstGroup(AttributePattern(), text) is not null };
     }
 
     private static string? FirstGroup(Regex pattern, string text)
@@ -197,12 +201,27 @@ public static partial class RuntimeSuggestion
 
         var original = lines[index];
         var word = new Regex($@"\b{Regex.Escape(correction.Wrong)}\b");
+        string fixedLine;
 
         // Exactly once, or not at all. Two occurrences on one line and there is no way to know
         // which the runtime meant, and guessing would edit code nobody looked at.
-        if (word.Matches(original).Count != 1) return null;
+        if (word.Matches(original).Count == 1)
+        {
+            fixedLine = word.Replace(original, correction.Right, 1);
+        }
+        // Except that an attribute is always reached through a dot, so `.value` is one occurrence
+        // even on a line that also has a variable called value: `for value in person.value():`.
+        else if (correction.IsAttribute &&
+                 Regex.Matches(original, $@"\.\s*{Regex.Escape(correction.Wrong)}\b") is { Count: 1 } access)
+        {
+            var at = access[0].Index + access[0].Length - correction.Wrong.Length;
+            fixedLine = original[..at] + correction.Right + original[(at + correction.Wrong.Length)..];
+        }
+        else
+        {
+            return null;
+        }
 
-        var fixedLine = word.Replace(original, correction.Right, 1);
         if (fixedLine == original) return null;
 
         var path = RelativePath(correction.File, sourceRoot);

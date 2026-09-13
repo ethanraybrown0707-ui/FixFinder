@@ -133,6 +133,12 @@ public static partial class MissingModule
         var interpreter = Interpreter(spec);
         if (interpreter is null) return null;
 
+        // A misspelt standard module is not a package to install. `import maths` using maths.sqrt
+        // means math, and pip install maths would download somebody else's package to fix a typo.
+        // The local fix offers the corrected import instead.
+        var lines = FixFinder.Core.LocalFixes.SourceFile.Read(FixFinder.Core.LocalFixes.LocalFixContext.OwnFrame(error)?.File)?.Lines;
+        if (FixFinder.Core.LocalFixes.Rules.PythonStdlib.TypoOf(interpreter, missing.Module, lines) is not null) return null;
+
         var command = $"\"{interpreter}\" -m pip install {missing.Package}";
 
         var body =

@@ -385,12 +385,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 }
             }
 
-            // Still nothing to read, but the build warned that a pointer-returning function was
-            // never declared - which on 64-bit Windows is, by itself, a silent crash.
-            if (wentWrong && buildOutput is { Count: > 0 } &&
-                MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
-                    w.ErrorCode == "C4013" && CStandardLibrary.ReturnsPointer.Any(name =>
-                        (w.Message ?? "").StartsWith($"'{name}' undefined", StringComparison.Ordinal))) is { } warned)
+            // Still nothing to read, but the build warned about something that is a silent crash by
+            // itself: a pointer-returning function never declared, which 64-bit Windows cuts in half,
+            // or printf told to read a number as a string.
+            if (wentWrong && buildOutput is { Count: > 0 } && CrashingWarning(buildOutput) is { } warned)
             {
                 return await SearchForAsync(
                     run, warned, spec, budget, sourceFolder, failedToCompile: false,
@@ -407,9 +405,49 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
+        // A program that stopped because it asked for input is not broken yet - it has not got far
+        // enough to be. Searching "EOF when reading a line" finds nothing worth reading, and the real
+        // mistake, if there is one, is somewhere past the question it never got an answer to.
+        if (AskedForInput(run.Error)) return NeedsInput(run, run.Error, spec, sourceFolder);
+
         return await SearchForAsync(
             run, run.Error, spec, budget, sourceFolder, failedToCompile,
             warnings: warnings, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>True when the program died reading input that was never typed.</summary>
+    private static bool AskedForInput(ParsedError error) => error.LanguageId switch
+    {
+        "python" => error.ExceptionType == "EOFError" &&
+                    (error.Message ?? "").Contains("EOF when reading a line", StringComparison.Ordinal),
+        "java" => error.ExceptionType == "java.util.NoSuchElementException" &&
+                  error.Frames.Any(frame => frame.Symbol?.Contains("Scanner", StringComparison.Ordinal) == true),
+        _ => false,
+    };
+
+    private static SessionOutcome NeedsInput(TargetRunResult run, ParsedError error, TargetSpec spec, string? sourceFolder)
+    {
+        var typed = spec.StandardInput is { Length: > 0 } input
+            ? input.ReplaceLineEndings("\n").TrimEnd('\n').Split('\n').Length
+            : 0;
+
+        return new SessionOutcome
+        {
+            Result = SessionResult.NothingFound,
+            Headline = typed == 0
+                ? "It stopped to ask for input, and there was nobody to type it."
+                : $"It asked for more input than the {typed} line{(typed == 1 ? "" : "s")} you gave it.",
+            Detail = typed == 0
+                ? "FixFinder runs the program without a keyboard, so the moment it asked for input it got none and " +
+                  "stopped - before it could reach anything else that might be wrong. Type the answers it should read " +
+                  "into the input box, one per line, and run it again."
+                : "Every line in the input box was read, and then it asked for another. Add the rest of the answers, " +
+                  "one per line, and run it again.",
+            Spec = spec,
+            Run = run,
+            Error = error,
+            SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
+        };
     }
 
     /// <summary>
@@ -684,6 +722,14 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// When the error is a crash the rules cannot read, the build's warnings get a turn, because
     /// for C they are often the whole explanation.
     /// </remarks>
+    private static ParsedError? CrashingWarning(IReadOnlyList<CapturedLine> buildOutput) =>
+        MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
+            (w.ErrorCode == "C4013" && CStandardLibrary.ReturnsPointer.Any(name =>
+                (w.Message ?? "").StartsWith($"'{name}' undefined", StringComparison.Ordinal))) ||
+            (w.ErrorCode == "C4477" && (w.Message ?? "").Contains("format string '%s'", StringComparison.Ordinal)))
+        ?? GccClangParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
+            (w.Message ?? "").StartsWith("format '%s' expects", StringComparison.Ordinal));
+
     private async Task<LocalFixFound?> LocalFixAsync(
         TargetRunResult run, ParsedError error, IReadOnlyList<ParsedError> others, TargetSpec spec,
         string? sourceRoot, bool failedToCompile, IReadOnlyList<CapturedLine>? buildOutput,

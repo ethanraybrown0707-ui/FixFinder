@@ -147,7 +147,12 @@ public partial class MainWindow : Window
     {
         if (_launch is not { Ok: true, Spec: not null }) return;
 
-        var spec = _launch.Spec;
+        // Typed answers belong to this run and every re-run of it, so they go into the spec itself.
+        var launch = InputTextBox.Text is { Length: > 0 } typed
+            ? _launch with { Spec = _launch.Spec.WithInput(typed) }
+            : _launch;
+
+        var spec = launch.Spec!;
 
         // The gate that has to stay. FixFinder is about to run a program as this user, with
         // this user's environment, and the exact command line is the one thing nobody should
@@ -162,6 +167,7 @@ public partial class MainWindow : Window
             "FixFinder is about to run this, as you, and capture everything it prints:\n\n" +
             $"{commands}\n\n" +
             $"In: {spec.WorkingDirectory}\n\n" +
+            (spec.StandardInput is { } answers ? $"Typing into it:\n\n{answers}\n\n" : "") +
             "Continue?",
             "Run this program?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
 
@@ -198,7 +204,7 @@ public partial class MainWindow : Window
 
             try
             {
-                _result = await loop.RunAsync(_launch, budget, _cancellation.Token);
+                _result = await loop.RunAsync(launch, budget, _cancellation.Token);
             }
             finally
             {

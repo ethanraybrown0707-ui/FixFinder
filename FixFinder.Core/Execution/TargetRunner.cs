@@ -115,11 +115,19 @@ public sealed class TargetRunner
         // Console.ReadLine() burns the whole timeout on every single run and looks like a hang.
         try
         {
+            // Typed as a person would type it: each answer ended by Enter, and then nothing more.
+            if (spec.StandardInput is { Length: > 0 } typed)
+            {
+                var text = typed.ReplaceLineEndings("\n");
+                await process.StandardInput.WriteAsync(text.EndsWith('\n') ? text : text + "\n");
+                await process.StandardInput.FlushAsync();
+            }
+
             process.StandardInput.Close();
         }
         catch (IOException)
         {
-            // The process already exited and took the pipe with it. Nothing to close.
+            // The process already exited and took the pipe with it. Nothing to write or close.
         }
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -214,6 +222,7 @@ public sealed class TargetRunner
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = true,
+            StandardInputEncoding = new System.Text.UTF8Encoding(false),
             StandardOutputEncoding = spec.OutputEncoding,
             StandardErrorEncoding = spec.OutputEncoding,
             WorkingDirectory = spec.WorkingDirectory,

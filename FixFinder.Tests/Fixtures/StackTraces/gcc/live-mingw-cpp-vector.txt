@@ -1,0 +1,15 @@
+{FILE}: In function 'int main()':
+{FILE}:3:10: error: 'vector' is not a member of 'std'
+    3 |     std::vector<int> values = {1, 2, 3};
+      |          ^~~~~~
+{FILE}:2:1: note: 'std::vector' is defined in header '<vector>'; did you forget to '#include <vector>'?
+    1 | #include <iostream>
+  +++ |+#include <vector>
+    2 | int main() {
+fix-it:"{FILE_ESCAPED}":{2:1-2:1}:"#include <vector>\n"
+{FILE}:3:17: error: expected primary-expression before 'int'
+    3 |     std::vector<int> values = {1, 2, 3};
+      |                 ^~~
+{FILE}:4:18: error: 'values' was not declared in this scope
+    4 |     std::cout << values.size() << std::endl;
+      |                  ^~~~~~

@@ -221,7 +221,7 @@ public sealed partial class CNearestName : ILocalFixRule
             if (Regex.IsMatch(masked[i], $@"\b(?:struct|union|class)\s+{name}\b(?!\s*[;*\w])"))
                 return BlockWords(masked, i, forward: true);
 
-            if (Regex.IsMatch(masked[i], $@"^\s*\}}\s*{name}\s*;"))
+            if (Regex.IsMatch(masked[i], $@"\}}\s*{name}\s*;"))
                 return BlockWords(masked, i, forward: false);
         }
 

@@ -33,8 +33,21 @@ public sealed class LocalFixContext
 
     public IEnumerable<ParsedError> AllErrors => Others.Prepend(Error);
 
-    /// <summary>The frame the error happened in.</summary>
-    public ErrorFrame? Frame => Error.CulpritFrame ?? Error.Frames.FirstOrDefault();
+    /// <summary>The frame the error happened in - its own, never one from a cause it wraps.</summary>
+    public ErrorFrame? Frame => OwnFrame(Error);
+
+    /// <summary>The frame an error itself was raised in.</summary>
+    /// <remarks>
+    /// The culprit frame is chosen from the root cause, which is right for searching - the first
+    /// exception in a chain is usually the real problem. It is wrong for correcting a line: a
+    /// <c>NameError</c> raised by <c>except valueerror:</c> while a <c>ValueError</c> was being handled
+    /// is about the except line, and the culprit frame points at the line that raised the ValueError,
+    /// where the misspelt name does not appear.
+    /// </remarks>
+    public static ErrorFrame? OwnFrame(ParsedError error) =>
+        error.CulpritFrame is { } culprit && error.Frames.Contains(culprit)
+            ? culprit
+            : error.Frames.FirstOrDefault(frame => frame.Origin == FrameOrigin.FirstParty) ?? error.Frames.FirstOrDefault();
 
     /// <summary>The file a frame names, as a full path that exists, or null.</summary>
     /// <remarks>

@@ -177,7 +177,7 @@ covered one.
 ## Fixes worked out from your code
 
 The runtime's own suggestion covers a handful of mistakes. Most of the commonest errors in Python,
-Java and C are a different kind: the message pins the answer down without spelling it out. A missing
+Java, C and C# are a different kind: the message pins the answer down without spelling it out. A missing
 import, a missing semicolon, a loop that runs one step too far, a public class in the wrong file.
 Nobody else has written about *your* missing semicolon, so searching does worst on exactly these.
 
@@ -196,6 +196,20 @@ missing semicolon in Java turned up questions about Xcode, and the top three for
 Overflow's canonical question about non-static methods, say - it was still prose to read, not the
 line to change.
 
+**Then, one language at a time, the constructs people actually get wrong.** A second set of small
+programs was written from the mistakes of someone learning each language, and of someone arriving
+from another one - `elif` in Java, `print` in C#, `string` in C, `.length` in Python - and rules were
+added until what was left had no single right edit:
+
+| | Programs | Before | Now |
+|---|---|---|---|
+| Python: constructs | 70 | 4 | 45 |
+| Python: fifty beginner concepts | 50 | 8 | 26 |
+| C# | 47 | 0 | 38 |
+| C, built by gcc | 44 | 17 | 34 |
+| C, built by MSVC | 44 | 13 | 33 |
+| Java | 50 | 15 | 45 |
+
 **How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
 exactly one change:
 
@@ -206,6 +220,11 @@ exactly one change:
 | | `expected an indented block after ... on line 1` | the named line, indented the way the file indents |
 | | `can only concatenate str (not "int") to str` | `str(total)`, placed by Python's own underline |
 | | `cannot access local variable 'count'` | `global count` - only when the module has a `count` and the function never sets its own |
+| | `else if`, `elseif`, `&&`, `!ready`, `count++`, `let`, `new Dog()`, `catch`, `null`, `this.name` | `elif`, `and`, `not ready`, `count += 1`, the bare name, `Dog()`, `except`, `None`, `self.name` |
+| | `text.length`, `items.push(3)`, `text.toUpperCase()`, `name.equals("x")`, `d.has_key("a")` | `len(text)`, `items.append(3)`, `text.upper()`, `name == "x"`, `"a" in d` |
+| | `for i in 10`, `items[len(items) / 2]`, `age > 18` with `age = "20"`, `", ".join(numbers)`, `for n in numbers.sort()` | `range(10)`, `//`, `int(age) > 18`, `map(str, numbers)`, `sorted(numbers)` |
+| | `def bark():` in a class, `def greet:`, `import Math`, `raw_input`, `except ValueError, e`, `raise "oops"` | `self`, the brackets, `import math`, `input`, `as e`, `raise Exception("oops")` |
+| | an unclosed string or f-string brace, one `)` too many, a stray indent, tabs mixed with spaces | the quote, the brace, the bracket removed, the indentation |
 | Java | `cannot find symbol: class List` | every missing import in the build at once, from a table of JDK classes |
 | | `cannot find symbol: variable avarage` | the one name within a letter or two - from the file, or for `System.out.printn` from the real JDK class, read with `javap` |
 | | `';' expected` | the semicolon, where javac's caret points |
@@ -214,16 +233,36 @@ exactly one change:
 | | `class Main is public, should be declared in a file named Main.java` | the class renamed to match the file |
 | | `Index 3 out of bounds for length 3` | `<` instead of `<=` in the loop driving that index |
 | | `String cannot be converted to int` | `Integer.parseInt(...)` |
+| | `bool`, `True`, `None`, `print(...)`, `Console.WriteLine`, `elif`, `foreach`, `for (String n in names)` | `boolean`, `true`, `null`, `System.out.println`, `else if`, `for`, `for (String n : names)` |
+| | `values.length()` on an array, `name.length` on a String, `names.length` on a List, `names[0]`, `name[0]` | `values.length`, `name.length()`, `names.size()`, `names.get(0)`, `name.charAt(0)` - javac names the variable's type |
+| | `int cannot be dereferenced`, `int cannot be converted to boolean`, `unexpected type` for `ArrayList<int>` | `x == 5`, `if (x == 5)`, `ArrayList<Integer>` |
+| | `possible lossy conversion`, `Object cannot be converted to String`, `bad operand types` | `(int) 5.5`, `(String) value`, `Integer.parseInt(a) - 1`, `'a'` for a char compared with `"a"` |
+| | `'hello'`, `ArrayList<>()` without `new`, `reached end of file while parsing`, `variable total might not have been initialized`, `package system does not exist` | `"hello"`, `new`, the closing brace, `= 0`, `System` |
 | C | `'bool': undeclared identifier`, `'malloc' undefined` | the standard header |
 | | a misspelt variable, member or function | the nearest name, since MSVC never suggests one |
 | | `Cannot open include file: 'stdoi.h'` | `<stdio.h>` |
 | | `missing ';' before 'printf'` | the semicolon, at the end of the statement before |
 | | `'{': no matching token found`, `expected declaration or statement at end of input` | the closing brace |
 | | anything gcc or clang printed a fix-it for | the compiler's own edit - see below |
+| | `elif`, `and` and `or`, `if x > 1 {`, `string name = "Ethan"`, `cout <<`, `#include <iostream>` | `else if`, `&&` and `\|\|`, the brackets, `char name[]`, `printf`, `<stdio.h>` |
+| | an unclosed string or bracket, one `}` too many, a struct with no `;` after it | the quote, the bracket, the brace removed, the semicolon |
+| | `parcel p` for a struct, `->` on a struct, `.` on a pointer, a typedef'd struct's misspelt member | `struct parcel p`, `.`, `->`, the real member |
+| | `for (i = 0; ...)` with `i` undeclared, `int x = 2;` twice, `name = "Ethan"` for a char array | `int i` in the loop when nothing else uses it, `x = 2;`, `strcpy` - only when the text fits |
+| | a function called before it is defined | its declaration, above the first call |
+| | AddressSanitizer's `attempting double-free`, and `stack-buffer-overflow` from a loop | the second `free` removed; the loop stopped at the array's size |
+| | `printf("%s", 5)`, which compiles with a warning and crashes | `%d` - from MSVC's `C4477`, or gcc's own fix-it under `-Wformat` |
+| C# | `; expected`, `} expected`, `Syntax error, '(' expected`, `Too many characters in character literal` | the semicolon where Roslyn's column points, the brace, the brackets round `if x > 5`, double quotes |
+| | `The name 'print'`, `'True'`, `'None'`, `'len'` or a `for` loop's `'i'` `does not exist` | `Console.WriteLine`, `true`, `null`, `name.Length`, `int i` - or the one name in the file within a letter or two |
+| | `'Console' does not contain a definition for 'WriteLin'`, `'List<int>' ... 'Length'`, `'string' ... 'equals'` | the real member, read from .NET itself by reflection: `WriteLine`, `Count`, `Equals` |
+| | `Non-invocable member 'string.Length'`, `'List<T>' cannot be used like a method` | `Length` without brackets, `new List<int>()` |
+| | `Cannot implicitly convert type 'string' to 'int'`, and the other conversions | `18` for `"18"`, `int.Parse(input) + 1` - never `int.Parse(input + 1)` - `'a'` for `"a"`, `==` for `if (x = 5)`, `(int)` for a double |
+| | `elif`, `System.out.println`, `foreach (item in items)`, `Lsit<int>`, `boolean`, `System.Collection` | `else if`, `Console.WriteLine`, `var item`, `List<int>`, `bool`, `System.Collections` |
+| | an instance method called from `static Main`, a private member, `await` outside `async`, a missing `using`, a method with no return type, `int total;` read before it is set | `static`, `public`, `async Task`, the `using`, the type its `return`s give, `= 0` |
+| | `IndexOutOfRangeException` from `i <= items.Length` | `<` |
 
 **Every one is checked before you see it.** A copy of the file with the change made is compiled
 outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
-javac; C with the same compiler the build used - and the change is offered only if the error it was
+javac; C with the same compiler the build used; C# with `dotnet build` - and the change is offered only if the error it was
 for has gone and nothing new has broken. Two equally near names is a refusal, not a pick: `printn` is
 one letter from `print`, `println` and `printf`, so nothing is offered. For a crash, the check can
 only prove the file still compiles, and the answer says exactly that rather than claiming the crash
@@ -239,7 +278,9 @@ or a divide by zero on Windows ends in an exit code and silence. When that happe
 the program with AddressSanitizer, which ships with Visual Studio, runs it once more, and reports the
 file and line: `stack-buffer-overflow` at `app.c:4`, `access-violation (a null pointer)` at `app.c:5`.
 If the build had warned `'malloc' undefined`, that warning is the explanation - C assumed an `int` and
-cut the 64-bit pointer in half - and adding `<stdlib.h>` is offered as the fix.
+cut the 64-bit pointer in half - and adding `<stdlib.h>` is offered as the fix. A `printf` told to read
+a number as a string - MSVC's `C4477`, gcc's `-Wformat` - is read the same way, and the conversion that
+matches the argument is offered.
 
 ### What is still not fixed, and why
 
@@ -249,8 +290,10 @@ Seventeen of the 46 with MSVC, eighteen with gcc - and most of them are out of r
   object has no attribute 'email'`, `NullPointerException`, `int("forty")`, dividing by zero, a missing
   file. The message says what went wrong, never what the program should have done instead. These still
   get search results, and a C crash still gets its location.
-- **The fix needs a value nobody stated**: `missing return statement`, `variable total might not have
-  been initialized`, `greet() missing 1 required positional argument`.
+- **The fix needs a value nobody stated**: `missing return statement`, `not all code paths return a
+  value`, `var total;`, `greet() missing 1 required positional argument`. A plain `int total;` read
+  before it is set is offered `= 0`, in Java and C#, with the explanation saying to put the real starting
+  value there if it is not 0.
 - **The answer is genuinely ambiguous**: `printn`, above.
 - **The fix is not an edit.** A script called `random.py` shadowing the standard library needs
   renaming, and `curl/curl.h` needs a library installed where the compiler looks.
@@ -258,9 +301,15 @@ Seventeen of the 46 with MSVC, eighteen with gcc - and most of them are out of r
   program it builds simply works. Likewise `bool` without `<stdbool.h>` under C23, where `bool` is a
   keyword - which gcc 15 uses by default, and which is how the CI runner first reported this.
 
+The construct programs left behind the same kinds of thing: `NullReferenceException`,
+`KeyNotFoundException`, `NumberFormatException`, `ClassCastException` and dividing by zero, which are
+about data; a `const` assigned to, too few arguments, a pointer used after `free`, which have no single
+right edit; and a third-party header. Some C runs never reached an error at all, because Windows'
+Application Control blocked the freshly built program - which is this machine, not the mistake.
+
 ### What checking caught
 
-Four things were wrong, and each was found by running real programs rather than by trusting tests
+Seven things were wrong, and each was found by running real programs rather than by trusting tests
 that passed:
 
 - **gcc on Windows was not being read at all.** A drive letter is a colon, gcc's file pattern stopped
@@ -275,6 +324,16 @@ that passed:
   fix. A local fix now carries the file it was checked against.
 - **`0xC0000094`, integer divide by zero, was reported as "finished unhappily"** rather than as a
   crash, so it was never located.
+- **A Java crash inside a List was blamed on the JDK.** A Java frame names a file, never a path, so
+  `Preconditions.java:100` looked no less like the program's own code than `App.java:7`, came first, and
+  the loop that ran past the end of the List was never looked at. The JDK's frames are now known by
+  their class - `java.util.ArrayList.get`.
+- **MSVC's C++ headers became the project.** `#include <iostream>` in a C file is reported from inside
+  Visual Studio's own `yvals_core.h`, so its include folder was taken as the source root. Nothing under
+  Visual Studio or the Windows Kits is the user's code now.
+- **gcc says nothing about `printf("%s", 5)`** unless asked with `-Wformat`, and the program simply dies.
+  FixFinder now asks, and applies gcc's own fix-it. When the rebuilt program is then blocked from running,
+  the warning alone is taken as the explanation of the silent crash, as `'malloc' undefined` already was.
 
 ## When the fix is not a patch
 

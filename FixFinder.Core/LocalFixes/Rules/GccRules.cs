@@ -116,6 +116,7 @@ public sealed partial class CompilerFixIt : ILocalFixRule
             StartLine = first,
             RemoveCount = last - first + 1,
             NewLines = edited.Split('\n'),
+            ResolvesWarning = error.ExceptionType == "compile warning" ? error.Message : null,
         };
     }
 

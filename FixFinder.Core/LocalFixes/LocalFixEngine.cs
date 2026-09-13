@@ -56,14 +56,73 @@ public static partial class LocalFixEngine
     /// <summary>Every rule, in the order they are tried. The first one whose proposal survives wins.</summary>
     public static IReadOnlyList<ILocalFixRule> Rules { get; } =
     [
+        new PythonThisForSelf(),
         new PythonForgottenImport(),
+        new PythonStdlibModuleTypo(),
+        new PythonRelativeImportInScript(),
+        new PythonNullToNone(),
+        new PythonTwoToThreeName(),
+        new PythonElseIf(),
+        new PythonElseWithCondition(),
         new PythonExpectedColon(),
         new PythonPrintStatement(),
         new PythonAssignmentInCondition(),
+        new PythonArrowOperator(),
+        new PythonSlashComment(),
+        new PythonLambdaReturn(),
+        new PythonUnclosedBracket(),
         new PythonIndentedBlock(),
         new PythonStrConcatenation(),
         new PythonUnboundGlobal(),
+        new PythonDatetimeClass(),
+        new PythonSuperCall(),
+        new PythonInitTypo(),
 
+        new PythonForeignSyntax(),
+        new PythonExceptComma(),
+        new PythonImportFromBackwards(),
+        new PythonGlobalAssignment(),
+        new PythonDefWithoutParentheses(),
+        new PythonFStringBrace(),
+        new PythonUnterminatedString(),
+        new PythonUnmatchedClosing(),
+        new PythonUnexpectedIndent(),
+        new PythonUnindentMismatch(),
+        new PythonTabsAndSpaces(),
+        new PythonRaiseString(),
+        new PythonPrintRedirect(),
+        new PythonForeignMethod(),
+        new PythonMissingSelf(),
+        new PythonDunderStrReturn(),
+        new PythonRangeForInt(),
+        new PythonFloatDivision(),
+        new PythonComparisonTypes(),
+        new PythonJoinNonStrings(),
+        new PythonSortedNotSort(),
+        new PythonInPlaceResult(),
+        new PythonCalledConstant(),
+        new PythonIsinstanceString(),
+        new PythonChangedDuringIteration(),
+
+        // Last of Python's: a nearest name is the weakest claim here, and every rule above is exact.
+        new PythonNearestName(),
+
+        new JavaElif(),
+        new JavaForEach(),
+        new JavaForeignWord(),
+        new JavaLowercaseClass(),
+        new JavaLengthAndSize(),
+        new JavaIndexing(),
+        new JavaMissingNew(),
+        new JavaCharAndString(),
+        new JavaMissingClosingBrace(),
+        new JavaPrimitiveMethod(),
+        new JavaAssignmentInCondition(),
+        new JavaForCounter(),
+        new JavaGenericPrimitive(),
+        new JavaCast(),
+        new JavaStringArithmetic(),
+        new JavaUninitialised(),
         new JavaMissingImport(),
         new JavaNearestName(),
         new JavaMissingSemicolon(),
@@ -73,7 +132,46 @@ public static partial class LocalFixEngine
         new JavaOffByOneLoop(),
         new JavaStringConversion(),
 
+        new CSharpElif(),
+        new CSharpJavaPrint(),
+        new CSharpConditionParentheses(),
+        new CSharpMissingSemicolon(),
+        new CSharpMissingClosingBrace(),
+        new CSharpCharLiteralString(),
+        new CSharpForeachType(),
+        new CSharpNameMissing(),
+        new CSharpMissingMember(),
+        new CSharpNonInvocable(),
+        new CSharpImplicitConversion(),
+        new CSharpNonStaticMember(),
+        new CSharpTypeNotFound(),
+        new CSharpNamespaceTypo(),
+        new CSharpAwaitWithoutAsync(),
+        new CSharpInaccessible(),
+        new CSharpOffByOneLoop(),
+        new CSharpUnassignedLocal(),
+        new CSharpMissingReturnType(),
+
         new CompilerFixIt(),
+        new CElif(),
+        new CWordOperators(),
+        new CConditionParentheses(),
+        new CUnterminatedString(),
+        new CMissingClosingParenthesis(),
+        new CExtraClosingBrace(),
+        new CStringType(),
+        new CStructKeyword(),
+        new CMemberOperator(),
+        new CForCounter(),
+        new CFunctionPrototype(),
+        new CArrayAssignString(),
+        new CRedefinition(),
+        new CIostreamInC(),
+        new CCoutInC(),
+        new CDoubleFree(),
+        new CArrayBoundLoop(),
+        new CFormatSpecifier(),
+        new CStructSemicolon(),
         new CMissingStandardHeader(),
         new CNearestName(),
         new CHeaderTypo(),
@@ -153,7 +251,14 @@ public static partial class LocalFixEngine
         Action<string>? log = null,
         CancellationToken cancellationToken = default)
     {
-        foreach (var warning in MsvcParser.ParseWarnings(buildOutput).Where(w => w.ErrorCode == "C4013"))
+        // Only the warnings that are themselves crashes: a function used undeclared, whose pointer
+        // result C cut in half, and a printf conversion that reads a number as an address.
+        var warnings = MsvcParser.ParseWarnings(buildOutput)
+            .Where(w => w.ErrorCode is "C4013" or "C4477")
+            .Concat(GccClangParser.ParseWarnings(buildOutput)
+                .Where(w => (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal)));
+
+        foreach (var warning in warnings)
         {
             var context = new LocalFixContext { Error = warning, Output = buildOutput, SourceRoot = sourceRoot };
 
@@ -190,7 +295,11 @@ public static partial class LocalFixEngine
         // An error found by running the program has nothing to compare against: the file compiled
         // before, and all a check can say is that it still does.
         var syntax = IsSyntaxPhase(context.Error);
-        var baseline = context.FromBuild || syntax ? context.AllErrors.ToList() : [];
+
+        // A C# file run with `dotnet run` is compiled as part of running, so its compile errors
+        // arrive as a run - but they are compile errors, and every one the build reported counts.
+        var compiled = context.FromBuild || IsCompileError(context.Error);
+        var baseline = compiled || syntax ? context.AllErrors.ToList() : [];
 
         if (baseline.Count == 0)
         {
@@ -237,13 +346,23 @@ public static partial class LocalFixEngine
 
     private static int? LineOf(ParsedError error) => (error.CulpritFrame ?? error.Frames.FirstOrDefault())?.Line;
 
+    /// <summary>A Roslyn error: `dotnet run` compiles before it runs, so these come from a run but are compile errors.</summary>
+    public static bool IsCompileError(ParsedError error) =>
+        error.LanguageId == "msvc" && error.ErrorCode?.StartsWith("CS", StringComparison.Ordinal) == true;
+
     /// <summary>True for errors that come from reading the file rather than from understanding it.</summary>
     public static bool IsSyntaxPhase(ParsedError error) => error.LanguageId switch
     {
         "python" => error.ExceptionType is "SyntaxError" or "IndentationError" or "TabError",
         "java" => error.ExceptionType == "compile error" && JavaSyntaxMessage().IsMatch(error.Message ?? ""),
-        "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061",
-        "gcc" => (error.Message ?? "").StartsWith("expected ", StringComparison.Ordinal),
+        "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061"
+            or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
+            // A header that cannot be read stops the compiler dead, so everything after it went unread.
+            or "C1083" or "C1189",
+        "gcc" => (error.Message ?? "") is var message &&
+                 (message.StartsWith("expected ", StringComparison.Ordinal) ||
+                  message.EndsWith("No such file or directory", StringComparison.Ordinal) ||
+                  message.EndsWith("file not found", StringComparison.Ordinal)),
         _ => false,
     };
 
@@ -253,12 +372,13 @@ public static partial class LocalFixEngine
         {
             ".py" => "byte-compiled it with py_compile, which runs none of it",
             ".java" => "compiled it with javac",
+            ".cs" => "built it with dotnet build",
             _ => "compiled it",
         };
 
         // A crash happens when the program runs, and nothing here runs it. Saying the check proved
         // the crash was gone would be claiming something nobody established.
-        var ranIntoItRunning = !context.FromBuild && !IsSyntaxPhase(context.Error) && fix.ResolvesWarning is null;
+        var ranIntoItRunning = !context.FromBuild && !IsCompileError(context.Error) && !IsSyntaxPhase(context.Error) && fix.ResolvesWarning is null;
 
         var outcome = ranIntoItRunning
             ? "it still compiles. The crash happens when the program runs, so run it again to confirm."

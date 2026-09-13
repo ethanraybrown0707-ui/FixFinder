@@ -68,6 +68,12 @@
 
                 <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
                            Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+
+                <TextBlock Text="If it asks for input, type the answers here - one per line:"
+                           Style="{StaticResource Hint}" Margin="0,12,0,3"/>
+                <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
+                         AcceptsReturn="True" TextWrapping="NoWrap" Height="52"
+                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas"/>
             </StackPanel>
         </Border>
 

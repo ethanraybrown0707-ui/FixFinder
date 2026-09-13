@@ -243,6 +243,41 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
         return errors;
     }
 
+    /// <summary>Every warning in a build's output, for the few warnings that explain a crash.</summary>
+    public static IReadOnlyList<ParsedError> ParseWarnings(IReadOnlyList<CapturedLine> lines)
+    {
+        var warnings = new List<ParsedError>();
+
+        foreach (var line in lines)
+        {
+            if (DiagnosticPattern().Match(line.Text) is not { Success: true } diagnostic) continue;
+            if (diagnostic.Groups["sev"].Value != "warning") continue;
+
+            warnings.Add(new ParsedError
+            {
+                LanguageId = "gcc",
+                Confidence = 80,
+                RawText = line.Text,
+                FirstLineSequence = line.Sequence,
+                ExceptionType = "compile warning",
+                Message = diagnostic.Groups["msg"].Value.Trim(),
+                Frames =
+                [
+                    new ErrorFrame
+                    {
+                        Order = 0,
+                        File = ParserHelpers.CleanFilePath(diagnostic.Groups["file"].Value),
+                        Line = int.Parse(diagnostic.Groups["line"].Value),
+                        Column = int.Parse(diagnostic.Groups["col"].Value),
+                        RawLine = line.Text,
+                    },
+                ],
+            });
+        }
+
+        return warnings;
+    }
+
     private ParsedError? ParseFatalRuntime(IReadOnlyList<CapturedLine> lines)
     {
         for (var i = lines.Count - 1; i >= 0; i--)

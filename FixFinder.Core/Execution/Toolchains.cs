@@ -94,9 +94,36 @@ public static class Toolchains
         return _msvc;
     }
 
+    private static readonly AsyncLocal<bool> GnuHidden = new();
+
+    /// <summary>
+    /// Leaves gcc and clang out of the search until the returned scope is disposed, on this async
+    /// flow only.
+    /// </summary>
+    /// <remarks>
+    /// The build prefers a GNU compiler to MSVC whenever one is on PATH. On a machine with MinGW -
+    /// Strawberry Perl brings one, and so does the CI image - that means MSVC's own diagnostics are
+    /// never produced, and nothing that reads them ever runs. Changing PATH would do the same for
+    /// every other test running at the time; an async-local flag does it for one.
+    /// </remarks>
+    public static IDisposable WithoutGnu()
+    {
+        var previous = GnuHidden.Value;
+        GnuHidden.Value = true;
+
+        return new Restore(() => GnuHidden.Value = previous);
+    }
+
+    private sealed class Restore(Action undo) : IDisposable
+    {
+        public void Dispose() => undo();
+    }
+
     /// <summary>Finds a GNU-style compiler for C or C++, in order of preference.</summary>
     public static Toolchain? FindGnu(bool cpp)
     {
+        if (GnuHidden.Value) return null;
+
         var names = cpp ? new[] { "g++", "clang++" } : new[] { "gcc", "clang" };
 
         foreach (var name in names)

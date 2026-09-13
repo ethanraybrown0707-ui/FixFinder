@@ -49,6 +49,8 @@ public static class FrameClassifier
         "/goroot/",
         "java.base/",
         "/jdk",
+        "/microsoft visual studio/",
+        "/windows kits/",
     ];
 
     /// <summary>
@@ -85,10 +87,19 @@ public static class FrameClassifier
             // wins over path guessing.
             if (frame.Origin != FrameOrigin.Unknown) continue;
             frame.Origin = ClassifyOne(frame.File, roots);
+
+            // A Java frame names a file, never a path, so the path tells nothing. The class does:
+            // java.util.ArrayList.get, or java.base/jdk.internal.util.Preconditions with its module.
+            if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "java" && IsJdkSymbol(frame.Symbol))
+                frame.Origin = FrameOrigin.Runtime;
         }
 
         foreach (var cause in error.Causes) Classify(cause, sourceRoots);
     }
+
+    private static bool IsJdkSymbol(string? symbol) =>
+        symbol is not null &&
+        new[] { "java.", "javax.", "jdk.", "sun.", "com.sun." }.Any(prefix => symbol.StartsWith(prefix, StringComparison.Ordinal));
 
     private static FrameOrigin ClassifyOne(string? file, IReadOnlyList<string> roots)
     {

@@ -96,12 +96,14 @@ public static partial class CompiledLanguages
             // -g keeps debug info, and -O0 stops the optimiser from rearranging the very lines
             // a stack trace would name. -fdiagnostics-parseable-fixits prints the fixes the
             // compiler already knows - the missing header, the member a typo meant - a second
-            // time, in a form that can be applied exactly rather than read and retyped.
+            // time, in a form that can be applied exactly rather than read and retyped. -Wformat
+            // reports a printf conversion that does not match its argument, which crashes rather
+            // than failing to compile, and which gcc stays quiet about without it.
             var standard = cpp ? "-std=c++17 " : "";
 
             var compile = Spec(
                 gnu.Program,
-                $"-g -O0 -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" \"{source}\"",
+                $"-g -O0 -Wformat -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" \"{source}\"",
                 Path.GetDirectoryName(source)!,
                 timeout);
 

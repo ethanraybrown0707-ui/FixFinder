@@ -111,6 +111,10 @@ public sealed partial class PythonForgottenImport : ILocalFixRule
 
         var module = hint.Groups["module"].Value;
 
+        // Python suggests these because they exist, not because anybody means them: `this` prints the
+        // Zen of Python and `antigravity` opens a web browser. A `this.name` in a method is Java.
+        if (module is "this" or "antigravity") return null;
+
         return LocalFix.Insert(
             Id,
             $"Add import {module}",
@@ -286,8 +290,15 @@ public sealed partial class PythonIndentedBlock : ILocalFixRule
 /// <summary><c>TypeError: can only concatenate str (not "int") to str</c></summary>
 /// <remarks>
 /// Python 3.11 and later underline the expression that failed: <c>~</c> under each operand and
-/// <c>^</c> under the operator. That pins the right-hand operand exactly, which is the one to
-/// convert - the message says the left side was the <c>str</c>.
+/// <c>^</c> under the operator. That pins both operands exactly - and which one to convert depends on
+/// what the left one is.
+/// <para>
+/// <b>Text on the left means joining text</b>: <c>"Total: " + total</c> wants <c>str(total)</c>.
+/// <b>A value on the left and a number on the right means arithmetic</b>: <c>age + 1</c>, with
+/// <c>age</c> read by <c>input()</c>, wants <c>int(age) + 1</c>. Converting the 1 instead turns 18
+/// into "181", which is the worst kind of fix: the kind that runs. Anything else - two names, say -
+/// could be either, and is refused.
+/// </para>
 /// </remarks>
 public sealed partial class PythonStrConcatenation : ILocalFixRule
 {
@@ -301,6 +312,13 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
 
     [GeneratedRegex(@"^\s*~+\^+~+\s*$")]
     private static partial Regex Underline();
+
+    /// <summary>A string literal, with any prefix, or an explicit str(...).</summary>
+    [GeneratedRegex(@"^[rRbBuUfF]{0,2}[""']|^str\(")]
+    private static partial Regex Text();
+
+    [GeneratedRegex(@"^-?\d+(?<fraction>\.\d*)?$")]
+    private static partial Regex Number();
 
     public LocalFix? Propose(LocalFixContext context)
     {
@@ -328,31 +346,76 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
         var echoStart = echo.Length - echo.TrimStart().Length;
         int Column(int printed) => offset + (printed - echoStart);
 
+        var leftStart = underline.IndexOf('~');
         var operatorStart = underline.IndexOf('^');
         var operatorEnd = underline.LastIndexOf('^') + 1;
         var rightEnd = underline.TrimEnd().Length;
 
-        if (Column(operatorStart) < 0 || Column(rightEnd) > line.Length) return null;
+        if (Column(leftStart) < 0 || Column(rightEnd) > line.Length) return null;
         if (line[Column(operatorStart)..Column(operatorEnd)].Trim() != "+") return null;
 
-        var span = line[Column(operatorEnd)..Column(rightEnd)];
+        var (leftAt, left) = Operand(line, Column(leftStart), Column(operatorStart), isLeft: true);
+        var (rightAt, right) = Operand(line, Column(operatorEnd), Column(rightEnd), isLeft: false);
+
+        if (left.Length == 0 || right.Length == 0) return null;
+
+        // An underline that stops inside a name is not one to act on: wrapping half of `total`
+        // produces `str(tota)l`, which a compile check cannot tell from a fix.
+        if (CutsAName(line, leftAt, left) || CutsAName(line, rightAt, right)) return null;
+
+        if (Text().IsMatch(left))
+        {
+            if (Text().IsMatch(right)) return null;
+
+            return LocalFix.ReplaceLine(
+                Id,
+                $"Convert {right} to a string before joining it",
+                $"The left side of + is text and `{right}` is an {message.Groups["type"].Value}; Python will only join text " +
+                "to more text. str() makes the text form of it. An f-string does the same job if you prefer it.",
+                source.Path, number, line[..rightAt] + $"str({right})" + line[(rightAt + right.Length)..]);
+        }
+
+        if (Number().Match(right) is { Success: true } numeric)
+        {
+            var convert = numeric.Groups["fraction"].Success ? "float" : "int";
+
+            return LocalFix.ReplaceLine(
+                Id,
+                $"Turn {left} into a number before adding {right}",
+                $"`{left}` holds text - `input()` always returns text, for one - and `{right}` is a number, so Python " +
+                $"will not add them. `{convert}()` reads the number out of the text. If `{left}` really is meant to stay " +
+                $"text, join `str({right})` instead.",
+                source.Path, number, line[..leftAt] + $"{convert}({left})" + line[(leftAt + left.Length)..]);
+        }
+
+        return null;
+    }
+
+    private static bool CutsAName(string line, int at, string operand) =>
+        (at > 0 && CodeText.IsWordChar(line[at - 1]) && CodeText.IsWordChar(operand[0])) ||
+        (at + operand.Length < line.Length && CodeText.IsWordChar(line[at + operand.Length]) && CodeText.IsWordChar(operand[^1]));
+
+    /// <summary>
+    /// The operand under a stretch of underline, and where it starts. The underline can take in a
+    /// bracket of the call around it, so any bracket the operand did not open is given back.
+    /// </summary>
+    private static (int At, string Operand) Operand(string line, int start, int end, bool isLeft)
+    {
+        var span = line[start..end];
         var operand = span.Trim();
 
-        // The underline can take a closing bracket of the call around it; give back any the operand
-        // did not open.
-        while (operand.EndsWith(')') && operand.Count(c => c == ')') > operand.Count(c => c == '(')) operand = operand[..^1].TrimEnd();
+        if (isLeft)
+        {
+            while (operand.StartsWith('(') && operand.Count(c => c == '(') > operand.Count(c => c == ')')) operand = operand[1..].TrimStart();
+        }
+        else
+        {
+            while (operand.EndsWith(')') && operand.Count(c => c == ')') > operand.Count(c => c == '(')) operand = operand[..^1].TrimEnd();
+        }
 
-        if (operand.Length == 0 || operand[0] is '"' or '\'') return null;
+        var at = operand.Length == 0 ? start : start + span.IndexOf(operand, StringComparison.Ordinal);
 
-        var operandStart = Column(operatorEnd) + span.IndexOf(operand, StringComparison.Ordinal);
-        var converted = line[..operandStart] + $"str({operand})" + line[(operandStart + operand.Length)..];
-
-        return LocalFix.ReplaceLine(
-            Id,
-            $"Convert {operand} to a string before joining it",
-            $"The left side of + is a str and `{operand}` is an {message.Groups["type"].Value}; Python will only join a str " +
-            "to another str. str() makes the text form of it. An f-string does the same job if you prefer it.",
-            source.Path, number, converted);
+        return (at, operand);
     }
 }
 

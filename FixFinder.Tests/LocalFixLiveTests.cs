@@ -109,6 +109,18 @@ public class LocalFixLiveTests
         },
         { "c", "app.c", "#include <stdio.h>\nint main(void) {\n    printf(\"hello\\n\");\n    return 0;\n", "c-missing-closing-brace", "}" },
 
+        // ---------------------------------------------------------------- C++, with whichever compiler the build picks
+        {
+            "cpp", "app.cpp",
+            "int main() {\n    std::cout << \"hello\" << std::endl;\n    return 0;\n}\n",
+            "c-missing-standard-header", "#include <iostream>"
+        },
+        {
+            "cpp", "app.cpp",
+            "#include <iostream>\nint main() {\n    std::vector<int> values = {1, 2, 3};\n    std::cout << values.size() << std::endl;\n    return 0;\n}\n",
+            "c-missing-standard-header", "#include <vector>"
+        },
+
         // Compiles with a warning, then dies without a word - the warning is the whole story. MSVC
         // only: gcc knows malloc as a built-in, and the program it builds does not crash.
         {
@@ -134,7 +146,7 @@ public class LocalFixLiveTests
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{rule}: {outcome.Result} - {outcome.Headline}");
         // gcc says more than MSVC does: its own did-you-mean and fix-its answer several C cases
         // before a rule is needed, and either answer is the right one.
-        string[] acceptable = toolchain == "c"
+        string[] acceptable = toolchain is "c" or "cpp"
             ? [$"local:{rule}", "local:c-compiler-fix-it", "gcc:did-you-mean"]
             : [$"local:{rule}"];
 
@@ -189,19 +201,20 @@ public class LocalFixLiveTests
             ? int.Parse(match.Groups["major"].Value) == 1 ? int.Parse(match.Groups["minor"].Value) : int.Parse(match.Groups["major"].Value)
             : null);
 
-    private static bool Available(string toolchain) => toolchain switch
+    internal static bool Available(string toolchain) => toolchain switch
     {
         "python" => PythonMinor.Value >= 312,
         "java" => JavaMajor.Value >= 11 && Toolchains.FindJava() is not null,
 
         "c" => Toolchains.FindGnu(cpp: false) is not null || Toolchains.FindMsvc() is not null,
+        "cpp" => Toolchains.FindGnu(cpp: true) is not null || Toolchains.FindMsvc() is not null,
 
         // The build prefers gcc when it is on PATH, so an MSVC-only case needs gcc to be absent.
         "msvc" => Toolchains.FindGnu(cpp: false) is null && Toolchains.FindMsvc() is not null,
         _ => false,
     };
 
-    private static bool HasAddressSanitizer()
+    internal static bool HasAddressSanitizer()
     {
         if (Toolchains.FindMsvc()?.SetupScript is not { } vcvarsall) return false;
 
