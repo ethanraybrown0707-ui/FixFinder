@@ -28,10 +28,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up .NET 8
+      # 8 is what the projects target. 10 is what runs a lone Program.cs with `dotnet run`, which is
+      # how FixFinder launches a single C# file - without it the live C# construct cases return early
+      # and count as passes. With both installed, 10 does the building; it builds net8.0 as before.
+      - name: Set up .NET 8 and 10
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       # Built once so the sample's own assembly and portable PDB exist. One test reads that PDB
       # to prove source-root detection works against a real one rather than a hand-made file,
@@ -106,6 +111,11 @@ jobs:
           foreach ($tool in 'dotnet', 'python', 'javac', 'java', 'gcc', 'clang') {
             $found = (Get-Command $tool -ErrorAction SilentlyContinue).Source
             Write-Host ("{0,-8} {1}" -f $tool, $(if ($found) { $found } else { 'not present' }))
+          }
+
+          # The SDK that `dotnet` resolves to decides whether a lone .cs file can be run at all.
+          if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+            Write-Host ("{0,-8} {1}" -f 'sdk ver', (& dotnet --version))
           }
 
           # gcc's version matters as much as its presence. The build prefers gcc to MSVC when it is on
