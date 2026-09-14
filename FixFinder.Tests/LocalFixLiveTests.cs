@@ -137,6 +137,9 @@ public class LocalFixLiveTests
     {
         if (!Available(toolchain)) return;
 
+        // An MSVC-only case hides gcc for its own flow, as the other MSVC tests do. Waiting for a machine without gcc meant
+        // waiting for one that neither this machine nor CI is, and the case never ran anywhere.
+        using var msvcOnly = toolchain == "msvc" ? Toolchains.WithoutGnu() : null;
         using var temp = new TempFolder();
         var path = Path.Combine(temp.Path, fileName);
         File.WriteAllText(path, source);
@@ -209,8 +212,8 @@ public class LocalFixLiveTests
         "c" => Toolchains.FindGnu(cpp: false) is not null || Toolchains.FindMsvc() is not null,
         "cpp" => Toolchains.FindGnu(cpp: true) is not null || Toolchains.FindMsvc() is not null,
 
-        // The build prefers gcc when it is on PATH, so an MSVC-only case needs gcc to be absent.
-        "msvc" => Toolchains.FindGnu(cpp: false) is null && Toolchains.FindMsvc() is not null,
+        // The build prefers gcc when it is on PATH, so an MSVC-only case hides it for its own run.
+        "msvc" => Toolchains.FindMsvc() is not null,
         _ => false,
     };
 

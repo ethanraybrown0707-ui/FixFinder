@@ -204,10 +204,10 @@ added until what was left had no single right edit:
 | | Programs | Before | Now |
 |---|---|---|---|
 | Python: constructs | 70 | 4 | 45 |
-| Python: fifty beginner concepts | 50 | 8 | 26 |
-| C# | 47 | 0 | 38 |
+| Python: fifty beginner concepts | 50 | 8 | 28 |
+| C# | 47 | 0 | 39 |
 | C, built by gcc | 44 | 17 | 34 |
-| C, built by MSVC | 44 | 13 | 33 |
+| C, built by MSVC | 44 | 13 | 34 |
 | Java | 50 | 15 | 45 |
 | C++, built by g++ | 50 | 17 | 44 |
 | C++, built by MSVC | 50 | 14 | 43 |
