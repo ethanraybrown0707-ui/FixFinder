@@ -403,7 +403,8 @@ public sealed partial class CppTypename : ILocalFixRule
 {
     public string Id => "cpp-typename";
 
-    [GeneratedRegex(@"^need 'typename' before '(?<name>[^']+)' because '[^']+' is a dependent scope$")]
+    /// <remarks>GCC 15 reports errors inside a template's body under <c>-Wtemplate-body</c>, and names the option after the message.</remarks>
+    [GeneratedRegex(@"^need 'typename' before '(?<name>[^']+)' because '[^']+' is a dependent scope(?:\s*\[-[\w=+-]+\])?$")]
     private static partial Regex GccMessage();
 
     public LocalFix? Propose(LocalFixContext context)
