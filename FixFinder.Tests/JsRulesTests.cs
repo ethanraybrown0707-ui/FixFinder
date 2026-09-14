@@ -1,5 +1,6 @@
 using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Parsing.Parsers;
 
@@ -139,15 +140,37 @@ public class JsRulesTests : IDisposable
 
     // ------------------------------------------------------------------ answered by Node itself
 
+    /// <summary>
+    /// Asked of Node when Node answers, and of the standard table when it does not - which a busy CI runner once made the
+    /// difference between a fix and none.
+    /// </summary>
     [Fact]
-    public void AMisspeltStringMethodIsReadFromNode()
+    public void AMisspeltStringMethodIsCorrected()
     {
-        if (!HasNode) return;
-
         var file = Write("app.js", "const name = \"ada\";\nconsole.log(name.toUppercase());\n");
         var fix = Fix("js-member-not-function", Error("TypeError", "name.toUppercase is not a function", file, 2));
 
+        Assert.NotNull(fix);
         Assert.Equal("console.log(name.toUpperCase());", Assert.Single(fix!.NewLines));
+    }
+
+    /// <summary>The fallback table may only name what Node really has, or a fix from it would not run.</summary>
+    [Theory]
+    [InlineData("String.prototype")]
+    [InlineData("Array.prototype")]
+    [InlineData("Set.prototype")]
+    [InlineData("Map.prototype")]
+    [InlineData("Math")]
+    [InlineData("console")]
+    [InlineData("builtins")]
+    public void TheStandardTableOnlyNamesWhatNodeHas(string expression)
+    {
+        if (!HasNode) return;
+
+        var node = JsRuntime.AskNode(expression);
+        if (node.Count == 0) return;
+
+        Assert.All(JsRuntime.Standard[expression], name => Assert.Contains(name, node));
     }
 
     /// <summary>A module a letter from one of Node's own is a typo - not a package called fss to install from a stranger.</summary>

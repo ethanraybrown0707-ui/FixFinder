@@ -21,6 +21,15 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+
+    <!--
+      Not used directly. xunit's netstandard1.x dependencies pull in System.Net.Http 4.3.0 and
+      System.Text.RegularExpressions 4.3.0, both with high-severity advisories (GHSA-7jgj-8wvc-jh57,
+      GHSA-cmhx-cq75-c4mj). Referencing the patched versions here makes restore pick them instead;
+      dotnet's package listing with its vulnerable and include-transitive options checks it.
+    -->
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
   <ItemGroup>
