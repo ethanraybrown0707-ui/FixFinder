@@ -516,9 +516,14 @@ public sealed partial class GoPackageMember : ILocalFixRule
         var package = message.Groups["package"].Value;
         var name = message.Groups["name"].Value;
 
+        // Go before 1.26 does not add "(but have Println)". The name that differs only in case is still the answer - `println`
+        // is as near to `Sprintln` as to `Println` by edit distance, but only one of them is the same word.
+        var exported = !message.Groups["have"].Success && GoCode.Packages.TryGetValue(package, out var path) ? GoDoc.Exported(path) : [];
+        var sameWord = exported.Where(e => e.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+
         var right = message.Groups["have"].Success
             ? message.Groups["have"].Value
-            : GoCode.Packages.TryGetValue(package, out var path) ? CodeText.Nearest(name, GoDoc.Exported(path)) : null;
+            : sameWord is [var only] ? only : CodeText.Nearest(name, exported);
 
         if (right is null) return null;
 

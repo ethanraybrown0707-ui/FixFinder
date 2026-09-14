@@ -234,6 +234,21 @@ public class GoRulesTests : IDisposable
         Assert.Equal("package main", Assert.Single(fix!.NewLines));
     }
 
+    /// <summary>
+    /// Go 1.24 says only "undefined: fmt.println". By edit distance Sprintln is as near as Println; the one that is the same word
+    /// in another case is the answer. Caught by CI, whose Go was older than this machine's.
+    /// </summary>
+    [Fact]
+    public void AnUnexportedSpellingWithoutGosHintIsTheSameWordCapitalised()
+    {
+        if (TargetFactory.FindOnPath("go") is null) return;
+
+        var file = Write("app.go", "\tfmt.println(\"hello\")\n");
+        var fix = Fix("go-package-member", Error("compile error", "undefined: fmt.println", file, 1));
+
+        Assert.Equal("\tfmt.Println(\"hello\")", Assert.Single(fix!.NewLines));
+    }
+
     [Fact]
     public void AMisspeltPackageMemberIsReadFromGoDoc()
     {
