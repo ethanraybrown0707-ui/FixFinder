@@ -57,8 +57,8 @@ parse.
 | C | access violations, overruns, divide by zero - located with AddressSanitizer | `C####` via MSVC, or gcc/clang with their fix-its | yes |
 | C++ | uncaught exceptions, access violations, overruns - located with AddressSanitizer | `C####` via MSVC, or g++/clang with their fix-its | yes |
 | Java | `Caused by` chains, `... N more` | javac `cannot find symbol` and friends | yes |
-| JavaScript / Node | stack frames, `node:` internals | — | yes |
-| Go | two-line panic frames, goroutine blocks | — | yes |
+| JavaScript / Node | stack frames, `node:` internals, syntax errors placed by the line Node prints above them | `SyntaxError`, checked with `node --check` | yes |
+| Go | two-line panic frames, goroutine blocks, deadlocks | every `go build` error in the build | yes |
 | Rust | modern and legacy panic formats | — | parser only |
 | Ruby | Ruby 3.4 quoting and the older form | — | yes |
 | PHP | uncaught throwables, `#N` traces, `{main}` | parse errors | yes |
@@ -198,7 +198,7 @@ line to change.
 
 **Then, one language at a time, the constructs people actually get wrong.** A second set of small
 programs was written from the mistakes of someone learning each language, and of someone arriving
-from another one - `elif` in Java, `print` in C#, `string` in C, `.length` in Python, `System.out.println` in C++ - and rules were
+from another one - `elif` in Java, `print` in C#, `string` in C, `.length` in Python, `System.out.println` in C++, `print` in JavaScript, `while` in Go - and rules were
 added until what was left had no single right edit:
 
 | | Programs | Before | Now |
@@ -211,10 +211,13 @@ added until what was left had no single right edit:
 | Java | 50 | 15 | 45 |
 | C++, built by g++ | 50 | 17 | 44 |
 | C++, built by MSVC | 50 | 14 | 43 |
+| JavaScript | 45 | 0 | 39 |
+| Go | 40 | 0 | 36 |
 
 **And then the mistakes of later years** - inheritance and interfaces, generics, collections and LINQ,
 closures, async, exceptions, pointers, macros and two-dimensional arrays, and in C++ virtual functions,
-templates, smart pointers, lambdas, `const` and threads. A third set, the same method:
+templates, smart pointers, lambdas, `const` and threads; in JavaScript classes and `this`, promises and modules;
+in Go interfaces, channels and multiple return values. A third set, the same method:
 
 | | Programs | Before | Now | What is left |
 |---|---|---|---|---|
@@ -225,6 +228,8 @@ templates, smart pointers, lambdas, `const` and threads. A third set, the same m
 | C, built by MSVC | 14 | 1 | 8 | four never failed at all under MSVC; the same two |
 | C++, built by g++ | 30 | 0 | 21 | an abstract class created, no `operator<<` for a struct, `>` on a template's type, a `map::at` or `throw` nobody caught; `delete` for `delete[]`, erasing inside a range-`for` and an `auto` parameter never failed |
 | C++, built by MSVC | 30 | 0 | 20 | the same four, and an uncaught exception or a thread never joined, which MSVC ends without a word; `delete` for `delete[]`, a missing `typename` and a returned reference to a local never failed |
+| JavaScript | 25 | 0 | 20 | recursion with no base case, an error thrown on purpose, `new` on an arrow function, a class used before it is declared, a private field used outside its class |
+| Go | 20 | 0 | 14 | a failed type assertion, a `WaitGroup` passed by value, `>` on a generic type, a channel closed twice, a constant that overflows, a method on `string` |
 
 **How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
 exactly one change:
@@ -304,10 +309,27 @@ exactly one change:
 | | `word[0] == "a"`, `std::sort` on a `std::list` | `'a'`, `values.sort()` |
 | | `terminate called after throwing an instance of 'std::out_of_range'` from `.at(i)`, `terminate called without an active exception` | `<` in the one loop that reads `.at(i)` up to `.size()`, `worker.join()` |
 | | AddressSanitizer's double `delete`, `[0]` on an empty vector, `erase` inside a range-`for`, and a reference to a local returned | the second `delete` removed, `push_back`, `erase(std::remove_if(...))`, return by value |
+| JavaScript | `missing ) after argument list`, an unclosed string, a brace missing or one too many, `'It's here'` | the bracket, the quote, the brace where the indentation says the block ended, double quotes |
+| | `print`, `System.out.println`, `True`, `None`, `len(items)`, `elif`, `if x > 3 {`, `for item in items`, `(x) -> x * 2`, `def`, `fucntion` | `console.log`, `true`, `null`, `items.length`, `else if`, the brackets, `for (const item of items)`, `=>`, `function` |
+| | `totl is not defined`, `count is not defined` inside a class, `items.append`, `text.length()`, `seen.push` on a Set, `ages.get` on an object, `Math.squareRoot`, `name.toUppercase` | the nearest name, `this.count`, `push`, `length`, `add`, `ages["Ada"]`, `Math.sqrt`, `toUpperCase` - read from Node itself |
+| | `Assignment to constant variable.`, a `let` declared twice, properties without a comma between them, a class called without `new`, `await` outside `async` | `let`, an assignment, the comma, `new`, `async` on the function around it |
+| | `require` in an ES module, `require("fss")`, a misspelt named import | `import`, `"fs"` - never `npm install fss` - the export's real name, everywhere it is used |
+| | a getter called, a static method on an object, `module.export`, a promise used without `await`, `items(0)` | no brackets, the class name, `module.exports`, `await`, `items[0]` |
+| | `super` missing, `name = name` in a constructor, `this` in a `function` callback, a method taken off its object, a setter that assigns itself | `super(name)`, `this.name = name`, an arrow function, `.bind(c)`, `this._name` |
+| | `reduce` on an empty list, the result of `forEach` used, `ages["Ada"] = 36` on a Map | `, 0`, `map`, `ages.set("Ada", 36)` |
+| Go | `undefined: fmt`, `"os" imported and not used`, `import fmt` | the import where gofmt puts it; the import removed only when nothing else in the build is wrong; the quotes |
+| | `declared and not used: total` beside `undefined: totl`, `"fmt" imported and not used` beside `console.log` | the misspelling corrected, the call rewritten - never the variable or the import deleted |
+| | `undefined: fmt.println (but have Println)`, `strings.Contians`, `d.name ... but does have field Name`, `items.length`, `items.append(4)` | `Println`, `Contains` read from `go doc`, `Name`, `len(items)`, `items = append(items, 4)` |
+| | `count = 5` never declared, `:=` with nothing new, `null`, `True`, `while`, `for (i := 0; ...)`, `'hello'`, `if x = 5` | `:=`, `=`, `nil`, `true`, `for`, no brackets, double quotes, `==` |
+| | `{` or `else` on the next line, an unclosed string, bracket or brace, `Func main` | joined onto the line above, the quote, the bracket, the brace, `func` |
+| | `"Age: " + age`, `name[0] == "A"`, `var average float64 = count`, a function returning a value it never declared, `return errors.New(...)` short of a value | `fmt.Sprint(age)`, `'A'`, `float64(count)`, the return type, `return 0, errors.New(...)` |
+| | `strconv.Atoi` taken as one value, `append` not stored, a pointer receiver, an interface method in the wrong case | `n, _ :=`, `items = append(...)`, `&Square{...}`, the interface's name |
+| | `index out of range [3] with length 3`, a nil map, a deadlock on a channel nothing else touches, `Main`, `package app` | `<`, `make(...)`, a buffer or a `close`, `main`, `package main` |
 
 **Every one is checked before you see it.** A copy of the file with the change made is compiled
 outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
-javac; C and C++ with the same compiler the build used; C# with `dotnet build` - and the change is offered only if the error it was
+javac; C and C++ with the same compiler the build used; C# with `dotnet build`; JavaScript with `node --check`,
+which parses it and runs none of it; Go with `go build` - and the change is offered only if the error it was
 for has gone and nothing new has broken. Two equally near names is a refusal, not a pick: `printn` is
 one letter from `print`, `println` and `printf`, so nothing is offered. For a crash, the check can
 only prove the file still compiles, and the answer says exactly that rather than claiming the crash
@@ -366,9 +388,15 @@ an exception thrown on purpose - each with more than one reasonable fix. Two mor
 uncaught exception and a thread never joined end its programs with a bare `0xC0000409` and nothing printed,
 so there is nothing to read, where g++'s runtime at least names what was thrown.
 
+JavaScript and Go left the same two kinds. Data: a property of `undefined` or `null`, invalid JSON, a nil pointer,
+dividing by zero, a type assertion that fails. And code wrong in more than one way: recursion with no base case, an
+error thrown on purpose, browser code run in Node, `new` on an arrow function, `>` on a generic type, a channel closed
+twice. `fmt.Printn` is as near to `Print` as to `Println`, so it is refused rather than guessed, and `console.lg` is
+too short to guess from. `import` in a `.js` file never fails at all: Node 24 notices the module syntax and runs it.
+
 ### What checking caught
 
-Thirteen things were wrong, and each was found by running real programs rather than by trusting tests
+Seventeen things were wrong, and each was found by running real programs rather than by trusting tests
 that passed:
 
 - **gcc on Windows was not being read at all.** A drive letter is a colon, gcc's file pattern stopped
@@ -417,6 +445,18 @@ that passed:
   the folder holding it, under Strawberry, was taken as the source root - so the program's own call was never
   looked at. The standard library's headers count as the compiler's now, wherever it is installed, as MSVC's
   already did.
+- **A Go program that would not build was reported as silence.** The Go compiler names no severity -
+  `app.go:6:2: declared and not used: count` - and nothing read that shape, so every Go build error ended as having
+  failed without a word. It is read now, every error in the build, with the lines that continue one.
+- **A JavaScript syntax error pointed at Node's module loader.** The file never ran, so every frame in its stack was
+  Node's own; the file and line were only in the line printed above the message, which is read now.
+- **Two JavaScript errors were read as .NET's.** `Error: Cannot find module 'fss'` has no word in front of `Error` and
+  lists who asked for the module before its stack, and `Reduce of empty array` starts its stack with
+  `at Array.reduce (<anonymous>)`. Each stopped the Node parser, and the .NET parser - which also reads `at ...` lines -
+  took the output instead.
+- **A name misspelt twice on one line kept its second spelling.** The nearest-name rule changed only the use the
+  compiler pointed at, so `sqr.side * sqr.side` still failed on the other, and the fix was refused. Every use on the
+  line is changed now.
 
 ## When the fix is not a patch
 

@@ -54,6 +54,7 @@ public static class CompileCheck
     public static bool CanCheck(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
         ".py" or ".java" or ".cs" => true,
+        ".js" or ".mjs" or ".cjs" or ".go" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         _ => false,
     };
@@ -138,6 +139,19 @@ public static class CompileCheck
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":
                 return Native(copy, originalFolder, folder);
+
+            case ".js" or ".mjs" or ".cjs":
+                // --check parses the file and runs none of it. It cannot see what only happens when the file runs - a
+                // misspelt name, a module that does not export something - so for those it proves the file still parses.
+                if (TargetFactory.FindOnPath("node") is not { } node) return null;
+
+                return Spec(node, $"--check \"{copy}\"", folder);
+
+            case ".go":
+                // A build, not a run: go build compiles and links, and the binary it leaves is deleted with the folder.
+                if (TargetFactory.FindOnPath("go") is not { } go) return null;
+
+                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
 
             case ".cs":
                 // The .NET SDK builds a single .cs file on its own, the same way FixFinder runs one.

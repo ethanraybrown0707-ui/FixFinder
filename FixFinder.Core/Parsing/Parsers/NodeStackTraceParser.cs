@@ -20,8 +20,23 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
     [GeneratedRegex(@"^\s+at\s+(?:async\s+)?(?:(?<sym>.+?)\s+\()?(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/|node:|[\w.\-]+[\\/]).*?):(?<line>\d+):(?<col>\d+)\)?\s*$")]
     private static partial Regex FramePattern();
 
-    [GeneratedRegex(@"^(?<type>[A-Z]\w*(?:Error|Exception))(?:\s*:\s*(?<msg>.*))?$")]
+    /// <remarks>A plain <c>Error</c> counts too - <c>Error: Cannot find module 'fss'</c> - but only when frames follow it.</remarks>
+    [GeneratedRegex(@"^(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex HeaderPattern();
+
+    /// <summary>
+    /// The line Node prints above an uncaught error - <c>C:\src\app.js:4</c> - followed by that source line and a caret.
+    /// </summary>
+    /// <remarks>
+    /// For a <c>SyntaxError</c> this is the only place the program's own file is named: the file never ran, so every frame
+    /// in the stack is Node's module loader. Without it the error pointed at <c>node:internal</c> and nowhere a person could
+    /// fix anything.
+    /// </remarks>
+    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/).+?\.[mc]?js):(?<line>\d+)\s*$")]
+    private static partial Regex LocationPattern();
+
+    [GeneratedRegex(@"^\s*\^+\s*$")]
+    private static partial Regex CaretPattern();
 
     public int Detect(IReadOnlyList<string> lines)
     {
@@ -55,11 +70,17 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
         for (var i = lines.Count - 1; i >= 0; i--)
         {
             if (!HeaderPattern().IsMatch(lines[i].Text)) continue;
-            for (var j = i + 1; j < Math.Min(i + 3, lines.Count); j++)
+
+            // "Cannot find module" lists the files that asked for it before the stack starts.
+            for (var j = i + 1; j < Math.Min(i + 12, lines.Count); j++)
             {
-                if (!FramePattern().IsMatch(lines[j].Text)) continue;
-                headerIndex = i;
-                break;
+                if (FramePattern().IsMatch(lines[j].Text))
+                {
+                    headerIndex = i;
+                    break;
+                }
+
+                if (!IsRequireStack(lines[j].Text) && j >= i + 2) break;
             }
             if (headerIndex >= 0) break;
         }
@@ -76,7 +97,10 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
             var frame = FramePattern().Match(text);
             if (!frame.Success)
             {
-                if (text.Trim().Length == 0) continue;
+                // A frame with no place to point at - `at Array.reduce (<anonymous>)` - is still part of the stack, and the
+                // program's own frame comes after it.
+                if (text.Trim().Length == 0 || (frames.Count == 0 && IsRequireStack(text)) ||
+                    (text.Length > 0 && char.IsWhiteSpace(text[0]) && text.TrimStart().StartsWith("at ", StringComparison.Ordinal))) continue;
                 break;
             }
 
@@ -98,6 +122,20 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
 
         if (frames.Count == 0) return null;
 
+        if (Location(lines, headerIndex) is { } location &&
+            !(string.Equals(frames[0].File, location.File, StringComparison.OrdinalIgnoreCase) && frames[0].Line == location.Line))
+        {
+            frames =
+            [
+                location,
+                .. frames.Select((frame, i) => new ErrorFrame
+                {
+                    Order = i + 1, Symbol = frame.Symbol, File = frame.File, Line = frame.Line, Column = frame.Column,
+                    Module = frame.Module, Origin = frame.Origin, RawLine = frame.RawLine,
+                }),
+            ];
+        }
+
         return new ParsedError
         {
             LanguageId = LanguageId,
@@ -110,5 +148,30 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
                 : null,
             Frames = frames,
         };
+    }
+
+    private static bool IsRequireStack(string text) =>
+        text.StartsWith("Require stack:", StringComparison.Ordinal) || text.StartsWith("- ", StringComparison.Ordinal);
+
+    /// <summary>The file, line and caret column Node printed a few lines above the error, when it names a real file.</summary>
+    private static ErrorFrame? Location(IReadOnlyList<CapturedLine> lines, int headerIndex)
+    {
+        for (var k = headerIndex - 1; k >= Math.Max(0, headerIndex - 6); k--)
+        {
+            if (LocationPattern().Match(lines[k].Text) is not { Success: true } location) continue;
+
+            int? column = k + 2 < headerIndex && CaretPattern().IsMatch(lines[k + 2].Text) ? lines[k + 2].Text.IndexOf('^') + 1 : null;
+
+            return new ErrorFrame
+            {
+                Order = 0,
+                File = ParserHelpers.CleanFilePath(location.Groups["file"].Value),
+                Line = int.Parse(location.Groups["line"].Value),
+                Column = column,
+                RawLine = lines[k].Text,
+            };
+        }
+
+        return null;
     }
 }

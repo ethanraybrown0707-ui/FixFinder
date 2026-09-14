@@ -41,6 +41,7 @@ public sealed class ParserRegistry
             new NodeStackTraceParser(),
             new JavaStackTraceParser(),
             new GoPanicParser(),
+            new GoCompileParser(),
             new RustPanicParser(),
             new GccClangParser(),
             new MsvcParser(),

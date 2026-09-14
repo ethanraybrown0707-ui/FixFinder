@@ -108,9 +108,18 @@ jobs:
         run: |
           # Several tests return early when a compiler is missing, so it is worth recording what
           # was actually available - a green run with everything skipped is not a green run.
-          foreach ($tool in 'dotnet', 'python', 'javac', 'java', 'gcc', 'clang') {
+          foreach ($tool in 'dotnet', 'python', 'javac', 'java', 'gcc', 'clang', 'node', 'go') {
             $found = (Get-Command $tool -ErrorAction SilentlyContinue).Source
             Write-Host ("{0,-8} {1}" -f $tool, $(if ($found) { $found } else { 'not present' }))
+          }
+
+          # Node's and Go's versions decide their wording - Node's module detection, Go's compiler messages - and so
+          # which JavaScript and Go cases have anything to fix.
+          if (Get-Command node -ErrorAction SilentlyContinue) {
+            Write-Host ("{0,-8} {1}" -f 'node ver', (& node --version))
+          }
+          if (Get-Command go -ErrorAction SilentlyContinue) {
+            Write-Host ("{0,-8} {1}" -f 'go ver', (& go version))
           }
 
           # The SDK that `dotnet` resolves to decides whether a lone .cs file can be run at all.

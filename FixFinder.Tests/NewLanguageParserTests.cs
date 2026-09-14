@@ -369,9 +369,12 @@ public class NewLanguageParserTests
     {
         var text = Fixtures.LoadStackTrace(fixture).Select(line => line.Text).ToArray();
 
+        // A language can have more than one parser - Go's panics and Go's compiler errors - and it is the best of them that
+        // has to win.
         var scores = Registry.Parsers
             .Where(parser => parser.LanguageId != "generic")
-            .ToDictionary(parser => parser.LanguageId, parser => parser.Detect(text));
+            .GroupBy(parser => parser.LanguageId)
+            .ToDictionary(group => group.Key, group => group.Max(parser => parser.Detect(text)));
 
         var winner = scores[expected];
 
