@@ -339,6 +339,10 @@ public sealed partial class CMissingSemicolon : ILocalFixRule
     [GeneratedRegex(@"^syntax error: missing ';' before (?:identifier )?'(?<token>[^']+)'$")]
     private static partial Regex Message();
 
+    /// <summary>MSVC's C++ front end: <c>C2760 syntax error: 'int' was unexpected here; expected ';'</c>.</summary>
+    [GeneratedRegex(@"^syntax error: '(?<token>[^']+)' was unexpected here; expected ';'$")]
+    private static partial Regex Unexpected();
+
     /// <summary>gcc: <c>expected ',' or ';' before 'printf'</c>, and <c>expected ';' before '}' token</c>.</summary>
     [GeneratedRegex(@"^expected (?:'[^']+' or )*';'(?: or '[^']+')* before '(?<token>[^']+)'(?: token)?$")]
     private static partial Regex GnuMessage();
@@ -350,6 +354,7 @@ public sealed partial class CMissingSemicolon : ILocalFixRule
         var message = error.LanguageId switch
         {
             "msvc" when error.ErrorCode is "C2146" or "C2143" => Message().Match(error.Message ?? ""),
+            "msvc" when error.ErrorCode == "C2760" => Unexpected().Match(error.Message ?? ""),
             "gcc" => GnuMessage().Match(error.Message ?? ""),
             _ => null,
         };

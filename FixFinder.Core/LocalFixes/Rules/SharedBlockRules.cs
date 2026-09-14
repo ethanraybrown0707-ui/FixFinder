@@ -188,6 +188,9 @@ internal static partial class Blocks
     [GeneratedRegex(@"^(?<indent>\s*)foreach\s*\(\s*[\w<>\[\],.? ]+?\s+(?<var>\w+)\s+in\s+(?<list>[\w.]+)\s*\)\s*(?<brace>\{)?\s*$")]
     private static partial Regex CSharpForEach();
 
+    [GeneratedRegex(@"^(?<indent>\s*)for\s*\(\s*(?:const\s+)?(?<type>[\w:<>]+?)\s*&{0,2}\s*(?<var>\w+)\s*:\s*(?<list>\w+)\s*\)\s*(?<brace>\{)?\s*$")]
+    private static partial Regex CppRangeFor();
+
     [GeneratedRegex(@"^if\s*(?<open>\()")]
     private static partial Regex If();
 
@@ -195,9 +198,18 @@ internal static partial class Blocks
     /// <c>for (x : list) if (cond) list.remove(x);</c> as the one call that does it safely - <c>removeIf</c> in
     /// Java, <c>RemoveAll</c> in C# - when the loop does nothing else.
     /// </summary>
-    public static (int Start, int Count, string Line)? RemoveInLoop(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int near, bool java)
+    public static (int Start, int Count, string Line)? RemoveInLoop(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int near, bool java) =>
+        RemoveInLoop(lines, masked, near, java ? "java" : "csharp");
+
+    /// <summary>The same for <c>"java"</c>, <c>"csharp"</c> or <c>"cpp"</c> - where it is one <c>erase</c> of what <c>std::remove_if</c> left.</summary>
+    public static (int Start, int Count, string Line)? RemoveInLoop(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int near, string language)
     {
-        var header = java ? JavaForEach() : CSharpForEach();
+        var header = language switch
+        {
+            "java" => JavaForEach(),
+            "csharp" => CSharpForEach(),
+            _ => CppRangeFor(),
+        };
         var h = Enumerable.Range(0, 4).Select(d => near - d).FirstOrDefault(i => i >= 0 && i < masked.Count && header.IsMatch(masked[i]), -1);
         if (h < 0) return null;
 
@@ -244,7 +256,15 @@ internal static partial class Blocks
         if (CCode.Matching(ifLine, open) is not { } close) return null;
 
         var after = ifLine[(close + 1)..].Trim();
-        var removal = new Regex($@"^{Regex.Escape(list)}\s*\.\s*{(java ? "remove" : "Remove")}\s*\(\s*{Regex.Escape(variable)}\s*\)\s*;$");
+        var l = Regex.Escape(list);
+        var v = Regex.Escape(variable);
+
+        var removal = new Regex(language switch
+        {
+            "java" => $@"^{l}\s*\.\s*remove\s*\(\s*{v}\s*\)\s*;$",
+            "csharp" => $@"^{l}\s*\.\s*Remove\s*\(\s*{v}\s*\)\s*;$",
+            _ => $@"^{l}\s*\.\s*erase\s*\(\s*(?:std\s*::\s*)?find\s*\(\s*{l}\s*\.\s*begin\s*\(\s*\)\s*,\s*{l}\s*\.\s*end\s*\(\s*\)\s*,\s*{v}\s*\)\s*\)\s*;$",
+        });
 
         var shaped = code.Count switch
         {
@@ -257,7 +277,12 @@ internal static partial class Blocks
         if (!shaped) return null;
 
         var test = lines[code[0]][(open + 1)..close].Trim();
-        var call = java ? $"{list}.removeIf({variable} -> {test});" : $"{list}.RemoveAll({variable} => {test});";
+        var call = language switch
+        {
+            "java" => $"{list}.removeIf({variable} -> {test});",
+            "csharp" => $"{list}.RemoveAll({variable} => {test});",
+            _ => $"{list}.erase(std::remove_if({list}.begin(), {list}.end(), [&]({loop.Groups["type"].Value} {variable}) {{ return {test}; }}), {list}.end());",
+        };
 
         return (h, end - h + 1, loop.Groups["indent"].Value + call);
     }

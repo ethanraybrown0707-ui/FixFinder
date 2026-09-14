@@ -726,10 +726,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
             (w.ErrorCode == "C4013" && CStandardLibrary.ReturnsPointer.Any(name =>
                 (w.Message ?? "").StartsWith($"'{name}' undefined", StringComparison.Ordinal))) ||
-            (w.ErrorCode == "C4477" && ((w.Message ?? "").Contains("format string '%s'", StringComparison.Ordinal) || AddressExpected(w.Message))))
+            (w.ErrorCode == "C4477" && ((w.Message ?? "").Contains("format string '%s'", StringComparison.Ordinal) || AddressExpected(w.Message))) ||
+            w.ErrorCode == "C4172")
         ?? GccClangParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
             (w.Message ?? "").StartsWith("format '%s' expects", StringComparison.Ordinal) ||
-            (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal) && AddressExpected(w.Message));
+            (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal) && AddressExpected(w.Message) ||
+            (w.Message ?? "").StartsWith("reference to local variable '", StringComparison.Ordinal));
 
     /// <summary>scanf handed a value where it needs somewhere to store one: <c>type 'int *', but ... has type 'int'</c>.</summary>
     private static bool AddressExpected(string? message) =>

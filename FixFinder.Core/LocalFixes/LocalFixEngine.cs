@@ -203,6 +203,43 @@ public static partial class LocalFixEngine
         new CSharpRemoveInForEach(),
 
         new CFormatArgument(),
+        new CppStdPrefix(),
+        new CppStdNameTypo(),
+        new CppForeignPrint(),
+        new CppForeignWord(),
+        new CppStreamArrows(),
+        new CppContainerMember(),
+        new CppMethodWithoutCall(),
+        new CppNewWithoutPointer(),
+        new CppMemberOperator(),
+        new CppPrivateMember(),
+        new CppMainReturnsInt(),
+        new CppCharForString(),
+        new CppMultiCharString(),
+        new CppVexingParse(),
+        new CppLiteralConcatenation(),
+        new CppStringPlusNumber(),
+        new CppAtOutOfRange(),
+        new CppMissingReturnType(),
+        new CppVirtualBase(),
+        new CppOverrideTypo(),
+        new CppPrivateInheritance(),
+        new CppMemberWithoutClassName(),
+        new CppMoveUniquePtr(),
+        new CppConstMethod(),
+        new CppTypename(),
+        new CppLambdaCapture(),
+        new CppExplicitConstructor(),
+        new CppStaticMemberDefinition(),
+        new CppCharComparedWithString(),
+        new CppSortList(),
+        new CppAutoParameter(),
+        new CppDefaultArgumentRepeated(),
+        new CppConstMemberInitialiser(),
+        new CppThreadNotJoined(),
+        new CppIndexEmptyVector(),
+        new CppEraseInLoop(),
+        new CppReturnLocalReference(),
         new CompilerFixIt(),
         new CDefineSemicolon(),
         new CMainName(),
@@ -309,11 +346,13 @@ public static partial class LocalFixEngine
         CancellationToken cancellationToken = default)
     {
         // Only the warnings that are themselves crashes: a function used undeclared, whose pointer
-        // result C cut in half, and a printf conversion that reads a number as an address.
+        // result C cut in half, a printf conversion that reads a number as an address, and a
+        // reference handed back to a local variable that no longer exists.
         var warnings = MsvcParser.ParseWarnings(buildOutput)
-            .Where(w => w.ErrorCode is "C4013" or "C4477")
+            .Where(w => w.ErrorCode is "C4013" or "C4477" or "C4172")
             .Concat(GccClangParser.ParseWarnings(buildOutput)
-                .Where(w => (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal)));
+                .Where(w => (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal) ||
+                            (w.Message ?? "").StartsWith("reference to local variable '", StringComparison.Ordinal)));
 
         foreach (var warning in warnings)
         {
@@ -422,7 +461,7 @@ public static partial class LocalFixEngine
     {
         "python" => error.ExceptionType is "SyntaxError" or "IndentationError" or "TabError",
         "java" => error.ExceptionType == "compile error" && JavaSyntaxMessage().IsMatch(error.Message ?? ""),
-        "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061"
+        "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
             // A header that cannot be read stops the compiler dead, so everything after it went unread.
             or "C1083" or "C1189",

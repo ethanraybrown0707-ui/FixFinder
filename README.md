@@ -55,7 +55,7 @@ parse.
 | Python | traceback, chained causes, 3.11+ carets | — | yes |
 | C# / .NET | inner exceptions, async resume frames | `CS####` | yes |
 | C | access violations, overruns, divide by zero - located with AddressSanitizer | `C####` via MSVC, or gcc/clang with their fix-its | yes |
-| C++ | assertions, aborts | `C####` via MSVC, or gcc/clang | yes |
+| C++ | uncaught exceptions, access violations, overruns - located with AddressSanitizer | `C####` via MSVC, or g++/clang with their fix-its | yes |
 | Java | `Caused by` chains, `... N more` | javac `cannot find symbol` and friends | yes |
 | JavaScript / Node | stack frames, `node:` internals | — | yes |
 | Go | two-line panic frames, goroutine blocks | — | yes |
@@ -198,7 +198,7 @@ line to change.
 
 **Then, one language at a time, the constructs people actually get wrong.** A second set of small
 programs was written from the mistakes of someone learning each language, and of someone arriving
-from another one - `elif` in Java, `print` in C#, `string` in C, `.length` in Python - and rules were
+from another one - `elif` in Java, `print` in C#, `string` in C, `.length` in Python, `System.out.println` in C++ - and rules were
 added until what was left had no single right edit:
 
 | | Programs | Before | Now |
@@ -209,9 +209,12 @@ added until what was left had no single right edit:
 | C, built by gcc | 44 | 17 | 34 |
 | C, built by MSVC | 44 | 13 | 33 |
 | Java | 50 | 15 | 45 |
+| C++, built by g++ | 50 | 17 | 44 |
+| C++, built by MSVC | 50 | 14 | 43 |
 
 **And then the mistakes of later years** - inheritance and interfaces, generics, collections and LINQ,
-closures, async, exceptions, pointers, macros and two-dimensional arrays. A third set, the same method:
+closures, async, exceptions, pointers, macros and two-dimensional arrays, and in C++ virtual functions,
+templates, smart pointers, lambdas, `const` and threads. A third set, the same method:
 
 | | Programs | Before | Now | What is left |
 |---|---|---|---|---|
@@ -220,6 +223,8 @@ closures, async, exceptions, pointers, macros and two-dimensional arrays. A thir
 | C# | 21 | 0 | 18 | an abstract class created, an interface member never written, `>` on a generic `T` |
 | C, built by gcc | 14 | 1 | 7 | five never failed at all under gcc; `switch` on a string; `strcpy` into an uninitialised pointer |
 | C, built by MSVC | 14 | 1 | 8 | four never failed at all under MSVC; the same two |
+| C++, built by g++ | 30 | 0 | 21 | an abstract class created, no `operator<<` for a struct, `>` on a template's type, a `map::at` or `throw` nobody caught; `delete` for `delete[]`, erasing inside a range-`for` and an `auto` parameter never failed |
+| C++, built by MSVC | 30 | 0 | 20 | the same four, and an uncaught exception or a thread never joined, which MSVC ends without a word; `delete` for `delete[]`, a missing `typename` and a returned reference to a local never failed |
 
 **How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
 exactly one change:
@@ -287,10 +292,22 @@ exactly one change:
 | | `word[0] == "a"`, `"10" - 1`, a string passed where an int is wanted, `Where(...)` assigned to a `List`, a `List` to an array | `'a'`, `int.Parse`, `int.Parse(...)`, `.ToList()`, `.ToArray()` |
 | | `x.ToString` without brackets, a variable declared twice, catch clauses out of order, `if (x); { ... } else`, a `case` with no `break` | `()`, an assignment, the specific catch first, the semicolon removed, `break;` |
 | | `Collection was modified` from `Remove` inside a `foreach` | `RemoveAll(...)` |
+| C++ | `'cout' was not declared`, `'string': undeclared identifier`, `std::endll` | `std::cout` and `std::endl` for the whole line, `std::string`, `std::endl` |
+| | `System.out.println`, `Console.WriteLine`, `print(...)`, `null`, `True`, `boolean`, `String` | `std::cout << ... << std::endl`, `nullptr`, `true`, `bool`, `std::string` |
+| | `std::cout >> total`, `std::cin << age`, `values.add(1)`, `values.length()`, `ages.containsKey(k)`, `name.size` | `<<`, `>>`, `push_back`, `size()`, `count`, `size()` |
+| | `Dog d = new Dog();`, `d->age` on an object, `d.age` on a pointer, `this.name`, a private member used from `main` | `Dog d;`, `.`, `->`, `this->name`, `public:` |
+| | `void main`, `char name = "Ada"`, `'Ada'`, `std::vector<int> values();`, `"Hello, " + "world"`, `text + age`, a function with no return type | `int main`, `std::string`, `"Ada"`, no brackets, `std::string("Hello, ")`, `std::to_string(age)`, the type its `return`s give |
+| | a block closed too soon, a `class` without its `;`, a function called above its definition, a variable declared twice, `using namespace std` without `;` | the early `}` removed, the `;`, a declaration, an assignment, the `;` |
+| | `override` of a function that is not `virtual`, a misspelt override, `class Dog : Animal`, `void speak() const` defined without `Dog::` | `virtual` on the base, the inherited name, `public Animal`, `Dog::speak` |
+| | a `unique_ptr` copied, a `const` object calling a method not marked `const`, `typename` missing, a lambda without its capture or changing its copy | `std::move` - only when nothing uses it afterwards - `const`, `typename`, `[&total]` |
+| | `Meters m = 5.0` with an `explicit` constructor, a `static` member never defined, a `const` member assigned in the constructor, a default argument given twice, an `auto` parameter under C++17 | `Meters m(5.0)`, its definition after the class, `: radius(r)`, the second default removed, a template |
+| | `word[0] == "a"`, `std::sort` on a `std::list` | `'a'`, `values.sort()` |
+| | `terminate called after throwing an instance of 'std::out_of_range'` from `.at(i)`, `terminate called without an active exception` | `<` in the one loop that reads `.at(i)` up to `.size()`, `worker.join()` |
+| | AddressSanitizer's double `delete`, `[0]` on an empty vector, `erase` inside a range-`for`, and a reference to a local returned | the second `delete` removed, `push_back`, `erase(std::remove_if(...))`, return by value |
 
 **Every one is checked before you see it.** A copy of the file with the change made is compiled
 outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
-javac; C with the same compiler the build used; C# with `dotnet build` - and the change is offered only if the error it was
+javac; C and C++ with the same compiler the build used; C# with `dotnet build` - and the change is offered only if the error it was
 for has gone and nothing new has broken. Two equally near names is a refusal, not a pick: `printn` is
 one letter from `print`, `println` and `printf`, so nothing is offered. For a crash, the check can
 only prove the file still compiles, and the answer says exactly that rather than claiming the crash
@@ -343,9 +360,15 @@ returned local array all ran to the end here, and MinGW's `scanf` quietly refuse
 MSVC's crashes on. FixFinder acts on what went wrong, so a mistake that happens to work is not found -
 a real limit of finding bugs by running the program.
 
+C++ left the same kinds of thing: an abstract class created, a struct printed with no `operator<<`, `>` on
+a template's type, a `switch` on a `std::string`, a `const` assigned to, a null pointer written through and
+an exception thrown on purpose - each with more than one reasonable fix. Two more are MSVC's alone: an
+uncaught exception and a thread never joined end its programs with a bare `0xC0000409` and nothing printed,
+so there is nothing to read, where g++'s runtime at least names what was thrown.
+
 ### What checking caught
 
-Eleven things were wrong, and each was found by running real programs rather than by trusting tests
+Thirteen things were wrong, and each was found by running real programs rather than by trusting tests
 that passed:
 
 - **gcc on Windows was not being read at all.** A drive letter is a colon, gcc's file pattern stopped
@@ -386,6 +409,14 @@ that passed:
   failure; once it could be read, it passed as one more error uncovered behind a syntax error. It is not
   one - a link error means the whole file compiled, so nothing was hidden - and a new link error now
   refuses the change. The C `elif` test caught it.
+- **An uncaught C++ exception was reported as silence.** libstdc++ prints `terminate called after throwing an
+  instance of 'std::out_of_range'` and the exception's own message, then exits 3 - and nothing recognised the
+  line, so a program that said exactly what went wrong was reported as having failed without a word. It is
+  read now, and an `.at(i)` one past the end is traced to the loop that asked for it.
+- **g++'s own headers became the project.** `std::sort` on a `std::list` fails inside `bits/stl_algo.h`, and
+  the folder holding it, under Strawberry, was taken as the source root - so the program's own call was never
+  looked at. The standard library's headers count as the compiler's now, wherever it is installed, as MSVC's
+  already did.
 
 ## When the fix is not a patch
 

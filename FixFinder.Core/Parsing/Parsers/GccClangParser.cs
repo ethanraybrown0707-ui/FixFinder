@@ -58,6 +58,20 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
     [GeneratedRegex(@"^\s+#(?<n>\d+)\s+0x[0-9a-fA-F]+\s+in\s+(?<sym>.+?)\s+(?<file>[^\s]+?):(?<line>\d+)(?::(?<col>\d+))?\s*$")]
     private static partial Regex SanitizerFramePattern();
 
+    /// <summary>
+    /// libstdc++'s last words for a C++ exception nothing caught: <c>terminate called after throwing an instance of
+    /// 'std::out_of_range'</c>, or <c>terminate called without an active exception</c> for a thread never joined.
+    /// </summary>
+    /// <remarks>
+    /// The line after it, <c>what():  ...</c>, is the exception's own message. No stack comes with either, so the error
+    /// names what was thrown and not where - which is still everything, next to the bare exit code 3 left without it.
+    /// </remarks>
+    [GeneratedRegex(@"^terminate called (?:after throwing an instance of '(?<type>[^']+)'|without an active exception)\s*$")]
+    private static partial Regex TerminatePattern();
+
+    [GeneratedRegex(@"^\s*what\(\):\s*(?<what>.*?)\s*$")]
+    private static partial Regex WhatPattern();
+
     /// <summary>Runtime deaths that print one line and nothing else.</summary>
     private static readonly string[] FatalRuntimeMessages =
     [
@@ -89,6 +103,7 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             }
 
             if (LinkerPattern().IsMatch(line) || LibraryLinkerPattern().IsMatch(line)) score += 30;
+            if (TerminatePattern().IsMatch(line)) score += 60;
 
             foreach (var fatal in FatalRuntimeMessages)
                 if (line.Contains(fatal, StringComparison.OrdinalIgnoreCase)) score += 45;
@@ -99,7 +114,7 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
 
     public ParsedError? Parse(IReadOnlyList<CapturedLine> lines)
     {
-        return ParseSanitizer(lines) ?? ParseDiagnostic(lines) ?? ParseFatalRuntime(lines);
+        return ParseSanitizer(lines) ?? ParseDiagnostic(lines) ?? ParseUncaught(lines) ?? ParseFatalRuntime(lines);
     }
 
     private ParsedError? ParseSanitizer(IReadOnlyList<CapturedLine> lines)
@@ -184,6 +199,8 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
 
         var diagnostics = ParseDiagnostics(lines);
         if (diagnostics.Count > 0) return diagnostics;
+
+        if (ParseUncaught(lines) is { } uncaught) return [uncaught];
 
         return ParseFatalRuntime(lines) is { } fatal ? [fatal] : [];
     }
@@ -300,6 +317,30 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
         }
 
         return warnings;
+    }
+
+    private ParsedError? ParseUncaught(IReadOnlyList<CapturedLine> lines)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (TerminatePattern().Match(lines[i].Text) is not { Success: true } terminate) continue;
+
+            var thrown = terminate.Groups["type"].Success;
+            var what = thrown && i + 1 < lines.Count && WhatPattern().Match(lines[i + 1].Text) is { Success: true } w ? w.Groups["what"].Value : null;
+
+            return new ParsedError
+            {
+                LanguageId = LanguageId,
+                Confidence = 75,
+                RawText = ParserHelpers.RawTextOf(lines, i, what is null ? i + 1 : i + 2),
+                FirstLineSequence = lines[i].Sequence,
+                ExceptionType = thrown ? terminate.Groups["type"].Value : "std::terminate",
+                Message = what ?? (thrown ? $"uncaught {terminate.Groups["type"].Value}" : "terminate called without an active exception"),
+                Frames = [],
+            };
+        }
+
+        return null;
     }
 
     private ParsedError? ParseFatalRuntime(IReadOnlyList<CapturedLine> lines)

@@ -50,6 +50,9 @@ public static class FrameClassifier
         "java.base/",
         "/jdk",
         "/microsoft visual studio/",
+        // libstdc++'s and libc++'s own headers, wherever the compiler is installed - MinGW under Strawberry, /usr on Linux.
+        "/include/c++/",
+        "/lib/gcc/",
         // Microsoft Store apps, Python among them - its standard library lives under here, as Lib\asyncio and the rest.
         "/windowsapps/",
         "/windows kits/",

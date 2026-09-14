@@ -257,13 +257,14 @@ public sealed partial class CExtraClosingBrace : ILocalFixRule
 {
     public string Id => "c-extra-closing-brace";
 
-    [GeneratedRegex(@"^expected (?:identifier or '\(' |declaration or statement )?before '\}' token$")]
+    [GeneratedRegex(@"^expected (?:identifier or '\(' |declaration or statement |declaration |unqualified-id )?before '(?:\}|\w+)'(?: token)?$")]
     private static partial Regex GccMessage();
 
     public LocalFix? Propose(LocalFixContext context)
     {
         var error = context.Error;
-        var recognised = (CCode.IsMsvc(error, "C2059") && error.Message == "syntax error: '}'") || CCode.GccMessage(error, GccMessage()) is not null;
+        var recognised = (CCode.IsMsvc(error, "C2059") && Regex.IsMatch(error.Message ?? "", @"^syntax error: '(?:\}|return|if|for|while|else|do|switch)'$")) ||
+                         CCode.GccMessage(error, GccMessage()) is not null;
 
         if (!recognised || context.Read(context.Frame?.File) is not { } source || !CCode.IsNative(source)) return null;
 
@@ -282,6 +283,33 @@ public sealed partial class CExtraClosingBrace : ILocalFixRule
         }
 
         if (depth != 0 || stray is not [var extra] || masked[extra].Trim() != "}") return null;
+
+        // A block closed too soon leaves the lines after it outside every function, and then the brace at the bottom is the one that
+        // closes nothing. The brace to remove is the early one: indented deeper than the bottom one, with code stranded below it.
+        var depths = CCode.DepthAtStart(masked);
+        var early = -1;
+
+        for (var i = extra - 1; i >= 0; i--)
+        {
+            if (masked[i].Trim().Length == 0) continue;
+
+            if (masked[i].Trim() == "}" && depths[i + 1] == 0)
+            {
+                if (i < extra - 1 && CodeText.Indentation(source.Lines[i]).Length > CodeText.Indentation(source.Lines[extra]).Length) early = i;
+                break;
+            }
+
+            if (depths[i] != 0) break;
+        }
+
+        if (early >= 0)
+        {
+            return CCode.RemoveLine(
+                Id, $"Remove the extra }} on line {early + 1}",
+                $"The `}}` on line {early + 1} closes its block too soon: the lines after it, down to line {extra + 1}, are left outside it, " +
+                "and the last `}` then has nothing to close.",
+                source.Path, early + 1);
+        }
 
         return CCode.RemoveLine(
             Id, $"Remove the extra }} on line {extra + 1}",
@@ -509,11 +537,19 @@ public sealed partial class CFunctionPrototype : ILocalFixRule
     [GeneratedRegex(@"^implicit declaration of function '(?<name>\w+)'")]
     private static partial Regex GccImplicit();
 
+    /// <summary>C++ has no implicit declarations: g++ says the name was never declared, MSVC <c>C3861 identifier not found</c>.</summary>
+    [GeneratedRegex(@"^'(?<name>\w+)' was not declared in this scope")]
+    private static partial Regex GccUndeclared();
+
+    [GeneratedRegex(@"^'(?<name>\w+)': identifier not found$")]
+    private static partial Regex MsvcNotFound();
+
     public LocalFix? Propose(LocalFixContext context)
     {
         var error = context.Error;
+        var undeclared = CCode.GccMessage(error, GccUndeclared()) ?? CCode.MsvcMessage(error, "C3861", MsvcNotFound());
         var message = CCode.MsvcMessage(error, "C2371", MsvcMessage()) ?? CCode.GccMessage(error, GccMessage()) ??
-                      CCode.GccMessage(error, GccImplicit());
+                      CCode.GccMessage(error, GccImplicit()) ?? undeclared;
 
         if (message is null || context.Read(context.Frame?.File) is not { } source || !CCode.IsNative(source)) return null;
 
@@ -549,9 +585,12 @@ public sealed partial class CFunctionPrototype : ILocalFixRule
 
         return LocalFix.Insert(
             Id, $"Declare {name} before it is used",
-            $"`{name}` is called on line {use + 1} but only defined on line {definition + 1}. C reads from the top, so at the call " +
-            $"it had to guess what `{name}` returns - and the real definition then contradicts the guess. A declaration above " +
-            "the first use tells it the truth in time.",
+            undeclared is not null
+                ? $"`{name}` is called on line {use + 1} but only defined on line {definition + 1}. The compiler reads from the top, so at " +
+                  $"the call nothing called `{name}` exists yet. A declaration above the first use tells it about `{name}` in time."
+                : $"`{name}` is called on line {use + 1} but only defined on line {definition + 1}. C reads from the top, so at the call " +
+                  $"it had to guess what `{name}` returns - and the real definition then contradicts the guess. A declaration above " +
+                  "the first use tells it the truth in time.",
             source.Path, header + 1, [prototype]);
     }
 }
@@ -611,7 +650,7 @@ public sealed partial class CRedefinition : ILocalFixRule
     [GeneratedRegex(@"^'(?<name>\w+)': redefinition; multiple initialization$")]
     private static partial Regex MsvcMessage();
 
-    [GeneratedRegex(@"^redefinition of '(?<name>\w+)'$")]
+    [GeneratedRegex(@"^(?:redefinition|redeclaration) of '(?:[^']*?[\s*&])?(?<name>\w+)'$")]
     private static partial Regex GccMessage();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -749,13 +788,13 @@ public sealed partial class CDoubleFree : ILocalFixRule
 {
     public string Id => "c-double-free";
 
-    [GeneratedRegex(@"^\s*free\s*\(\s*(?<pointer>[A-Za-z_][\w.]*(?:->\w+)*)\s*\)\s*;\s*$")]
+    [GeneratedRegex(@"^\s*(?:free\s*\(\s*(?<pointer>[A-Za-z_][\w.]*(?:->\w+)*)\s*\)|(?<delete>delete)\s*(?:\[\s*\])?\s*(?<pointer>[A-Za-z_][\w.]*(?:->\w+)*))\s*;\s*$")]
     private static partial Regex Free();
 
     public LocalFix? Propose(LocalFixContext context)
     {
         if (context.Error is not { LanguageId: "gcc", ExceptionType: "attempting double-free" }) return null;
-        if (CCode.Locate(context) is not { } at) return null;
+        if ((CCode.Locate(context) ?? FirstInProgram(context)) is not { } at) return null;
 
         var (source, number, _) = at;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
@@ -774,12 +813,29 @@ public sealed partial class CDoubleFree : ILocalFixRule
 
             if (Free().Match(masked[k]) is { Success: true } earlier && earlier.Groups["pointer"].Value == pointer)
             {
+                var word = second.Groups["delete"].Success ? "delete" : "free";
+
                 return CCode.RemoveLine(
-                    Id, $"Remove the second free({pointer})",
-                    $"`{pointer}` is freed on line {k + 1} and then again on line {number}. Memory can only be given back once - " +
-                    "the second `free` corrupts the heap, which is what AddressSanitizer caught.",
+                    Id, word == "free" ? $"Remove the second free({pointer})" : $"Remove the second delete {pointer}",
+                    $"`{pointer}` is {(word == "free" ? "freed" : "deleted")} on line {k + 1} and then again on line {number}. Memory can only be " +
+                    $"given back once - the second `{word}` corrupts the heap, which is what AddressSanitizer caught.",
                     source.Path, number);
             }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The innermost frame that is a line of the program. A double <c>delete</c> is caught inside AddressSanitizer's own
+    /// <c>operator delete</c>, which is the innermost frame and nobody's source.
+    /// </summary>
+    private static (SourceFile Source, int Number, string Line)? FirstInProgram(LocalFixContext context)
+    {
+        foreach (var frame in context.Error.Frames)
+        {
+            if (frame.Line is not { } number || context.Read(frame.File) is not { } source || !CCode.IsNative(source)) continue;
+            if (source.Line(number) is { } line) return (source, number, line);
         }
 
         return null;
@@ -986,15 +1042,16 @@ public sealed partial class CStructSemicolon : ILocalFixRule
             }
         }
 
-        if (opener < 0 || !Regex.IsMatch(masked[opener], @"\b(?:struct|union|enum)\b")) return null;
+        if (opener < 0 || Regex.Match(masked[opener], @"\b(?<keyword>struct|union|enum|class)\b") is not { Success: true } kind) return null;
 
+        var keyword = kind.Groups["keyword"].Value;
         var (code, tail) = CodeText.SplitComment(source.Lines[k], Syntax.CLike);
         var trimmed = code.TrimEnd();
 
         return LocalFix.ReplaceLine(
-            Id, "Add the semicolon after the struct",
-            $"A struct definition ends with a semicolon after its closing brace, and the one ending on line {k + 1} has none - " +
-            "so C reads the next line as part of it.",
+            Id, $"Add the semicolon after the {keyword}",
+            $"A {keyword} definition ends with a semicolon after its closing brace, and the one ending on line {k + 1} has none - " +
+            "so the compiler reads the next line as part of it.",
             source.Path, k + 1, trimmed + ";" + code[trimmed.Length..] + tail);
     }
 }
