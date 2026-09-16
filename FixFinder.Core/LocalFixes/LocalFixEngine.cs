@@ -372,7 +372,7 @@ public static partial class LocalFixEngine
         if (context.Read(context.Frame?.File) is { } erring) CompileCheck.Prepare(erring);
 
         return FindAsync(
-            context, Rules,
+            context, context.Language.IsAny ? Rules : Rules.Where(context.Language.Reads).ToList(),
             (source, lines, ct) => CompileCheck.RunAsync(source, lines, context.PythonInterpreter, ct),
             ChecksAtOnce, log, cancellationToken);
     }
@@ -527,7 +527,8 @@ public static partial class LocalFixEngine
         IReadOnlyList<CapturedLine> buildOutput,
         string? sourceRoot,
         Action<string>? log = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        CodeLanguage? language = null)
     {
         // Only the warnings that are themselves crashes: a function used undeclared, whose pointer
         // result C cut in half, a printf conversion that reads a number as an address, and a
@@ -540,7 +541,10 @@ public static partial class LocalFixEngine
 
         foreach (var warning in warnings)
         {
-            var context = new LocalFixContext { Error = warning, Output = buildOutput, SourceRoot = sourceRoot };
+            var context = new LocalFixContext
+            {
+                Error = warning, Output = buildOutput, SourceRoot = sourceRoot, Language = language ?? CodeLanguage.Any,
+            };
 
             if (await FindAsync(context, log, cancellationToken) is { } found) return found;
         }

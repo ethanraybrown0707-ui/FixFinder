@@ -122,7 +122,7 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="CopyButton" AutomationProperties.AutomationId="CopyFixButton"
+                <Button x:Name="CopyButton" AutomationProperties.AutomationId="CopyFixButton" Style="{StaticResource PrimaryButton}"
                         Content="Copy the fix" Padding="16,6" FontSize="13"
                         IsEnabled="False" Click="CopyButton_Click"/>
                 <Button x:Name="NextResultButton" AutomationProperties.AutomationId="NextResultButton"

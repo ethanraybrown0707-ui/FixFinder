@@ -134,7 +134,16 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// </remarks>
     private const int CandidatesToOpen = 3;
 
-    private readonly ParserRegistry _parsers = new();
+    /// <summary>The language the person said the program is in. Any, unless the window was told.</summary>
+    /// <remarks>
+    /// When it is a particular language, only that language's parsers read what the program printed and
+    /// only its rules propose fixes - see <see cref="CodeLanguage"/>.
+    /// </remarks>
+    public CodeLanguage Language { get; init; } = CodeLanguage.Any;
+
+    private ParserRegistry? _registry;
+
+    private ParserRegistry Parsers => _registry ??= Language.Parsers();
 
     /// <summary>Raised as each stage starts, for the one status line the window shows.</summary>
     public event Action<string>? Progress;
@@ -189,7 +198,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         return async cancellationToken =>
         {
-            var runner = new TargetRunner(_parsers);
+            var runner = new TargetRunner(Parsers);
 
             void ForwardLog(string message) => Log?.Invoke(message);
             runner.Log += ForwardLog;
@@ -229,7 +238,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     {
         Progress?.Invoke("Compiling...");
 
-        var runner = new TargetRunner(_parsers);
+        var runner = new TargetRunner(Parsers);
 
         void ForwardLog(string message) => Log?.Invoke(message);
         void ForwardLine(CapturedLine line) => LineCaptured?.Invoke(line);
@@ -302,7 +311,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // ---------------------------------------------------------- run it
         Progress?.Invoke($"Running {Path.GetFileName(spec.ExecutablePath)}...");
 
-        var runner = new TargetRunner(_parsers);
+        var runner = new TargetRunner(Parsers);
 
         // Named handlers, not lambdas. A "-=" against a freshly written lambda removes nothing,
         // because it is a different delegate instance from the one that was added - which is
@@ -480,7 +489,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         // What else this run reported, so a diagnostic nobody can act on can be stepped past
         // rather than ending everything. Computed once here, and narrowed on each skip.
-        var others = remaining ?? _parsers.Others(error, run.Lines);
+        var others = remaining ?? Parsers.Others(error, run.Lines);
         var dependency = InstalledPackages.From(stackFiles);
 
         // Recorded because it is a place FixFinder may now be asked to write, and the log is the
@@ -779,6 +788,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             SourceRoot = sourceRoot,
             FromBuild = failedToCompile,
             PythonInterpreter = error.LanguageId == "python" ? spec.ExecutablePath : null,
+            Language = Language,
         };
 
         void Relay(string message) => Log?.Invoke(message);
@@ -786,7 +796,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (await LocalFixEngine.FindAsync(context, Relay, cancellationToken) is { } found) return found;
 
         return buildOutput is { Count: > 0 } && !failedToCompile && error.ExceptionType != "compile warning"
-            ? await LocalFixEngine.ForBuildWarningsAsync(buildOutput, sourceRoot, Relay, cancellationToken)
+            ? await LocalFixEngine.ForBuildWarningsAsync(buildOutput, sourceRoot, Relay, cancellationToken, Language)
             : null;
     }
 

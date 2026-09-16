@@ -31,6 +31,9 @@ public sealed class LocalFixContext
     /// <summary>The interpreter that ran the program, so the check parses with the same Python.</summary>
     public string? PythonInterpreter { get; init; }
 
+    /// <summary>The language the person said the program is in; only its rules propose anything.</summary>
+    public CodeLanguage Language { get; init; } = CodeLanguage.Any;
+
     public IEnumerable<ParsedError> AllErrors => Others.Prepend(Error);
 
     /// <summary>The frame the error happened in - its own, never one from a cause it wraps.</summary>

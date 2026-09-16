@@ -138,7 +138,7 @@
             <TextBlock x:Name="SettingsStatusText"
                        AutomationProperties.AutomationId="SettingsStatusText"
                        VerticalAlignment="Center" Margin="0,0,12,0" FontStyle="Italic"/>
-            <Button x:Name="SaveSettingsButton" AutomationProperties.AutomationId="SaveSettingsButton"
+            <Button x:Name="SaveSettingsButton" AutomationProperties.AutomationId="SaveSettingsButton" Style="{StaticResource PrimaryButton}"
                     Content="Save" Padding="14,4" IsDefault="True" Click="SaveSettingsButton_Click"/>
             <Button x:Name="CancelSettingsButton" AutomationProperties.AutomationId="CancelSettingsButton"
                     Content="Cancel" Padding="14,4" Margin="8,0,0,0" IsCancel="True"

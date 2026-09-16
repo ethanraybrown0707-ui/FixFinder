@@ -35,7 +35,8 @@ public sealed record StepResult(ApplyResult Apply, VerificationResult? Verificat
 /// user saying so. What happens next is settled after it, by the caller reading the verdict.
 /// </para>
 /// </remarks>
-public sealed class FixStep(BackupStore? backups = null)
+/// <param name="language">The language the person said the program is in; the re-run is read with its parsers.</param>
+public sealed class FixStep(BackupStore? backups = null, CodeLanguage? language = null)
 {
     private readonly BackupStore _backups = backups ?? new BackupStore();
 
@@ -79,7 +80,7 @@ public sealed class FixStep(BackupStore? backups = null)
         // would be the one kind of answer this tool must not give.
         if (outcome.Spec is null) return new StepResult(applied, null);
 
-        var verifier = new FixVerifier();
+        var verifier = new FixVerifier(language?.Parsers());
         verifier.Log += Relay;
 
         try

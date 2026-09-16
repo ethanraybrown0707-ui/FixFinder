@@ -1,6 +1,10 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using FixFinder.Core;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
@@ -37,6 +41,12 @@ public partial class MainWindow : Window
     private readonly FixSourceRegistry _sources = new();
 
     private LaunchPlan? _launch;
+
+    /// <summary>The file last chosen, so changing the language can check it again.</summary>
+    private string? _chosenPath;
+
+    /// <summary>The language chosen with the buttons at the top; Any until one is pressed.</summary>
+    private CodeLanguage _language = CodeLanguage.Any;
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
     private LoopResult? _result;
@@ -53,6 +63,8 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         OutputListBox.ItemsSource = _output;
+
+        AddLanguageButtons();
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -87,7 +99,7 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "Pick the program to run",
-            Filter = TargetFactory.FileDialogFilter,
+            Filter = _language.FileDialogFilter(TargetFactory.FileDialogFilter),
             CheckFileExists = true,
         };
 
@@ -117,16 +129,19 @@ public partial class MainWindow : Window
     /// </remarks>
     private void Choose(string path)
     {
+        _chosenPath = path;
         _launch = TargetFactory.FromFile(path);
         _result = null;
         _previousChoice = null;
 
-        ResultText.Visibility = Visibility.Collapsed;
+        ResultBorder.Visibility = Visibility.Collapsed;
+        UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
         _output.Clear();
+
+        ShowChosen(path);
 
         if (!_launch.Ok)
         {
-            ChosenFileText.Text = Path.GetFileName(path);
             HowItRunsText.Text = "";
             FindFixButton.IsEnabled = false;
 
@@ -135,10 +150,103 @@ public partial class MainWindow : Window
             return;
         }
 
-        ChosenFileText.Text = _launch.ChosenFile ?? _launch.Spec!.ExecutablePath;
+        ShowChosen(_launch.ChosenFile ?? _launch.Spec!.ExecutablePath);
         HowItRunsText.Text = _launch.Explanation;
+
+        var detected = CodeLanguage.Of(path);
+
+        // A .py file is Python whichever button is pressed. Running it as Java would read its output
+        // with no parser that understands it and offer it to no rule that could fix it.
+        if (_language.Refuses(path) is { } refusal)
+        {
+            FindFixButton.IsEnabled = false;
+            StatusText.Text = "That file is not in the language selected.";
+            ShowResult($"{refusal} Choose {detected!.Name} above, or pick a {_language.Name} file.", problem: true);
+            OfferLanguage(detected);
+            return;
+        }
+
+        if (_language.IsAny) OfferLanguage(detected);
+
         FindFixButton.IsEnabled = true;
-        StatusText.Text = "Ready.";
+        StatusText.Text = _language.IsAny ? "Ready." : $"Ready. Only {_language.Name} will be checked.";
+    }
+
+    /// <summary>The file's name where it is easy to read, and its folder underneath, shortened if it has to be.</summary>
+    private void ShowChosen(string path)
+    {
+        ChosenFileText.Text = Path.GetFileName(path) is { Length: > 0 } name ? name : path;
+        ChosenFileText.ToolTip = path;
+
+        ChosenFolderText.Text = Path.GetDirectoryName(path) ?? "";
+        ChosenFolderText.ToolTip = path;
+        ChosenFolderText.Visibility = ChosenFolderText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ================================================================== language
+
+    /// <summary>One pill per language, built from the list the engine uses, so the two cannot drift apart.</summary>
+    private void AddLanguageButtons()
+    {
+        foreach (var language in CodeLanguage.All)
+        {
+            var button = new RadioButton
+            {
+                Content = language.IsAny ? "Any language" : language.Name,
+                GroupName = "Language",
+                Tag = language,
+                Style = (Style)FindResource("ChoicePill"),
+                IsChecked = language == _language,
+                ToolTip = language.IsAny
+                    ? "Work out the language from the program itself, and check it against every language FixFinder knows."
+                    : $"Only {language.Name}'s error formats are read and only its fixes are tried. Files: {string.Join(", ", language.Extensions)}",
+            };
+
+            var id = language.Name.Replace("C#", "CSharp").Replace("C++", "Cpp");
+            AutomationProperties.SetAutomationId(button, "Language" + new string(id.Where(char.IsLetterOrDigit).ToArray()));
+            AutomationProperties.SetName(button, language.IsAny ? "Any language" : language.Name);
+
+            button.Checked += LanguageButton_Checked;
+            LanguagePanel.Children.Add(button);
+        }
+    }
+
+    private void LanguageButton_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton { Tag: CodeLanguage language }) return;
+
+        _language = language;
+
+        LanguageHintText.Text = language.IsAny
+            ? "Pick the language the program is written in, and only that language is checked."
+            : $"Only {language.Name} is checked: its error messages are read and its fixes are tried, and nothing else.";
+
+        // The choice changes what the chosen file may be, so it is looked at again.
+        if (_chosenPath is not null && _cancellation is null) Choose(_chosenPath);
+    }
+
+    /// <summary>Offers the language a file is plainly written in, one click away.</summary>
+    private void OfferLanguage(CodeLanguage? detected)
+    {
+        if (detected is null || detected == _language)
+        {
+            UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        UseDetectedLanguageButton.Content = $"This looks like {detected.Name} - check only {detected.Name}";
+        UseDetectedLanguageButton.Tag = detected;
+        UseDetectedLanguageButton.Visibility = Visibility.Visible;
+    }
+
+    private void UseDetectedLanguageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (UseDetectedLanguageButton.Tag is not CodeLanguage detected) return;
+
+        foreach (var button in LanguagePanel.Children.OfType<RadioButton>())
+        {
+            if (button.Tag is CodeLanguage language && language == detected) button.IsChecked = true;
+        }
     }
 
     // ================================================================== running
@@ -174,19 +282,20 @@ public partial class MainWindow : Window
         if (confirmed != MessageBoxResult.OK) return;
 
         _output.Clear();
-        ResultText.Visibility = Visibility.Collapsed;
+        ResultBorder.Visibility = Visibility.Collapsed;
         SetBusy(true);
 
         _logger?.Dispose();
         _logger = new FixFinderLogger();
         LogPathText.Text = _logger.FilePath;
         _logger.WriteSection("Target");
+        _logger.Write($"language: {_language.Name}");
         if (_launch.Compile is { } logged) _logger.Write($"build: {logged.DisplayCommandLine}");
         _logger.Write(spec.DisplayCommandLine);
 
         _cancellation = new CancellationTokenSource();
 
-        var session = new FixFinderSession(_http, _sources);
+        var session = new FixFinderSession(_http, _sources) { Language = _language };
         session.Progress += OnProgress;
         session.Log += OnLog;
         session.LineCaptured += OnLineCaptured;
@@ -198,7 +307,7 @@ public partial class MainWindow : Window
                 Cache = OfflineCheckBox.IsChecked == true ? HttpCacheMode.CacheOnly : HttpCacheMode.Normal,
             };
 
-            var loop = new FixLoop(session) { Ask = AskAboutAsync };
+            var loop = new FixLoop(session, new FixStep(language: _language)) { Ask = AskAboutAsync };
             loop.Log += OnLog;
             loop.RoundStarting += OnRoundStarting;
 
@@ -333,11 +442,11 @@ public partial class MainWindow : Window
     private void ShowResult(string text, bool problem)
     {
         ResultText.Text = text;
-        ResultText.Foreground = problem
-            ? System.Windows.Media.Brushes.Firebrick
-            : System.Windows.Media.Brushes.Black;
+        ResultText.Foreground = (Brush)FindResource(problem ? "DangerBrush" : "TextBrush");
 
-        ResultText.Visibility = Visibility.Visible;
+        ResultBorder.Background = (Brush)FindResource(problem ? "DangerSoftBrush" : "SuccessSoftBrush");
+        ResultBorder.BorderBrush = (Brush)FindResource(problem ? "DangerBrush" : "CardBorderBrush");
+        ResultBorder.Visibility = Visibility.Visible;
     }
 
     private void SetBusy(bool busy)
@@ -349,6 +458,8 @@ public partial class MainWindow : Window
         ChooseFileButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
         OfflineCheckBox.IsEnabled = !busy;
+        LanguagePanel.IsEnabled = !busy;
+        UseDetectedLanguageButton.IsEnabled = !busy;
     }
 
     private void OnProgress(string message) => Dispatcher.BeginInvoke(() => StatusText.Text = message);

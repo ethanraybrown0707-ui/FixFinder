@@ -4,147 +4,250 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FixFinder" Height="600" Width="640" MinHeight="460" MinWidth="520"
+        Title="FixFinder" Height="760" Width="820" MinHeight="600" MinWidth="640"
         Icon="Assets/FixFinder.ico"
+        FontFamily="Segoe UI" FontSize="13"
+        Background="{StaticResource PageBrush}" Foreground="{StaticResource TextBrush}"
         AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
-        <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="Gray"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
         <Style x:Key="OutputItemContainerStyle" TargetType="ListBoxItem">
             <Setter Property="AutomationProperties.Name" Value="{Binding DisplayLine}"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Row" Background="Transparent" Padding="10,1">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{StaticResource ConsoleSelectedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="18">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- ================================ what it does ============================== -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,14">
-            <TextBlock Text="FixFinder" FontSize="22" FontWeight="SemiBold"/>
-            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" FontSize="12"
-                       Text="Pick a program. It gets run, and if it crashes FixFinder looks for a published fix and asks whether to apply it."/>
-        </StackPanel>
-
-        <!-- ================================ pick a file =============================== -->
-        <Border Grid.Row="1" x:Name="DropBorder"
-                AutomationProperties.AutomationId="DropBorder"
-                BorderBrush="#B9C6D4" BorderThickness="1.5" CornerRadius="4"
-                Background="#F7F9FC" Padding="16" Margin="0,0,0,14">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#EEF3F9"/>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-
-            <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="ChooseFileButton" AutomationProperties.AutomationId="ChooseFileButton"
-                            Content="Choose a program..." Padding="14,6" FontSize="13"
-                            Click="ChooseFileButton_Click"/>
-                    <TextBlock Text="or drag one onto this window"
-                               Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        <!-- ================================ header ==================================== -->
+        <Border Grid.Row="0" Background="{StaticResource HeaderBrush}" Padding="24,16">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BackupsButton" AutomationProperties.AutomationId="BackupsButton"
+                            Style="{StaticResource HeaderButton}"
+                            Content="Backups" Click="BackupsButton_Click"
+                            ToolTip="Opens the folder holding a copy of every file FixFinder has changed. Nothing in it is deleted automatically."/>
+                    <Button x:Name="SettingsButton" AutomationProperties.AutomationId="SettingsButton"
+                            Style="{StaticResource HeaderButton}"
+                            Content="Settings" Margin="8,0,0,0" Click="SettingsButton_Click"
+                            ToolTip="Optional API tokens, which raise the search limits, and where things are stored."/>
                 </StackPanel>
 
-                <TextBlock x:Name="ChosenFileText" AutomationProperties.AutomationId="ChosenFileText"
-                           Text="Nothing chosen yet." Margin="0,12,0,0"
-                           FontFamily="Consolas" TextWrapping="Wrap"/>
-
-                <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
-                           Style="{StaticResource Hint}" Margin="0,4,0,0"/>
-
-                <TextBlock Text="If it asks for input, type the answers here - one per line:"
-                           Style="{StaticResource Hint}" Margin="0,12,0,3"/>
-                <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
-                         AcceptsReturn="True" TextWrapping="NoWrap" Height="52"
-                         VerticalScrollBarVisibility="Auto" FontFamily="Consolas"/>
-            </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="Assets/FixFinder.ico" Width="36" Height="36" Margin="0,0,14,0"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="FixFinder" FontSize="21" FontWeight="SemiBold"
+                                   Foreground="{StaticResource HeaderTextBrush}"/>
+                        <TextBlock Text="Run a program, catch what goes wrong, and get a checked fix."
+                                   FontSize="12" Foreground="{StaticResource HeaderSubtleBrush}" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
-        <!-- ================================== go ====================================== -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-            <Button x:Name="FindFixButton" AutomationProperties.AutomationId="FindFixButton"
-                    Content="Run it and find a fix" Padding="18,8" FontSize="14"
-                    IsEnabled="False" Click="FindFixButton_Click"/>
-            <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"
-                    Content="Stop" Padding="14,8" Margin="10,0,0,0" IsEnabled="False"
-                    Click="StopButton_Click"/>
-        </StackPanel>
+        <!-- ================================ content =================================== -->
+        <Grid Grid.Row="1" Margin="24,20,24,6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <!-- ================================= status =================================== -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,10">
-            <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
-                       Text="Waiting for a program." FontStyle="Italic" TextWrapping="Wrap"/>
+            <!-- ============================ 1 language ============================ -->
+            <Border Grid.Row="0" Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <Border Style="{StaticResource StepBadge}">
+                            <TextBlock Text="1" Style="{StaticResource StepNumber}"/>
+                        </Border>
+                        <TextBlock Text="Language" Style="{StaticResource SectionTitle}"/>
+                    </StackPanel>
 
-            <ProgressBar x:Name="BusyBar" AutomationProperties.AutomationId="BusyBar"
-                         Height="3" Margin="0,8,0,0" IsIndeterminate="True" Visibility="Collapsed"/>
+                    <TextBlock x:Name="LanguageHintText" AutomationProperties.AutomationId="LanguageHintText"
+                               Style="{StaticResource Hint}" Margin="34,0,0,12"
+                               Text="Pick the language the program is written in, and only that language is checked."/>
 
-            <TextBlock x:Name="ResultText" AutomationProperties.AutomationId="ResultText"
-                       Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
-        </StackPanel>
+                    <WrapPanel x:Name="LanguagePanel" AutomationProperties.AutomationId="LanguagePanel"
+                               Margin="34,0,0,-8"/>
+                </StackPanel>
+            </Border>
 
-        <!-- ============================== what happened ================================ -->
-        <Expander Grid.Row="4" x:Name="DetailsExpander"
-                  AutomationProperties.AutomationId="DetailsExpander"
-                  Header="What the program printed" IsExpanded="False">
-            <ListBox x:Name="OutputListBox" AutomationProperties.AutomationId="OutputListBox"
-                     FontFamily="Consolas" FontSize="11" Margin="0,6,0,0"
-                     VirtualizingPanel.IsVirtualizing="True"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ItemContainerStyle="{StaticResource OutputItemContainerStyle}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding DisplayLine}" TextWrapping="NoWrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#202020"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsError}" Value="True">
-                                            <Setter Property="Foreground" Value="#C62828"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Expander>
+            <!-- ============================ 2 program ============================ -->
+            <Border Grid.Row="1" Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <Border Style="{StaticResource StepBadge}">
+                            <TextBlock Text="2" Style="{StaticResource StepNumber}"/>
+                        </Border>
+                        <TextBlock Text="Program" Style="{StaticResource SectionTitle}"/>
+                    </StackPanel>
 
-        <!-- ================================ the small print =========================== -->
-        <DockPanel Grid.Row="5" Margin="0,12,0,0">
-            <TextBlock DockPanel.Dock="Left" x:Name="LogPathText"
-                       AutomationProperties.AutomationId="LogPathText"
-                       Style="{StaticResource Hint}" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                    <Border x:Name="DropBorder" AutomationProperties.AutomationId="DropBorder"
+                            Background="Transparent" Margin="34,0,0,0">
+                        <Grid>
+                            <Rectangle RadiusX="8" RadiusY="8" StrokeThickness="1.5" StrokeDashArray="5 3"
+                                       SnapsToDevicePixels="True">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Stroke" Value="#B9C6D4"/>
+                                        <Setter Property="Fill" Value="#F8FAFD"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource AccentBrush}"/>
+                                                <Setter Property="Fill" Value="{StaticResource AccentSoftBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
 
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <CheckBox x:Name="OfflineCheckBox" AutomationProperties.AutomationId="OfflineCheckBox"
-                          Content="Offline" VerticalAlignment="Center" Margin="0,0,12,0"
+                            <StackPanel Margin="18,16">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="ChooseFileButton" AutomationProperties.AutomationId="ChooseFileButton"
+                                            Content="Choose a program…" Click="ChooseFileButton_Click"/>
+                                    <TextBlock Text="or drag one onto this window"
+                                               Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                </StackPanel>
+
+                                <TextBlock x:Name="ChosenFileText" AutomationProperties.AutomationId="ChosenFileText"
+                                           Text="Nothing chosen yet." Margin="0,14,0,0"
+                                           FontFamily="Cascadia Mono, Consolas" FontSize="14" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+
+                                <TextBlock x:Name="ChosenFolderText" AutomationProperties.AutomationId="ChosenFolderText"
+                                           Style="{StaticResource Hint}" Margin="0,2,0,0"
+                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+
+                                <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
+                                           Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+
+                                <Button x:Name="UseDetectedLanguageButton" AutomationProperties.AutomationId="UseDetectedLanguageButton"
+                                        Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
+                                        Margin="0,6,0,0" Visibility="Collapsed"
+                                        Click="UseDetectedLanguageButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="If it asks for input, type the answers here, one per line"
+                               Style="{StaticResource Hint}" Margin="34,14,0,6"/>
+                    <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
+                             Style="{StaticResource InputBox}" Margin="34,0,0,0"
+                             AcceptsReturn="True" TextWrapping="NoWrap" Height="58"
+                             VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ============================ 3 run ============================ -->
+            <Border Grid.Row="2" Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"
+                                    Content="Stop" IsEnabled="False" Click="StopButton_Click"/>
+                            <Button x:Name="FindFixButton" AutomationProperties.AutomationId="FindFixButton"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Content="Run it and find a fix" Padding="20,9" FontSize="14" Margin="10,0,0,0"
+                                    IsEnabled="False" Click="FindFixButton_Click"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadge}">
+                                <TextBlock Text="3" Style="{StaticResource StepNumber}"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Run" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock x:Name="StatusText" AutomationProperties.AutomationId="StatusText"
+                                           Text="Waiting for a program." TextWrapping="Wrap" Margin="0,2,0,0"
+                                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <ProgressBar x:Name="BusyBar" AutomationProperties.AutomationId="BusyBar"
+                                 Style="{StaticResource ThinProgress}"
+                                 Margin="0,14,0,0" IsIndeterminate="True" Visibility="Collapsed"/>
+
+                    <Border x:Name="ResultBorder" AutomationProperties.AutomationId="ResultBorder"
+                            CornerRadius="8" BorderThickness="1" Padding="14,10" Margin="0,14,0,0"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="ResultText" AutomationProperties.AutomationId="ResultText"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ============================ output ============================ -->
+            <Expander Grid.Row="3" x:Name="DetailsExpander"
+                      AutomationProperties.AutomationId="DetailsExpander"
+                      IsExpanded="False" Margin="0,0,0,8">
+                <Expander.Header>
+                    <TextBlock Text="What the program printed" FontWeight="SemiBold"
+                               Foreground="{StaticResource SecondaryTextBrush}"/>
+                </Expander.Header>
+
+                <Border Background="{StaticResource ConsoleBrush}" CornerRadius="8" Margin="0,8,0,0" Padding="0,8">
+                    <ListBox x:Name="OutputListBox" AutomationProperties.AutomationId="OutputListBox"
+                             Background="Transparent" BorderThickness="0"
+                             FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ItemContainerStyle="{StaticResource OutputItemContainerStyle}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayLine}" TextWrapping="NoWrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ConsoleTextBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource ConsoleErrorBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Expander>
+        </Grid>
+
+        <!-- ================================ footer ==================================== -->
+        <Border Grid.Row="2" Background="{StaticResource CardBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,10">
+            <DockPanel>
+                <CheckBox DockPanel.Dock="Right" x:Name="OfflineCheckBox" AutomationProperties.AutomationId="OfflineCheckBox"
+                          Content="Offline" VerticalAlignment="Center" Foreground="{StaticResource SecondaryTextBrush}"
                           ToolTip="Search only what is already stored on this machine, and make no network request at all."/>
-                <Button x:Name="BackupsButton" AutomationProperties.AutomationId="BackupsButton"
-                        Content="Backups" Padding="10,3" Click="BackupsButton_Click"
-                        ToolTip="Opens the folder holding a copy of every file FixFinder has changed. Nothing in it is deleted automatically."/>
-                <Button x:Name="SettingsButton" AutomationProperties.AutomationId="SettingsButton"
-                        Content="Settings" Padding="10,3" Margin="8,0,0,0" Click="SettingsButton_Click"
-                        ToolTip="Optional API tokens, which raise the search limits, and where things are stored."/>
-            </StackPanel>
-        </DockPanel>
+
+                <TextBlock x:Name="LogPathText" AutomationProperties.AutomationId="LogPathText"
+                           Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,16,0"
+                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>
