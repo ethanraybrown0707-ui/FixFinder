@@ -342,6 +342,18 @@ rule order: a quick check of a later rule's change waits for every earlier one t
 fix offered is the one the rules would pick one at a time. Checks still running when a fix is accepted
 are stopped, and the log says so.
 
+Three more things take waiting out without changing an answer. **MSVC's environment is set up once.**
+Calling `vcvarsall.bat` took about 1.4 of the 1.5 seconds each MSVC check spent; its variables are now
+captured the first time and cl.exe is run directly in them, and a test compiles the same broken file
+both ways and requires the same errors. If the environment cannot be read back cleanly, checks call the
+script as before. **A check is never compiled twice.** Two rules that arrive at the same edit share one
+compile, and a result is remembered for as long as FixFinder is open - keyed on the compiler, its
+arguments, the exact bytes, and for Java, C and C++ every file in the folder beside it, so an edited
+header is a new check. Only what the compiler said about the file itself is remembered; a link error,
+a failed package download or a silent exit is asked again next time. **A result's linked patches
+download together**, still spaced as GitHub's plain-download budget asks. GitHub's API calls stay one
+at a time, because GitHub asks clients not to make them concurrently.
+
 **gcc and clang already know many of the answers**, and print them for a person to read: `'bool' is
 defined in header '<stdbool.h>'`, `did you mean 'weight'?`. FixFinder builds with
 `-fdiagnostics-parseable-fixits`, which prints the same answers again as exact edits - a file, a byte

@@ -99,31 +99,55 @@ public class LocalFixOrderTests : IDisposable
         Assert.DoesNotContain("four", compiler.Started);
     }
 
+    [Fact]
+    public async Task TwoRulesMakingTheSameChangeShareOneCompile()
+    {
+        var log = new List<string>();
+        var compiler = new Compiler(new() { ["same"] = (Delay: 50, Passes: false) });
+        var file = await WriteApp();
+
+        var found = await LocalFixEngine.FindAsync(
+            Context(file),
+            [new ReplaceFirstLine("first", file, "same"), new ReplaceFirstLine("second", file, "same")],
+            compiler.CheckAsync, 4, log.Add, CancellationToken.None);
+
+        Assert.Null(found);
+        Assert.Single(compiler.Started);
+        Assert.Contains(log, line => line.StartsWith("second: proposes", StringComparison.Ordinal) && line.Contains("that check is used", StringComparison.Ordinal));
+        Assert.Contains("second: refused - the copy no longer compiles: invalid syntax", log);
+    }
+
     private Task<LocalFixFound?> Find(Compiler compiler, int checksAtOnce, params string[] rules) =>
         Find(compiler, checksAtOnce, null, rules);
 
-    private async Task<LocalFixFound?> Find(Compiler compiler, int checksAtOnce, List<string>? log, params string[] rules)
+    private async Task<string> WriteApp()
     {
         var file = Path.Combine(_temp.Path, "app.py");
         await File.WriteAllTextAsync(file, "x = 1\nprint(x)\n");
+        return file;
+    }
 
-        var context = new LocalFixContext
+    private LocalFixContext Context(string file) => new()
+    {
+        Error = new ParsedError
         {
-            Error = new ParsedError
-            {
-                LanguageId = "python",
-                Confidence = 90,
-                RawText = "NameError: name 'y' is not defined",
-                FirstLineSequence = 0,
-                ExceptionType = "NameError",
-                Message = "name 'y' is not defined",
-                Frames = [new ErrorFrame { Order = 0, File = file, Line = 2, RawLine = "" }],
-            },
-            SourceRoot = _temp.Path,
-        };
+            LanguageId = "python",
+            Confidence = 90,
+            RawText = "NameError: name 'y' is not defined",
+            FirstLineSequence = 0,
+            ExceptionType = "NameError",
+            Message = "name 'y' is not defined",
+            Frames = [new ErrorFrame { Order = 0, File = file, Line = 2, RawLine = "" }],
+        },
+        SourceRoot = _temp.Path,
+    };
+
+    private async Task<LocalFixFound?> Find(Compiler compiler, int checksAtOnce, List<string>? log, params string[] rules)
+    {
+        var file = await WriteApp();
 
         return await LocalFixEngine.FindAsync(
-            context,
+            Context(file),
             rules.Select(id => (ILocalFixRule)new ReplaceFirstLine(id, file)).ToList(),
             compiler.CheckAsync,
             checksAtOnce,
@@ -131,13 +155,13 @@ public class LocalFixOrderTests : IDisposable
             CancellationToken.None);
     }
 
-    /// <summary>A rule whose change says which rule made it, so the check can tell them apart.</summary>
-    private sealed class ReplaceFirstLine(string id, string file) : ILocalFixRule
+    /// <summary>A rule whose change says which case it is, so the check can tell them apart.</summary>
+    private sealed class ReplaceFirstLine(string id, string file, string? value = null) : ILocalFixRule
     {
         public string Id => id;
 
         public LocalFix? Propose(LocalFixContext context) =>
-            LocalFix.ReplaceLine(id, $"Use {id}", $"Because {id}.", file, 1, $"x = '{id}'");
+            LocalFix.ReplaceLine(id, $"Use {id}", $"Because {id}.", file, 1, $"x = '{value ?? id}'");
     }
 
     /// <summary>Stands in for the compiler: waits, then passes or fails, as each rule's case says.</summary>

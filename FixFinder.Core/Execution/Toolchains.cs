@@ -97,6 +97,104 @@ public static class Toolchains
         return null;
     }
 
+    private static readonly Lazy<IReadOnlyDictionary<string, string>?> MsvcSetUp = new(CaptureMsvcEnvironment);
+
+    /// <summary>
+    /// The environment <c>vcvarsall.bat x64</c> sets up, captured once, or null when it could not be.
+    /// </summary>
+    /// <remarks>
+    /// Running the script is nearly all the cost of using MSVC: about a second and a half, against a
+    /// tenth of a second for cl.exe to compile a small file. It sets the same variables every time it
+    /// runs, so checking one proposed fix after another was paying for the same answer again and
+    /// again. Null sends the caller back to calling the script itself, so an environment that could
+    /// not be read costs time and never a compile.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string>? MsvcEnvironment() => MsvcSetUp.Value;
+
+    /// <summary>cl.exe on the PATH an MSVC environment sets up, or null.</summary>
+    public static string? ClIn(IReadOnlyDictionary<string, string> environment)
+    {
+        if (!environment.TryGetValue("PATH", out var path)) return null;
+
+        foreach (var folder in path.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            try
+            {
+                var cl = Path.Combine(folder, "cl.exe");
+                if (File.Exists(cl)) return cl;
+            }
+            catch (ArgumentException)
+            {
+                // Not a path at all. PATH holds whatever anyone ever put in it.
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The variables in the output of <c>set</c>, or null when it is not an MSVC environment.</summary>
+    internal static IReadOnlyDictionary<string, string>? ReadEnvironment(string output)
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            // cmd keeps per-drive working folders as variables named like "=C:"; they are not settable.
+            var equals = line.IndexOf('=');
+            if (equals <= 0) continue;
+
+            variables[line[..equals]] = line[(equals + 1)..];
+        }
+
+        return variables.ContainsKey("INCLUDE") && variables.ContainsKey("LIB") ? variables : null;
+    }
+
+    private static IReadOnlyDictionary<string, string>? CaptureMsvcEnvironment()
+    {
+        if (FindMsvc() is not { SetupScript: { } script }) return null;
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/s /c \"\"{script}\" x64 >nul && set\"")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process is null) return null;
+
+            var output = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(TimeSpan.FromMinutes(2)) || !output.Wait(TimeSpan.FromSeconds(10)))
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { }
+
+                return null;
+            }
+
+            if (process.ExitCode != 0 || ReadEnvironment(output.Result) is not { } environment) return null;
+
+            // Only trusted if it reads back as real folders. `set` prints in the console's code page, and
+            // a folder name that did not survive that would be an environment cl.exe cannot work in.
+            if (ClIn(environment) is null) return null;
+
+            var include = environment["INCLUDE"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            return include.All(Directory.Exists) && !environment.Values.Any(v => v.Contains('�'))
+                ? environment
+                : null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            return null;
+        }
+    }
+
     private static readonly AsyncLocal<bool> GnuHidden = new();
 
     /// <summary>

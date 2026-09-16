@@ -79,7 +79,8 @@ public sealed class PlaybackHttpMessageHandler : HttpMessageHandler
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var canonical = HttpCache.Canonicalize(request.RequestUri!);
-        Requested.Add(canonical);
+        // Locked because a candidate's patches are fetched at the same time.
+        lock (Requested) Requested.Add(canonical);
 
         if (!_byUrl.TryGetValue(canonical, out var found))
         {

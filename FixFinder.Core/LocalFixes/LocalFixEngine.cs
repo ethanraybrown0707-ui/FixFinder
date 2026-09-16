@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using FixFinder.Core.Execution;
@@ -396,6 +397,12 @@ public static partial class LocalFixEngine
 
         // Everything proposed and not yet judged, in rule order.
         var waiting = new Queue<(Proposal Proposal, Task<CheckResult> Check)>();
+
+        // Every check started, by the file and exactly what it would contain, so two rules that arrive
+        // at the same edit share one compile. What is shared is what the compiler said; each rule's
+        // change is still judged on its own.
+        var started = new Dictionary<string, Task<CheckResult>>(StringComparer.Ordinal);
+
         var next = 0;
         LocalFixFound? found = null;
 
@@ -409,10 +416,22 @@ public static partial class LocalFixEngine
 
                     if (Propose(context, rules[next++], log) is not { } proposal) continue;
 
+                    var content = $"{proposal.Source.Path}\n{Convert.ToHexString(SHA256.HashData(proposal.Source.Render(proposal.Lines)))}";
+
+                    if (started.TryGetValue(content, out var same))
+                    {
+                        log?.Invoke($"{proposal.Rule.Id}: proposes \"{proposal.Fix.Title}\" - the same file an earlier rule's change makes, so that check is used");
+                        waiting.Enqueue((proposal, same));
+                        continue;
+                    }
+
                     log?.Invoke($"{proposal.Rule.Id}: proposes \"{proposal.Fix.Title}\" - compiling a copy to check it");
 
                     // On the thread pool, so a compiler that is slow to start holds up nothing else.
-                    waiting.Enqueue((proposal, Task.Run(() => check(proposal.Source, proposal.Lines, stop.Token), CancellationToken.None)));
+                    var compile = Task.Run(() => check(proposal.Source, proposal.Lines, stop.Token), CancellationToken.None);
+
+                    started[content] = compile;
+                    waiting.Enqueue((proposal, compile));
                 }
 
                 if (!waiting.TryDequeue(out var earliest)) return null;

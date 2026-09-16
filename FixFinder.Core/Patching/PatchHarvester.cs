@@ -99,12 +99,28 @@ public sealed class PatchHarvester(FixFinderHttpClient http)
         var fetched = new List<FetchedPatch>();
         var requests = 0;
 
-        foreach (var url in candidate.LinkedPatchUrls.Take(MaximumFetches))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await FetchAsync(url, cacheMode, cancellationToken);
-            if (!result.FromCache) requests++;
+        // Started together rather than one after another. Each is a plain download that spends no API
+        // allowance, the client still spaces their starts as the github-raw budget asks, and all of
+        // them were always fetched anyway - only the waiting between them is gone. A link listed
+        // twice is fetched once.
+        var urls = candidate.LinkedPatchUrls.Take(MaximumFetches).ToList();
+        var fetches = new Dictionary<string, Task<FetchedPatch>>(StringComparer.Ordinal);
+
+        foreach (var url in urls)
+        {
+            if (!fetches.ContainsKey(url)) fetches[url] = FetchAsync(url, cacheMode, cancellationToken);
+        }
+
+        await Task.WhenAll(fetches.Values);
+
+        var counted = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var url in urls)
+        {
+            var result = await fetches[url];
+            if (!result.FromCache && counted.Add(url)) requests++;
 
             fetched.Add(result);
             Log?.Invoke($"{candidate.Id}: {result.Summary}");

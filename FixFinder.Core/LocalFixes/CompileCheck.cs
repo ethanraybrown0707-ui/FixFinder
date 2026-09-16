@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
@@ -71,10 +73,15 @@ public static class CompileCheck
         {
             Directory.CreateDirectory(folder);
 
+            var bytes = source.Render(lines);
             var copy = Path.Combine(folder, Path.GetFileName(source.Path));
-            await File.WriteAllBytesAsync(copy, source.Render(lines), cancellationToken);
+            await File.WriteAllBytesAsync(copy, bytes, cancellationToken);
 
             if (SpecFor(copy, source.Path, folder, pythonInterpreter) is not { } spec) return CheckResult.NotRun;
+
+            var key = KeyFor(spec, folder, source.Path, bytes);
+
+            if (key is not null && Remembered.TryGetValue(key, out var known)) return known;
 
             var registry = new ParserRegistry();
             var run = await new TargetRunner(registry).RunAsync(spec, cancellationToken);
@@ -82,7 +89,15 @@ public static class CompileCheck
             if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled)
                 return CheckResult.NotRun;
 
-            return new CheckResult(true, run.ExitCode, run.Lines, ErrorsIn(registry, run.Lines));
+            var result = new CheckResult(true, run.ExitCode, run.Lines, ErrorsIn(registry, run.Lines));
+
+            if (key is not null && WorthRemembering(result, copy))
+            {
+                if (Remembered.Count >= MostRemembered) Remembered.Clear();
+                Remembered[key] = result;
+            }
+
+            return result;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -100,6 +115,113 @@ public static class CompileCheck
                 // FixFinder's own data, so leaving it behind costs disk and nothing else.
             }
         }
+    }
+
+    /// <summary>Checks already compiled, by everything that decided how they came out.</summary>
+    /// <remarks>
+    /// The same change to the same file comes up again more often than it sounds: two rules that
+    /// arrive at the same edit, the next error in a run that one fix would also have cured, a
+    /// warning checked after its error, or the same program run twice. A compiler given the same
+    /// input answers the same way, so the answer is kept rather than asked for again.
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, CheckResult> Remembered = new(StringComparer.Ordinal);
+
+    /// <summary>Enough for every proposal in a long session; past it, the lot is forgotten and relearned.</summary>
+    private const int MostRemembered = 256;
+
+    /// <summary>More files than this next to the one being checked, and nothing is remembered for it.</summary>
+    private const int MostNeighbours = 2000;
+
+    /// <summary>
+    /// Everything a check's outcome depends on, as one hash, or null when that cannot be pinned down.
+    /// </summary>
+    /// <remarks>
+    /// The compiler and its arguments, the file it was given, the byte-for-byte content, and - for
+    /// Java, C and C++, which read the files beside it through the source or include path - the name,
+    /// size and last change of every file in that folder. A header edited between two checks is a
+    /// different check. A C# file with <c>#:</c> directives can name packages and projects anywhere,
+    /// so it is never remembered at all.
+    /// </remarks>
+    internal static string? KeyFor(TargetSpec spec, string folder, string original, byte[] content)
+    {
+        var extension = Path.GetExtension(original).ToLowerInvariant();
+        var directives = Encoding.UTF8.GetString(content).Split('\n')
+            .Select(line => line.TrimStart())
+            .Where(line => line.StartsWith('#'))
+            .ToList();
+
+        if (extension == ".cs" && directives.Any(line => line.StartsWith("#:", StringComparison.Ordinal)))
+            return null;
+
+        var key = new StringBuilder()
+            .Append(spec.ExecutablePath).Append('\n')
+            .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
+            .Append(spec.LaunchViaDotnet).Append('\n')
+            .Append(original).Append('\n')
+            .Append(Convert.ToHexString(SHA256.HashData(content))).Append('\n');
+
+        foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            key.Append(name).Append('=').Append(value).Append('\n');
+
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++")
+        {
+            // `#include "../shared.h"` reaches out of the folder through the include path, to files
+            // the listing below does not cover.
+            if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
+                return null;
+
+            if (Neighbours(Path.GetDirectoryName(original)!) is not { } listing) return null;
+            key.Append(listing);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key.ToString())));
+    }
+
+    /// <summary>Every file under a folder, with its size and last change, or null when there are too many to list.</summary>
+    private static string? Neighbours(string folder)
+    {
+        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 };
+        var listing = new StringBuilder();
+        var count = 0;
+
+        try
+        {
+            foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", options))
+            {
+                if (++count > MostNeighbours) return null;
+
+                listing.Append(file.FullName).Append('|').Append(file.Length).Append('|').Append(file.LastWriteTimeUtc.Ticks).Append('\n');
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return null;
+        }
+
+        return listing.ToString();
+    }
+
+    /// <summary>
+    /// Whether a check's answer came from the compiler reading the file, and not from something
+    /// around it that could be different next time.
+    /// </summary>
+    /// <remarks>
+    /// A clean compile is always the file's own doing, and so is an error the compiler placed inside
+    /// the file. Anything else - a linker complaint, a package that failed to download, a compiler that
+    /// exited without a word - might not happen again, and remembering it would refuse a good fix for
+    /// as long as FixFinder stays open.
+    /// </remarks>
+    internal static bool WorthRemembering(CheckResult result, string copy)
+    {
+        if (!result.Ran) return false;
+        if (result.Clean) return true;
+        if (result.Errors.Count == 0) return false;
+
+        var name = Path.GetFileName(copy);
+
+        return result.Errors.All(error =>
+            (error.CulpritFrame ?? error.Frames.FirstOrDefault())?.File is { } file &&
+            Path.GetFileName(file).Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Every error in some compiler output: the first, then the rest.</summary>
@@ -169,7 +291,8 @@ public static class CompileCheck
     /// It has to be the same one. A fix that satisfies gcc and not cl, or the reverse, would be
     /// verified against a build the user never runs.
     /// </remarks>
-    private static TargetSpec? Native(string copy, string originalFolder, string folder)
+    /// <param name="reuseMsvcEnvironment">False calls vcvarsall for this check alone, as every check once did; a test compares the two.</param>
+    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true)
     {
         var cpp = !Path.GetExtension(copy).Equals(".c", StringComparison.OrdinalIgnoreCase);
         var exe = Path.Combine(folder, "check.exe");
@@ -183,6 +306,23 @@ public static class CompileCheck
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;
 
         var flags = cpp ? "/nologo /W3 /EHsc /std:c++17" : "/nologo /W3";
+        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"";
+
+        // The same cl.exe with the same arguments in the same folder, in the environment the script
+        // sets up - captured once rather than rebuilt for every check, which took ten times longer
+        // than the compile. When it could not be captured, the script is called here as it always was.
+        if (reuseMsvcEnvironment && Toolchains.MsvcEnvironment() is { } environment && Toolchains.ClIn(environment) is { } cl)
+        {
+            return new TargetSpec
+            {
+                ExecutablePath = cl,
+                Arguments = compile,
+                WorkingDirectory = folder,
+                Timeout = Timeout,
+                ExtraEnvironment = environment,
+            };
+        }
+
         var batch = Path.Combine(folder, "check.cmd");
 
         File.WriteAllText(batch, string.Join("\r\n",
@@ -191,7 +331,7 @@ public static class CompileCheck
             $"call \"{vcvarsall}\" x64 >nul",
             "if errorlevel 1 (echo FixFinder: could not set up the MSVC environment & exit /b 1)",
             $"cd /d \"{folder}\"",
-            $"cl {flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"",
+            $"cl {compile}",
             "exit /b %errorlevel%",
             "",
         ]), new UTF8Encoding(false));
