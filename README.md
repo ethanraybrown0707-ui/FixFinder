@@ -376,8 +376,10 @@ second to start on Windows before doing anything; `go build -n` prints its plan 
 configuration, the exact `compile` and `link` commands - which depends only on the file's name, package
 and imports, so it is asked for once per combination and the two tools are then run directly, with go
 build's own rewriting of their output (`# command-line-arguments`, the folder shortened to `.`) done the
-same way. Files with build constraints, cgo, `//go:embed` or `//go:debug`, and plans whose cached packages
-or tools have changed, go back to `go build`. Both, like C#, compare against the usual way before they are
+same way. Files with build constraints, cgo, `//go:embed` or `//go:debug`, plans whose cached packages
+or tools have changed, and plans that import a package not built yet - which is every plan on a machine
+whose build cache is empty, as CI's is - go back to `go build`; a plan refused for that reason is asked for
+again on the next check, after go build has built what was missing. Both, like C#, compare against the usual way before they are
 trusted. For every route, output containing anything outside ASCII is always checked the usual way, so a
 difference in character sets can never change an answer.
 

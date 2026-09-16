@@ -186,10 +186,26 @@ internal static partial class GoDirectBuild
     /// from the file's bytes rather than its path, because the check that asked may be finished and its
     /// folder gone before the plan is.
     /// </remarks>
-    internal static Task<Plan?> PlanFor(string go, string key, string fileName, byte[] content) =>
-        Plans.GetOrAdd($"{go}\n{key}", _ => new Lazy<Task<Plan?>>(() => Task.Run(() => CaptureAsync(go, fileName, content)))).Value;
+    internal static Task<Plan?> PlanFor(string go, string key, string fileName, byte[] content)
+    {
+        var id = $"{go}\n{key}";
+        Lazy<Task<Plan?>>? made = null;
 
-    private static async Task<Plan?> CaptureAsync(string go, string fileName, byte[] content)
+        made = new Lazy<Task<Plan?>>(() => Task.Run(async () =>
+        {
+            var (plan, final) = await CaptureAsync(go, fileName, content);
+
+            // Not final - a package not built yet, a timeout - and the next check that matches asks again. By
+            // then the go build that answered this one will usually have built what was missing.
+            if (!final) Plans.TryRemove(new KeyValuePair<string, Lazy<Task<Plan?>>>(id, made!));
+
+            return plan;
+        }));
+
+        return Plans.GetOrAdd(id, made).Value;
+    }
+
+    private static async Task<(Plan? Plan, bool Final)> CaptureAsync(string go, string fileName, byte[] content)
     {
         var probeFolder = Path.Combine(CompileCheck.Root, "go-" + Guid.NewGuid().ToString("N")[..12]);
 
@@ -210,14 +226,18 @@ internal static partial class GoDirectBuild
 
             var run = await new TargetRunner(new ParserRegistry()).RunAsync(spec, CancellationToken.None);
 
-            if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled || run.ExitCode != 0)
-                return null;
+            if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled) return (null, false);
 
-            return Read(run.Lines.OrderBy(l => l.Sequence).Select(l => l.Text).ToList(), probe);
+            // go build itself refused - an import that does not exist, say. Asking again would refuse again.
+            if (run.ExitCode != 0) return (null, true);
+
+            var plan = Read(run.Lines.OrderBy(l => l.Sequence).Select(l => l.Text).ToList(), probe, out var unbuilt);
+
+            return (plan, !unbuilt);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return null;
+            return (null, false);
         }
         finally
         {
@@ -238,8 +258,16 @@ internal static partial class GoDirectBuild
     /// Only the file's own package is kept - the plan also lists every standard package it depends on, which
     /// the build cache already holds. Refusing is always safe; it only means go build.
     /// </remarks>
-    internal static Plan? Read(IReadOnlyList<string> lines, string probe)
+    internal static Plan? Read(IReadOnlyList<string> lines, string probe) => Read(lines, probe, out _);
+
+    /// <param name="unbuilt">
+    /// True when the plan was refused because a package it imports has not been built yet. go build would
+    /// build it first, in the same work folder; a plan run on its own has nothing there to import.
+    /// </param>
+    internal static Plan? Read(IReadOnlyList<string> lines, string probe, out bool unbuilt)
     {
+        unbuilt = false;
+
         var probeFolder = Path.GetDirectoryName(probe)!;
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
         var commands = new List<Command>();
@@ -316,8 +344,22 @@ internal static partial class GoDirectBuild
             {
                 if (!entry.StartsWith("packagefile ", StringComparison.Ordinal)) continue;
 
-                var path = entry[(entry.IndexOf('=') + 1)..];
-                if (path.StartsWith("$WORK", StringComparison.Ordinal)) continue;
+                var equals = entry.IndexOf('=');
+                if (equals < 0) return null;
+
+                var package = entry["packagefile ".Length..equals];
+                var path = entry[(equals + 1)..];
+
+                // Only this file's own compiled package may come from the work folder. Anything else there is
+                // a package go build would have to build first - found on a machine whose build cache is empty.
+                if (path.StartsWith("$WORK", StringComparison.Ordinal))
+                {
+                    if (package == Description) continue;
+
+                    unbuilt = true;
+                    return null;
+                }
+
                 if (!File.Exists(path)) return null;
 
                 cached.Add(path);

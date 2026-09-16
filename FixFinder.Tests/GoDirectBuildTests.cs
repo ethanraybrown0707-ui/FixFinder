@@ -138,6 +138,18 @@ public class GoDirectBuildTests : IDisposable
         }
     }
 
+    [Fact]
+    public void APlanThatImportsAPackageNotBuiltYetIsNotUsed()
+    {
+        // What go build -n prints on a machine whose build cache is empty: fmt is to be built first, in the
+        // same work folder, and a plan run on its own would find nothing there to import.
+        var probe = Path.Combine(_temp.Path, "probe2", "app.go");
+        var printed = Printed(probe, "$WORK\\b002\\_pkg_.a");
+
+        Assert.Null(GoDirectBuild.Read(printed, probe, out var unbuilt));
+        Assert.True(unbuilt);
+    }
+
     // ------------------------------------------------------------------ the same answer as go build
 
     public static TheoryData<string, string, string> Programs => new()
@@ -160,9 +172,8 @@ public class GoDirectBuildTests : IDisposable
         var key = GoDirectBuild.KeyFor("app.go", program);
         Assert.NotNull(key);
 
-        var plan = await GoDirectBuild.PlanFor(go, key, "app.go", content);
-        Assert.NotNull(plan);
-
+        // go build first, as a check does: on a machine whose build cache starts empty - CI's - it is what
+        // builds the standard packages the plan then names.
         var usualFolder = Path.Combine(_temp.Path, name + "-build");
         Directory.CreateDirectory(usualFolder);
         var usualCopy = Path.Combine(usualFolder, "app.go");
@@ -178,6 +189,9 @@ public class GoDirectBuildTests : IDisposable
         }, CancellationToken.None);
 
         var usual = new CheckResult(true, run.ExitCode, run.Lines, CompileCheck.ErrorsIn(registry, run.Lines));
+
+        var plan = await GoDirectBuild.PlanFor(go, key, "app.go", content);
+        Assert.NotNull(plan);
 
         var directFolder = Path.Combine(_temp.Path, name + "-direct");
         Directory.CreateDirectory(directFolder);
