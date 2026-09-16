@@ -83,10 +83,15 @@ public static class CompileCheck
 
             if (key is not null && Remembered.TryGetValue(key, out var known)) return known;
 
-            var result = Path.GetExtension(copy).Equals(".cs", StringComparison.OrdinalIgnoreCase) &&
-                         !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes))
-                ? await CompileCSharpAsync(spec, copy, folder, cancellationToken)
-                : await CompileAsync(spec, direct: false, cancellationToken);
+            var result = Path.GetExtension(copy).ToLowerInvariant() switch
+            {
+                ".cs" when !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes)) =>
+                    await CompileCSharpAsync(spec, copy, folder, cancellationToken),
+                ".java" => await CompileJavaAsync(spec, copy, source.Path, folder, cancellationToken),
+                ".go" when GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
+                    await CompileGoAsync(spec, copy, folder, plan, bytes, cancellationToken),
+                _ => await CompileAsync(spec, direct: false, cancellationToken),
+            };
 
             if (!result.Ran) return result;
 
@@ -133,72 +138,108 @@ public static class CompileCheck
     /// A C# check: the SDK's compiler run directly once it has agreed with <c>dotnet build</c> on this
     /// machine, and <c>dotnet build</c> until then - with the direct compile run beside it and compared.
     /// </summary>
-    /// <remarks>
-    /// While it is being compared, the answer is always <c>dotnet build</c>'s. The direct compile runs
-    /// in a folder of its own, so neither compile can see the other's files.
-    /// </remarks>
     private static async Task<CheckResult> CompileCSharpAsync(
         TargetSpec build, string copy, string folder, CancellationToken cancellationToken)
     {
-        var captured = CSharpDirectCompile.TemplateFor(Path.GetFileName(copy), build.ExecutablePath);
+        var name = Path.GetFileName(copy);
+        var captured = CSharpDirectCompile.TemplateFor(name, build.ExecutablePath);
 
-        if (captured.IsCompletedSuccessfully)
-        {
-            if (captured.Result is null or { Refused: true }) return await CompileAsync(build, direct: false, cancellationToken);
+        // Nothing to compare with: the SDK's compile could not be captured for files of this name.
+        if (captured.IsCompletedSuccessfully && captured.Result is null) return await CompileAsync(build, direct: false, cancellationToken);
 
-            if (captured.Result.Trusted)
+        return await FasterCheck.RunAsync(
+            "csc",
+            CSharpDirectCompile.TrustFor(name),
+            token => CompileAsync(build, direct: false, token),
+            async (target, targetFolder, token) =>
+                await captured.WaitAsync(token) is { } template
+                    ? await CompileAsync(CSharpDirectCompile.SpecFor(template, target, targetFolder, Timeout), direct: true, token)
+                    : null,
+            copy, folder, everyLine: false, cancellationToken);
+    }
+
+    /// <summary>
+    /// A Java check: javac kept running between checks once it has agreed with javac started afresh, and
+    /// javac started afresh until then - with the running one asked the same thing and compared.
+    /// </summary>
+    private static async Task<CheckResult> CompileJavaAsync(
+        TargetSpec javac, string copy, string original, string folder, CancellationToken cancellationToken)
+    {
+        if (JavaCompileServer.For(javac.ExecutablePath) is not { } server) return await CompileAsync(javac, direct: false, cancellationToken);
+
+        return await FasterCheck.RunAsync(
+            "javac",
+            server.Trust,
+            token => CompileAsync(javac, direct: false, token),
+            async (target, targetFolder, token) =>
             {
-                return await CompileAsync(
-                    CSharpDirectCompile.SpecFor(captured.Result, copy, folder, Timeout), direct: true, cancellationToken);
-            }
-        }
+                if (await server.CompileAsync(JavacArguments(target, Path.GetDirectoryName(original)!, targetFolder), Timeout, token) is not { } reply)
+                    return null;
 
-        var fromBuild = CompileAsync(build, direct: false, cancellationToken);
-        var template = await captured.WaitAsync(cancellationToken);
+                // Read back exactly as a javac process's output is: its error stream, decoded and split into lines the same way.
+                var lines = JavaCompileServer.Lines(reply.Output, javac.OutputEncoding);
 
-        if (template is null || template.Refused) return await fromBuild;
+                return new CheckResult(true, reply.ExitCode, lines, ErrorsIn(new ParserRegistry(), lines));
+            },
+            copy, folder, everyLine: true, cancellationToken);
+    }
 
-        var directFolder = Path.Combine(Root, Guid.NewGuid().ToString("N")[..12]);
+    /// <summary>Starts, in the background, what the first check of a file like this one would otherwise wait for.</summary>
+    /// <remarks>
+    /// Only Go's plan is worth starting early. It is asked for once for each combination of file name and
+    /// imports - nearly every program is a new combination - and most proposed changes leave the imports as
+    /// they are, so the plan for the file as it stands is the plan its checks will use. C#'s compile is
+    /// captured once per file name and javac is started once per JDK, and the first checks of both are
+    /// compared against the usual way regardless, so starting either early would save nothing.
+    /// </remarks>
+    public static void Prepare(SourceFile source)
+    {
+        if (!Path.GetExtension(source.Path).Equals(".go", StringComparison.OrdinalIgnoreCase)) return;
 
         try
         {
-            Directory.CreateDirectory(directFolder);
+            var content = source.Render(source.Lines);
+            var name = Path.GetFileName(source.Path);
 
-            var directCopy = Path.Combine(directFolder, Path.GetFileName(copy));
-            File.Copy(copy, directCopy);
-
-            var fromCompiler = await CompileAsync(
-                CSharpDirectCompile.SpecFor(template, directCopy, directFolder, Timeout), direct: true, cancellationToken);
-            var answer = await fromBuild;
-
-            // Only two compiles that both ran are a comparison. A timeout or a cancellation proves nothing either way.
-            if (answer.Ran && fromCompiler.Ran)
-            {
-                var agreed = CSharpDirectCompile.Agree(answer, folder, fromCompiler, directFolder, out var difference);
-                template.Record(agreed);
-                CSharpDirectCompile.Compared();
-
-                if (!agreed) CSharpDirectCompile.Disagreements.Enqueue($"{Path.GetFileName(copy)}: {difference}");
-            }
-
-            return answer;
+            if (TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
+                _ = GoDirectBuild.PlanFor(go, key, name, content);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // The comparison could not be set up; dotnet build's answer stands on its own.
-            return await fromBuild;
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(directFolder)) Directory.Delete(directFolder, recursive: true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-            }
+            // Only ever a head start; the check itself asks again.
         }
     }
+
+    /// <summary>
+    /// A Go check: the compiler and linker go build would run, run directly once that has agreed with go build
+    /// on this machine, and go build until then - with the direct build run beside it and compared.
+    /// </summary>
+    private static async Task<CheckResult> CompileGoAsync(
+        TargetSpec build, string copy, string folder, string key, byte[] content, CancellationToken cancellationToken)
+    {
+        var go = build.ExecutablePath;
+        var trust = GoDirectBuild.TrustFor(go);
+        var planned = GoDirectBuild.PlanFor(go, key, Path.GetFileName(copy), content);
+
+        // Nothing to compare with: go build would not say how it builds files like this one.
+        if (planned.IsCompletedSuccessfully && planned.Result is null) return await CompileAsync(build, direct: false, cancellationToken);
+
+        return await FasterCheck.RunAsync(
+            "go",
+            trust,
+            token => CompileAsync(build, direct: false, token),
+            // A plan still being made is waited for: making one is go build's own start-up and no more, so
+            // waiting for it and then compiling is never slower than go build would have been.
+            async (target, targetFolder, token) =>
+                await planned.WaitAsync(token) is { } plan
+                    ? await GoDirectBuild.RunAsync(plan, target, targetFolder, Timeout, token)
+                    : null,
+            copy, folder, everyLine: true, cancellationToken);
+    }
+
+    /// <summary>What javac is given for a check, one argument at a time.</summary>
+    internal static IReadOnlyList<string> JavacArguments(string copy, string originalFolder, string folder) =>
+        ["-proc:none", "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", originalFolder, copy];
 
     /// <summary>Checks already compiled, by everything that decided how they came out.</summary>
     /// <remarks>
@@ -338,8 +379,7 @@ public static class CompileCheck
 
                 return Spec(
                     javac.Program,
-                    $"-proc:none -Xmaxerrs 500 -d \"{Path.Combine(folder, "out")}\" " +
-                    $"-sourcepath \"{originalFolder}\" \"{copy}\"",
+                    string.Join(" ", JavacArguments(copy, originalFolder, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":

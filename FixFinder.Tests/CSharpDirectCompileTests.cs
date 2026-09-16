@@ -182,7 +182,7 @@ public class CSharpDirectCompileTests : IDisposable
 
         Assert.True(build.Result.Ran);
         Assert.True(
-            CSharpDirectCompile.Agree(build.Result, build.Folder, direct.Result, direct.Folder, out var difference),
+            FasterCheck.Agree(build.Result, build.Folder, direct.Result, direct.Folder, everyLine: false, out var difference),
             difference);
 
         // And the case exercised what it is named for, rather than agreeing about nothing.

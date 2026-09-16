@@ -23,31 +23,20 @@ namespace FixFinder.Core.LocalFixes;
 /// the file and its folder.
 /// </para>
 /// <para>
-/// <b>And it is not trusted until it has agreed.</b> The first checks of each file name compile both
-/// ways and compare the results - exit code, every error, every diagnostic line. One disagreement and
-/// that name goes back to <c>dotnet build</c> for as long as FixFinder is open. A file with <c>#:</c>
-/// directives, which can pull in packages and other projects, always uses <c>dotnet build</c>.
+/// <b>And it is not trusted until it has agreed.</b> Like every quicker check, it earns its place through
+/// <see cref="FasterCheck"/>: the first checks of each file name compile both ways and compare exit code,
+/// every error and every diagnostic line. A file with <c>#:</c> directives, which can pull in packages and
+/// other projects, always uses <c>dotnet build</c>.
 /// </para>
 /// </remarks>
 internal static partial class CSharpDirectCompile
 {
-    /// <summary>How many checks of each file name compile both ways before the direct one is trusted alone.</summary>
-    internal const int ChecksCompared = 2;
-
-    /// <summary>For measuring: every check compiles both ways, and any disagreement is recorded.</summary>
-    internal static bool CompareEveryCheck { get; set; }
-
-    /// <summary>Every disagreement seen, described, newest last.</summary>
-    internal static ConcurrentQueue<string> Disagreements { get; } = new();
-
-    private static int _comparisons;
-
-    /// <summary>How many checks have compiled both ways and been compared.</summary>
-    internal static int Comparisons => Volatile.Read(ref _comparisons);
-
-    internal static void Compared() => Interlocked.Increment(ref _comparisons);
-
     private static readonly ConcurrentDictionary<string, Lazy<Task<Template?>>> Templates = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, FasterCheck.Trust> Trusts = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>How far the direct compile has earned trust for files of this name.</summary>
+    internal static FasterCheck.Trust TrustFor(string fileName) => Trusts.GetOrAdd(fileName, _ => new FasterCheck.Trust());
 
     /// <summary>What an argument does once the file being checked is known.</summary>
     internal enum Part
@@ -65,28 +54,7 @@ internal static partial class CSharpDirectCompile
     /// <summary>
     /// The compile <c>dotnet build</c> runs for a file of one name, with the paths that change taken out.
     /// </summary>
-    internal sealed class Template(string compiler, bool shared, IReadOnlyList<Argument> arguments, string probeFolder)
-    {
-        private int _agreed;
-        private volatile bool _refused;
-
-        public string Compiler { get; } = compiler;
-        public bool Shared { get; } = shared;
-        public IReadOnlyList<Argument> Arguments { get; } = arguments;
-
-        /// <summary>The folder the capture ran in, as it appears in generated settings.</summary>
-        public string ProbeFolder { get; } = probeFolder;
-
-        public bool Refused => _refused;
-
-        public bool Trusted => !_refused && !CompareEveryCheck && Volatile.Read(ref _agreed) >= ChecksCompared;
-
-        public void Record(bool agreed)
-        {
-            if (agreed) Interlocked.Increment(ref _agreed);
-            else _refused = true;
-        }
-    }
+    internal sealed record Template(string Compiler, bool Shared, IReadOnlyList<Argument> Arguments, string ProbeFolder);
 
     /// <summary>
     /// The compile for a copy of a C# file at <paramref name="copy"/>, run in <paramref name="folder"/>.
@@ -297,50 +265,6 @@ internal static partial class CSharpDirectCompile
 
         return new Template(compiler, !shared.Equals("false", StringComparison.OrdinalIgnoreCase), arguments, probeFolder);
     }
-
-    /// <summary>
-    /// Whether two checks of the same change said the same thing: the same exit code, the same errors
-    /// in the same places, and the same diagnostics, once each folder's path is taken out.
-    /// </summary>
-    internal static bool Agree(CheckResult build, string buildFolder, CheckResult direct, string directFolder, out string difference)
-    {
-        difference = "";
-
-        if (build.Ran != direct.Ran || build.ExitCode != direct.ExitCode)
-        {
-            difference = $"exit {build.ExitCode} from dotnet build, {direct.ExitCode} from the compiler";
-            return false;
-        }
-
-        static List<string> Errors(CheckResult result) => result.Errors
-            .Select(e => $"{LocalFixEngine.KeyOf(e)}@{(e.CulpritFrame ?? e.Frames.FirstOrDefault())?.Line}:{(e.CulpritFrame ?? e.Frames.FirstOrDefault())?.Column}")
-            .Order(StringComparer.Ordinal).ToList();
-
-        static List<string> Diagnostics(CheckResult result, string folder) => result.Lines
-            .Select(l => l.Text.Replace(folder, "<folder>", StringComparison.OrdinalIgnoreCase).Trim())
-            .Where(t => Diagnostic().IsMatch(t))
-            .Order(StringComparer.Ordinal).ToList();
-
-        if (!Errors(build).SequenceEqual(Errors(direct)))
-        {
-            difference = $"errors differ: [{string.Join("; ", Errors(build))}] against [{string.Join("; ", Errors(direct))}]";
-            return false;
-        }
-
-        var fromBuild = Diagnostics(build, buildFolder);
-        var fromCompiler = Diagnostics(direct, directFolder);
-
-        if (!fromBuild.SequenceEqual(fromCompiler))
-        {
-            difference = $"diagnostics differ: [{string.Join(" | ", fromBuild)}] against [{string.Join(" | ", fromCompiler)}]";
-            return false;
-        }
-
-        return true;
-    }
-
-    [GeneratedRegex(@"\b(?:error|warning) [A-Za-z]+\d+: ")]
-    private static partial Regex Diagnostic();
 
     private static bool Inside(string path, string folder) =>
         path.StartsWith(folder.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);

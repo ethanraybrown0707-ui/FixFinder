@@ -367,6 +367,20 @@ before the direct compile is used alone; one disagreement sends that name back t
 rest of the session. A file with `#:` directives always uses `dotnet build`, and so does any build whose
 compiler or arguments FixFinder does not recognise.
 
+**Java and Go get the same treatment.** A javac process spent about 600 ms starting a Java virtual machine
+to compile a small file in about 20. FixFinder now keeps one `java` from the same JDK running and hands
+each check to `com.sun.tools.javac.Main` - the class the javac launcher itself runs - with the same
+arguments, writing into a buffer in the character set javac's own error stream uses; compared byte for
+byte against javac on the same files, the output was identical. The go command takes about a fifth of a
+second to start on Windows before doing anything; `go build -n` prints its plan - the import
+configuration, the exact `compile` and `link` commands - which depends only on the file's name, package
+and imports, so it is asked for once per combination and the two tools are then run directly, with go
+build's own rewriting of their output (`# command-line-arguments`, the folder shortened to `.`) done the
+same way. Files with build constraints, cgo, `//go:embed` or `//go:debug`, and plans whose cached packages
+or tools have changed, go back to `go build`. Both, like C#, compare against the usual way before they are
+trusted. For every route, output containing anything outside ASCII is always checked the usual way, so a
+difference in character sets can never change an answer.
+
 **gcc and clang already know many of the answers**, and print them for a person to read: `'bool' is
 defined in header '<stdbool.h>'`, `did you mean 'weight'?`. FixFinder builds with
 `-fdiagnostics-parseable-fixits`, which prints the same answers again as exact edits - a file, a byte

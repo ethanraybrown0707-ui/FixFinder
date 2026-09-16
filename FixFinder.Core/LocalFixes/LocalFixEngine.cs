@@ -366,11 +366,16 @@ public static partial class LocalFixEngine
 
     /// <summary>The first checked fix for this error, with the file it changes, or null.</summary>
     public static Task<LocalFixFound?> FindAsync(
-        LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
-        FindAsync(
+        LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default)
+    {
+        // Started before the rules read anything, so it is under way while they do.
+        if (context.Read(context.Frame?.File) is { } erring) CompileCheck.Prepare(erring);
+
+        return FindAsync(
             context, Rules,
             (source, lines, ct) => CompileCheck.RunAsync(source, lines, context.PythonInterpreter, ct),
             ChecksAtOnce, log, cancellationToken);
+    }
 
     /// <summary>The first checked fix, from these rules, checked this way, this many at a time.</summary>
     /// <remarks>
