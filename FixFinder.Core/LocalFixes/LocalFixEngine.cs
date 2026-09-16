@@ -356,50 +356,138 @@ public static partial class LocalFixEngine
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
         (await FindAsync(context, log, cancellationToken))?.Candidate;
 
+    /// <summary>How many proposed fixes are compiled at the same time.</summary>
+    /// <remarks>
+    /// Half the processors, because a compiler is rarely one thread, and never more than four, because
+    /// every check past the one that wins is thrown away.
+    /// </remarks>
+    public static int ChecksAtOnce { get; } = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+
     /// <summary>The first checked fix for this error, with the file it changes, or null.</summary>
-    public static async Task<LocalFixFound?> FindAsync(
-        LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default)
+    public static Task<LocalFixFound?> FindAsync(
+        LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
+        FindAsync(
+            context, Rules,
+            (source, lines, ct) => CompileCheck.RunAsync(source, lines, context.PythonInterpreter, ct),
+            ChecksAtOnce, log, cancellationToken);
+
+    /// <summary>The first checked fix, from these rules, checked this way, this many at a time.</summary>
+    /// <remarks>
+    /// Almost all the time here is spent waiting on a compiler; reading the code to propose a change
+    /// is a handful of regexes. So proposals are made in rule order, as before, and each one's check
+    /// starts as soon as it is made rather than when the check before it has finished.
+    /// <para>
+    /// <b>The answer is the one the rules would give one at a time.</b> Verdicts are still read in
+    /// rule order: a later check that finishes first waits for every earlier one to be refused, so
+    /// a slow compile of the first rule's change still beats a quick one of the third's. Only
+    /// <paramref name="checksAtOnce"/> proposals are ever waiting to be judged, so at most that many
+    /// less one are compiled for nothing, and those are stopped the moment a fix is accepted.
+    /// </para>
+    /// </remarks>
+    internal static async Task<LocalFixFound?> FindAsync(
+        LocalFixContext context,
+        IReadOnlyList<ILocalFixRule> rules,
+        Func<SourceFile, IReadOnlyList<string>, CancellationToken, Task<CheckResult>> check,
+        int checksAtOnce,
+        Action<string>? log,
+        CancellationToken cancellationToken)
     {
-        foreach (var rule in Rules)
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        // Everything proposed and not yet judged, in rule order.
+        var waiting = new Queue<(Proposal Proposal, Task<CheckResult> Check)>();
+        var next = 0;
+        LocalFixFound? found = null;
+
+        try
         {
-            LocalFix? fix;
-
-            try
+            while (true)
             {
-                fix = rule.Propose(context);
+                while (waiting.Count < Math.Max(checksAtOnce, 1) && next < rules.Count)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (Propose(context, rules[next++], log) is not { } proposal) continue;
+
+                    log?.Invoke($"{proposal.Rule.Id}: proposes \"{proposal.Fix.Title}\" - compiling a copy to check it");
+
+                    // On the thread pool, so a compiler that is slow to start holds up nothing else.
+                    waiting.Enqueue((proposal, Task.Run(() => check(proposal.Source, proposal.Lines, stop.Token), CancellationToken.None)));
+                }
+
+                if (!waiting.TryDequeue(out var earliest)) return null;
+
+                var (rule, fix, source, _, diff) = earliest.Proposal;
+                var verdict = Judge(context, fix, await earliest.Check);
+
+                log?.Invoke($"{rule.Id}: {(verdict.Accepted ? "accepted" : "refused")} - {verdict.Reason}");
+
+                if (verdict.Accepted)
+                {
+                    found = new LocalFixFound(ToCandidate(context, fix, source, diff), source.Path);
+                    return found;
+                }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+        }
+        finally
+        {
+            if (waiting.Count > 0)
             {
-                // A rule is a handful of regexes over somebody's source file. One that throws costs
-                // this rule, never the run.
-                log?.Invoke($"{rule.Id}: gave up reading the code - {ex.Message}");
-                continue;
+                // Said, because each of these was announced as being compiled and would otherwise
+                // never be heard of again.
+                if (found is not null)
+                {
+                    foreach (var (unneeded, _) in waiting)
+                        log?.Invoke($"{unneeded.Rule.Id}: check stopped - an earlier rule's fix was accepted");
+                }
+
+                stop.Cancel();
+
+                // Waited for, so no compiler outlives the search and every copy's folder is gone
+                // before the answer is shown.
+                try
+                {
+                    await Task.WhenAll(waiting.Select(w => w.Check));
+                }
+                catch (Exception)
+                {
+                    // A stopped check has nothing to report, however it stopped.
+                }
             }
+        }
+    }
 
-            if (fix is null) continue;
+    private sealed record Proposal(ILocalFixRule Rule, LocalFix Fix, SourceFile Source, IReadOnlyList<string> Lines, string Diff);
 
-            if (!CompileCheck.CanCheck(fix.File) || context.Read(fix.File) is not { } source ||
-                fix.ApplyTo(source) is not { } lines)
-            {
-                log?.Invoke($"{rule.Id}: proposed a change to {Path.GetFileName(fix.File)} that cannot be checked, so it is not offered");
-                continue;
-            }
+    /// <summary>One rule's change, ready to be compiled, or null when it has none that can be checked.</summary>
+    private static Proposal? Propose(LocalFixContext context, ILocalFixRule rule, Action<string>? log)
+    {
+        LocalFix? fix;
 
-            var path = RuntimeSuggestion.RelativePath(source.Path, context.SourceRoot);
-
-            if (LocalFixDiff.Render(source, fix, path) is not { } diff) continue;
-
-            log?.Invoke($"{rule.Id}: proposes \"{fix.Title}\" - compiling a copy to check it");
-
-            var check = await CompileCheck.RunAsync(source, lines, context.PythonInterpreter, cancellationToken);
-            var verdict = Judge(context, fix, check);
-
-            log?.Invoke($"{rule.Id}: {(verdict.Accepted ? "accepted" : "refused")} - {verdict.Reason}");
-
-            if (verdict.Accepted) return new LocalFixFound(ToCandidate(context, fix, source, diff), source.Path);
+        try
+        {
+            fix = rule.Propose(context);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A rule is a handful of regexes over somebody's source file. One that throws costs
+            // this rule, never the run.
+            log?.Invoke($"{rule.Id}: gave up reading the code - {ex.Message}");
+            return null;
         }
 
-        return null;
+        if (fix is null) return null;
+
+        if (!CompileCheck.CanCheck(fix.File) || context.Read(fix.File) is not { } source ||
+            fix.ApplyTo(source) is not { } lines)
+        {
+            log?.Invoke($"{rule.Id}: proposed a change to {Path.GetFileName(fix.File)} that cannot be checked, so it is not offered");
+            return null;
+        }
+
+        var path = RuntimeSuggestion.RelativePath(source.Path, context.SourceRoot);
+
+        return LocalFixDiff.Render(source, fix, path) is { } diff ? new Proposal(rule, fix, source, lines, diff) : null;
     }
 
     /// <summary>

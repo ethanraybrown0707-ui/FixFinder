@@ -335,6 +335,13 @@ one letter from `print`, `println` and `printf`, so nothing is offered. For a cr
 only prove the file still compiles, and the answer says exactly that rather than claiming the crash
 is gone.
 
+**Checks run side by side, and the answer does not change because of it.** The compiler is almost all
+of the wait, so up to four proposed changes (half the processors, at most) are compiled at once, and
+the whole local search runs alongside the web search instead of after it. Verdicts are still read in
+rule order: a quick check of a later rule's change waits for every earlier one to be refused, so the
+fix offered is the one the rules would pick one at a time. Checks still running when a fix is accepted
+are stopped, and the log says so.
+
 **gcc and clang already know many of the answers**, and print them for a person to read: `'bool' is
 defined in header '<stdbool.h>'`, `did you mean 'weight'?`. FixFinder builds with
 `-fdiagnostics-parseable-fixits`, which prints the same answers again as exact edits - a file, a byte

@@ -511,30 +511,58 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         }
 
         // ---------------------------------------------------------- look for a fix
-        Progress?.Invoke("Looking for a published fix...");
+        // Put in front of the search results rather than ranked among them, because it is not one
+        // of them. Every weight in the ranker estimates how likely a stranger's post is to be
+        // about this crash; this came out of this crash, and names this file and this line. It is
+        // also the only fix in the tool that can address code nobody else has ever seen.
+        var suggestion = RuntimeSuggestion.For(error, sourceRoot);
 
-        var search = await sources.SearchAsync(
-            fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken);
+        // The same idea for the far larger set of mistakes whose message pins the answer down
+        // without spelling it out - a missing import, a semicolon, a loop one step too long. Worked
+        // out from the code, and offered only once a compiler has agreed with it.
+        //
+        // Started before the search and run alongside it, because neither needs the other: the
+        // search spends its time waiting on the network and this spends its time waiting on a
+        // compiler. One after the other, the local fix waited for every web request to finish first.
+        using var stopLocal = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        var localFix = suggestion is null
+            ? Task.Run(
+                () => LocalFixAsync(run, error, others, spec, sourceRoot, failedToCompile, buildOutput, stopLocal.Token),
+                CancellationToken.None)
+            : Task.FromResult<LocalFixFound?>(null);
+
+        Progress?.Invoke(suggestion is null
+            ? "Looking for a published fix, and working one out from your code..."
+            : "Looking for a published fix...");
+
+        AggregateSearchResult search;
+
+        try
+        {
+            search = await sources.SearchAsync(
+                fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken);
+        }
+        catch
+        {
+            // Nothing will read the local fix now, so its compilers are stopped rather than left running.
+            stopLocal.Cancel();
+            await Task.WhenAny(localFix);
+            throw;
+        }
 
         foreach (var failure in search.Failures) warnings.Add(failure);
 
         var ranked = CandidateRanker.Rank(search.Candidates, fingerprint);
 
-        // Put in front of the search results rather than ranked among them, because it is not one
-        // of them. Every weight in the ranker estimates how likely a stranger's post is to be
-        // about this crash; this came out of this crash, and names this file and this line. It is
-        // also the only fix in the tool that can address code nobody else has ever seen.
-        if (RuntimeSuggestion.For(error, sourceRoot) is { } suggestion)
+        if (suggestion is not null)
         {
             Log?.Invoke($"{error.LanguageId} suggested a correction itself: {suggestion.Title}");
 
             ranked = [suggestion, .. ranked];
         }
 
-        // The same idea for the far larger set of mistakes whose message pins the answer down
-        // without spelling it out - a missing import, a semicolon, a loop one step too long. Worked
-        // out from the code, and offered only once a compiler has agreed with it.
-        else if (await LocalFixAsync(run, error, others, spec, sourceRoot, failedToCompile, buildOutput, cancellationToken) is { } local)
+        else if (await localFix is { } local)
         {
             Log?.Invoke($"Worked out a fix from the code itself: {local.Candidate.Title}");
 
@@ -743,8 +771,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         string? sourceRoot, bool failedToCompile, IReadOnlyList<CapturedLine>? buildOutput,
         CancellationToken cancellationToken)
     {
-        Progress?.Invoke("Working out a fix from your code...");
-
         var context = new LocalFixContext
         {
             Error = error,

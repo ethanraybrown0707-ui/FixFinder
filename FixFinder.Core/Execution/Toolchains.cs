@@ -46,8 +46,13 @@ public static class Toolchains
         @"C:\Program Files\Zulu",
     ];
 
-    private static Toolchain? _msvc;
-    private static bool _msvcSearched;
+    /// <summary>Searched for once, by whichever check asks first.</summary>
+    /// <remarks>
+    /// Lazy rather than a field and a flag, because fixes are now compiled several at a time. With a
+    /// flag set before the search finished, a second check asking at the same moment was told there
+    /// was no MSVC at all - and refused a fix for a compiler that was there.
+    /// </remarks>
+    private static readonly Lazy<Toolchain?> Msvc = new(SearchForMsvc);
 
     /// <summary>
     /// Finds MSVC, which is the compiler most likely to already be present on a Windows machine.
@@ -57,11 +62,10 @@ public static class Toolchains
     /// directly fails with a missing-DLL error or a flood of "cannot open include file", because
     /// it depends entirely on the environment that script sets up.
     /// </remarks>
-    public static Toolchain? FindMsvc()
-    {
-        if (_msvcSearched) return _msvc;
-        _msvcSearched = true;
+    public static Toolchain? FindMsvc() => Msvc.Value;
 
+    private static Toolchain? SearchForMsvc()
+    {
         foreach (var root in VisualStudioRoots)
         {
             if (!Directory.Exists(root)) continue;
@@ -84,14 +88,13 @@ public static class Toolchains
                     if (!File.Exists(script)) continue;
 
                     var edition = $"{Path.GetFileName(year)} {Path.GetFileName(product)}";
-                    _msvc = new Toolchain($"MSVC ({edition})", "cl.exe", script);
 
-                    return _msvc;
+                    return new Toolchain($"MSVC ({edition})", "cl.exe", script);
                 }
             }
         }
 
-        return _msvc;
+        return null;
     }
 
     private static readonly AsyncLocal<bool> GnuHidden = new();
