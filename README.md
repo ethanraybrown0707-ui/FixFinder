@@ -617,16 +617,18 @@ Three things are worth knowing before you use it:
 
 ## Consent
 
-Two gates, and both are about running a program rather than about writing to one:
+One gate, and it is about running a program rather than about writing to one: **before anything
+is launched**, a confirmation names the exact command line and working directory. A compiled
+language runs two commands and the confirmation names both, because showing only the second would
+be describing something other than what is about to happen.
 
-1. **`run-fixfinder.cmd`** asks you to type YES before the window opens, and the window itself
-   opens with a blocking notice naming what the tool does: it runs a program you choose, and it
-   sends your error text to github.com and api.stackexchange.com. Cancel shuts it down.
-2. **Before anything is launched**, a confirmation names the exact command line and working
-   directory. A compiled language runs two commands and the confirmation names both, because
-   showing only the second would be describing something other than what is about to happen.
+The window opens without a notice first. There used to be two - `run-fixfinder.cmd` asking for
+YES to be typed, and a blocking message box listing what the tool could do - carried over from the
+tool FixFinder was modelled on. They described capabilities it no longer has, and asked the same
+question the confirmation above asks at the moment it matters. What FixFinder sends, and where, is
+set out in Settings.
 
-There used to be a third - a preview, a dry-run tick and the word APPLY typed in full - guarding
+There used to be another - a preview, a dry-run tick and the word APPLY typed in full - guarding
 the moment FixFinder wrote to your source. It is gone because the writing is gone. Nothing here
 modifies your files, so there is nothing left to guard; the fix goes to the clipboard and the
 decision to paste it is made in your editor, where you can see what you are replacing.
@@ -807,7 +809,7 @@ pasting them as one block would silently delete every line between them.
 
 Built in milestones, each one runnable on its own.
 
-- [x] **M0** — projects, WDAC signing, consent chain, steps 1–3 laid out
+- [x] **M0** — projects, WDAC signing, consent chain (since reduced to the pre-launch confirmation), steps 1–3 laid out
 - [x] **M1** — launch a target and watch its stdout/stderr live
 - [x] **M2** — stack-trace parsers, fingerprinting, source-root detection
 - [x] **M3** — GitHub and Stack Overflow search, caching, quota, token storage

@@ -38,44 +38,17 @@ public partial class App : Application
             "FixFinder", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
-    // No StartupUri on purpose - MainWindow is created only after this blocking consent
-    // prompt is accepted, so a stray double-click on the .exe can't reach the tool by accident.
+    // No StartupUri, because the window is given the program named on the command line, if any.
     //
-    // FixFinder has three capabilities that each deserve to be named out loud before the
-    // window exists, because none of them is obvious from the name of the tool:
-    //   1. it launches a program you choose, as you, with your environment;
-    //   2. it sends your captured error text to github.com and api.stackexchange.com;
-    //   3. it can write to source files under a folder you choose.
-    // This is the outermost of four gates - run-fixfinder.cmd (type YES) sits outside it, and
-    // inside there is a per-target confirmation before launch and a type-APPLY box before any
-    // file is written, with dry-run on by default. See the plan's "Consent" section.
+    // There is no notice before the window opens. The one that used to be here came from the tool this
+    // was modelled on, and it had outlived what it described - FixFinder no longer writes to source
+    // files at all. What still deserves a confirmation is launching a program, and that is asked
+    // before every run, naming the exact command line.
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         DispatcherUnhandledException += OnUnhandledException;
-
-        var confirmed = MessageBox.Show(
-            "FixFinder runs a program you choose, watches it for a crash, and looks for a " +
-            "published fix.\n\n" +
-            "Before you continue, note what it is able to do:\n\n" +
-            "•  It LAUNCHES a program you pick, as you, with your environment, and " +
-            "captures everything it writes to the terminal.\n\n" +
-            "•  It SENDS the captured error text to github.com and api.stackexchange.com " +
-            "to search for a fix. Scrub anything you would not want to send before running a " +
-            "target that prints secrets.\n\n" +
-            "•  It can MODIFY SOURCE FILES under a folder you choose - only a patch you " +
-            "have previewed and confirmed, always backed up first, and never outside that " +
-            "folder.\n\n" +
-            "Only continue if you intended to run this tool right now.",
-            "FixFinder",
-            MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
-
-        if (confirmed != MessageBoxResult.OK)
-        {
-            Shutdown();
-            return;
-        }
 
         // A path on the command line pre-selects the program, so dropping a file onto the exe
         // or its shortcut in Explorer works the same way as choosing one inside the window.
