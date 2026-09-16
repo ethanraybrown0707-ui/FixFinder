@@ -659,7 +659,7 @@ public static partial class LocalFixEngine
         {
             ".py" => "byte-compiled it with py_compile, which runs none of it",
             ".java" => "compiled it with javac",
-            ".cs" => "built it with dotnet build",
+            ".cs" => "compiled it with the C# compiler and settings dotnet build uses",
             ".js" or ".mjs" or ".cjs" => "checked it with node --check, which parses it and runs none of it",
             ".go" => "built it with go build",
             _ => "compiled it",

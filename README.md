@@ -354,6 +354,19 @@ a failed package download or a silent exit is asked again next time. **A result'
 download together**, still spaced as GitHub's plain-download budget asks. GitHub's API calls stay one
 at a time, because GitHub asks clients not to make them concurrently.
 
+**C# checks skip MSBuild, and only once they have been shown to give the same answer.** `dotnet build
+Program.cs` took about a second per check, almost none of it compiling. FixFinder now asks the SDK once
+per file name for the exact compile it would run - a design-time build returns the compiler's arguments
+without compiling - and then runs the SDK's own `csc` with them through the same compiler server, in
+about a tenth of the time. Nothing is reconstructed by hand: the compiler, references, analyzers, source
+generators, defines and warning settings are all the SDK's. Only the paths change, including the two
+lines of the SDK's generated settings that name the file and its folder, and a diagnostic with no file
+gets the `CSC : ` prefix MSBuild puts on it. The first two checks of each file name compile both ways
+and must agree - the same exit code, the same errors in the same places, the same diagnostic lines -
+before the direct compile is used alone; one disagreement sends that name back to `dotnet build` for the
+rest of the session. A file with `#:` directives always uses `dotnet build`, and so does any build whose
+compiler or arguments FixFinder does not recognise.
+
 **gcc and clang already know many of the answers**, and print them for a person to read: `'bool' is
 defined in header '<stdbool.h>'`, `did you mean 'weight'?`. FixFinder builds with
 `-fdiagnostics-parseable-fixits`, which prints the same answers again as exact edits - a file, a byte

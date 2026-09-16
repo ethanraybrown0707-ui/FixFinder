@@ -83,13 +83,12 @@ public static class CompileCheck
 
             if (key is not null && Remembered.TryGetValue(key, out var known)) return known;
 
-            var registry = new ParserRegistry();
-            var run = await new TargetRunner(registry).RunAsync(spec, cancellationToken);
+            var result = Path.GetExtension(copy).Equals(".cs", StringComparison.OrdinalIgnoreCase) &&
+                         !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes))
+                ? await CompileCSharpAsync(spec, copy, folder, cancellationToken)
+                : await CompileAsync(spec, direct: false, cancellationToken);
 
-            if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled)
-                return CheckResult.NotRun;
-
-            var result = new CheckResult(true, run.ExitCode, run.Lines, ErrorsIn(registry, run.Lines));
+            if (!result.Ran) return result;
 
             if (key is not null && WorthRemembering(result, copy))
             {
@@ -113,6 +112,90 @@ public static class CompileCheck
             {
                 // A compiler that has not quite let go of its output. The folder is inside
                 // FixFinder's own data, so leaving it behind costs disk and nothing else.
+            }
+        }
+    }
+
+    private static async Task<CheckResult> CompileAsync(TargetSpec spec, bool direct, CancellationToken cancellationToken)
+    {
+        var registry = new ParserRegistry();
+        var run = await new TargetRunner(registry).RunAsync(spec, cancellationToken);
+
+        if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled)
+            return CheckResult.NotRun;
+
+        var lines = direct ? CSharpDirectCompile.AsBuildPrintsIt(run.Lines) : run.Lines;
+
+        return new CheckResult(true, run.ExitCode, lines, ErrorsIn(registry, lines));
+    }
+
+    /// <summary>
+    /// A C# check: the SDK's compiler run directly once it has agreed with <c>dotnet build</c> on this
+    /// machine, and <c>dotnet build</c> until then - with the direct compile run beside it and compared.
+    /// </summary>
+    /// <remarks>
+    /// While it is being compared, the answer is always <c>dotnet build</c>'s. The direct compile runs
+    /// in a folder of its own, so neither compile can see the other's files.
+    /// </remarks>
+    private static async Task<CheckResult> CompileCSharpAsync(
+        TargetSpec build, string copy, string folder, CancellationToken cancellationToken)
+    {
+        var captured = CSharpDirectCompile.TemplateFor(Path.GetFileName(copy), build.ExecutablePath);
+
+        if (captured.IsCompletedSuccessfully)
+        {
+            if (captured.Result is null or { Refused: true }) return await CompileAsync(build, direct: false, cancellationToken);
+
+            if (captured.Result.Trusted)
+            {
+                return await CompileAsync(
+                    CSharpDirectCompile.SpecFor(captured.Result, copy, folder, Timeout), direct: true, cancellationToken);
+            }
+        }
+
+        var fromBuild = CompileAsync(build, direct: false, cancellationToken);
+        var template = await captured.WaitAsync(cancellationToken);
+
+        if (template is null || template.Refused) return await fromBuild;
+
+        var directFolder = Path.Combine(Root, Guid.NewGuid().ToString("N")[..12]);
+
+        try
+        {
+            Directory.CreateDirectory(directFolder);
+
+            var directCopy = Path.Combine(directFolder, Path.GetFileName(copy));
+            File.Copy(copy, directCopy);
+
+            var fromCompiler = await CompileAsync(
+                CSharpDirectCompile.SpecFor(template, directCopy, directFolder, Timeout), direct: true, cancellationToken);
+            var answer = await fromBuild;
+
+            // Only two compiles that both ran are a comparison. A timeout or a cancellation proves nothing either way.
+            if (answer.Ran && fromCompiler.Ran)
+            {
+                var agreed = CSharpDirectCompile.Agree(answer, folder, fromCompiler, directFolder, out var difference);
+                template.Record(agreed);
+                CSharpDirectCompile.Compared();
+
+                if (!agreed) CSharpDirectCompile.Disagreements.Enqueue($"{Path.GetFileName(copy)}: {difference}");
+            }
+
+            return answer;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The comparison could not be set up; dotnet build's answer stands on its own.
+            return await fromBuild;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(directFolder)) Directory.Delete(directFolder, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
             }
         }
     }
