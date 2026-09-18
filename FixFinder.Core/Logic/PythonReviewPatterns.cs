@@ -850,7 +850,7 @@ public static partial class PythonReviewPatterns
 
                 var hasInit = Regex.IsMatch(body, @"\bdef\s+__init__\s*\(");
                 var lead = Indent(lines[k]);
-                var step = PythonLayout.IndentUnit(lines);
+                var step = PythonCode.IndentUnit(lines);
 
                 yield return new LogicFinding(id, k + 1,
                     $"`{shared.Groups["name"].Value}` belongs to the class, not to each object, so every object adds to the same one",
@@ -999,7 +999,7 @@ public static partial class PythonReviewPatterns
             if (Regex.Match(masked[i], @"^\s*(?<name>[A-Za-z_]\w*)\s*=\s*open\(") is not { Success: true } opened) continue;
 
             var open = masked[i].IndexOf("open(", StringComparison.Ordinal) + 4;
-            if (LocalFixes.Rules.CCode.Matching(masked[i], open) is not { } close || masked[i][(close + 1)..].Trim().Length > 0) continue;
+            if (LocalFixes.Rules.Brackets.ClosingParenthesis(masked[i], open) is not { } close || masked[i][(close + 1)..].Trim().Length > 0) continue;
 
             var name = Regex.Escape(opened.Groups["name"].Value);
             if (masked.Any(l => Regex.IsMatch(l, $@"(?<![\w.]){name}\s*\.\s*close\s*\(|\bwith\s+{name}\b"))) continue;

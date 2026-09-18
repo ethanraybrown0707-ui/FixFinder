@@ -137,7 +137,7 @@ public static partial class MissingModule
         // means math, and pip install maths would download somebody else's package to fix a typo.
         // The local fix offers the corrected import instead.
         var lines = FixFinder.Core.LocalFixes.SourceFile.Read(FixFinder.Core.LocalFixes.LocalFixContext.OwnFrame(error)?.File)?.Lines;
-        if (FixFinder.Core.LocalFixes.Rules.PythonStdlib.TypoOf(interpreter, missing.Module, lines) is not null) return null;
+        if (FixFinder.Core.LocalFixes.Rules.PythonStandardLibrary.TypoOf(interpreter, missing.Module, lines) is not null) return null;
 
         var command = $"\"{interpreter}\" -m pip install {missing.Package}";
 

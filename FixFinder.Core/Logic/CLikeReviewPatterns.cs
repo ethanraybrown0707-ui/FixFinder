@@ -216,7 +216,7 @@ public static partial class CLikeReviewPatterns
             }
 
             var open = text.IndexOf('(', (elseIf.Success ? elseIf : plainIf).Index + (elseIf.Success ? elseIf : plainIf).Length - 1);
-            if (CCode.Matching(text, open) is not { } close) continue;
+            if (Brackets.ClosingParenthesis(text, open) is not { } close) continue;
 
             var condition = Regex.Replace(source.Lines[i][(open + 1)..close], @"\s+", "");
 

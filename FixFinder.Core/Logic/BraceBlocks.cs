@@ -21,7 +21,7 @@ internal static partial class BraceBlocks
         if (!masked[start].TrimStart().StartsWith('{') && start != header)
             return (start, start + 1);
 
-        return NativeCourse.BlockEnd(masked, start) is { } end ? (start + 1, end) : null;
+        return Brackets.BlockEnd(masked, start) is { } end ? (start + 1, end) : null;
     }
 
     /// <summary>One level of indentation as the file uses it: a tab, or the smallest step in spaces between neighbouring lines.</summary>

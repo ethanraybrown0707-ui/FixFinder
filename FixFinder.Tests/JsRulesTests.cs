@@ -167,10 +167,10 @@ public class JsRulesTests : IDisposable
     {
         if (!HasNode) return;
 
-        var node = JsRuntime.AskNode(expression);
+        var node = NodeRuntime.AskNode(expression);
         if (node.Count == 0) return;
 
-        Assert.All(JsRuntime.Standard[expression], name => Assert.Contains(name, node));
+        Assert.All(NodeRuntime.Standard[expression], name => Assert.Contains(name, node));
     }
 
     /// <summary>A module a letter from one of Node's own is a typo - not a package called fss to install from a stranger.</summary>

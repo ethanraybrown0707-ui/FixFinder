@@ -353,8 +353,8 @@ public class PythonBeginnerTests : IDisposable
     {
         var missing = Path.Combine(_temp.Path, "no-such-python", "python.exe");
 
-        Assert.Empty(PythonStdlib.Names(missing));
-        Assert.False(PythonStdlib.IsRemembered(missing));
+        Assert.Empty(PythonStandardLibrary.Names(missing));
+        Assert.False(PythonStandardLibrary.IsRemembered(missing));
     }
 
     [Fact]

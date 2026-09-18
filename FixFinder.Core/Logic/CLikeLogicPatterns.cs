@@ -128,7 +128,7 @@ public static partial class CLikeLogicPatterns
         for (var i = 0; i < masked.Count; i++)
         {
             var match = Regex.Match(masked[i], @"^(?<lead>\s*)(?<keyword>for|while)\s*\((?<inside>.*)\)\s*(?<semicolon>;)\s*(?<brace>\{)?\s*$");
-            if (!match.Success || CCode.Matching(masked[i], masked[i].IndexOf('(')) != masked[i].LastIndexOf(')')) continue;
+            if (!match.Success || Brackets.ClosingParenthesis(masked[i], masked[i].IndexOf('(')) != masked[i].LastIndexOf(')')) continue;
 
             // `} while (x);` ends a do-while, and so does `while (x);` straight after a closing brace.
             if (match.Groups["keyword"].Value == "while" && PreviousCode(masked, i - 1) is var previous and >= 0 && masked[previous].TrimEnd().EndsWith('}')) continue;
@@ -157,15 +157,15 @@ public static partial class CLikeLogicPatterns
         for (var i = 0; i < masked.Count; i++)
         {
             var match = Regex.Match(masked[i], @"^\s*if\s*\((?<inside>.*)\)\s*(?<semicolon>;)\s*(?<brace>\{)?\s*$");
-            if (!match.Success || CCode.Matching(masked[i], masked[i].IndexOf('(')) != masked[i].LastIndexOf(')')) continue;
+            if (!match.Success || Brackets.ClosingParenthesis(masked[i], masked[i].IndexOf('(')) != masked[i].LastIndexOf(')')) continue;
 
             var next = NextCode(masked, i + 1);
             int blockEnd;
 
             if (match.Groups["brace"].Success)
-                blockEnd = NativeCourse.BlockEnd(masked, i) ?? -1;
+                blockEnd = Brackets.BlockEnd(masked, i) ?? -1;
             else if (next >= 0 && masked[next].TrimStart().StartsWith('{'))
-                blockEnd = NativeCourse.BlockEnd(masked, next) ?? -1;
+                blockEnd = Brackets.BlockEnd(masked, next) ?? -1;
             else if (next >= 0 && Indent(masked[next]).Length > Indent(masked[i]).Length)
                 blockEnd = next;
             else
@@ -215,7 +215,7 @@ public static partial class CLikeLogicPatterns
             if (hits.Count == 0) continue;
 
             var line = source.Lines[i];
-            var corrected = CCode.Replace(line, hits, m =>
+            var corrected = CCode.ReplaceEach(line, hits, m =>
             {
                 // "yes".equals(answer) when the literal is on the left: it reads the same, and cannot fail on a null answer.
                 var left = line.Substring(m.Groups["left"].Index, m.Groups["left"].Length);
@@ -259,7 +259,7 @@ public static partial class CLikeLogicPatterns
         {
             var match = Regex.Match(masked[i], $@"^(?<lead>\s*)(?<name>[A-Za-z_$][\w$]*)\.(?<method>{methods})\s*\((?<arguments>.*)\)\s*;?\s*$");
             if (!match.Success || !variables.Contains(match.Groups["name"].Value)) continue;
-            if (CCode.Matching(masked[i], masked[i].IndexOf('(', match.Groups["method"].Index)) != masked[i].TrimEnd().TrimEnd(';').TrimEnd().Length - 1) continue;
+            if (Brackets.ClosingParenthesis(masked[i], masked[i].IndexOf('(', match.Groups["method"].Index)) != masked[i].TrimEnd().TrimEnd(';').TrimEnd().Length - 1) continue;
 
             var name = match.Groups["name"].Value;
             var method = match.Groups["method"].Value;
@@ -333,7 +333,7 @@ public static partial class CLikeLogicPatterns
 
     private static IEnumerable<LogicFinding> SwitchFallthrough(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        var depths = CCode.DepthAtStart(masked);
+        var depths = Brackets.BraceDepths(masked);
         var labels = Enumerable.Range(0, masked.Count).Where(i => Regex.IsMatch(masked[i], @"^\s*(?:case\b[^:]*|default\s*):\s*(?:\{\s*)?$")).ToList();
         var ends = new Regex(@"^\s*(?:break|return|continue|throw|goto|yield)\b|\bexit\s*\(|System\.exit\s*\(|\[\[fallthrough\]\]");
 
@@ -366,7 +366,7 @@ public static partial class CLikeLogicPatterns
 
     private static IEnumerable<LogicFinding> UninitialisedTotal(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        var depths = CCode.DepthAtStart(masked);
+        var depths = Brackets.BraceDepths(masked);
 
         for (var i = 0; i < masked.Count; i++)
         {
@@ -453,12 +453,12 @@ public static partial class CLikeLogicPatterns
             var name = hit.Groups["name"].Value;
             var op = hit.Groups["op"].Value;
             var literal = Regex.Match(line.Substring(hit.Index, hit.Length), @"""(?:[^""\\]|\\.)*""").Value;
-            var fix = NativeCourse.WithHeader(
+            var fix = CCode.WithHeader(
                 id, $"Compare the text with strcmp: strcmp({name}, {literal}) {op} 0",
                 $"`==` on C strings compares where they are in memory, not what they say, and `{name}` and the literal `{literal}` are never " +
                 $"in the same place - so this is {(op == "==" ? "false" : "true")} even when the text matches. `strcmp` compares the characters " +
                 "and returns 0 when they are the same.",
-                source, i + 1, Cpp.IsCpp(source) ? "cstring" : "string.h",
+                source, i + 1, CppCode.IsCpp(source) ? "cstring" : "string.h",
                 line[..hit.Index] + $"strcmp({name}, {literal}) {op} 0" + line[(hit.Index + hit.Length)..]);
 
             yield return new LogicFinding(id, i + 1, $"`{name} {op} {literal}` compares where the text is in memory, not what it says", fix);
@@ -506,10 +506,10 @@ public static partial class CLikeLogicPatterns
             if (made is null || made.Groups["base"].Value == made.Groups["derived"].Value) continue;
 
             var baseName = made.Groups["base"].Value;
-            var header = CppClass.Header(masked, baseName);
-            if (header < 0 || CppClass.Body(masked, header) is not { } body) continue;
+            var header = CppCode.ClassHeader(masked, baseName);
+            if (header < 0 || CppCode.ClassBraces(masked, header) is not { } body) continue;
 
-            var members = CppClass.Members(masked, header);
+            var members = CppCode.MemberLines(masked, header);
             if (!members.Any(k => Regex.IsMatch(masked[k], @"\bvirtual\b"))) continue;
 
             var destructor = members.Where(k => Regex.IsMatch(masked[k], $@"(?<![\w:])~{Regex.Escape(baseName)}\s*\(")).ToList();
@@ -555,7 +555,7 @@ public static partial class CLikeLogicPatterns
         for (var i = 0; i < masked.Count; i++)
         {
             var header = Regex.Match(masked[i], @"^(?<lead>\s*for\s*\(\s*)var(?<rest>\s+(?<name>[A-Za-z_$][\w$]*)\s*=)");
-            if (!header.Success || NativeCourse.BlockEnd(masked, i) is not { } close) continue;
+            if (!header.Success || Brackets.BlockEnd(masked, i) is not { } close) continue;
 
             var name = header.Groups["name"].Value;
             var body = string.Join("\n", Enumerable.Range(i, close - i + 1).Select(k => masked[k]));
@@ -593,7 +593,7 @@ public static partial class CLikeLogicPatterns
                 Replace(id, "Sort numbers as numbers: sort((a, b) => a - b)",
                     "Without a comparison, `sort` turns every element into text and orders them alphabetically - \"10\" before \"9\", because \"1\" " +
                     "comes before \"9\". `(a, b) => a - b` compares them as numbers.",
-                    source, i + 1, CCode.Replace(line, hits, m => $"{m.Groups["name"].Value}.sort((a, b) => a - b)")));
+                    source, i + 1, CCode.ReplaceEach(line, hits, m => $"{m.Groups["name"].Value}.sort((a, b) => a - b)")));
         }
     }
 
@@ -611,7 +611,7 @@ public static partial class CLikeLogicPatterns
                 Replace(id, "Convert with Number, not parseInt",
                     "`map` calls its function with the element and its position, and `parseInt` reads a second argument as the base to count in - " +
                     "so \"2\" at position 1 is read in base 1, and gives NaN. `Number` takes only the value.",
-                    source, i + 1, CCode.Replace(source.Lines[i], hits, _ => ".map(Number)")));
+                    source, i + 1, CCode.ReplaceEach(source.Lines[i], hits, _ => ".map(Number)")));
         }
     }
 
@@ -635,7 +635,7 @@ public static partial class CLikeLogicPatterns
             if (masked[closeElse].Trim() != "}" || masked[closeLoop].Trim() != "}") continue;
 
             // The loop the last brace closes, and the if the else belongs to - which must return too.
-            var depths = CCode.DepthAtStart(masked);
+            var depths = Brackets.BraceDepths(masked);
             var loop = Enumerable.Range(0, closeLoop).LastOrDefault(k => depths[k] == depths[closeLoop] - 1 && masked[k].TrimEnd().EndsWith('{'), -1);
             if (loop < 0 || Regex.Match(masked[loop], @"^\s*(?:for|while)\s*\((?<header>.*)\)\s*\{\s*$") is not { Success: true } header) continue;
 
@@ -667,12 +667,12 @@ public static partial class CLikeLogicPatterns
     private static IEnumerable<LogicFinding> ResetInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
-        var depths = CCode.DepthAtStart(masked);
+        var depths = Brackets.BraceDepths(masked);
         int depthsAt(int line) => depths[line];
 
         for (var header = 0; header < masked.Count; header++)
         {
-            if (!Regex.IsMatch(masked[header], @"^\s*(?:for|while)\s*\(.*\)\s*\{\s*$") || NativeCourse.BlockEnd(masked, header) is not { } close) continue;
+            if (!Regex.IsMatch(masked[header], @"^\s*(?:for|while)\s*\(.*\)\s*\{\s*$") || Brackets.BlockEnd(masked, header) is not { } close) continue;
 
             var first = NextCode(masked, header + 1);
             if (first < 0 || first >= close) continue;
@@ -711,7 +711,7 @@ public static partial class CLikeLogicPatterns
         for (var header = 0; header < masked.Count; header++)
         {
             var loop = Regex.Match(masked[header], @"^\s*while\s*\(\s*(?<name>[A-Za-z_$][\w$]*)\s*(?<op><=|<|>=|>)\s*(?<bound>[^)]+)\)\s*\{\s*$");
-            if (!loop.Success || NativeCourse.BlockEnd(masked, header) is not { } close || close <= header + 1) continue;
+            if (!loop.Success || Brackets.BlockEnd(masked, header) is not { } close || close <= header + 1) continue;
 
             var name = loop.Groups["name"].Value;
             var n = Regex.Escape(name);
