@@ -73,7 +73,12 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         lock (_gate)
         {
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logic.Result, run);
+            var logicSummary = logic.Result;
+            var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal));
+            if (logicSummary.EndsWith("in the code", StringComparison.Ordinal))
+                logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
+
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, run);
         }
     }
 

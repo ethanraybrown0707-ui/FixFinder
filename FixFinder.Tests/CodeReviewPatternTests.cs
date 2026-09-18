@@ -186,6 +186,8 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-empty-catch", "Program.cs", "try\n{\n    Go();\n}\ncatch (Exception)\n{\n}\n", "catch (Exception ex)¦{¦    Console.Error.WriteLine($\"Something went wrong: {ex.Message}\");¦}")]
     [InlineData("logic-java-equals-overload", "Point.java", "class Point {\n    int x;\n    public boolean equals(Point other) {\n        return x == other.x;\n    }\n}\n", "    public boolean equals(Object object) {¦        if (!(object instanceof Point other)) return false;")]
     [InlineData("logic-java-equals-overload", "Point.java", "class Point {\n    public boolean equals(Object other) {\n        return true;\n    }\n}\n", null)]
+    [InlineData("logic-integer-division", "App.java", "        int total = 7;\n        double average = total / marks.size();\n", "        double average = (double) total / marks.size();")]
+    [InlineData("logic-integer-division", "Program.cs", "int total = 7;\ndouble average = total / items.Count;\n", "double average = (double) total / items.Count;")]
     [InlineData("logic-java-chars-added", "App.java", "        char a = 'A';\n        char b = 'B';\n        System.out.println(a + b);\n", "        System.out.println(\"\" + a + b);")]
     [InlineData("logic-java-chars-added", "App.java", "        int a = 1;\n        int b = 2;\n        System.out.println(a + b);\n", null)]
     public void BraceLanguageMistakesAreFoundAndFixed(string pattern, string file, string code, string? expected) => Check(pattern, file, code, expected);

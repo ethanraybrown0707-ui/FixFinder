@@ -96,9 +96,10 @@ public static partial class CLikeLogicPatterns
     {
         var whole = Declared(masked, WholeDeclaration());
         var real = Declared(masked, RealDeclaration());
-        var operand = @"[A-Za-z_]\w*|\d+(?![.\w])";
+        var operand = @"[A-Za-z_]\w*(?:\s*\.\s*(?:size\(\s*\)|length\(\s*\)|length|Length|Count)(?![\w(]))?|\d+(?![.\w])";
 
-        bool IsWhole(string text) => Regex.IsMatch(text, @"^\d+$") || (whole.Contains(text) && !real.Contains(text));
+        bool IsWhole(string text) =>
+            Regex.IsMatch(text, @"^\d+$|\.\s*(?:size\(\s*\)|length\(\s*\)|length|Length|Count)$") || (whole.Contains(text) && !real.Contains(text));
 
         for (var i = 0; i < masked.Count; i++)
         {
