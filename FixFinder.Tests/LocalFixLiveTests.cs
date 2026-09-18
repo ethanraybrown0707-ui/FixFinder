@@ -146,6 +146,7 @@ public class LocalFixLiveTests
 
         var outcome = await RunOffline(path);
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{rule}: {outcome.Result} - {outcome.Headline}");
         // gcc says more than MSVC does: its own did-you-mean and fix-its answer several C cases
         // before a rule is needed, and either answer is the right one.
@@ -214,6 +215,10 @@ public class LocalFixLiveTests
 
         // The build prefers gcc when it is on PATH, so an MSVC-only case hides it for its own run.
         "msvc" => Toolchains.FindMsvc() is not null,
+
+        "dotnet" => TargetFactory.FindOnPath("dotnet") is not null,
+        "node" => TargetFactory.FindOnPath("node") is not null,
+        "go" => TargetFactory.FindOnPath("go") is not null,
         _ => false,
     };
 

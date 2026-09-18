@@ -47,6 +47,14 @@ public static class FrameClassifier
         "/lib/python",
         "/python3",
         "/goroot/",
+        // Go's own standard library where the installers put it - not "/go/src/" alone, which is also where old GOPATH
+        // projects live. A deadlock's frames start in runtime/sema.go, and rooting the program there sent every fix to Go.
+        "/program files/go/src/",
+        "/usr/local/go/src/",
+        "/usr/lib/go/src/",
+        "/usr/lib/golang/src/",
+        "/sdk/go1.",
+        "/cellar/go/",
         "java.base/",
         "/jdk",
         "/microsoft visual studio/",

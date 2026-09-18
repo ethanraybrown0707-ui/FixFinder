@@ -212,6 +212,33 @@ public static class TargetFactory
             ? $"{runner.ArgumentPrefix} \"{full}\""
             : $"\"{full}\"";
 
+        // A program that is more than this one file is run as the whole of itself - see ProgramLayout.
+        var together = "";
+
+        switch (extension.ToLowerInvariant())
+        {
+            case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
+                arguments = program.Module is not null
+                    ? "run ."
+                    : "run " + string.Join(" ", program.Files.Select(f => $"\"{f}\""));
+                together = program.Module is not null
+                    ? " as the module in its folder"
+                    : $" together with the rest of its package: {string.Join(", ", program.Files.Skip(1).Select(Path.GetFileName))}";
+                break;
+
+            case ".cs" when ProgramLayout.CSharpProject(full) is { } project:
+                arguments = $"run --project \"{project}\"";
+                workingDirectory = Path.GetDirectoryName(project)!;
+                together = $" as part of its project, {Path.GetFileName(project)}";
+                break;
+
+            case ".py" when ProgramLayout.PythonModule(full) is { } module:
+                arguments = $"-m {module.Module}";
+                workingDirectory = module.Folder;
+                together = $" as the module {module.Module}, because it imports from its own package";
+                break;
+        }
+
         var spec = new TargetSpec
         {
             ExecutablePath = viaDotnet ? full : found,
@@ -223,7 +250,7 @@ public static class TargetFactory
             BuildWorkingDirectory = workingDirectory,
         };
 
-        var how = $"Running it with {Path.GetFileNameWithoutExtension(found)}.";
+        var how = $"Running it{together} with {Path.GetFileNameWithoutExtension(found)}.";
         if (spec.BuildCommand is { Length: > 0 } build) how += $" Rebuilding with: {build}";
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };

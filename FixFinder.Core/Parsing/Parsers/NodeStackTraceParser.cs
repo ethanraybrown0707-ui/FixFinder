@@ -21,7 +21,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
     private static partial Regex FramePattern();
 
     /// <remarks>A plain <c>Error</c> counts too - <c>Error: Cannot find module 'fss'</c> - but only when frames follow it.</remarks>
-    [GeneratedRegex(@"^(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*:\s*(?<msg>.*))?$")]
+    [GeneratedRegex(@"^(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*\[(?<code>ERR_\w+)\])?(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex HeaderPattern();
 
     /// <summary>
@@ -143,6 +143,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
             RawText = ParserHelpers.RawTextOf(lines, headerIndex, end),
             FirstLineSequence = lines[headerIndex].Sequence,
             ExceptionType = header.Groups["type"].Value,
+            ErrorCode = header.Groups["code"].Success ? header.Groups["code"].Value : null,
             Message = header.Groups["msg"].Success && header.Groups["msg"].Value.Trim().Length > 0
                 ? header.Groups["msg"].Value.Trim()
                 : null,

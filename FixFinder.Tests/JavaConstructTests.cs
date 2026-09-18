@@ -195,6 +195,7 @@ public class JavaConstructTests : IDisposable
         using var http = new FixFinderHttpClient();
         var outcome = await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{construct}: {outcome.Result} - {outcome.Headline}");
         Assert.Equal(id, outcome.Best!.Id);
 

@@ -288,6 +288,16 @@ public sealed partial class CHeaderTypo : ILocalFixRule
 {
     public string Id => "c-header-typo";
 
+    private static readonly HashSet<string> PlatformHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "pthread.h", "unistd.h", "semaphore.h", "sched.h", "fcntl.h", "dirent.h", "termios.h", "poll.h", "dlfcn.h", "strings.h",
+        "getopt.h", "libgen.h", "pwd.h", "grp.h", "syslog.h", "spawn.h", "mqueue.h", "netdb.h", "ifaddrs.h", "regex.h", "glob.h",
+        "sys/types.h", "sys/stat.h", "sys/wait.h", "sys/socket.h", "sys/mman.h", "sys/time.h", "sys/select.h", "sys/ipc.h",
+        "sys/shm.h", "sys/msg.h", "sys/sem.h", "sys/resource.h", "sys/utsname.h", "sys/ioctl.h", "sys/un.h", "sys/epoll.h",
+        "arpa/inet.h", "netinet/in.h", "netinet/tcp.h", "windows.h", "winsock2.h", "ws2tcpip.h", "conio.h", "io.h", "process.h",
+        "omp.h", "mpi.h",
+    };
+
     [GeneratedRegex(@"^Cannot open include file: '(?<header>[^']+)': No such file or directory$")]
     private static partial Regex Message();
 
@@ -310,6 +320,10 @@ public sealed partial class CHeaderTypo : ILocalFixRule
 
         var header = message.Groups["header"].Value;
         if (CStandardLibrary.Headers.Contains(header)) return null;
+
+        // A POSIX or platform header is missing because the compiler does not have it - MSVC has no pthread.h - not because it
+        // is misspelt, and the nearest standard name to one is a different API altogether.
+        if (PlatformHeaders.Contains(header)) return null;
 
         if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
         if (source.Line(number) is not { } line) return null;

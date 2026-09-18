@@ -91,6 +91,9 @@ public static partial class CompiledLanguages
         var language = cpp ? "C++" : "C";
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
 
+        // The other files of the program, when it is split across several - see ProgramLayout.
+        var sources = ProgramLayout.NativeSources(source);
+
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
             // -g keeps debug info, and -O0 stops the optimiser from rearranging the very lines
@@ -99,26 +102,27 @@ public static partial class CompiledLanguages
             // time, in a form that can be applied exactly rather than read and retyped. -Wformat
             // reports a printf conversion that does not match its argument, which crashes rather
             // than failing to compile, and which gcc stays quiet about without it.
-            var standard = cpp ? "-std=c++17 " : "";
+            // The warnings beyond the defaults each name a mistake a run usually survives - see GnuWarnings.
+            var standard = GnuWarnings(cpp);
 
             var compile = Spec(
                 gnu.Program,
-                $"-g -O0 -Wformat -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" \"{source}\"",
+                $"-g -O0 -Wformat -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" {Quoted(sources)}",
                 Path.GetDirectoryName(source)!,
                 timeout);
 
             return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it with {gnu.Name}, then running the result."), null);
+                $"Building it{Along(sources)} with {gnu.Name}, then running the result."), null);
         }
 
         if (Toolchains.FindMsvc() is { SetupScript: { } script } msvc)
         {
-            var batch = WriteMsvcBatch(source, exe, output, script, cpp);
+            var batch = WriteMsvcBatch(sources, exe, output, script, cpp);
 
             var compile = Spec("cmd.exe", $"/c \"{batch}\"", output, timeout);
 
             return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it with {msvc.Name}, then running the result."), null);
+                $"Building it{Along(sources)} with {msvc.Name}, then running the result."), null);
         }
 
         return (null,
@@ -139,7 +143,7 @@ public static partial class CompiledLanguages
     /// compiler's diagnostics on stdout and stderr exactly as written, because those lines are
     /// what gets parsed and searched.
     /// </remarks>
-    private static string WriteMsvcBatch(string source, string exe, string output, string vcvarsall, bool cpp)
+    private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp)
     {
         // /Zi debug info, /W3 the usual warning level, /EHsc the standard C++ exception model.
         var flags = cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3";
@@ -159,7 +163,7 @@ public static partial class CompiledLanguages
             $"call \"{vcvarsall}\" x64 >nul",
             "if errorlevel 1 (echo FixFinder: could not set up the MSVC environment & exit /b 1)",
             $"cd /d \"{output.TrimEnd(Path.DirectorySeparatorChar)}\"",
-            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" \"{source}\"",
+            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" {Quoted(sources)}",
             "exit /b %errorlevel%",
             "",
         ]);
@@ -190,6 +194,17 @@ public static partial class CompiledLanguages
     /// </para>
     /// </remarks>
     /// <param name="normalRun">How the program was run the first time; the second run matches it.</param>
+    /// <summary>The language standard and the warnings beyond gcc's defaults, the same for a build and for checking a fix.</summary>
+    /// <remarks>
+    /// Each one names a mistake that a run usually survives, so the program looks fine and is not: <c>-Waddress</c> a string
+    /// compared with <c>==</c>, which compares where the strings are; for C++, <c>-Wmismatched-new-delete</c> <c>delete</c> for
+    /// memory from <c>new[]</c>, <c>-Wdelete-non-virtual-dtor</c> a derived object deleted through a base with no virtual
+    /// destructor, and <c>-Wcatch-value</c> an exception caught by value, which slices off what was really thrown.
+    /// </remarks>
+    internal static string GnuWarnings(bool cpp) => cpp
+        ? "-std=c++17 -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
+        : "-Waddress ";
+
     public static BuildAndRun? PrepareSanitized(string source, TargetSpec normalRun)
     {
         var extension = Path.GetExtension(source).ToLowerInvariant();
@@ -203,8 +218,20 @@ public static partial class CompiledLanguages
         Directory.CreateDirectory(output);
 
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
-        var flags = (cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3") + " /fsanitize=address";
+        var flags = cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3";
         var batch = Path.Combine(output, "build.cmd");
+
+        // C++ also gets a second file compiled in: a terminate handler that prints what g++'s runtime prints. An
+        // exception nothing caught, or a std::thread never joined, ends an MSVC program with a bare 0xC0000409 and
+        // not a word - AddressSanitizer has nothing to say about either - where g++ names what was thrown.
+        var sources = Quoted(ProgramLayout.NativeSources(source));
+
+        if (cpp)
+        {
+            var reporter = Path.Combine(output, "fixfinder_terminate.cpp");
+            File.WriteAllText(reporter, TerminateReporter, new UTF8Encoding(false));
+            sources += $" \"{reporter}\"";
+        }
 
         File.WriteAllText(batch, string.Join("\r\n",
         [
@@ -213,10 +240,16 @@ public static partial class CompiledLanguages
             $"call \"{vcvarsall}\" x64 >nul",
             "if errorlevel 1 (echo FixFinder: could not set up the MSVC environment & exit /b 1)",
             $"cd /d \"{output}\"",
-            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" \"{source}\"",
-            "if errorlevel 1 exit /b %errorlevel%",
-            "for /f \"delims=\" %%d in ('where clang_rt.asan_dynamic-x86_64.dll 2^>nul') do (copy /y \"%%d\" . >nul & exit /b 0)",
-            "echo FixFinder: the AddressSanitizer runtime was not found & exit /b 1",
+            // A label rather than a bracketed block, which a bracket in any path would end early.
+            "where clang_rt.asan_dynamic-x86_64.dll >nul 2>nul",
+            "if errorlevel 1 goto without_sanitizer",
+            "for /f \"delims=\" %%d in ('where clang_rt.asan_dynamic-x86_64.dll') do copy /y \"%%d\" . >nul",
+            $"cl {flags} /fsanitize=address /Fe:\"{Path.GetFileName(exe)}\" {sources}",
+            "exit /b %errorlevel%",
+            ":without_sanitizer",
+            cpp
+                ? $"rem No AddressSanitizer here: the terminate handler alone can still say what ended a C++ program.\r\ncl {flags} /Fe:\"{Path.GetFileName(exe)}\" {sources}\r\nexit /b %errorlevel%"
+                : "echo FixFinder: the AddressSanitizer runtime was not found & exit /b 1",
             "",
         ]), new UTF8Encoding(false));
 
@@ -228,16 +261,80 @@ public static partial class CompiledLanguages
             Timeout = normalRun.Timeout,
         };
 
+        // The same arguments and the same typed answers, or the second run can fail somewhere the first never reached.
         var run = new TargetSpec
         {
             ExecutablePath = exe,
             Arguments = normalRun.Arguments,
             WorkingDirectory = normalRun.WorkingDirectory,
             Timeout = normalRun.Timeout,
+            ExtraEnvironment = normalRun.ExtraEnvironment,
+            StandardInput = normalRun.StandardInput,
         };
 
-        return new BuildAndRun(compile, run, $"Rebuilding it with {msvc.Name} and AddressSanitizer, then running it again.");
+        return new BuildAndRun(compile, run, cpp
+            ? $"Rebuilding it with {msvc.Name}, AddressSanitizer and a handler that names an exception nothing caught, then running it again."
+            : $"Rebuilding it with {msvc.Name} and AddressSanitizer, then running it again.");
     }
+
+    /// <summary>
+    /// A terminate handler that prints what libstdc++ prints - <c>terminate called after throwing an instance of
+    /// 'std::out_of_range'</c> and its <c>what()</c>, or <c>terminate called without an active exception</c> -
+    /// so the parser and rules that already read g++'s words read MSVC's program too.
+    /// </summary>
+    /// <remarks>
+    /// Installed by a static object before <c>main</c> runs. It never touches the program's own source: it is a
+    /// separate file, compiled only into this diagnostic build, in FixFinder's build folder.
+    /// </remarks>
+    internal const string TerminateReporter = """
+        // Written by FixFinder: says what ended the program, in the words g++'s runtime uses, because MSVC's says nothing.
+        #include <cstdio>
+        #include <cstdlib>
+        #include <cstring>
+        #include <exception>
+        #include <typeinfo>
+
+        namespace
+        {
+            const char* FixFinderNamed(const char* name)
+            {
+                if (std::strncmp(name, "class ", 6) == 0) return name + 6;
+                if (std::strncmp(name, "struct ", 7) == 0) return name + 7;
+                return name;
+            }
+
+            [[noreturn]] void FixFinderReport()
+            {
+                if (std::exception_ptr current = std::current_exception())
+                {
+                    try
+                    {
+                        std::rethrow_exception(current);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        std::fprintf(stderr, "terminate called after throwing an instance of '%s'\n  what():  %s\n", FixFinderNamed(typeid(e).name()), e.what());
+                    }
+                    catch (...)
+                    {
+                        std::fprintf(stderr, "terminate called after throwing an instance of 'unknown'\n");
+                    }
+                }
+                else
+                {
+                    std::fprintf(stderr, "terminate called without an active exception\n");
+                }
+
+                std::fflush(stderr);
+                std::_Exit(3);
+            }
+
+            struct FixFinderInstall
+            {
+                FixFinderInstall() { std::set_terminate(FixFinderReport); }
+            } fixFinderInstall;
+        }
+        """;
 
     // ------------------------------------------------------------------ Java
 
@@ -257,9 +354,11 @@ public static partial class CompiledLanguages
                 "need to be on PATH.");
         }
 
+        // -sourcepath at the root the package is named from, so classes the file uses - beside it, or in other packages
+        // under the same root - are found and compiled with it.
         var compile = Spec(
             javac.Program,
-            $"-g -d \"{output}\" \"{source}\"",
+            $"-g -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
             Path.GetDirectoryName(source)!,
             timeout);
 
@@ -294,6 +393,16 @@ public static partial class CompiledLanguages
     }
 
     // ------------------------------------------------------------------ plumbing
+
+    private static string Quoted(IEnumerable<string> paths) => string.Join(" ", paths.Select(p => $"\"{p}\""));
+
+    /// <summary>" together with util.c and list.c", when the program is more than one file.</summary>
+    private static string Along(IReadOnlyList<string> sources) => sources.Count switch
+    {
+        1 => "",
+        2 => $" together with {Path.GetFileName(sources[1])}",
+        _ => $" together with {string.Join(", ", sources.Skip(1).SkipLast(1).Select(Path.GetFileName))} and {Path.GetFileName(sources[^1])}",
+    };
 
     private static TargetSpec Spec(string program, string arguments, string workingDirectory, TimeSpan timeout) =>
         new()

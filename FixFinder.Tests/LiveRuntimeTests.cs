@@ -96,6 +96,7 @@ public class LiveRuntimeTests
         Assert.True(plan.Ok, plan.Problem);
 
         var run = await new TargetRunner(new ParserRegistry()).RunAsync(plan.Spec!, CancellationToken.None);
+        if (ApplicationControl.Refused(run)) return;
 
         Assert.NotNull(run.Error);
         Assert.Equal(language, run.Error!.LanguageId);

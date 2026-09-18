@@ -266,17 +266,38 @@ public sealed partial class JavaUnreportedException : ILocalFixRule
                 if (MethodHeader().Match(header) is not { Success: true } method) return null;
 
                 return Declare(source, masked, headerLine, headerLine == k ? c : -1,
-                    method.Groups["name"].Value, message.Groups["type"].Value, number);
+                    method.Groups["name"].Value, Together(message.Groups["type"].Value, masked[number - 1]), number);
             }
         }
 
         return null;
     }
 
+    /// <summary>
+    /// The exception javac reported, and the others the same call is known to throw. javac reports one unreported exception
+    /// per call at a time, so declaring only <c>InterruptedException</c> for <c>future.get()</c> just uncovers
+    /// <c>ExecutionException</c> on the same line - a fix that looks like it broke something.
+    /// </summary>
+    private static IReadOnlyList<string> Together(string type, string maskedLine)
+    {
+        (string Call, string[] Types)[] companions =
+        [
+            (@"\.get\s*\(", ["InterruptedException", "ExecutionException"]),
+            (@"\.invoke\s*\(", ["IllegalAccessException", "InvocationTargetException"]),
+            (@"\.newInstance\s*\(", ["InstantiationException", "IllegalAccessException", "InvocationTargetException", "NoSuchMethodException"]),
+        ];
+
+        foreach (var (call, types) in companions)
+            if (types.Contains(type) && Regex.IsMatch(maskedLine, call)) return types;
+
+        return [type];
+    }
+
     private LocalFix? Declare(
         SourceFile source, IReadOnlyList<string> masked, int headerLine, int braceColumn,
-        string method, string type, int errorLine)
+        string method, IReadOnlyList<string> types, int errorLine)
     {
+        var type = string.Join(", ", types);
         var line = source.Lines[headerLine];
         var code = masked[headerLine];
         var end = braceColumn >= 0 ? braceColumn : code.TrimEnd().Length;
@@ -288,13 +309,11 @@ public sealed partial class JavaUnreportedException : ILocalFixRule
 
         // The name as javac printed it compiles only if it is visible here; otherwise the package
         // goes in front, which keeps this to one line rather than adding an import as well.
-        var declared = type;
-
-        if (!type.Contains('.') && !JavaTypes.Lang.Contains(type) && !JavaTypes.IsImported(type, source.Lines) &&
-            JavaTypes.Packages.TryGetValue(type, out var package))
-        {
-            declared = $"{package}.{type}";
-        }
+        var declared = string.Join(", ", types.Select(one =>
+            !one.Contains('.') && !JavaTypes.Lang.Contains(one) && !JavaTypes.IsImported(one, source.Lines) &&
+            JavaTypes.Packages.TryGetValue(one, out var package)
+                ? $"{package}.{one}"
+                : one));
 
         var between = code[(closeParen + 1)..end];
         string corrected;

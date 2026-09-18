@@ -3,6 +3,7 @@ using FixFinder.Core.Fingerprinting;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.LocalFixes.Rules;
+using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Patching;
@@ -141,6 +142,16 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// </remarks>
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
+    /// <summary>What the program should print, when the person said. Null or empty, and only mistakes the code shows are looked for.</summary>
+    /// <remarks>
+    /// A program that runs to the end can still be wrong, and only the person knows what right is. With this, a run that ends
+    /// normally is compared with it, and a wrong one starts the search for the change that makes it right - see <see cref="LogicRepair"/>.
+    /// </remarks>
+    public ExpectedBehaviour? Expected { get; init; }
+
+    /// <summary>The file the current run was started from, for checking and changing its logic.</summary>
+    private string? _chosen;
+
     private ParserRegistry? _registry;
 
     private ParserRegistry Parsers => _registry ??= Language.Parsers();
@@ -159,6 +170,8 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         SearchBudget? budget = null,
         CancellationToken cancellationToken = default)
     {
+        _chosen = launch.ChosenFile;
+
         if (!launch.Ok)
         {
             return new SessionOutcome
@@ -380,13 +393,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             // AddressSanitizer finds where it happened; the build's own warnings sometimes say why.
             if (run.Outcome == RunOutcome.Crashed && rerunWithSanitizer is not null)
             {
-                Progress?.Invoke("It crashed without a word - rebuilding it with AddressSanitizer to find where...");
+                Progress?.Invoke("It crashed without a word - rebuilding it to find where and why...");
 
-                if (await rerunWithSanitizer(cancellationToken) is { Error: { } located } sanitized)
+                var sanitized = await rerunWithSanitizer(cancellationToken);
+                NoteRefused(sanitized, ref warnings);
+
+                if (sanitized is { Error: { } located })
                 {
                     (warnings ??= []).Add(
-                        "It crashed without printing anything, so FixFinder rebuilt it with AddressSanitizer and ran " +
-                        "it once more to find where. The error shown is from that second run.");
+                        "It crashed without printing anything, so FixFinder rebuilt it to find where and why - with " +
+                        "AddressSanitizer, and for C++ a handler that names an exception nothing caught - and ran it once " +
+                        "more. The error shown is from that second run.");
 
                     return await SearchForAsync(
                         sanitized, located, spec, budget, sourceFolder, failedToCompile: false,
@@ -404,14 +421,89 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput);
             }
 
+            // A C or C++ program that ran without failing can still be wrong in a way that only happened not to show:
+            // gets, a string longer than its array, the address of a local handed back, delete for delete[], a
+            // malloc a few bytes short. Some of those the compiler already warned about; the rest only a check of
+            // every memory access finds, so the program is built and run once more under AddressSanitizer.
+            // A build with nothing to say prints nothing at all, so being compiled is what counts here, not having output.
+            if (run.Outcome == RunOutcome.ExitedClean && (buildOutput is { Count: > 0 } || rerunWithSanitizer is not null))
+            {
+                if (buildOutput is { Count: > 0 } && SilentBugWarning(buildOutput) is { } bug)
+                {
+                    (warnings ??= []).Add(
+                        "It ran without failing, but the compiler warned about a mistake that does not always show when " +
+                        "the program runs - it depends on what happens to be in memory - so it is treated as the error.");
+
+                    return await SearchForAsync(
+                        run, bug, spec, budget, sourceFolder, failedToCompile: false,
+                        warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
+                }
+
+                if (rerunWithSanitizer is not null)
+                {
+                    Progress?.Invoke("It ran without failing - checking it once more under AddressSanitizer...");
+
+                    var checkedRun = await rerunWithSanitizer(cancellationToken);
+                    NoteRefused(checkedRun, ref warnings);
+
+                    if (checkedRun is { Error: { } found })
+                    {
+                        (warnings ??= []).Add(
+                            "It ran without failing, so FixFinder rebuilt it with AddressSanitizer, which checks every memory " +
+                            "access, and ran it once more. That run found a mistake the first one happened to survive. The " +
+                            "error shown is from that second run.");
+
+                        return await SearchForAsync(
+                            checkedRun, found, spec, budget, sourceFolder, failedToCompile: false,
+                            warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
+                    }
+                }
+            }
+
+            // A program that ran to the end can still be wrong. Given the output it should print, that is checked directly and
+            // the change that makes it right is looked for; without it, only the mistakes the code shows by itself are - and for
+            // a program that never finished, only the loop that cannot end.
+            if (_chosen is { } chosen && run.Outcome is RunOutcome.ExitedClean or RunOutcome.TimedOut or RunOutcome.Crashed)
+            {
+                if (run.Outcome == RunOutcome.ExitedClean && Expected is { IsEmpty: false } expected)
+                    return await LogicAsync(run, spec, chosen, expected, budget, sourceFolder, warnings, cancellationToken);
+
+                if (StaticLogicError(chosen, run.Outcome) is { } logic)
+                {
+                    (warnings ??= []).Add(run.Outcome switch
+                    {
+                        RunOutcome.TimedOut => "It never finished, and the code has a loop that cannot end - nothing inside it moves it on.",
+                        RunOutcome.Crashed => "It crashed without a word, and the code does something that crashes on some systems and not others.",
+                        _ => "It ran without failing, but the code has a logic mistake that makes it do something other than what it sets out to.",
+                    });
+
+                    return await SearchForAsync(
+                        run, logic, spec, budget, sourceFolder, failedToCompile: false,
+                        warnings: warnings, cancellationToken: cancellationToken, ranWithoutFailing: true);
+                }
+            }
+
             return new SessionOutcome
             {
                 Result = wentWrong ? SessionResult.FailedSilently : SessionResult.RanFine,
                 Headline = NoErrorHeadline(run),
                 Detail = NoErrorDetail(run),
-                Spec = spec, Run = run,
+                Spec = spec, Run = run, Warnings = warnings ?? [],
                 SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
             };
+        }
+
+        // A program that exited 0 and printed something the generic parser took for an error - "std::exception", say, from a
+        // catch block - is weaker evidence than a compiler warning about a real mistake in the code.
+        if (run.Error.LanguageId == "generic" && run.ExitCode == 0 && buildOutput is { Count: > 0 } && SilentBugWarning(buildOutput) is { } warnedInstead)
+        {
+            (warnings ??= []).Add(
+                "It exited normally, but the compiler warned about a mistake that does not always show when the program runs, so " +
+                "that warning is treated as the error rather than the output it printed.");
+
+            return await SearchForAsync(
+                run, warnedInstead, spec, budget, sourceFolder, failedToCompile: false,
+                warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
         }
 
         // A program that stopped because it asked for input is not broken yet - it has not got far
@@ -479,9 +571,14 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         List<string>? warnings = null,
         IReadOnlyList<ParsedError>? remaining = null,
         CancellationToken cancellationToken = default,
-        IReadOnlyList<CapturedLine>? buildOutput = null)
+        IReadOnlyList<CapturedLine>? buildOutput = null,
+        bool ranWithoutFailing = false,
+        LocalFixFound? decided = null)
     {
         warnings ??= [];
+
+        // A logic mistake is about this program's own intent - nobody has written a post about it - so it is never searched for.
+        var searchWeb = error.LanguageId != "logic";
 
         // ---------------------------------------------------------- understand it
         var fingerprint = FingerprintBuilder.Build(error);
@@ -524,7 +621,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // of them. Every weight in the ranker estimates how likely a stranger's post is to be
         // about this crash; this came out of this crash, and names this file and this line. It is
         // also the only fix in the tool that can address code nobody else has ever seen.
-        var suggestion = RuntimeSuggestion.For(error, sourceRoot);
+        var suggestion = decided is null ? RuntimeSuggestion.For(error, sourceRoot) : null;
 
         // The same idea for the far larger set of mistakes whose message pins the answer down
         // without spelling it out - a missing import, a semicolon, a loop one step too long. Worked
@@ -535,13 +632,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         // compiler. One after the other, the local fix waited for every web request to finish first.
         using var stopLocal = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var localFix = suggestion is null
+        var localFix = decided is not null
+            ? Task.FromResult<LocalFixFound?>(decided)
+            : suggestion is null
             ? Task.Run(
                 () => LocalFixAsync(run, error, others, spec, sourceRoot, failedToCompile, buildOutput, stopLocal.Token),
                 CancellationToken.None)
             : Task.FromResult<LocalFixFound?>(null);
 
-        Progress?.Invoke(suggestion is null
+        Progress?.Invoke(!searchWeb
+            ? "Working out the fix from your code..."
+            : suggestion is null
             ? "Looking for a published fix, and working one out from your code..."
             : "Looking for a published fix...");
 
@@ -549,8 +650,9 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         try
         {
-            search = await sources.SearchAsync(
-                fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken);
+            search = searchWeb
+                ? await sources.SearchAsync(fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken)
+                : new AggregateSearchResult([], [], 0);
         }
         catch
         {
@@ -608,8 +710,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.NothingFound,
-                Headline = failedToCompile ? $"It did not compile: {error.Summary}" : $"It crashed: {error.Summary}",
-                Detail = NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache),
+                Headline = failedToCompile ? $"It did not compile: {error.Summary}"
+                    : ranWithoutFailing ? $"It ran, but: {error.Summary}"
+                    : $"It crashed: {error.Summary}",
+                Detail = searchWeb
+                    ? NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache)
+                    : $"FixFinder found this in the code but could not work out a change it could check: {error.Message}.",
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
                 SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings,
                 OtherErrors = others, Dependency = dependency,
@@ -681,7 +787,11 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.FoundFix,
-                Headline = "Found a fix that fits your code.",
+                Headline = error.ExceptionType == "wrong output"
+                    ? "Found the change that makes it print what you expected."
+                    : error.LanguageId == "logic"
+                        ? "Found a logic mistake in the code, and a fix for it."
+                        : "Found a fix that fits your code.",
                 // The title is shown directly above this in the prompt, so repeating it here
                 // just pushes the part that matters further down the window.
                 Detail =
@@ -769,6 +879,34 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             (w.Message ?? "").StartsWith("format '%s' expects", StringComparison.Ordinal) ||
             (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal) && AddressExpected(w.Message) ||
             (w.Message ?? "").StartsWith("reference to local variable '", StringComparison.Ordinal));
+
+    /// <summary>
+    /// A warning that is a real mistake even in a program that ran without failing - the kind whose effects depend on
+    /// what happens to be in memory, so a clean run proves nothing about it.
+    /// </summary>
+    private static ParsedError? SilentBugWarning(IReadOnlyList<CapturedLine> buildOutput)
+    {
+        static bool Gcc(string message) =>
+            message.StartsWith("call to 'gets' declared with attribute warning", StringComparison.Ordinal) ||
+            message.StartsWith("implicit declaration of function 'gets'", StringComparison.Ordinal) ||
+            message.StartsWith("initializer-string for array of 'char' is too long", StringComparison.Ordinal) ||
+            message.StartsWith("function returns address of local variable", StringComparison.Ordinal) ||
+            message.StartsWith("reference to local variable '", StringComparison.Ordinal) ||
+            message.Contains("called on pointer returned from a mismatched allocation function", StringComparison.Ordinal) ||
+            message.StartsWith("format '%s' expects", StringComparison.Ordinal) ||
+            message.StartsWith("format '", StringComparison.Ordinal) && AddressExpected(message) ||
+            message.StartsWith("format '", StringComparison.Ordinal) && message.Contains("has type 'char (*)[", StringComparison.Ordinal) ||
+            message.StartsWith("comparison with string literal results in unspecified behavio", StringComparison.Ordinal) ||
+            message.StartsWith("passing argument 3 of 'pthread_create' from incompatible pointer type", StringComparison.Ordinal) ||
+            message.StartsWith("passing argument 4 of 'qsort' from incompatible pointer type", StringComparison.Ordinal) ||
+            message.Contains("which has non-virtual destructor", StringComparison.Ordinal) ||
+            message.StartsWith("catching polymorphic type", StringComparison.Ordinal);
+
+        return GccClangParser.ParseWarnings(buildOutput).FirstOrDefault(w => Gcc(w.Message ?? ""))
+            ?? MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
+                w.ErrorCode is "C4172" or "C4045" or "C4700" ||
+                (w.ErrorCode == "C4477" && ((w.Message ?? "").Contains("format string '%s'", StringComparison.Ordinal) || AddressExpected(w.Message))));
+    }
 
     /// <summary>scanf handed a value where it needs somewhere to store one: <c>type 'int *', but ... has type 'int'</c>.</summary>
     private static bool AddressExpected(string? message) =>
@@ -897,6 +1035,113 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     private static bool IsEnvironmental(ErrorFingerprint fingerprint) =>
         fingerprint.ShortExceptionType is { Length: > 0 } type &&
         EnvironmentalTypes.Contains(type, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Says so when the AddressSanitizer build could not be started, rather than letting its silence read as a clean check.</summary>
+    private void NoteRefused(TargetRunResult? rerun, ref List<string>? warnings)
+    {
+        if (rerun is not { Outcome: RunOutcome.LaunchFailed }) return;
+
+        (warnings ??= []).Add(
+            "FixFinder rebuilt it with AddressSanitizer to check every memory access, but Windows would not start that build" +
+            (rerun.LaunchError is { Length: > 0 } reason ? $": {reason}" : ".") + " So this run has not been checked that way.");
+    }
+
+    /// <summary>The first logic mistake the code shows by itself, as an error - for a loop that never ends, only that kind.</summary>
+    /// <remarks>
+    /// Which mistakes count depends on how the run ended: any, for a run that finished; only a loop that cannot end, for one
+    /// that never did; and only something that crashes, for a silent crash nothing else explained.
+    /// </remarks>
+    private ParsedError? StaticLogicError(string file, RunOutcome outcome)
+    {
+        if (LocalFixes.SourceFile.Read(file) is not { } source || !Language.Reads(new LogicPatternRule())) return null;
+
+        var findings = LogicPatterns.Scan(source, message => Log?.Invoke(message))
+            .Where(f => outcome switch
+            {
+                RunOutcome.TimedOut => f.PatternId.EndsWith("loop-never-advances", StringComparison.Ordinal),
+                RunOutcome.Crashed => f.PatternId == "logic-string-literal-modified",
+                _ => true,
+            })
+            .ToList();
+
+        if (findings is not [var first, ..]) return null;
+
+        Log?.Invoke($"Logic mistake in the code: {first.PatternId} at line {first.Line} - {first.Message}");
+        return LogicPatterns.ToError(first, source);
+    }
+
+    /// <summary>Compares every run with its expected output, and when one is wrong, looks for the change that makes them all right.</summary>
+    private async Task<SessionOutcome> LogicAsync(
+        TargetRunResult run, TargetSpec spec, string chosen, ExpectedBehaviour expected, SearchBudget? budget,
+        string? sourceFolder, List<string>? warnings, CancellationToken cancellationToken)
+    {
+        warnings ??= [];
+
+        var repair = new LogicRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(message);
+
+        var result = await repair.RunAsync(chosen, expected, spec.Timeout, cancellationToken);
+
+        if (result is null)
+        {
+            // Every run printed what was expected - which says nothing about mistakes that happen not to show in these runs.
+            if (StaticLogicError(chosen, RunOutcome.ExitedClean) is { } logic)
+            {
+                warnings.Add("Every run printed what you expected, but the code has a logic mistake that other input could show.");
+                return await SearchForAsync(run, logic, spec, budget, sourceFolder, failedToCompile: false, warnings: warnings, cancellationToken: cancellationToken, ranWithoutFailing: true);
+            }
+
+            return new SessionOutcome
+            {
+                Result = SessionResult.RanFine,
+                Headline = expected.Runs.Count == 1 ? "It ran, and printed what you expected." : $"It ran, and all {expected.Runs.Count} runs printed what you expected.",
+                Detail = "The output matched line for line. Nothing to fix.",
+                Spec = spec, Run = run,
+                SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
+            };
+        }
+
+        foreach (var note in result.Notes) warnings.Add(note);
+
+        var at = result.Fix?.StartLine ?? result.Suspicious.FirstOrDefault()?.Line;
+        var error = LogicPatterns.WrongOutput(result.Mismatch, chosen, at);
+        var runName = expected.Runs.Count == 1 ? "It" : $"Run {result.FailingRun} of {expected.Runs.Count}";
+
+        Log?.Invoke($"Wrong output: {runName} - {result.Mismatch.Describe()}");
+
+        if (result.Fix is { } fix && LocalFixes.SourceFile.Read(chosen) is { } source)
+        {
+            var widened = fix.Unambiguous(source);
+            var root = Directory.Exists(sourceFolder ?? "") ? sourceFolder : Path.GetDirectoryName(chosen);
+
+            if (LocalFixDiff.Render(source, widened, RuntimeSuggestion.RelativePath(source.Path, root)) is { } diff)
+            {
+                var candidate = LocalFixEngine.CandidateFor(
+                    widened, source, diff, LogicRepair.Describe(result),
+                    result.FromPattern ? fix.Explanation : $"{runName} printed the wrong thing: {result.Mismatch.Describe()}. {fix.Explanation}");
+
+                return await SearchForAsync(
+                    run, error, spec, budget, sourceFolder, failedToCompile: false, warnings: warnings, cancellationToken: cancellationToken,
+                    ranWithoutFailing: true, decided: new LocalFixFound(candidate, chosen));
+            }
+        }
+
+        var lines = result.Suspicious.Take(5).Select(s => $"line {s.Line} (Ochiai {s.Ochiai:0.00})").ToList();
+
+        return new SessionOutcome
+        {
+            Result = SessionResult.NothingFound,
+            Headline = $"{runName} printed the wrong thing: {result.Mismatch.Describe()}.",
+            Detail =
+                $"FixFinder tried {result.Tried} small change{(result.Tried == 1 ? "" : "s")} and none of them made every run print what you expected. " +
+                (lines.Count > 0
+                    ? $"The lines most likely to hold the mistake - the ones the wrong runs went through more than the right ones - are {string.Join(", ", lines)}."
+                    : "The mistake may need more than one change, or a change bigger than one word or number."),
+            Spec = spec, Run = run, Error = error, Warnings = warnings,
+            SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
+        };
+    }
 
     private static string NothingFoundDetail(
         ErrorFingerprint fingerprint, IReadOnlyList<string> failures, CacheMode cache)

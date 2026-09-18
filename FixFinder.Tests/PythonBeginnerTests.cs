@@ -331,6 +331,7 @@ public class PythonBeginnerTests : IDisposable
 
         var outcome = await RunOffline(Write("app.py", source));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{topic}: {outcome.Result} - {outcome.Headline}");
         Assert.Equal(id, outcome.Best!.Id);
 
@@ -398,6 +399,7 @@ public class PythonBeginnerTests : IDisposable
 
         var typed = await RunOffline(script, "Ethan");
 
+        if (ApplicationControl.Refused(typed)) return;
         Assert.True(typed.Result == SessionResult.FoundFix, $"{typed.Result} - {typed.Headline}");
         Assert.Equal("local:python-nearest-name", typed.Best!.Id);
     }

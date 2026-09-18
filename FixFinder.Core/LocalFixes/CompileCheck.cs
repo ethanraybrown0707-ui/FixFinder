@@ -58,6 +58,7 @@ public static class CompileCheck
         ".py" or ".java" or ".cs" => true,
         ".js" or ".mjs" or ".cjs" or ".go" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
+        ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
     };
 
@@ -85,10 +86,10 @@ public static class CompileCheck
 
             var result = Path.GetExtension(copy).ToLowerInvariant() switch
             {
-                ".cs" when !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes)) =>
+                ".cs" when !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes)) && ProgramLayout.CSharpProject(source.Path) is null =>
                     await CompileCSharpAsync(spec, copy, folder, cancellationToken),
                 ".java" => await CompileJavaAsync(spec, copy, source.Path, folder, cancellationToken),
-                ".go" when GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
+                ".go" when ProgramLayout.GoPackageOf(source.Path).IsSingleFile && GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
                     await CompileGoAsync(spec, copy, folder, plan, bytes, cancellationToken),
                 _ => await CompileAsync(spec, direct: false, cancellationToken),
             };
@@ -173,7 +174,7 @@ public static class CompileCheck
             token => CompileAsync(javac, direct: false, token),
             async (target, targetFolder, token) =>
             {
-                if (await server.CompileAsync(JavacArguments(target, Path.GetDirectoryName(original)!, targetFolder), Timeout, token) is not { } reply)
+                if (await server.CompileAsync(JavacArguments(target, ProgramLayout.JavaSourceRoot(original), targetFolder), Timeout, token) is not { } reply)
                     return null;
 
                 // Read back exactly as a javac process's output is: its error stream, decoded and split into lines the same way.
@@ -201,7 +202,8 @@ public static class CompileCheck
             var content = source.Render(source.Lines);
             var name = Path.GetFileName(source.Path);
 
-            if (TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
+            if (ProgramLayout.GoPackageOf(source.Path).IsSingleFile &&
+                TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
                 _ = GoDirectBuild.PlanFor(go, key, name, content);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -238,8 +240,9 @@ public static class CompileCheck
     }
 
     /// <summary>What javac is given for a check, one argument at a time.</summary>
-    internal static IReadOnlyList<string> JavacArguments(string copy, string originalFolder, string folder) =>
-        ["-proc:none", "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", originalFolder, copy];
+    /// <param name="sourceRoot">The root the file's package is named from, so the rest of the program is found.</param>
+    internal static IReadOnlyList<string> JavacArguments(string copy, string sourceRoot, string folder) =>
+        ["-proc:none", "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy];
 
     /// <summary>Checks already compiled, by everything that decided how they came out.</summary>
     /// <remarks>
@@ -277,6 +280,9 @@ public static class CompileCheck
         if (extension == ".cs" && directives.Any(line => line.StartsWith("#:", StringComparison.Ordinal)))
             return null;
 
+        // A project is many files in many folders; its checks are not remembered.
+        if (extension == ".cs" && ProgramLayout.CSharpProject(original) is not null) return null;
+
         var key = new StringBuilder()
             .Append(spec.ExecutablePath).Append('\n')
             .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
@@ -287,14 +293,16 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx")
         {
             // `#include "../shared.h"` reaches out of the folder through the include path, to files
             // the listing below does not cover.
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
 
-            if (Neighbours(Path.GetDirectoryName(original)!) is not { } listing) return null;
+            // For Java, everything under the root its packages are named from; for the rest, the folder the file is in.
+            var around = extension == ".java" ? ProgramLayout.JavaSourceRoot(original) : Path.GetDirectoryName(original)!;
+            if (Neighbours(around) is not { } listing) return null;
             key.Append(listing);
         }
 
@@ -379,11 +387,29 @@ public static class CompileCheck
 
                 return Spec(
                     javac.Program,
-                    string.Join(" ", JavacArguments(copy, originalFolder, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
+                    string.Join(" ", JavacArguments(copy, ProgramLayout.JavaSourceRoot(original), folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":
-                return Native(copy, originalFolder, folder);
+                // The other files of the program are compiled with it, or a fix to one file fails to link.
+                return Native(copy, originalFolder, folder, others: ProgramLayout.NativeSources(original).Skip(1).ToList());
+
+            case ".h" or ".hpp" or ".hh" or ".hxx":
+            {
+                // A header is checked by building the program that includes it. The program's files are copied beside the
+                // changed header, because a quoted include looks in the including file's own folder first - compiled where
+                // they are, they would find the original header, not the change.
+                if (ProgramLayout.HeaderProgram(original) is not { Count: > 0 } including) return null;
+
+                foreach (var file in ProgramLayout.HeaderNeighbours(original))
+                {
+                    var target = Path.Combine(folder, Path.GetFileName(file));
+                    if (!target.Equals(copy, StringComparison.OrdinalIgnoreCase)) File.Copy(file, target, overwrite: true);
+                }
+
+                var copies = including.Select(file => Path.Combine(folder, Path.GetFileName(file))).ToList();
+                return Native(copies[0], originalFolder, folder, others: copies.Skip(1).ToList());
+            }
 
             case ".js" or ".mjs" or ".cjs":
                 // --check parses the file and runs none of it. It cannot see what only happens when the file runs - a
@@ -396,12 +422,44 @@ public static class CompileCheck
                 // A build, not a run: go build compiles and links, and the binary it leaves is deleted with the folder.
                 if (TargetFactory.FindOnPath("go") is not { } go) return null;
 
-                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
+                var program = ProgramLayout.GoPackageOf(original);
+                if (program.IsSingleFile) return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
+
+                // A module is built as a copy of the whole module, with the changed file in its place.
+                if (program.Module is not null)
+                {
+                    var module = Path.Combine(folder, "module");
+                    if (!CopyTree(program.Module, module, original, copy)) return null;
+
+                    return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" .", module);
+                }
+
+                // Otherwise go build takes a package's files from one folder, so the rest of the package is copied beside the change.
+                var files = new List<string> { copy };
+
+                foreach (var other in program.Files.Skip(1))
+                {
+                    var target = Path.Combine(folder, Path.GetFileName(other));
+                    File.Copy(other, target, overwrite: true);
+                    files.Add(target);
+                }
+
+                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" {string.Join(" ", files.Select(f => $"\"{f}\""))}", folder);
 
             case ".cs":
-                // The .NET SDK builds a single .cs file on its own, the same way FixFinder runs one.
                 if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;
 
+                // A file in a project is built as a copy of its project, with the changed file in its place - on its own it
+                // would be missing every type the rest of the project declares.
+                if (ProgramLayout.CSharpProject(original) is { } project)
+                {
+                    var copied = Path.Combine(folder, "project");
+                    if (!CopyTree(Path.GetDirectoryName(project)!, copied, original, copy)) return null;
+
+                    return Spec(dotnet, $"build \"{Path.Combine(copied, Path.GetFileName(project))}\" -nologo -v q", copied);
+                }
+
+                // The .NET SDK builds a single .cs file on its own, the same way FixFinder runs one.
                 return Spec(dotnet, $"build \"{copy}\" -nologo -v q", folder);
 
             default:
@@ -415,21 +473,24 @@ public static class CompileCheck
     /// verified against a build the user never runs.
     /// </remarks>
     /// <param name="reuseMsvcEnvironment">False calls vcvarsall for this check alone, as every check once did; a test compares the two.</param>
-    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true)
+    /// <param name="others">The program's other source files, compiled as they are.</param>
+    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true, IReadOnlyList<string>? others = null)
     {
         var cpp = !Path.GetExtension(copy).Equals(".c", StringComparison.OrdinalIgnoreCase);
         var exe = Path.Combine(folder, "check.exe");
+        var rest = string.Concat((others ?? []).Select(o => $" \"{o}\""));
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = cpp ? "-std=c++17 " : "";
-            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"", folder);
+            // The same warnings as the build, so a fix for one of them can be checked for making it go away.
+            var standard = CompiledLanguages.GnuWarnings(cpp);
+            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"{rest}", folder);
         }
 
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;
 
         var flags = cpp ? "/nologo /W3 /EHsc /std:c++17" : "/nologo /W3";
-        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"";
+        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"{rest}";
 
         // The same cl.exe with the same arguments in the same folder, in the environment the script
         // sets up - captured once rather than rebuilt for every check, which took ten times longer
@@ -460,6 +521,44 @@ public static class CompileCheck
         ]), new UTF8Encoding(false));
 
         return Spec("cmd.exe", $"/c \"{batch}\"", folder);
+    }
+
+    /// <summary>Folders a project copy never needs: build output and tooling.</summary>
+    private static readonly HashSet<string> NotCopied = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
+
+    /// <summary>More files than this in a project, and it is not copied to check a fix; the fix is then not offered.</summary>
+    private const int MostProjectFiles = 500;
+
+    /// <summary>
+    /// Copies a project or module folder to <paramref name="to"/>, with the changed copy standing in for the original file.
+    /// False when it is too big to copy for a check.
+    /// </summary>
+    private static bool CopyTree(string from, string to, string original, string changed)
+    {
+        var files = new List<string>();
+        var pending = new Stack<string>([from]);
+
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+
+            foreach (var sub in Directory.EnumerateDirectories(directory))
+                if (!NotCopied.Contains(Path.GetFileName(sub))) pending.Push(sub);
+
+            files.AddRange(Directory.EnumerateFiles(directory));
+            if (files.Count > MostProjectFiles) return false;
+        }
+
+        foreach (var file in files)
+        {
+            var target = Path.Combine(to, Path.GetRelativePath(from, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            var isOriginal = Path.GetFullPath(file).Equals(Path.GetFullPath(original), StringComparison.OrdinalIgnoreCase);
+            File.Copy(isOriginal ? changed : file, target, overwrite: true);
+        }
+
+        return true;
     }
 
     private static TargetSpec Spec(string program, string arguments, string folder) => new()

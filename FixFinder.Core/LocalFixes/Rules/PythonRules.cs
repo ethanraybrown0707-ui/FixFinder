@@ -367,6 +367,21 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
         {
             if (Text().IsMatch(right)) return null;
 
+            // Bytes - from a socket, a binary file, a subprocess - are text that has not been decoded yet. str() would join
+            // their printed form, b'hello', quotes and all; decode() gives back the text they hold.
+            if (message.Groups["type"].Value == "bytes")
+            {
+                var decoded = PyCourse.IsPrimary(right) ? $"{right}.decode()" : $"({right}).decode()";
+
+                return LocalFix.ReplaceLine(
+                    Id,
+                    $"Decode {right} into text before joining it",
+                    $"`{right}` is bytes, not text - what a socket or a binary file hands back - and Python will only join text to text. " +
+                    $"`str({right})` would join its printed form, `b'...'` quotes and all. `.decode()` turns the bytes back into the text " +
+                    "they hold, as UTF-8.",
+                    source.Path, number, line[..rightAt] + decoded + line[(rightAt + right.Length)..]);
+            }
+
             return LocalFix.ReplaceLine(
                 Id,
                 $"Convert {right} to a string before joining it",

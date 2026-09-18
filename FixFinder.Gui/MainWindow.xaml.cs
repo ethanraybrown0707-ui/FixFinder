@@ -8,6 +8,7 @@ using FixFinder.Core;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
+using FixFinder.Core.Logic;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Security;
 using FixFinder.Core.Sources;
@@ -37,6 +38,9 @@ public partial class MainWindow : Window
 {
     private readonly ObservableCollection<OutputRow> _output = [];
 
+    /// <summary>Runs beyond the first, each with its own input and the output it should produce.</summary>
+    private readonly ObservableCollection<ExpectedRunRow> _extraRuns = [];
+
     private readonly FixFinderHttpClient _http = new();
     private readonly FixSourceRegistry _sources = new();
 
@@ -63,6 +67,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         OutputListBox.ItemsSource = _output;
+        ExtraRunsList.ItemsSource = _extraRuns;
 
         AddLanguageButtons();
 
@@ -239,6 +244,13 @@ public partial class MainWindow : Window
         UseDetectedLanguageButton.Visibility = Visibility.Visible;
     }
 
+    private void AddRunButton_Click(object sender, RoutedEventArgs e) => _extraRuns.Add(new ExpectedRunRow());
+
+    private void RemoveRunButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is ExpectedRunRow row) _extraRuns.Remove(row);
+    }
+
     private void UseDetectedLanguageButton_Click(object sender, RoutedEventArgs e)
     {
         if (UseDetectedLanguageButton.Tag is not CodeLanguage detected) return;
@@ -255,12 +267,19 @@ public partial class MainWindow : Window
     {
         if (_launch is not { Ok: true, Spec: not null }) return;
 
-        // Typed answers belong to this run and every re-run of it, so they go into the spec itself.
-        var launch = InputTextBox.Text is { Length: > 0 } typed
-            ? _launch with { Spec = _launch.Spec.WithInput(typed) }
-            : _launch;
+        // Arguments and typed answers belong to this run and every re-run of it, so they go into the spec itself.
+        var launch = _launch with
+        {
+            Spec = _launch.Spec.WithArguments(ArgumentsTextBox.Text).WithInput(InputTextBox.Text is { Length: > 0 } typed ? typed : null),
+        };
 
         var spec = launch.Spec!;
+
+        // What it should print: the first run is the one about to happen; any others are run only to check the logic.
+        var expected = ExpectedBehaviour.From(
+            new[] { new ExpectedRun(InputTextBox.Text is { Length: > 0 } first ? first : null, ExpectedOutputTextBox.Text) }
+                .Concat(_extraRuns.Select(r => new ExpectedRun(r.Input.Length > 0 ? r.Input : null, r.Expected))),
+            ArgumentsTextBox.Text);
 
         // The gate that has to stay. FixFinder is about to run a program as this user, with
         // this user's environment, and the exact command line is the one thing nobody should
@@ -276,6 +295,11 @@ public partial class MainWindow : Window
             $"{commands}\n\n" +
             $"In: {spec.WorkingDirectory}\n\n" +
             (spec.StandardInput is { } answers ? $"Typing into it:\n\n{answers}\n\n" : "") +
+            (expected.IsEmpty
+                ? ""
+                : $"Then it will compare what it prints with what you expected{(expected.Runs.Count > 1 ? $", for all {expected.Runs.Count} runs" : "")}. " +
+                  "If the output is wrong, it builds and runs changed copies of the program in a temporary folder to find the change " +
+                  "that makes it right - your own files are not changed.\n\n") +
             "Continue?",
             "Run this program?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
 
@@ -295,7 +319,7 @@ public partial class MainWindow : Window
 
         _cancellation = new CancellationTokenSource();
 
-        var session = new FixFinderSession(_http, _sources) { Language = _language };
+        var session = new FixFinderSession(_http, _sources) { Language = _language, Expected = expected.IsEmpty ? null : expected };
         session.Progress += OnProgress;
         session.Log += OnLog;
         session.LineCaptured += OnLineCaptured;

@@ -6,8 +6,8 @@
 [![Stars](https://img.shields.io/github/stars/ethanraybrown0707-ui/FixFinder?style=flat&label=stars)](https://github.com/ethanraybrown0707-ui/FixFinder/stargazers)
 [![languages](https://img.shields.io/static/v1?label=languages&message=15%20%2B%20generic&color=blue)](#languages)
 
-Run a program in any language, catch its crash, look for a published fix, and hand it to you as
-code you can paste. FixFinder never writes to your files.
+Run a program in any language, catch its crash - or its wrong answer - look for a published fix or work one
+out, and hand it to you as code you can paste. FixFinder never writes to your files.
 
 No local AI and no model calls. Everything here is deterministic: regex stack-trace parsers,
 rule-based normalisation, API search, a scored ranking formula you can read, and a unified-diff
@@ -29,6 +29,29 @@ engine that turns a patch into the code it should end up as, with exact context 
    Toolchains are found on PATH **and** in the usual install locations — Visual Studio is found
    through `vcvarsall.bat`, a JDK through `Program Files`. Settings lists what is present, and a
    missing one is named along with the command that installs it.
+
+   **A program in more than one file is run as the whole program.** Only what the files themselves
+   settle is followed:
+
+   | Picked | Run as |
+   |---|---|
+   | `main.c` beside `util.c` | both compiled together - when exactly one file in the folder has a `main` |
+   | `src/app/Main.java` declaring `package app;` | compiled from `src`, so `app.util.Helper` is found |
+   | `main.go` beside `helper.go`, both `package main` | `go run` on every file of the package, or `go run .` with a `go.mod` |
+   | `Program.cs` under a `.csproj` | `dotnet run --project`, so the rest of the project is built with it |
+   | `shop/app.py` with `from .helper import greet` | `python -m shop.app`, from the folder above the package |
+
+   Two C files in one folder that both have a `main` are two programs, and each still runs on its own.
+
+   **Arguments** go in the box under the program, typed as they would follow its name in a terminal. They
+   are handed to the program itself, never to what runs it - after `dotnet run`'s `--`, after the script
+   for Python - and every rerun uses them too, including the AddressSanitizer one.
+
+   **What it should print** goes in the box beside the input, and is optional. With it, a program that runs to
+   the end is checked for **logic errors** too - output that is simply wrong - and the change that makes it right
+   is searched for and checked by running it: see [Logic errors](#logic-errors-programs-that-run-and-are-wrong).
+   **+ Add another run** adds more runs, each with its own input and expected output; the more there are, the more
+   exactly the mistake is pinned down.
 2. **Press "Run it and find a fix"**, and confirm the command line it shows you.
    C, C++ and Java are compiled first — and if the build fails, the **compiler error** is what
    gets looked up, which is often a better search term than a runtime message: `C2065` and
@@ -231,6 +254,38 @@ in Go interfaces, channels and multiple return values. A third set, the same met
 | JavaScript | 25 | 0 | 20 | recursion with no base case, an error thrown on purpose, `new` on an arrow function, a class used before it is declared, a private field used outside its class |
 | Go | 20 | 0 | 14 | a failed type assertion, a `WaitGroup` passed by value, `>` on a generic type, a channel closed twice, a constant that overflows, a method on `string` |
 
+These counts were measured before unwritten members, mistakes that never fail and MSVC's silent C++ endings
+were taken on, and have not been measured again; [what is still not fixed](#what-is-still-not-fixed-and-why)
+says which of what is left now has a fix.
+
+**And then coursework from all four years of a degree** - the modules after the first term: data structures and
+algorithms (a breadth-first search on a `deque`, sets, heaps, linked lists, hashing, comparators and `Comparable`), systems
+programming in C (a linked list freed while it is walked, `malloc` measuring the wrong type, a header included twice, a
+`qsort` comparator), operating systems and concurrency (threads in all seven languages, Java monitors, Python processes,
+Go `WaitGroup`s and channels), networks (sockets, bytes and text), databases (`sqlite3` parameters), serialisation and
+JSON, generics, records and interfaces, `async` code and pattern matching. A fourth set, the same method, with C and C++
+built both ways:
+
+| | Programs | Before | Now | What is left |
+|---|---|---|---|---|
+| Python | 28 | 3 | 25 | a heap of objects that cannot be compared, a linked list that is empty, `lru_cache` on a function given a list |
+| Java | 17 | 3 | 16 | the next node of a linked list that is `null` |
+| C# | 8 | 0 | 7 | `lock` on an `int`, which needs a new object to lock |
+| C, built by gcc | 11 | 0 | 10 | a `size_t` printed with `%d`, which never fails on this machine |
+| C, built by MSVC | 11 | 1 | 7 | the one "before" was wrong (see below); `pthread.h`, which MSVC does not have; and `scanf("%s", &name)`, a `qsort` comparator and `%d` for a `size_t`, which MSVC neither warns about nor fails on |
+| C++, built by g++ | 9 | 0 | 6 | a class holding raw memory copied (the rule of three), `count` clashing with `std::count`, a template defined in a `.cpp` |
+| C++, built by MSVC | 9 | 0 | 6 | the same three |
+| JavaScript | 8 | 1 | 6 | `JSON.parse` given an object, `require` and top-level `await` in one file - each with two right answers |
+| Go | 3 | 0 | 3 | |
+
+Two things it turned up were already wrong, not just missing. With MSVC, `#include <pthread.h>` - a POSIX header MSVC does
+not have - was "fixed" to `<threads.h>`, the nearest standard name and a different threads API; platform headers are no
+longer treated as typos. And `data` from a socket joined to text was wrapped in `str()`, which prints `b'hello'`, quotes and
+all; bytes are now decoded instead.
+
+Each of those is a live test now, run through FixFinder for real - `CourseworkTests` - and each of the new rules is listed
+with the rest in the table below.
+
 **How a fix is worked out.** Each rule reads one kind of error, and the lines it names, and proposes
 exactly one change:
 
@@ -269,6 +324,7 @@ exactly one change:
 | | `integer number too large`, a variable declared twice, `values.stream()` on an array, `Arrays` unimported | `L`, an assignment, `Arrays.stream(values)`, the import |
 | | `if (x); { ... } else`, catch clauses in the wrong order, an unclosed string | the semicolon removed, the specific catch first, the quote |
 | | `ConcurrentModificationException` from `remove` inside a for-each, `split(".")` | `removeIf(...)`, `split("\\.")` |
+| | `Dog is not abstract and does not override abstract method speak()` - from a class or an interface, in the file or beside it | the method, with `@Override` and its signature copied, throwing `UnsupportedOperationException` until it is written |
 | C | `'bool': undeclared identifier`, `'malloc' undefined` | the standard header |
 | | a misspelt variable, member or function | the nearest name, since MSVC never suggests one |
 | | `Cannot open include file: 'stdoi.h'` | `<stdio.h>` |
@@ -284,6 +340,7 @@ exactly one change:
 | | `printf("%s", 5)`, which compiles with a warning and crashes | `%d` - from MSVC's `C4477`, or gcc's own fix-it under `-Wformat` |
 | | `#define SIZE 5;`, `Main` instead of `main`, `if (x); { ... } else`, `int grid[][]` as a parameter | the semicolon removed, `main`, the semicolon removed, the column count of the arrays it is called with |
 | | `*p` on a `void *`, `free` of a stack array, `scanf("%d", age)`, a `char` printed with `%s` | `*(int *)p`, the `free` removed, `&age`, `%c` - where gcc's own fix-it would say `%d` |
+| | mistakes that ran to the end anyway: `gets(name)`, `char code[5] = "ABCDEFG"`, a local array returned, `malloc(5)` for five `int`s | `fgets` with the newline trimmed, `char code[]`, `static` on the array, `malloc(5 * sizeof *values)` - see below |
 | C# | `; expected`, `} expected`, `Syntax error, '(' expected`, `Too many characters in character literal` | the semicolon where Roslyn's column points, the brace, the brackets round `if x > 5`, double quotes |
 | | `The name 'print'`, `'True'`, `'None'`, `'len'` or a `for` loop's `'i'` `does not exist` | `Console.WriteLine`, `true`, `null`, `name.Length`, `int i` - or the one name in the file within a letter or two |
 | | `'Console' does not contain a definition for 'WriteLin'`, `'List<int>' ... 'Length'`, `'string' ... 'equals'` | the real member, read from .NET itself by reflection: `WriteLine`, `Count`, `Equals` |
@@ -297,6 +354,7 @@ exactly one change:
 | | `word[0] == "a"`, `"10" - 1`, a string passed where an int is wanted, `Where(...)` assigned to a `List`, a `List` to an array | `'a'`, `int.Parse`, `int.Parse(...)`, `.ToList()`, `.ToArray()` |
 | | `x.ToString` without brackets, a variable declared twice, catch clauses out of order, `if (x); { ... } else`, a `case` with no `break` | `()`, an assignment, the specific catch first, the semicolon removed, `break;` |
 | | `Collection was modified` from `Remove` inside a `foreach` | `RemoveAll(...)` |
+| | `'Dog' does not implement interface member 'IAnimal.Speak()'`, `does not implement inherited abstract member` | every missing member at once, signatures copied: methods throwing `NotImplementedException`, settable properties as `{ get; set; }`, `override` for an abstract one |
 | C++ | `'cout' was not declared`, `'string': undeclared identifier`, `std::endll` | `std::cout` and `std::endl` for the whole line, `std::string`, `std::endl` |
 | | `System.out.println`, `Console.WriteLine`, `print(...)`, `null`, `True`, `boolean`, `String` | `std::cout << ... << std::endl`, `nullptr`, `true`, `bool`, `std::string` |
 | | `std::cout >> total`, `std::cin << age`, `values.add(1)`, `values.length()`, `ages.containsKey(k)`, `name.size` | `<<`, `>>`, `push_back`, `size()`, `count`, `size()` |
@@ -307,7 +365,9 @@ exactly one change:
 | | a `unique_ptr` copied, a `const` object calling a method not marked `const`, `typename` missing, a lambda without its capture or changing its copy | `std::move` - only when nothing uses it afterwards - `const`, `typename`, `[&total]` |
 | | `Meters m = 5.0` with an `explicit` constructor, a `static` member never defined, a `const` member assigned in the constructor, a default argument given twice, an `auto` parameter under C++17 | `Meters m(5.0)`, its definition after the class, `: radius(r)`, the second default removed, a template |
 | | `word[0] == "a"`, `std::sort` on a `std::list` | `'a'`, `values.sort()` |
-| | `terminate called after throwing an instance of 'std::out_of_range'` from `.at(i)`, `terminate called without an active exception` | `<` in the one loop that reads `.at(i)` up to `.size()`, `worker.join()` |
+| | `terminate called after throwing an instance of 'std::out_of_range'` from `.at(i)`, `terminate called without an active exception` - from g++, and from MSVC through the handler below | `<` in the one loop that reads `.at(i)` up to `.size()`, `worker.join()` |
+| | `cannot declare variable 'd' to be of abstract type 'Dog'`, MSVC's `C2259` | each pure virtual the class never overrode, written as an `override` that throws `std::logic_error` until it is filled in - never for the base class itself |
+| | `delete` of something made with `new[]`, which g++ warns about under `-Wmismatched-new-delete` | `delete[]` |
 | | AddressSanitizer's double `delete`, `[0]` on an empty vector, `erase` inside a range-`for`, and a reference to a local returned | the second `delete` removed, `push_back`, `erase(std::remove_if(...))`, return by value |
 | JavaScript | `missing ) after argument list`, an unclosed string, a brace missing or one too many, `'It's here'` | the bracket, the quote, the brace where the indentation says the block ended, double quotes |
 | | `print`, `System.out.println`, `True`, `None`, `len(items)`, `elif`, `if x > 3 {`, `for item in items`, `(x) -> x * 2`, `def`, `fucntion` | `console.log`, `true`, `null`, `items.length`, `else if`, the brackets, `for (const item of items)`, `=>`, `function` |
@@ -330,7 +390,10 @@ exactly one change:
 outside your project - Python with `py_compile`, which parses the file and runs none of it; Java with
 javac; C and C++ with the same compiler the build used; C# with `dotnet build`; JavaScript with `node --check`,
 which parses it and runs none of it; Go with `go build` - and the change is offered only if the error it was
-for has gone and nothing new has broken. Two equally near names is a refusal, not a pick: `printn` is
+for has gone and nothing new has broken. A file that is part of a larger program is checked as part of it: a
+C file with the rest of its folder, a Java file from its package root, a Go file with its package or a copy of
+its module, a C# file in a copy of its project with the change in place - so a fix to `util.c` is found when
+`main.c` was the one picked, and a change that compiles alone but breaks the program is not offered. Two equally near names is a refusal, not a pick: `printn` is
 one letter from `print`, `println` and `printf`, so nothing is offered. For a crash, the check can
 only prove the file still compiles, and the answer says exactly that rather than claiming the crash
 is gone.
@@ -423,18 +486,30 @@ right edit; and a third-party header. Some C runs never reached an error at all,
 Application Control blocked the freshly built program - which is this machine, not the mistake.
 
 The later-years programs left the same kinds of thing again: recursion with no base case, an abstract
-class created, an abstract or interface method never written, a lambda changing a local variable, `>`
-on a generic `T`, a `switch` on a string - each with more than one reasonable fix. And **some C mistakes
-never fail at all**: `gets`, a string longer than its array, a `malloc` without its element size and a
-returned local array all ran to the end here, and MinGW's `scanf` quietly refuses the null address that
-MSVC's crashes on. FixFinder acts on what went wrong, so a mistake that happens to work is not found -
-a real limit of finding bugs by running the program.
+class created, a lambda changing a local variable, `>` on a generic `T`, a `switch` on a string - each with
+more than one reasonable fix. An abstract or interface method never written was on that list, and is now
+written as a stub that throws until it is filled in, in C#, Java and C++: the signature is fixed by the
+declaration, and only the body is left for you, which the stub says out loud.
+
+**Some C and C++ mistakes never fail at all**: `gets`, a string longer than its array, a `malloc` without
+its element size and a returned local array all ran to the end here. A program that runs fine is no longer
+taken at its word. If the build warned about one of those - gcc's `gets` and `initializer-string ... is too
+long`, MSVC's `C4172` and `C4045`, a `delete` for a `new[]` under `-Wmismatched-new-delete` - the warning is
+treated as the error, and the answer says the program ran but was wrong. With no warning, a C or C++ program
+that ran fine is rebuilt with AddressSanitizer and run once more, which catches the `malloc` too small for
+what is written into it. MinGW's `scanf` still quietly refuses the null address that MSVC's crashes on, and
+a mistake neither a warning nor the sanitizer notices is still not found - a real limit of finding bugs by
+running the program.
 
 C++ left the same kinds of thing: an abstract class created, a struct printed with no `operator<<`, `>` on
 a template's type, a `switch` on a `std::string`, a `const` assigned to, a null pointer written through and
-an exception thrown on purpose - each with more than one reasonable fix. Two more are MSVC's alone: an
+an exception thrown on purpose - each with more than one reasonable fix. Two more were MSVC's alone: an
 uncaught exception and a thread never joined end its programs with a bare `0xC0000409` and nothing printed,
-so there is nothing to read, where g++'s runtime at least names what was thrown.
+where g++'s runtime names what was thrown. The AddressSanitizer rebuild of a C++ program now compiles in one
+more file of FixFinder's own, never yours: a terminate handler that prints what g++'s runtime prints -
+`terminate called after throwing an instance of 'std::out_of_range'` and its `what()` - so MSVC's silent
+ending is read by the same rules, and `.at(i)` past the end and `worker.join()` are fixed under both
+compilers.
 
 JavaScript and Go left the same two kinds. Data: a property of `undefined` or `null`, invalid JSON, a nil pointer,
 dividing by zero, a type assertion that fails. And code wrong in more than one way: recursion with no base case, an
@@ -505,6 +580,108 @@ that passed:
 - **A name misspelt twice on one line kept its second spelling.** The nearest-name rule changed only the use the
   compiler pointed at, so `sqr.side * sqr.side` still failed on the other, and the fix was refused. Every use on the
   line is changed now.
+
+## Logic errors: programs that run and are wrong
+
+A crash says where it happened. A program that prints 82 where 82.5 was right says nothing at all - and nobody else has
+written about it, so there is nothing to search for. FixFinder finds these two ways, and neither involves a model: one
+reads the code for mistakes that are wrong whatever the program was for, and the other compares the output with what the
+person says it should be and searches for the change that makes it right.
+
+### From the code alone
+
+Some logic mistakes are visible in the code itself, because the code contradicts what it visibly sets out to do. These
+are looked for in every program that runs to the end, in a program that never finishes (only a loop that cannot end),
+and in a C or C++ program that crashes without a word (only a write into a string literal). A fix is offered the same
+way as any other: made in a copy, compiled, and handed over as the corrected lines.
+
+| | The mistake | The fix handed over |
+|---|---|---|
+| Python | a loop whose `if` and `else` both `return`, so it never looks past the first item | the `else` return, moved after the loop |
+| | `total = 0` inside the loop that adds to `total` | set once, before the loop |
+| | `def add(x, items=[])` that appends to `items` | `items=None`, and a new list made inside |
+| | `name.upper()` or `sorted(values)` on a line of its own | `name = name.upper()`, `values = sorted(values)` |
+| | `count is 1000`, `assert (x == 7, "message")`, `total == 0` as a statement | `==`, the brackets removed, `=` |
+| | `while i < n:` with nothing inside changing `i` or `n` | `i += 1` at the end of the loop |
+| Java, C#, C, C++ | `double average = sum / count` with two `int`s | `(double) sum / count` |
+| | `for (...);` or `if (...);` in front of a block | the `;` removed |
+| | the loop returning in both branches, `total = 0;` inside the loop, a `while` that never moves on (and in JavaScript) | as for Python |
+| Java, C, C++, JavaScript | a `case` without `break`, whose next case overwrites what it set | `break;` |
+| Java | `answer == "yes"` on Strings | `answer.equals("yes")` |
+| Java, C#, JavaScript | `name.toUpperCase();` on a line of its own | `name = name.toUpperCase();` |
+| C, C++ | `int sum;` added to before it is ever set; `char *s = "hello"; s[0] = 'H';` | `int sum = 0;`; `char s[] = "hello";` |
+| | `answer == "yes"` on a `char` array or pointer | `strcmp(answer, "yes") == 0`, with `<string.h>` |
+| C++ | `catch (std::exception e)`; `Animal* pet = new Dog(); delete pet;` with no virtual destructor | `const std::exception& e`; `virtual ~Animal()` |
+| C, C++, JavaScript | `if (items = 0)`; `flags & 1 == 0` | `==` (`===` in JavaScript); `(flags & 1) == 0` |
+| JavaScript | `numbers.sort()` on numbers; `for (var i ...)` with a callback inside; `.map(parseInt)` | `sort((a, b) => a - b)`; `let`; `.map(Number)` |
+
+Each is written to stay quiet when unsure, because a check that fires on correct code teaches people to ignore it:
+`name.upper()` is flagged only when `name` certainly holds text, a mutable default only when the function changes it, a
+`while` only when nothing inside it - no assignment, `break`, `return` or change to the bound - could end it, and a
+fall-through only when the next case overwrites what this one set and no comment says it was meant.
+
+### From the output it should have printed
+
+For everything else, only the person knows what right is. **What it should print** goes in the box beside the input,
+and **+ Add another run** adds more, each with its own input. A program that runs to the end is then compared with it
+line by line - ignoring nothing but spaces at the end of a line and blank lines at the end, so `5.0` is not `5`. A prompt
+counts: `input("Name: ")` prints `Name: ` in front of whatever comes next.
+
+When a run is wrong, the change that makes every run right is searched for:
+
+1. **Where.** Each run is repeated with the language's own coverage switched on, recording which lines it executed -
+   Python's tracing hook, V8's coverage for Node, gcc's `--coverage` read back with gcov, and Go's `-cover`. Every line
+   is then scored with **spectrum-based fault localisation**: the Ochiai formula, *ef / √(F × (ef + ep))*, where *ef* is
+   how many wrong runs executed the line, *ep* how many right runs did, and *F* how many runs were wrong. A line only the
+   wrong runs go through scores 1; a line every run goes through scores less the more right runs there are. DStar,
+   *ef² / (ep + F − ef)*, breaks Ochiai's ties, and Tarantula is worked out alongside. Java and C# have no coverage without
+   installing something, so for them every line counts as equally suspect.
+2. **What.** On the most suspicious lines, the single-token edits behind most one-line logic fixes are generated: a
+   comparison off by one (`<` for `<=` - tried first where it decides a loop or a branch), a bound off by one (a `- 1` too
+   many or too few), the wrong arithmetic or logical operator (`//` for `/`, `or` for `and`), an integer division where a
+   real one was meant, a constant one away, `min` for `max`, `True` for `False`. After those, an `if` / `elif` chain with
+   a later branch moved to the front - a chain stops at the first true condition, so a special case tested after a more
+   general one never gets its turn - and the same edit on two to four nearby lines together, for a mistake made twice.
+   Across all those lines at once, the most suspicious line goes first and, on equally suspicious lines, the likeliest
+   kind of edit. The mistakes from the code alone are tried before any.
+3. **Checked by running it.** Each change is made in a private copy of the program's folder in the temp directory, built
+   and run with every input given, a few copies at a time. The first change after which every run prints exactly what
+   was expected is the answer. The program's own folder is never touched, and the copies are deleted afterwards.
+
+The answer is honest about what that proves: the first change found that makes *these* runs right, not a proof that the
+program is right for every input. Another change could fit the same runs, which is why more runs - especially runs that go
+wrong in different ways - make the answer better. Ordering matters for the same reason: tried line by line, an early
+`count = 0` nudged to `count = 1` made "banana" and "tree" both come out right before the real mistake, a
+`range(len(word) - 1)` two lines down, was ever reached. When nothing fits, the lines Ochiai ranked highest are named.
+
+**Measured** the same way as everything else: 28 small programs, one logic mistake each - 14 that need the expected
+output, 14 that the code shows by itself - across all seven languages. Before, every one of them ran "without a problem".
+
+| | Programs | From the code alone | From the expected output | Fixed |
+|---|---|---|---|---|
+| Python | 13 | 5 of 5 | 8 of 8 | 13 |
+| Java | 4 | 3 of 3 | 1 of 1 | 4 |
+| C | 3 | 2 of 2 | 1 of 1 | 3 |
+| C++ | 2 | 1 of 1 | 1 of 1 | 2 |
+| C# | 2 | 1 of 1 | 1 of 1 | 2 |
+| JavaScript | 3 | 2 of 2 | 1 of 1 | 3 |
+| Go | 1 | - | 1 of 1 | 1 |
+
+From the expected output: a binary search with `low < high`, an average with `//`, a leap year with `or` for `and`, a
+factorial whose `range` stops one short, `min` for `max`, a Fahrenheit formula with `- 32` for `+ 32`, vowels counted with
+`len(word) - 1`, a sum starting from index 1 in Java and Go, grade boundaries with `>` for `>=` on two lines at once, a
+product starting from 0, `Math.Min` for `Math.Max` in C#, a JavaScript loop running to `<= names.length` - and FizzBuzz
+with the `% 15` test after the `% 3` one, which was the last one left until branches could be reordered: no single token is
+wrong there, the order is. When nothing fits, the lines Ochiai ranked highest are named instead.
+
+Two things only showed up by running it this way. Tried line by line, the vowel counter's first passing change was `count = 1`
+and the binary search's was `high = len(items)`, each right for the runs given and wrong in general; ordering every edit by
+suspicion first and likelihood second found `range(len(word))` and `low <= high`. And a copy that Windows' Application Control
+refused to start was reported as a program printing the wrong thing; a launch that never happened is now retried, and never
+counted as an answer.
+
+Each program is a live test - `LogicErrorTests` - along with the formulas, the comparison, the edits generated and every
+pattern, each with a case it must leave alone.
 
 ## When the fix is not a patch
 

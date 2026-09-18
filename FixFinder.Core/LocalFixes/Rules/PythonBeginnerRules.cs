@@ -445,7 +445,7 @@ public sealed partial class PythonSuperCall : ILocalFixRule
 {
     public string Id => "python-super-call";
 
-    [GeneratedRegex(@"^descriptor '\w+' (?:of|for) 'super' object needs an argument$")]
+    [GeneratedRegex(@"^descriptor '\w+' (?:(?:of|for) 'super' object needs an argument|requires a 'super' object but received an? '\w+')$")]
     private static partial Regex Message();
 
     [GeneratedRegex(@"(?<![\w.])super\.")]

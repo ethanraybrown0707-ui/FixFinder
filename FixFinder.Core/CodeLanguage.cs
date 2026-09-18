@@ -53,8 +53,9 @@ public sealed record CodeLanguage(
         : new ParserRegistry(new ParserRegistry().Parsers.Where(p => p.LanguageId == "generic" || ParserIds.Contains(p.LanguageId)));
 
     /// <summary>Whether a rule proposes fixes for this language.</summary>
+    /// <remarks>Logic patterns read every language, each only its own files, so they are never filtered out here.</remarks>
     public bool Reads(ILocalFixRule rule) =>
-        IsAny || RulePrefixes.Any(prefix => rule.Id.StartsWith(prefix, StringComparison.Ordinal));
+        IsAny || rule.Id.StartsWith("logic-", StringComparison.Ordinal) || RulePrefixes.Any(prefix => rule.Id.StartsWith(prefix, StringComparison.Ordinal));
 
     /// <summary>The language a source file is written in, or null for a file that could be anything, such as an .exe.</summary>
     public static CodeLanguage? Of(string path)

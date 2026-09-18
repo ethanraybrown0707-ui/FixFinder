@@ -67,18 +67,51 @@ public sealed class TargetSpec
     public string? StandardInput { get; init; }
 
     /// <summary>This spec, with <paramref name="input"/> typed into the program.</summary>
-    public TargetSpec WithInput(string? input) => new()
+    public TargetSpec WithInput(string? input) => Copy(Arguments, string.IsNullOrEmpty(input) ? null : input);
+
+    /// <summary>
+    /// This spec, with <paramref name="programArguments"/> passed to the program itself - what it reads
+    /// as <c>sys.argv</c>, <c>args</c> or <c>argv</c>.
+    /// </summary>
+    /// <remarks>
+    /// Added after everything FixFinder put on the command line, and exactly as typed, the way they
+    /// would be typed after the program's name in a terminal. The one place order is not enough is
+    /// <c>dotnet run</c>, which reads arguments as its own until it sees <c>--</c>: without it,
+    /// <c>dotnet run app.cs --verbose</c> is dotnet being asked to be verbose.
+    /// </remarks>
+    public TargetSpec WithArguments(string? programArguments)
+    {
+        var extra = programArguments?.Trim() ?? "";
+        if (extra.Length == 0) return this;
+
+        var separator = !LaunchViaDotnet &&
+                        string.Equals(Path.GetFileNameWithoutExtension(ExecutablePath), "dotnet", StringComparison.OrdinalIgnoreCase) &&
+                        Arguments.StartsWith("run", StringComparison.Ordinal)
+            ? " -- "
+            : " ";
+
+        return Copy(Arguments.Length > 0 ? Arguments + separator + extra : extra, StandardInput);
+    }
+
+    /// <summary>This spec, with a different time limit - shorter, for runs that might loop forever.</summary>
+    public TargetSpec WithTimeout(TimeSpan timeout) => Copy(Arguments, StandardInput, timeout);
+
+    /// <summary>This spec, with more variables set in the program's environment.</summary>
+    public TargetSpec WithEnvironment(IReadOnlyDictionary<string, string> extra) =>
+        Copy(Arguments, StandardInput, environment: ExtraEnvironment.Concat(extra).GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value));
+
+    private TargetSpec Copy(string arguments, string? standardInput, TimeSpan? timeout = null, IReadOnlyDictionary<string, string>? environment = null) => new()
     {
         ExecutablePath = ExecutablePath,
-        Arguments = Arguments,
+        Arguments = arguments,
         WorkingDirectory = WorkingDirectory,
         LaunchViaDotnet = LaunchViaDotnet,
-        ExtraEnvironment = ExtraEnvironment,
-        Timeout = Timeout,
+        ExtraEnvironment = environment ?? ExtraEnvironment,
+        Timeout = timeout ?? Timeout,
         BuildCommand = BuildCommand,
         BuildWorkingDirectory = BuildWorkingDirectory,
         OutputEncoding = OutputEncoding,
-        StandardInput = string.IsNullOrEmpty(input) ? null : input,
+        StandardInput = standardInput,
     };
 
     /// <summary>The command line as a user would type it, for logs and confirmation prompts.</summary>

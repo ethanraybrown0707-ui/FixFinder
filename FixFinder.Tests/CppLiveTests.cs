@@ -73,9 +73,15 @@ public class CppLiveTests
             foreach (var (construct, source, rule, expected) in both)
                 data.Add(toolchain, construct, source, rule, expected);
 
-            // Only g++ fails these: libstdc++ names the uncaught exception, and MSVC accepts the rest.
-            data.Add("gcc", ".at() past the end", Main("    std::vector<int> values = {1, 2, 3};\n    for (size_t i = 0; i <= values.size(); i++) {\n        std::cout << values.at(i) << std::endl;\n    }\n", vector), "cpp-at-out-of-range", "i < values.size()");
-            data.Add("gcc", "thread never joined", Main("    std::thread worker(work);\n", "#include <iostream>\n#include <thread>\n", "void work() {\n    std::cout << \"working\" << std::endl;\n}\n\n"), "cpp-thread-not-joined", "worker.join();");
+            // An exception nothing caught, and a thread never joined. g++'s runtime names both; an MSVC program ends
+            // without a word, and is rebuilt with FixFinder's terminate handler to say the same thing.
+            foreach (var toolchain in new[] { "gcc", "msvc" })
+            {
+                data.Add(toolchain, ".at() past the end", Main("    std::vector<int> values = {1, 2, 3};\n    for (size_t i = 0; i <= values.size(); i++) {\n        std::cout << values.at(i) << std::endl;\n    }\n", vector), "cpp-at-out-of-range", "i < values.size()");
+                data.Add(toolchain, "thread never joined", Main("    std::thread worker(work);\n", "#include <iostream>\n#include <thread>\n", "void work() {\n    std::cout << \"working\" << std::endl;\n}\n\n"), "cpp-thread-not-joined", "worker.join();");
+            }
+
+            // Only g++ fails these; MSVC accepts them.
             data.Add("gcc", "typename missing", Main("    show(std::vector<int>{1, 2, 3});\n", vector, "template <typename T>\nvoid show(const std::vector<T>& values) {\n    for (std::vector<T>::const_iterator it = values.begin(); it != values.end(); ++it) {\n        std::cout << *it << std::endl;\n    }\n}\n\n"), "cpp-typename", "typename std::vector<T>::const_iterator");
             data.Add("gcc", "void main", "#include <iostream>\n\nvoid main() {\n    std::cout << \"hello\" << std::endl;\n}\n", "cpp-main-returns-int", "int main() {");
 
@@ -123,6 +129,7 @@ public class CppLiveTests
         using var http = new FixFinderHttpClient();
         var outcome = await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{construct} ({toolchain}): {outcome.Result} - {outcome.Headline}");
         Assert.Equal($"local:{rule}", outcome.Best!.Id);
 

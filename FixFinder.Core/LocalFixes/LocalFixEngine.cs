@@ -57,6 +57,8 @@ public static partial class LocalFixEngine
     /// <summary>Every rule, in the order they are tried. The first one whose proposal survives wins.</summary>
     public static IReadOnlyList<ILocalFixRule> Rules { get; } =
     [
+        // Reads only the logic mistakes found in code that ran; first, because nothing else reads those.
+        new Logic.LogicPatternRule(),
         new PythonThisForSelf(),
         new PythonForgottenImport(),
         new PythonStdlibModuleTypo(),
@@ -92,6 +94,8 @@ public static partial class LocalFixEngine
         new PythonTabsAndSpaces(),
         new PythonRaiseString(),
         new PythonPrintRedirect(),
+        new PythonSetMethod(),
+        new PythonDequePopLeft(),
         new PythonForeignMethod(),
         new PythonMissingSelf(),
         new PythonDunderStrReturn(),
@@ -125,13 +129,40 @@ public static partial class LocalFixEngine
         new PythonUnhashableList(),
         new PythonFormatCodeOnText(),
         new PythonSequenceTimesFloat(),
+        new PythonInputNotNumber(),
+        new PythonJsonLoadOrLoads(),
+        new PythonUnwrittenAbstractMethod(),
+        new PythonDataclassDefaultFactory(),
+        new PythonHashWithEq(),
+        new PythonSortCmp(),
+        new PythonArgsTuple(),
+        new PythonSqlParameterTuple(),
+        new PythonSocketAddress(),
+        new PythonTextToBytes(),
+        new PythonMainGuard(),
+        new PythonGatherList(),
+        new PythonCoroutineNotAwaited(),
+        new PythonMatchArgs(),
+        new PythonGeneratorLen(),
+        new PythonJsonSet(),
         new PythonNearestName(),
 
+        new JavaMainSignature(),
+        new JavaGenericMethodParameter(),
+        new JavaRawComparable(),
+        new JavaInterfaceDefault(),
+        new JavaRecordAccessor(),
+        new JavaMapIncrement(),
+        new JavaFormatConversion(),
+        new JavaFixedSizeCollection(),
+        new JavaWaitWithoutMonitor(),
+        new JavaNotSerializable(),
         new JavaIfSemicolon(),
         new JavaUnclosedString(),
         new JavaCatchOrder(),
         new JavaWeakerAccess(),
         new JavaOverrideTypo(),
+        new JavaUnwrittenMethod(),
         new JavaExtendsImplements(),
         new JavaSuperFirst(),
         new JavaConstructorReturnType(),
@@ -167,6 +198,13 @@ public static partial class LocalFixEngine
         new JavaOffByOneLoop(),
         new JavaStringConversion(),
 
+        new CSharpGenericInterface(),
+        new CSharpStructInCollection(),
+        new CSharpIteratorReturnType(),
+        new CSharpRecordWith(),
+        new CSharpDelegateCalled(),
+        new CSharpAsyncMain(),
+        new CSharpTaskNotAwaited(),
         new CSharpElif(),
         new CSharpJavaPrint(),
         new CSharpConditionParentheses(),
@@ -187,6 +225,7 @@ public static partial class LocalFixEngine
         new CSharpUnassignedLocal(),
         new CSharpMissingReturnType(),
         new CSharpInterfaceMemberPublic(),
+        new CSharpUnwrittenMember(),
         new CSharpVirtualBase(),
         new CSharpOverrideTypo(),
         new CSharpConstructorReturnType(),
@@ -203,6 +242,9 @@ public static partial class LocalFixEngine
         new CSharpIfSemicolon(),
         new CSharpRemoveInForEach(),
 
+        new GoWaitGroupByValue(),
+        new GoCloseChannel(),
+        new GoUnmarshalPointer(),
         new GoMainName(),
         new GoPackageMain(),
         new GoImportQuotes(),
@@ -238,6 +280,10 @@ public static partial class LocalFixEngine
         new GoIndexLoop(),
         new GoNilMap(),
         new GoChannelDeadlock(),
+        new JsBuiltinNotLoaded(),
+        new JsCallbackApiUsedForValue(),
+        new JsCallbackCalledTooSoon(),
+        new JsPromiseCombinatorArray(),
         new JsApostrophe(),
         new JsMissingClosingParen(),
         new JsUnclosedString(),
@@ -275,6 +321,20 @@ public static partial class LocalFixEngine
         new JsThisInCallback(),
         new JsDetachedMethod(),
         new JsSetterRecursion(),
+        new CppStreamOperatorFriend(),
+        new CppConstMapIndex(),
+        new CppOverrideMissingConst(),
+        new CppThreadReference(),
+        new CppVirtualDestructor(),
+        new CppCatchByReference(),
+        new CScanfArrayAddress(),
+        new CMallocWrongSizeof(),
+        new CFreeWhileWalking(),
+        new CHeaderGuard(),
+        new CPthreadStartRoutine(),
+        new CStringCompare(),
+        new CQsortComparator(),
+        new CUninitialisedAccumulator(),
         new CFormatArgument(),
         new CppStdPrefix(),
         new CppStdNameTypo(),
@@ -296,6 +356,7 @@ public static partial class LocalFixEngine
         new CppMissingReturnType(),
         new CppVirtualBase(),
         new CppOverrideTypo(),
+        new CppUnwrittenOverride(),
         new CppPrivateInheritance(),
         new CppMemberWithoutClassName(),
         new CppMoveUniquePtr(),
@@ -313,6 +374,7 @@ public static partial class LocalFixEngine
         new CppIndexEmptyVector(),
         new CppEraseInLoop(),
         new CppReturnLocalReference(),
+        new CppDeleteArray(),
         new CompilerFixIt(),
         new CDefineSemicolon(),
         new CMainName(),
@@ -336,6 +398,10 @@ public static partial class LocalFixEngine
         new CIostreamInC(),
         new CCoutInC(),
         new CDoubleFree(),
+        new CGets(),
+        new CStringTooLong(),
+        new CReturnLocalAddress(),
+        new CMallocElementSize(),
         new CArrayBoundLoop(),
         new CFormatSpecifier(),
         new CStructSemicolon(),
@@ -510,6 +576,7 @@ public static partial class LocalFixEngine
         }
 
         var path = RuntimeSuggestion.RelativePath(source.Path, context.SourceRoot);
+        fix = fix.Unambiguous(source);
 
         return LocalFixDiff.Render(source, fix, path) is { } diff ? new Proposal(rule, fix, source, lines, diff) : null;
     }
@@ -662,6 +729,15 @@ public static partial class LocalFixEngine
         _ => false,
     };
 
+    /// <summary>
+    /// A candidate for a change checked some other way than compiling it - by running the changed program, for a logic error -
+    /// described in <paramref name="howChecked"/>.
+    /// </summary>
+    public static FixCandidate CandidateFor(LocalFix fix, SourceFile source, string diff, string howChecked, string? explanation = null) =>
+        Build(fix, source, diff, explanation ?? fix.Explanation,
+            $"FixFinder made this change to a copy of {Path.GetFileName(source.Path)}, outside your project, and ran it. {howChecked}",
+            "the changed copy was run, and printed what was expected");
+
     private static FixCandidate ToCandidate(LocalFixContext context, LocalFix fix, SourceFile source, string diff)
     {
         var how = Path.GetExtension(source.Path).ToLowerInvariant() switch
@@ -678,16 +754,25 @@ public static partial class LocalFixEngine
         // the crash was gone would be claiming something nobody established.
         var ranIntoItRunning = !context.FromBuild && !IsCompileError(context.Error) && !IsSyntaxPhase(context.Error) && fix.ResolvesWarning is null;
 
-        var outcome = ranIntoItRunning
+        var outcome = context.Error.LanguageId == "logic"
+            ? "it still compiles. The mistake shows in what the program does rather than as an error, so run it again and check what it prints."
+            : ranIntoItRunning
             ? "it still compiles. The crash happens when the program runs, so run it again to confirm."
             : fix.ResolvesWarning is { } warning
                 ? $"it compiles without the warning {warning}."
                 : "the error is gone.";
 
+        return Build(fix, source, diff, fix.Explanation,
+            $"FixFinder made this change to a copy of {Path.GetFileName(source.Path)}, outside your project, and {how}: {outcome}",
+            $"a copy with this change was compiled - {outcome.TrimEnd('.')}");
+    }
+
+    private static FixCandidate Build(LocalFix fix, SourceFile source, string diff, string explanation, string checkedText, string component)
+    {
         var body = new StringBuilder()
-            .AppendLine(fix.Explanation)
+            .AppendLine(explanation)
             .AppendLine()
-            .AppendLine($"FixFinder made this change to a copy of {Path.GetFileName(source.Path)}, outside your project, and {how}: {outcome}")
+            .AppendLine(checkedText)
             .AppendLine()
             .AppendLine("```diff")
             .Append(diff)
@@ -718,7 +803,7 @@ public static partial class LocalFixEngine
         [
             new ScoreComponent(
                 "Worked out from your code, then checked", 1.0, 1.0,
-                $"{fix.RuleId}: a copy with this change was compiled - {outcome.TrimEnd('.')}"),
+                $"{fix.RuleId}: {component}"),
         ];
 
         return candidate;

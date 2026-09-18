@@ -146,6 +146,7 @@ public class CUniversityTests : IDisposable
         using var http = new FixFinderHttpClient();
         var outcome = await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{construct} ({toolchain}): {outcome.Result} - {outcome.Headline}");
 
         string[] acceptable = toolchain == "gcc" ? [$"local:{rule}", "local:c-compiler-fix-it", "gcc:did-you-mean"] : [$"local:{rule}"];

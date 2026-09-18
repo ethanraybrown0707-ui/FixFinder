@@ -969,13 +969,25 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
     [GeneratedRegex(@"^(?:vector::_M_range_check|basic_string::at): __n \(which is (?<n>\d+)\) >= this->size\(\) \(which is (?<size>\d+)\)")]
     private static partial Regex Message();
 
+    /// <summary>
+    /// MSVC's standard library says less - <c>invalid vector subscript</c>, <c>invalid string position</c> - and
+    /// reaches this rule through FixFinder's terminate handler, which prints it in libstdc++'s words.
+    /// </summary>
+    [GeneratedRegex(@"^invalid (?:vector subscript|string position)$")]
+    private static partial Regex MsvcMessage();
+
     [GeneratedRegex(@"\bfor\s*\(\s*(?:[\w:]+\s+)?(?<var>[A-Za-z_]\w*)\s*=\s*0\s*;\s*\k<var>\s*(?<op><=)\s*(?<object>[A-Za-z_]\w*)\s*\.\s*(?:size|length)\s*\(\s*\)\s*;")]
     private static partial Regex Loop();
 
     public LocalFix? Propose(LocalFixContext context)
     {
         if (context.Error is not { LanguageId: "gcc", ExceptionType: "std::out_of_range" } error) return null;
-        if (Message().Match(error.Message ?? "") is not { Success: true } message || message.Groups["n"].Value != message.Groups["size"].Value) return null;
+
+        // libstdc++ names the index and the size, and the index must be exactly the size - one past the end. MSVC's
+        // names neither, so its message is taken as it is, and the loop below still has to be the only one it could be.
+        var message = Message().Match(error.Message ?? "");
+        if (message.Success ? message.Groups["n"].Value != message.Groups["size"].Value : !MsvcMessage().IsMatch(error.Message ?? "")) return null;
+
         if (context.SourceRoot is not { } root || !Directory.Exists(root)) return null;
 
         var found = new List<(SourceFile Source, int Line, Match Loop)>();
@@ -1000,14 +1012,17 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
         var op = only.Groups["op"];
         var original = file.Lines[index];
         var vector = only.Groups["object"].Value;
-        var size = message.Groups["size"].Value;
+        var variable = only.Groups["var"].Value;
+
+        var counted = message.Success
+            ? $"`{vector}` had {message.Groups["size"].Value} elements, numbered 0 to {int.Parse(message.Groups["size"].Value) - 1}, and the loop on " +
+              $"line {index + 1} runs while `{variable} <= {vector}.size()` - so it asked for element {message.Groups["size"].Value}."
+            : $"The loop on line {index + 1} runs while `{variable} <= {vector}.size()`, so its last pass asks for the element one past the end.";
 
         return LocalFix.ReplaceLine(
             Id, $"Stop the loop before {vector}.size(): <",
-            $"`{vector}.at({only.Groups["var"].Value})` checks the index and throws `std::out_of_range` when it is past the end. `{vector}` had " +
-            $"{size} elements, numbered 0 to {int.Parse(size) - 1}, and the loop on line {index + 1} runs while `{only.Groups["var"].Value} <= " +
-            $"{vector}.size()` - so it asked for element {size}. The exception came with no line number; this is the only loop in the program " +
-            "that reads `.at()` up to and including `.size()`.",
+            $"`{vector}.at({variable})` checks the index and throws `std::out_of_range` when it is past the end. {counted} The exception came " +
+            "with no line number; this is the only loop in the program that reads `.at()` up to and including `.size()`.",
             file.Path, index + 1, original[..op.Index] + "<" + original[(op.Index + op.Length)..]);
     }
 

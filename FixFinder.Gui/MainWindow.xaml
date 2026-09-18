@@ -151,12 +151,77 @@
                         </Grid>
                     </Border>
 
-                    <TextBlock Text="If it asks for input, type the answers here, one per line"
+                    <TextBlock Text="Arguments to pass to it, as you would type them after its name in a terminal (optional)"
                                Style="{StaticResource Hint}" Margin="34,14,0,6"/>
-                    <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
+                    <TextBox x:Name="ArgumentsTextBox" AutomationProperties.AutomationId="ArgumentsTextBox"
+                             AutomationProperties.Name="Program arguments"
                              Style="{StaticResource InputBox}" Margin="34,0,0,0"
-                             AcceptsReturn="True" TextWrapping="NoWrap" Height="58"
-                             VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                             FontFamily="Cascadia Mono, Consolas"/>
+
+                    <Grid Margin="34,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- The hints share a row, so the two boxes line up however either hint wraps. -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="If it asks for input, type the answers here, one per line"
+                                   Style="{StaticResource Hint}" Margin="0,0,0,6" VerticalAlignment="Bottom"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="What it should print, to check it for logic errors (optional)"
+                                   Style="{StaticResource Hint}" Margin="0,0,0,6" VerticalAlignment="Bottom"/>
+
+                        <TextBox Grid.Row="1" Grid.Column="0" x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
+                                 AutomationProperties.Name="Input for the first run"
+                                 Style="{StaticResource InputBox}"
+                                 AcceptsReturn="True" TextWrapping="NoWrap" Height="58"
+                                 VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                        <TextBox Grid.Row="1" Grid.Column="2" x:Name="ExpectedOutputTextBox" AutomationProperties.AutomationId="ExpectedOutputTextBox"
+                                 AutomationProperties.Name="Expected output for the first run"
+                                 Style="{StaticResource InputBox}"
+                                 AcceptsReturn="True" TextWrapping="NoWrap" Height="58"
+                                 VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                    </Grid>
+
+                    <ItemsControl x:Name="ExtraRunsList" AutomationProperties.AutomationId="ExtraRunsList" Margin="34,0,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBox Grid.Column="0" Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Input for another run"
+                                             Style="{StaticResource InputBox}" AcceptsReturn="True" TextWrapping="NoWrap" Height="46"
+                                             VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                                    <TextBox Grid.Column="2" Text="{Binding Expected, UpdateSourceTrigger=PropertyChanged}"
+                                             AutomationProperties.Name="Expected output for another run"
+                                             Style="{StaticResource InputBox}" AcceptsReturn="True" TextWrapping="NoWrap" Height="46"
+                                             VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono, Consolas"/>
+                                    <Button Grid.Row="1" Grid.Column="2" Content="Remove this run" Style="{StaticResource LinkButton}"
+                                            AutomationProperties.Name="Remove this run"
+                                            HorizontalAlignment="Right" Margin="0,4,0,0"
+                                            Tag="{Binding}" Click="RemoveRunButton_Click"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button x:Name="AddRunButton" AutomationProperties.AutomationId="AddRunButton"
+                            Content="+ Add another run to check - different input, and what it should print for it"
+                            Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="34,8,0,0"
+                            Click="AddRunButton_Click"/>
                 </StackPanel>
             </Border>
 

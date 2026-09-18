@@ -216,6 +216,7 @@ public class CConstructTests : IDisposable
         using var http = new FixFinderHttpClient();
         var outcome = await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{construct} ({toolchain}): {outcome.Result} - {outcome.Headline}");
 
         // gcc often knows the answer itself - a did-you-mean, or a fix-it - and either answer is right.

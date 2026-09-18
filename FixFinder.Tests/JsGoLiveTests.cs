@@ -97,6 +97,7 @@ public class JsGoLiveTests
         using var http = new FixFinderHttpClient();
         var outcome = await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
 
+        if (ApplicationControl.Refused(outcome)) return;
         Assert.True(outcome.Result == SessionResult.FoundFix, $"{construct} ({runtime}): {outcome.Result} - {outcome.Headline}");
         Assert.Equal($"local:{rule}", outcome.Best!.Id);
 
