@@ -7,13 +7,13 @@ public sealed partial class PythonMissingSelf : ILocalFixRule
 {
     public string Id => "python-missing-self";
 
-    [GeneratedRegex(@"^(?<cls>[A-Za-z_]\w*)\.(?<method>[A-Za-z_]\w*)\(\) takes (?<n>\d+) positional arguments? but (?<m>\d+) (?:were|was) given$")]
+    [GeneratedRegex(@"^(?<cls>[A-Za-z_]\w*)\.(?<method>[A-Za-z_]\w*)\(\) takes (?<expected>\d+) positional arguments? but (?<given>\d+) (?:were|was) given$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)
     {
         if (!PythonCode.Raised(context, "TypeError") || Message().Match(context.Error.Message ?? "") is not { Success: true } message) return null;
-        if (int.Parse(message.Groups["m"].Value) != int.Parse(message.Groups["n"].Value) + 1) return null;
+        if (int.Parse(message.Groups["given"].Value) != int.Parse(message.Groups["expected"].Value) + 1) return null;
         if (context.Read(context.Frame?.File) is not { } source) return null;
 
         var cls = Regex.Escape(message.Groups["cls"].Value);
@@ -319,7 +319,7 @@ public sealed partial class PythonUnwrittenAbstractMethod : ILocalFixRule
         if (context.Read(context.Frame?.File) is not { } source) return null;
 
         var name = message.Groups["class"].Value;
-        var methods = Regex.Matches(message.Groups["methods"].Value, @"'?(?<m>[A-Za-z_]\w*)'?").Select(m => m.Groups["m"].Value).ToList();
+        var methods = Regex.Matches(message.Groups["methods"].Value, @"'?(?<name>[A-Za-z_]\w*)'?").Select(m => m.Groups["name"].Value).ToList();
         if (methods.Count == 0) return null;
 
         var lines = source.Lines;

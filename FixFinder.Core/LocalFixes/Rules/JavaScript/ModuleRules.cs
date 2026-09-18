@@ -166,8 +166,8 @@ public sealed partial class JsBuiltinNotLoaded : ILocalFixRule
 
         var lines = source.Lines;
         var masked = CodeText.MaskAll(lines, Syntax.CLike);
-        var n = Regex.Escape(name);
-        var declares = new Regex($@"\b(?:(?:const|let|var)\s+(?:{n}|\{{[^}}]*\b{n}\b[^}}]*\}})\s*=|function\s+{n}\b|class\s+{n}\b|import\s+(?:{n}\b|\{{[^}}]*\b{n}\b[^}}]*\}}|\*\s+as\s+{n}\b))");
+        var escapedName = Regex.Escape(name);
+        var declares = new Regex($@"\b(?:(?:const|let|var)\s+(?:{escapedName}|\{{[^}}]*\b{escapedName}\b[^}}]*\}})\s*=|function\s+{escapedName}\b|class\s+{escapedName}\b|import\s+(?:{escapedName}\b|\{{[^}}]*\b{escapedName}\b[^}}]*\}}|\*\s+as\s+{escapedName}\b))");
         if (masked.Any(l => declares.IsMatch(l))) return null;
 
         var module = source.Path.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase) || masked.Any(l => Regex.IsMatch(l, @"^\s*(?:import\s|export\s)"));

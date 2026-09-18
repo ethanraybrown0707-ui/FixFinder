@@ -70,12 +70,12 @@ public sealed partial class JavaOverrideTypo : ILocalFixRule
         var (source, number, _) = at;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
 
-        var k = number - 1;
-        while (k < masked.Count && (masked[k].Trim().Length == 0 || Annotation().IsMatch(masked[k]))) k++;
-        if (k >= masked.Count || Method().Match(masked[k]) is not { Success: true } method) return null;
+        var methodIndex = number - 1;
+        while (methodIndex < masked.Count && (masked[methodIndex].Trim().Length == 0 || Annotation().IsMatch(masked[methodIndex]))) methodIndex++;
+        if (methodIndex >= masked.Count || Method().Match(masked[methodIndex]) is not { Success: true } method) return null;
 
         var depths = Brackets.BraceDepths(masked);
-        var owner = Enumerable.Range(0, k).Reverse().FirstOrDefault(i => depths[i] < depths[k] && TypeDeclaration().IsMatch(masked[i]), -1);
+        var owner = Enumerable.Range(0, methodIndex).Reverse().FirstOrDefault(i => depths[i] < depths[methodIndex] && TypeDeclaration().IsMatch(masked[i]), -1);
         if (owner < 0) return null;
 
         var candidates = new HashSet<string>(ObjectMethods, StringComparer.Ordinal);
@@ -90,13 +90,13 @@ public sealed partial class JavaOverrideTypo : ILocalFixRule
         if (CodeText.Nearest(name, candidates.Where(c => c != name)) is not { } right) return null;
 
         var group = method.Groups["name"];
-        var original = source.Lines[k];
+        var original = source.Lines[methodIndex];
 
         return LocalFix.ReplaceLine(
             Id, $"Rename {name} to {right}",
             $"`@Override` says `{name}` replaces a method it inherits, and nothing it inherits is called `{name}`. The inherited method within a " +
             $"letter or two of it is `{right}` - as written, `{name}` is a new method and `{right}` is never replaced.",
-            source.Path, k + 1, original[..group.Index] + right + original[(group.Index + group.Length)..]);
+            source.Path, methodIndex + 1, original[..group.Index] + right + original[(group.Index + group.Length)..]);
     }
 
     private static IEnumerable<string> DeclaredMethods(IReadOnlyList<string> masked, int[] depths, string type)

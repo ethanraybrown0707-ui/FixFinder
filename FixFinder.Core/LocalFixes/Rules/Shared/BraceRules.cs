@@ -233,14 +233,14 @@ internal static partial class BraceRules
         if (Brackets.ClosingParenthesis(ifLine, open) is not { } close) return null;
 
         var after = ifLine[(close + 1)..].Trim();
-        var l = Regex.Escape(list);
-        var v = Regex.Escape(variable);
+        var escapedList = Regex.Escape(list);
+        var escapedVariable = Regex.Escape(variable);
 
         var removal = new Regex(language switch
         {
-            "java" => $@"^{l}\s*\.\s*remove\s*\(\s*{v}\s*\)\s*;$",
-            "csharp" => $@"^{l}\s*\.\s*Remove\s*\(\s*{v}\s*\)\s*;$",
-            _ => $@"^{l}\s*\.\s*erase\s*\(\s*(?:std\s*::\s*)?find\s*\(\s*{l}\s*\.\s*begin\s*\(\s*\)\s*,\s*{l}\s*\.\s*end\s*\(\s*\)\s*,\s*{v}\s*\)\s*\)\s*;$",
+            "java" => $@"^{escapedList}\s*\.\s*remove\s*\(\s*{escapedVariable}\s*\)\s*;$",
+            "csharp" => $@"^{escapedList}\s*\.\s*Remove\s*\(\s*{escapedVariable}\s*\)\s*;$",
+            _ => $@"^{escapedList}\s*\.\s*erase\s*\(\s*(?:std\s*::\s*)?find\s*\(\s*{escapedList}\s*\.\s*begin\s*\(\s*\)\s*,\s*{escapedList}\s*\.\s*end\s*\(\s*\)\s*,\s*{escapedVariable}\s*\)\s*\)\s*;$",
         });
 
         var shaped = code.Count switch

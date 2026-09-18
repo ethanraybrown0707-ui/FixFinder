@@ -16,12 +16,12 @@ public sealed record QuotaStatus(
         {
             if (Remaining is null) return $"{Bucket}: unknown";
 
-            var of = Limit is not null ? $"/{Limit}" : "";
+            var outOf = Limit is not null ? $"/{Limit}" : "";
             var resets = ResetsAt is { } at && at > DateTimeOffset.UtcNow
                 ? $", resets {at.ToLocalTime():HH:mm:ss}"
                 : "";
 
-            return $"{Bucket}: {Remaining}{of} left{resets}";
+            return $"{Bucket}: {Remaining}{outOf} left{resets}";
         }
     }
 

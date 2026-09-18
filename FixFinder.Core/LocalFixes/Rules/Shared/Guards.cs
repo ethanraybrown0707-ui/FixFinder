@@ -6,27 +6,27 @@ namespace FixFinder.Core.LocalFixes.Rules;
 /// <summary>What the guard rules share: finding a division on a line, and the language's way of writing "if it is zero, use 0".</summary>
 internal static partial class Guards
 {
-    [GeneratedRegex(@"(?<a>[A-Za-z_][\w.]*(?:\([^()]*\)|\[[^\]]*\])?|\d+(?:\.\d+)?|\))\s*(?<op>//|/|%)(?![/=*])\s*(?<b>[A-Za-z_][\w.]*(?:\(\s*[^()]*\)|\[[^\]]*\])?)")]
+    [GeneratedRegex(@"(?<dividend>[A-Za-z_][\w.]*(?:\([^()]*\)|\[[^\]]*\])?|\d+(?:\.\d+)?|\))\s*(?<op>//|/|%)(?![/=*])\s*(?<divisor>[A-Za-z_][\w.]*(?:\(\s*[^()]*\)|\[[^\]]*\])?)")]
     private static partial Regex Division();
 
     public static string? GuardDivision(string line, Syntax syntax, bool python)
     {
         var masked = CodeText.Mask(line, syntax);
         var divisions = Division().Matches(masked).ToList();
-        if (divisions.Count == 0 || divisions.Select(d => d.Groups["b"].Value).Distinct().Count() != 1) return null;
+        if (divisions.Count == 0 || divisions.Select(d => d.Groups["divisor"].Value).Distinct().Count() != 1) return null;
 
         var division = divisions[0];
-        var start = division.Groups["a"].Index;
+        var start = division.Groups["dividend"].Index;
 
-        if (division.Groups["a"].Value == ")")
+        if (division.Groups["dividend"].Value == ")")
         {
-            start = Brackets.Opening(masked, division.Groups["a"].Index);
+            start = Brackets.Opening(masked, division.Groups["dividend"].Index);
             if (start < 0) return null;
         }
 
-        var end = division.Groups["b"].Index + division.Groups["b"].Length;
+        var end = division.Groups["divisor"].Index + division.Groups["divisor"].Length;
         var expression = line[start..end];
-        var divisor = line.Substring(division.Groups["b"].Index, division.Groups["b"].Length);
+        var divisor = line.Substring(division.Groups["divisor"].Index, division.Groups["divisor"].Length);
 
         var guarded = python ? $"({expression} if {divisor} else 0)" : $"({divisor} == 0 ? 0 : {expression})";
 

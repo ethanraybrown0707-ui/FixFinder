@@ -335,17 +335,17 @@ public sealed partial class CStructSemicolon : ILocalFixRule
         var (source, number, _) = at;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
 
-        var k = masked[number - 1].TrimEnd().EndsWith('}') ? number - 1 : number - 2;
-        while (k >= 0 && masked[k].Trim().Length == 0) k--;
-        if (k < 0 || !masked[k].TrimEnd().EndsWith('}')) return null;
+        var closingIndex = masked[number - 1].TrimEnd().EndsWith('}') ? number - 1 : number - 2;
+        while (closingIndex >= 0 && masked[closingIndex].Trim().Length == 0) closingIndex--;
+        if (closingIndex < 0 || !masked[closingIndex].TrimEnd().EndsWith('}')) return null;
 
         var depth = 0;
         var opener = -1;
 
-        for (var i = k; i >= 0 && opener < 0; i--)
+        for (var i = closingIndex; i >= 0 && opener < 0; i--)
         {
             var row = masked[i];
-            for (var c = (i == k ? row.LastIndexOf('}') : row.Length - 1); c >= 0; c--)
+            for (var c = (i == closingIndex ? row.LastIndexOf('}') : row.Length - 1); c >= 0; c--)
             {
                 if (row[c] == '}') depth++;
                 else if (row[c] == '{' && --depth == 0)
@@ -359,14 +359,14 @@ public sealed partial class CStructSemicolon : ILocalFixRule
         if (opener < 0 || Regex.Match(masked[opener], @"\b(?<keyword>struct|union|enum|class)\b") is not { Success: true } kind) return null;
 
         var keyword = kind.Groups["keyword"].Value;
-        var (code, tail) = CodeText.SplitComment(source.Lines[k], Syntax.CLike);
+        var (code, tail) = CodeText.SplitComment(source.Lines[closingIndex], Syntax.CLike);
         var trimmed = code.TrimEnd();
 
         return LocalFix.ReplaceLine(
             Id, $"Add the semicolon after the {keyword}",
-            $"A {keyword} definition ends with a semicolon after its closing brace, and the one ending on line {k + 1} has none - " +
+            $"A {keyword} definition ends with a semicolon after its closing brace, and the one ending on line {closingIndex + 1} has none - " +
             "so the compiler reads the next line as part of it.",
-            source.Path, k + 1, trimmed + ";" + code[trimmed.Length..] + tail);
+            source.Path, closingIndex + 1, trimmed + ";" + code[trimmed.Length..] + tail);
     }
 }
 

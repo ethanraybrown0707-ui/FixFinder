@@ -188,7 +188,7 @@ public sealed partial class PythonComparisonTypes : ILocalFixRule
 {
     public string Id => "python-comparison-types";
 
-    [GeneratedRegex(@"^'(?<op><=|>=|<|>)' not supported between instances of '(?<a>str|int|float)' and '(?<b>str|int|float)'$")]
+    [GeneratedRegex(@"^'(?<op><=|>=|<|>)' not supported between instances of '(?<leftType>str|int|float)' and '(?<rightType>str|int|float)'$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -197,38 +197,38 @@ public sealed partial class PythonComparisonTypes : ILocalFixRule
         if (PythonCode.Locate(context) is not { } at) return null;
 
         var (source, number, line) = at;
-        var a = message.Groups["a"].Value;
-        var b = message.Groups["b"].Value;
-        if ((a == "str") == (b == "str")) return null;
+        var leftType = message.Groups["leftType"].Value;
+        var rightType = message.Groups["rightType"].Value;
+        if ((leftType == "str") == (rightType == "str")) return null;
 
         if (PythonCode.UnderlineSpan(context.Error, number, line) is not { } span) return null;
 
         var text = line[span.Start..span.End];
-        var op = Regex.Escape(message.Groups["op"].Value);
-        var hits = Regex.Matches(CodeText.Mask(text, Syntax.Python), $@"(?<![<>=!]){op}(?![=<>])");
+        var operatorPattern = Regex.Escape(message.Groups["op"].Value);
+        var hits = Regex.Matches(CodeText.Mask(text, Syntax.Python), $@"(?<![<>=!]){operatorPattern}(?![=<>])");
         if (hits.Count != 1) return null;
 
-        var opIndex = hits[0].Index;
-        var leftText = text[..opIndex];
-        var rightText = text[(opIndex + hits[0].Length)..];
+        var operatorIndex = hits[0].Index;
+        var leftText = text[..operatorIndex];
+        var rightText = text[(operatorIndex + hits[0].Length)..];
         var left = leftText.Trim();
         var right = rightText.Trim();
 
         if (left.Length == 0 || right.Length == 0) return null;
 
         var leftAt = span.Start + leftText.IndexOf(left, StringComparison.Ordinal);
-        var rightAt = span.Start + opIndex + hits[0].Length + rightText.IndexOf(right, StringComparison.Ordinal);
+        var rightAt = span.Start + operatorIndex + hits[0].Length + rightText.IndexOf(right, StringComparison.Ordinal);
 
         string corrected;
         string value;
 
-        if (a == "str" && PythonCode.NumberLiteral().Match(right) is { Success: true } rightNumber && !PythonCode.StringLiteral().IsMatch(left))
+        if (leftType == "str" && PythonCode.NumberLiteral().Match(right) is { Success: true } rightNumber && !PythonCode.StringLiteral().IsMatch(left))
         {
             var convert = rightNumber.Groups["fraction"].Success ? "float" : "int";
             corrected = line[..leftAt] + $"{convert}({left})" + line[(leftAt + left.Length)..];
             value = left;
         }
-        else if (b == "str" && PythonCode.NumberLiteral().Match(left) is { Success: true } leftNumber && !PythonCode.StringLiteral().IsMatch(right))
+        else if (rightType == "str" && PythonCode.NumberLiteral().Match(left) is { Success: true } leftNumber && !PythonCode.StringLiteral().IsMatch(right))
         {
             var convert = leftNumber.Groups["fraction"].Success ? "float" : "int";
             corrected = line[..rightAt] + $"{convert}({right})" + line[(rightAt + right.Length)..];

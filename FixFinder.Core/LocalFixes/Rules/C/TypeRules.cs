@@ -401,16 +401,16 @@ public sealed partial class CQsortComparator : ILocalFixRule
         if (calls is not [var call]) return null;
 
         var function = call.Groups["function"].Value;
-        var definition = new Regex($@"^(?<lead>\s*(?:static\s+)?)int\s+{Regex.Escape(function)}\s*\(\s*(?:const\s+)?(?<type>(?:struct\s+)?\w+)\s*\*\s*(?<a>\w+)\s*,\s*(?:const\s+)?\k<type>\s*\*\s*(?<b>\w+)\s*\)\s*\{{\s*$");
+        var definition = new Regex($@"^(?<lead>\s*(?:static\s+)?)int\s+{Regex.Escape(function)}\s*\(\s*(?:const\s+)?(?<type>(?:struct\s+)?\w+)\s*\*\s*(?<first>\w+)\s*,\s*(?:const\s+)?\k<type>\s*\*\s*(?<second>\w+)\s*\)\s*\{{\s*$");
 
         if (Enumerable.Range(0, masked.Count).Where(i => definition.IsMatch(masked[i])).ToList() is not [var header]) return null;
 
         var match = definition.Match(source.Lines[header]);
         var type = match.Groups["type"].Value;
-        var (a, b) = (match.Groups["a"].Value, match.Groups["b"].Value);
-        var (pa, pb) = ("p" + a, "p" + b);
+        var (firstName, secondName) = (match.Groups["first"].Value, match.Groups["second"].Value);
+        var (firstVoidName, secondVoidName) = ("p" + firstName, "p" + secondName);
 
-        if (masked.Any(l => Regex.IsMatch(l, $@"\b(?:{pa}|{pb})\b"))) return null;
+        if (masked.Any(l => Regex.IsMatch(l, $@"\b(?:{firstVoidName}|{secondVoidName})\b"))) return null;
 
         var inner = header + 1 < source.Count && CodeText.Indentation(source.Lines[header + 1]) is { Length: > 0 } indent ? indent : match.Groups["lead"].Value + "    ";
 
@@ -425,9 +425,9 @@ public sealed partial class CQsortComparator : ILocalFixRule
             File = source.Path, StartLine = header + 1, RemoveCount = 1,
             NewLines =
             [
-                $"{match.Groups["lead"].Value}int {function}(const void *{pa}, const void *{pb}) {{",
-                $"{inner}const {type} *{a} = {pa};",
-                $"{inner}const {type} *{b} = {pb};",
+                $"{match.Groups["lead"].Value}int {function}(const void *{firstVoidName}, const void *{secondVoidName}) {{",
+                $"{inner}const {type} *{firstName} = {firstVoidName};",
+                $"{inner}const {type} *{secondName} = {secondVoidName};",
             ],
             ResolvesWarning = "incompatible pointer type",
         };

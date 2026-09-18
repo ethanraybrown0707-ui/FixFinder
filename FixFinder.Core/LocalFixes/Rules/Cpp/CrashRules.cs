@@ -8,7 +8,7 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
 {
     public string Id => "cpp-at-out-of-range";
 
-    [GeneratedRegex(@"^(?:vector::_M_range_check|basic_string::at): __n \(which is (?<n>\d+)\) >= this->size\(\) \(which is (?<size>\d+)\)")]
+    [GeneratedRegex(@"^(?:vector::_M_range_check|basic_string::at): __n \(which is (?<index>\d+)\) >= this->size\(\) \(which is (?<size>\d+)\)")]
     private static partial Regex Message();
 
     [GeneratedRegex(@"^invalid (?:vector subscript|string position)$")]
@@ -22,7 +22,7 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
         if (context.Error is not { LanguageId: "gcc", ExceptionType: "std::out_of_range" } error) return null;
 
         var message = Message().Match(error.Message ?? "");
-        if (message.Success ? message.Groups["n"].Value != message.Groups["size"].Value : !MsvcMessage().IsMatch(error.Message ?? "")) return null;
+        if (message.Success ? message.Groups["index"].Value != message.Groups["size"].Value : !MsvcMessage().IsMatch(error.Message ?? "")) return null;
 
         if (context.SourceRoot is not { } root || !Directory.Exists(root)) return null;
 

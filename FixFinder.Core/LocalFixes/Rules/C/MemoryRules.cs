@@ -415,7 +415,7 @@ public sealed partial class CVoidPointerDereference : ILocalFixRule
 {
     public string Id => "c-void-pointer-dereference";
 
-    [GeneratedRegex(@"\*\s*(?<p>[A-Za-z_]\w*)")]
+    [GeneratedRegex(@"\*\s*(?<dereferenced>[A-Za-z_]\w*)")]
     private static partial Regex Dereference();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -440,9 +440,9 @@ public sealed partial class CVoidPointerDereference : ILocalFixRule
             var before = code[..deref.Index].TrimEnd();
             if (before.Length > 0 && (char.IsLetterOrDigit(before[^1]) || before[^1] is '_' or ')' or ']')) continue;
 
-            var p = Regex.Escape(deref.Groups["p"].Value);
+            var escapedPointer = Regex.Escape(deref.Groups["dereferenced"].Value);
             var pointer = Enumerable.Range(first, number - first)
-                .Select(i => Regex.Match(masked[i], $@"\bvoid\s*\*\s*{p}\s*=\s*&\s*(?<target>[A-Za-z_]\w*)"))
+                .Select(i => Regex.Match(masked[i], $@"\bvoid\s*\*\s*{escapedPointer}\s*=\s*&\s*(?<target>[A-Za-z_]\w*)"))
                 .FirstOrDefault(m => m.Success);
 
             if (pointer is null) continue;
@@ -457,7 +457,7 @@ public sealed partial class CVoidPointerDereference : ILocalFixRule
 
         if (found is not [var (hit, type)]) return null;
 
-        var name = hit.Groups["p"].Value;
+        var name = hit.Groups["dereferenced"].Value;
 
         return LocalFix.ReplaceLine(
             Id, $"Cast {name} to {type} * before reading through it",

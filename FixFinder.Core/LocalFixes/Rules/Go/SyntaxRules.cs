@@ -68,9 +68,9 @@ public sealed partial class GoElseOnNextLine : ILocalFixRule
         if (GoCode.CompileMessage(context.Error, Message()) is null || GoCode.Locate(context) is not { } at) return null;
 
         var (source, number, line) = at;
-        var k = number - 2;
-        while (k >= 0 && source.Lines[k].Trim().Length == 0) k--;
-        if (k < 0 || source.Lines[k].Trim() != "}" || !line.TrimStart().StartsWith("else", StringComparison.Ordinal)) return null;
+        var previousIndex = number - 2;
+        while (previousIndex >= 0 && source.Lines[previousIndex].Trim().Length == 0) previousIndex--;
+        if (previousIndex < 0 || source.Lines[previousIndex].Trim() != "}" || !line.TrimStart().StartsWith("else", StringComparison.Ordinal)) return null;
 
         return new LocalFix
         {
@@ -78,8 +78,8 @@ public sealed partial class GoElseOnNextLine : ILocalFixRule
             Explanation =
                 "Go ends a line after `}` with an invisible semicolon, which finishes the `if` - so an `else` on the next line has nothing " +
                 "to belong to. It goes on the same line as the closing brace: `} else {`.",
-            File = source.Path, StartLine = k + 1, RemoveCount = number - k,
-            NewLines = [CodeText.Indentation(source.Lines[k]) + "} " + line.TrimStart()],
+            File = source.Path, StartLine = previousIndex + 1, RemoveCount = number - previousIndex,
+            NewLines = [CodeText.Indentation(source.Lines[previousIndex]) + "} " + line.TrimStart()],
         };
     }
 }

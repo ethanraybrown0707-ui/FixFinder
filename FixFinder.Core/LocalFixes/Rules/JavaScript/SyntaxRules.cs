@@ -342,21 +342,21 @@ public sealed partial class JsMissingComma : ILocalFixRule
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
         if (!Property().IsMatch(masked[number - 1])) return null;
 
-        var k = number - 2;
-        while (k >= 0 && masked[k].Trim().Length == 0) k--;
-        if (k < 0) return null;
+        var previousIndex = number - 2;
+        while (previousIndex >= 0 && masked[previousIndex].Trim().Length == 0) previousIndex--;
+        if (previousIndex < 0) return null;
 
-        var previous = masked[k].TrimEnd();
+        var previous = masked[previousIndex].TrimEnd();
         if (!Property().IsMatch(previous) || previous.EndsWith(',') || previous.EndsWith('{') || previous.EndsWith('[') || previous.EndsWith('(')) return null;
 
-        var (code, tail) = CodeText.SplitComment(source.Lines[k], Syntax.CLike);
+        var (code, tail) = CodeText.SplitComment(source.Lines[previousIndex], Syntax.CLike);
         var trimmed = code.TrimEnd();
 
         return LocalFix.ReplaceLine(
             Id, "Add the comma between the properties",
-            $"Properties in an object are separated by commas, and the one on line {k + 1} has none after it - so the next one reads as " +
+            $"Properties in an object are separated by commas, and the one on line {previousIndex + 1} has none after it - so the next one reads as " +
             "part of the same value.",
-            source.Path, k + 1, trimmed + "," + code[trimmed.Length..] + tail);
+            source.Path, previousIndex + 1, trimmed + "," + code[trimmed.Length..] + tail);
     }
 }
 
