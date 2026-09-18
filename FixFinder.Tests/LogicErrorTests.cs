@@ -225,7 +225,7 @@ public class LogicErrorTests : IDisposable
         {
             "python", "vowels counted one short, two runs",
             new() { ["app.py"] = "word = input()\ncount = 0\nfor i in range(len(word) - 1):\n    if word[i] in \"aeiou\":\n        count += 1\nprint(count)\n" },
-            "app.py", [("banana\n", "3\n"), ("tree\n", "2\n")], "local:logic-edit", "for i in range(len(word)):"
+            "app.py", [("banana\n", "3\n"), ("tree\n", "2\n")], "local:logic-python-range-skips-last", "for i in range(len(word)):"
         },
         {
             "python", "leap year with or",
@@ -245,7 +245,7 @@ public class LogicErrorTests : IDisposable
         {
             "node", "loop one past the end",
             new() { ["app.js"] = "const names = [\"ada\", \"alan\", \"grace\"];\nfor (let i = 0; i <= names.length; i++) {\n  console.log(names[i]);\n}\n" },
-            "app.js", [(null, "ada\nalan\ngrace\n")], "local:logic-edit", "i < names.length"
+            "app.js", [(null, "ada\nalan\ngrace\n")], "local:logic-off-by-one-length", "i < names.length"
         },
         {
             "java", "sum that skips the first value",

@@ -144,7 +144,7 @@ public sealed partial class JavaNearestName : ILocalFixRule
             where = "in this file";
         }
 
-        if (CodeText.Nearest(name, candidates.Where(c => c != name)) is not { } right) return null;
+        if (CodeText.Nearest(name, candidates.Where(c => c != name), CommonMembers) is not { } right) return null;
 
         var caret = CodeText.Caret(context.Output, error);
         int? column = caret is { } found && found.Echo == line ? found.Column : null;
@@ -158,6 +158,8 @@ public sealed partial class JavaNearestName : ILocalFixRule
             "within a letter or two of it.",
             source.Path, number, corrected);
     }
+
+    private static readonly string[] CommonMembers = ["println", "printf", "print", "length", "equals", "nextLine", "nextInt", "size", "get", "add"];
 
     private static bool DeclaresType(IReadOnlyList<string> masked, string type) =>
         masked.Any(text => Regex.IsMatch(text, $@"\b(?:class|interface|enum|record)\s+{Regex.Escape(type)}\b"));

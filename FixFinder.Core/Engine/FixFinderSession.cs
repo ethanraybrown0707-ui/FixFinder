@@ -1069,7 +1069,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (LocalFixes.SourceFile.Read(file) is not { } source || !Language.Reads(new LogicPatternRule())) return null;
 
         var findings = LogicPatterns.Scan(source, message => Log?.Invoke(message))
-            .Where(f => f.Fix is not null && f.Kind == Checking.FindingKind.Logic)
+            .Where(f => f.Fix is not null && f.Kind == Checking.FindingKind.Logic && f.Severity != Checking.Severity.Suggestion)
             .Where(f => outcome switch
             {
                 RunOutcome.TimedOut => f.PatternId.EndsWith("loop-never-advances", StringComparison.Ordinal),

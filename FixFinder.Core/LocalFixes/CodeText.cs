@@ -223,15 +223,15 @@ public static partial class CodeText
     /// latitude: one edit for four letters or fewer, two beyond that, and nothing under three,
     /// where almost every short word is within reach of every other.
     /// </remarks>
-    public static string? Nearest(string wrong, IEnumerable<string> candidates)
+    /// <param name="preferred">Names that win a tie, earliest first - the ones people mean far more often, such as println over print.</param>
+    public static string? Nearest(string wrong, IEnumerable<string> candidates, IReadOnlyList<string>? preferred = null)
     {
         if (wrong.Length < 3) return null;
 
         var limit = wrong.Length <= 4 ? 1 : 2;
 
-        string? best = null;
+        var closest = new List<string>();
         var bestDistance = int.MaxValue;
-        var tied = false;
 
         foreach (var candidate in candidates.Distinct(StringComparer.Ordinal))
         {
@@ -242,17 +242,18 @@ public static partial class CodeText
 
             if (distance < bestDistance)
             {
-                best = candidate;
+                closest = [candidate];
                 bestDistance = distance;
-                tied = false;
             }
             else if (distance == bestDistance)
             {
-                tied = true;
+                closest.Add(candidate);
             }
         }
 
-        return tied ? null : best;
+        if (closest.Count == 1) return closest[0];
+
+        return preferred?.FirstOrDefault(closest.Contains);
     }
 
     /// <summary>

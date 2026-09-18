@@ -31,7 +31,13 @@ public static partial class FindingFactory
         FromError(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix) with
         {
             Family = rating.SamePatternAs,
+            RuleId = fix?.LocalFix?.RuleId ?? warning.ErrorCode ?? WarningName(warning),
         };
+
+    private static string WarningName(ParsedError warning) =>
+        LintCategory().Match(warning.Message ?? "") is { Success: true } category
+            ? $"{warning.LanguageId}-{category.Value.Trim().Trim('[', ']')}"
+            : $"{warning.LanguageId}-warning";
 
     public static Finding FromPattern(LogicFinding finding, SourceFile source, string? fixCheckedBy, bool fixCompiles)
     {

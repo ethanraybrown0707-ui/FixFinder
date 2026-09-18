@@ -242,7 +242,7 @@ public static class CompileCheck
     /// <summary>What javac is given for a check, one argument at a time.</summary>
     /// <param name="sourceRoot">The root the file's package is named from, so the rest of the program is found.</param>
     internal static IReadOnlyList<string> JavacArguments(string copy, string sourceRoot, string folder) =>
-        ["-proc:none", "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy];
+        ["-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy];
 
     /// <summary>Checks already compiled, by everything that decided how they came out.</summary>
     /// <remarks>

@@ -122,14 +122,14 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 builds.TrySetResult(false);
 
                 return (report.Errors.Count > 0
-                    ? $"{Count(report.Errors.Count, "error")} stop it building"
+                    ? $"{Count(report.Errors.Count, "error")} {(report.Errors.Count == 1 ? "stops" : "stop")} it building"
                     : "It did not build", null);
             }
 
             builds.TrySetResult(true);
 
             var outcome = await RunAsync(launch, report, cancellationToken);
-            return (Summarise(outcome, report), outcome);
+            return (Summarise(outcome, report, chosen), outcome);
         }
         catch (OperationCanceledException)
         {
@@ -241,17 +241,18 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
-    private static string Summarise(SessionOutcome outcome, CompilerReport report)
+    private static string Summarise(SessionOutcome outcome, CompilerReport report, string chosen)
     {
         var warnings = report.Warnings.Count > 0 ? $", with {Count(report.Warnings.Count, "warning")}" : "";
+        var reads = Path.GetExtension(chosen).ToLowerInvariant() is ".py" or ".pyw" or ".js" or ".mjs" or ".cjs" ? "No syntax errors" : "It builds";
 
         return outcome.Result switch
         {
             SessionResult.CouldNotRun => "It could not be started",
-            _ when outcome.Error is not null => $"It builds{warnings}, then stops with an error",
-            SessionResult.FailedSilently => $"It builds{warnings}, then crashes",
-            _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"It builds{warnings}, but never finished",
-            _ => $"It builds and runs{warnings}",
+            _ when outcome.Error is not null => $"{reads}{warnings}, but it stops with an error when run",
+            SessionResult.FailedSilently => $"{reads}{warnings}, but it crashes when run",
+            _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
+            _ => $"{reads}{warnings}, and it runs to the end",
         };
     }
 
@@ -357,9 +358,8 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         lock (_gate)
         {
-            var twin = finding.Family is { } family
-                ? _findings.FirstOrDefault(f => f.Family == family && f.Line == finding.Line && string.Equals(f.File, finding.File, StringComparison.OrdinalIgnoreCase))
-                : null;
+            var twin = _findings.FirstOrDefault(f => string.Equals(f.File, finding.File, StringComparison.OrdinalIgnoreCase) &&
+                                                     (SameFamily(f, finding) || SameFix(f, finding)));
 
             if (twin is not null)
             {
@@ -374,8 +374,13 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         FindingsChanged?.Invoke(snapshot);
     }
 
+    private static bool SameFamily(Finding a, Finding b) => a.Family is { } family && family == b.Family && a.Line == b.Line;
+
+    private static bool SameFix(Finding a, Finding b) =>
+        a.Fix is { } x && b.Fix is { } y && x.StartLine == y.StartLine && x.RemoveCount == y.RemoveCount && x.NewLines.SequenceEqual(y.NewLines);
+
     private static int Rank(Finding finding) =>
-        (finding.Fix is not null ? 100 : 0) + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
+        (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
 
     private void Note(string note)
     {

@@ -220,7 +220,8 @@ public sealed class CSharpMissingSemicolon : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        if (!Cs.Is(context, "CS1002") || Cs.Locate(context) is not { } at) return null;
+        var commaExpected = Cs.Is(context, "CS1003") && (context.Error.Message ?? "").Contains("',' expected", StringComparison.Ordinal);
+        if (!Cs.Is(context, "CS1002") && !commaExpected || Cs.Locate(context) is not { } at) return null;
 
         var (source, number, line, index) = at;
         if (index < 0) return null;
@@ -228,10 +229,26 @@ public sealed class CSharpMissingSemicolon : ILocalFixRule
         var code = line[..index].TrimEnd();
         if (code.Length == 0 || code.EndsWith(';') || code.EndsWith('{') || code.EndsWith('}')) return null;
 
+        // "',' expected" also means a declaration that runs on into the next line: int x = 3 followed by a new statement.
+        if (commaExpected && (code.EndsWith(',') || line[index..].Trim().Length > 0 || !StartsStatement(source, number))) return null;
+
         return LocalFix.ReplaceLine(
             Id, "Add the missing semicolon",
             $"Every C# statement ends with a semicolon, and the one on line {number} does not.",
             source.Path, number, code + ";" + line[code.Length..]);
+    }
+
+    private static bool StartsStatement(SourceFile source, int number)
+    {
+        for (var next = number + 1; next <= source.Count; next++)
+        {
+            var text = source.Line(next)!.Trim();
+            if (text.Length == 0 || text.StartsWith("//", StringComparison.Ordinal)) continue;
+
+            return System.Text.RegularExpressions.Regex.IsMatch(text, @"^(?:[A-Za-z_]\w*\s*[.(=\[]|[A-Za-z_][\w<>\[\],?]*\s+[A-Za-z_]\w*\s*[=;(]|(?:if|for|foreach|while|return|var|switch|try|do)\b)");
+        }
+
+        return false;
     }
 }
 

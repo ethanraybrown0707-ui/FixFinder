@@ -162,7 +162,7 @@ public class FasterCheckTests : IDisposable
         { "semicolon", "';' expected", "public class App {\n    public static void main(String[] args) {\n        int x = 1\n    }\n}\n" },
         { "symbol", "cannot find symbol", "public class App {\n    public static void main(String[] args) {\n        java.util.List<String> names = new java.util.ArrayList<>();\n        System.out.println(nmes);\n    }\n}\n" },
         { "neighbour", "incompatible types", "public class App {\n    public static void main(String[] args) {\n        Helper.go(1);\n    }\n}\n" },
-        { "notes", "unchecked or unsafe", "import java.util.*;\npublic class App {\n    public static void main(String[] args) {\n        List raw = new ArrayList();\n        raw.add(\"x\");\n        List<String> typed = raw;\n    }\n}\n" },
+        { "notes", "[unchecked] unchecked call", "import java.util.*;\npublic class App {\n    public static void main(String[] args) {\n        List raw = new ArrayList();\n        raw.add(\"x\");\n        List<String> typed = raw;\n    }\n}\n" },
         { "file-name", "should be declared in a file named", "public class Other {\n}\n" },
         { "many", "120 errors", "public class App {\n    void f() {\n" + string.Concat(Enumerable.Range(0, 120).Select(i => $"        int v{i} = undefined{i};\n")) + "    }\n}\n" },
         { "clean", "clean", "public class App {\n    public static void main(String[] args) {\n        System.out.println(\"ok\");\n    }\n}\n" },

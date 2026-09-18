@@ -46,7 +46,9 @@ public static class LogicPatterns
     public static IReadOnlyList<ILogicPattern> All { get; } =
     [
         .. PythonLogicPatterns.All,
+        .. PythonReviewPatterns.All,
         .. CLikeLogicPatterns.All,
+        .. CLikeReviewPatterns.All,
     ];
 
     /// <summary>Every finding in a file, first line first.</summary>

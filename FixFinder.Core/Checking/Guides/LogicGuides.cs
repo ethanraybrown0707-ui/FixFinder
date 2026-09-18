@@ -3,13 +3,13 @@ namespace FixFinder.Core.Checking.Guides;
 /// <summary>Guides for logic mistakes, keyed by the pattern that finds them.</summary>
 internal static class LogicGuides
 {
-    private static GuideEntry Pattern(string[] ids, string title, string explanation, string why, string fix, string example) => new()
+    internal static GuideEntry Pattern(string[] ids, string title, string explanation, string why, string fix, string example) => new()
     {
         RuleIds = ids,
         Guide = new MistakeGuide(explanation, why, fix, example) { Title = title },
     };
 
-    public static IReadOnlyList<GuideEntry> All { get; } =
+    private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
         Pattern(["wrong-output"], "Wrong output",
             "The program ran to the end, but what it printed is not what you said it should print.",
@@ -233,5 +233,12 @@ internal static class LogicGuides
             """
             const numbers = texts.map(Number);
             """),
+    ];
+
+    public static IReadOnlyList<GuideEntry> All { get; } =
+    [
+        .. PythonPatternGuides.All,
+        .. BracePatternGuides.All,
+        .. Shared,
     ];
 }

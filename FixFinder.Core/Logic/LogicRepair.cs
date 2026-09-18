@@ -114,7 +114,7 @@ public sealed class LogicRepair
 
         foreach (var finding in LogicPatterns.Scan(source, Log))
         {
-            if (finding.Fix is { } fix) candidates.Add((fix, true));
+            if (finding is { Fix: { } fix, Kind: Checking.FindingKind.Logic } && finding.Severity != Checking.Severity.Suggestion) candidates.Add((fix, true));
         }
 
         // Lines in order of suspicion; with no coverage, every line of the file is equally suspect.
