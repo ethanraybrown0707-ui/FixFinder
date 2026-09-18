@@ -191,6 +191,12 @@ public sealed class FixCandidate
     /// </remarks>
     public string CommandDescription { get; init; } = "the command that installs it";
 
+    /// <summary>The change itself, when FixFinder worked it out from the code.</summary>
+    public LocalFixes.LocalFix? LocalFix { get; init; }
+
+    /// <summary>How that change was proved, in a sentence.</summary>
+    public string? CheckedBy { get; init; }
+
     public double Score { get; set; }
 
     public IReadOnlyList<ScoreComponent> ScoreComponents { get; set; } = [];

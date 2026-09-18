@@ -1,3 +1,4 @@
+using FixFinder.Core.Checking;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Parsing;
 
@@ -7,8 +8,13 @@ namespace FixFinder.Core.Logic;
 /// <param name="PatternId">Which pattern found it.</param>
 /// <param name="Line">The 1-based line it is on.</param>
 /// <param name="Message">What is wrong, as one sentence about this code.</param>
-/// <param name="Fix">The change - offered only once it compiles, and, when expected output was given, only once it prints that.</param>
-public sealed record LogicFinding(string PatternId, int Line, string Message, LocalFix Fix);
+/// <param name="Fix">The change - offered only once it compiles - or null when the right change depends on what was meant.</param>
+public sealed record LogicFinding(string PatternId, int Line, string Message, LocalFix? Fix)
+{
+    public Severity Severity { get; init; } = Severity.Warning;
+    public Confidence Confidence { get; init; } = Confidence.Likely;
+    public FindingKind Kind { get; init; } = FindingKind.Logic;
+}
 
 /// <summary>A shape of code that is a logic mistake wherever it appears, whatever the program was for.</summary>
 public interface ILogicPattern

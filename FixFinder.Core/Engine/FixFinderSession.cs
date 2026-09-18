@@ -149,6 +149,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// </remarks>
     public ExpectedBehaviour? Expected { get; init; }
 
+    /// <summary>False to work out fixes from the code alone and never search GitHub or Stack Overflow.</summary>
+    public bool SearchOnline { get; init; } = true;
+
+    /// <summary>False to leave logic mistakes to a separate check, and report only what the run itself shows.</summary>
+    public bool CheckLogic { get; init; } = true;
+
     /// <summary>The file the current run was started from, for checking and changing its logic.</summary>
     private string? _chosen;
 
@@ -195,9 +201,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             buildOutput = build?.Lines;
         }
 
-        var sanitizer = launch is { Compile: not null, ChosenFile: { } chosen }
-            ? SanitizerFor(chosen, launch.Spec!)
-            : null;
+        var sanitizer = SanitizerFor(launch);
 
         return await RunAsync(launch.Spec!, budget, cancellationToken, launch.SourceFolder, buildOutput, sanitizer);
     }
@@ -205,6 +209,9 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// <summary>
     /// A way to rebuild and rerun a C or C++ program under AddressSanitizer, or null where there is none.
     /// </summary>
+    public Func<CancellationToken, Task<TargetRunResult?>>? SanitizerFor(LaunchPlan launch) =>
+        launch is { Compile: not null, ChosenFile: { } chosen, Spec: { } run } ? SanitizerFor(chosen, run) : null;
+
     private Func<CancellationToken, Task<TargetRunResult?>>? SanitizerFor(string source, TargetSpec run)
     {
         if (CompiledLanguages.PrepareSanitized(source, run) is not { } plan) return null;
@@ -463,7 +470,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             // A program that ran to the end can still be wrong. Given the output it should print, that is checked directly and
             // the change that makes it right is looked for; without it, only the mistakes the code shows by itself are - and for
             // a program that never finished, only the loop that cannot end.
-            if (_chosen is { } chosen && run.Outcome is RunOutcome.ExitedClean or RunOutcome.TimedOut or RunOutcome.Crashed)
+            if (CheckLogic && _chosen is { } chosen && run.Outcome is RunOutcome.ExitedClean or RunOutcome.TimedOut or RunOutcome.Crashed)
             {
                 if (run.Outcome == RunOutcome.ExitedClean && Expected is { IsEmpty: false } expected)
                     return await LogicAsync(run, spec, chosen, expected, budget, sourceFolder, warnings, cancellationToken);
@@ -578,7 +585,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         warnings ??= [];
 
         // A logic mistake is about this program's own intent - nobody has written a post about it - so it is never searched for.
-        var searchWeb = error.LanguageId != "logic";
+        var searchWeb = SearchOnline && error.LanguageId != "logic";
 
         // ---------------------------------------------------------- understand it
         var fingerprint = FingerprintBuilder.Build(error);
@@ -947,6 +954,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     /// slower and a different run. The errors left after this one are passed through, so each
     /// skip narrows what remains rather than offering the same list forever.
     /// </remarks>
+    /// <summary>Looks an error up online, from a run that has already happened.</summary>
+    public Task<SessionOutcome> LookUpAsync(
+        TargetRunResult run, ParsedError error, TargetSpec spec, string? sourceFolder, bool failedToCompile,
+        SearchBudget? budget = null, CancellationToken cancellationToken = default) =>
+        SearchForAsync(run, error, spec, budget, sourceFolder, failedToCompile, cancellationToken: cancellationToken);
+
     public Task<SessionOutcome> SearchForOtherAsync(
         SessionOutcome from,
         ParsedError error,
@@ -1056,6 +1069,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (LocalFixes.SourceFile.Read(file) is not { } source || !Language.Reads(new LogicPatternRule())) return null;
 
         var findings = LogicPatterns.Scan(source, message => Log?.Invoke(message))
+            .Where(f => f.Fix is not null && f.Kind == Checking.FindingKind.Logic)
             .Where(f => outcome switch
             {
                 RunOutcome.TimedOut => f.PatternId.EndsWith("loop-never-advances", StringComparison.Ordinal),

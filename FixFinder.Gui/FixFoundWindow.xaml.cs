@@ -13,22 +13,8 @@ using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 
 namespace FixFinder.Gui;
 
-/// <summary>What the prompt needs: the outcome it is about, and the means to act on it.</summary>
-/// <param name="Round">
-/// Which error of this run it is. Shown from the second onwards, so that a prompt appearing for
-/// the third time reads as the loop working rather than as the tool repeating itself.
-/// </param>
-/// <param name="PreviousChoice">
-/// How the round before this one ended, so the banner can say how we got here. Applying a fix and
-/// stepping past a problem both land on a later error, and telling the user their last change
-/// worked when they skipped it would be describing something that did not happen.
-/// </param>
-public sealed record FixFoundContext(
-    SessionOutcome Outcome,
-    FixFinderHttpClient Http,
-    FixFinderLogger? Logger,
-    int Round = 1,
-    RoundChoice? PreviousChoice = null);
+/// <summary>What the search results window needs: the outcome it shows, and the means to open more of it.</summary>
+public sealed record FixFoundContext(SessionOutcome Outcome, FixFinderHttpClient Http, FixFinderLogger? Logger);
 
 /// <summary>
 /// The prompt: here is what went wrong, here is what was found, here is the fix to paste.
@@ -60,15 +46,6 @@ public partial class FixFoundWindow : Window
 
     private ExaminedCandidate? _current;
 
-    /// <summary>
-    /// What the user decided. Null means the prompt was closed without an answer.
-    /// </summary>
-    /// <remarks>
-    /// Only ever Skip now, since nothing here changes a file - the run carries on to the next
-    /// error this build reported, or it stops.
-    /// </remarks>
-    public RoundDecision? Decision { get; private set; }
-
     public FixFoundWindow(FixFoundContext context)
     {
         InitializeComponent();
@@ -89,15 +66,6 @@ public partial class FixFoundWindow : Window
     {
         var outcome = _context.Outcome;
 
-        if (_context.Round > 1)
-        {
-            RoundText.Text = _context.PreviousChoice == RoundChoice.Skip
-                ? $"Error {_context.Round} of this run — you skipped the last one, and this is what it reported next."
-                : $"Error {_context.Round} of this run — the last change worked, and this is what came next.";
-
-            RoundText.Visibility = Visibility.Visible;
-        }
-
         HeadlineText.Text = outcome.Headline;
         ErrorText.Text = outcome.Error?.Summary ?? "";
         ExplanationText.Text = outcome.Detail;
@@ -108,12 +76,11 @@ public partial class FixFoundWindow : Window
     {
         if (_context.Outcome.Best is null)
         {
-            UpdateSkip();
+            UpdateNextButton();
             return;
         }
 
         NextResultButton.IsEnabled = false;
-        SkipButton.IsEnabled = false;
 
         try
         {
@@ -138,7 +105,7 @@ public partial class FixFoundWindow : Window
         CopiedText.Visibility = Visibility.Collapsed;
         AttributionText.Visibility = Visibility.Collapsed;
 
-        UpdateSkip();
+        UpdateNextButton();
 
         if (examined is null)
         {
@@ -182,7 +149,7 @@ public partial class FixFoundWindow : Window
         // what there is is a command, and the decision is whether to run it.
         if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
         {
-            ContentGroup.Header = "What it runs";
+            ContentHeaderText.Text = "WHAT IT RUNS";
 
             _rows.Add(Note("The code is right; the environment is short of a package."));
             _rows.Add(Note(""));
@@ -196,11 +163,11 @@ public partial class FixFoundWindow : Window
 
         if (examined.CanApply)
         {
-            ContentGroup.Header = "The change, and where it goes";
+            ContentHeaderText.Text = "THE CHANGE, AND WHERE IT GOES";
 
             if (examined.Into is { } package)
             {
-                ContentGroup.Header = $"The change, in {package.Name}";
+                ContentHeaderText.Text = $"THE CHANGE, IN {package.Name.ToUpperInvariant()}";
 
                 _rows.Add(Note(
                     $"This is a fix for {package.Name} itself, installed at {package.Root} - not a " +
@@ -226,7 +193,7 @@ public partial class FixFoundWindow : Window
         // reader confirm the refusal instead of taking it on trust.
         if (examined.Plan is { CanApply: false } refused)
         {
-            ContentGroup.Header = "Why this will not apply to your code";
+            ContentHeaderText.Text = "WHY THIS WILL NOT APPLY TO YOUR CODE";
 
             _rows.Add(Note(refused.Explanation));
 
@@ -267,7 +234,7 @@ public partial class FixFoundWindow : Window
         }
         else
         {
-            ContentGroup.Header = "What it says";
+            ContentHeaderText.Text = "WHAT IT SAYS";
         }
 
         if (examined.Harvest is { } harvest)
@@ -312,53 +279,14 @@ public partial class FixFoundWindow : Window
         Render(_current);
     }
 
-    /// <summary>
-    /// Leaves this error alone and moves to the next one the run reported.
-    /// </summary>
-    /// <remarks>
-    /// The loop's business rather than this window's, because the run carries on afterwards, so
-    /// the answer leaves through <see cref="Decision"/> instead of being handled here.
-    /// </remarks>
-    private void SkipButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_context.Outcome.OtherErrors.Count == 0) return;
-
-        _context.Logger?.Write("Skipped this problem; moving to the next error this run reported.");
-
-        Decision = new RoundDecision(RoundChoice.Skip);
-
-        DialogResult = true;
-        Close();
-    }
-
     private static DiffRow Note(string text) => new() { Kind = DiffRowKind.Note, Text = text };
 
-    /// <summary>
-    /// Sets both ways of moving on, and says on the button when one of them is not possible.
-    /// </summary>
-    /// <remarks>
-    /// They are different questions. "Show me another answer to this problem" walks the ranked
-    /// results, which almost always exist; "this problem is not worth my time, what else broke"
-    /// needs another error, which only compiler output has. Where the second is impossible the
-    /// button carries the reason rather than sitting dim - the program stopped at this error, so
-    /// whatever would have failed next has not happened yet, and no parser could find it.
-    /// </remarks>
-    private void UpdateSkip()
+    private void UpdateNextButton()
     {
-        var moreResults = _browser.HasNext;
-        var moreErrors = _context.Outcome.OtherErrors.Count;
-
-        NextResultButton.IsEnabled = moreResults;
-        NextResultButton.ToolTip = moreResults
+        NextResultButton.IsEnabled = _browser.HasNext;
+        NextResultButton.ToolTip = _browser.HasNext
             ? $"Show the next of {_browser.Remaining} more result{(_browser.Remaining == 1 ? "" : "s")} for this error."
             : "This is the last result that was found for this error.";
-
-        SkipButton.IsEnabled = moreErrors > 0;
-        SkipButton.ToolTip = moreErrors > 0
-            ? $"Leave this problem and look up the next error this run reported ({moreErrors} left)."
-            : _context.Outcome.FailedToCompile
-                ? "That was the last error this build reported."
-                : "The program stopped at this error, so there is nothing behind it to move on to until it is fixed.";
     }
 
     private void OnBrowserLog(string message) => _context.Logger?.Write(message);

@@ -30,7 +30,10 @@ public sealed record LocalFixVerdict(bool Accepted, string Reason);
 /// The file travels with it because the patch planner will only apply a change to a file the error
 /// names - right for a stranger's diff, and wrong for a linker error, which names no file at all.
 /// </remarks>
-public sealed record LocalFixFound(FixCandidate Candidate, string File);
+public sealed record LocalFixFound(FixCandidate Candidate, string File)
+{
+    public LocalFix? Fix => Candidate.LocalFix;
+}
 
 /// <summary>
 /// Works out a fix from the code itself, for the mistakes whose error message pins the answer down.
@@ -794,6 +797,8 @@ public static partial class LocalFixEngine
             CreatedAt = now,
             LastActivityAt = now,
             AnswerNoun = "checks",
+            LocalFix = fix,
+            CheckedBy = checkedText,
         };
 
         // Not ranked against search results, because it is not one: it came out of this file and

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FixFinder.Core.Checking;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.LocalFixes.Rules;
 
@@ -26,25 +27,34 @@ public static partial class CLikeLogicPatterns
         new Pattern("logic-result-discarded", Discarding, ResultDiscarded),
         new Pattern("logic-assignment-in-condition", Loose, AssignmentInCondition),
         new Pattern("logic-bitwise-precedence", Loose, BitwisePrecedence),
-        new Pattern("logic-switch-fallthrough", Fallthrough, SwitchFallthrough),
+        new Pattern("logic-switch-fallthrough", Fallthrough, SwitchFallthrough, confidence: Confidence.Possible),
         new Pattern("logic-uninitialised-total", Native, UninitialisedTotal),
-        new Pattern("logic-string-literal-modified", Native, StringLiteralModified),
+        new Pattern("logic-string-literal-modified", Native, StringLiteralModified, Severity.Error),
         new Pattern("logic-c-string-equals", Native, NativeStringEquals),
-        new Pattern("logic-cpp-catch-by-value", Set(".cpp", ".cc", ".cxx", ".c++"), CatchByValue),
-        new Pattern("logic-cpp-non-virtual-destructor", Set(".cpp", ".cc", ".cxx", ".c++"), NonVirtualDestructor),
+        new Pattern("logic-cpp-catch-by-value", Set(".cpp", ".cc", ".cxx", ".c++"), CatchByValue, Severity.Suggestion),
+        new Pattern("logic-cpp-non-virtual-destructor", Set(".cpp", ".cc", ".cxx", ".c++"), NonVirtualDestructor, confidence: Confidence.Possible),
         new Pattern("logic-js-var-in-closure", Script, VarInClosure),
         new Pattern("logic-js-numeric-sort", Script, NumericSort),
         new Pattern("logic-js-map-parseint", Script, MapParseInt),
         new Pattern("logic-return-in-loop", Braced, ReturnInLoop),
         new Pattern("logic-reset-in-loop", Braced, ResetInLoop),
-        new Pattern("logic-loop-never-advances", Braced, LoopNeverAdvances),
+        new Pattern("logic-loop-never-advances", Braced, LoopNeverAdvances, Severity.Error),
     ];
 
-    private sealed class Pattern(string id, IReadOnlySet<string> extensions, Func<string, SourceFile, IReadOnlyList<string>, IEnumerable<LogicFinding>> find) : ILogicPattern
+    private sealed class Pattern(
+        string id,
+        IReadOnlySet<string> extensions,
+        Func<string, SourceFile, IReadOnlyList<string>, IEnumerable<LogicFinding>> find,
+        Severity severity = Severity.Warning,
+        Confidence confidence = Confidence.Likely,
+        FindingKind kind = FindingKind.Logic) : ILogicPattern
     {
         public string Id => id;
         public IReadOnlySet<string> Extensions => extensions;
-        public IEnumerable<LogicFinding> Find(SourceFile source) => find(id, source, CodeText.MaskAll(source.Lines, Syntax.CLike));
+
+        public IEnumerable<LogicFinding> Find(SourceFile source) =>
+            find(id, source, CodeText.MaskAll(source.Lines, Syntax.CLike))
+                .Select(finding => finding with { Severity = severity, Confidence = confidence, Kind = kind });
     }
 
     private static string Indent(string line) => CodeText.Indentation(line);

@@ -1,0 +1,53 @@
+using FixFinder.Core.Parsing;
+
+namespace FixFinder.Core.Checking.Guides;
+
+/// <summary>Finds the guide for a mistake: by the rule that fixed it, then by the error, then by the kind of mistake.</summary>
+public static class Guidebook
+{
+    public static MistakeGuide For(string file, FindingKind kind, string? ruleId = null, ParsedError? error = null)
+    {
+        var table = TableFor(file);
+
+        if (ruleId is { Length: > 0 })
+        {
+            var byRule = table.Concat(LogicGuides.All).FirstOrDefault(entry => entry.RuleIds.Contains(ruleId, StringComparer.Ordinal));
+            if (byRule is not null) return byRule.Guide;
+        }
+
+        if (error is not null && table.FirstOrDefault(entry => entry.Describes(error)) is { } byError) return byError.Guide;
+
+        return GeneralGuides.For(LanguageName(file), kind);
+    }
+
+    public static bool HasRule(string ruleId) =>
+        AllTables.Any(table => table.Any(entry => entry.RuleIds.Contains(ruleId, StringComparer.Ordinal)));
+
+    internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
+    [
+        PythonGuides.All, JavaGuides.All, CSharpGuides.All, NativeGuides.All, JavaScriptGuides.All, GoGuides.All, LogicGuides.All,
+    ];
+
+    private static IReadOnlyList<GuideEntry> TableFor(string file) => Path.GetExtension(file).ToLowerInvariant() switch
+    {
+        ".py" or ".pyw" => PythonGuides.All,
+        ".java" => JavaGuides.All,
+        ".cs" => CSharpGuides.All,
+        ".c" or ".h" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => NativeGuides.All,
+        ".js" or ".mjs" or ".cjs" => JavaScriptGuides.All,
+        ".go" => GoGuides.All,
+        _ => [],
+    };
+
+    public static string LanguageName(string file) => Path.GetExtension(file).ToLowerInvariant() switch
+    {
+        ".py" or ".pyw" => "Python",
+        ".java" => "Java",
+        ".cs" => "C#",
+        ".c" or ".h" => "C",
+        ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => "C++",
+        ".js" or ".mjs" or ".cjs" => "JavaScript",
+        ".go" => "Go",
+        _ => "the program",
+    };
+}

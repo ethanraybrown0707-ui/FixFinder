@@ -202,8 +202,11 @@ public static partial class CompiledLanguages
     /// destructor, and <c>-Wcatch-value</c> an exception caught by value, which slices off what was really thrown.
     /// </remarks>
     internal static string GnuWarnings(bool cpp) => cpp
-        ? "-std=c++17 -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
-        : "-Waddress ";
+        ? "-std=c++17 -Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
+        : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ";
+
+    /// <summary>The javac warnings that point at real mistakes in a student's program, and none about build settings.</summary>
+    internal const string JavaLint = "-Xlint:cast,divzero,empty,fallthrough,finally,overrides,rawtypes,static,unchecked,deprecation";
 
     public static BuildAndRun? PrepareSanitized(string source, TargetSpec normalRun)
     {
@@ -358,7 +361,7 @@ public static partial class CompiledLanguages
         // under the same root - are found and compiled with it.
         var compile = Spec(
             javac.Program,
-            $"-g -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
+            $"-g {JavaLint} -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
             Path.GetDirectoryName(source)!,
             timeout);
 

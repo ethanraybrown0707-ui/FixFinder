@@ -113,7 +113,9 @@ public sealed class LogicRepair
         var candidates = new List<(LocalFix Fix, bool FromPattern)>();
 
         foreach (var finding in LogicPatterns.Scan(source, Log))
-            candidates.Add((finding.Fix, true));
+        {
+            if (finding.Fix is { } fix) candidates.Add((fix, true));
+        }
 
         // Lines in order of suspicion; with no coverage, every line of the file is equally suspect.
         var scores = coverageUsed

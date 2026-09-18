@@ -273,9 +273,12 @@ public static class Toolchains
     /// <summary>A plain-English list of what is and is not available, for the Settings window.</summary>
     public static IReadOnlyList<string> Describe() =>
     [
-        $"C     : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
-        $"C++   : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
-        $"C#    : dotnet ({TargetFactory.FindOnPath("dotnet") ?? "not found"})",
-        $"Java  : {FindJavac()?.Description ?? "no JDK found"}",
+        $"Python     : {TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py") ?? "not found"}",
+        $"Java       : {FindJavac()?.Description ?? "no JDK found"}",
+        $"C#         : {TargetFactory.FindOnPath("dotnet") ?? "not found"}",
+        $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
+        $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
+        $"JavaScript : {TargetFactory.FindOnPath("node") ?? "not found"}",
+        $"Go         : {TargetFactory.FindOnPath("go") ?? "not found"}",
     ];
 }

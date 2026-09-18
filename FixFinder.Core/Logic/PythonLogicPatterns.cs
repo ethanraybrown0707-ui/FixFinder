@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FixFinder.Core.Checking;
 using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Logic;
@@ -11,20 +12,28 @@ public static partial class PythonLogicPatterns
     public static IReadOnlyList<ILogicPattern> All { get; } =
     [
         new Pattern("logic-python-is-literal", IsLiteral),
-        new Pattern("logic-python-assert-tuple", AssertTuple),
+        new Pattern("logic-python-assert-tuple", AssertTuple, confidence: Confidence.Certain),
         new Pattern("logic-python-mutable-default", MutableDefault),
         new Pattern("logic-python-result-discarded", ResultDiscarded),
         new Pattern("logic-python-return-in-loop", ReturnInLoop),
         new Pattern("logic-python-reset-in-loop", ResetInLoop),
         new Pattern("logic-python-comparison-statement", ComparisonStatement),
-        new Pattern("logic-python-loop-never-advances", LoopNeverAdvances),
+        new Pattern("logic-python-loop-never-advances", LoopNeverAdvances, Severity.Error),
     ];
 
-    private sealed class Pattern(string id, Func<string, SourceFile, IReadOnlyList<string>, IEnumerable<LogicFinding>> find) : ILogicPattern
+    private sealed class Pattern(
+        string id,
+        Func<string, SourceFile, IReadOnlyList<string>, IEnumerable<LogicFinding>> find,
+        Severity severity = Severity.Warning,
+        Confidence confidence = Confidence.Likely,
+        FindingKind kind = FindingKind.Logic) : ILogicPattern
     {
         public string Id => id;
         public IReadOnlySet<string> Extensions => Python;
-        public IEnumerable<LogicFinding> Find(SourceFile source) => find(id, source, CodeText.MaskAll(source.Lines, Syntax.Python));
+
+        public IEnumerable<LogicFinding> Find(SourceFile source) =>
+            find(id, source, CodeText.MaskAll(source.Lines, Syntax.Python))
+                .Select(finding => finding with { Severity = severity, Confidence = confidence, Kind = kind });
     }
 
     private static string Indent(string line) => CodeText.Indentation(line);

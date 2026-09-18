@@ -113,6 +113,32 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
     private static ParsedError? ParseJavacDiagnostic(IReadOnlyList<CapturedLine> lines) =>
         ParseJavacDiagnostics(lines).FirstOrDefault();
 
+    public static IReadOnlyList<ParsedError> ParseWarnings(IReadOnlyList<CapturedLine> lines)
+    {
+        var warnings = new List<ParsedError>();
+
+        foreach (var line in lines)
+        {
+            if (JavacPattern().Match(line.Text) is not { Success: true } match || match.Groups["severity"].Value != "warning") continue;
+
+            var frame = new ErrorFrame { Order = 0, File = match.Groups["file"].Value, Line = int.Parse(match.Groups["line"].Value), RawLine = line.Text };
+
+            warnings.Add(new ParsedError
+            {
+                LanguageId = "java",
+                Confidence = 80,
+                RawText = line.Text,
+                FirstLineSequence = line.Sequence,
+                ExceptionType = "compile warning",
+                Message = match.Groups["msg"].Value.Trim(),
+                Frames = [frame],
+                CulpritFrame = frame,
+            });
+        }
+
+        return warnings;
+    }
+
     private static List<ParsedError> ParseJavacDiagnostics(IReadOnlyList<CapturedLine> lines)
     {
         var errors = new List<ParsedError>();
