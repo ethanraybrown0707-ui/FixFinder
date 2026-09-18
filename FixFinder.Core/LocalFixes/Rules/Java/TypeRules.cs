@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -409,11 +408,9 @@ public sealed partial class JavaFormatConversion : ILocalFixRule
         var (source, number, line) = at;
         if (!Regex.IsMatch(line, @"\b(?:format|printf|formatted)\s*\(")) return null;
 
-        // The one specifier with that code on the line; two of them and it cannot be told which argument was wrong.
         var specifiers = Regex.Matches(line, $@"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?{Regex.Escape(code)}").ToList();
         if (specifiers is not [var specifier]) return null;
 
-        // A precision means nothing to %d, so it is kept only where the new code uses one.
         var text = specifier.Value[..^1];
         if (wanted is "d" or "c" or "b") text = Regex.Replace(text, @"\.\d+$", "");
 
@@ -433,11 +430,8 @@ public sealed partial class JavaFormatConversion : ILocalFixRule
     };
 }
 
-/// <summary><c>Student is not abstract and does not override abstract method compareTo(Object) in Comparable</c> - a raw <c>Comparable</c>.</summary>
-/// <remarks>
-/// The class already has <c>compareTo(Student)</c>; it is the missing <c>&lt;Student&gt;</c> that makes Java look for
-/// <c>compareTo(Object)</c> instead. Tried before the rule that writes missing methods, which would add the wrong one.
-/// </remarks>
+/// <summary><c>Student is not abstract and does not override abstract method compareTo(Object) in Comparable</c> - a raw
+/// <c>Comparable</c>.</summary>
 public sealed partial class JavaRawComparable : ILocalFixRule
 {
     public string Id => "java-raw-comparable";
@@ -458,7 +452,6 @@ public sealed partial class JavaRawComparable : ILocalFixRule
         var raw = Regex.Matches(masked[number - 1], $@"(?<![\w.]){interfaceName}(?!\s*[<\w])").ToList();
         if (raw is not [var mention]) return null;
 
-        // The type the class's own compareTo or compare already takes - a method one level inside this class's body.
         var depths = Brackets.BraceDepths(masked);
         var outer = depths[number - 1];
         var end = number;
@@ -509,7 +502,6 @@ public sealed partial class JavaGenericMethodParameter : ILocalFixRule
         if (Regex.IsMatch(header.Groups["rest"].Value, @"^\s*<")) return null;
         if (!Regex.IsMatch(masked[number - 1], $@"(?<![\w$]){name}(?![\w$])")) return null;
 
-        // A class or interface that declares the parameter itself has a different problem.
         if (masked.Any(l => Regex.IsMatch(l, $@"\b(?:class|interface|record)\s+[\w$]+\s*<[^>]*\b{name}\b"))) return null;
 
         var at0 = header.Groups["rest"].Index;
@@ -633,7 +625,6 @@ public sealed partial class JavaRecordAccessor : ILocalFixRule
         var receivers = new Regex($@"(?:\b{Regex.Escape(type)}(?:<[^>]*>)?\s+|\bvar\s+)(?<name>[A-Za-z_$][\w$]*)\s*(?:=\s*new\s+{Regex.Escape(type)}\b)?");
         var names = masked.SelectMany(l => receivers.Matches(l)).Where(m => m.Value.StartsWith(type, StringComparison.Ordinal) || m.Value.Contains("new", StringComparison.Ordinal)).Select(m => m.Groups["name"].Value).ToHashSet();
 
-        // Every component of this record the build reported on the same line, so p.x + p.y is corrected in one go.
         var fields = context.AllErrors
             .Where(e => JavaCode.IsCompileError(e) && LocalFixContext.OwnFrame(e)?.Line == number)
             .Select(e => Message().Match(e.Message ?? ""))

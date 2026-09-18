@@ -6,7 +6,8 @@ using static FixFinder.Core.Logic.PythonBlocks;
 
 namespace FixFinder.Core.Logic;
 
-/// <summary>More of the mistakes Python programs make without failing: conditions that are always true, results thrown away, loops that skip items.</summary>
+/// <summary>More of the mistakes Python programs make without failing: conditions that are always true, results thrown away,
+/// loops that skip items.</summary>
 public static partial class PythonReviewPatterns
 {
     private static readonly IReadOnlySet<string> Python = CodePattern.Files(".py", ".pyw");
@@ -50,8 +51,6 @@ public static partial class PythonReviewPatterns
 
     private static string Original(SourceFile source, int line, Group group) => source.Lines[line].Substring(group.Index, group.Length);
 
-    // ------------------------------------------------------------------ if answer == "yes" or "y":
-
     private const string Literal = @"(?:""[^""]*""|'[^']*'|-?\d+(?:\.\d+)?)";
 
     [GeneratedRegex(@"(?<![\w.])(?<left>[A-Za-z_][\w.]*(?:\[[^\]]*\])?(?:\(\))?)\s*(?<op>==|!=)\s*(?<first>" + Literal + @")(?<rest>(?:\s+(?<join>or|and)\s+" + Literal + @")+)(?=\s*(?:[:)]|$|\s+(?:or|and|if|else)\b))")]
@@ -91,8 +90,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, line[..match.Index] + replacement + line[(match.Index + match.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ names = names.sort()
 
     [GeneratedRegex(@"^(?<lead>\s*)(?<target>[A-Za-z_][\w.]*)\s*=\s*(?<object>[A-Za-z_][\w.]*)\.(?<method>sort|reverse|append|extend|insert|remove|clear|add|update)\((?<arguments>.*)\)\s*$")]
     private static partial Regex InPlaceAssigned();
@@ -152,8 +149,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ print("Hello {name}")
-
     [GeneratedRegex(@"\{(?<name>[A-Za-z_]\w*)(?:\.\w+|\[[^\]{}'""\s]+\]|\(\))*(?:![rsa])?(?::[^{}'""\s]*)?\}")]
     private static partial Regex Placeholder();
 
@@ -208,8 +203,6 @@ public static partial class PythonReviewPatterns
 
     private static string Shorten(string text) => text.Length <= 40 ? text : text[..37] + "...";
 
-    // ------------------------------------------------------------------ if answer.isdigit:
-
     [GeneratedRegex(@"(?<![\w.])(?<object>(?!(?:str|bytes|dict|list|set|self)\b(?!\())[A-Za-z_]\w*(?:\[[^\]]*\]|\([^()]*\))?)\.(?<method>upper|lower|strip|lstrip|rstrip|title|capitalize|swapcase|split|isdigit|isalpha|isalnum|isupper|islower|isspace|isnumeric|isdecimal|istitle)\b(?!\s*\()")]
     private static partial Regex UncalledMethod();
 
@@ -242,8 +235,6 @@ public static partial class PythonReviewPatterns
             }
         }
     }
-
-    // ------------------------------------------------------------------ for item in items: items.remove(item)
 
     [GeneratedRegex(@"^(?<lead>\s*)for\s+(?<variables>[\w\s,()]+?)\s+in\s+(?<collection>[A-Za-z_][\w.]*)\s*:\s*$")]
     private static partial Regex ForOverName();
@@ -283,8 +274,6 @@ public static partial class PythonReviewPatterns
                     source, header + 1, line[..at] + $"list({collection})" + line[(at + collection.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ age = input(); if age > 18
 
     [GeneratedRegex(@"^(?<lead>\s*)(?<name>[A-Za-z_]\w*)\s*=\s*(?<call>input\s*\((?<prompt>.*)\))\s*$")]
     private static partial Regex InputAssignment();
@@ -333,8 +322,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ def area(): print(w * h)   ...   total = area()
-
     [GeneratedRegex(@"^(?<lead>\s*)def\s+(?<name>[A-Za-z_]\w*)\s*\(")]
     private static partial Regex FunctionHeader();
 
@@ -381,8 +368,6 @@ public static partial class PythonReviewPatterns
                 fix);
         }
     }
-
-    // ------------------------------------------------------------------ def grade(s): if s >= 50: return "pass"   (and nothing else)
 
     private static IEnumerable<LogicFinding> ReturnsNothingSometimes(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -451,8 +436,6 @@ public static partial class PythonReviewPatterns
         return Regex.IsMatch(masked[last], @"^\s*(?:return|raise)\b|^\s*(?:sys\.)?exit\s*\(");
     }
 
-    // ------------------------------------------------------------------ average = total // count
-
     private static IEnumerable<LogicFinding> FloorDivisionAverage(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         string? function = null;
@@ -479,8 +462,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, line[..at] + "/" + line[(at + 2)..]));
         }
     }
-
-    // ------------------------------------------------------------------ def add(self): count = self.count + 1
 
     private static IEnumerable<LogicFinding> AttributeNotSet(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -517,8 +498,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ return print(total)
-
     private static IEnumerable<LogicFinding> ReturnPrint(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -543,8 +522,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ count + 1 on a line of its own
-
     private static IEnumerable<LogicFinding> StatementHasNoEffect(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var open = OpenBrackets(masked);
@@ -567,8 +544,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, $"{statement.Groups["lead"].Value}{target} {op}= {value}{CodeText.SplitComment(line, Syntax.Python).Tail}"));
         }
     }
-
-    // ------------------------------------------------------------------ sum = 0 ... sum(values)
 
     private static readonly string[] Builtins =
     [
@@ -633,7 +608,6 @@ public static partial class PythonReviewPatterns
         ["range"] = "span", ["sorted"] = "ordered",
     };
 
-    /// <summary>The variable renamed from the line that names it to its last use, leaving every call of the built-in alone.</summary>
     private static LocalFix? Rename(string id, SourceFile source, IReadOnlyList<string> masked, string name, int from)
     {
         if (!NewNames.TryGetValue(name, out var replacement) || DefinedNames(masked).Contains(replacement)) return null;
@@ -659,8 +633,6 @@ public static partial class PythonReviewPatterns
         };
     }
 
-    // ------------------------------------------------------------------ code after return
-
     private static IEnumerable<LogicFinding> UnreachableCode(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
@@ -684,8 +656,6 @@ public static partial class PythonReviewPatterns
                 null);
         }
     }
-
-    // ------------------------------------------------------------------ if x > 5: ... elif x > 5:
 
     private static IEnumerable<LogicFinding> DuplicateCondition(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -724,8 +694,6 @@ public static partial class PythonReviewPatterns
     private static string Normalise(string line, Group condition) =>
         Regex.Replace(line.Substring(condition.Index, condition.Length), @"\s+", "");
 
-    // ------------------------------------------------------------------ while True: with no way out
-
     private static IEnumerable<LogicFinding> EndlessWhileTrue(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var header = 0; header < masked.Count; header++)
@@ -742,8 +710,6 @@ public static partial class PythonReviewPatterns
                 null);
         }
     }
-
-    // ------------------------------------------------------------------ for i in range(len(xs) - 1): print(xs[i])
 
     private static IEnumerable<LogicFinding> RangeSkipsLast(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -772,8 +738,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ except:
-
     private static IEnumerable<LogicFinding> BareExcept(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -792,8 +756,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, line[..colon].TrimEnd() + " Exception" + line[colon..]));
         }
     }
-
-    // ------------------------------------------------------------------ except ValueError: pass
 
     private static IEnumerable<LogicFinding> SilentExcept(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -824,8 +786,6 @@ public static partial class PythonReviewPatterns
                 });
         }
     }
-
-    // ------------------------------------------------------------------ class Basket: items = []
 
     private static IEnumerable<LogicFinding> SharedClassList(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -869,8 +829,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ x == None
-
     private static IEnumerable<LogicFinding> NoneComparison(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -888,8 +846,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ if done == True:
 
     private static IEnumerable<LogicFinding> BoolComparison(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -913,8 +869,6 @@ public static partial class PythonReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ type(x) == int
-
     private static IEnumerable<LogicFinding> TypeComparison(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -936,8 +890,6 @@ public static partial class PythonReviewPatterns
                     source, i + 1, line[..match.Index] + check + line[(match.Index + match.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ for i in range(len(names)): print(names[i])
 
     private static IEnumerable<LogicFinding> RangeLenLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -989,8 +941,6 @@ public static partial class PythonReviewPatterns
         name.EndsWith("ies", StringComparison.Ordinal) && name.Length > 4 ? name[..^3] + "y"
         : name.EndsWith('s') && !name.EndsWith("ss", StringComparison.Ordinal) && name.Length > 3 ? name[..^1]
         : name;
-
-    // ------------------------------------------------------------------ f = open(...) with no close
 
     private static IEnumerable<LogicFinding> FileNotClosed(string id, SourceFile source, IReadOnlyList<string> masked)
     {

@@ -6,26 +6,7 @@ using FixFinder.Core.Http;
 
 namespace FixFinder.Core.Sources;
 
-/// <summary>
-/// Searches GitHub issues, and follows each one to the commits and pull requests that closed it.
-/// </summary>
-/// <remarks>
-/// The only source that can produce an appliable patch, and the reason is narrow: an issue
-/// closed by a commit has a real unified diff behind it, at a URL, in a format a state machine
-/// can read. Everything else found anywhere is prose.
-/// <para>
-/// Two allowances are in play and they behave nothing alike. Search has its own pool of ten
-/// requests a minute unauthenticated - small, but it refills every minute, so searching is
-/// comfortable. The timeline lookups come out of the general pool of sixty an hour, which does
-/// not refill in any useful sense during a working session. That is why the search runs freely
-/// and the timeline is followed for only the top few candidates.
-/// </para>
-/// <para>
-/// Patches are fetched from github.com as plain text rather than through the API, which is
-/// materially better than it sounds: those URLs are public, unauthenticated and consume no API
-/// allowance at all, so harvesting diffs costs nothing from the sixty an hour that matter.
-/// </para>
-/// </remarks>
+/// <summary>Searches GitHub issues, and follows each one to the commits and pull requests that closed it.</summary>
 public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSource
 {
     public const string SearchBucket = "github-search";
@@ -34,7 +15,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
 
     private const string ApiRoot = "https://api.github.com";
 
-    /// <summary>Issues whose timeline is followed. Each one costs a request from the hourly pool.</summary>
     private const int IssuesToFollow = 5;
 
     private static readonly KeyValuePair<string, string>[] ApiHeaders =
@@ -49,7 +29,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
     public string Name => "GitHub";
     public bool RequiresNetwork => true;
 
-    /// <summary>Always true - issue search works anonymously. A token only raises the allowance.</summary>
     public bool IsConfigured => true;
 
     public string QuotaBucket => SearchBucket;
@@ -63,8 +42,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
         var queries = new List<string>();
         var requests = 0;
 
-        // An explicit repository from the window wins; otherwise the module the crash came from
-        // is looked up in the fixed table. Both are optional and most searches use neither.
         var repository = budget.RepositoryFilter is { Length: > 0 } typed
             ? typed.Trim()
             : KnownRepoMap.Resolve(fingerprint.NearestThirdPartyModule);
@@ -98,8 +75,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
 
         var candidates = search.Issues.Take(budget.MaxCandidates).ToList();
 
-        // Only the top few, and only if the budget allows it. Every one of these spends from the
-        // sixty-an-hour pool, which is the allowance that actually runs out.
         var follow = Math.Min(Math.Min(IssuesToFollow, budget.MaxDetailCalls), candidates.Count);
 
         for (var index = 0; index < follow; index++)
@@ -122,8 +97,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
         return new FixSearchResult(Name, built, queries, requests);
     }
 
-    // ------------------------------------------------------------------ search
-
     /// <summary>An issue plus the two facts needed to follow it: which repository, and which number.</summary>
     private sealed record IssueRecord(FixCandidate Candidate, string? Repository, int Number);
 
@@ -142,9 +115,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
 
         queries.Add(full);
 
-        // advanced_search became GitHub's default for this endpoint in September 2025. Passing
-        // it explicitly is still accepted, pins the behaviour, and keeps the request out of the
-        // deprecation path - which is worth the eighteen characters.
         var url =
             $"{ApiRoot}/search/issues" +
             $"?q={Uri.EscapeDataString(full)}" +
@@ -186,8 +156,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
 
         if (number == 0 || url.Length == 0) return null;
 
-        // The search result names the repository only as an API URL, so it is read back out of
-        // that rather than requested separately - a request per result would be indefensible.
         var repositoryUrl = item.StringOrEmpty("repository_url");
         var match = RepositoryUrlPattern().Match(repositoryUrl);
         var repository = match.Success ? $"{match.Groups["owner"].Value}/{match.Groups["repo"].Value}" : null;
@@ -206,8 +174,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
             Url = url,
             BodyText = body,
 
-            // Markdown, not HTML - the opposite of Stack Overflow, and the reason M5 needs both
-            // paths in its code-block extractor.
             RawBody = body,
             RawBodyIsHtml = false,
 
@@ -225,8 +191,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
             IsClosed = closed,
             ClosedReason = stateReason,
 
-            // "duplicate" is a state reason GitHub added alongside "completed" and
-            // "not_planned"; older issues express the same thing only with a label.
             DuplicateOfUrl = string.Equals(stateReason, "duplicate", StringComparison.OrdinalIgnoreCase)
                 ? url
                 : null,
@@ -238,21 +202,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
         return new IssueRecord(candidate, repository, number);
     }
 
-    // ------------------------------------------------------------------ linked patches
-
-    /// <summary>
-    /// Follows an issue's timeline to the commits and pull requests that reference it.
-    /// </summary>
-    /// <remarks>
-    /// The timeline is the only place this information is complete. The issue object itself
-    /// names a pull request only when the issue <i>is</i> one; a normal issue closed by a commit
-    /// records that as a timeline event and nowhere else.
-    /// <para>
-    /// The URLs built here end in .patch and .diff, which github.com serves as plain text to
-    /// anyone. Nothing is fetched yet - M5 does that, after the user has seen what would be
-    /// fetched and from where.
-    /// </para>
-    /// </remarks>
     private async Task<(IReadOnlyList<string> Links, int Requests)> FetchLinkedPatchesAsync(
         IssueRecord issue, SearchBudget budget, CancellationToken ct)
     {
@@ -282,13 +231,11 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
 
                 switch (kind)
                 {
-                    // The issue was closed by, or merely referenced from, a commit.
                     case "closed" or "referenced" or "merged":
                         if (entry.StringOrNull("commit_id") is { Length: > 0 } sha)
                             Add(links, $"https://github.com/{issue.Repository}/commit/{sha}.patch");
                         break;
 
-                    // A pull request in this or another repository mentioned the issue.
                     case "cross-referenced":
                         if (entry.TryGet("source", out var source) &&
                             source.TryGet("issue", out var referencing) &&
@@ -317,9 +264,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
         }
     }
 
-    // ------------------------------------------------------------------ plumbing
-
-    /// <summary>GitHub rejects a query above 256 characters with a 422.</summary>
     private static string Trim(string query) => query.Length <= 200 ? query : query[..200];
 
     private static string Describe(HttpResult result)
@@ -344,7 +288,6 @@ public sealed partial class GitHubFixSource(FixFinderHttpClient http) : IFixSour
         }
         catch (JsonException)
         {
-            // Fall through to the HTTP-level description.
         }
 
         return result.Failure ?? $"GitHub returned {(int)result.Status}.";

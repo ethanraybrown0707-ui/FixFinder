@@ -1,13 +1,6 @@
-
-
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary>Which standard header declares what, for C and for C++.</summary>
-/// <remarks>
-/// Hand-written, and deliberately limited to the standard libraries. A name from a third-party
-/// library is not answered here: the header is only half of that fix, and the other half - getting
-/// the library installed where this compiler looks - is not something a table can know.
-/// </remarks>
 internal static class CStandardLibrary
 {
     private static readonly (string Header, string Names)[] C =
@@ -75,7 +68,6 @@ internal static class CStandardLibrary
     private static readonly Dictionary<string, string> CHeaders = Build(C);
     private static readonly Dictionary<string, string> CppHeaders = Build(Cpp);
 
-    /// <summary>C functions that return a pointer, which C cuts to 32 bits when they are undeclared.</summary>
     public static IReadOnlySet<string> ReturnsPointer { get; } = new HashSet<string>(
         "malloc calloc realloc strdup fopen getenv strchr strrchr strstr strtok memcpy memmove memset memchr strcpy strncpy strcat strncat localtime gmtime ctime asctime strerror tmpfile".Split(' '),
         StringComparer.Ordinal);
@@ -89,7 +81,6 @@ internal static class CStandardLibrary
              "ranges numbers").Split(' ')),
         StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>C standard functions and macros, as candidates for a misspelt call.</summary>
     public static IEnumerable<string> CNames => CHeaders.Keys;
 
     public static IReadOnlySet<string> Keywords { get; } = new HashSet<string>(
@@ -105,7 +96,6 @@ internal static class CStandardLibrary
 
     public static string? CppHeaderOf(string name) => CppHeaders.GetValueOrDefault(name);
 
-    /// <summary>The C++ table as written, for the test that compiles every entry against its header.</summary>
     internal static IReadOnlyDictionary<string, string> CppTable => CppHeaders;
 
     private static Dictionary<string, string> Build((string Header, string Names)[] table)

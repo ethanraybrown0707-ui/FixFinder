@@ -14,11 +14,6 @@ public interface ILocalFixRule
 {
     string Id { get; }
 
-    /// <summary>A proposed change, or null when this error is not one this rule reads.</summary>
-    /// <remarks>
-    /// A proposal is not an answer. It goes to <see cref="CompileCheck"/> before anybody sees it,
-    /// so a rule's job is to be exact about what the error said, not certain about the fix.
-    /// </remarks>
     LocalFix? Propose(LocalFixContext context);
 }
 
@@ -26,41 +21,16 @@ public interface ILocalFixRule
 public sealed record LocalFixVerdict(bool Accepted, string Reason);
 
 /// <summary>A checked fix, and the file it changes.</summary>
-/// <remarks>
-/// The file travels with it because the patch planner will only apply a change to a file the error
-/// names - right for a stranger's diff, and wrong for a linker error, which names no file at all.
-/// </remarks>
 public sealed record LocalFixFound(FixCandidate Candidate, string File)
 {
     public LocalFix? Fix => Candidate.LocalFix;
 }
 
-/// <summary>
-/// Works out a fix from the code itself, for the mistakes whose error message pins the answer down.
-/// </summary>
-/// <remarks>
-/// Search can only ever answer a problem somebody else also had, and the commonest errors in Python,
-/// Java and C are not that: a missing import, a missing semicolon, a loop that runs one step too far
-/// - in code nobody else has seen. The error message usually says exactly what is wrong, and often
-/// exactly where. What it never does is make the change.
-/// <para>
-/// <b>Every rule here is deterministic and every answer is checked.</b> A rule reads the error and
-/// the lines it names and proposes one change. A copy of the file with that change in it is then
-/// compiled somewhere outside the project, and the change is offered only if the compiler agrees:
-/// the error it was meant to fix is gone, nothing new went wrong in the lines that changed, and -
-/// for a compiler that reports everything at once - nothing new went wrong anywhere.
-/// </para>
-/// <para>
-/// Nothing is ever run. Checking a fix for a crash only proves the file still compiles; the answer
-/// says so, rather than implying it proved the crash was gone.
-/// </para>
-/// </remarks>
+/// <summary>Works out a fix from the code itself, for the mistakes whose error message pins the answer down.</summary>
 public static partial class LocalFixEngine
 {
-    /// <summary>Every rule, in the order they are tried. The first one whose proposal survives wins.</summary>
     public static IReadOnlyList<ILocalFixRule> Rules { get; } =
     [
-        // Reads only the logic mistakes found in code that ran; first, because nothing else reads those.
         new Logic.LogicPatternRule(),
         new PythonThisForSelf(),
         new PythonForgottenImport(),
@@ -113,7 +83,6 @@ public static partial class LocalFixEngine
         new PythonIsinstanceString(),
         new PythonChangedDuringIteration(),
 
-        // Last of Python's: a nearest name is the weakest claim here, and every rule above is exact.
         new PythonExceptAs(),
         new PythonComprehensionCondition(),
         new PythonAwaitOutsideAsync(),
@@ -435,23 +404,15 @@ public static partial class LocalFixEngine
     [GeneratedRegex(@"expected$|^illegal start of|^reached end of file while parsing|^not a statement|^unclosed|^class, interface, enum, or record expected")]
     private static partial Regex JavaSyntaxMessage();
 
-    /// <summary>The first checked fix for this error, as a candidate ready to be shown, or null.</summary>
     public static async Task<FixCandidate?> ForAsync(
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
         (await FindAsync(context, log, cancellationToken))?.Candidate;
 
-    /// <summary>How many proposed fixes are compiled at the same time.</summary>
-    /// <remarks>
-    /// Half the processors, because a compiler is rarely one thread, and never more than four, because
-    /// every check past the one that wins is thrown away.
-    /// </remarks>
     public static int ChecksAtOnce { get; } = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
 
-    /// <summary>The first checked fix for this error, with the file it changes, or null.</summary>
     public static Task<LocalFixFound?> FindAsync(
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default)
     {
-        // Started before the rules read anything, so it is under way while they do.
         if (context.Read(context.Frame?.File) is { } erring) CompileCheck.Prepare(erring);
 
         return FindAsync(
@@ -460,19 +421,6 @@ public static partial class LocalFixEngine
             ChecksAtOnce, log, cancellationToken);
     }
 
-    /// <summary>The first checked fix, from these rules, checked this way, this many at a time.</summary>
-    /// <remarks>
-    /// Almost all the time here is spent waiting on a compiler; reading the code to propose a change
-    /// is a handful of regexes. So proposals are made in rule order, as before, and each one's check
-    /// starts as soon as it is made rather than when the check before it has finished.
-    /// <para>
-    /// <b>The answer is the one the rules would give one at a time.</b> Verdicts are still read in
-    /// rule order: a later check that finishes first waits for every earlier one to be refused, so
-    /// a slow compile of the first rule's change still beats a quick one of the third's. Only
-    /// <paramref name="checksAtOnce"/> proposals are ever waiting to be judged, so at most that many
-    /// less one are compiled for nothing, and those are stopped the moment a fix is accepted.
-    /// </para>
-    /// </remarks>
     internal static async Task<LocalFixFound?> FindAsync(
         LocalFixContext context,
         IReadOnlyList<ILocalFixRule> rules,
@@ -483,12 +431,8 @@ public static partial class LocalFixEngine
     {
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        // Everything proposed and not yet judged, in rule order.
         var waiting = new Queue<(Proposal Proposal, Task<CheckResult> Check)>();
 
-        // Every check started, by the file and exactly what it would contain, so two rules that arrive
-        // at the same edit share one compile. What is shared is what the compiler said; each rule's
-        // change is still judged on its own.
         var started = new Dictionary<string, Task<CheckResult>>(StringComparer.Ordinal);
 
         var next = 0;
@@ -515,7 +459,6 @@ public static partial class LocalFixEngine
 
                     log?.Invoke($"{proposal.Rule.Id}: proposes \"{proposal.Fix.Title}\" - compiling a copy to check it");
 
-                    // On the thread pool, so a compiler that is slow to start holds up nothing else.
                     var compile = Task.Run(() => check(proposal.Source, proposal.Lines, stop.Token), CancellationToken.None);
 
                     started[content] = compile;
@@ -540,8 +483,6 @@ public static partial class LocalFixEngine
         {
             if (waiting.Count > 0)
             {
-                // Said, because each of these was announced as being compiled and would otherwise
-                // never be heard of again.
                 if (found is not null)
                 {
                     foreach (var (unneeded, _) in waiting)
@@ -550,15 +491,12 @@ public static partial class LocalFixEngine
 
                 stop.Cancel();
 
-                // Waited for, so no compiler outlives the search and every copy's folder is gone
-                // before the answer is shown.
                 try
                 {
                     await Task.WhenAll(waiting.Select(w => w.Check));
                 }
                 catch (Exception)
                 {
-                    // A stopped check has nothing to report, however it stopped.
                 }
             }
         }
@@ -566,7 +504,6 @@ public static partial class LocalFixEngine
 
     private sealed record Proposal(ILocalFixRule Rule, LocalFix Fix, SourceFile Source, IReadOnlyList<string> Lines, string Diff);
 
-    /// <summary>One rule's change, ready to be compiled, or null when it has none that can be checked.</summary>
     private static Proposal? Propose(LocalFixContext context, ILocalFixRule rule, Action<string>? log)
     {
         LocalFix? fix;
@@ -577,8 +514,6 @@ public static partial class LocalFixEngine
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // A rule is a handful of regexes over somebody's source file. One that throws costs
-            // this rule, never the run.
             log?.Invoke($"{rule.Id}: gave up reading the code - {ex.Message}");
             return null;
         }
@@ -598,15 +533,6 @@ public static partial class LocalFixEngine
         return LocalFixDiff.Render(source, fix, path) is { } diff ? new Proposal(rule, fix, source, lines, diff) : null;
     }
 
-    /// <summary>
-    /// For a program that crashed without a word: a fix for a build warning that explains why.
-    /// </summary>
-    /// <remarks>
-    /// On 64-bit Windows, calling <c>malloc</c> without <c>&lt;stdlib.h&gt;</c> compiles with a
-    /// warning and then crashes with nothing printed at all, because C assumes an undeclared
-    /// function returns a 32-bit <c>int</c> and the pointer is cut in half. The warning is the
-    /// entire explanation, and it scrolled past in a build that succeeded.
-    /// </remarks>
     public static async Task<LocalFixFound?> ForBuildWarningsAsync(
         IReadOnlyList<CapturedLine> buildOutput,
         string? sourceRoot,
@@ -614,9 +540,6 @@ public static partial class LocalFixEngine
         CancellationToken cancellationToken = default,
         CodeLanguage? language = null)
     {
-        // Only the warnings that are themselves crashes: a function used undeclared, whose pointer
-        // result C cut in half, a printf conversion that reads a number as an address, and a
-        // reference handed back to a local variable that no longer exists.
         var warnings = MsvcParser.ParseWarnings(buildOutput)
             .Where(w => w.ErrorCode is "C4013" or "C4477" or "C4172")
             .Concat(GccClangParser.ParseWarnings(buildOutput)
@@ -636,14 +559,10 @@ public static partial class LocalFixEngine
         return null;
     }
 
-    /// <summary>Whether a change did what it claimed, judged from compiling a copy with it made.</summary>
     public static LocalFixVerdict Judge(LocalFixContext context, LocalFix fix, CheckResult check)
     {
         if (!check.Ran) return new(false, "there was nothing to compile the copy with");
 
-        // A compiler that failed without reporting anything a parser recognised has checked
-        // nothing. Reading that as "no errors" is exactly how a check passes while proving nothing -
-        // which is what happened when a packaged Python could not see the copy at all.
         if (check.ExitCode != 0 && check.Errors.Count == 0)
             return new(false, $"the compiler exited {check.ExitCode} without reporting why, so the change could not be checked");
 
@@ -660,12 +579,8 @@ public static partial class LocalFixEngine
                 : new(true, $"the copy compiles and the warning {warning} is gone");
         }
 
-        // An error found by running the program has nothing to compare against: the file compiled
-        // before, and all a check can say is that it still does.
         var syntax = IsSyntaxPhase(context.Error);
 
-        // A C# file run with `dotnet run` is compiled as part of running, so its compile errors
-        // arrive as a run - but they are compile errors, and every one the build reported counts.
         var compiled = context.FromBuild || IsCompileError(context.Error);
         var baseline = compiled || syntax ? context.AllErrors.ToList() : [];
 
@@ -681,9 +596,6 @@ public static partial class LocalFixEngine
 
         var key = KeyOf(context.Error);
 
-        // Python stops at its first syntax error, so a second one elsewhere in the file keeps the
-        // count at one however right the fix was. For Python, the error leaving the changed lines
-        // is the evidence; for compilers that report everything, the count has to fall.
         if (context.Error.LanguageId != "python")
         {
             var before = baseline.Count(e => KeyOf(e) == key);
@@ -692,9 +604,6 @@ public static partial class LocalFixEngine
             if (after >= before) return new(false, $"the copy still reports: {context.Error.Message}");
         }
 
-        // A syntax error hides everything after it - javac and cl stop reading sense into a file
-        // they cannot parse - so fixing one legitimately uncovers errors nobody could see before.
-        // For anything else, a new error means the change broke something.
         var known = baseline.Select(KeyOf).ToHashSet(StringComparer.Ordinal);
 
         if (!syntax)
@@ -703,10 +612,6 @@ public static partial class LocalFixEngine
                 return new(false, $"the copy reports something new: {added.Message}");
         }
 
-        // The allowance above is for errors a syntax error hid. A link error hides nothing - it means the
-        // copy compiled from the top to the bottom - so one the original did not have was made by the change.
-        // gcc's own fix-it for `} elif (x == 1) {` is a semicolon, which compiles, and then fails to link
-        // as a call to a function called elif.
         if (check.Errors.FirstOrDefault(e => IsLinkError(e) && !known.Contains(KeyOf(e))) is { } unlinked)
             return new(false, $"the copy compiles but no longer links: {unlinked.Message}");
 
@@ -718,26 +623,21 @@ public static partial class LocalFixEngine
     private static bool IsLinkError(ParsedError error) =>
         error.ExceptionType == "link error" || error.ErrorCode?.StartsWith("LNK", StringComparison.Ordinal) == true;
 
-    /// <summary>What an error is, without where it is: the same mistake reads the same in the copy.</summary>
     public static string KeyOf(ParsedError error) =>
         $"{error.ErrorCode}|{error.ExceptionType}|{DirectoryPrefix().Replace(error.Message ?? "", "")}";
 
     private static int? LineOf(ParsedError error) => (error.CulpritFrame ?? error.Frames.FirstOrDefault())?.Line;
 
-    /// <summary>A Roslyn error: `dotnet run` compiles before it runs, so these come from a run but are compile errors.</summary>
     public static bool IsCompileError(ParsedError error) =>
         error.LanguageId == "msvc" && error.ErrorCode?.StartsWith("CS", StringComparison.Ordinal) == true;
 
-    /// <summary>True for errors that come from reading the file rather than from understanding it.</summary>
     public static bool IsSyntaxPhase(ParsedError error) => error.LanguageId switch
     {
         "python" => error.ExceptionType is "SyntaxError" or "IndentationError" or "TabError",
-        // A module that does not export a name is a SyntaxError too, but only loading the module finds it - not a parse.
         "node" => error.ExceptionType == "SyntaxError" && !(error.Message ?? "").StartsWith("The requested module", StringComparison.Ordinal),
         "java" => error.ExceptionType == "compile error" && JavaSyntaxMessage().IsMatch(error.Message ?? ""),
         "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
-            // A header that cannot be read stops the compiler dead, so everything after it went unread.
             or "C1083" or "C1189",
         "gcc" => (error.Message ?? "") is var message &&
                  (message.StartsWith("expected ", StringComparison.Ordinal) ||
@@ -746,10 +646,6 @@ public static partial class LocalFixEngine
         _ => false,
     };
 
-    /// <summary>
-    /// A candidate for a change checked some other way than compiling it - by running the changed program, for a logic error -
-    /// described in <paramref name="howChecked"/>.
-    /// </summary>
     public static FixCandidate CandidateFor(LocalFix fix, SourceFile source, string diff, string howChecked, string? explanation = null) =>
         Build(fix, source, diff, explanation ?? fix.Explanation,
             $"FixFinder made this change to a copy of {Path.GetFileName(source.Path)}, outside your project, and ran it. {howChecked}",
@@ -767,8 +663,6 @@ public static partial class LocalFixEngine
             _ => "compiled it",
         };
 
-        // A crash happens when the program runs, and nothing here runs it. Saying the check proved
-        // the crash was gone would be claiming something nobody established.
         var ranIntoItRunning = !context.FromBuild && !IsCompileError(context.Error) && !IsSyntaxPhase(context.Error) && fix.ResolvesWarning is null;
 
         var outcome = context.Error.LanguageId == "logic"
@@ -815,8 +709,6 @@ public static partial class LocalFixEngine
             CheckedBy = checkedText,
         };
 
-        // Not ranked against search results, because it is not one: it came out of this file and
-        // this error, and a compiler has already agreed with it.
         candidate.Score = 100;
         candidate.ScoreComponents =
         [

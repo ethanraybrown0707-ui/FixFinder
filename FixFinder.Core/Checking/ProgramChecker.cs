@@ -22,15 +22,8 @@ public sealed record CheckReport(
     string LogicSummary,
     SessionOutcome? Run);
 
-/// <summary>
-/// Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how to fix it.
-/// </summary>
-/// <remarks>
-/// The syntax lane asks the language's compiler for every error and warning, works out a checked fix for each it can, and - once
-/// the program builds - runs it to catch the error it stops with. The logic lane reads the code for mistakes that make a program
-/// give wrong answers without failing, and, when the expected output was given, runs changed copies to find the change that makes
-/// the output right. Neither waits for the other, except that the expected output can only be checked once the program builds.
-/// </remarks>
+/// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
+/// to fix it.</summary>
 public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry sources)
 {
     private const int MostErrorsFixed = 12;
@@ -81,8 +74,6 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, run);
         }
     }
-
-    // ------------------------------------------------------------------ syntax
 
     private async Task<(string Summary, SessionOutcome? Run)> SyntaxLaneAsync(
         LaunchPlan launch, IReadOnlyList<string> files, TaskCompletionSource<bool> builds, CancellationToken cancellationToken)
@@ -285,8 +276,6 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
-    // ------------------------------------------------------------------ logic
-
     private async Task<string> LogicLaneAsync(LaunchPlan launch, IReadOnlyList<string> files, Task<bool> builds, CancellationToken cancellationToken)
     {
         try
@@ -354,8 +343,6 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             ? ($"A copy of {name} with this change adds no new errors.", true)
             : (null, false);
     }
-
-    // ------------------------------------------------------------------ findings
 
     private void Add(Finding finding)
     {

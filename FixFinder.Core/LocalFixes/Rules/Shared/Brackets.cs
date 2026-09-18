@@ -3,7 +3,6 @@ namespace FixFinder.Core.LocalFixes.Rules;
 /// <summary>Finding where brackets and brace blocks open and close, in code with its strings and comments masked out.</summary>
 internal static class Brackets
 {
-    /// <summary>Brace depth at the start of each masked line; one extra entry for the end of the file.</summary>
     public static int[] BraceDepths(IReadOnlyList<string> masked)
     {
         var depths = new int[masked.Count + 1];
@@ -24,7 +23,6 @@ internal static class Brackets
         return depths;
     }
 
-    /// <summary>The index of the bracket closing the one at <paramref name="open"/> on the same line.</summary>
     public static int? ClosingParenthesis(string masked, int open)
     {
         var depth = 0;
@@ -38,7 +36,6 @@ internal static class Brackets
         return null;
     }
 
-    /// <summary>The closing brace of the block opened on <paramref name="line"/>, or null.</summary>
     public static int? BlockEnd(IReadOnlyList<string> masked, int line)
     {
         var depth = 0;
@@ -58,7 +55,6 @@ internal static class Brackets
         return null;
     }
 
-    /// <summary>The line holding the brace that closes the first block opened on or after a line.</summary>
     public static int? FirstBlockEnd(IReadOnlyList<string> masked, int start)
     {
         var depth = 0;
@@ -85,7 +81,6 @@ internal static class Brackets
         return null;
     }
 
-    /// <summary>The index of the bracket that opens the one closing at <paramref name="close"/>, or -1.</summary>
     public static int Opening(string text, int close)
     {
         var depth = 0;
@@ -99,7 +94,6 @@ internal static class Brackets
         return -1;
     }
 
-    /// <summary>The index of the bracket that closes the one opening at <paramref name="open"/>, or -1.</summary>
     public static int Closing(string text, int open)
     {
         var depth = 0;

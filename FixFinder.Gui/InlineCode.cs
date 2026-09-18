@@ -5,7 +5,8 @@ using System.Windows.Media;
 
 namespace FixFinder.Gui;
 
-/// <summary>Shows text in a TextBlock with anything between backticks in the code font, the way the findings write names from the code.</summary>
+/// <summary>Shows text in a TextBlock with anything between backticks in the code font, the way the findings write names from the
+/// code.</summary>
 public static class InlineCode
 {
     public static readonly DependencyProperty TextProperty = DependencyProperty.RegisterAttached(

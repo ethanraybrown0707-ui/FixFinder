@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -29,7 +28,6 @@ public sealed class CppVirtualBase : ILocalFixRule
 
             foreach (var i in CppCode.LinesDeclaring(masked, baseHeader, member))
             {
-                // A virtual one of that name means the signatures differ, and virtual is not the fix for that.
                 if (Regex.IsMatch(masked[i], @"\bvirtual\b")) return null;
                 if (!Regex.IsMatch(masked[i], @"\bstatic\b")) plain.Add((name, i));
             }
@@ -177,7 +175,6 @@ public sealed partial class CppConstMethod : ILocalFixRule
         var header = CppCode.ClassHeader(masked, cls);
         if (header < 0) return null;
 
-        // Defined outside the class as well, the const would have to go in two places.
         if (masked.Any(text => Regex.IsMatch(text, $@"\b{Regex.Escape(cls)}\s*::\s*{Regex.Escape(member)}\s*\("))) return null;
 
         var signature = new Regex($@"(?<![\w:~.>]){Regex.Escape(member)}\s*\([^()]*(?<close>\))(?!\s*const\b)(?=\s*(?:noexcept\s*)?(?:\{{|;|$))");
@@ -297,17 +294,8 @@ public sealed partial class CppConstMemberInitialiser : ILocalFixRule
     }
 }
 
-/// <summary>
-/// A derived class used as an object while pure virtual functions it inherits are still unwritten:
-/// g++'s <c>cannot declare variable 's' to be of abstract type 'Square'</c>, MSVC's <c>C2259</c>.
-/// </summary>
-/// <remarks>
-/// Both compilers list the pure virtual functions in notes after the error, with where each is declared,
-/// so every one of them is added to the class at once: the declared signature, marked <c>override</c>,
-/// with a body that throws <c>std::logic_error</c> until it is written. When the class named is the one
-/// declaring the pure functions - <c>Shape s;</c> - there is no derived class to add anything to, and the
-/// right fix could be a different type altogether, so nothing is offered.
-/// </remarks>
+/// <summary>A derived class used as an object while pure virtual functions it inherits are still unwritten: g++'s <c>cannot
+/// declare variable 's' to be of abstract type 'Square'</c>, MSVC's <c>C2259</c>.</summary>
 public sealed partial class CppUnwrittenOverride : ILocalFixRule
 {
     public string Id => "cpp-unwritten-override";
@@ -345,7 +333,6 @@ public sealed partial class CppUnwrittenOverride : ILocalFixRule
         var output = context.Output.Select(l => l.Text).ToList();
         var pure = error.LanguageId == "gcc" ? GccPure(output, cls) : MsvcPure(output);
 
-        // The abstract class itself, used as an object: nothing derived to add to.
         if (pure.Count == 0 || pure.Any(p => p.Owner == cls || p.Member.StartsWith('~'))) return null;
 
         if (ClassFile(context, output, cls) is not { } source) return null;
@@ -368,8 +355,6 @@ public sealed partial class CppUnwrittenOverride : ILocalFixRule
         var indent = ClassBody.MemberIndent(lines, masked, header, closing);
         var added = new List<string>();
 
-        // A class's members are private until it says otherwise, and an override nobody outside can call
-        // would only trade this error for "is private within this context".
         var label = Enumerable.Range(header, closing - header).Select(i => AccessLabel().Match(masked[i])).LastOrDefault(m => m.Success);
         var isStruct = Regex.IsMatch(masked[header], @"^\s*struct\b");
 
@@ -416,7 +401,6 @@ public sealed partial class CppUnwrittenOverride : ILocalFixRule
             .Select(m => (m.Groups["owner"].Value, m.Groups["member"].Value, m.Groups["file"].Value, int.Parse(m.Groups["line"].Value)))
             .ToList();
 
-    /// <summary>The file the class is defined in, as the compiler's note says.</summary>
     private static SourceFile? ClassFile(LocalFixContext context, IReadOnlyList<string> output, string cls)
     {
         foreach (var line in output)
@@ -428,7 +412,6 @@ public sealed partial class CppUnwrittenOverride : ILocalFixRule
         return context.Read(context.Frame?.File);
     }
 
-    /// <summary><c>virtual double area() const = 0;</c> as <c>double area() const override { throw ...; }</c>, or null.</summary>
     private static string? Stub(string declaration, string member)
     {
         var text = declaration.Trim();
@@ -444,7 +427,8 @@ public sealed partial class CppUnwrittenOverride : ILocalFixRule
     }
 }
 
-/// <summary><c>std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, const Point&amp;)</c> written inside the class, without <c>friend</c>.</summary>
+/// <summary><c>std::ostream&amp; operator&lt;&lt;(std::ostream&amp;, const Point&amp;)</c> written inside the class, without
+/// <c>friend</c>.</summary>
 public sealed partial class CppStreamOperatorFriend : ILocalFixRule
 {
     public string Id => "cpp-stream-operator-friend";
@@ -472,7 +456,8 @@ public sealed partial class CppStreamOperatorFriend : ILocalFixRule
     }
 }
 
-/// <summary><c>double area() override</c> where the base declares <c>virtual double area() const</c> - the missing <c>const</c> makes it a different function.</summary>
+/// <summary><c>double area() override</c> where the base declares <c>virtual double area() const</c> - the missing <c>const</c>
+/// makes it a different function.</summary>
 public sealed partial class CppOverrideMissingConst : ILocalFixRule
 {
     public string Id => "cpp-override-missing-const";

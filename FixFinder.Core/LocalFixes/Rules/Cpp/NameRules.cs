@@ -1,13 +1,9 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary><c>cout</c>, <c>endl</c> and <c>string</c> without <c>std::</c> - the header is included, the namespace is not written.</summary>
-/// <remarks>
-/// Every standard name the compiler reported on the line is qualified at once. gcc suggests <c>std::cout</c> for the
-/// first of them, but <c>cout &lt;&lt; "hello" &lt;&lt; endl</c> still fails on <c>endl</c> with only that change made.
-/// </remarks>
+/// <summary><c>cout</c>, <c>endl</c> and <c>string</c> without <c>std::</c> - the header is included, the namespace is not
+/// written.</summary>
 public sealed class CppStdPrefix : ILocalFixRule
 {
     public string Id => "cpp-std-prefix";
@@ -49,7 +45,6 @@ public sealed class CppStdPrefix : ILocalFixRule
             source.Path, number, corrected);
     }
 
-    /// <summary>A standard C++ name whose header this file has, and that is not a C function under the same name.</summary>
     private static bool InStd(SourceFile source, string name) =>
         CStandardLibrary.CppHeaderOf(name) is { } header && CStandardLibrary.CHeaderOf(name) is null &&
         (CCode.Includes(source, header) || (header == "string" && CppCode.HasStdString(source)));
@@ -67,7 +62,6 @@ public sealed partial class CppStdNameTypo : ILocalFixRule
     {
         if (CCode.MsvcMessage(context.Error, "C2039", MsvcMessage()) is not { } message || CppCode.Locate(context) is not { } at) return null;
 
-        // A real standard name is a header left out, which is the header rule's to answer.
         var wrong = message.Groups["name"].Value;
         if (CStandardLibrary.CppHeaderOf(wrong) is not null || CodeText.Nearest(wrong, CStandardLibrary.CppTable.Keys) is not { } right) return null;
 
@@ -83,10 +77,8 @@ public sealed partial class CppStdNameTypo : ILocalFixRule
     }
 }
 
-/// <summary>
-/// A member a standard container does not have: <c>values.add(1)</c>, <c>values.length()</c>, <c>ages.containsKey(k)</c>,
-/// or a misspelt one, which MSVC never corrects.
-/// </summary>
+/// <summary>A member a standard container does not have: <c>values.add(1)</c>, <c>values.length()</c>,
+/// <c>ages.containsKey(k)</c>, or a misspelt one, which MSVC never corrects.</summary>
 public sealed partial class CppContainerMember : ILocalFixRule
 {
     public string Id => "cpp-container-member";
@@ -147,7 +139,6 @@ public sealed partial class CppContainerMember : ILocalFixRule
         ["isEmpty"] = "empty", ["offer"] = "push", ["Enqueue"] = "push",
     };
 
-    /// <summary>Members that take no arguments, which a property-style <c>values.Count</c> has to call.</summary>
     private static readonly HashSet<string> Called = new(StringComparer.Ordinal)
     {
         "size", "length", "empty", "front", "back", "top", "clear", "pop_back", "pop", "begin", "end", "data", "capacity",
@@ -176,7 +167,6 @@ public sealed partial class CppContainerMember : ILocalFixRule
         if (typo && CodeText.Nearest(member, members) is { } nearest) right = nearest;
         if (right is null || !members.Contains(right)) return null;
 
-        // add on a map would need a pair; insert on a set takes the value as it is.
         if (!typo && kind is "map" or "unordered_map" or "multimap" && right == "insert") return null;
 
         var (source, number, line) = at;
@@ -367,7 +357,7 @@ public sealed partial class CppPrivateMember : ILocalFixRule
     }
 }
 
-/// <summary><c>void speak() const { ... }</c> outside the class it belongs to, without <c>Dog::</c>.</summary>
+/// <summary><c>void speak() const { ...</summary>
 public sealed partial class CppMemberWithoutClassName : ILocalFixRule
 {
     public string Id => "cpp-member-without-class-name";
@@ -447,8 +437,6 @@ public sealed partial class CppStaticMemberDefinition : ILocalFixRule
             var header = CppCode.ClassHeader(masked, cls);
             if (header < 0 || CppCode.ClassBraces(masked, header) is not { } body) continue;
 
-            // Already defined somewhere is a different problem - a file left out of the build. A definition is at the top level
-            // and starts with a type; `return Counter::count;` inside a function is a use.
             var depths = Brackets.BraceDepths(masked);
             var defined = new Regex($@"^\s*(?:const\s+)?[A-Za-z_][\w:<>]*[\s*&]+{Regex.Escape(cls)}\s*::\s*{Regex.Escape(member)}\s*(?:=|;|\{{)");
             if (Enumerable.Range(0, masked.Count).Any(i => depths[i] == 0 && defined.IsMatch(masked[i]))) return null;

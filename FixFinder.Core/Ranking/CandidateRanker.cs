@@ -4,33 +4,9 @@ using FixFinder.Core.Sources;
 
 namespace FixFinder.Core.Ranking;
 
-/// <summary>
-/// Orders search results by how likely each one is to be the fix for this crash.
-/// </summary>
-/// <remarks>
-/// The whole tool turns on this class. Two services return thirty results apiece, ordered by
-/// their own idea of relevance, which is keyword overlap across the entire site; what is wanted
-/// is the handful describing <i>this</i> failure. Without that, FixFinder is a link dump with
-/// extra steps.
-/// <para>
-/// Every number here is fixed, written down, and shown in the window. Nothing is learned, fitted
-/// or tuned against a corpus, because a weight nobody can explain is exactly the kind of opacity
-/// this tool exists to avoid - the promise is deterministic code you can read, so "why is this
-/// one first" has to be answerable by pointing at a row in a table.
-/// </para>
-/// </remarks>
+/// <summary>Orders search results by how likely each one is to be the fix for this crash.</summary>
 public static partial class CandidateRanker
 {
-    // -------------------------------------------------------------- weights
-
-    /// <summary>
-    /// What each signal contributes. These sum to 1.0 before penalties.
-    /// </summary>
-    /// <remarks>
-    /// Type match is the largest share on purpose. The exception type is the one fact both sides
-    /// state in the same words: everything else - the message, the stack, the wording of a title -
-    /// varies with whose program it was, but <c>KeyError</c> is <c>KeyError</c> everywhere.
-    /// </remarks>
     private const double TypeMatchWeight = 0.30;
     private const double MessageSimilarityWeight = 0.22;
     private const double TitleContainmentWeight = 0.10;
@@ -40,46 +16,21 @@ public static partial class CandidateRanker
     private const double LanguageWeight = 0.06;
     private const double PatchAvailableWeight = 0.08;
 
-    // -------------------------------------------------------------- penalties
-
-    /// <summary>Body mentions nothing resembling the exception type.</summary>
     private const double DriftPenalty = 25;
 
     private const double NoAnswersPenalty = 15;
     private const double DuplicatePenalty = 10;
     private const double StalePenalty = 20;
 
-    /// <summary>
-    /// For a question the site closed as unfit to answer, with nothing accepted on it.
-    /// </summary>
-    /// <remarks>
-    /// Large enough to keep it off the top, not so large that it disappears: such a question
-    /// sometimes still carries the only write-up of an obscure error anywhere. The carve-out for
-    /// an accepted answer matters more than the number - plenty of closed questions were closed
-    /// long after somebody had already answered them well.
-    /// </remarks>
     private const double RejectedPenalty = 20;
 
-    /// <summary>
-    /// A patch must clear this before its tier is allowed to float it above better matches.
-    /// </summary>
-    /// <remarks>
-    /// The floor is the point. A weakly-matched patch that happens to apply cleanly is more
-    /// dangerous than an obviously irrelevant one - it produces a confident-looking change to
-    /// the wrong code, and there is no model here to notice. Carrying a diff earns a place at
-    /// the top only once the candidate has independently been judged relevant.
-    /// </remarks>
     public const double AutoAppliableFloor = 55;
 
-    /// <summary>Body text beyond this is ignored: relevance lives near the top of a post.</summary>
     private const int BodyWindow = 1500;
 
     [GeneratedRegex(@"[A-Za-z_][A-Za-z0-9_]*")]
     private static partial Regex WordPattern();
 
-    /// <summary>
-    /// Scores every candidate and returns them in the order they should be shown.
-    /// </summary>
     public static IReadOnlyList<FixCandidate> Rank(
         IEnumerable<FixCandidate> candidates, ErrorFingerprint fingerprint)
     {
@@ -90,15 +41,12 @@ public static partial class CandidateRanker
         return
         [
             .. ranked
-                // A patch that is also a good match leads, because it is the only kind of result
-                // this tool can act on rather than merely show.
                 .OrderByDescending(c => c.Tier == FixTier.AutoAppliable && c.Score >= AutoAppliableFloor)
                 .ThenByDescending(c => c.Score)
                 .ThenByDescending(c => c.LastActivityAt ?? DateTimeOffset.MinValue)
         ];
     }
 
-    /// <summary>Scores one candidate in place, recording every component and penalty.</summary>
     public static void Score(FixCandidate candidate, ErrorFingerprint fingerprint)
     {
         var haystack = Haystack(candidate);
@@ -144,29 +92,6 @@ public static partial class CandidateRanker
         candidate.ScoreComponents = components;
     }
 
-    // -------------------------------------------------------------- components
-
-    /// <summary>
-    /// How exactly the candidate names the thing that was thrown.
-    /// </summary>
-    /// <remarks>
-    /// Graded rather than boolean because the three cases are genuinely different in worth. The
-    /// fully-qualified type or an exact compiler code is near-proof. A bare short name is strong
-    /// but ambiguous across ecosystems. Merely belonging to the same family - some other
-    /// <c>*Error</c> - is close to no evidence at all, and scoring it as though it were would let
-    /// any exception on the site look like a partial match.
-    /// </remarks>
-    /// <summary>
-    /// How much a match buried in the body is worth, against the same match in the title.
-    /// </summary>
-    /// <remarks>
-    /// Not a detail. A title is a claim about what a post is <i>about</i>; a body is whatever
-    /// anyone pasted into it, and on a long tracking issue or a security audit that routinely
-    /// includes a stack trace from something else entirely. Without this discount, one
-    /// incidental mention of the type deep inside a large document earns exactly as much as a
-    /// question titled with it, which is how an XSS report ends up at the top of the list for a
-    /// KeyError.
-    /// </remarks>
     private const double BodyOnlyDiscount = 0.6;
 
     private static double TypeMatch(FixCandidate candidate, ErrorFingerprint fingerprint, out string reason)
@@ -182,8 +107,6 @@ public static partial class CandidateRanker
             return 0;
         }
 
-        // The same-family case names nothing in particular, and is already scored low enough
-        // that discounting it further would be noise.
         if (what.Length == 0)
         {
             reason = "mentions a different error of the same family only";
@@ -200,7 +123,6 @@ public static partial class CandidateRanker
         return score * BodyOnlyDiscount;
     }
 
-    /// <summary>The graded match itself, and the text that produced it.</summary>
     private static (double Score, string What) Graded(ErrorFingerprint fingerprint, string title, string body)
     {
         var text = $"{title}\n{body}";
@@ -241,14 +163,6 @@ public static partial class CandidateRanker
         return suffix is not null && text.Contains(suffix, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Weighted overlap between the error's distinctive words and the candidate's text.
-    /// </summary>
-    /// <remarks>
-    /// Weighted with the same token weights the query builder uses, so a shared
-    /// <c>nullreferenceexception</c> counts for far more than a shared "the". Plain Jaccard
-    /// treats every word alike, which on prose of this kind mostly measures how long the post is.
-    /// </remarks>
     private static double MessageSimilarity(
         FixCandidate candidate, ErrorFingerprint fingerprint, out string reason)
     {
@@ -270,8 +184,6 @@ public static partial class CandidateRanker
             var weight = Math.Max(Stoplists.Weight(token), 0.5);
             total += weight;
 
-            // Same discount as the type match, for the same reason: a word in the title is a
-            // statement of subject, a word in the body may be anything someone pasted in.
             if (inTitle.Contains(token))
             {
                 matched += weight;
@@ -307,14 +219,6 @@ public static partial class CandidateRanker
             .Select(m => m.Value.ToLowerInvariant())
             .ToHashSet(StringComparer.Ordinal);
 
-    /// <summary>
-    /// How much of the query appears in the title.
-    /// </summary>
-    /// <remarks>
-    /// Separate from body similarity because a title is a claim about what a post is <i>about</i>,
-    /// while a body may mention anything in passing - a stack trace pasted in a comment, an
-    /// unrelated aside. Overlap in the title is much stronger evidence per word.
-    /// </remarks>
     private static double TitleContainment(FixCandidate candidate, ErrorFingerprint fingerprint, out string reason)
     {
         var terms = fingerprint.Tight.Terms;
@@ -331,7 +235,6 @@ public static partial class CandidateRanker
         return (double)found / terms.Count;
     }
 
-    /// <summary>How settled the discussion is - whether anyone concluded anything.</summary>
     private static double Resolution(FixCandidate candidate, out string reason)
     {
         if (candidate.HasAcceptedAnswer)
@@ -346,11 +249,6 @@ public static partial class CandidateRanker
             return 0.2;
         }
 
-        // Checked before the reasons below, which all read "closed" as GitHub means it. On Stack
-        // Overflow a closed question is one the community turned down - off topic, opinion-based,
-        // too little detail to answer - and treating that as settled promotes exactly the threads
-        // the site decided were not worth answering. An accepted answer is handled above and
-        // still wins, because a rejected question can perfectly well have a good answer on it.
         if (candidate.IsClosed && candidate.Closure == ClosureMeaning.Rejected)
         {
             reason = candidate.ClosedReason is { Length: > 0 } why
@@ -362,8 +260,6 @@ public static partial class CandidateRanker
 
         if (candidate.IsClosed)
         {
-            // "not_planned" means it was closed without being fixed, which is nearly the
-            // opposite of the good news that a closed issue usually is.
             if (string.Equals(candidate.ClosedReason, "not_planned", StringComparison.OrdinalIgnoreCase))
             {
                 reason = "closed without being fixed (not planned)";
@@ -396,14 +292,6 @@ public static partial class CandidateRanker
         return 0.3;
     }
 
-    /// <summary>
-    /// How much the community endorsed it, on a saturating scale.
-    /// </summary>
-    /// <remarks>
-    /// Logarithmic and capped so votes cannot dominate. A five-thousand-vote answer to a vaguely
-    /// similar question must not outrank a twelve-vote answer describing precisely this failure,
-    /// and on a linear scale it would every time.
-    /// </remarks>
     private static double Authority(FixCandidate candidate, out string reason)
     {
         if (candidate.Votes <= 0)
@@ -418,9 +306,6 @@ public static partial class CandidateRanker
         return score;
     }
 
-    /// <summary>
-    /// Decays with age, because an old answer is often actively wrong rather than merely dated.
-    /// </summary>
     private static double Recency(FixCandidate candidate, out string reason)
     {
         var when = candidate.LastActivityAt ?? candidate.CreatedAt;
@@ -441,7 +326,6 @@ public static partial class CandidateRanker
         return score;
     }
 
-    /// <summary>Whether the candidate is even about the language that crashed.</summary>
     private static double LanguageMatch(FixCandidate candidate, ErrorFingerprint fingerprint, out string reason)
     {
         var expected = TagsFor(fingerprint.LanguageId);
@@ -454,8 +338,6 @@ public static partial class CandidateRanker
 
         if (candidate.Tags.Count == 0)
         {
-            // A GitHub issue's labels describe the project's own workflow ("bug", "triage"), not
-            // the language. Absent evidence is not evidence against.
             reason = "carries no tags to check against";
             return 0.5;
         }
@@ -472,7 +354,6 @@ public static partial class CandidateRanker
         return 0.2;
     }
 
-    /// <summary>Maps a parser's language id to the tags the sites actually use.</summary>
     private static IReadOnlyList<string> TagsFor(string languageId) => languageId switch
     {
         "csharp" => ["c#", ".net", "asp.net", "dotnet"],
@@ -487,17 +368,11 @@ public static partial class CandidateRanker
         _ => [],
     };
 
-    // -------------------------------------------------------------- penalties
-
     private readonly record struct Penalty(string Name, double Amount, string Reason);
 
     private static IEnumerable<Penalty> Penalties(
         FixCandidate candidate, ErrorFingerprint fingerprint, string haystack)
     {
-        // The drift guard, and the most valuable rule here. Both search engines cheerfully
-        // return adjacent topics when the query is unusual, and a long, busy, recently-active
-        // issue can otherwise score respectably on every other signal while having nothing
-        // whatsoever to do with the crash.
         if (fingerprint.ShortExceptionType is { Length: > 0 } shortType &&
             !haystack.Contains(shortType, StringComparison.OrdinalIgnoreCase) &&
             (fingerprint.ErrorCode is not { Length: > 0 } code ||
@@ -522,11 +397,6 @@ public static partial class CandidateRanker
                  candidate.Closure == ClosureMeaning.Rejected &&
                  !candidate.HasAcceptedAnswer)
         {
-            // Separate from the resolution signal, which is only a tenth of the score and can be
-            // outweighed by a title that happens to match well. That is precisely how a question
-            // closed as "not suitable for this site" came top for a syntax error: the exception
-            // type was right there in its title, and nothing accounted for the site having
-            // already judged the question itself unanswerable.
             yield return new Penalty("Penalty: turned down", RejectedPenalty,
                 candidate.ClosedReason is { Length: > 0 } why
                     ? $"the site closed this question as \"{why}\", and no answer on it was accepted"
@@ -539,14 +409,6 @@ public static partial class CandidateRanker
         }
     }
 
-    /// <summary>
-    /// True when the candidate predates a change that makes its advice actively misleading.
-    /// </summary>
-    /// <remarks>
-    /// Age alone is not the problem - plenty of decade-old answers are still exactly right. The
-    /// problem is age across a break in the ecosystem, where the advice was correct when written
-    /// and is wrong now, which is worse than no answer because it reads as authoritative.
-    /// </remarks>
     private static bool IsStale(FixCandidate candidate, ErrorFingerprint fingerprint, out string reason)
     {
         reason = "";
@@ -570,20 +432,9 @@ public static partial class CandidateRanker
         return true;
     }
 
-    // -------------------------------------------------------------- helpers
-
-    /// <summary>Title plus the first part of the body: the text the drift guard searches.</summary>
     private static string Haystack(FixCandidate candidate) =>
         $"{candidate.Title}\n{Window(candidate.BodyText)}";
 
-    /// <summary>
-    /// The part of a body worth reading.
-    /// </summary>
-    /// <remarks>
-    /// Relevance lives near the top of a post. Reading further mostly adds the tail of a long
-    /// thread - follow-ups, unrelated logs, a second problem someone appended later - which
-    /// dilutes every measurement taken over it.
-    /// </remarks>
     private static string Window(string body) =>
         body.Length <= BodyWindow ? body : body[..BodyWindow];
 }

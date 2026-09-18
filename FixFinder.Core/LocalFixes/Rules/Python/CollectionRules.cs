@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -46,9 +45,7 @@ public sealed partial class PythonSortedNotSort : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>numbers = numbers.append(3)</c>, found from the later line where numbers turned out to be None.
-/// </summary>
+/// <summary><c>numbers = numbers.append(3)</c>, found from the later line where numbers turned out to be None.</summary>
 public sealed partial class PythonInPlaceResult : ILocalFixRule
 {
     public string Id => "python-in-place-result";
@@ -179,7 +176,8 @@ public sealed partial class PythonDequePopLeft : ILocalFixRule
     }
 }
 
-/// <summary><c>sort() got an unexpected keyword argument 'cmp'</c> - Python 2's comparison function, which Python 3 takes as a key.</summary>
+/// <summary><c>sort() got an unexpected keyword argument 'cmp'</c> - Python 2's comparison function, which Python 3 takes as a
+/// key.</summary>
 public sealed partial class PythonSortCmp : ILocalFixRule
 {
     public string Id => "python-sort-cmp";

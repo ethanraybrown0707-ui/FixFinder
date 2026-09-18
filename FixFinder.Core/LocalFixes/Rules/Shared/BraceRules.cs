@@ -1,24 +1,17 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// Mistakes whose shape is the same in C, Java and C#, whatever each compiler calls them: an
-/// <c>if (x);</c> that swallowed its block, catch clauses in the wrong order, a string that never
-/// closes, and a list changed inside the loop walking it.
-/// </summary>
+/// <summary>Mistakes whose shape is the same in C, Java and C#, whatever each compiler calls them: an <c>if (x);</c> that
+/// swallowed its block, catch clauses in the wrong order, a string that never closes, and a list changed inside the loop walking
+/// it.</summary>
 internal static partial class BraceRules
 {
-    // ------------------------------------------------------------------ if (x); { ... } else
-
-    /// <summary>For an <c>else</c> with no <c>if</c>: the <c>if (...);</c> whose semicolon ended it, and that line without it.</summary>
     public static (int Line, string Corrected)? IfSemicolon(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int elseLine)
     {
         var at = Regex.Match(masked[elseLine], @"\belse\b");
         if (!at.Success) return null;
 
-        // The closing brace just before the else, on its own line or on a line above.
         var row = elseLine;
         var col = at.Index - 1;
 
@@ -32,7 +25,6 @@ internal static partial class BraceRules
 
         if (masked[row][col] != '}') return null;
 
-        // Back to the brace that block opened with.
         var depth = 0;
         var found = false;
 
@@ -80,12 +72,9 @@ internal static partial class BraceRules
         "The `;` straight after `if (...)` is an empty statement, and it is the whole of the if. The block after it then always runs, " +
         "and the `else` has no `if` left to belong to.";
 
-    // ------------------------------------------------------------------ catch clauses in the wrong order
-
     [GeneratedRegex(@"^\s*(?:\}\s*)?catch\b")]
     private static partial Regex CatchLine();
 
-    /// <summary>The two catch clauses swapped: the one reported, and the broader one just before it.</summary>
     public static (int Start, int Count, List<string> Lines)? SwapCatch(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int second)
     {
         if (!CatchLine().IsMatch(masked[second])) return null;
@@ -109,13 +98,11 @@ internal static partial class BraceRules
 
         if (masked[second].TrimStart().StartsWith('}'))
         {
-            // } catch (A e) { ... } catch (B e) { ... } - the clause runs up to the brace that closes it.
             end = Enumerable.Range(second + 1, masked.Count - second - 1)
                 .FirstOrDefault(i => depths[i] == depths[second] && masked[i].TrimStart().StartsWith('}'), -1);
         }
         else
         {
-            // catch (A) newline { ... } - the clause ends with the line that brings the depth back.
             end = Enumerable.Range(second + 1, masked.Count - second - 1)
                 .FirstOrDefault(i => depths[i] > depths[second] && depths[i + 1] == depths[second], -1);
             if (end >= 0) end++;
@@ -131,9 +118,6 @@ internal static partial class BraceRules
         "Catch clauses are tried from the top, and the one before it already catches everything this one would - so this one could " +
         "never run. The more specific clause has to come first.";
 
-    // ------------------------------------------------------------------ a string that never closes
-
-    /// <summary>The line with its unclosed string closed before whatever ends the statement, or null when that is a guess.</summary>
     public static string? CloseString(string line, Syntax syntax)
     {
         if (OpenQuote(line) is not { } quote) return null;
@@ -180,8 +164,6 @@ internal static partial class BraceRules
     public const string CloseStringExplanation =
         "The string has no closing `\"`, so everything after it on the line was read as part of the text.";
 
-    // ------------------------------------------------------------------ removing from a list inside its own loop
-
     [GeneratedRegex(@"^(?<indent>\s*)for\s*\(\s*(?:final\s+)?[\w$<>\[\],.? ]+?\s+(?<var>[\w$]+)\s*:\s*(?<list>[\w$.]+)\s*\)\s*(?<brace>\{)?\s*$")]
     private static partial Regex JavaForEach();
 
@@ -194,14 +176,9 @@ internal static partial class BraceRules
     [GeneratedRegex(@"^if\s*(?<open>\()")]
     private static partial Regex If();
 
-    /// <summary>
-    /// <c>for (x : list) if (cond) list.remove(x);</c> as the one call that does it safely - <c>removeIf</c> in
-    /// Java, <c>RemoveAll</c> in C# - when the loop does nothing else.
-    /// </summary>
     public static (int Start, int Count, string Line)? RemoveInLoop(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int near, bool java) =>
         RemoveInLoop(lines, masked, near, java ? "java" : "csharp");
 
-    /// <summary>The same for <c>"java"</c>, <c>"csharp"</c> or <c>"cpp"</c> - where it is one <c>erase</c> of what <c>std::remove_if</c> left.</summary>
     public static (int Start, int Count, string Line)? RemoveInLoop(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int near, string language)
     {
         var header = language switch

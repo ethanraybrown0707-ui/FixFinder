@@ -1,16 +1,9 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>CS0029 / CS0266: Cannot implicitly convert type 'a' to 'b'</c>.</summary>
-/// <remarks>
-/// <c>int next = input + 1;</c> is the case that must not be answered with <c>int.Parse(input + 1)</c>:
-/// that parses the text "181". When the expression is a value plus a number, the value is what gets
-/// converted.
-/// </remarks>
 public sealed partial class CSharpImplicitConversion : ILocalFixRule
 {
     public string Id => "csharp-implicit-conversion";
@@ -345,7 +338,8 @@ public sealed partial class CSharpUnassignedLocal : ILocalFixRule
     }
 }
 
-/// <summary><c>'Student' does not implement interface member 'IComparable.CompareTo(object?)'</c> - for a class that already has <c>CompareTo(Student)</c>.</summary>
+/// <summary><c>'Student' does not implement interface member 'IComparable.CompareTo(object?)'</c> - for a class that already has
+/// <c>CompareTo(Student)</c>.</summary>
 public sealed partial class CSharpGenericInterface : ILocalFixRule
 {
     public string Id => "csharp-generic-interface";
@@ -393,7 +387,7 @@ public sealed partial class CSharpGenericInterface : ILocalFixRule
     }
 }
 
-/// <summary><c>points[0].X = 5</c> - <c>Cannot modify the return value ... because it is not a variable</c>, for a struct in a list.</summary>
+/// <summary><c>points[0].X = 5</c> - <c>Cannot modify the return value ...</summary>
 public sealed partial class CSharpStructInCollection : ILocalFixRule
 {
     public string Id => "csharp-struct-in-collection";
@@ -439,7 +433,8 @@ public sealed partial class CSharpStructInCollection : ILocalFixRule
     }
 }
 
-/// <summary><c>yield return</c> in a method declared to return <c>List&lt;int&gt;</c> - an iterator returns <c>IEnumerable&lt;int&gt;</c>.</summary>
+/// <summary><c>yield return</c> in a method declared to return <c>List&lt;int&gt;</c> - an iterator returns
+/// <c>IEnumerable&lt;int&gt;</c>.</summary>
 public sealed partial class CSharpIteratorReturnType : ILocalFixRule
 {
     public string Id => "csharp-iterator-return-type";
@@ -497,7 +492,6 @@ public sealed partial class CSharpRecordWith : ILocalFixRule
         var variable = assignment.Groups["variable"].Value;
         var property = assignment.Groups["property"].Value;
 
-        // A local that can be given a new value - not a readonly field or a parameter declared in.
         if (!masked.Take(number - 1).Any(l => Regex.IsMatch(l, $@"(?:\bvar|\b{Regex.Escape(type)}\??)\s+{Regex.Escape(variable)}\s*=")) ) return null;
 
         return LocalFix.ReplaceLine(
@@ -540,7 +534,7 @@ public sealed partial class CSharpDelegateCalled : ILocalFixRule
     }
 }
 
-/// <summary><c>CS0200: Property ... cannot be assigned to -- it is read only</c> on an auto-property with only <c>get</c>.</summary>
+/// <summary><c>CS0200: Property ...</summary>
 public sealed partial class CSharpReadOnlyProperty : ILocalFixRule
 {
     public string Id => "csharp-read-only-property";

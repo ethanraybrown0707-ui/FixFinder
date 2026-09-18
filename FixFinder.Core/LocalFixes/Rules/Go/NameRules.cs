@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -39,7 +37,6 @@ public sealed partial class GoUnusedImport : ILocalFixRule
     {
         if (GoCode.CompileMessage(context.Error, Message()) is not { } message || GoCode.Locate(context) is not { } at) return null;
 
-        // Anything else wrong in the build may be the code that was meant to use it.
         if (context.AllErrors.Count() > 1) return null;
 
         var path = Regex.Escape(message.Groups["path"].Value);
@@ -78,7 +75,6 @@ public sealed partial class GoNearestName : ILocalFixRule
         }
         else if (Unused().Match(error.Message ?? "") is { Success: true } unused)
         {
-            // The variable only looks unused because the one place meant to use it spelt it differently.
             var declared = unused.Groups["name"].Value;
             var misspelt = GoCode.OtherErrors(context, Undefined())
                 .Where(x => CodeText.Nearest(x.Message.Groups["name"].Value, [declared]) == declared)
@@ -96,7 +92,6 @@ public sealed partial class GoNearestName : ILocalFixRule
 
         if (CodeText.Nearest(wrong, candidates) is not { } right) return null;
 
-        // Every use on the line: a name misspelt once in `sqr.side * sqr.side` is misspelt twice, and the copy fails on the other.
         var hits = JavaScriptCode.UnqualifiedUses(CodeText.Mask(at.Line, Syntax.CLike), wrong);
         if (hits.Count == 0) return null;
 
@@ -125,14 +120,12 @@ public sealed partial class GoUnusedVariable : ILocalFixRule
     {
         if (GoCode.CompileMessage(context.Error, Message()) is not { } message || GoCode.Locate(context) is not { } at) return null;
 
-        // A misspelling somewhere else would explain it better than deleting anything.
         if (GoCode.OtherErrors(context, AnyUndefined()).Any()) return null;
 
         var name = message.Groups["name"].Value;
         var escaped = Regex.Escape(name);
         var masked = CodeText.Mask(at.Line, Syntax.CLike);
 
-        // One of several names on the left: that one becomes the blank identifier.
         var several = Regex.Match(masked, @"^(?<lead>\s*(?:for\s+)?)(?<names>[\w\s,]+?)\s*(?<op>:=|=)");
         if (several.Success && several.Groups["names"].Value.Contains(','))
         {
@@ -150,7 +143,6 @@ public sealed partial class GoUnusedVariable : ILocalFixRule
                 at.Source.Path, at.Number, at.Line[..index] + "_" + at.Line[(index + name.Length)..]);
         }
 
-        // A single variable given a plain value, which nothing reads: the line does nothing.
         if (Regex.IsMatch(masked, $@"^\s*{escaped}\s*:=\s*(?:-?\d+(?:\.\d+)?|""\s*""|true|false)\s*$"))
         {
             return CCode.RemoveLine(
@@ -179,8 +171,6 @@ public sealed partial class GoPackageMember : ILocalFixRule
         var package = message.Groups["package"].Value;
         var name = message.Groups["name"].Value;
 
-        // Go before 1.26 does not add "(but have Println)". The name that differs only in case is still the answer - `println`
-        // is as near to `Sprintln` as to `Println` by edit distance, but only one of them is the same word.
         var exported = !message.Groups["have"].Success && GoCode.StandardPackages.TryGetValue(package, out var path) ? GoCode.ExportedNames(path) : [];
         var sameWord = exported.Where(e => e.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -204,10 +194,7 @@ public sealed partial class GoPackageMember : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>items.length undefined (type []int ...)</c>, <c>items.append</c>, <c>d.name ... but does have field Name</c> - a field or method
-/// the value does not have.
-/// </summary>
+/// <summary><c>items.length undefined (type []int ...)</c>, <c>items.append</c>, <c>d.name ...</summary>
 public sealed partial class GoSelector : ILocalFixRule
 {
     public string Id => "go-selector";
@@ -300,7 +287,6 @@ public sealed partial class GoMethodCase : ILocalFixRule
         var lines = Enumerable.Range(0, masked.Count).Where(i => declaration.IsMatch(masked[i])).ToList();
         if (lines is not [var index]) return null;
 
-        // Called by the old name somewhere, the rename would break that call.
         if (masked.Any(text => Regex.IsMatch(text, $@"\.\s*{Regex.Escape(wrong)}\s*\("))) return null;
 
         var name = declaration.Match(masked[index]).Groups["name"];

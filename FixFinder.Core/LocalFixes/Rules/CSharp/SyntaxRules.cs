@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -22,7 +20,6 @@ public sealed class CSharpMissingSemicolon : ILocalFixRule
         var code = line[..index].TrimEnd();
         if (code.Length == 0 || code.EndsWith(';') || code.EndsWith('{') || code.EndsWith('}')) return null;
 
-        // "',' expected" also means a declaration that runs on into the next line: int x = 3 followed by a new statement.
         if (commaExpected && (code.EndsWith(',') || line[index..].Trim().Length > 0 || !StartsStatement(source, number))) return null;
 
         return LocalFix.ReplaceLine(
@@ -216,7 +213,6 @@ public sealed class CSharpIfSemicolon : ILocalFixRule
 
         var masked = CodeText.MaskAll(at.Source.Lines, Syntax.CLike);
 
-        // Roslyn places the error at the end of the token before the else - the closing brace, a line above it.
         var elseLine = Enumerable.Range(at.Number - 1, 3).FirstOrDefault(i => i < masked.Count && Regex.IsMatch(masked[i], @"\belse\b"), -1);
         if (elseLine < 0 || BraceRules.IfSemicolon(at.Source.Lines, masked, elseLine) is not { } fix) return null;
 
@@ -259,7 +255,6 @@ public sealed partial class CSharpMissingReturnType : ILocalFixRule
 
         var name = header.Groups["name"].Value;
 
-        // A constructor whose name does not match its class gets the same error, and a return type is not its fix.
         var owner = Enumerable.Range(0, number).Reverse().Select(i => Class().Match(masked[i])).FirstOrDefault(m => m.Success);
         if (owner is not null && CodeText.Distance(owner.Groups["name"].Value, name) <= 2) return null;
 
@@ -319,7 +314,6 @@ public sealed partial class CSharpMissingReturnType : ILocalFixRule
         if (value is "true" or "false") return "bool";
         if (Regex.IsMatch(value, @"^""[^""]*""$")) return "string";
 
-        // Arithmetic on parameters of one numeric type is that type.
         if (!Regex.IsMatch(value, @"^[\w\s+\-*/%()]+$")) return null;
 
         var types = Regex.Matches(value, @"[A-Za-z_]\w*").Select(m => parameters.GetValueOrDefault(m.Value)).Distinct().ToList();

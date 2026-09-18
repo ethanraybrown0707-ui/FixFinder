@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -92,7 +90,6 @@ public sealed partial class JsNamedExportTypo : ILocalFixRule
         var word = new Regex($@"(?<![\w$.]){Regex.Escape(name)}(?![\w$])");
         var used = Enumerable.Range(0, masked.Count).Where(i => word.IsMatch(masked[i])).ToList();
 
-        // Every use is renamed with the import, so they have to sit close enough to be one change.
         if (used.Count == 0 || used[^1] - used[0] > 30) return null;
 
         var lines = Enumerable.Range(used[0], used[^1] - used[0] + 1)
@@ -183,7 +180,6 @@ public sealed partial class JsBuiltinNotLoaded : ILocalFixRule
             (false, true) => name == "EventEmitter" ? "const EventEmitter = require(\"events\");" : $"const {{ {name} }} = require(\"{known.Module}\");",
         };
 
-        // After a shebang, "use strict" and the loads already at the top.
         var at = 0;
         while (at < lines.Count && (lines[at].StartsWith("#!", StringComparison.Ordinal) || Regex.IsMatch(lines[at], @"^\s*[""']use strict[""'];?\s*$"))) at++;
         while (at < lines.Count && Regex.IsMatch(masked[at], @"^\s*(?:(?:const|let|var)\s+[^=]+=\s*require\s*\(.*\)\s*;?|import\s.*from\s.*;?|import\s+[""'].*)\s*$")) at++;

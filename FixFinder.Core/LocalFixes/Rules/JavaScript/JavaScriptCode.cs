@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -16,7 +14,6 @@ internal static partial class JavaScriptCode
         "static", "get", "set", "true", "false", "null", "undefined", "constructor",
     };
 
-    /// <summary>Globals a misspelt name might have meant.</summary>
     public static readonly string[] Globals =
     [
         "Array", "Object", "String", "Number", "Boolean", "Math", "JSON", "Date", "Promise", "Map", "Set", "WeakMap",
@@ -39,11 +36,9 @@ internal static partial class JavaScriptCode
         return (source, number, line);
     }
 
-    /// <summary>Where a word stands alone on a masked line, not a property of something.</summary>
     public static List<int> UnqualifiedUses(string masked, string word) =>
         Regex.Matches(masked, $@"(?<![\w$.]){Regex.Escape(word)}(?![\w$])").Select(m => m.Index).ToList();
 
-    /// <summary>What a name was given where it was declared: array, string, set, map, object, number - or null.</summary>
     public static string? KindOf(IReadOnlyList<string> masked, IReadOnlyList<string> lines, string name)
     {
         var declaration = new Regex($@"\b(?:const|let|var)\s+{Regex.Escape(name)}\s*=\s*(?<value>\S.*)$");
@@ -66,12 +61,10 @@ internal static partial class JavaScriptCode
         return null;
     }
 
-    /// <summary>The class a name was made from - <c>const d = new Dog(...)</c> gives <c>Dog</c>.</summary>
     public static string? ClassOf(IReadOnlyList<string> masked, string name) =>
         masked.Select(text => Regex.Match(text, $@"\b(?:const|let|var)\s+{Regex.Escape(name)}\s*=\s*new\s+(?<class>[A-Z][\w$]*)\s*\("))
             .FirstOrDefault(m => m.Success)?.Groups["class"].Value;
 
-    /// <summary>The lines of a class's body - its opening line and closing line - by name, or null.</summary>
     public static (int Header, int Close)? ClassBlock(IReadOnlyList<string> masked, string name)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -83,7 +76,6 @@ internal static partial class JavaScriptCode
         return null;
     }
 
-    /// <summary>The innermost class whose body holds a line.</summary>
     public static (string Name, int Header, int Close)? EnclosingClass(IReadOnlyList<string> masked, int index)
     {
         for (var i = index; i >= 0; i--)
@@ -95,14 +87,9 @@ internal static partial class JavaScriptCode
         return null;
     }
 
-    /// <remarks>
-    /// A class method may carry <c>static</c>, <c>async</c>, <c>get</c> or <c>set</c> in front of its name, and all of them are the
-    /// method's own - <c>set name(value) {</c> is a method called <c>name</c>.
-    /// </remarks>
     [GeneratedRegex(@"(?<async>\basync\s+)?(?:(?<keyword>\bfunction\b)\s*[\w$]*\s*\([^()]*\)|(?<arrow>\([^()]*\)|[A-Za-z_$][\w$]*)\s*=>|^\s*(?:static\s+)?(?<methodAsync>async\s+)?(?:(?:get|set)\s+)?(?<method>(?!(?:if|for|while|switch|catch|with|function)\b)[A-Za-z_$][\w$]*)\s*\([^()]*\))\s*\{")]
     private static partial Regex FunctionOpener();
 
-    /// <summary>The innermost function around a line: where it opens, and where the word <c>async</c> would go.</summary>
     public static (int Line, int AsyncAt, bool IsAsync, Match Opener)? EnclosingFunction(IReadOnlyList<string> masked, int index)
     {
         for (var i = index; i >= 0; i--)

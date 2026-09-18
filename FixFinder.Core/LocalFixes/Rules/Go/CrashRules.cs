@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -120,7 +118,6 @@ public sealed partial class GoChannelDeadlock : ILocalFixRule
         if (GoCode.EnclosingFunction(masked, at.Number - 1) is not { } function) return null;
         var body = Enumerable.Range(function.Header + 1, function.Close - function.Header - 1).ToList();
 
-        // A nil channel: declared with var and never made.
         if (raw.Contains("(nil chan)", StringComparison.Ordinal))
         {
             if (Regex.Match(line, @"<-\s*(?<ch>[A-Za-z_]\w*)|(?<ch>[A-Za-z_]\w*)\s*<-") is not { Success: true } use) return null;
@@ -138,7 +135,6 @@ public sealed partial class GoChannelDeadlock : ILocalFixRule
                 source.Path, index + 1, $"{match.Groups["lead"].Value}{use.Groups["ch"].Value} := make({match.Groups["type"].Value})");
         }
 
-        // Nothing else runs at the same time to take part, so the buffer or a close is the whole answer.
         if (body.Any(i => Regex.IsMatch(masked[i], @"^\s*go\s"))) return null;
 
         if (raw.Contains("[chan send]", StringComparison.Ordinal) && Regex.Match(line, @"^\s*(?<ch>[A-Za-z_]\w*)\s*<-") is { Success: true } send)
@@ -191,8 +187,6 @@ public sealed partial class GoWaitGroupByValue : ILocalFixRule
     {
         if (GoCode.RuntimeMessage(context.Error, Message()) is null || !context.Error.RawText.Contains("WaitGroup", StringComparison.Ordinal)) return null;
 
-        // The program's own files: the source root's, and the folders of the frames that are not Go's own library - the root
-        // can land inside Go's install when every frame of the deadlock is in the runtime.
         var folders = context.Error.Frames
             .Select(f => f.File)
             .Where(f => f is not null && f.EndsWith(".go", StringComparison.OrdinalIgnoreCase) && !Parsing.FrameClassifier.IsVendored(f) && File.Exists(f))
@@ -274,7 +268,8 @@ public sealed partial class GoWaitGroupByValue : ILocalFixRule
     }
 }
 
-/// <summary>A deadlock at <c>for v := range ch</c> - the goroutine sending on the channel never closes it, so the loop never ends.</summary>
+/// <summary>A deadlock at <c>for v := range ch</c> - the goroutine sending on the channel never closes it, so the loop never
+/// ends.</summary>
 public sealed partial class GoCloseChannel : ILocalFixRule
 {
     public string Id => "go-close-channel";
@@ -296,7 +291,6 @@ public sealed partial class GoCloseChannel : ILocalFixRule
 
         var channel = loop.Groups["channel"].Value;
 
-        // The one goroutine started with this channel in the function before the loop.
         var starts = Enumerable.Range(function.Header, at.Number - 1 - function.Header)
             .Select(i => Regex.Match(masked[i], $@"^\s*go\s+(?<function>[A-Za-z_]\w*)\s*\((?<arguments>[^)]*)\)"))
             .Where(m => m.Success && Regex.IsMatch(m.Groups["arguments"].Value, $@"(?<![\w.]){Regex.Escape(channel)}(?!\w)"))

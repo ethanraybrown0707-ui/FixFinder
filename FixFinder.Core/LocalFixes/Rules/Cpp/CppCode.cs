@@ -26,20 +26,16 @@ internal static partial class CppCode
     public static bool UsesStd(SourceFile source) =>
         CodeText.MaskAll(source.Lines, Syntax.CLike).Any(line => UsingStd().IsMatch(line));
 
-    /// <summary>A standard name as this file has to write it: <c>std::cout</c>, or <c>cout</c> under <c>using namespace std;</c>.</summary>
     public static string StdQualified(SourceFile source, string name) => UsesStd(source) ? name : "std::" + name;
 
-    /// <summary>Whether <c>std::string</c> is there to be used - its own header, or one of the streams, which bring it.</summary>
     public static bool HasStdString(SourceFile source) =>
         new[] { "string", "iostream", "sstream", "fstream", "ostream", "istream" }.Any(header => CCode.Includes(source, header));
 
-    /// <summary>The name an error says was never declared, in gcc's words or MSVC's.</summary>
     public static string? UndeclaredName(ParsedError error) =>
         (CCode.GccMessage(error, GccUndeclared()) ??
          (CCode.IsMsvc(error, "C2065", "C3861") ? MsvcUndeclared().Match(error.Message ?? "") is { Success: true } m ? m : null : null))
         ?.Groups["name"].Value;
 
-    /// <summary>Where a word stands alone on a masked line, not already qualified and not a member of something.</summary>
     public static List<int> UnqualifiedUses(string masked, string word) =>
         Regex.Matches(masked, $@"(?<![\w.:])(?<!->){Regex.Escape(word)}(?!\w)").Select(m => m.Index).ToList();
 
@@ -49,14 +45,6 @@ internal static partial class CppCode
         return list.Count <= 1 ? string.Concat(list) : string.Join(", ", list.SkipLast(1)) + " and " + list[^1];
     }
 
-    /// <summary>
-    /// How a local variable or parameter is declared - its type, and whether it is a pointer or a reference - found by
-    /// looking up from a line to the top of the function it is in.
-    /// </summary>
-    /// <remarks>
-    /// A declaration starts a statement, a parameter or a for loop's first clause, so only a type that follows the start
-    /// of a line, <c>;</c>, <c>(</c>, <c>{</c> or <c>,</c> counts: <c>total = price * count;</c> declares nothing.
-    /// </remarks>
     public static (string Type, bool Pointer, bool Reference, int Line)? VariableDeclaration(IReadOnlyList<string> masked, int index, string name)
     {
         var (first, _) = CCode.EnclosingFunction(masked, index);
@@ -78,8 +66,6 @@ internal static partial class CppCode
         return null;
     }
 
-    /// <summary>The string and character literals on a line: where each starts, where it ends (exclusive), and its quote.</summary>
-    /// <remarks>A <c>'</c> straight after a digit is C++14's digit separator - <c>1'000'000</c> - and not a quote.</remarks>
     public static List<(int Start, int End, char Quote)> StringLiterals(string line)
     {
         var found = new List<(int, int, char)>();
@@ -103,7 +89,6 @@ internal static partial class CppCode
         return found;
     }
 
-    /// <summary>The pieces of a masked stretch split on a character that is not inside brackets.</summary>
     public static List<(int Start, int End)> SplitTopLevel(string masked, int from, int to, char separator)
     {
         var parts = new List<(int, int)>();
@@ -116,7 +101,6 @@ internal static partial class CppCode
             else if (masked[i] is ')' or ']' or '}') depth--;
             else if (masked[i] == separator && depth == 0)
             {
-                // `++` and `+=` are not a join.
                 if (separator == '+' && ((i + 1 < to && masked[i + 1] is '+' or '=') || (i > from && masked[i - 1] == '+'))) continue;
 
                 parts.Add((start, i));
@@ -140,11 +124,9 @@ internal static partial class CppCode
     [GeneratedRegex(@"^\s*(?<access>(?:(?:public|protected|private|virtual)\s+)*)(?<name>[A-Za-z_][\w:]*)")]
     private static partial Regex Base();
 
-    /// <summary>An <c>override</c> that overrides nothing, as gcc and MSVC say it.</summary>
     public static Match? OverrideError(ParsedError error) =>
         CCode.GccMessage(error, GccOverride()) ?? CCode.MsvcMessage(error, "C3668", MsvcOverride());
 
-    /// <summary>The top-level line defining a class or struct of that name, or -1 when there is not exactly one.</summary>
     public static int ClassHeader(IReadOnlyList<string> masked, string name)
     {
         var depths = Brackets.BraceDepths(masked);
@@ -154,7 +136,6 @@ internal static partial class CppCode
         return found is [var only] ? only : -1;
     }
 
-    /// <summary>The lines holding a class's opening and closing braces.</summary>
     public static (int Open, int Close)? ClassBraces(IReadOnlyList<string> masked, int header)
     {
         var depth = 0;
@@ -180,7 +161,6 @@ internal static partial class CppCode
         return null;
     }
 
-    /// <summary>The lines directly inside a class's braces - its members, not what their bodies hold.</summary>
     public static List<int> MemberLines(IReadOnlyList<string> masked, int header)
     {
         if (ClassBraces(masked, header) is not { } body) return [];
@@ -191,11 +171,9 @@ internal static partial class CppCode
         return Enumerable.Range(body.Open + 1, Math.Max(0, body.Close - body.Open - 1)).Where(i => depths[i] == level).ToList();
     }
 
-    /// <summary>The member lines that declare or define a function of that name.</summary>
     public static List<int> LinesDeclaring(IReadOnlyList<string> masked, int header, string member) =>
         MemberLines(masked, header).Where(i => Regex.IsMatch(masked[i], $@"(?<![\w:~.>]){Regex.Escape(member)}\s*\(")).ToList();
 
-    /// <summary>What a class inherits from: each base's name, where it starts on the line, and whether an access is written.</summary>
     public static List<(string Name, int Column, bool Specified)> BaseClasses(string maskedHeader)
     {
         if (BaseList().Match(maskedHeader) is not { Success: true } list) return [];
@@ -215,7 +193,6 @@ internal static partial class CppCode
         return bases;
     }
 
-    /// <summary>The C++ files at the top of the source root, for errors that name no line: the linker's, an uncaught exception's.</summary>
     public static IEnumerable<SourceFile> SourceFiles(LocalFixContext context)
     {
         if (context.SourceRoot is not { } root || !Directory.Exists(root)) yield break;

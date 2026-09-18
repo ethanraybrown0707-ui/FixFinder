@@ -7,20 +7,12 @@ namespace FixFinder.Core.LocalFixes;
 /// <summary>Which comment and string rules a line of code follows.</summary>
 public enum Syntax
 {
-    /// <summary><c>#</c> comments; single, double and triple-quoted strings.</summary>
     Python,
 
-    /// <summary><c>//</c> and <c>/* */</c> comments, strings and character literals: C, C++ and Java.</summary>
     CLike,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
-/// <remarks>
-/// None of this is a parser and none of it pretends to be. Each helper answers one narrow question
-/// about a line - where its comment starts, which words in it are code - well enough for a rule to
-/// propose a change. Whether the change is right is not decided here: <see cref="CompileCheck"/>
-/// decides that, which is what lets these stay simple.
-/// </remarks>
 public static partial class CodeText
 {
     [GeneratedRegex(@"[A-Za-z_$][A-Za-z0-9_$]*")]
@@ -30,13 +22,6 @@ public static partial class CodeText
 
     public static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '$';
 
-    /// <summary>
-    /// The line with the insides of strings, and all comments, blanked to spaces - so every index
-    /// still points at the same column, and whatever words remain are code.
-    /// </summary>
-    /// <param name="open">
-    /// A block comment or triple-quoted string still open from the line before, updated for the next.
-    /// </param>
     public static string Mask(string line, Syntax syntax, ref string? open)
     {
         var chars = line.ToCharArray();
@@ -95,7 +80,6 @@ public static partial class CodeText
                     j++;
                 }
 
-                // The quotes stay, so the shape of the line survives; only what is between them goes.
                 for (var k = i + 1; k < Math.Min(j, chars.Length); k++) chars[k] = ' ';
 
                 i = Math.Min(j + 1, chars.Length);
@@ -108,14 +92,12 @@ public static partial class CodeText
         return new string(chars);
     }
 
-    /// <summary>One line masked on its own, with nothing carried in from the line before.</summary>
     public static string Mask(string line, Syntax syntax)
     {
         string? open = null;
         return Mask(line, syntax, ref open);
     }
 
-    /// <summary>Every line of a file masked, with comments and strings that span lines carried across.</summary>
     public static IReadOnlyList<string> MaskAll(IReadOnlyList<string> lines, Syntax syntax)
     {
         string? open = null;
@@ -126,13 +108,6 @@ public static partial class CodeText
         return masked;
     }
 
-    /// <summary>
-    /// Splits a line into its code and everything after the code: trailing whitespace and any comment.
-    /// </summary>
-    /// <remarks>
-    /// So a character can be added at the end of the code - a colon, a semicolon - without landing
-    /// inside a comment, and without disturbing how the comment was spaced.
-    /// </remarks>
     public static (string Code, string Tail) SplitComment(string line, Syntax syntax)
     {
         var end = CommentStart(line, syntax) ?? line.Length;
@@ -168,7 +143,6 @@ public static partial class CodeText
         return null;
     }
 
-    /// <summary>Every distinct word that appears as code in some masked lines.</summary>
     public static HashSet<string> Identifiers(IEnumerable<string> maskedLines)
     {
         var words = new HashSet<string>(StringComparer.Ordinal);
@@ -181,13 +155,6 @@ public static partial class CodeText
         return words;
     }
 
-    /// <summary>
-    /// Edit distance with adjacent transpositions counted as one, and a change of case alone as one.
-    /// </summary>
-    /// <remarks>
-    /// Transpositions matter more than anything else here: <c>prinft</c>, <c>wieght</c> and
-    /// <c>stdoi.h</c> are each one swap from what was meant, and plain Levenshtein calls them two.
-    /// </remarks>
     public static int Distance(string a, string b)
     {
         if (string.Equals(a, b, StringComparison.Ordinal)) return 0;
@@ -214,16 +181,6 @@ public static partial class CodeText
         return d[a.Length, b.Length];
     }
 
-    /// <summary>
-    /// The one candidate closest to a misspelt name, or null when there is not exactly one.
-    /// </summary>
-    /// <remarks>
-    /// <b>A tie is a refusal.</b> <c>totl</c> is as close to <c>total</c> as to <c>tot</c>, and
-    /// choosing between them would be guessing which one somebody meant. Short names get less
-    /// latitude: one edit for four letters or fewer, two beyond that, and nothing under three,
-    /// where almost every short word is within reach of every other.
-    /// </remarks>
-    /// <param name="preferred">Names that win a tie, earliest first - the ones people mean far more often, such as println over print.</param>
     public static string? Nearest(string wrong, IEnumerable<string> candidates, IReadOnlyList<string>? preferred = null)
     {
         if (wrong.Length < 3) return null;
@@ -256,13 +213,6 @@ public static partial class CodeText
         return preferred?.FirstOrDefault(closest.Contains);
     }
 
-    /// <summary>
-    /// The line with one standalone occurrence of a word replaced, or null when that is not
-    /// unambiguous.
-    /// </summary>
-    /// <param name="nearColumn">
-    /// Where the compiler pointed, used only to choose between several occurrences on the line.
-    /// </param>
     public static string? ReplaceWord(string line, string word, string replacement, Syntax syntax, int? nearColumn = null)
     {
         var masked = Mask(line, syntax);
@@ -297,14 +247,6 @@ public static partial class CodeText
         return line[..chosen] + replacement + line[(chosen + word.Length)..];
     }
 
-    /// <summary>
-    /// The source line a compiler echoed under a diagnostic, and the column of the caret beneath it.
-    /// </summary>
-    /// <remarks>
-    /// javac prints the offending line in full, indentation included, with a <c>^</c> on the line
-    /// below. That is the most precise location any of these compilers gives, and it is only in the
-    /// captured output - the parsed error keeps the line number and nothing finer.
-    /// </remarks>
     public static (string Echo, int Column)? Caret(IReadOnlyList<CapturedLine> output, ParsedError error)
     {
         var index = -1;

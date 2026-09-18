@@ -4,11 +4,6 @@ using FixFinder.Core.Parsing;
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>cannot find symbol (symbol: variable avarage)</c>, and the name it was one letter from.</summary>
-/// <remarks>
-/// javac, unlike Python, gcc and clang, never suggests a name. The candidates are what the file
-/// itself declares and uses, or - when the missing name is a member of a JDK class, like
-/// <c>System.out.printn</c> - that class's real methods, read from the JDK with javap.
-/// </remarks>
 public sealed partial class JavaNearestName : ILocalFixRule
 {
     public string Id => "java-nearest-name";
@@ -31,7 +26,6 @@ public sealed partial class JavaNearestName : ILocalFixRule
         var kind = symbol.Groups["kind"].Value;
         var name = symbol.Groups["name"].Value;
 
-        // A class the import table knows is a missing import, not a misspelling.
         if (kind == "class" && JavaTypes.Packages.ContainsKey(name)) return null;
 
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
@@ -80,7 +74,6 @@ public sealed partial class JavaMissingImport : ILocalFixRule
 {
     public string Id => "java-missing-import";
 
-    // A class used for a static call - Arrays.sort(values) - is reported as a variable, not a class.
     [GeneratedRegex(@"^cannot find symbol \(symbol:\s+(?:class|variable) (?<name>[A-Z][\w$]*)")]
     private static partial Regex MissingClass();
 
@@ -101,8 +94,6 @@ public sealed partial class JavaMissingImport : ILocalFixRule
         var name = primary.Groups["name"].Value;
         if (!JavaTypes.Packages.ContainsKey(name) || JavaTypes.IsImported(name, source.Lines)) return null;
 
-        // Every missing class in this file the table knows, in one change: List and ArrayList
-        // nearly always go missing together, and fixing them one at a time is two rounds for one mistake.
         var imports = context.AllErrors
             .Where(e => JavaCode.IsCompileError(e) && SameFile(context, e, source))
             .Select(e => MissingClass().Match(e.Message ?? ""))
@@ -188,11 +179,6 @@ public sealed partial class JavaLowercaseClass : ILocalFixRule
 }
 
 /// <summary><c>non-static method total() cannot be referenced from a static context</c></summary>
-/// <remarks>
-/// Making the member static is right exactly when it uses nothing belonging to an object - and that
-/// is what the compile check establishes, because a static method that touches instance state does
-/// not compile.
-/// </remarks>
 public sealed partial class JavaNonStaticMember : ILocalFixRule
 {
     public string Id => "java-non-static-member";
@@ -296,10 +282,6 @@ public sealed partial class JavaMissingNew : ILocalFixRule
 }
 
 /// <summary><c>length</c>, <c>length()</c> and <c>size()</c> mixed up, and a method named without its brackets.</summary>
-/// <remarks>
-/// An array has the field <c>length</c>, a String the method <c>length()</c>, and a collection the
-/// method <c>size()</c>. javac says which type the variable is, so which one was meant is not a guess.
-/// </remarks>
 public sealed partial class JavaLengthAndSize : ILocalFixRule
 {
     public string Id => "java-length-size";
@@ -320,7 +302,6 @@ public sealed partial class JavaLengthAndSize : ILocalFixRule
         var call = false;
         var explanation = "";
 
-        // An argument inside the brackets means some other method was meant.
         if (kind == "method" && symbol.Groups["arguments"].Value != "()") return null;
 
         if (type.EndsWith("[]", StringComparison.Ordinal) && name is "length" or "size" or "count" or "Length" or "Count")
@@ -403,7 +384,6 @@ public sealed partial class JavaIndexing : ILocalFixRule
         var hit = hits.Count == 1 ? hits[0] : hits.FirstOrDefault(h => caret is { } c && c >= h.Index && c < h.Index + h.Length);
         if (hit is null) return null;
 
-        // Assigning through the brackets is set, not get - and a String cannot be changed at all.
         var after = masked[(hit.Index + hit.Length)..].TrimStart();
         if (after.StartsWith('=') && !after.StartsWith("==", StringComparison.Ordinal)) return null;
 
@@ -445,7 +425,6 @@ public sealed partial class JavaPrimitiveMethod : ILocalFixRule
 
         if (hit.Groups["method"].Value == "equals" && argument.Length > 0)
         {
-            // Only where == reads the same as the call did: between brackets, an assignment, or && and ||.
             var before = masked[..hit.Index].TrimEnd();
             var after = masked[(hit.Index + hit.Length)..].TrimStart();
             if (before.Length > 0 && !"(=&|,?:".Contains(before[^1]) && !before.EndsWith("return", StringComparison.Ordinal)) return null;

@@ -4,15 +4,6 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads the Go compiler's errors: <c>.\app.go:6:2: declared and not used: count</c>.</summary>
-/// <remarks>
-/// Go's panic parser reads what a Go program says when it dies. This reads what the compiler says when it will not build
-/// one - which is most of what a person learning Go meets, and which, before this, nothing read at all: the run exited 1
-/// and was reported as having failed without a word.
-/// <para>
-/// The compiler names no severity - there are no warnings in Go - so a line is a diagnostic by its shape alone. Some
-/// messages go on over tab-indented lines (<c>have (int)</c>, <c>want ()</c>), and those stay with the error they belong to.
-/// </para>
-/// </remarks>
 public sealed partial class GoCompileParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "go";
@@ -24,11 +15,9 @@ public sealed partial class GoCompileParser : IStackTraceParser, IMultiErrorPars
     [GeneratedRegex(@"^#\s+\S+")]
     private static partial Regex PackageHeader();
 
-    /// <summary>The linker's words when there is no <c>func main</c> to start from.</summary>
     [GeneratedRegex(@"(?<msg>function main is undeclared in the main package)\s*$")]
     private static partial Regex NoMain();
 
-    /// <summary><c>go run</c> refusing a file whose package is not <c>main</c>.</summary>
     [GeneratedRegex(@"^package (?<name>\S+) is not a main package\s*$")]
     private static partial Regex NotMain();
 

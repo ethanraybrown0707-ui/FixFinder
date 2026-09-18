@@ -1,11 +1,6 @@
 namespace FixFinder.Core.Execution;
 
 /// <summary>A compiler FixFinder can drive, and what it is called when talking to a person.</summary>
-/// <param name="Name">Display name: "MSVC", "gcc", "javac".</param>
-/// <param name="Program">Full path to the executable.</param>
-/// <param name="SetupScript">
-/// A batch file that must be called first to put the compiler on PATH, or null.
-/// </param>
 public sealed record Toolchain(string Name, string Program, string? SetupScript = null)
 {
     public string Description => SetupScript is null
@@ -13,30 +8,15 @@ public sealed record Toolchain(string Name, string Program, string? SetupScript 
         : $"{Name} ({Program}, set up by {Path.GetFileName(SetupScript)})";
 }
 
-/// <summary>
-/// Finds the compilers on this machine for the languages that have to be built before they run.
-/// </summary>
-/// <remarks>
-/// Needed because C, C++ and Java are not like Python: you cannot point a runner at
-/// <c>main.c</c> and see what happens. Something has to compile it first, and on Windows that
-/// something is rarely on PATH - <c>cl.exe</c> will not run at all until
-/// <c>vcvarsall.bat</c> has set up two dozen environment variables, which is why the compile
-/// step is generated as a small batch file rather than launched directly.
-/// <para>
-/// Discovery is by looking at known locations rather than by running the Visual Studio locator:
-/// it is deterministic, costs no subprocess, and is easy to read when it gets the wrong answer.
-/// </para>
-/// </remarks>
+/// <summary>Finds the compilers on this machine for the languages that have to be built before they run.</summary>
 public static class Toolchains
 {
-    /// <summary>Where Visual Studio puts the script that makes cl.exe usable, newest first.</summary>
     private static readonly string[] VisualStudioRoots =
     [
         @"C:\Program Files\Microsoft Visual Studio",
         @"C:\Program Files (x86)\Microsoft Visual Studio",
     ];
 
-    /// <summary>Where a JDK usually ends up on Windows when it is not on PATH.</summary>
     private static readonly string[] JavaRoots =
     [
         @"C:\Program Files\Java",
@@ -46,22 +26,8 @@ public static class Toolchains
         @"C:\Program Files\Zulu",
     ];
 
-    /// <summary>Searched for once, by whichever check asks first.</summary>
-    /// <remarks>
-    /// Lazy rather than a field and a flag, because fixes are now compiled several at a time. With a
-    /// flag set before the search finished, a second check asking at the same moment was told there
-    /// was no MSVC at all - and refused a fix for a compiler that was there.
-    /// </remarks>
     private static readonly Lazy<Toolchain?> Msvc = new(SearchForMsvc);
 
-    /// <summary>
-    /// Finds MSVC, which is the compiler most likely to already be present on a Windows machine.
-    /// </summary>
-    /// <remarks>
-    /// What is returned is <c>vcvarsall.bat</c>, not <c>cl.exe</c>. Running the compiler
-    /// directly fails with a missing-DLL error or a flood of "cannot open include file", because
-    /// it depends entirely on the environment that script sets up.
-    /// </remarks>
     public static Toolchain? FindMsvc() => Msvc.Value;
 
     private static Toolchain? SearchForMsvc()
@@ -74,8 +40,6 @@ public static class Toolchains
             try { editions = Directory.GetDirectories(root); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
 
-            // Newest first: "18" beats "2022" beats "2019" by ordinal descending well enough,
-            // and every candidate is checked anyway.
             foreach (var year in editions.OrderByDescending(d => d, StringComparer.Ordinal))
             {
                 string[] products;
@@ -99,19 +63,8 @@ public static class Toolchains
 
     private static readonly Lazy<IReadOnlyDictionary<string, string>?> MsvcSetUp = new(CaptureMsvcEnvironment);
 
-    /// <summary>
-    /// The environment <c>vcvarsall.bat x64</c> sets up, captured once, or null when it could not be.
-    /// </summary>
-    /// <remarks>
-    /// Running the script is nearly all the cost of using MSVC: about a second and a half, against a
-    /// tenth of a second for cl.exe to compile a small file. It sets the same variables every time it
-    /// runs, so checking one proposed fix after another was paying for the same answer again and
-    /// again. Null sends the caller back to calling the script itself, so an environment that could
-    /// not be read costs time and never a compile.
-    /// </remarks>
     public static IReadOnlyDictionary<string, string>? MsvcEnvironment() => MsvcSetUp.Value;
 
-    /// <summary>cl.exe on the PATH an MSVC environment sets up, or null.</summary>
     public static string? ClIn(IReadOnlyDictionary<string, string> environment)
     {
         if (!environment.TryGetValue("PATH", out var path)) return null;
@@ -125,21 +78,18 @@ public static class Toolchains
             }
             catch (ArgumentException)
             {
-                // Not a path at all. PATH holds whatever anyone ever put in it.
             }
         }
 
         return null;
     }
 
-    /// <summary>The variables in the output of <c>set</c>, or null when it is not an MSVC environment.</summary>
     internal static IReadOnlyDictionary<string, string>? ReadEnvironment(string output)
     {
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var line in output.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
         {
-            // cmd keeps per-drive working folders as variables named like "=C:"; they are not settable.
             var equals = line.IndexOf('=');
             if (equals <= 0) continue;
 
@@ -179,8 +129,6 @@ public static class Toolchains
 
             if (process.ExitCode != 0 || ReadEnvironment(output.Result) is not { } environment) return null;
 
-            // Only trusted if it reads back as real folders. `set` prints in the console's code page, and
-            // a folder name that did not survive that would be an environment cl.exe cannot work in.
             if (ClIn(environment) is null) return null;
 
             var include = environment["INCLUDE"].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -197,16 +145,6 @@ public static class Toolchains
 
     private static readonly AsyncLocal<bool> GnuHidden = new();
 
-    /// <summary>
-    /// Leaves gcc and clang out of the search until the returned scope is disposed, on this async
-    /// flow only.
-    /// </summary>
-    /// <remarks>
-    /// The build prefers a GNU compiler to MSVC whenever one is on PATH. On a machine with MinGW -
-    /// Strawberry Perl brings one, and so does the CI image - that means MSVC's own diagnostics are
-    /// never produced, and nothing that reads them ever runs. Changing PATH would do the same for
-    /// every other test running at the time; an async-local flag does it for one.
-    /// </remarks>
     public static IDisposable WithoutGnu()
     {
         var previous = GnuHidden.Value;
@@ -220,7 +158,6 @@ public static class Toolchains
         public void Dispose() => undo();
     }
 
-    /// <summary>Finds a GNU-style compiler for C or C++, in order of preference.</summary>
     public static Toolchain? FindGnu(bool cpp)
     {
         if (GnuHidden.Value) return null;
@@ -235,10 +172,8 @@ public static class Toolchains
         return null;
     }
 
-    /// <summary>Finds javac, on PATH or in a JDK installed in the usual place.</summary>
     public static Toolchain? FindJavac() => FindJavaTool("javac");
 
-    /// <summary>Finds the java launcher that runs what javac produced.</summary>
     public static Toolchain? FindJava() => FindJavaTool("java");
 
     private static Toolchain? FindJavaTool(string tool)
@@ -255,7 +190,6 @@ public static class Toolchains
 
             foreach (var jdk in jdks.OrderByDescending(d => d, StringComparer.Ordinal))
             {
-                // Some layouts nest the runtime one level deeper, as with a bundled JBR.
                 foreach (var candidate in new[]
                 {
                     Path.Combine(jdk, "bin", tool + ".exe"),
@@ -270,7 +204,6 @@ public static class Toolchains
         return null;
     }
 
-    /// <summary>A plain-English list of what is and is not available, for the Settings window.</summary>
     public static IReadOnlyList<string> Describe() =>
     [
         $"Python     : {TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py") ?? "not found"}",

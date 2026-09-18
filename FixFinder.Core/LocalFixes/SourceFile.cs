@@ -3,14 +3,8 @@ using System.Text;
 namespace FixFinder.Core.LocalFixes;
 
 /// <summary>A source file read once and split into lines, keeping what is needed to write it back exactly.</summary>
-/// <remarks>
-/// Line endings, the trailing newline and the byte-order mark are carried rather than normalised.
-/// The copy that gets compiled has to be this file with one change in it and nothing else, and the
-/// diff a person copies has to match their file exactly - the planner refuses context that does not.
-/// </remarks>
 public sealed class SourceFile
 {
-    /// <summary>Larger than this is not a hand-written source file anybody wants edited line by line.</summary>
     private const long MaxBytes = 2 * 1024 * 1024;
 
     public required string Path { get; init; }
@@ -25,14 +19,8 @@ public sealed class SourceFile
 
     public int Count => Lines.Count;
 
-    /// <summary>The line at a 1-based number, or null outside the file.</summary>
     public string? Line(int number) => number >= 1 && number <= Lines.Count ? Lines[number - 1] : null;
 
-    /// <summary>Reads a file, or returns null for anything that is not plainly a text source file.</summary>
-    /// <remarks>
-    /// A NUL byte in the first 8 KB means binary, and a file over 2 MB is generated; neither is
-    /// something a one-line fix should be worked out against.
-    /// </remarks>
     public static SourceFile? Read(string? path)
     {
         if (path is not { Length: > 0 }) return null;
@@ -68,7 +56,6 @@ public sealed class SourceFile
         }
     }
 
-    /// <summary>These lines, written the way this file is written.</summary>
     public byte[] Render(IReadOnlyList<string> lines)
     {
         var text = string.Join(LineEnding, lines) + (EndsWithNewline ? LineEnding : "");

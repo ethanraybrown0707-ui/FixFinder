@@ -80,7 +80,6 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ToggleText => IsExpanded ? "Hide details" : "Show details";
 
-    /// <summary>The finding as plain text, for copying into a message or a report.</summary>
     public string AsText()
     {
         var lines = new List<string>

@@ -4,12 +4,6 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads Ruby exception output.</summary>
-/// <remarks>
-/// Ruby 3.4 changed how it quotes method names in a backtrace, from <c>`method'</c> to
-/// <c>'method'</c>. Both are accepted, because a parser that only knows one of them silently
-/// stops finding frames the day the user upgrades - and reports a crash with no location rather
-/// than an obvious failure.
-/// </remarks>
 public sealed partial class RubyParser : IStackTraceParser
 {
     public string LanguageId => "ruby";

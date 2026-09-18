@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -82,7 +81,6 @@ public sealed partial class PythonMissingSelfAttribute : ILocalFixRule
 
         var (classFirst, classEnd) = PythonCode.BlockBody(lines, cl);
 
-        // A class that stores it somewhere already has a different problem.
         if (Enumerable.Range(classFirst, classEnd - classFirst).Any(i => Regex.IsMatch(masked[i], $@"\bself\.{Regex.Escape(attr)}\s*(?::[^=]*)?=(?!=)"))) return null;
 
         var inits = Enumerable.Range(classFirst, classEnd - classFirst).Where(i => Regex.IsMatch(masked[i], @"^\s+def\s+__init__\s*\(\s*self\b")).ToList();
@@ -308,11 +306,6 @@ public sealed partial class PythonPropertyCalled : ILocalFixRule
 }
 
 /// <summary><c>Can't instantiate abstract class Square without an implementation for abstract method 'area'</c>.</summary>
-/// <remarks>
-/// The same answer the C#, Java and C++ rules give: the method is written, with the signature the base class declared, and a
-/// body that raises until it is filled in. Refused when the class named is itself the abstract one, since creating it was
-/// the mistake there.
-/// </remarks>
 public sealed partial class PythonUnwrittenAbstractMethod : ILocalFixRule
 {
     public string Id => "python-unwritten-abstract-method";
@@ -338,7 +331,6 @@ public sealed partial class PythonUnwrittenAbstractMethod : ILocalFixRule
         var (first, end) = PythonCode.BlockBody(lines, header);
         var body = Enumerable.Range(first, end - first).ToList();
 
-        // A class that declares abstract methods of its own is the abstract one, and is not for creating.
         if (body.Any(i => masked[i].TrimStart().StartsWith("@abstractmethod", StringComparison.Ordinal) ||
                           masked[i].TrimStart().StartsWith("@abc.abstractmethod", StringComparison.Ordinal))) return null;
 
@@ -351,7 +343,6 @@ public sealed partial class PythonUnwrittenAbstractMethod : ILocalFixRule
 
         foreach (var method in methods)
         {
-            // The declaration in a base class: the def after an @abstractmethod.
             var declaration = Enumerable.Range(1, lines.Count - 1)
                 .Where(i => Regex.IsMatch(masked[i], $@"^\s*(?:async\s+)?def\s+{Regex.Escape(method)}\s*\(") &&
                             Enumerable.Range(Math.Max(0, i - 3), i - Math.Max(0, i - 3)).Any(k => masked[k].Contains("abstractmethod", StringComparison.Ordinal)))
@@ -438,7 +429,6 @@ public sealed partial class PythonHashWithEq : ILocalFixRule
         var (eqFirst, eqEnd) = PythonCode.BlockBody(lines, eq);
         var compared = string.Join("\n", Enumerable.Range(eqFirst, eqEnd - eqFirst).Select(i => masked[i]));
 
-        // The fields __eq__ compares, in the order it compares them - equal objects must hash the same.
         var fields = Regex.Matches(compared, @"\bself\.(?<field>[A-Za-z_]\w*)\b(?!\s*\()").Select(m => m.Groups["field"].Value).Where(f => !f.StartsWith("__", StringComparison.Ordinal)).Distinct().ToList();
         if (fields.Count == 0 || !Regex.IsMatch(compared, @"\bother\.")) return null;
 
@@ -456,7 +446,8 @@ public sealed partial class PythonHashWithEq : ILocalFixRule
     }
 }
 
-/// <summary><c>Point() accepts 0 positional sub-patterns (2 given)</c> - a class pattern with positions, for a class that never said what they are.</summary>
+/// <summary><c>Point() accepts 0 positional sub-patterns (2 given)</c> - a class pattern with positions, for a class that never
+/// said what they are.</summary>
 public sealed partial class PythonMatchArgs : ILocalFixRule
 {
     public string Id => "python-match-args";
@@ -483,7 +474,6 @@ public sealed partial class PythonMatchArgs : ILocalFixRule
         var (initFirst, initEnd) = PythonCode.BlockBody(lines, init);
         var body = string.Join("\n", Enumerable.Range(initFirst, initEnd - initFirst).Select(i => masked[i]));
 
-        // Each parameter kept under its own name, in order - the positions a pattern would mean.
         var kept = parameters.TakeWhile(p => Regex.IsMatch(body, $@"\bself\.{Regex.Escape(p)}\s*=\s*{Regex.Escape(p)}\b")).ToList();
         if (kept.Count < given) return null;
 

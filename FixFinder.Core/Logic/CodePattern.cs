@@ -35,7 +35,6 @@ internal static class PythonBlocks
 {
     public static string Indent(string line) => CodeText.Indentation(line);
 
-    /// <summary>The 0-based first line of a block's body, and the index after its last non-blank line.</summary>
     public static (int First, int End) Body(IReadOnlyList<string> lines, int header)
     {
         var indent = Indent(lines[header]).Length;
@@ -50,7 +49,6 @@ internal static class PythonBlocks
     public static IEnumerable<int> Statements(IReadOnlyList<string> masked, int first, int end) =>
         Enumerable.Range(first, Math.Max(0, end - first)).Where(i => masked[i].Trim().Length > 0);
 
-    /// <summary>For each line, how many brackets are open at its start - a line that starts inside brackets continues the one before.</summary>
     public static int[] OpenBrackets(IReadOnlyList<string> masked)
     {
         var open = new int[masked.Count];
@@ -65,7 +63,6 @@ internal static class PythonBlocks
         return open;
     }
 
-    /// <summary>Every name the file gives a value to: assignments, loop variables, parameters, functions and classes.</summary>
     public static HashSet<string> DefinedNames(IReadOnlyList<string> masked)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);

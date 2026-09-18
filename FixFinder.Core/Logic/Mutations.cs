@@ -4,24 +4,9 @@ using FixFinder.Core.LocalFixes;
 namespace FixFinder.Core.Logic;
 
 /// <summary>One small change to one line, to be tried against the expected output.</summary>
-/// <param name="Line">The 1-based line changed.</param>
-/// <param name="NewText">The whole line after the change.</param>
-/// <param name="From">The text replaced, for the title.</param>
-/// <param name="To">What replaced it.</param>
-/// <param name="Kind">What sort of mistake this change would correct, in words.</param>
-/// <param name="Cost">How unlikely the change is as a mistake: lower is tried first on the same line.</param>
 public sealed record Mutation(int Line, string NewText, string From, string To, string Kind, int Cost);
 
-/// <summary>
-/// The small edits that correct most one-line logic mistakes, generated for a line without knowing what it means.
-/// </summary>
-/// <remarks>
-/// Studies of real bug fixes keep finding the same few shapes behind a large share of one-line fixes: a comparison off by one
-/// (<c>&lt;</c> for <c>&lt;=</c>), a bound off by one (<c>n</c> for <c>n - 1</c>), the wrong arithmetic or logical operator, an
-/// integer division where a real one was meant, a constant one away, <c>max</c> for <c>min</c>. Every one of those is a change
-/// to a single token, which makes them few enough to try. None is ever offered on its own merits - only a change that makes
-/// the program print what was expected, for every run given, is.
-/// </remarks>
+/// <summary>The small edits that correct most one-line logic mistakes, generated for a line without knowing what it means.</summary>
 public static partial class Mutations
 {
     [GeneratedRegex(@"(?<![<>=!+\-*/%&|^:])(?<op><=|>=|==|!=|<|>)(?![<>=\-])")]
@@ -51,7 +36,6 @@ public static partial class Mutations
     [GeneratedRegex(@"^\s*(?:#|//|/\*|\*|import\b|from\s+\S+\s+import\b|#include\b|package\b|using\s+[\w.]+\s*;|namespace\b|@)")]
     private static partial Regex NotCode();
 
-    /// <summary>Every candidate change to one line, cheapest first.</summary>
     public static IReadOnlyList<Mutation> For(SourceFile source, int number)
     {
         if (source.Line(number) is not { } line) return [];
@@ -74,7 +58,6 @@ public static partial class Mutations
 
         var clike = !python;
 
-        // A comparison that decides a branch or a loop is where an off-by-one most often lives.
         var decides = Regex.IsMatch(masked, @"\b(?:if|elif|while|for|return)\b|\?");
         var generic = clike && Regex.IsMatch(masked, @"\b[A-Z]\w*\s*<[\w\s,<>?\[\]]*>");
 
@@ -82,7 +65,6 @@ public static partial class Mutations
         {
             var op = m.Groups["op"].Value;
 
-            // A < or > with no space either side, in a line that names a generic type, is a bracket, not a comparison.
             if (op is "<" or ">" && generic && !(m.Index > 0 && masked[m.Index - 1] == ' ' && m.Index + 1 < masked.Length && masked[m.Index + 1] == ' ')) continue;
             if (op == ">" && m.Index > 0 && masked[m.Index - 1] is '-' or '=') continue;
 
@@ -129,7 +111,6 @@ public static partial class Mutations
                 Add(m.Index, 2, m.Groups["op"].Value == "++" ? "--" : "++", "a count going the wrong way", 2);
         }
 
-        // Logical operators.
         foreach (Match m in Regex.Matches(masked, python ? @"(?<![\w.])(?<op>and|or)(?![\w])" : @"(?<op>&&|\|\|)"))
         {
             var op = m.Groups["op"].Value;
@@ -140,7 +121,6 @@ public static partial class Mutations
         foreach (Match m in Regex.Matches(masked, python ? @"(?<![\w.])not\s+" : @"!(?![=])(?=\s*[\w(])"))
             Add(m.Index, m.Length, "", "a condition negated by mistake", 3);
 
-        // An off-by-one written into the code - n + 1 where n was meant - and one missing from it.
         foreach (Match m in PlusMinusOne().Matches(masked))
             Add(m.Index, m.Length, "", "a bound off by one", 1);
 
@@ -153,8 +133,6 @@ public static partial class Mutations
 
         foreach (Match m in Integer().Matches(masked))
         {
-            // A number inside an identifier-like context (an array size in a declaration, a version) is still fair game; a
-            // number in a subscript or a range bound is the commonest place an off-by-one lives.
             var value = long.Parse(m.Groups["number"].Value);
             if (value > 1_000_000) continue;
 
@@ -176,8 +154,6 @@ public static partial class Mutations
             if ((python && value is "True" or "False") || (clike && value is "true" or "false")) Add(m.Index, value.Length, to, "the opposite result", 3);
         }
 
-        // An integer division where a real one was meant: sum / count stored in a double. Only C-like languages divide
-        // integers into integers without saying so; Python 3's / never does.
         if (clike && !source.Path.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
         {
             foreach (Match m in Regex.Matches(masked, @"(?<![\w.)\]])(?<left>[A-Za-z_]\w*)\s*/\s*(?<right>[A-Za-z_]\w*|\d+)(?![\w.(])"))
@@ -193,7 +169,6 @@ public static partial class Mutations
         return found.GroupBy(f => f.NewText).Select(g => g.OrderBy(f => f.Cost).First()).OrderBy(f => f.Cost).ToList();
     }
 
-    /// <summary>The right-hand side of a comparison, and the last argument of <c>range</c>: where a loop's bound is written.</summary>
     private static IEnumerable<(int Start, int Length)> Bounds(string masked, bool python)
     {
         var operand = @"[A-Za-z_][\w.]*(?:\([^()]*\))?(?:\[[^\[\]]*\])?";

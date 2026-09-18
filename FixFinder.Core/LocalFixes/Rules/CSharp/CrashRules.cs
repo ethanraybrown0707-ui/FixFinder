@@ -1,15 +1,11 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// <c>IndexOutOfRangeException</c> or <c>ArgumentOutOfRangeException</c> from a loop running while
-/// <c>i &lt;= values.Length</c>.
-/// </summary>
+/// <summary><c>IndexOutOfRangeException</c> or <c>ArgumentOutOfRangeException</c> from a loop running while <c>i &lt;=
+/// values.Length</c>.</summary>
 public sealed partial class CSharpOffByOneLoop : ILocalFixRule
 {
     public string Id => "csharp-off-by-one-loop";

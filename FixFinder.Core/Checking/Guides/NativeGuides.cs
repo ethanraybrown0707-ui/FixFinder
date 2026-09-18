@@ -162,7 +162,6 @@ internal static class NativeGuides
             printf("%d\n", p->x);
             """),
 
-        // ------------------------------------------------------------------ warnings
         Gcc(@"control reaches end of non-void function|no return statement in function returning non-void",
             "The function promises to return a value, but a path through it reaches the end without a return.",
             "Add a return for the case none of the branches handled.",
@@ -340,7 +339,6 @@ internal static class NativeGuides
             """,
             why: "The fraction or the high part of the number is silently thrown away."),
 
-        // ------------------------------------------------------------------ crashes
         Crash(@"heap-buffer-overflow|stack-buffer-overflow|global-buffer-overflow",
             "The program reads or writes past the end of an array or a malloc'd block.",
             "Without the checker the program may carry on with corrupted memory, crashing later somewhere unrelated.",

@@ -8,13 +8,7 @@ namespace FixFinder.Core.Fingerprinting;
 /// <summary>A search query, with the terms it was built from and why.</summary>
 public sealed record SearchQuery(string Text, IReadOnlyList<string> Terms, string Explanation);
 
-/// <summary>
-/// A parsed error reduced to the facts worth searching for, plus the two queries built from them.
-/// </summary>
-/// <remarks>
-/// A record so the window can produce an edited copy with <c>with</c> when the user rewrites
-/// a query by hand - which is a supported and encouraged thing to do, not an edge case.
-/// </remarks>
+/// <summary>A parsed error reduced to the facts worth searching for, plus the two queries built from them.</summary>
 public sealed record ErrorFingerprint
 {
     public required string LanguageId { get; init; }
@@ -25,39 +19,23 @@ public sealed record ErrorFingerprint
     public required IReadOnlyList<string> Tokens { get; init; }
     public IReadOnlyList<string> QuotedLiterals { get; init; } = [];
 
-    /// <summary>File name only - a full path would never match anyone else's repository.</summary>
     public string? CulpritFile { get; init; }
 
     public string? NearestThirdPartyModule { get; init; }
 
-    /// <summary>
-    /// True when the crash is in the user's own code, where searching is unlikely to help.
-    /// </summary>
     public required bool CulpritIsFirstParty { get; init; }
 
-    /// <summary>
-    /// Stable identity for this error: SHA-256 of type and normalised message, first 16 hex chars.
-    /// </summary>
-    /// <remarks>
-    /// Does three jobs. It is the cache key for search results, the dedup key across runs, and -
-    /// most importantly - the before/after comparison that tells <c>FixVerifier</c> whether a
-    /// patch actually fixed the crash or merely moved it. That last use is why line numbers,
-    /// paths and timestamps must be normalised out first: a patch changes line numbers, so a
-    /// hash that included them would report every applied patch as "different error".
-    /// </remarks>
     public required string Hash { get; init; }
 
     public required SearchQuery Tight { get; init; }
     public required SearchQuery Relaxed { get; init; }
 
-    /// <summary>What normalisation removed, in order, for the window's trace panel.</summary>
     public IReadOnlyList<AppliedNormalization> Trace { get; init; } = [];
 }
 
-/// <summary>Builds an <see cref="ErrorFingerprint"/> from a <see cref="ParsedError"/>.</summary>
+/// <summary>Builds an <c>ErrorFingerprint</c> from a <c>ParsedError</c>.</summary>
 public static partial class FingerprintBuilder
 {
-    /// <summary>Tokens kept in the tight query. Beyond roughly a dozen, precision stops helping.</summary>
     private const int TightTokenCount = 12;
 
     private const int RelaxedTokenCount = 4;
@@ -68,23 +46,11 @@ public static partial class FingerprintBuilder
     [GeneratedRegex(@"'([^']{2,})'|""([^""]{2,})""")]
     private static partial Regex QuotedPattern();
 
-    /// <summary>
-    /// The markers normalisation leaves behind, which must never become search terms.
-    /// </summary>
-    /// <remarks>
-    /// Easy to miss and quietly damaging. Normalising <c>KeyError: 'user_id'</c> for the relaxed
-    /// query produces <c>KeyError: &lt;val&gt;</c>, and a tokenizer that does not know what those
-    /// angle brackets mean happily emits "val" as a distinctive word - so the query sent to two
-    /// search engines becomes "KeyError val", where "val" matches nothing anyone ever wrote.
-    /// The placeholders exist to mark removed text, so removed is how they must be treated.
-    /// </remarks>
     [GeneratedRegex(@"<(?:path|guid|addr|time|num|val)>")]
     private static partial Regex PlaceholderPattern();
 
     public static ErrorFingerprint Build(ParsedError error)
     {
-        // The root cause, not the wrapper. "Could not load the basket from the store" is text
-        // this program alone has ever printed; "NullReferenceException" is what to search for.
         var target = error.RootCause;
 
         var rawMessage = BuildRawMessage(target);
@@ -128,7 +94,6 @@ public static partial class FingerprintBuilder
         var parts = new List<string>();
         if (error.Message is { Length: > 0 }) parts.Add(error.Message);
 
-        // With no message at all, the type is all there is - better than an empty query.
         if (parts.Count == 0 && error.ExceptionType is { Length: > 0 }) parts.Add(error.ExceptionType);
 
         return string.Join(" ", parts);
@@ -137,19 +102,12 @@ public static partial class FingerprintBuilder
     private static string[] Tokenize(string text) =>
         TokenPattern()
             .Matches(PlaceholderPattern().Replace(text, " "))
-            // The token pattern allows dots and colons so that "System.NullReferenceException"
-            // and "sqlite3::Error" survive as one term - which means it also swallows the
-            // punctuation that ends a sentence. Trimming it here keeps "object." from becoming
-            // a search term distinct from "object".
             .Select(m => m.Value.Trim('.', ':', '$', '_').ToLowerInvariant())
             .Where(t => Stoplists.Weight(t) > 0)
             .Distinct(StringComparer.Ordinal)
             .OrderByDescending(Stoplists.Weight)
             .ToArray();
 
-    /// <summary>
-    /// The precise query: exact type, a phrase from the message, the quoted literals, the code.
-    /// </summary>
     private static SearchQuery BuildTight(ParsedError error, IReadOnlyList<string> tokens, IReadOnlyList<string> literals)
     {
         var terms = new List<string>();
@@ -157,8 +115,6 @@ public static partial class FingerprintBuilder
 
         if (error.ErrorCode is { Length: > 0 })
         {
-            // Highest-value term available: globally unique and quoted verbatim by everyone
-            // who has ever hit it.
             parts.Add(error.ErrorCode);
             terms.Add(error.ErrorCode);
         }
@@ -175,8 +131,6 @@ public static partial class FingerprintBuilder
             terms.Add(literal);
         }
 
-        // A quoted literal is already in the query as an exact phrase; repeating it as a bare
-        // word adds nothing and makes the query the user is shown look careless.
         var covered = literals
             .SelectMany(l => TokenPattern().Matches(l).Select(m => m.Value.ToLowerInvariant()))
             .ToHashSet(StringComparer.Ordinal);
@@ -195,7 +149,6 @@ public static partial class FingerprintBuilder
             "itself - 'user_id' in a KeyError, or the name of a package that would not load.");
     }
 
-    /// <summary>The fallback: short type plus a few strong words, run only when the tight query finds nothing.</summary>
     private static SearchQuery BuildRelaxed(ParsedError error, IReadOnlyList<string> tokens)
     {
         var terms = new List<string>();

@@ -1,31 +1,10 @@
-using System.Collections.Immutable;
 using System.Reflection.Metadata;
 
 namespace FixFinder.Core.Patching;
 
-/// <summary>
-/// Reads the source file paths recorded in a .NET portable PDB.
-/// </summary>
-/// <remarks>
-/// This is how FixFinder finds the source tree for a compiled .NET target when the crash itself
-/// gives nothing away - a release build with no file paths in its stack trace, for instance.
-/// The PDB records the absolute path of every file that went into the assembly, so the longest
-/// directory prefix they share is the project root, or very close to it.
-/// <para>
-/// <c>System.Reflection.Metadata</c> is in the shared framework, so this needs no package.
-/// </para>
-/// </remarks>
+/// <summary>Reads the source file paths recorded in a .NET portable PDB.</summary>
 public static class PortablePdbReader
 {
-    /// <summary>
-    /// Returns every document path recorded in the PDB beside <paramref name="assemblyPath"/>,
-    /// or an empty list when there is no PDB or it cannot be read.
-    /// </summary>
-    /// <remarks>
-    /// Never throws. A PDB can be absent, be the older Windows format, be truncated, or belong
-    /// to a different build - all of which are ordinary situations, none of which should stop a
-    /// run. The caller simply falls back to another detection strategy.
-    /// </remarks>
     public static IReadOnlyList<string> ReadDocumentPaths(string assemblyPath)
     {
         var pdbPath = Path.ChangeExtension(assemblyPath, ".pdb");
@@ -54,23 +33,14 @@ public static class PortablePdbReader
         catch (Exception ex) when (ex is BadImageFormatException or IOException
                                        or UnauthorizedAccessException or InvalidOperationException)
         {
-            // Not a portable PDB, unreadable, or locked. All ordinary; fall back elsewhere.
             return [];
         }
     }
 
-    /// <summary>
-    /// The longest directory prefix shared by every recorded document, or null.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately requires more than one document before trusting the answer, and refuses a
-    /// prefix that is merely a drive root. A single-file assembly would otherwise "resolve" its
-    /// source root to whatever folder that one file sits in, which is usually too deep.
-    /// </remarks>
     public static string? FindCommonRoot(string assemblyPath)
     {
         var paths = ReadDocumentPaths(assemblyPath)
-            .Where(p => !p.Contains("<", StringComparison.Ordinal))   // generated documents
+            .Where(p => !p.Contains("<", StringComparison.Ordinal))
             .Select(p => p.Replace('/', Path.DirectorySeparatorChar))
             .Where(Path.IsPathRooted)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -91,7 +61,6 @@ public static class PortablePdbReader
             shared++;
         }
 
-        // "C:" alone is not a source root.
         if (shared < 2) return null;
 
         var root = string.Join(Path.DirectorySeparatorChar, segments[0].Take(shared));

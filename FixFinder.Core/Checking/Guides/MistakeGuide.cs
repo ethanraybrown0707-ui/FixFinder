@@ -6,11 +6,10 @@ namespace FixFinder.Core.Checking.Guides;
 /// <summary>What a kind of mistake means, why it matters, how to fix it, and what the fixed code looks like.</summary>
 public sealed record MistakeGuide(string Explanation, string WhyItMatters, string SuggestedFix, string Example)
 {
-    /// <summary>A short name for the mistake, for findings that have no error message to use as one.</summary>
     public string? Title { get; init; }
 }
 
-/// <summary>A guide and the errors it describes. Every condition given must hold.</summary>
+/// <summary>A guide and the errors it describes.</summary>
 public sealed class GuideEntry
 {
     public required MistakeGuide Guide { get; init; }

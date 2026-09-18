@@ -22,7 +22,6 @@ internal static class CSharpGuides
 
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
-        // ------------------------------------------------------------------ compile errors
         Code(["CS0103"],
             "The code uses a name that does not exist where this line is - it is misspelt (C# is case-sensitive), declared inside " +
             "another block, or needs a using directive.",
@@ -213,7 +212,6 @@ internal static class CSharpGuides
             public override string ToString() => $"{Name} ({Age})";
             """),
 
-        // ------------------------------------------------------------------ warnings
         Code(["CS0162"],
             "This code comes after a return, break, continue or throw, so it can never run.",
             "Move it before the return, or remove it.",
@@ -334,7 +332,6 @@ internal static class CSharpGuides
             """,
             why: "If the value is null when the line runs, the program crashes with a NullReferenceException."),
 
-        // ------------------------------------------------------------------ runtime
         Thrown("NullReferenceException",
             "The line uses a variable or property that holds null - no object was created, or something returned null - as if it held one.",
             "The program crashes at this line, and everything after it is skipped.",

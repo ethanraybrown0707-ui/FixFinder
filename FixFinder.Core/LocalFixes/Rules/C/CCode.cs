@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -33,7 +32,6 @@ internal static partial class CCode
         source.Lines.Any(line => IncludeLine().Match(line) is { Success: true } m &&
                                  m.Groups["header"].Value.Equals(header, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The header line and closing line (0-based) of the top-level function around a line.</summary>
     public static (int Header, int End) EnclosingFunction(IReadOnlyList<string> masked, int index)
     {
         var depths = Brackets.BraceDepths(masked);
@@ -75,7 +73,6 @@ internal static partial class CCode
     [GeneratedRegex(@"^\s*#\d+\s+0x[0-9a-fA-F]+\s+in\s+\S+\s+(?<file>.+?):(?<line>\d+)")]
     public static partial Regex SanitizerFrame();
 
-    /// <summary>The first frame in the program's own files after a line of AddressSanitizer's report matching <paramref name="section"/>.</summary>
     public static (SourceFile Source, int Number)? FrameAfter(LocalFixContext context, Regex section)
     {
         var output = context.Output.Select(l => l.Text).ToList();
@@ -93,7 +90,6 @@ internal static partial class CCode
         return null;
     }
 
-    /// <summary>A header added after the last <c>#include</c>, with a change further down, as one run of lines.</summary>
     public static LocalFix WithHeader(string rule, string title, string explanation, SourceFile source, int number, string header, string changed)
     {
         if (Includes(source, header))
@@ -111,7 +107,6 @@ internal static partial class CCode
         };
     }
 
-    /// <summary>Whether <paramref name="name"/> is declared as an array in the function around <paramref name="index"/>, or at file level.</summary>
     public static bool DeclaredAsArray(IReadOnlyList<string> masked, int index, string name)
     {
         var (header, _) = EnclosingFunction(masked, index);

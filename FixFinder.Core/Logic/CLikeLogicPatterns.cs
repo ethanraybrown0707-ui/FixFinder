@@ -77,8 +77,6 @@ public static partial class CLikeLogicPatterns
         return -1;
     }
 
-    // ------------------------------------------------------------------ double average = sum / count;
-
     [GeneratedRegex(@"\b(?:int|long|short|unsigned(?:\s+int)?|size_t|byte|Integer|Long)\s+(?<rest>[^;(){}]+)")]
     private static partial Regex WholeDeclaration();
 
@@ -121,8 +119,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ for (...); { ... }
-
     private static IEnumerable<LogicFinding> EmptyLoopBody(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -130,7 +126,6 @@ public static partial class CLikeLogicPatterns
             var match = Regex.Match(masked[i], @"^(?<lead>\s*)(?<keyword>for|while)\s*\((?<inside>.*)\)\s*(?<semicolon>;)\s*(?<brace>\{)?\s*$");
             if (!match.Success || Brackets.ClosingParenthesis(masked[i], masked[i].IndexOf('(')) != masked[i].LastIndexOf(')')) continue;
 
-            // `} while (x);` ends a do-while, and so does `while (x);` straight after a closing brace.
             if (match.Groups["keyword"].Value == "while" && PreviousCode(masked, i - 1) is var previous and >= 0 && masked[previous].TrimEnd().EndsWith('}')) continue;
 
             var next = NextCode(masked, i + 1);
@@ -149,8 +144,6 @@ public static partial class CLikeLogicPatterns
                     source, i + 1, (line[..semicolon] + line[(semicolon + 1)..]).TrimEnd()));
         }
     }
-
-    // ------------------------------------------------------------------ if (...); { ... }
 
     private static IEnumerable<LogicFinding> EmptyIfBody(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -173,7 +166,6 @@ public static partial class CLikeLogicPatterns
 
             if (blockEnd < 0) continue;
 
-            // With an else after the block it does not compile, and another rule answers that.
             var after = NextCode(masked, blockEnd + 1);
             if (after >= 0 && Regex.IsMatch(masked[after], @"^\s*else\b")) continue;
             if (Regex.IsMatch(masked[blockEnd], @"\}\s*else\b")) continue;
@@ -189,8 +181,6 @@ public static partial class CLikeLogicPatterns
                     source, i + 1, (line[..semicolon] + line[(semicolon + 1)..]).TrimEnd()));
         }
     }
-
-    // ------------------------------------------------------------------ Java: name == "admin"
 
     private static IEnumerable<LogicFinding> JavaStringEquals(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -217,7 +207,6 @@ public static partial class CLikeLogicPatterns
             var line = source.Lines[i];
             var corrected = CCode.ReplaceEach(line, hits, m =>
             {
-                // "yes".equals(answer) when the literal is on the left: it reads the same, and cannot fail on a null answer.
                 var left = line.Substring(m.Groups["left"].Index, m.Groups["left"].Length);
                 var right = line.Substring(m.Groups["right"].Index, m.Groups["right"].Length);
 
@@ -233,8 +222,6 @@ public static partial class CLikeLogicPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ name.toUpperCase(); on its own
 
     private static IEnumerable<LogicFinding> ResultDiscarded(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -275,8 +262,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ if (x = 5)
-
     private static IEnumerable<LogicFinding> AssignmentInCondition(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var script = Is(source, ".js", ".mjs", ".cjs");
@@ -298,8 +283,6 @@ public static partial class CLikeLogicPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ x & 1 == 0
 
     private static IEnumerable<LogicFinding> BitwisePrecedence(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -328,8 +311,6 @@ public static partial class CLikeLogicPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ a case that falls into the next one
 
     private static IEnumerable<LogicFinding> SwitchFallthrough(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -361,8 +342,6 @@ public static partial class CLikeLogicPatterns
                     source.Path, body[^1] + 2, [$"{Indent(source.Lines[body[^1]])}break;"]));
         }
     }
-
-    // ------------------------------------------------------------------ int sum; sum += ...
 
     private static IEnumerable<LogicFinding> UninitialisedTotal(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -401,8 +380,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ char *name = "hello"; name[0] = 'H';
-
     private static IEnumerable<LogicFinding> StringLiteralModified(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -430,11 +407,8 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ C: answer == "yes" on a char array
-
     private static IEnumerable<LogicFinding> NativeStringEquals(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        // Text held as C text - a char array or a char pointer - which == compares by address. A std::string compares its text.
         var texts = masked.SelectMany(l => Regex.Matches(l, @"\bchar\s*(?:\*\s*|const\s*\*\s*)?(?<name>[A-Za-z_]\w*)\s*(?:\[[^\]]*\])?\s*[=;,)]"))
             .Select(m => m.Groups["name"].Value)
             .ToHashSet(StringComparer.Ordinal);
@@ -465,8 +439,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ C++: catch (std::exception e)
-
     private static IEnumerable<LogicFinding> CatchByValue(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -488,8 +460,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ C++: delete through a base with no virtual destructor
-
     private static IEnumerable<LogicFinding> NonVirtualDestructor(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var deletes = Enumerable.Range(0, masked.Count)
@@ -501,7 +471,6 @@ public static partial class CLikeLogicPatterns
         {
             var name = match.Groups["name"].Value;
 
-            // Made as one class and held as a pointer to another: Base* pet = new Dog();
             var made = Enumerable.Range(0, index).Select(k => Regex.Match(masked[k], $@"\b(?<base>[A-Z]\w*)\s*\*\s*{Regex.Escape(name)}\s*=\s*new\s+(?<derived>[A-Z]\w*)\b")).LastOrDefault(m => m.Success);
             if (made is null || made.Groups["base"].Value == made.Groups["derived"].Value) continue;
 
@@ -548,8 +517,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ JavaScript: for (var i ...) with a callback
-
     private static IEnumerable<LogicFinding> VarInClosure(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -574,8 +541,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ JavaScript: numbers.sort()
-
     private static IEnumerable<LogicFinding> NumericSort(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var numeric = masked.SelectMany(l => Regex.Matches(l, @"\b(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*=\s*\[\s*-?\d[\d\s.,\-]*\]")).Select(m => m.Groups["name"].Value).ToHashSet();
@@ -597,8 +562,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ JavaScript: ["1", "2"].map(parseInt)
-
     private static IEnumerable<LogicFinding> MapParseInt(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -615,15 +578,12 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ return in both branches inside a loop
-
     private static IEnumerable<LogicFinding> ReturnInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
 
         for (var e = 0; e < masked.Count; e++)
         {
-            // } else {  /  return B;  /  }  /  }  - the last closing the loop.
             if (!Regex.IsMatch(masked[e], @"^\s*\}\s*else\s*\{\s*$")) continue;
 
             var r = NextCode(masked, e + 1);
@@ -634,7 +594,6 @@ public static partial class CLikeLogicPatterns
             if (Regex.Match(masked[r], @"^\s*return\b(?<value>[^;]*);\s*$") is not { Success: true } returned) continue;
             if (masked[closeElse].Trim() != "}" || masked[closeLoop].Trim() != "}") continue;
 
-            // The loop the last brace closes, and the if the else belongs to - which must return too.
             var depths = Brackets.BraceDepths(masked);
             var loop = Enumerable.Range(0, closeLoop).LastOrDefault(k => depths[k] == depths[closeLoop] - 1 && masked[k].TrimEnd().EndsWith('{'), -1);
             if (loop < 0 || Regex.Match(masked[loop], @"^\s*(?:for|while)\s*\((?<header>.*)\)\s*\{\s*$") is not { Success: true } header) continue;
@@ -662,8 +621,6 @@ public static partial class CLikeLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ total = 0; inside the loop that adds to it
-
     private static IEnumerable<LogicFinding> ResetInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
@@ -685,7 +642,6 @@ public static partial class CLikeLogicPatterns
             if (!body.Any(l => Regex.IsMatch(l, $@"(?<![\w$.]){n}\s*(?:\+=|-=|\*=|\+\+|--)|(?<![\w$.]){n}\s*=\s*{n}\s*[+\-*]"))) continue;
             if (body.Any(l => Regex.IsMatch(l, $@"(?<![\w$.]){n}\s*=(?!=)(?!\s*{n}\b)"))) continue;
 
-            // The rest of the function - or of the file, for a script's top-level code.
             var end = depthsAt(header) == 0 ? masked.Count - 1 : CCode.EnclosingFunction(masked, header).End;
             if (!Enumerable.Range(close + 1, Math.Max(0, end - close)).Any(k => Regex.IsMatch(masked[k], $@"(?<![\w$.]){n}(?![\w$])"))) continue;
 
@@ -703,8 +659,6 @@ public static partial class CLikeLogicPatterns
                 });
         }
     }
-
-    // ------------------------------------------------------------------ while (i < n) { ... } without i changing
 
     private static IEnumerable<LogicFinding> LoopNeverAdvances(string id, SourceFile source, IReadOnlyList<string> masked)
     {

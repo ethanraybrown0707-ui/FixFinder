@@ -3,15 +3,7 @@ using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Logic;
 
-/// <summary>
-/// Changes to the order of an if / else-if chain: each later branch moved to the front.
-/// </summary>
-/// <remarks>
-/// A chain stops at the first condition that is true, so a condition that is a special case of an earlier one never gets its
-/// turn - FizzBuzz testing <c>n % 3</c> before <c>n % 15</c> prints "Fizz" for 15. No single-token edit fixes that; moving the
-/// branch does. Only chains of plain conditions are reordered - Python's <c>if</c>/<c>elif</c>, and the C-like
-/// <c>} else if (...) {</c> layout - and, like every other change, only one that makes every run right is offered.
-/// </remarks>
+/// <summary>Changes to the order of an if / else-if chain: each later branch moved to the front.</summary>
 public static partial class BranchOrder
 {
     private sealed record Branch(string? Condition, int Header, int End);
@@ -31,7 +23,6 @@ public static partial class BranchOrder
     [GeneratedRegex(@"^\s*\}\s*else\s*\{\s*$")]
     private static partial Regex CLikeElse();
 
-    /// <summary>Every reordering of every chain that touches one of <paramref name="lines"/>.</summary>
     public static IEnumerable<LocalFix> For(SourceFile source, IReadOnlySet<int> lines)
     {
         var python = Path.GetExtension(source.Path).Equals(".py", StringComparison.OrdinalIgnoreCase);
@@ -68,8 +59,6 @@ public static partial class BranchOrder
             }
         }
     }
-
-    // ------------------------------------------------------------------ Python
 
     private static (string Lead, List<Branch> Branches)? PythonChain(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int at)
     {
@@ -120,13 +109,10 @@ public static partial class BranchOrder
         return result;
     }
 
-    // ------------------------------------------------------------------ C, C++, Java, C#, JavaScript, Go-style braces
-
     private static (string Lead, List<Branch> Branches)? CLikeChain(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int at)
     {
         if (CLikeIf().Match(masked[at]) is not { Success: true } first) return null;
 
-        // Not the else-if of a chain that started further up.
         if (at > 0 && Regex.IsMatch(masked[at], @"^\s*\}")) return null;
 
         var lead = first.Groups["lead"].Value;
@@ -154,16 +140,13 @@ public static partial class BranchOrder
                 continue;
             }
 
-            // The chain ends at a line holding only the closing brace; anything else there is a layout this does not rebuild.
             if (masked[close].Trim() != "}") return null;
             break;
         }
 
-        // Each branch's range runs to the line that closes it, which is the next branch's header; the body is in between.
         return (lead, branches);
     }
 
-    /// <summary>The line whose brace closes the block opened at the end of <paramref name="header"/>.</summary>
     private static int? Close(IReadOnlyList<string> masked, int header)
     {
         var depth = 1;

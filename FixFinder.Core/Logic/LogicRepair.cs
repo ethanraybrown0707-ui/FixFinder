@@ -5,51 +5,22 @@ using FixFinder.Core.LocalFixes;
 namespace FixFinder.Core.Logic;
 
 /// <summary>What looking for a logic fix found.</summary>
-/// <param name="Mismatch">The first difference in the first run whose output was wrong.</param>
-/// <param name="FailingRun">Which run that was, 1-based, in the order the runs were given.</param>
-/// <param name="Suspicious">The lines most likely to hold the mistake, most suspicious first.</param>
-/// <param name="Fix">A change that makes every run print what was expected, or null when none was found.</param>
-/// <param name="FromPattern">True when the change came from a recognised mistake, false when from trying small edits.</param>
-/// <param name="Tried">How many changes were run before the answer, or before giving up.</param>
-/// <param name="Passed">How many of the runs printed what was expected before any change.</param>
 public sealed record LogicRepairResult(
     OutputMismatch Mismatch, int FailingRun, IReadOnlyList<LineSuspicion> Suspicious, LocalFix? Fix, bool FromPattern,
     int Tried, int Passed, int Runs, bool CoverageUsed, IReadOnlyList<string> Notes);
 
-/// <summary>
-/// Finds the change that makes a program print what it should - by trying changes and running them, not by guessing.
-/// </summary>
-/// <remarks>
-/// <b>Nothing here decides what the program meant.</b> The person gave the output each run should produce, and a change is
-/// offered only if, run with that change, the program produces exactly that for every run given. The order changes are tried
-/// in comes from three things, none of them a model:
-/// <list type="number">
-/// <item>Mistakes the code shows by itself (<see cref="LogicPatterns"/>) - tried first, since they are wrong whatever the output.</item>
-/// <item>Which lines the wrong runs executed, scored with the Ochiai formula against the runs that were right (<see cref="Suspiciousness"/>).</item>
-/// <item>Which small edits most often correct a one-line mistake (<see cref="Mutations"/>) - off-by-one comparisons and bounds first.</item>
-/// </list>
-/// Each change is made to a copy of the program in a folder of its own, built and run there, so the program's own files and
-/// folder are never touched; the copies are deleted afterwards. Changes that stop compiling, crash or run too long simply fail.
-/// <para>
-/// A change that passes is the smallest one found that fits the runs given - not proof it is the intended one. More runs,
-/// especially ones that differ in what makes the output wrong, narrow it down; the answer says so.
-/// </para>
-/// </remarks>
+/// <summary>Finds the change that makes a program print what it should - by trying changes and running them, not by guessing.</summary>
 public sealed class LogicRepair
 {
     public event Action<string>? Log;
     public event Action<string>? Progress;
 
-    /// <summary>How long the whole search may take.</summary>
     public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(120);
 
-    /// <summary>How many changes are tried at most.</summary>
     public int MostChanges { get; init; } = 400;
 
-    /// <summary>How many of the most suspicious lines small edits are tried on.</summary>
     public int MostLines { get; init; } = 40;
 
-    /// <summary>How many changed copies are built and run at the same time.</summary>
     public int AtOnce { get; init; } = LocalFixEngine.ChecksAtOnce;
 
     public async Task<LogicRepairResult?> RunAsync(
@@ -60,7 +31,6 @@ public sealed class LogicRepair
         var started = DateTime.UtcNow;
         var notes = new List<string>();
 
-        // ---------------------------------------------------------- the program as it is
         Progress?.Invoke("Checking every run against the output you expected...");
 
         var root = ProgramRoot(chosenFile);
@@ -79,10 +49,8 @@ public sealed class LogicRepair
         var (first, firstIndex) = wrong[0];
         var slowest = baseline.Results.Max(r => r.Duration);
 
-        // A changed program may loop forever where the original did not; it gets a few times as long as the original took.
         var perRun = TimeSpan.FromSeconds(Math.Clamp(slowest.TotalSeconds * 5 + 3, 5, runTimeout.TotalSeconds));
 
-        // ---------------------------------------------------------- where is it most likely to be
         Progress?.Invoke("Working out which lines the wrong runs went through...");
 
         var coverage = new List<(bool Passed, IReadOnlySet<int> Lines)>();
@@ -109,7 +77,6 @@ public sealed class LogicRepair
             notes.Add("Which lines each run went through could not be recorded for this language, so every line was treated as equally likely and the likeliest kinds of mistake were tried first.");
         }
 
-        // ---------------------------------------------------------- what to try
         var candidates = new List<(LocalFix Fix, bool FromPattern)>();
 
         foreach (var finding in LogicPatterns.Scan(source, Log))
@@ -117,14 +84,10 @@ public sealed class LogicRepair
             if (finding is { Fix: { } fix, Kind: Checking.FindingKind.Logic } && finding.Severity != Checking.Severity.Suggestion) candidates.Add((fix, true));
         }
 
-        // Lines in order of suspicion; with no coverage, every line of the file is equally suspect.
         var scores = coverageUsed
             ? suspicious.Take(MostLines).ToDictionary(s => s.Line, s => s.Ochiai)
             : Enumerable.Range(1, source.Count).ToDictionary(line => line, _ => 0.0);
 
-        // Across all those lines at once: the most suspicious line first, and among equally suspicious lines the likeliest
-        // kind of mistake first. Going line by line instead lets an unlikely change early in the file - a constant nudged to
-        // cover for a loop bound further down - pass the runs given before the real mistake is reached.
         var edits = scores.Keys
             .SelectMany(line => Mutations.For(source, line))
             .OrderByDescending(m => Math.Round(scores[m.Line], 6))
@@ -139,13 +102,9 @@ public sealed class LogicRepair
                 $"Line {mutation.Line} looks like {mutation.Kind}.", source.Path, mutation.Line, mutation.NewText), false));
         }
 
-        // A branch that can never be reached because an earlier condition covers it - FizzBuzz testing % 3 before % 15. No
-        // token is wrong there; the order is. Tried after every single change, for chains on the suspicious lines.
         foreach (var reordered in BranchOrder.For(source, scores.Keys.ToHashSet()))
             candidates.Add((reordered, false));
 
-        // The same mistake made more than once - > where >= was meant, at two grade boundaries - needs the same change on each
-        // of those lines together. Tried after every single change, and only for lines close enough to be the same piece of code.
         var repeated = edits
             .GroupBy(m => (m.From, m.To, m.Kind))
             .Select(g => g.GroupBy(m => m.Line).Select(l => l.First()).OrderBy(m => m.Line).ToList())
@@ -177,7 +136,6 @@ public sealed class LogicRepair
 
         Log?.Invoke($"Trying {candidates.Count} change(s), {AtOnce} at a time");
 
-        // ---------------------------------------------------------- try them, in order, a few at a time
         var workers = Enumerable.Range(0, Math.Max(1, AtOnce)).Select(_ => new Workspace(root, chosenFile)).ToList();
         var tried = 0;
 
@@ -229,14 +187,10 @@ public sealed class LogicRepair
             baseline.Results.Count(r => r.Mismatch is null), expected.Runs.Count, coverageUsed, notes);
     }
 
-    // ---------------------------------------------------------------------- running
-
     private sealed record RunVerdict(OutputMismatch? Mismatch, TimeSpan Duration, RunOutcome Outcome);
 
     private sealed record Evaluation(TargetSpec? Spec, IReadOnlyList<RunVerdict> Results);
 
-    /// <summary>Builds the file's program, if it needs building, and runs it once per expected run.</summary>
-    /// <param name="order">Which runs to do first - the ones that were wrong, so a change that does not help fails fast.</param>
     private async Task<Evaluation?> EvaluateAsync(
         string file, ExpectedBehaviour expected, TimeSpan timeout, bool stopAtFirstWrong, CancellationToken cancellationToken,
         IReadOnlyList<int>? order = null)
@@ -259,8 +213,6 @@ public sealed class LogicRepair
         {
             var run = expected.Runs[i];
             var spec = plan.Spec.WithArguments(expected.Arguments).WithInput(run.Input).WithTimeout(timeout);
-            // A freshly built program can be refused by Application Control and then allowed a moment later. A launch that never
-            // happened says nothing about the output, so it is tried again rather than counted as wrong.
             var result = await runner.RunAsync(spec, cancellationToken);
             for (var attempt = 0; attempt < 2 && result.Outcome == RunOutcome.LaunchFailed; attempt++)
             {
@@ -299,7 +251,6 @@ public sealed class LogicRepair
         }
     }
 
-    /// <summary>The folder a program's copy has to reproduce: its package root, project or module, or just its own folder.</summary>
     private static string ProgramRoot(string file)
     {
         var extension = Path.GetExtension(file).ToLowerInvariant();
@@ -364,19 +315,16 @@ public sealed class LogicRepair
         {
             try
             {
-                // The build folder a compiled language used for this copy, and the copy itself.
                 var build = CompiledLanguages.Handles(Path.GetExtension(File)) ? CompiledLanguages.OutputDirectory(File) : null;
                 if (build is not null && Directory.Exists(build)) Directory.Delete(build, recursive: true);
                 if (Directory.Exists(Folder)) Directory.Delete(Folder, recursive: true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // A program still holding a file open. The copy is under the temp folder, which Windows cleans up.
             }
         }
     }
 
-    /// <summary>The words shown with a fix found this way.</summary>
     public static string Describe(LogicRepairResult result)
     {
         var text = new StringBuilder();

@@ -3,30 +3,13 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>
-/// Last-resort parser for output no specific parser claimed: finds a severity keyword and
-/// harvests whatever <c>file:line</c> references sit near it.
-/// </summary>
-/// <remarks>
-/// This is what makes "works with any language" true rather than aspirational - a Perl script,
-/// a Makefile, a language nobody wrote a parser for. It gets something useful out of all of them.
-/// <para>
-/// Its confidence is <b>hard-capped at 20</b> so it can only ever win by default. That cap is
-/// load-bearing: this parser matches something in almost any noisy output, and without it a
-/// vaguely error-shaped log line would outrank a real Python traceback in the same run.
-/// </para>
-/// <para>
-/// The extension allow-list is the other half. Harvesting bare <c>word:number</c> would pull in
-/// <c>http://host:8080</c>, <c>12:34:56</c> timestamps and <c>key: 42</c> from any structured
-/// log, and each false path would be one more chance to map a patch onto the wrong file.
-/// </para>
-/// </remarks>
+/// <summary>Last-resort parser for output no specific parser claimed: finds a severity keyword and harvests whatever
+/// <c>file:line</c> references sit near it.</summary>
 public sealed partial class GenericFileLineParser : IStackTraceParser
 {
     public string LanguageId => "generic";
     public string DisplayName => "Generic";
 
-    /// <summary>The ceiling on this parser's confidence. See the class remarks.</summary>
     public const int MaxConfidence = 20;
 
     private static readonly string[] SeverityKeywords =
@@ -65,19 +48,12 @@ public sealed partial class GenericFileLineParser : IStackTraceParser
 
         if (severityLines.Count == 0) return null;
 
-        // Latest first, but keep looking for one that actually carries a location. A program
-        // often prints the real failure and then a bland closing line - "build aborted",
-        // "exiting" - which matches a severity keyword while telling us nothing. Taking the
-        // last match unconditionally would report that closing line and throw away the only
-        // file and line in the whole run.
         foreach (var index in severityLines)
         {
             var built = BuildFrom(lines, index);
             if (built.Frames.Count > 0) return built;
         }
 
-        // Nothing anywhere had a location. Still report the most recent severity line: knowing
-        // that something failed, and what it said, beats reporting nothing.
         return BuildFrom(lines, severityLines[0]);
     }
 
@@ -85,8 +61,6 @@ public sealed partial class GenericFileLineParser : IStackTraceParser
     {
         var frames = new List<ErrorFrame>();
 
-        // The severity line and the handful after it - close enough to be related, narrow
-        // enough not to sweep in the next unrelated log entry.
         var limit = Math.Min(index + 12, lines.Count);
 
         for (var i = index; i < limit; i++)
@@ -114,8 +88,6 @@ public sealed partial class GenericFileLineParser : IStackTraceParser
             Confidence = MaxConfidence,
             RawText = ParserHelpers.RawTextOf(lines, index, limit),
             FirstLineSequence = lines[index].Sequence,
-            // No type is claimed on purpose. Inventing one from a keyword would put a made-up
-            // word into the search query and the ranker's exact-type match.
             ExceptionType = null,
             Message = lines[index].Text.Trim(),
             Frames = frames,

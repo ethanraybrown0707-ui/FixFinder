@@ -23,7 +23,6 @@ internal static class PythonGuides
 
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
-        // ------------------------------------------------------------------ syntax
         Syntax(@"expected ':'",
             "Lines that start a block - if, elif, else, for, while, def, class, try, except, with - must end with a colon.",
             NothingRuns,
@@ -145,7 +144,6 @@ internal static class PythonGuides
             print(f"{name}'s total is {prices['apple']}")
             """),
 
-        // ------------------------------------------------------------------ warnings the compiler gives
         Error("SyntaxWarning",
             "`is` checks whether two things are the very same object, not whether they are equal.",
             "Small numbers and short strings happen to be shared, so the check works in testing and then fails with other values.",
@@ -196,7 +194,6 @@ internal static class PythonGuides
             """,
             pattern: @"in a 'finally' block"),
 
-        // ------------------------------------------------------------------ runtime
         Error("NameError",
             "The line uses a name - a variable, a function or a module - that Python does not know at this point. It was never " +
             "defined, is misspelt, is used before the line that defines it, or needs an import.",

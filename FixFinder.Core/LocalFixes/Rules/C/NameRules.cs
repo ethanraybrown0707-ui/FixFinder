@@ -6,15 +6,7 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// A misspelt name: an undeclared identifier, a struct member that does not exist, or a function the
-/// linker cannot find.
-/// </summary>
-/// <remarks>
-/// MSVC never suggests a name. For a misspelt function in C it does not even report an error at the
-/// call - only the warning <c>C4013 'prinft' undefined</c> and then, from the linker,
-/// <c>LNK2019: unresolved external symbol prinft</c>. The warning is where the line number is.
-/// </remarks>
+/// <summary>A misspelt name: an undeclared identifier, a struct member that does not exist, or a function the linker cannot find.</summary>
 public sealed partial class CNearestName : ILocalFixRule
 {
     public string Id => "c-nearest-name";
@@ -110,7 +102,6 @@ public sealed partial class CNearestName : ILocalFixRule
             source.Path, number, corrected);
     }
 
-    /// <summary>The words declared inside <c>struct type { ... }</c>, or <c>typedef struct { ... } type;</c>.</summary>
     private static List<string>? MembersOf(IReadOnlyList<string> masked, string type)
     {
         var name = Regex.Escape(type);
@@ -179,10 +170,6 @@ public sealed partial class CNearestName : ILocalFixRule
 }
 
 /// <summary><c>C1083: Cannot open include file: 'stdoi.h'</c>, one letter from a standard header.</summary>
-/// <remarks>
-/// Only for <c>&lt;...&gt;</c> includes. A quoted include names the project's own header, and the
-/// nearest standard header to a missing <c>"time.hpp"</c> is not what anybody meant.
-/// </remarks>
 public sealed partial class CHeaderTypo : ILocalFixRule
 {
     public string Id => "c-header-typo";
@@ -200,7 +187,6 @@ public sealed partial class CHeaderTypo : ILocalFixRule
     [GeneratedRegex(@"^Cannot open include file: '(?<header>[^']+)': No such file or directory$")]
     private static partial Regex Message();
 
-    /// <summary>gcc: <c>stdoi.h: No such file or directory</c>; clang: <c>'stdoi.h' file not found</c>.</summary>
     [GeneratedRegex(@"^'?(?<header>[^':]+)'?(?: file not found|: No such file or directory)$")]
     private static partial Regex GnuMessage();
 
@@ -220,8 +206,6 @@ public sealed partial class CHeaderTypo : ILocalFixRule
         var header = message.Groups["header"].Value;
         if (CStandardLibrary.Headers.Contains(header)) return null;
 
-        // A POSIX or platform header is missing because the compiler does not have it - MSVC has no pthread.h - not because it
-        // is misspelt, and the nearest standard name to one is a different API altogether.
         if (PlatformHeaders.Contains(header)) return null;
 
         if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
@@ -240,10 +224,8 @@ public sealed partial class CHeaderTypo : ILocalFixRule
     }
 }
 
-/// <summary>
-/// A standard name used without its header: <c>C2065 'bool'</c>, <c>C3861</c>, <c>C2039 'cout' is not
-/// a member of 'std'</c>, or the warning <c>C4013 'malloc' undefined</c>.
-/// </summary>
+/// <summary>A standard name used without its header: <c>C2065 'bool'</c>, <c>C3861</c>, <c>C2039 'cout' is not a member of
+/// 'std'</c>, or the warning <c>C4013 'malloc' undefined</c>.</summary>
 public sealed partial class CMissingStandardHeader : ILocalFixRule
 {
     public string Id => "c-missing-standard-header";
@@ -275,7 +257,6 @@ public sealed partial class CMissingStandardHeader : ILocalFixRule
             .Select(m => m.Groups["header"].Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Already included: something else - a macro, a missing define - is keeping the name hidden.
         if (HeaderFor(primary) is not { } primaryHeader || included.Contains(primaryHeader)) return null;
 
         var headers = context.AllErrors
@@ -349,8 +330,6 @@ public sealed partial class CIostreamInC : ILocalFixRule
 
         if (!recognised) return null;
 
-        // MSVC reports this one from inside its own C++ headers, so the file that included them is
-        // not in the error. It is the one C file in the project that includes <iostream>.
         var source = context.Read(context.Frame?.File) is { } framed && CCode.IsC(framed)
             ? framed
             : OnlyCFileIncludingIostream(context.SourceRoot);
@@ -466,7 +445,6 @@ public sealed partial class CMainName : ILocalFixRule
             {
                 if (depths[i] != 0 || Function().Match(masked[i]) is not { Success: true } function) continue;
 
-                // A real main means the missing entry point is something else - a project setting, not a name.
                 if (function.Groups["name"].Value == "main") return null;
 
                 functions.Add((source, i, function.Groups["name"]));
@@ -488,7 +466,6 @@ public sealed partial class CMainName : ILocalFixRule
 }
 
 /// <summary>A function called above its definition: <c>C2371 redefinition; different basic types</c> / <c>conflicting types</c>.</summary>
-/// <remarks>gcc 14 and later stop earlier, at <c>implicit declaration of function</c> on the call itself.</remarks>
 public sealed partial class CFunctionPrototype : ILocalFixRule
 {
     public string Id => "c-function-prototype";
@@ -502,7 +479,6 @@ public sealed partial class CFunctionPrototype : ILocalFixRule
     [GeneratedRegex(@"^implicit declaration of function '(?<name>\w+)'")]
     private static partial Regex GccImplicit();
 
-    /// <summary>C++ has no implicit declarations: g++ says the name was never declared, MSVC <c>C3861 identifier not found</c>.</summary>
     [GeneratedRegex(@"^'(?<name>\w+)' was not declared in this scope")]
     private static partial Regex GccUndeclared();
 
@@ -560,22 +536,7 @@ public sealed partial class CFunctionPrototype : ILocalFixRule
     }
 }
 
-/// <summary>
-/// A fix gcc or clang worked out itself and printed as <c>fix-it:"app.c":{4:20-4:27}:"average"</c>.
-/// </summary>
-/// <remarks>
-/// gcc and clang already know a great many answers - the header that declares <c>bool</c>, the
-/// member a misspelt one was nearest to, the function a misspelt call meant - and print them for a
-/// person to read. FixFinder builds with <c>-fdiagnostics-parseable-fixits</c>, which prints the same
-/// answers a second time in a form a program can apply exactly: a file, a range and the text to put
-/// there. Nothing here is inferred. The edit is the compiler's, and it is still compiled before it
-/// is offered.
-/// <para>
-/// <b>Columns in a fix-it are bytes, not characters</b>, so a line with anything outside ASCII in it
-/// is converted rather than indexed directly - indexing a UTF-16 string by a UTF-8 byte count would
-/// put the change in the wrong place on exactly the lines where nobody would spot it.
-/// </para>
-/// </remarks>
+/// <summary>A fix gcc or clang worked out itself and printed as <c>fix-it:"app.c":{4:20-4:27}:"average"</c>.</summary>
 public sealed partial class CompilerFixIt : ILocalFixRule
 {
     public string Id => "c-compiler-fix-it";
@@ -583,7 +544,6 @@ public sealed partial class CompilerFixIt : ILocalFixRule
     [GeneratedRegex(@"^fix-it:""(?<file>(?:[^""\\]|\\.)*)"":\{(?<l1>\d+):(?<c1>\d+)-(?<l2>\d+):(?<c2>\d+)\}:""(?<text>(?:[^""\\]|\\.)*)""\s*$")]
     private static partial Regex FixItLine();
 
-    /// <summary>The next error or warning, which is where this diagnostic's fix-its stop. Notes belong to it.</summary>
     [GeneratedRegex(@"^(?:[A-Za-z]:)?[^\s:][^:]*?:\d+:\d+:\s*(?:fatal error|error|warning):")]
     private static partial Regex NextDiagnostic();
 
@@ -604,8 +564,6 @@ public sealed partial class CompilerFixIt : ILocalFixRule
         var fixIts = After(output, at);
         var explanation = $"The compiler worked this out itself and printed it as a fix-it: {error.Message}.";
 
-        // A misspelt function is only a warning to the compiler. The error is the linker's, which
-        // knows nothing about source, and the fix-it hangs off the warning.
         if (fixIts.Count == 0 && UndefinedReference().Match(error.Message ?? "") is { Success: true } undefined)
         {
             var symbol = undefined.Groups["symbol"].Value;
@@ -648,7 +606,6 @@ public sealed partial class CompilerFixIt : ILocalFixRule
 
         edits.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-        // Two fix-its over the same text disagree about it, and neither can be applied after the other.
         for (var i = 1; i < edits.Count; i++)
             if (edits[i].Start < edits[i - 1].End) return null;
 
@@ -709,7 +666,6 @@ public sealed partial class CompilerFixIt : ILocalFixRule
         return found;
     }
 
-    /// <summary>Where a line and byte column land in the block of lines starting at <paramref name="first"/>.</summary>
     private static int? Offset(SourceFile source, int first, int line, int byteColumn)
     {
         if (source.Line(line) is not { } text || CharIndex(text, byteColumn) is not { } column) return null;
@@ -738,7 +694,6 @@ public sealed partial class CompilerFixIt : ILocalFixRule
         return bytes == target ? line.Length : null;
     }
 
-    /// <summary>The compiler's escaping undone: backslash sequences, and octal bytes for anything non-ASCII.</summary>
     private static string Unescape(string text)
     {
         var result = new StringBuilder();

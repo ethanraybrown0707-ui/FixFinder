@@ -1,16 +1,9 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>CS0103: The name 'x' does not exist in the current context</c>.</summary>
-/// <remarks>
-/// Four different mistakes produce this one message: a word from another language (<c>print</c>,
-/// <c>True</c>, <c>None</c>, <c>len</c>), a loop counter nobody declared, or a plain typo. Each is
-/// told apart by what the name is and where it sits.
-/// </remarks>
 public sealed partial class CSharpNameMissing : ILocalFixRule
 {
     public string Id => "csharp-name-missing";
@@ -88,10 +81,8 @@ public sealed partial class CSharpNameMissing : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>CS0117 / CS1061: 'X' does not contain a definition for 'y'</c> - matched against what the type
-/// really has, read from the runtime.
-/// </summary>
+/// <summary><c>CS0117 / CS1061: 'X' does not contain a definition for 'y'</c> - matched against what the type really has, read
+/// from the runtime.</summary>
 public sealed partial class CSharpMissingMember : ILocalFixRule
 {
     public string Id => "csharp-missing-member";
@@ -133,8 +124,6 @@ public sealed partial class CSharpMissingMember : ILocalFixRule
         var corrected = line[..chosen.Index] + right;
         var rest = line[after..];
 
-        // Java's name.length() is a property in C#: the brackets have to go with the rename, or the
-        // fix trades one error for "non-invocable member".
         if (!callable && Regex.Match(rest, @"^\s*\(\s*\)") is { Success: true } brackets) rest = rest[brackets.Length..];
 
         return LocalFix.ReplaceLine(
@@ -216,7 +205,8 @@ public sealed partial class CSharpTypeNotFound : ILocalFixRule
     }
 }
 
-/// <summary><c>CS0234</c>: a namespace, or a type written with its namespace, spelt almost right - <c>System.Collection.Generic</c>.</summary>
+/// <summary><c>CS0234</c>: a namespace, or a type written with its namespace, spelt almost right -
+/// <c>System.Collection.Generic</c>.</summary>
 public sealed partial class CSharpNamespaceTypo : ILocalFixRule
 {
     public string Id => "csharp-namespace-typo";
@@ -242,7 +232,6 @@ public sealed partial class CSharpNamespaceTypo : ILocalFixRule
         var parent = message.Groups["parent"].Value;
         var name = message.Groups["name"].Value;
 
-        // What the parent namespace holds: the namespaces under it, and the types it declares.
         var children = Known
             .Where(ns => ns.StartsWith(parent + ".", StringComparison.Ordinal))
             .Select(ns => ns[(parent.Length + 1)..].Split('.')[0])
@@ -315,8 +304,6 @@ public sealed partial class CSharpNonInvocable : ILocalFixRule
         var member = message.Groups["member"].Value;
         var dot = member.LastIndexOf('.');
 
-        // A type - List<T> - called like a method: the object was never created. Roslyn points at the
-        // type's own name, so `new` goes in front of any namespace written before it.
         if (dot < 0 || member.IndexOf('<') is var generic && generic >= 0 && generic < dot)
         {
             var start = index;

@@ -4,27 +4,14 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads Rust panics, in both the pre- and post-1.72 formats.</summary>
-/// <remarks>
-/// Rust changed its panic format in 1.72: the message used to be quoted on the same line as the
-/// location, and now it sits on the <b>next</b> line. Both shapes are still very much in the
-/// wild, so both are matched - reading only the current one loses the message entirely on older
-/// toolchains, and the message is most of the search query.
-/// <para>
-/// Backtrace frames only exist when <c>RUST_BACKTRACE=1</c> is set, which is why FixFinder
-/// pre-seeds that variable in step 1. Without it a panic yields exactly one location and no
-/// frames, which is still parseable but much weaker.
-/// </para>
-/// </remarks>
 public sealed partial class RustPanicParser : IStackTraceParser
 {
     public string LanguageId => "rust";
     public string DisplayName => "Rust";
 
-    /// <summary>1.72 and later: location on the header line, message on the next.</summary>
     [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'\s+panicked\s+at\s+(?<file>.+?):(?<line>\d+):(?<col>\d+):\s*$")]
     private static partial Regex ModernHeaderPattern();
 
-    /// <summary>Before 1.72: message quoted inline, location afterwards.</summary>
     [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'\s+panicked\s+at\s+'(?<msg>.*)',\s+(?<file>.+?):(?<line>\d+):(?<col>\d+)\s*$")]
     private static partial Regex LegacyHeaderPattern();
 
@@ -73,8 +60,6 @@ public sealed partial class RustPanicParser : IStackTraceParser
     {
         var frames = new List<ErrorFrame>
         {
-            // The panic location itself is always frame 0. With no backtrace it is the only
-            // thing there is, and it is still the most useful single fact in the output.
             new()
             {
                 Order = 0,
@@ -131,8 +116,6 @@ public sealed partial class RustPanicParser : IStackTraceParser
             Confidence = frames.Count > 1 ? 92 : 80,
             RawText = ParserHelpers.RawTextOf(lines, headerIndex, end),
             FirstLineSequence = lines[headerIndex].Sequence,
-            // Rust has no exception type. "panic" is the honest label; the message carries the
-            // searchable content ("index out of bounds", "called `Option::unwrap()` on a `None`").
             ExceptionType = "panic",
             Message = message is { Length: > 0 } ? message : null,
             Frames = frames,

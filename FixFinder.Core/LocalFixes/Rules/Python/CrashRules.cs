@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 

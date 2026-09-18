@@ -1,9 +1,9 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary><c>area() in Circle cannot implement area() in Shape</c> - <c>attempting to assign weaker access privileges; was public</c>.</summary>
+/// <summary><c>area() in Circle cannot implement area() in Shape</c> - <c>attempting to assign weaker access privileges; was
+/// public</c>.</summary>
 public sealed partial class JavaWeakerAccess : ILocalFixRule
 {
     public string Id => "java-weaker-access";
@@ -70,7 +70,6 @@ public sealed partial class JavaOverrideTypo : ILocalFixRule
         var (source, number, _) = at;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
 
-        // javac points at the @Override; the method is the first line after it that is not another annotation.
         var k = number - 1;
         while (k < masked.Count && (masked[k].Trim().Length == 0 || Annotation().IsMatch(masked[k]))) k++;
         if (k >= masked.Count || Method().Match(masked[k]) is not { Success: true } method) return null;
@@ -144,16 +143,8 @@ public sealed partial class JavaInterfaceDefault : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>Square is not abstract and does not override abstract method area() in Shape</c>: a method an
-/// interface or abstract class requires, never written.
-/// </summary>
-/// <remarks>
-/// The same conventional answer as C#'s: the method with the declared signature, marked
-/// <c>@Override</c>, whose body throws <c>UnsupportedOperationException</c> until it is written. javac
-/// names one missing method at a time, so each is its own fix. The declaration is read from the same
-/// file, or from the file named for the interface or class beside it.
-/// </remarks>
+/// <summary><c>Square is not abstract and does not override abstract method area() in Shape</c>: a method an interface or
+/// abstract class requires, never written.</summary>
 public sealed partial class JavaUnwrittenMethod : ILocalFixRule
 {
     public string Id => "java-unwritten-method";
@@ -185,7 +176,6 @@ public sealed partial class JavaUnwrittenMethod : ILocalFixRule
             .Where(m => m is "public" or "protected" && !declared.Interface)
             .ToList();
 
-        // Everything an interface declares is public, and an implementation may not narrow it.
         if (declared.Interface) kept.Insert(0, "public");
 
         var signature = declared.Text[modifiers.Length..].TrimEnd(';').TrimEnd();
@@ -207,7 +197,6 @@ public sealed partial class JavaUnwrittenMethod : ILocalFixRule
             source.Path, closing + 1, added);
     }
 
-    /// <summary>The abstract declaration of the method, from this file or the owner's own file beside it.</summary>
     private static (string Text, bool Interface)? Declaration(LocalFixContext context, SourceFile here, string owner, string method, string parameters)
     {
         var folder = Path.GetDirectoryName(here.Path)!;
@@ -249,7 +238,8 @@ public sealed partial class JavaUnwrittenMethod : ILocalFixRule
     }
 }
 
-/// <summary><c>NotSerializableException: Student</c> - an object written to an <c>ObjectOutputStream</c> whose class never said it could be.</summary>
+/// <summary><c>NotSerializableException: Student</c> - an object written to an <c>ObjectOutputStream</c> whose class never said
+/// it could be.</summary>
 public sealed partial class JavaNotSerializable : ILocalFixRule
 {
     public string Id => "java-not-serializable";
@@ -285,7 +275,8 @@ public sealed partial class JavaNotSerializable : ILocalFixRule
     }
 }
 
-/// <summary><c>IllegalMonitorStateException: current thread is not owner</c> from <c>wait()</c> or <c>notify()</c> outside <c>synchronized</c>.</summary>
+/// <summary><c>IllegalMonitorStateException: current thread is not owner</c> from <c>wait()</c> or <c>notify()</c> outside
+/// <c>synchronized</c>.</summary>
 public sealed partial class JavaWaitWithoutMonitor : ILocalFixRule
 {
     public string Id => "java-wait-without-monitor";
@@ -309,7 +300,6 @@ public sealed partial class JavaWaitWithoutMonitor : ILocalFixRule
 
         if (Header().Match(source.Lines[headerLine]) is not { Success: true } header || Regex.IsMatch(masked[headerLine], @"\bstatic\b")) return null;
 
-        // Already inside a synchronized block of some other object: this one is not the monitor that block holds.
         if (Enumerable.Range(headerLine, number - 1 - headerLine).Any(i => Regex.IsMatch(masked[i], @"\bsynchronized\s*\("))) return null;
 
         var name = call.Groups["call"].Value;
@@ -324,12 +314,6 @@ public sealed partial class JavaWaitWithoutMonitor : ILocalFixRule
 }
 
 /// <summary><c>unreported exception InterruptedException; must be caught or declared to be thrown</c></summary>
-/// <remarks>
-/// Java requires a checked exception to be caught or declared, and declaring it on the enclosing
-/// method is the one-place change. The walk outward stops at anything that cannot declare an
-/// exception - a lambda, an anonymous class, an initialiser - rather than declaring it somewhere it
-/// would not help.
-/// </remarks>
 public sealed partial class JavaUnreportedException : ILocalFixRule
 {
     public string Id => "java-unreported-exception";
@@ -398,11 +382,6 @@ public sealed partial class JavaUnreportedException : ILocalFixRule
         return null;
     }
 
-    /// <summary>
-    /// The exception javac reported, and the others the same call is known to throw. javac reports one unreported exception
-    /// per call at a time, so declaring only <c>InterruptedException</c> for <c>future.get()</c> just uncovers
-    /// <c>ExecutionException</c> on the same line - a fix that looks like it broke something.
-    /// </summary>
     private static IReadOnlyList<string> Together(string type, string maskedLine)
     {
         (string Call, string[] Types)[] companions =
@@ -432,8 +411,6 @@ public sealed partial class JavaUnreportedException : ILocalFixRule
         var closeParen = code.LastIndexOf(')', end - 1);
         if (closeParen < 0) return null;
 
-        // The name as javac printed it compiles only if it is visible here; otherwise the package
-        // goes in front, which keeps this to one line rather than adding an import as well.
         var declared = string.Join(", ", types.Select(one =>
             !one.Contains('.') && !JavaTypes.Lang.Contains(one) && !JavaTypes.IsImported(one, source.Lines) &&
             JavaTypes.Packages.TryGetValue(one, out var package)

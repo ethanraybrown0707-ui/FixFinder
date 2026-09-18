@@ -12,7 +12,6 @@ internal static partial class BraceBlocks
     [GeneratedRegex(@"^\s*(?:(?:public|private|protected|internal|static|final|virtual|override|async|abstract|sealed|synchronized|explicit|inline|constexpr)\s+)*[\w<>\[\],.?:*&\s]*?\b(?<name>[A-Za-z_]\w*)\s*\([^;]*$")]
     private static partial Regex MethodHeader();
 
-    /// <summary>The lines inside the block a header opens: 0-based first line and the index of the closing brace's line.</summary>
     public static (int First, int End)? Body(IReadOnlyList<string> masked, int header)
     {
         var start = masked[header].Contains('{') ? header : NextCode(masked, header + 1);
@@ -24,7 +23,6 @@ internal static partial class BraceBlocks
         return Brackets.BlockEnd(masked, start) is { } end ? (start + 1, end) : null;
     }
 
-    /// <summary>One level of indentation as the file uses it: a tab, or the smallest step in spaces between neighbouring lines.</summary>
     public static string IndentStep(IReadOnlyList<string> lines)
     {
         if (lines.Any(line => line.StartsWith('\t'))) return "\t";
@@ -44,7 +42,6 @@ internal static partial class BraceBlocks
         return -1;
     }
 
-    /// <summary>The names of the parameters of the method or constructor a line is inside, or none when that cannot be told.</summary>
     public static IReadOnlyList<string> EnclosingParameters(IReadOnlyList<string> masked, int line)
     {
         var depth = 0;

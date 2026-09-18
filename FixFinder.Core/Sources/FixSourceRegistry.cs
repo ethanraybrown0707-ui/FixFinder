@@ -3,7 +3,6 @@ using FixFinder.Core.Fingerprinting;
 namespace FixFinder.Core.Sources;
 
 /// <summary>Everything the enabled sources found, plus a per-source account of what happened.</summary>
-/// <param name="PerSource">One entry per source that ran, including the ones that failed.</param>
 public sealed record AggregateSearchResult(
     IReadOnlyList<FixCandidate> Candidates,
     IReadOnlyList<FixSearchResult> PerSource,
@@ -14,7 +13,6 @@ public sealed record AggregateSearchResult(
                  .Select(r => $"{r.SourceName}: {r.Failure}")
                  .ToArray();
 
-    /// <summary>Plain summary for the status line, honest about an empty result.</summary>
     public string Summary
     {
         get
@@ -36,15 +34,7 @@ public sealed record AggregateSearchResult(
     }
 }
 
-/// <summary>
-/// Runs the enabled fix sources and collects what they found.
-/// </summary>
-/// <remarks>
-/// Sources run concurrently because they are separate services with separate allowances, so one
-/// being slow should not hold up the other. A source that fails is reported as a failure and
-/// the rest of the search continues - GitHub being rate-limited is no reason to discard a
-/// perfectly good set of Stack Overflow answers.
-/// </remarks>
+/// <summary>Runs the enabled fix sources and collects what they found.</summary>
 public sealed class FixSourceRegistry
 {
     private readonly List<IFixSource> _sources = [];
@@ -58,9 +48,6 @@ public sealed class FixSourceRegistry
     public IFixSource? ByName(string name) =>
         _sources.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    /// <param name="enabled">
-    /// Source names ticked in the window. Null runs every configured source.
-    /// </param>
     public async Task<AggregateSearchResult> SearchAsync(
         ErrorFingerprint fingerprint,
         SearchBudget budget,
@@ -92,15 +79,6 @@ public sealed class FixSourceRegistry
         return new AggregateSearchResult(candidates, results, requests);
     }
 
-    /// <summary>
-    /// Runs one source, converting an unexpected exception into a reported failure.
-    /// </summary>
-    /// <remarks>
-    /// The sources already return failures rather than throwing, so reaching the catch means
-    /// something genuinely unforeseen. Even then the right behaviour is to record it and let
-    /// the other source finish: one source falling over is no reason to discard what the other
-    /// one found.
-    /// </remarks>
     private async Task<FixSearchResult> RunAsync(
         IFixSource source, ErrorFingerprint fingerprint, SearchBudget budget, CancellationToken ct)
     {

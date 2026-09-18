@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -33,7 +32,7 @@ public sealed partial class PythonExpectedColon : ILocalFixRule
     }
 }
 
-/// <summary><c>SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?</c></summary>
+/// <summary><c>SyntaxError: Missing parentheses in call to 'print'.</summary>
 public sealed partial class PythonPrintStatement : ILocalFixRule
 {
     public string Id => "python-print-statement";
@@ -55,8 +54,6 @@ public sealed partial class PythonPrintStatement : ILocalFixRule
 
         var args = statement.Groups["args"].Value.Trim();
 
-        // Python 2's trailing comma meant "no newline", which print() spells end=" ". Rewriting it
-        // would be changing what the program prints, so it is left for a person to decide.
         if (args.EndsWith(',')) return null;
 
         return LocalFix.ReplaceLine(
@@ -68,7 +65,7 @@ public sealed partial class PythonPrintStatement : ILocalFixRule
     }
 }
 
-/// <summary><c>SyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?</c></summary>
+/// <summary><c>SyntaxError: invalid syntax.</summary>
 public sealed partial class PythonAssignmentInCondition : ILocalFixRule
 {
     public string Id => "python-assignment-in-condition";
@@ -112,14 +109,12 @@ public sealed partial class PythonAssignmentInCondition : ILocalFixRule
 
             if ("=!<>:+-*/%&|^@~".Contains(previous) || next == '=') continue;
 
-            // f(key=value) is a keyword argument, not the assignment Python is complaining about.
             if (brackets.TryPeek(out var open) && masked[open] == '(' && open > 0 && CodeText.IsWordChar(masked[open - 1]))
                 continue;
 
             hits.Add(i);
         }
 
-        // One bare = on the line, or it is not clear which one Python meant.
         if (hits.Count != 1) return null;
 
         return LocalFix.ReplaceLine(
@@ -153,7 +148,6 @@ public sealed partial class PythonIndentedBlock : ILocalFixRule
 
         var headerIndent = CodeText.Indentation(header);
 
-        // Already indented further than the header: something else is wrong with this line.
         if (CodeText.Indentation(line).Length > headerIndent.Length) return null;
 
         return LocalFix.ReplaceLine(
@@ -288,12 +282,6 @@ public sealed partial class PythonLambdaReturn : ILocalFixRule
 }
 
 /// <summary><c>'[' was never closed</c>, on a line that plainly ends where the bracket should.</summary>
-/// <remarks>
-/// Only when the line is complete apart from the bracket. A list spread over several lines that is
-/// missing its closer at the bottom would take a <c>]</c> on its first line and leave the rest as
-/// stray expressions that still parse - so a following line indented further, or a line ending in
-/// a comma or an operator, is a refusal.
-/// </remarks>
 public sealed partial class PythonUnclosedBracket : ILocalFixRule
 {
     public string Id => "python-unclosed-bracket";
@@ -333,15 +321,8 @@ public sealed partial class PythonUnclosedBracket : ILocalFixRule
     }
 }
 
-/// <summary>
-/// Syntax carried over from JavaScript, Java or C: <c>&amp;&amp;</c>, <c>||</c>, <c>!</c>,
-/// <c>x++</c>, <c>let</c>/<c>var</c>/<c>const</c>, <c>new</c> and <c>catch</c>.
-/// </summary>
-/// <remarks>
-/// Every one of these is a plain token swap with one Python spelling, and they often come together
-/// on one line - <c>if (x &gt; 1 &amp;&amp; !done)</c> - so everything recognised on the line is
-/// rewritten at once. Inside strings and comments nothing is touched.
-/// </remarks>
+/// <summary>Syntax carried over from JavaScript, Java or C: <c>&amp;&amp;</c>, <c>||</c>, <c>!</c>, <c>x++</c>,
+/// <c>let</c>/<c>var</c>/<c>const</c>, <c>new</c> and <c>catch</c>.</summary>
 public sealed class PythonForeignSyntax : ILocalFixRule
 {
     public string Id => "python-foreign-syntax";
@@ -409,7 +390,6 @@ public sealed partial class PythonExceptComma : ILocalFixRule
         var type = match.Groups["type"].Value;
         var name = match.Groups["name"].Value;
 
-        // `except ValueError, TypeError:` meant two types; `except ValueError, e:` meant a name.
         var isType = char.IsUpper(name[0]) || name.EndsWith("Error", StringComparison.Ordinal) || name.EndsWith("Exception", StringComparison.Ordinal);
 
         var corrected = isType
@@ -549,7 +529,6 @@ public sealed class PythonUnterminatedString : ILocalFixRule
         var singles = line.Count(c => c == '\'');
         var doubles = line.Count(c => c == '"');
 
-        // 'It's here' - the apostrophe ended the string. Double quotes around it let the apostrophe stay.
         if (singles == 3 && doubles == 0)
         {
             var first = line.IndexOf('\'');
@@ -896,7 +875,6 @@ public sealed partial class PythonNonlocal : ILocalFixRule
         if (number - 1 < first || number - 1 >= end) return null;
         if (Enumerable.Range(first, end - first).Any(i => Regex.IsMatch(masked[i], $@"^\s*(?:global|nonlocal)\b.*\b{word}\b"))) return null;
 
-        // The outer function has to own it: an assignment in its body, outside this inner function.
         var (outerFirst, outerEnd) = PythonCode.BlockBody(lines, outer);
         var owned = Enumerable.Range(outerFirst, outerEnd - outerFirst)
             .Where(i => i < def || i >= end)
@@ -990,7 +968,6 @@ public sealed partial class PythonRelativeImportInScript : ILocalFixRule
 
         var module = match.Groups["module"].Value;
 
-        // Only when the module is really there beside the script; otherwise dropping the dot names nothing.
         if (!File.Exists(Path.Combine(Path.GetDirectoryName(source.Path)!, module + ".py"))) return null;
 
         return LocalFix.ReplaceLine(

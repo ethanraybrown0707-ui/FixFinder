@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -38,7 +37,6 @@ public sealed partial class CppForeignPrint : ILocalFixRule
         {
             var arguments = CppCode.SplitTopLevel(masked, args.Index, args.Index + args.Length, ',');
 
-            // Python's print separates its arguments with a space. Anywhere else a comma means a format string.
             if (arguments.Count > 1 && language != "Python") return null;
 
             foreach (var (start, end) in arguments)
@@ -51,7 +49,6 @@ public sealed partial class CppForeignPrint : ILocalFixRule
                 if (parts.Any(part => part.Length == 0 || part.StartsWith("$\"", StringComparison.Ordinal) || part.StartsWith("@\"", StringComparison.Ordinal)))
                     return null;
 
-                // "Total: " + total joins text in Java and C#; a sum with no text in it is still a sum.
                 if (parts.Count > 1 && parts.Any(part => part.StartsWith('"'))) pieces.AddRange(parts);
                 else pieces.Add(line[start..end].Trim());
             }
@@ -307,7 +304,6 @@ public sealed partial class CppLiteralConcatenation : ILocalFixRule
             if (line[literals[k].End..literals[k + 1].Start].Trim() != "+") continue;
             if (k > 0 && line[literals[k - 1].End..literals[k].Start].Trim() == "+") continue;
 
-            // Something already added in front - a std::string - makes this pair legal.
             if (line[..literals[k].Start].TrimEnd().EndsWith('+')) continue;
 
             starts.Add(k);
@@ -326,8 +322,7 @@ public sealed partial class CppLiteralConcatenation : ILocalFixRule
     }
 }
 
-/// <summary><c>add(int a, int b) { ... }</c> with no return type - MSVC's <c>C4430 missing type specifier - int assumed</c>.</summary>
-/// <remarks>gcc accepts it with a warning, the way C once did, and the program runs; the C++ standard does not.</remarks>
+/// <summary><c>add(int a, int b) { ...</summary>
 public sealed partial class CppMissingReturnType : ILocalFixRule
 {
     public string Id => "cpp-missing-return-type";
@@ -389,7 +384,6 @@ public sealed partial class CppMissingReturnType : ILocalFixRule
         if (Regex.IsMatch(value, @"^\d+\.\d*(?:[eE][-+]?\d+)?$")) return "double";
         if (Regex.IsMatch(value, @"^""(?:[^""\\]|\\.)*""$")) return CppCode.HasStdString(source) ? CppCode.StdQualified(source, "string") : null;
 
-        // Parameters of one type, combined with arithmetic, give that type back.
         if (!Regex.IsMatch(value, @"^[\w\s+\-*/%()]+$")) return null;
 
         var words = Regex.Matches(value, @"[A-Za-z_]\w*").Select(m => m.Value).ToList();
@@ -400,12 +394,11 @@ public sealed partial class CppMissingReturnType : ILocalFixRule
     }
 }
 
-/// <summary>gcc's <c>need 'typename' before 'std::vector&lt;T&gt;::const_iterator' because ... is a dependent scope</c>.</summary>
+/// <summary>gcc's <c>need 'typename' before 'std::vector&lt;T&gt;::const_iterator' because ...</summary>
 public sealed partial class CppTypename : ILocalFixRule
 {
     public string Id => "cpp-typename";
 
-    /// <remarks>GCC 15 reports errors inside a template's body under <c>-Wtemplate-body</c>, and names the option after the message.</remarks>
     [GeneratedRegex(@"^need 'typename' before '(?<name>[^']+)' because '[^']+' is a dependent scope(?:\s*\[-[\w=+-]+\])?$")]
     private static partial Regex GccMessage();
 

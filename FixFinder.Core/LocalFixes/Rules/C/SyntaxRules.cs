@@ -1,15 +1,10 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>C2146 / C2143: syntax error: missing ';' before ...</c></summary>
-/// <remarks>
-/// MSVC reports a missing semicolon on the line where it noticed - the start of the next statement -
-/// so the semicolon goes at the end of the code line before it.
-/// </remarks>
 public sealed partial class CMissingSemicolon : ILocalFixRule
 {
     public string Id => "c-missing-semicolon";
@@ -17,11 +12,9 @@ public sealed partial class CMissingSemicolon : ILocalFixRule
     [GeneratedRegex(@"^syntax error: missing ';' before (?:identifier )?'(?<token>[^']+)'$")]
     private static partial Regex Message();
 
-    /// <summary>MSVC's C++ front end: <c>C2760 syntax error: 'int' was unexpected here; expected ';'</c>.</summary>
     [GeneratedRegex(@"^syntax error: '(?<token>[^']+)' was unexpected here; expected ';'$")]
     private static partial Regex Unexpected();
 
-    /// <summary>gcc: <c>expected ',' or ';' before 'printf'</c>, and <c>expected ';' before '}' token</c>.</summary>
     [GeneratedRegex(@"^expected (?:'[^']+' or )*';'(?: or '[^']+')* before '(?<token>[^']+)'(?: token)?$")]
     private static partial Regex GnuMessage();
 
@@ -77,8 +70,6 @@ public sealed partial class CMissingClosingBrace : ILocalFixRule
     {
         var error = context.Error;
 
-        // MSVC names the brace that was never closed. gcc names the end of the file, where it gave
-        // up - so the opener is found by matching braces, which serves both.
         var recognised = error.LanguageId switch
         {
             "msvc" => error.ErrorCode == "C1075" &&
@@ -102,7 +93,6 @@ public sealed partial class CMissingClosingBrace : ILocalFixRule
             }
         }
 
-        // Exactly one short. More than that, and where each one goes is a real question.
         if (stray > 0 || unclosed.Count != 1) return null;
 
         var opener = unclosed.Pop() + 1;
@@ -140,7 +130,6 @@ public sealed partial class CElif : ILocalFixRule
 }
 
 /// <summary><c>and</c>, <c>or</c> and <c>not</c> from Python, which C writes <c>&amp;&amp;</c>, <c>||</c> and <c>!</c>.</summary>
-/// <remarks>C only: in C++ the words are real alternative spellings of the operators.</remarks>
 public sealed partial class CWordOperators : ILocalFixRule
 {
     public string Id => "c-word-operators";
@@ -208,11 +197,6 @@ public sealed partial class CConditionParentheses : ILocalFixRule
 }
 
 /// <summary><c>C2001: newline in string literal</c> / <c>missing terminating " character</c>.</summary>
-/// <remarks>
-/// The closing quote goes before whatever finishes the statement - one <c>)</c> for each bracket
-/// still open before the string, then the semicolon. When the end of the line is not shaped like
-/// that, where the string was meant to end is a guess, and nothing is offered.
-/// </remarks>
 public sealed partial class CUnterminatedString : ILocalFixRule
 {
     public string Id => "c-unterminated-string";
@@ -298,8 +282,6 @@ public sealed partial class CExtraClosingBrace : ILocalFixRule
 
         if (depth != 0 || stray is not [var extra] || masked[extra].Trim() != "}") return null;
 
-        // A block closed too soon leaves the lines after it outside every function, and then the brace at the bottom is the one that
-        // closes nothing. The brace to remove is the early one: indented deeper than the bottom one, with code stranded below it.
         var depths = Brackets.BraceDepths(masked);
         var early = -1;
 
@@ -332,7 +314,7 @@ public sealed partial class CExtraClosingBrace : ILocalFixRule
     }
 }
 
-/// <summary><c>C2628 ... (did you forget a ';'?)</c> - a struct definition without the semicolon after its brace.</summary>
+/// <summary><c>C2628 ...</summary>
 public sealed partial class CStructSemicolon : ILocalFixRule
 {
     public string Id => "c-struct-semicolon";
@@ -357,7 +339,6 @@ public sealed partial class CStructSemicolon : ILocalFixRule
         while (k >= 0 && masked[k].Trim().Length == 0) k--;
         if (k < 0 || !masked[k].TrimEnd().EndsWith('}')) return null;
 
-        // Walk back to the brace this one closes, and check it opened a struct, union or enum.
         var depth = 0;
         var opener = -1;
 
@@ -390,10 +371,6 @@ public sealed partial class CStructSemicolon : ILocalFixRule
 }
 
 /// <summary><c>#define SIZE 5;</c> - the semicolon is pasted in wherever the macro is used.</summary>
-/// <remarks>
-/// gcc reports the error at the #define itself, MSVC where the macro was used. Either way the edit is
-/// the same one, on the #define.
-/// </remarks>
 public sealed partial class CDefineSemicolon : ILocalFixRule
 {
     public string Id => "c-define-semicolon";
@@ -596,8 +573,6 @@ public sealed partial class CHeaderGuard : ILocalFixRule
 {
     public string Id => "c-header-guard";
 
-    // A type defined twice is an error before C23; from C23 an identical one is allowed, and a variable defined twice is what
-    // still fails - so both are read.
     [GeneratedRegex(@"^redefinition of '(?:(?:struct|union|enum|class) )?(?<name>\w+)'$")]
     private static partial Regex GccMessage();
 

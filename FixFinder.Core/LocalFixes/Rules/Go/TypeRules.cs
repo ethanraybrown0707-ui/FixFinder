@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -115,7 +113,7 @@ public sealed partial class GoNumericConversion : ILocalFixRule
     }
 }
 
-/// <summary><c>too many return values ... want ()</c> - a function returning a value it never declared.</summary>
+/// <summary><c>too many return values ...</summary>
 public sealed partial class GoMissingReturnType : ILocalFixRule
 {
     public string Id => "go-missing-return-type";
@@ -149,7 +147,7 @@ public sealed partial class GoMissingReturnType : ILocalFixRule
     }
 }
 
-/// <summary><c>not enough return values ... have (error) want (int, error)</c> - a return missing its leading values.</summary>
+/// <summary><c>not enough return values ...</summary>
 public sealed partial class GoNotEnoughReturnValues : ILocalFixRule
 {
     public string Id => "go-not-enough-return-values";

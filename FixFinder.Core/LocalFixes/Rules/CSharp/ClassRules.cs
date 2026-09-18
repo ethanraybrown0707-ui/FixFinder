@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -172,19 +171,8 @@ public sealed partial class CSharpInconsistentAccessibility : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>CS0535</c> and <c>CS0534</c>: a class that says it implements an interface or extends an abstract
-/// class, and never writes a member that requires.
-/// </summary>
-/// <remarks>
-/// There is one conventional answer, and it is the one every editor offers as "Implement interface":
-/// the member, with the signature the interface or abstract class declares, and a body that throws
-/// <see cref="NotImplementedException"/> until the real one is written. Every member missing from the
-/// class is added at once, so a class missing three is one change rather than three rounds. The
-/// signature is copied from the declaration in the source - which has to be in the same file - so it
-/// matches exactly, default values and generic constraints included; an override drops its
-/// constraints, which C# does not allow it to repeat.
-/// </remarks>
+/// <summary><c>CS0535</c> and <c>CS0534</c>: a class that says it implements an interface or extends an abstract class, and never
+/// writes a member that requires.</summary>
 public sealed partial class CSharpUnwrittenMember : ILocalFixRule
 {
     public string Id => "csharp-unwritten-member";
@@ -213,7 +201,6 @@ public sealed partial class CSharpUnwrittenMember : ILocalFixRule
 
         var indent = ClassBody.MemberIndent(lines, masked, header, closing);
 
-        // Every member this class is missing, from every error about it - the one asked about first.
         var wanted = context.AllErrors
             .Where(e => e.LanguageId == "msvc" && e.ErrorCode is "CS0535" or "CS0534")
             .Select(e => Message().Match(e.Message ?? ""))
@@ -242,7 +229,6 @@ public sealed partial class CSharpUnwrittenMember : ILocalFixRule
             source.Path, closing + 1, stubs.Select(s => s.Line).ToList());
     }
 
-    /// <summary>The member to add, copied from its declaration in the interface or abstract class, or null.</summary>
     private string? Stub(IReadOnlyList<string> lines, IReadOnlyList<string> masked, Match missing)
     {
         var owner = missing.Groups["owner"].Value.Split('.')[^1];

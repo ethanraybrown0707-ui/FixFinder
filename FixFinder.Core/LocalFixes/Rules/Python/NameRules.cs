@@ -3,17 +3,8 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// A name Python could not find, and did not suggest a replacement for: <c>name 'nmae' is not
-/// defined</c>, or <c>'Dog' object has no attribute 'nmae'</c> on a class in this file.
-/// </summary>
-/// <remarks>
-/// Python suggests names itself, but it scores a swap of two letters as two changes, so
-/// <c>nmae</c> and <c>pritn</c> - the commonest typos there are - get no suggestion at all. The
-/// candidates here are the names this file binds, and Python's builtins; for an attribute, what the
-/// class defines. A tie is a refusal, as everywhere. The check can only prove the file still parses,
-/// and the answer says so.
-/// </remarks>
+/// <summary>A name Python could not find, and did not suggest a replacement for: <c>name 'nmae' is not defined</c>, or <c>'Dog'
+/// object has no attribute 'nmae'</c> on a class in this file.</summary>
 public sealed partial class PythonNearestName : ILocalFixRule
 {
     public string Id => "python-nearest-name";
@@ -102,9 +93,6 @@ public sealed partial class PythonNearestName : ILocalFixRule
         return null;
     }
 
-    /// <summary>
-    /// The line with the one occurrence replaced: the only one in the code, or the one Python underlined.
-    /// </summary>
     private static string? Replace(ParsedError error, int number, string line, string pattern, string wrong, string right)
     {
         var hits = Regex.Matches(CodeText.Mask(line, Syntax.Python), pattern)
@@ -119,8 +107,6 @@ public sealed partial class PythonNearestName : ILocalFixRule
         }
         else
         {
-            // Several, or none because the name sits inside an f-string the mask blanked: only the
-            // underline can say which, and it has to land exactly on the name.
             if (PythonCode.UnderlineColumn(error, number, line) is not { } column) return null;
 
             var raw = Regex.Matches(line, pattern).Select(m => m.Index + m.Length - wrong.Length).ToList();
@@ -175,7 +161,6 @@ public sealed partial class PythonNearestName : ILocalFixRule
         return names;
     }
 
-    /// <summary>What a class in this file defines: its methods, its class attributes, and what it assigns to self.</summary>
     private static HashSet<string>? ClassMembers(IReadOnlyList<string> masked, string type)
     {
         var start = -1;
@@ -207,11 +192,7 @@ public sealed partial class PythonNearestName : ILocalFixRule
     }
 }
 
-/// <summary><c>NameError: name 'math' is not defined. Did you forget to import 'math'?</c></summary>
-/// <remarks>
-/// Python 3.13 names the module itself, and only for modules in the standard library, so there is
-/// nothing to look up: the answer is the import it named.
-/// </remarks>
+/// <summary><c>NameError: name 'math' is not defined.</summary>
 public sealed partial class PythonForgottenImport : ILocalFixRule
 {
     public string Id => "python-forgotten-import";
@@ -229,8 +210,6 @@ public sealed partial class PythonForgottenImport : ILocalFixRule
 
         var module = hint.Groups["module"].Value;
 
-        // Python suggests these because they exist, not because anybody means them: `this` prints the
-        // Zen of Python and `antigravity` opens a web browser. A `this.name` in a method is Java.
         if (module is "this" or "antigravity") return null;
 
         return LocalFix.Insert(
@@ -245,11 +224,6 @@ public sealed partial class PythonForgottenImport : ILocalFixRule
 }
 
 /// <summary><c>this.name</c> in a method, where Python's word is <c>self</c>.</summary>
-/// <remarks>
-/// Python's own hint for this one is <c>Did you forget to import 'this'?</c>, because a standard
-/// module called <c>this</c> exists - it prints the Zen of Python. Following the hint would add a
-/// joke import and change nothing, so this rule runs before the one that reads import hints.
-/// </remarks>
 public sealed partial class PythonThisForSelf : ILocalFixRule
 {
     public string Id => "python-this-for-self";
@@ -380,7 +354,6 @@ public sealed partial class PythonStdlibModuleTypo : ILocalFixRule
     [GeneratedRegex(@"^No module named '(?<name>[A-Za-z_]\w*)'$")]
     private static partial Regex Message();
 
-    /// <summary>How far apart the import and its last use may be before a single change stops being sensible.</summary>
     private const int MaxSpan = 25;
 
     public LocalFix? Propose(LocalFixContext context)
@@ -473,7 +446,7 @@ public sealed partial class PythonMissingFromImport : ILocalFixRule
     }
 }
 
-/// <summary><c>'module' object is not callable. Did you mean: 'pprint.pprint(...)'?</c></summary>
+/// <summary><c>'module' object is not callable.</summary>
 public sealed partial class PythonModuleCalled : ILocalFixRule
 {
     public string Id => "python-module-called";
@@ -501,15 +474,7 @@ public sealed partial class PythonModuleCalled : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>UnboundLocalError: cannot access local variable 'count' where it is not associated with a value</c>
-/// </summary>
-/// <remarks>
-/// Assigning to a name anywhere in a function makes it local for the whole function, so
-/// <c>count += 1</c> reads a local nothing was assigned to. When a module-level <c>count</c>
-/// exists and the function never sets its own, the module one is what was meant, and
-/// <c>global count</c> says so.
-/// </remarks>
+/// <summary><c>UnboundLocalError: cannot access local variable 'count' where it is not associated with a value</c></summary>
 public sealed partial class PythonUnboundGlobal : ILocalFixRule
 {
     public string Id => "python-unbound-global";
@@ -548,7 +513,6 @@ public sealed partial class PythonUnboundGlobal : ILocalFixRule
 
         if (body.Any(text => Regex.IsMatch(text, $@"^\s*(?:global|nonlocal)\b.*\b{word}\b"))) return null;
 
-        // A plain assignment that does not read the name means the function may well want its own.
         if (body.Any(text => Regex.IsMatch(text, $@"^\s*{word}\s*=(?!=)") && Regex.Matches(text, $@"\b{word}\b").Count == 1)) return null;
 
         var moduleLevel = Enumerable.Range(0, lines.Count)
@@ -564,7 +528,6 @@ public sealed partial class PythonUnboundGlobal : ILocalFixRule
         var indent = CodeText.Indentation(lines[first]);
         var insertAt = first;
 
-        // After a docstring, not in front of it - a docstring has to be the first statement.
         var opening = lines[first].TrimStart();
         var quote = opening.StartsWith("\"\"\"", StringComparison.Ordinal) ? "\"\"\"" : opening.StartsWith("'''", StringComparison.Ordinal) ? "'''" : null;
 
@@ -619,15 +582,8 @@ public sealed partial class PythonDatetimeClass : ILocalFixRule
     }
 }
 
-/// <summary>
-/// Method names from other languages on Python's own types: <c>.length</c>, <c>.push</c>,
-/// <c>.toUpperCase()</c>, <c>.equals()</c>, <c>.contains()</c>, and Python 2's <c>has_key</c>.
-/// </summary>
-/// <remarks>
-/// Only for the built-in types, where what exists is fixed and known, and only when Python itself
-/// did not suggest a name. Some are renames - <c>push</c> is <c>append</c> - and some are a
-/// different shape entirely: a length is <c>len(x)</c>, and membership is <c>item in x</c>.
-/// </remarks>
+/// <summary>Method names from other languages on Python's own types: <c>.length</c>, <c>.push</c>, <c>.toUpperCase()</c>,
+/// <c>.equals()</c>, <c>.contains()</c>, and Python 2's <c>has_key</c>.</summary>
 public sealed partial class PythonForeignMethod : ILocalFixRule
 {
     public string Id => "python-foreign-method";

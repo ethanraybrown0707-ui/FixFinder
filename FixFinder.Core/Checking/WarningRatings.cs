@@ -18,14 +18,12 @@ public static class WarningRatings
 
     private static readonly Rule[] Rules =
     [
-        // Python's compiler
         Words(@"""is"" with|""is not"" with", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-python-is-literal"),
         Words(@"assertion is always true", FindingKind.Logic, Severity.Warning, Confidence.Certain, "logic-python-assert-tuple"),
         Words(@"invalid escape sequence", FindingKind.Style, Severity.Suggestion, Confidence.Likely),
         Words(@"perhaps you missed a comma", FindingKind.Runtime, Severity.Error, Confidence.Likely),
         Words(@"in a 'finally' block", FindingKind.Logic, Severity.Warning, Confidence.Likely),
 
-        // javac -Xlint
         Words(@"^\[fallthrough\]", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-switch-fallthrough"),
         Words(@"^\[empty\]", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-empty-if-body"),
         Words(@"^\[divzero\]", FindingKind.Runtime, Severity.Error, Confidence.Certain),
@@ -34,7 +32,6 @@ public static class WarningRatings
         Words(@"^\[(?:rawtypes|unchecked)\]", FindingKind.Style, Severity.Suggestion, Confidence.Likely),
         Words(@"^\[(?:cast|static|deprecation)\]", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
 
-        // C#
         Codes(["CS0162"], FindingKind.Logic, Severity.Warning, Confidence.Certain),
         Codes(["CS0168", "CS0219", "CS8321", "CS0169", "CS0414"], FindingKind.Style, Severity.Suggestion, Confidence.Certain),
         Codes(["CS0649"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
@@ -49,7 +46,6 @@ public static class WarningRatings
         Codes(["CS0659", "CS0660", "CS0661"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Codes(["CS8600", "CS8601", "CS8602", "CS8603", "CS8604", "CS8618", "CS8625"], FindingKind.Logic, Severity.Warning, Confidence.Possible),
 
-        // MSVC
         Codes(["C4700", "C4701", "C4703"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-uninitialised-total"),
         Codes(["C4715", "C4716"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Codes(["C4477", "C4473", "C4474", "C4313"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
@@ -61,7 +57,6 @@ public static class WarningRatings
         Codes(["C4101", "C4189"], FindingKind.Style, Severity.Suggestion, Confidence.Certain),
         Codes(["C4706"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-assignment-in-condition"),
 
-        // gcc
         Words(@"unused variable|set but not used|defined but not used|unused function", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
         Words(@"suggest parentheses around assignment", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-assignment-in-condition"),
         Words(@"is used uninitialized|may be used uninitialized", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-uninitialised-total"),
@@ -83,7 +78,6 @@ public static class WarningRatings
         Words(@"statement has no effect|value computed is not used|result unused", FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Words(@"incompatible pointer type|makes (?:pointer|integer) from", FindingKind.Logic, Severity.Warning, Confidence.Likely),
 
-        // go vet
         Words(@"unreachable code", FindingKind.Logic, Severity.Warning, Confidence.Certain),
         Words(@"Printf|Println call|format %", FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Words(@"captured by func literal|loop variable", FindingKind.Logic, Severity.Warning, Confidence.Likely),

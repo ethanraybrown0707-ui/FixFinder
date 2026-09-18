@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -92,7 +90,6 @@ public sealed partial class CSharpTaskNotAwaited : ILocalFixRule
         var (source, number, line, index) = at;
         if (line[index..].StartsWith("await", StringComparison.Ordinal)) return null;
 
-        // Inside an async method, or top-level statements, where await can be written.
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
         var depths = Brackets.BraceDepths(masked);
         var header = number - 1;

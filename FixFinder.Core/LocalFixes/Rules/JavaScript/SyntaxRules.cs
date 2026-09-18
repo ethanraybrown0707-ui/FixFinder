@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -76,10 +74,6 @@ public sealed partial class JsUnclosedString : ILocalFixRule
 }
 
 /// <summary><c>Unexpected end of input</c> - a block never closed.</summary>
-/// <remarks>
-/// The brace goes where the indentation says the block ended - before the first line that is back at the opener's own
-/// level - so a call that was written after the function stays after it.
-/// </remarks>
 public sealed partial class JsMissingClosingBrace : ILocalFixRule
 {
     public string Id => "js-missing-closing-brace";
@@ -152,7 +146,6 @@ public sealed partial class JsExtraClosingBrace : ILocalFixRule
 
         if (depth != 0 || stray is not [var extra] || masked[extra].Trim() != "}") return null;
 
-        // A block closed too soon strands the lines after it, and the last brace is then the one with nothing to close.
         var depths = Brackets.BraceDepths(masked);
         var early = -1;
 
@@ -446,7 +439,6 @@ public sealed partial class JsForeignPrint : ILocalFixRule
         var args = statement.Groups["args"];
         var call = statement.Groups["call"].Value;
 
-        // A comma in C#'s Console.WriteLine means a format string, which console.log does not read.
         if (call.StartsWith("Console", StringComparison.Ordinal) && CppCode.SplitTopLevel(masked, args.Index, args.Index + args.Length, ',').Count > 1) return null;
 
         var language = message.Groups["name"].Value switch

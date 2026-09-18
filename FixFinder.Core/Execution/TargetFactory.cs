@@ -1,39 +1,12 @@
 namespace FixFinder.Core.Execution;
 
 /// <summary>A target worked out from a file, or the reason one could not be.</summary>
-/// <param name="Spec">Ready to run, or null.</param>
-/// <param name="Problem">What stopped it, in words meant for the person who picked the file.</param>
-/// <param name="Explanation">How it will be launched, shown so the choice is never a surprise.</param>
 public sealed record LaunchPlan(TargetSpec? Spec, string? Problem, string Explanation)
 {
-    /// <summary>
-    /// The file the person actually chose.
-    /// </summary>
-    /// <remarks>
-    /// Not the same as the executable path, and the window has to show this one. A script's
-    /// executable is its interpreter, so displaying that back turns "reader.py" into
-    /// "python.EXE" - which is true, and is not the answer to "what did I just pick".
-    /// </remarks>
     public string? ChosenFile { get; init; }
 
-    /// <summary>
-    /// A build step to run before the program, for languages that must be compiled.
-    /// </summary>
-    /// <remarks>
-    /// When this fails, its output <i>is</i> the error worth looking up - a compiler diagnostic
-    /// carries a globally unique code that thousands of people have searched for, which is a far
-    /// better search term than most runtime messages.
-    /// </remarks>
     public TargetSpec? Compile { get; init; }
 
-    /// <summary>
-    /// The folder holding the source, for when the program is built somewhere else.
-    /// </summary>
-    /// <remarks>
-    /// A compiled program runs from a build directory, so nothing about the running process
-    /// points back at the code. Without this, a C program that crashes without a stack trace
-    /// would resolve its source root to the folder full of object files.
-    /// </remarks>
     public string? SourceFolder { get; init; }
 
     public bool NeedsCompiling => Compile is not null;
@@ -43,28 +16,11 @@ public sealed record LaunchPlan(TargetSpec? Spec, string? Problem, string Explan
     public static LaunchPlan Failed(string problem) => new(null, problem, "");
 }
 
-/// <summary>
-/// Turns a file somebody picked into something that can actually be launched.
-/// </summary>
-/// <remarks>
-/// The piece that makes "just add a file" true rather than nearly true. Picking
-/// <c>crash.py</c> has to mean <c>python crash.py</c>, and a <c>.jar</c> has to mean
-/// <c>java -jar</c>; without that the person is back to filling in a program box and an
-/// arguments box and knowing which goes where.
-/// <para>
-/// When the interpreter for a file is not installed, that is said plainly and by name. The
-/// alternative - launching anyway and reporting a Win32 error - produces a crash report about
-/// FixFinder rather than about the program, which is the least useful possible answer.
-/// </para>
-/// </remarks>
+/// <summary>Turns a file somebody picked into something that can actually be launched.</summary>
 public static class TargetFactory
 {
-    /// <summary>How long a target gets before it is assumed to be running happily.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
-    /// <param name="Interpreter">Command that runs the file, or null when it runs itself.</param>
-    /// <param name="ArgumentPrefix">Anything that goes before the file, such as <c>-jar</c>.</param>
-    /// <param name="Alternatives">Other names the interpreter is known by, tried in order.</param>
     private sealed record Runner(
         string? Interpreter, string ArgumentPrefix = "", params string[] Alternatives);
 
@@ -75,18 +31,11 @@ public static class TargetFactory
         [".bat"] = new(null),
         [".cmd"] = new(null),
 
-        // A managed .dll is not executable, and on this machine the dotnet host is also the way
-        // past the Application Control policy that blocks freshly-built binaries.
         [".dll"] = new("dotnet"),
 
-        // "py" is the Windows launcher and is usually the more reliable of the two, because a
-        // bare "python" on PATH is often the Store alias stub.
         [".py"] = new("python", "", "py", "python3"),
         [".pyw"] = new("pythonw", "", "python", "py"),
 
-        // The .NET SDK builds and runs a loose .cs file in one command, so a compile error and
-        // a runtime crash both arrive through the same run - and the MSVC parser already lifts
-        // the CS#### code out of the first kind.
         [".cs"] = new("dotnet", "run"),
         [".csproj"] = new("dotnet", "run --project"),
         [".fsproj"] = new("dotnet", "run --project"),
@@ -106,13 +55,10 @@ public static class TargetFactory
         [".ps1"] = new("powershell", "-NoProfile -ExecutionPolicy Bypass -File"),
         [".go"] = new("go", "run"),
 
-        // Added alongside their parsers. Without an entry here the parser is unreachable: the
-        // file cannot be launched, so nothing ever produces output for it to read.
         [".dart"] = new("dart", "run"),
         [".exs"] = new("elixir"),
     };
 
-    /// <summary>Everything the file picker should offer, built from what can actually be run.</summary>
     public static string FileDialogFilter
     {
         get
@@ -126,9 +72,6 @@ public static class TargetFactory
         }
     }
 
-    /// <summary>
-    /// Works out how to launch a file, filling in everything the person did not have to say.
-    /// </summary>
     public static LaunchPlan FromFile(string path, TimeSpan? timeout = null)
     {
         if (string.IsNullOrWhiteSpace(path)) return LaunchPlan.Failed("No file was chosen.");
@@ -145,7 +88,6 @@ public static class TargetFactory
         var workingDirectory = Path.GetDirectoryName(full)!;
         var extension = Path.GetExtension(full);
 
-        // C, C++ and Java have to be built first, and the build is a target in its own right.
         if (CompiledLanguages.Handles(extension))
         {
             var (built, problem) = CompiledLanguages.Prepare(full, timeout ?? DefaultTimeout);
@@ -162,8 +104,6 @@ public static class TargetFactory
 
         if (!ByExtension.TryGetValue(extension, out var runner))
         {
-            // Unknown extensions are attempted directly rather than refused: plenty of things
-            // are executable without a familiar suffix, and the run itself will say if it is not.
             return new LaunchPlan(
                 Build(full, "", workingDirectory, launchViaDotnet: false, timeout),
                 null,
@@ -192,24 +132,14 @@ public static class TargetFactory
                 $"Install it, or pick a program that runs on its own such as an .exe.");
         }
 
-        // The dotnet host is a special case, and getting it wrong names the file twice.
-        // TargetSpec already quotes the assembly path itself when LaunchViaDotnet is set, so
-        // that route passes the .dll as the executable and leaves the arguments empty.
-        //
-        // Only when there is no prefix, though. "dotnet run file.cs" is an ordinary command with
-        // a verb in it, and routing that through the host shortcut silently drops the "run" -
-        // leaving dotnet to be handed a .cs file as though it were an assembly.
         var viaDotnet =
             string.Equals(Path.GetFileNameWithoutExtension(found), "dotnet", StringComparison.OrdinalIgnoreCase) &&
             runner.ArgumentPrefix.Length == 0;
 
-        // Only the file is quoted. The prefix is a literal fragment of the command line, and
-        // quoting it would turn "-jar" into an argument nobody asked for.
         var arguments = runner.ArgumentPrefix.Length > 0
             ? $"{runner.ArgumentPrefix} \"{full}\""
             : $"\"{full}\"";
 
-        // A program that is more than this one file is run as the whole of itself - see ProgramLayout.
         var together = "";
 
         switch (extension.ToLowerInvariant())
@@ -261,7 +191,6 @@ public static class TargetFactory
             Timeout = timeout ?? DefaultTimeout,
         };
 
-    /// <summary>Returns the first of an interpreter's names that exists, or null.</summary>
     private static string? Resolve(Runner runner)
     {
         foreach (var name in new[] { runner.Interpreter! }.Concat(runner.Alternatives))
@@ -272,14 +201,6 @@ public static class TargetFactory
         return null;
     }
 
-    /// <summary>
-    /// Finds an executable on PATH, the way the shell would.
-    /// </summary>
-    /// <remarks>
-    /// Done here rather than left to <c>Process.Start</c> so that a missing interpreter is a
-    /// sentence about the interpreter instead of a Win32 error code, and so the window can say
-    /// which program it is about to use before anything is launched.
-    /// </remarks>
     public static string? FindOnPath(string name)
     {
         if (Path.IsPathRooted(name)) return File.Exists(name) ? name : null;

@@ -7,8 +7,6 @@ using FixFinder.Core.Parsing.Parsers;
 namespace FixFinder.Core.Checking;
 
 /// <summary>Everything a compiler or parser said about a program, without running it.</summary>
-/// <param name="Checked">False when there was nothing to check the program with.</param>
-/// <param name="Build">The build that made the program runnable, for languages built before they run.</param>
 public sealed record CompilerReport(
     bool Checked,
     IReadOnlyList<ParsedError> Errors,
@@ -318,7 +316,6 @@ public static partial class CompilerDiagnostics
             .Select(g => g.First())
             .ToList();
 
-    /// <summary>The same errors, with every relative file name turned into a full path from the folder the compiler ran in.</summary>
     private static List<ParsedError> Resolved(IEnumerable<ParsedError> errors, string folder) =>
         errors.Select(error => WithFullPaths(error, folder)).ToList();
 

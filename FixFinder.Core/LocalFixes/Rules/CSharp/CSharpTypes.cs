@@ -1,16 +1,10 @@
 using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary>The .NET types a C# beginner reaches for, so their real members can be read by reflection.</summary>
-/// <remarks>
-/// FixFinder is itself a .NET program, so what <c>Console</c>, <c>string</c> or <c>List&lt;T&gt;</c>
-/// really has is not a table somebody wrote - it is asked of the runtime. That is the C# counterpart
-/// of reading a JDK class with javap.
-/// </remarks>
 internal static class CSharpTypes
 {
     private static readonly Dictionary<string, Type> Known = new(StringComparer.Ordinal)
@@ -48,7 +42,6 @@ internal static class CSharpTypes
     public static bool IsCollection(Type type) =>
         type != typeof(string) && type != typeof(Array) && typeof(IEnumerable).IsAssignableFrom(type);
 
-    /// <summary>Public member names, and whether each is called with brackets.</summary>
     public static Dictionary<string, bool> Members(Type type, bool isStatic)
     {
         var members = new Dictionary<string, bool>(StringComparer.Ordinal);
@@ -69,7 +62,6 @@ internal static class CSharpTypes
             }
         }
 
-        // An instance collection also has everything LINQ adds to it, which implicit usings bring in.
         if (!isStatic && IsCollection(type))
             foreach (var method in typeof(Enumerable).GetMethods(BindingFlags.Public | BindingFlags.Static))
                 members.TryAdd(method.Name, true);

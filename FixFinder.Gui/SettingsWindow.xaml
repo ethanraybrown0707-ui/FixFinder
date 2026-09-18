@@ -44,7 +44,6 @@
     </Window.Resources>
 
     <DockPanel>
-        <!-- ================================= buttons ================================ -->
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="18,12,18,16">
             <TextBlock x:Name="SettingsStatusText"
                        AutomationProperties.AutomationId="SettingsStatusText"
@@ -58,7 +57,6 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,18,18,0">
 
-                <!-- ============================== credentials =============================== -->
                 <GroupBox Header="API credentials (both optional)" Margin="0,0,0,12">
                     <Grid Margin="4">
                         <Grid.ColumnDefinitions>
@@ -111,7 +109,6 @@
                     </Grid>
                 </GroupBox>
 
-                <!-- ================================ storage ================================= -->
                 <GroupBox Header="Where things are stored" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock x:Name="CredentialPathText"
@@ -132,7 +129,6 @@
                     </StackPanel>
                 </GroupBox>
 
-                <!-- ============================== what it can run ============================= -->
                 <GroupBox Header="Languages it can run here" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock x:Name="ToolchainsText"
@@ -143,7 +139,6 @@
                     </StackPanel>
                 </GroupBox>
 
-                <!-- ============================== what it sends ============================== -->
                 <GroupBox Header="What Search online sends, and where">
                     <StackPanel Margin="4">
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"

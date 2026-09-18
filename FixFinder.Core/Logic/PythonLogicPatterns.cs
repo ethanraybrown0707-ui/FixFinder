@@ -38,7 +38,6 @@ public static partial class PythonLogicPatterns
 
     private static string Indent(string line) => CodeText.Indentation(line);
 
-    /// <summary>The 0-based lines of a block's body, and the index after its last non-blank line.</summary>
     private static (int First, int End) Body(IReadOnlyList<string> lines, int header)
     {
         var indent = Indent(lines[header]).Length;
@@ -56,14 +55,11 @@ public static partial class PythonLogicPatterns
     private static LocalFix Replace(string id, string title, string explanation, SourceFile source, int line, string text) =>
         LocalFix.ReplaceLine(id, title, explanation, source.Path, line, text);
 
-    // ------------------------------------------------------------------ count is 5
-
     [GeneratedRegex(@"(?<=[\w)\]'""]\s*)\bis(?<not>\s+not)?\s+(?=(?:-?\d+(?:\.\d+)?|""[^""]*""|'[^']*')(?![\w.]))")]
     private static partial Regex IsLiteralRegex();
 
     private static IEnumerable<LogicFinding> IsLiteral(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        // Names that certainly hold a number or a string: set from a literal, or from int(), float(), str(), input() or len().
         var values = masked
             .Select(l => Regex.Match(l, @"^\s*(?<name>[A-Za-z_]\w*)\s*=\s*(?:-?\d+(?:\.\d+)?\s*$|""|'|(?:int|float|str|input|len)\s*\()"))
             .Where(m => m.Success)
@@ -92,8 +88,6 @@ public static partial class PythonLogicPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ assert (x, "message")
 
     [GeneratedRegex(@"^(?<lead>\s*)assert\s*\((?<inner>.*)\)\s*$")]
     private static partial Regex AssertRegex();
@@ -139,8 +133,6 @@ public static partial class PythonLogicPatterns
         return last;
     }
 
-    // ------------------------------------------------------------------ def add(item, items=[])
-
     [GeneratedRegex(@"^(?<lead>\s*)(?:async\s+)?def\s+\w+\s*\((?<parameters>.*)\)\s*(?:->[^:]*)?:\s*$")]
     private static partial Regex DefRegex();
 
@@ -161,7 +153,6 @@ public static partial class PythonLogicPatterns
             var body = string.Join("\n", Enumerable.Range(first, end - first).Select(k => masked[k]));
             var n = Regex.Escape(name);
 
-            // Only when the function changes it: a default that is only read is shared harmlessly.
             if (!Regex.IsMatch(body, $@"(?<![\w.]){n}\s*(?:\.\s*(?:append|extend|insert|add|update|pop|remove|clear|setdefault|discard)\s*\(|\[[^\]]*\]\s*=(?!=)|\+=)")) continue;
             if (Regex.IsMatch(body, $@"(?<![\w.]){n}\s*=(?!=)")) continue;
 
@@ -202,8 +193,6 @@ public static partial class PythonLogicPatterns
         return close + 1;
     }
 
-    // ------------------------------------------------------------------ name.upper() on its own
-
     [GeneratedRegex(@"^(?<lead>\s*)(?<name>[A-Za-z_]\w*)\.(?<method>upper|lower|strip|lstrip|rstrip|title|capitalize|replace|swapcase|casefold|zfill|center|ljust|rjust|removeprefix|removesuffix)\((?<arguments>.*)\)\s*$")]
     private static partial Regex StringMethodStatement();
 
@@ -221,7 +210,6 @@ public static partial class PythonLogicPatterns
                 var name = call.Groups["name"].Value;
                 var n = Regex.Escape(name);
 
-                // Text for certain: read with input(), written as a literal, or made by str().
                 var isText = lines.Take(i).Any(l => Regex.IsMatch(l, $@"^\s*{n}\s*=\s*(?:input\s*\(|str\s*\(|[rRfFbBuU]{{0,2}}[""']|{n}\.\w+\()"));
                 if (!isText) continue;
 
@@ -256,8 +244,6 @@ public static partial class PythonLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ return in both branches inside a loop
-
     [GeneratedRegex(@"^\s*(?:for\s+(?<variables>.+?)\s+in\s+.+|while\s+.+):\s*$")]
     private static partial Regex LoopRegex();
 
@@ -273,7 +259,6 @@ public static partial class PythonLogicPatterns
             var statements = Statements(masked, first, end).ToList();
             if (statements.Count < 4) continue;
 
-            // The loop ends with: if ...: / return A / else: / return B - each branch one return.
             var (ifLine, returnA, elseLine, returnB) = (statements[^4], statements[^3], statements[^2], statements[^1]);
             var branch = Indent(lines[first]).Length;
 
@@ -282,7 +267,6 @@ public static partial class PythonLogicPatterns
             if (!Regex.IsMatch(masked[returnA], @"^\s*return\b") || !Regex.IsMatch(masked[returnB], @"^\s*return\b")) continue;
             if (Indent(lines[returnA]).Length <= branch || Indent(lines[returnB]).Length <= branch) continue;
 
-            // What the else returns must make sense after the loop: nothing from the loop's own variables.
             var variables = loop.Groups["variables"].Success
                 ? Regex.Matches(loop.Groups["variables"].Value, @"[A-Za-z_]\w*").Select(m => m.Value).ToList()
                 : [];
@@ -305,8 +289,6 @@ public static partial class PythonLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ total = 0 inside the loop that adds to it
-
     private static IEnumerable<LogicFinding> ResetInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
@@ -324,7 +306,6 @@ public static partial class PythonLogicPatterns
             var name = reset.Groups["name"].Value;
             var n = Regex.Escape(name);
 
-            // Built up later in the same pass, never otherwise set there, and read once the loop is over.
             var builds = statements.Skip(1).Any(s => Regex.IsMatch(masked[s], $@"(?<![\w.]){n}\s*(?:\+=|-=|\*=|=\s*{n}\s*[+\-*])|(?<![\w.]){n}\.(?:append|add|extend|update)\s*\("));
             var setAgain = statements.Skip(1).Any(s => Regex.IsMatch(masked[s], $@"^\s*{n}\s*=(?!=)(?!\s*{n}\b)"));
             if (!builds || setAgain) continue;
@@ -358,8 +339,6 @@ public static partial class PythonLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ total == 0 as a statement
-
     private static IEnumerable<LogicFinding> ComparisonStatement(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var depth = 0;
@@ -387,8 +366,6 @@ public static partial class PythonLogicPatterns
         }
     }
 
-    // ------------------------------------------------------------------ while i < n: without i changing
-
     private static IEnumerable<LogicFinding> LoopNeverAdvances(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var lines = source.Lines;
@@ -409,7 +386,6 @@ public static partial class PythonLogicPatterns
             var boundNames = Regex.Matches(loop.Groups["bound"].Value, @"(?<![\w.])[A-Za-z_]\w*").Select(m => m.Value).Where(w => w is not ("len" or "and" or "or" or "not")).ToList();
             if (boundNames.Any(b => body.Any(l => Regex.IsMatch(l, $@"(?<![\w.]){Regex.Escape(b)}\s*(?:[+\-*/%]|//)?=(?!=)|(?<![\w.]){Regex.Escape(b)}\.(?:append|pop|remove|insert|extend|clear)\s*\(")))) continue;
 
-            // A counter that starts as a whole number: what "the next value" means is clear.
             if (!Enumerable.Range(0, header).Any(k => Regex.IsMatch(masked[k], $@"^\s*{n}\s*=\s*-?\d+\s*$"))) continue;
 
             var step = loop.Groups["op"].Value.StartsWith('<') ? "+= 1" : "-= 1";

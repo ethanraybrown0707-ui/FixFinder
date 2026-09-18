@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -27,7 +26,6 @@ public sealed partial class CDoubleFree : ILocalFixRule
 
         for (var k = number - 2; k > first; k--)
         {
-            // Below the second free's block level means another branch - the two frees may never both run.
             if (depths[k] < depths[number - 1] || masked[k].Contains('}')) return null;
             if (Regex.IsMatch(masked[k], $@"(?<![\w.>]){escaped}\s*=(?!=)")) return null;
 
@@ -46,10 +44,6 @@ public sealed partial class CDoubleFree : ILocalFixRule
         return null;
     }
 
-    /// <summary>
-    /// The innermost frame that is a line of the program. A double <c>delete</c> is caught inside AddressSanitizer's own
-    /// <c>operator delete</c>, which is the innermost frame and nobody's source.
-    /// </summary>
     private static (SourceFile Source, int Number, string Line)? FirstInProgram(LocalFixContext context)
     {
         foreach (var frame in context.Error.Frames)
@@ -100,11 +94,6 @@ public sealed partial class CFreeNonHeap : ILocalFixRule
 }
 
 /// <summary><c>gets(name);</c> - which cannot know how big <c>name</c> is, and writes past its end on a long enough line.</summary>
-/// <remarks>
-/// <c>fgets</c> is told the size, and stops there. It also keeps the newline <c>gets</c> threw away, so the replacement
-/// removes it again - with <c>strcspn</c> when <c>&lt;string.h&gt;</c> is already included, and with a short loop that needs
-/// no header when it is not - so the program prints exactly what it printed before.
-/// </remarks>
 public sealed partial class CGets : ILocalFixRule
 {
     public string Id => "c-gets";
@@ -123,7 +112,6 @@ public sealed partial class CGets : ILocalFixRule
         var name = call.Groups["name"].Value;
         var masked = CodeText.MaskAll(at.Source.Lines, Syntax.CLike);
 
-        // sizeof name is the buffer's size only for an array; for a pointer it is the size of the pointer.
         if (!CCode.DeclaredAsArray(masked, at.Number - 1, name)) return null;
 
         var strip = CCode.Includes(at.Source, "string.h")
@@ -179,10 +167,6 @@ public sealed partial class CStringTooLong : ILocalFixRule
 }
 
 /// <summary><c>return text;</c> for a local array - the address of memory that is gone once the function returns.</summary>
-/// <remarks>
-/// <c>static</c> keeps the array alive after the function returns, which is the one-line change that makes the returned
-/// address valid. Every call shares that one array, which the explanation says.
-/// </remarks>
 public sealed partial class CReturnLocalAddress : ILocalFixRule
 {
     public string Id => "c-return-local-address";
@@ -211,7 +195,6 @@ public sealed partial class CReturnLocalAddress : ILocalFixRule
         var (header, _) = CCode.EnclosingFunction(masked, at.Number - 1);
         var depths = Brackets.BraceDepths(masked);
 
-        // The declaration at the function's own level - not one inside a nested block, and not a parameter.
         var declaration = new Regex($@"^(?<lead>\s*)(?!return\b|static\b)(?:const\s+)?[A-Za-z_][\w\s]*?[\s*]{Regex.Escape(name)}\s*(?:\[[^\]]*\])?\s*(?:=[^;]*)?;");
         var found = Enumerable.Range(header + 1, Math.Max(0, at.Number - 2 - header))
             .Where(i => depths[i] == 1 && declaration.IsMatch(masked[i]))
@@ -236,10 +219,6 @@ public sealed partial class CReturnLocalAddress : ILocalFixRule
 }
 
 /// <summary><c>int *values = malloc(10);</c> - ten bytes, where ten ints were meant.</summary>
-/// <remarks>
-/// Found by AddressSanitizer as a write just past the end of a block, with the line that allocated it. Offered only when
-/// that line calls <c>malloc</c> with no <c>sizeof</c> in its size, for a pointer to something bigger than a <c>char</c>.
-/// </remarks>
 public sealed partial class CMallocElementSize : ILocalFixRule
 {
     public string Id => "c-malloc-element-size";
@@ -261,7 +240,6 @@ public sealed partial class CMallocElementSize : ILocalFixRule
         var allocated = output.FindIndex(l => AllocatedBy().IsMatch(l));
         if (allocated < 0) return null;
 
-        // The first frame of the allocation that is in a file of the program's own.
         foreach (var line in output.Skip(allocated + 1).TakeWhile(l => l.Trim().Length > 0))
         {
             if (Frame().Match(line) is not { Success: true } frame || context.Read(frame.Groups["file"].Value.Trim()) is not { } source) continue;
@@ -299,7 +277,8 @@ public sealed partial class CMallocElementSize : ILocalFixRule
     }
 }
 
-/// <summary><c>malloc(sizeof(struct node *))</c> for a <c>struct node *</c>, or <c>sizeof(int)</c> for rows of <c>int *</c> - the size of the wrong type.</summary>
+/// <summary><c>malloc(sizeof(struct node *))</c> for a <c>struct node *</c>, or <c>sizeof(int)</c> for rows of <c>int *</c> - the
+/// size of the wrong type.</summary>
 public sealed partial class CMallocWrongSizeof : ILocalFixRule
 {
     public string Id => "c-malloc-wrong-sizeof";
@@ -331,7 +310,6 @@ public sealed partial class CMallocWrongSizeof : ILocalFixRule
         var pointee = Normalise(declared[..declared.LastIndexOf('*')]);
         var measured = Normalise(size.Groups["type"].Value);
 
-        // Off by exactly one star, either way - the size of the pointer where the thing was meant, or the reverse.
         if (pointee == measured || !(pointee + "*" == measured || measured + "*" == pointee)) return null;
 
         var start = allocation.Index + allocation.Length - 1 + size.Index;
@@ -380,7 +358,6 @@ public sealed partial class CFreeWhileWalking : ILocalFixRule
         var rest = walk.Groups["rest"].Value.Trim();
         var freeing = new Regex($@"\bfree\s*\(\s*{Regex.Escape(variable)}\s*\)\s*;");
 
-        // "next", unless the function already has something of that name that is not a member.
         var (function, end) = CCode.EnclosingFunction(masked, number - 1);
         var saved = Enumerable.Range(function, end - function + 1).Any(i => Regex.IsMatch(masked[i], @"(?<![.>\w])next\b"))
             ? "following"
@@ -460,7 +437,6 @@ public sealed partial class CVoidPointerDereference : ILocalFixRule
 
         foreach (Match deref in Dereference().Matches(code))
         {
-            // `a * p` is multiplication; a dereference follows an operator, a bracket or nothing.
             var before = code[..deref.Index].TrimEnd();
             if (before.Length > 0 && (char.IsLetterOrDigit(before[^1]) || before[^1] is '_' or ')' or ']')) continue;
 
@@ -515,7 +491,6 @@ public sealed partial class CArrayAssignString : ILocalFixRule
         var (source, number, line) = at;
         if (Assignment().Match(line) is not { Success: true } assignment) return null;
 
-        // strcpy without its header is a second problem. With the header already there, this is one edit.
         if (!CCode.Includes(source, "string.h")) return null;
 
         var name = assignment.Groups["name"].Value;
@@ -527,7 +502,6 @@ public sealed partial class CArrayAssignString : ILocalFixRule
         var length = Regex.Replace(value[1..^1], @"\\.", "x").Length;
         var size = int.Parse(declaration.Groups["size"].Value);
 
-        // A copy that does not fit would turn a compile error into a buffer overflow.
         if (length + 1 > size) return null;
 
         return LocalFix.ReplaceLine(

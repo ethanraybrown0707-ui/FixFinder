@@ -13,26 +13,12 @@ public enum DiffRowKind
     Note,
 }
 
-/// <summary>
-/// One line of a rendered diff, shaped for the preview window's list.
-/// </summary>
-/// <remarks>
-/// A view type, so the colouring rules live in XAML and <c>DiffLine</c> stays a description of
-/// a patch rather than of a display.
-/// </remarks>
+/// <summary>One line of a rendered diff, shaped for the preview window's list.</summary>
 public sealed class DiffRow
 {
     public required string Text { get; init; }
     public required DiffRowKind Kind { get; init; }
 
-    /// <summary>
-    /// The line itself, so a blank row reads as blank rather than as a type name.
-    /// </summary>
-    /// <remarks>
-    /// WPF falls back to <c>ToString()</c> when a bound automation name is empty, which turned
-    /// the blank separator rows into "FixFinder.Gui.DiffRow" for anything reading the window
-    /// through UI Automation - a screen reader, or the tooling used to drive it.
-    /// </remarks>
     public override string ToString() => Text;
 
     public bool IsAdded => Kind == DiffRowKind.Added;
@@ -40,7 +26,6 @@ public sealed class DiffRow
     public bool IsHeader => Kind is DiffRowKind.FileHeader or DiffRowKind.HunkHeader;
     public bool IsNote => Kind == DiffRowKind.Note;
 
-    /// <summary>Renders a plan as the diff it would carry out, file by file.</summary>
     public static List<DiffRow> Render(ApplyPlan plan)
     {
         var rows = new List<DiffRow>();
@@ -94,7 +79,6 @@ public sealed class DiffRow
         return rows;
     }
 
-    /// <summary>Renders a code block that is not a patch, as something to read and copy.</summary>
     public static List<DiffRow> Render(IReadOnlyList<CodeBlock> snippets)
     {
         var rows = new List<DiffRow>();

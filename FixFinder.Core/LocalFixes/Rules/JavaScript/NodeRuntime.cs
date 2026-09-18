@@ -2,15 +2,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FixFinder.Core.Execution;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary>Built-in names asked of Node itself, so they are right for the Node that ran the program.</summary>
-/// <remarks>
-/// Only fixed expressions are ever evaluated - <c>String.prototype</c>, <c>Math</c>, a core module's exports - and never
-/// anything from the program, which is the rule every check here keeps: nothing the user wrote is run.
-/// </remarks>
 internal static partial class NodeRuntime
 {
     private static readonly Dictionary<string, IReadOnlyList<string>> Cache = new(StringComparer.Ordinal);
@@ -23,12 +18,6 @@ internal static partial class NodeRuntime
 
     private const string ObjectMembers = " constructor hasOwnProperty isPrototypeOf propertyIsEnumerable toLocaleString toString valueOf";
 
-    /// <summary>What every Node since 18 has, for when Node cannot be asked.</summary>
-    /// <remarks>
-    /// Node is asked first, because its answer is right for the Node that ran the program. But a Node that does not start in
-    /// time - a busy CI runner did exactly that - would leave a misspelt <c>toUppercase</c> with nothing to be matched against.
-    /// A test checks every name here against Node's own answer, so the table cannot drift into names Node does not have.
-    /// </remarks>
     internal static readonly Dictionary<string, string[]> Standard = new(StringComparer.Ordinal)
     {
         ["String.prototype"] = ("length at charAt charCodeAt codePointAt concat endsWith includes indexOf lastIndexOf localeCompare match matchAll " +
@@ -47,7 +36,6 @@ internal static partial class NodeRuntime
                         "os path perf_hooks process querystring readline repl stream string_decoder timers tls tty url util v8 vm worker_threads zlib").Split(' '),
     };
 
-    /// <summary>Every property name along the prototype chain of a built-in: <c>String.prototype</c>, <c>Math</c>.</summary>
     public static IReadOnlyList<string> Members(string expression) =>
         !Expression().IsMatch(expression)
             ? []
@@ -57,7 +45,6 @@ internal static partial class NodeRuntime
     public static IReadOnlyList<string> BuiltinModules() =>
         AskOrStandard("builtins", "builtins", "console.log(require('module').builtinModules.join(' '))");
 
-    /// <summary>Node's own answer, only - for the test that keeps the table honest.</summary>
     internal static IReadOnlyList<string> AskNode(string expression) =>
         Expression().IsMatch(expression)
             ? Ask($"members:{expression}",
@@ -67,7 +54,6 @@ internal static partial class NodeRuntime
     private static IReadOnlyList<string> AskOrStandard(string standard, string key, string script) =>
         Ask(key, script) is { Count: > 0 } answer ? answer : Standard.GetValueOrDefault(standard, []);
 
-    /// <summary>What a core module exports. Anything that is not a core module is never loaded.</summary>
     public static IReadOnlyList<string> Exports(string module)
     {
         var bare = module.StartsWith("node:", StringComparison.Ordinal) ? module[5..] : module;
@@ -88,7 +74,6 @@ internal static partial class NodeRuntime
         var output = Run(node, script) ?? Run(node, script);
         var names = (output ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
-        // Only a real answer is remembered; a Node that was slow to start once is asked again next time.
         if (names.Length == 0) return names;
 
         lock (Cache)

@@ -1,14 +1,8 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>C4477</c>: a printf conversion that does not match the argument - <c>%s</c> given an int.</summary>
-/// <remarks>
-/// A warning, but the kind that crashes: printf reads an int as an address and follows it. gcc
-/// reports the same thing with a fix-it of its own; MSVC names the argument and its type, which is
-/// enough to pick the one conversion that fits.
-/// </remarks>
 public sealed partial class CFormatSpecifier : ILocalFixRule
 {
     public string Id => "c-format-specifier";
@@ -58,7 +52,6 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
         var literalStart = line.IndexOf('"', argumentStart);
         var conversions = Conversion().Matches(literal[1..^1]).Where(c => c.Value != "%%").ToList();
 
-        // A * width or precision takes an argument of its own, and the count would be off by it.
         if (conversions.Any(c => c.Groups["width"].Value == "*" || c.Groups["precision"].Value == "*")) return null;
 
         var index = int.Parse(message.Groups["arg"].Value) - 1;
@@ -69,7 +62,6 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
         var replacement = "%" + wrong.Groups["flags"].Value + wrong.Groups["width"].Value +
                           (keepPrecision ? "." + wrong.Groups["precision"].Value : "") + fits;
 
-        // A conversion that is already right is not what the warning is about - scanf's missing & is.
         if (replacement == wrong.Value) return null;
 
         var from = literalStart + 1 + wrong.Index;
@@ -107,14 +99,8 @@ public sealed partial class CFormatSpecifier : ILocalFixRule
     }
 }
 
-/// <summary>
-/// A printf or scanf argument of the wrong kind: <c>scanf("%d", age)</c> without its <c>&amp;</c>, and
-/// <c>printf("%s", grade)</c> with a single char - read from MSVC's <c>C4477</c> or gcc's <c>-Wformat</c>.
-/// </summary>
-/// <remarks>
-/// Both compile with a warning and then crash. gcc offers a fix-it for the second, but its answer is
-/// <c>%d</c> - the char arrives as an int - where a person printing a grade means <c>%c</c>.
-/// </remarks>
+/// <summary>A printf or scanf argument of the wrong kind: <c>scanf("%d", age)</c> without its <c>&amp;</c>, and <c>printf("%s",
+/// grade)</c> with a single char - read from MSVC's <c>C4477</c> or gcc's <c>-Wformat</c>.</summary>
 public sealed partial class CFormatArgument : ILocalFixRule
 {
     public string Id => "c-format-argument";
@@ -152,7 +138,6 @@ public sealed partial class CFormatArgument : ILocalFixRule
 
         var arguments = CFormatSpecifier.Arguments(masked, open + 1, close);
 
-        // MSVC counts the arguments after the format string; gcc counts them all, from 1.
         var variadic = int.Parse(message.Groups["arg"].Value) - (gcc is not null ? position + 1 : 0);
         if (variadic < 1 || position + variadic >= arguments.Count) return null;
 
@@ -293,7 +278,6 @@ public sealed partial class CArrayParameterSize : ILocalFixRule
         var parameter = Regex.Match(line[parameters[position].Start..parameters[position].End], @"(?<name>[A-Za-z_]\w*)\s*\[\s*\]\s*\[(?<empty>\s*)\]");
         var name = parameter.Groups["name"].Value;
 
-        // The column count, read from every array this function is called with - all of which have to agree.
         var columns = new HashSet<string>(StringComparer.Ordinal);
         var call = new Regex($@"(?<![\w.]){Regex.Escape(func)}\s*(?<open>\()");
 
@@ -311,7 +295,6 @@ public sealed partial class CArrayParameterSize : ILocalFixRule
                 var argument = masked[i][arguments[position].Start..arguments[position].End].Trim();
                 if (!Regex.IsMatch(argument, @"^[A-Za-z_]\w*$")) return null;
 
-                // A declaration, with its type - not an element read somewhere, like grid[0][0].
                 var declared = masked
                     .Select(text => Regex.Match(text, $@"\b(?:int|char|double|float|long|short|unsigned|signed|bool|struct\s+\w+|[A-Za-z_]\w*_t)\s+{Regex.Escape(argument)}\s*\[\s*\w+\s*\]\s*\[\s*(?<columns>\w+)\s*\]"))
                     .FirstOrDefault(d => d.Success);
@@ -321,7 +304,6 @@ public sealed partial class CArrayParameterSize : ILocalFixRule
             }
         }
 
-        // gcc accepts a zero-length array as an extension, so a 0 here would compile and still be wrong.
         if (columns is not { Count: 1 } || columns.Single() == "0") return null;
 
         var count = columns.Single();

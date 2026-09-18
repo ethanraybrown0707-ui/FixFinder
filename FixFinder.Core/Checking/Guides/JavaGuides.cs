@@ -30,7 +30,6 @@ internal static class JavaGuides
 
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
-        // ------------------------------------------------------------------ javac errors
         Compile(@"^cannot find symbol",
             "The code uses a name - a variable, method or class - that javac cannot find where this line is. It may be misspelt " +
             "(Java is case-sensitive), declared inside a different block, or need an import.",
@@ -239,7 +238,6 @@ internal static class JavaGuides
             long population = 8000000000L;
             """),
 
-        // ------------------------------------------------------------------ javac -Xlint warnings
         Lint("fallthrough",
             "This case has no break, so after its own statements the program carries straight on into the next case's.",
             "Choosing one option also runs the next, and the output is wrong in a way that is easy to miss.",
@@ -337,7 +335,6 @@ internal static class JavaGuides
             }
             """),
 
-        // ------------------------------------------------------------------ runtime
         Thrown("NullPointerException",
             "The line uses a variable that holds null - it was never given an object, or something returned null - as if it held one.",
             "The program crashes at this line, and everything after it is skipped.",

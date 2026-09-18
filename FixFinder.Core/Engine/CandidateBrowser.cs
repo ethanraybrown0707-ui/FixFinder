@@ -5,8 +5,6 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Core.Engine;
 
 /// <summary>One result, with whatever could be worked out about acting on it.</summary>
-/// <param name="Position">Which result this is, counting from one.</param>
-/// <param name="Plan">What applying it would do, or null when there is nothing to apply.</param>
 public sealed record ExaminedCandidate(
     FixCandidate Candidate,
     int Position,
@@ -14,19 +12,10 @@ public sealed record ExaminedCandidate(
     HarvestResult? Harvest,
     ApplyPlan? Plan)
 {
-    /// <summary>
-    /// Set when the plan writes into an installed dependency rather than the project.
-    /// </summary>
-    /// <remarks>
-    /// Carried separately because it changes what the confirmation has to say. A patch inside the
-    /// project affects one program; a patch inside site-packages affects every program on the
-    /// machine that imports it, and pip will overwrite it on the next install.
-    /// </remarks>
     public InstalledPackage? Into { get; init; }
 
     public bool CanApply => Plan is { CanApply: true };
 
-    /// <summary>Why Apply is unavailable, in a sentence fit to put on the disabled button.</summary>
     public string WhyNotAppliable =>
         Harvest is null
             ? "This one has not been opened yet."
@@ -37,25 +26,7 @@ public sealed record ExaminedCandidate(
                     : $"Its patch will not apply here: {Plan.Explanation}";
 }
 
-/// <summary>
-/// Walks the ranked results one at a time, opening each only when it is reached.
-/// </summary>
-/// <remarks>
-/// Thirty-odd results are found and ranked on every run and exactly one was ever shown, which
-/// made "the top result is no use to me" the end of the road rather than the start of looking.
-/// The rest are already scored and already in hand; what was missing was a way to go and see one.
-/// <para>
-/// <b>Opened lazily, and only on request.</b> Fetching a candidate's linked commits costs
-/// requests from an hourly allowance, so doing it for all thirty up front would spend the budget
-/// on results nobody will look at. The first is free - the session already opened it - and each
-/// step afterwards costs one candidate's worth.
-/// </para>
-/// <para>
-/// Results are kept once examined, so stepping back and forth does not refetch and does not
-/// re-spend. The cache underneath would usually absorb it, but relying on that would make the
-/// cost of a button depend on a setting the user can turn off.
-/// </para>
-/// </remarks>
+/// <summary>Walks the ranked results one at a time, opening each only when it is reached.</summary>
 public sealed class CandidateBrowser
 {
     private readonly FixFinderHttpClient _http;
@@ -73,17 +44,10 @@ public sealed class CandidateBrowser
 
         Count = outcome.Candidates.Count;
 
-        // The prompt opens on whichever candidate the session settled on, which is not always the
-        // top of the list: a lower one whose patch actually fits is promoted ahead of it. Starting
-        // anywhere else would make the first Skip appear to go backwards.
         Index = outcome.Best is null ? 0 : Math.Max(0, IndexOf(outcome, outcome.Best));
 
         if (outcome.Best is null) return;
 
-        // Re-planned rather than taken as given. The session only ever tries the project, so a
-        // patch belonging to a library arrives here refused - and this is the result the prompt
-        // opens on, so taking the session's answer would mean the one case a dependency patch is
-        // most likely to appear in is the one case it is never offered for.
         var plan = outcome.Plan;
         InstalledPackage? into = null;
 
@@ -94,19 +58,14 @@ public sealed class CandidateBrowser
             outcome.Best, Index + 1, Count, outcome.Harvest, plan) { Into = into };
     }
 
-    /// <summary>Zero-based position in the ranked list.</summary>
     public int Index { get; private set; }
 
     public int Count { get; }
 
-    /// <summary>True when there is another result to step to.</summary>
     public bool HasNext => Index + 1 < Count;
 
-    /// <summary>How many results have not been looked at yet.</summary>
     public int Remaining => Math.Max(0, Count - Index - 1);
 
-    /// <summary>Moves to the next result and opens it.</summary>
-    /// <exception cref="InvalidOperationException">Thrown when there is no next result.</exception>
     public Task<ExaminedCandidate> NextAsync(CancellationToken cancellationToken = default)
     {
         if (!HasNext) throw new InvalidOperationException("There is no next result.");
@@ -116,7 +75,6 @@ public sealed class CandidateBrowser
         return CurrentAsync(cancellationToken);
     }
 
-    /// <summary>Opens the result now being shown, or returns what was already worked out about it.</summary>
     public async Task<ExaminedCandidate> CurrentAsync(CancellationToken cancellationToken = default)
     {
         if (_examined.TryGetValue(Index, out var already)) return already;
@@ -134,8 +92,6 @@ public sealed class CandidateBrowser
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            // A result that cannot be fetched is advisory, not fatal. Reporting it as "no patch"
-            // would be a lie; leaving Harvest null says the truth - it was never opened.
             Log?.Invoke($"{candidate.Id}: could not be opened - {ex.Message}");
 
             var unopened = new ExaminedCandidate(candidate, Index + 1, Count, null, null);
@@ -156,20 +112,6 @@ public sealed class CandidateBrowser
         return examined;
     }
 
-    /// <summary>
-    /// Plans a patch against the project, and failing that against the library it belongs to.
-    /// </summary>
-    /// <remarks>
-    /// The project always goes first, so a patch that fits the user's own code is never diverted
-    /// into a dependency. Only a patch the project cannot place at all is tried against the
-    /// package - which is the ordinary shape of an upstream fix, since it changes the library's
-    /// files and the library is not in the project.
-    /// <para>
-    /// The dependency attempt is contained to that one package's folder, not to the whole of
-    /// site-packages: the containment rule still refuses everything outside it, so a patch that
-    /// wanders is refused exactly as before.
-    /// </para>
-    /// </remarks>
     private (ApplyPlan? Plan, InstalledPackage? Into) PlanFor(HarvestResult harvest)
     {
         if (!harvest.HasAppliablePatch) return (null, null);
@@ -179,7 +121,7 @@ public sealed class CandidateBrowser
 
         if (_outcome.SourceRoot is { } root)
         {
-            planned = new PatchApplier().Plan(
+            planned = new PatchPlanner().Plan(
                 patch, new SourcePathMapper(root, _outcome.StackTraceFiles), _outcome.StackTraceFiles);
 
             if (planned.CanApply) return (planned, null);
@@ -187,11 +129,9 @@ public sealed class CandidateBrowser
 
         if (_outcome.Dependency is not { } package) return (planned, null);
 
-        var intoPackage = new PatchApplier().Plan(
+        var intoPackage = new PatchPlanner().Plan(
             patch, new SourcePathMapper(package.Root, _outcome.StackTraceFiles), _outcome.StackTraceFiles);
 
-        // Only reported as a dependency patch when it genuinely lands there. A failure inside the
-        // package is less informative than the project's own refusal, which named the file.
         return intoPackage.CanApply ? (intoPackage, package) : (planned ?? intoPackage, null);
     }
 

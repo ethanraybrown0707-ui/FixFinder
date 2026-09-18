@@ -3,20 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace FixFinder.Core.Sources;
 
-/// <summary>
-/// Turns a Stack Exchange answer body into readable plain text.
-/// </summary>
-/// <remarks>
-/// Stack Exchange returns HTML, not markdown, which is the detail most easily got wrong here:
-/// the same field on GitHub is markdown, so a single code path produces either escaped tags on
-/// screen or lost code blocks, depending on which one you wrote it for.
-/// <para>
-/// Regex rather than a parser because this is not parsing - it is flattening known-shaped
-/// markup for display, and the alternative is a dependency the size of the rest of the tool.
-/// The structural work in M5, where code blocks are pulled out to become patches, uses the
-/// original HTML that <see cref="FixCandidate.RawBody"/> keeps, not this.
-/// </para>
-/// </remarks>
+/// <summary>Turns a Stack Exchange answer body into readable plain text.</summary>
 public static partial class HtmlText
 {
     [GeneratedRegex(@"<br\s*/?>|</p>|</div>|</li>|</h\d>", RegexOptions.IgnoreCase)]
@@ -57,7 +44,6 @@ public static partial class HtmlText
         return text.Trim();
     }
 
-    /// <summary>Shortens text for the candidate list without cutting a word in half.</summary>
     public static string Excerpt(string? text, int maximum)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";

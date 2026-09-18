@@ -6,13 +6,6 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary>What Java code can name without being told where it lives, and where everything else lives.</summary>
-/// <remarks>
-/// The package table is hand-written and covers the classes people actually forget to import. Where
-/// a simple name exists in more than one package - <c>List</c> is also <c>java.awt.List</c>,
-/// <c>Date</c> is also <c>java.sql.Date</c> - it gives the one that is meant nearly every time, and
-/// the compile check catches the rest: an import of the wrong <c>List</c> does not compile against
-/// <c>new ArrayList&lt;&gt;()</c>.
-/// </remarks>
 internal static partial class JavaTypes
 {
     private static readonly (string Package, string Classes)[] Table =
@@ -42,10 +35,8 @@ internal static partial class JavaTypes
         ("java.lang.reflect", "Method Field Constructor InvocationTargetException Modifier"),
     ];
 
-    /// <summary>Simple class name to the package it is imported from.</summary>
     public static IReadOnlyDictionary<string, string> Packages { get; } = BuildPackages();
 
-    /// <summary>What <c>java.lang</c> provides, which never needs an import.</summary>
     public static IReadOnlySet<string> Lang { get; } = new HashSet<string>(
         ("String Object Integer Long Double Float Short Byte Boolean Character Math StrictMath System StringBuilder " +
          "StringBuffer Thread Runnable Exception RuntimeException Error Throwable IllegalArgumentException " +
@@ -88,7 +79,6 @@ internal static partial class JavaTypes
         return packages;
     }
 
-    /// <summary>True when this file already imports the class, by name or by its package.</summary>
     public static bool IsImported(string simpleName, IReadOnlyList<string> lines)
     {
         Packages.TryGetValue(simpleName, out var package);
@@ -106,7 +96,6 @@ internal static partial class JavaTypes
         return false;
     }
 
-    /// <summary>The fully qualified name a type in this file refers to, as far as can be told without compiling.</summary>
     public static string? Fqn(string type, IReadOnlyList<string> lines)
     {
         if (type.Contains('.')) return type;
@@ -123,14 +112,6 @@ internal static partial class JavaTypes
         return Lang.Contains(type) ? $"java.lang.{type}" : null;
     }
 
-    /// <summary>
-    /// The public method or field names of a JDK class, read from the JDK with <c>javap</c>.
-    /// </summary>
-    /// <remarks>
-    /// javap reads the class files that ship with the JDK and prints their signatures; it runs no
-    /// code. It is the only honest source for "what methods does PrintStream have" - a hand-written
-    /// list would be out of date for somebody's JDK the day it was written.
-    /// </remarks>
     public static IReadOnlyList<string> Members(string fqn, bool methods)
     {
         var key = (methods ? "m:" : "f:") + fqn;

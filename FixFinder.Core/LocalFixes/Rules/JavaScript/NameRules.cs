@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -56,7 +54,6 @@ public sealed partial class JsMissingThis : ILocalFixRule
 
         if (!field && !method) return null;
 
-        // Inside a static method there is no object for `this` to be.
         if (JavaScriptCode.EnclosingFunction(masked, number - 1) is { } function && Regex.IsMatch(masked[function.Line], @"^\s*static\b")) return null;
 
         var hits = JavaScriptCode.UnqualifiedUses(masked[number - 1], name);
@@ -92,7 +89,6 @@ public sealed partial class JsNearestName : ILocalFixRule
 
         if (CodeText.Nearest(wrong, candidates.Where(c => c != wrong)) is not { } right) return null;
 
-        // Every use on the line, or the copy still fails on the one Node did not point at.
         var hits = JavaScriptCode.UnqualifiedUses(CodeText.Mask(at.Line, Syntax.CLike), wrong);
         if (hits.Count == 0) return null;
 
@@ -360,7 +356,8 @@ public sealed partial class JsThisInCallback : ILocalFixRule
     }
 }
 
-/// <summary><c>const inc = c.increment;</c> then <c>inc()</c> - a method taken off its object, so <c>this</c> is undefined inside.</summary>
+/// <summary><c>const inc = c.increment;</c> then <c>inc()</c> - a method taken off its object, so <c>this</c> is undefined
+/// inside.</summary>
 public sealed partial class JsDetachedMethod : ILocalFixRule
 {
     public string Id => "js-detached-method";

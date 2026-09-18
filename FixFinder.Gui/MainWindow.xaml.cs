@@ -90,8 +90,6 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    // ================================================================== choosing a file
-
     private void ChooseFileButton_Click(object sender, RoutedEventArgs e) => PickFile();
 
     private bool PickFile()
@@ -148,8 +146,6 @@ public partial class MainWindow : Window
         ChosenFolderText.Text = Path.GetDirectoryName(path) ?? "";
         ChosenFolderText.ToolTip = path;
     }
-
-    // ================================================================== languages
 
     private void AddLanguageTiles()
     {
@@ -248,8 +244,6 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.Tag is ExpectedRunRow row) _extraRuns.Remove(row);
     }
 
-    // ================================================================== checking
-
     private async Task CheckAsync()
     {
         _launch = TargetFactory.FromFile(_chosenPath!);
@@ -346,7 +340,6 @@ public partial class MainWindow : Window
         foreach (var note in report.Notes) _notes.Add(note);
 
         ShowFindings(report.Findings);
-
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
             report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime) ? LaneState.Failed : LaneState.Passed);
@@ -495,8 +488,6 @@ public partial class MainWindow : Window
         EmptyBodyText.Text = text;
     }
 
-    // ================================================================== a finding's buttons
-
     private void ToggleDetails_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is FindingRow row) row.IsExpanded = !row.IsExpanded;
@@ -595,8 +586,6 @@ public partial class MainWindow : Window
         };
         timer.Start();
     }
-
-    // ================================================================== the small print
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {

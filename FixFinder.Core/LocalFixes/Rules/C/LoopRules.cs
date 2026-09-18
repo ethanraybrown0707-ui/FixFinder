@@ -1,11 +1,9 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>for (i = 0; ...)</c> with <c>i</c> never declared.</summary>
-/// <remarks>Declared in the loop only when nothing outside the loop uses it - otherwise it has to live longer.</remarks>
 public sealed partial class CForCounter : ILocalFixRule
 {
     public string Id => "c-for-counter";
@@ -143,7 +141,6 @@ public sealed partial class CUninitialisedAccumulator : ILocalFixRule
         var source = at.Source;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
 
-        // Only a running total or product: the first use adds to it, and nothing sets it before that.
         var use = masked[at.Number - 1];
         var start = Regex.IsMatch(use, $@"(?<![\w.>]){Regex.Escape(name)}\s*(?:\+=|-=|\+\+|--)|(?:\+\+|--)\s*{Regex.Escape(name)}\b|(?<![\w.>]){Regex.Escape(name)}\s*=\s*{Regex.Escape(name)}\s*[+-]")
             ? "0"

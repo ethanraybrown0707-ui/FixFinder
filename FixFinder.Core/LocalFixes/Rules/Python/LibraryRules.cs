@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -36,7 +35,6 @@ public sealed partial class PythonJsonLoadOrLoads : ILocalFixRule
 
         if (!GivenText().IsMatch(message) || Regex.Matches(masked, @"\bjson\.load\s*\(\s*(?<name>[A-Za-z_]\w*)\s*\)").ToList() is not [var load]) return null;
 
-        // Text for certain: read from a file, or a JSON literal - not a variable holding a file name, which wants opening.
         var name = load.Groups["name"].Value;
         var all = CodeText.MaskAll(source.Lines, Syntax.Python);
         var assigned = Enumerable.Range(0, number - 1).Where(i => Regex.IsMatch(all[i], $@"^\s*{Regex.Escape(name)}\s*=")).ToList();
@@ -52,10 +50,6 @@ public sealed partial class PythonJsonLoadOrLoads : ILocalFixRule
 }
 
 /// <summary><c>worker() argument after * must be an iterable, not int</c> - <c>args=(5)</c>, which is 5 in brackets, not a tuple.</summary>
-/// <remarks>
-/// Raised inside <c>threading</c> or <c>multiprocessing</c>, so the traceback never names the program's own file. The call is
-/// found by the function the message names, in the Python files of the program's folder, and must be the only one.
-/// </remarks>
 public sealed partial class PythonArgsTuple : ILocalFixRule
 {
     public string Id => "python-args-tuple";
@@ -88,7 +82,6 @@ public sealed partial class PythonArgsTuple : ILocalFixRule
         var line = hit.Source.Lines[hit.Index];
         var value = hit.Match.Groups["inner"].Success ? line.Substring(hit.Match.Groups["inner"].Index, hit.Match.Groups["inner"].Length).Trim() : line.Substring(args.Index, args.Length).Trim();
 
-        // A name holding a list or tuple already is iterable; only a single value in brackets is the mistake read here.
         if (value.Length == 0 || (hit.Match.Groups["bare"].Success && message.Groups["type"].Value is "list" or "tuple")) return null;
 
         return LocalFix.ReplaceLine(
@@ -99,8 +92,7 @@ public sealed partial class PythonArgsTuple : ILocalFixRule
     }
 }
 
-/// <summary><c>Incorrect number of bindings supplied. The current statement uses 1, and there are 3 supplied.</c></summary>
-/// <remarks><c>(name)</c> is the string itself, and sqlite3 binds a string one character at a time.</remarks>
+/// <summary><c>Incorrect number of bindings supplied.</summary>
 public sealed partial class PythonSqlParameterTuple : ILocalFixRule
 {
     public string Id => "python-sql-parameter-tuple";
@@ -138,7 +130,8 @@ public sealed partial class PythonSqlParameterTuple : ILocalFixRule
     }
 }
 
-/// <summary><c>socket.bind() takes exactly one argument (2 given)</c> - the host and port given separately, where the address is one pair.</summary>
+/// <summary><c>socket.bind() takes exactly one argument (2 given)</c> - the host and port given separately, where the address is
+/// one pair.</summary>
 public sealed partial class PythonSocketAddress : ILocalFixRule
 {
     public string Id => "python-socket-address";
@@ -169,7 +162,8 @@ public sealed partial class PythonSocketAddress : ILocalFixRule
     }
 }
 
-/// <summary>The <c>bootstrapping phase</c> error: starting a process at the top level of a script, which Windows runs again in the child.</summary>
+/// <summary>The <c>bootstrapping phase</c> error: starting a process at the top level of a script, which Windows runs again in
+/// the child.</summary>
 public sealed partial class PythonMainGuard : ILocalFixRule
 {
     public string Id => "python-main-guard";
@@ -179,7 +173,6 @@ public sealed partial class PythonMainGuard : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        // The explanation comes after the traceback, over several lines, so it is looked for in everything that was printed.
         if (!PythonCode.Raised(context, "RuntimeError")) return null;
         if (!context.Error.RawText.Contains("bootstrapping phase", StringComparison.Ordinal) &&
             !context.Output.Any(l => l.Text.Contains("bootstrapping phase", StringComparison.Ordinal))) return null;
@@ -189,7 +182,6 @@ public sealed partial class PythonMainGuard : ILocalFixRule
         var masked = CodeText.MaskAll(lines, Syntax.Python);
         if (masked.Any(l => Regex.IsMatch(l, @"^if\s+__name__\s*=="))) return null;
 
-        // Statements at the top level that are not setup - they are what runs on import, and what the guard goes around.
         var statements = Enumerable.Range(0, lines.Count)
             .Where(i => masked[i].Trim().Length > 0 && CodeText.Indentation(masked[i]).Length == 0 && !Setup().IsMatch(masked[i]))
             .ToList();
@@ -197,7 +189,6 @@ public sealed partial class PythonMainGuard : ILocalFixRule
 
         var first = statements[0];
 
-        // Only a script whose statements come after everything it defines: a def or class below them would move into the guard.
         if (Enumerable.Range(first, lines.Count - first).Any(i => CodeText.Indentation(masked[i]).Length == 0 && Regex.IsMatch(masked[i], @"^(?:@|def\s|async\s+def\s|class\s)"))) return null;
 
         var end = lines.Count;
@@ -280,7 +271,6 @@ public sealed partial class PythonCoroutineNotAwaited : ILocalFixRule
         var function = PythonCode.EnclosingHeader(masked, number - 1, PythonCode.FunctionKeyword());
         if (function < 0 || !masked[function].TrimStart().StartsWith("async", StringComparison.Ordinal)) return null;
 
-        // The call on the error line itself, or the variable it was stored in a few lines above.
         var direct = Regex.Matches(masked[number - 1], @"(?<![\w.])(?<!await\s)(?<name>[A-Za-z_]\w*)\s*\(").Where(m => asyncs.Contains(m.Groups["name"].Value)).ToList();
 
         if (direct is [var call])
@@ -331,8 +321,6 @@ public sealed partial class PythonCoroutineNotCalled : ILocalFixRule
         var name = Regex.Escape(message.Groups["name"].Value);
         var call = new Regex($@"\(\s*(?<name>{name})\s*[,)]");
 
-        // asyncio raises this from inside its own runners.py, so the frame holding the call is further out -
-        // searched for rather than assumed, whichever Python install the standard library lives in.
         foreach (var frame in context.Error.RootCause.Frames.Concat(context.Error.Frames))
         {
             if (frame.Line is not { } number || context.Read(frame.File) is not { } source || source.Line(number) is not { } line) continue;

@@ -4,16 +4,6 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads Go panics and fatal runtime errors.</summary>
-/// <remarks>
-/// Go's trap is that <b>one frame spans two lines</b>: a symbol line with the call's argument
-/// words, then an indented <c>file:line +0xNN</c> line. A parser written for the one-line shape
-/// every other language uses finds no frames at all here.
-/// <para>
-/// Only the first goroutine block is parsed. A panic dumps every live goroutine, and the rest
-/// are unrelated stacks that happened to be running - including them would bury the failing
-/// frame among dozens of irrelevant ones and poison the search query with their symbols.
-/// </para>
-/// </remarks>
 public sealed partial class GoPanicParser : IStackTraceParser
 {
     public string LanguageId => "go";
@@ -44,8 +34,6 @@ public sealed partial class GoPanicParser : IStackTraceParser
             if (line.Contains("runtime.gopanic", StringComparison.Ordinal)) score += 20;
 
             if (SymbolLinePattern().IsMatch(line)) { sawSymbol = true; continue; }
-            // The two-line pairing itself is strong evidence, so only count a location line
-            // when a symbol line came immediately before it.
             if (sawSymbol && LocationLinePattern().IsMatch(line)) score += 12;
             sawSymbol = false;
         }
@@ -82,7 +70,6 @@ public sealed partial class GoPanicParser : IStackTraceParser
 
             for (var i = goroutineIndex + 1; i < lines.Count - 1; i++)
             {
-                // A second "goroutine N [...]:" ends the block we care about.
                 if (GoroutinePattern().IsMatch(lines[i].Text)) break;
 
                 var symbol = SymbolLinePattern().Match(lines[i].Text);
@@ -117,8 +104,6 @@ public sealed partial class GoPanicParser : IStackTraceParser
             Confidence = frames.Count > 0 ? 90 : 65,
             RawText = ParserHelpers.RawTextOf(lines, headerIndex, end),
             FirstLineSequence = lines[headerIndex].Sequence,
-            // Go has no exception types. The panic kind is the closest equivalent, and
-            // "runtime error: index out of range" is exactly what people search for.
             ExceptionType = message.StartsWith("runtime error:", StringComparison.Ordinal)
                 ? "runtime error"
                 : header.Groups["kind"].Value,

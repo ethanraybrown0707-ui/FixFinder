@@ -1,17 +1,9 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// libstdc++'s <c>vector::_M_range_check: __n (which is 3) &gt;= this-&gt;size() (which is 3)</c> - an <c>.at(i)</c> in a loop that
-/// runs to <c>&lt;= size()</c>.
-/// </summary>
-/// <remarks>
-/// An exception nobody caught prints no stack, so there is no line to start from. The fix is offered only when the index
-/// asked for is exactly the size - one past the end - and the program has exactly one loop that reads <c>.at(i)</c> up to
-/// and including <c>.size()</c>. Anything less definite is a guess about which loop it was.
-/// </remarks>
+/// <summary>libstdc++'s <c>vector::_M_range_check: __n (which is 3) &gt;= this-&gt;size() (which is 3)</c> - an <c>.at(i)</c> in
+/// a loop that runs to <c>&lt;= size()</c>.</summary>
 public sealed partial class CppAtOutOfRange : ILocalFixRule
 {
     public string Id => "cpp-at-out-of-range";
@@ -19,10 +11,6 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
     [GeneratedRegex(@"^(?:vector::_M_range_check|basic_string::at): __n \(which is (?<n>\d+)\) >= this->size\(\) \(which is (?<size>\d+)\)")]
     private static partial Regex Message();
 
-    /// <summary>
-    /// MSVC's standard library says less - <c>invalid vector subscript</c>, <c>invalid string position</c> - and
-    /// reaches this rule through FixFinder's terminate handler, which prints it in libstdc++'s words.
-    /// </summary>
     [GeneratedRegex(@"^invalid (?:vector subscript|string position)$")]
     private static partial Regex MsvcMessage();
 
@@ -33,8 +21,6 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
     {
         if (context.Error is not { LanguageId: "gcc", ExceptionType: "std::out_of_range" } error) return null;
 
-        // libstdc++ names the index and the size, and the index must be exactly the size - one past the end. MSVC's
-        // names neither, so its message is taken as it is, and the loop below still has to be the only one it could be.
         var message = Message().Match(error.Message ?? "");
         if (message.Success ? message.Groups["n"].Value != message.Groups["size"].Value : !MsvcMessage().IsMatch(error.Message ?? "")) return null;
 
@@ -76,7 +62,6 @@ public sealed partial class CppAtOutOfRange : ILocalFixRule
             file.Path, index + 1, original[..op.Index] + "<" + original[(op.Index + op.Length)..]);
     }
 
-    /// <summary>The lines a for loop's body covers, from the end of its header.</summary>
     private static IEnumerable<int> Body(IReadOnlyList<string> masked, int line, int after)
     {
         var rest = masked[line][after..];
@@ -176,7 +161,6 @@ public sealed partial class CppIndexEmptyVector : ILocalFixRule
         var (_, last) = CCode.EnclosingFunction(masked, number - 1);
         var touched = new Regex($@"(?<![\w.>]){Regex.Escape(vector)}\s*(?:\.|->|=(?!=)|\[)");
 
-        // Anything that could have added elements in between, or another indexed write after, makes it more than this one line.
         for (var i = declaration.Line + 1; i < number - 1; i++)
             if (touched.IsMatch(masked[i])) return null;
 
@@ -193,10 +177,8 @@ public sealed partial class CppIndexEmptyVector : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>for (int v : values) if (...) values.erase(std::find(...));</c> - erasing from a vector inside its own range-based loop, which
-/// AddressSanitizer catches walking off the end.
-/// </summary>
+/// <summary><c>for (int v : values) if (...) values.erase(std::find(...));</c> - erasing from a vector inside its own range-based
+/// loop, which AddressSanitizer catches walking off the end.</summary>
 public sealed class CppEraseInLoop : ILocalFixRule
 {
     public string Id => "cpp-erase-in-loop";
@@ -301,7 +283,8 @@ public sealed partial class CppDeleteArray : ILocalFixRule
     }
 }
 
-/// <summary><c>std::thread worker(increment, counter)</c> for <c>void increment(int&amp;)</c> - a thread copies its arguments unless told otherwise.</summary>
+/// <summary><c>std::thread worker(increment, counter)</c> for <c>void increment(int&amp;)</c> - a thread copies its arguments
+/// unless told otherwise.</summary>
 public sealed partial class CppThreadReference : ILocalFixRule
 {
     public string Id => "cpp-thread-reference";

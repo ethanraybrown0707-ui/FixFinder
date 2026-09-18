@@ -21,7 +21,6 @@ internal static partial class GoCode
         "uint32", "uint64", "float32", "float64", "string", "bool", "byte", "rune", "error", "any",
     ];
 
-    /// <summary>The standard packages a bare name most likely meant, by the name code uses them under.</summary>
     public static readonly Dictionary<string, string> StandardPackages = new(StringComparer.Ordinal)
     {
         ["fmt"] = "fmt", ["strings"] = "strings", ["strconv"] = "strconv", ["math"] = "math", ["os"] = "os", ["time"] = "time",
@@ -65,7 +64,6 @@ internal static partial class GoCode
 
     public static (SourceFile Source, int Number, string Line)? Locate(LocalFixContext context) => LocateError(context, context.Error);
 
-    /// <summary>The other errors in the same build, with the message each one matched.</summary>
     public static IEnumerable<(ParsedError Error, Match Message)> OtherErrors(LocalFixContext context, Regex message) =>
         context.AllErrors.Where(e => e.LanguageId == "go").Select(e => (Error: e, Message: message.Match(e.Message ?? ""))).Where(x => x.Message.Success);
 
@@ -81,7 +79,6 @@ internal static partial class GoCode
         source.Lines.Any(line => (SingleImport().Match(line) is { Success: true } s && s.Groups["path"].Value == path) ||
                                  (ImportSpec().Match(line) is { Success: true } spec && spec.Groups["path"].Value == path));
 
-    /// <summary>An import added where gofmt would put it: into the block in order, turning a single import into a block, or after package.</summary>
     public static LocalFix? AddImport(string rule, string title, string explanation, SourceFile source, string path)
     {
         var lines = source.Lines;
@@ -118,7 +115,6 @@ internal static partial class GoCode
         return LocalFix.Insert(rule, title, explanation, source.Path, package + 2, ["", $"import \"{path}\""]);
     }
 
-    /// <summary>The top-level function around a line, by its header and its closing brace.</summary>
     public static (int Header, int Close)? EnclosingFunction(IReadOnlyList<string> masked, int index)
     {
         for (var i = index; i >= 0; i--)
@@ -143,7 +139,6 @@ internal static partial class GoCode
     [GeneratedRegex(@"^\s*(?:func|type|var|const)\s+(?:\([^)]*\)\s*)?(?<name>[A-Z]\w*)")]
     private static partial Regex Declared();
 
-    /// <summary>Only standard packages are asked about - nothing from the program or the internet is fetched or run.</summary>
     public static IReadOnlyList<string> ExportedNames(string path)
     {
         if (!StandardPackages.ContainsValue(path)) return [];

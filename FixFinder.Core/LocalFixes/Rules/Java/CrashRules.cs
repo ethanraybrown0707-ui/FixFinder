@@ -1,17 +1,9 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
-/// <summary>
-/// <c>ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3</c> from a loop written with <c>&lt;=</c>.
-/// </summary>
-/// <remarks>
-/// Only when the index equals the length - one past the last valid index, which is exactly what
-/// <c>i &lt;= values.length</c> produces - and only when the loop that drives the failing index is
-/// right there with its bound being that length. Any other out-of-bounds index is a different bug.
-/// </remarks>
+/// <summary><c>ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3</c> from a loop written with <c>&lt;=</c>.</summary>
 public sealed partial class JavaOffByOneLoop : ILocalFixRule
 {
     public string Id => "java-off-by-one-loop";

@@ -5,18 +5,9 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Logic;
 
-/// <summary>
-/// Which lines of a file one run of the program executed - what the suspiciousness formulas count.
-/// </summary>
-/// <remarks>
-/// Only with what each language already ships: Python's own tracing hook, the coverage V8 records for Node when asked, gcc's
-/// <c>--coverage</c> read back with gcov, and Go's <c>-cover</c> read back with <c>go tool covdata</c>. Java and C# have no
-/// coverage without installing something, so for them this answers nothing and lines are ordered without it. Every collector
-/// works in a folder of its own under the temp directory and leaves the program's folder untouched.
-/// </remarks>
+/// <summary>Which lines of a file one run of the program executed - what the suspiciousness formulas count.</summary>
 public static partial class LineCoverage
 {
-    /// <summary>Whether coverage can be collected for a file at all.</summary>
     public static bool Supports(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
         ".py" => true,
@@ -27,7 +18,6 @@ public static partial class LineCoverage
         _ => false,
     };
 
-    /// <summary>The lines of <paramref name="file"/> one run executed, or null when they could not be found out.</summary>
     public static async Task<IReadOnlySet<int>?> CollectAsync(
         string file, TargetSpec run, string? input, string? arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -65,9 +55,6 @@ public static partial class LineCoverage
         ExecutablePath = program, Arguments = arguments, WorkingDirectory = folder, Timeout = timeout,
     };
 
-    // ------------------------------------------------------------------ Python
-
-    /// <summary>Runs the script under a tracer that records every line executed in it, then runs the script exactly as before.</summary>
     private const string Tracer = """
         import json, os, runpy, sys, threading
         out, target = sys.argv[1], os.path.abspath(sys.argv[2])
@@ -99,7 +86,6 @@ public static partial class LineCoverage
     private static async Task<IReadOnlySet<int>?> PythonAsync(
         string file, TargetSpec run, string? input, string? arguments, TimeSpan timeout, string folder, CancellationToken cancellationToken)
     {
-        // A package module run with -m has no single script to trace from.
         if (run.Arguments.Contains("-m ", StringComparison.Ordinal)) return null;
 
         var tracer = Path.Combine(folder, "fixfinder_trace.py");
@@ -114,8 +100,6 @@ public static partial class LineCoverage
         if (!File.Exists(output)) return null;
         return JsonSerializer.Deserialize<int[]>(await File.ReadAllTextAsync(output, cancellationToken))?.ToHashSet();
     }
-
-    // ------------------------------------------------------------------ Node
 
     private static async Task<IReadOnlySet<int>?> NodeAsync(
         string file, TargetSpec run, string? input, string? arguments, TimeSpan timeout, string folder, CancellationToken cancellationToken)
@@ -147,8 +131,6 @@ public static partial class LineCoverage
 
         if (ranges.Count == 0) return null;
 
-        // A line ran when the innermost range around its first character ran - V8 reports blocks inside functions as
-        // ranges of their own, with a count of 0 for the ones never entered.
         var lines = new HashSet<int>();
         var offset = 0;
         var number = 1;
@@ -170,8 +152,6 @@ public static partial class LineCoverage
 
         return lines;
     }
-
-    // ------------------------------------------------------------------ gcc
 
     private static async Task<IReadOnlySet<int>?> GccAsync(
         string file, string? input, string? arguments, TimeSpan timeout, string folder, CancellationToken cancellationToken)
@@ -219,8 +199,6 @@ public static partial class LineCoverage
 
         return lines.Count > 0 ? lines : null;
     }
-
-    // ------------------------------------------------------------------ Go
 
     [GeneratedRegex(@"^(?<file>.+?):(?<from>\d+)\.\d+,(?<to>\d+)\.\d+ \d+ (?<count>\d+)$")]
     private static partial Regex GoBlock();

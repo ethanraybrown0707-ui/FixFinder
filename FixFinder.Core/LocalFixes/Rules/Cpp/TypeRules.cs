@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -184,7 +183,6 @@ public sealed partial class CppCharComparedWithString : ILocalFixRule
 
         var left = other == before[..^2].TrimEnd();
 
-        // An element read with [i], .at(i), .front() or .back() - or a variable declared char.
         if (left ? Regex.IsMatch(other, @"(?:\]|\.\s*(?:at\s*\([^()]*\)|front\s*\(\s*\)|back\s*\(\s*\)))$")
                  : Regex.IsMatch(other, @"^[A-Za-z_]\w*\s*(?:\[[^\]]*\]|\.\s*(?:at\s*\([^()]*\)|front\s*\(\s*\)|back\s*\(\s*\)))"))
             return true;
@@ -346,7 +344,6 @@ public sealed partial class CppMoveUniquePtr : ILocalFixRule
         var (_, last) = CCode.EnclosingFunction(masked, number - 1);
         var used = new Regex($@"(?<![\w.>:]){Regex.Escape(name)}\b");
 
-        // Moved from, it is empty. Anything that still uses it afterwards would read a null pointer.
         if (used.IsMatch(code[(owner.Index + owner.Length)..])) return null;
         for (var i = number; i <= last && i < masked.Count; i++)
             if (used.IsMatch(masked[i])) return null;
@@ -442,7 +439,6 @@ public sealed partial class CppSortList : ILocalFixRule
 
         var found = new List<(SourceFile Source, int Line, Match Call)>();
 
-        // The error is reported from inside <algorithm>, so the call is found in the program instead.
         foreach (var source in CppCode.SourceFiles(context))
         {
             var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);

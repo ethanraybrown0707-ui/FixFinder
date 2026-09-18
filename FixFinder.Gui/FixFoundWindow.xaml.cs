@@ -2,12 +2,10 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using FixFinder.Core.Engine;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
 
-// System.Windows.Media has a CacheMode of its own; alias the HTTP one apart from it.
 using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 
 namespace FixFinder.Gui;
@@ -15,28 +13,7 @@ namespace FixFinder.Gui;
 /// <summary>What the search results window needs: the outcome it shows, and the means to open more of it.</summary>
 public sealed record FixFoundContext(SessionOutcome Outcome, FixFinderHttpClient Http, FixFinderLogger? Logger);
 
-/// <summary>
-/// The prompt: here is what went wrong, here is what was found, here is the fix to paste.
-/// </summary>
-/// <remarks>
-/// The one screen the whole tool exists to produce. It only ever appears when there is a real
-/// decision to make - a program that ran fine, or crashed with nothing published about it, is
-/// reported in the main window and never interrupts, because a dialog that sometimes says
-/// "nothing happened" is a dialog people learn to dismiss without reading.
-/// <para>
-/// <b>FixFinder does not write to your files.</b> It finds the fix and hands it over; you paste
-/// it. That is a narrower promise than applying, and a much easier one to keep - the whole
-/// machinery of source roots, containment, exact-context matching, backups and rollback existed
-/// to make writing safe, and not writing is safer still. It also removes the limit that mattered
-/// most: a fix that cannot be applied to your tree can always be read and copied.
-/// </para>
-/// <para>
-/// What goes on the clipboard is never the diff. A unified diff is written for a machine - the
-/// markers and removed lines are instructions - so pasting one into a source file produces
-/// something that does not compile. <see cref="PasteableFix"/> hands over the code as it should
-/// end up instead.
-/// </para>
-/// </remarks>
+/// <summary>The prompt: here is what went wrong, here is what was found, here is the fix to paste.</summary>
 public partial class FixFoundWindow : Window
 {
     private readonly FixFoundContext _context;
@@ -60,7 +37,6 @@ public partial class FixFoundWindow : Window
         Loaded += async (_, _) => await ShowCurrentAsync();
     }
 
-    /// <summary>The parts that are about the error rather than about any one result.</summary>
     private void RenderError()
     {
         var outcome = _context.Outcome;
@@ -70,7 +46,6 @@ public partial class FixFoundWindow : Window
         ExplanationText.Text = outcome.Detail;
     }
 
-    /// <summary>Opens whichever result the browser is on, and shows it.</summary>
     private async Task ShowCurrentAsync()
     {
         if (_context.Outcome.Best is null)
@@ -87,8 +62,6 @@ public partial class FixFoundWindow : Window
         }
         catch (Exception ex)
         {
-            // Opening a result is a network call over untrusted input. Losing it costs this one
-            // result rather than the prompt.
             _context.Logger?.Write($"Could not open result {_browser.Index + 1}: {ex}");
             _current = null;
         }
@@ -115,8 +88,6 @@ public partial class FixFoundWindow : Window
             return;
         }
 
-        // What the button will put on the clipboard, worked out once so its state and its label
-        // cannot disagree with what it copies.
         var pasteable = PasteableFix.For(examined);
 
         CopyButton.IsEnabled = pasteable is not null;
@@ -143,9 +114,6 @@ public partial class FixFoundWindow : Window
             ? $"Result {examined.Position} of {examined.Total}."
             : "";
 
-        // A missing package is not a patch to anything, so it gets its own button rather than
-        // being squeezed through the preview. There is no diff to show and no file to back up -
-        // what there is is a command, and the decision is whether to run it.
         if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
         {
             ContentHeaderText.Text = "WHAT IT RUNS";
@@ -185,21 +153,12 @@ public partial class FixFoundWindow : Window
             return;
         }
 
-        // Advisory. Why it is advisory goes on screen rather than into the button's tooltip:
-        // "Apply is greyed out" with the reason hidden behind a hover reads as the tool being
-        // broken, which is exactly how it was read. A patch that exists but belongs to somebody
-        // else's files is a specific, checkable fact, and saying which files it touches lets the
-        // reader confirm the refusal instead of taking it on trust.
         if (examined.Plan is { CanApply: false } refused)
         {
             ContentHeaderText.Text = "WHY THIS WILL NOT APPLY TO YOUR CODE";
 
             _rows.Add(Note(refused.Explanation));
 
-            // The commonest refusal by far, and the least self-explanatory. A fix published for
-            // a library patches that library's files, which sit in site-packages or node_modules
-            // rather than in the project - so the patch is perfectly real, perfectly relevant,
-            // and lands nowhere FixFinder is allowed to write.
             if (_context.Outcome.Fingerprint?.NearestThirdPartyModule is { Length: > 0 } library &&
                 refused.Outcome is ApplyOutcome.RejectedPathNotFound)
             {
@@ -245,17 +204,8 @@ public partial class FixFoundWindow : Window
 
         if (_rows.Count == 0)
             _rows.Add(Note("  There is no code in it - open the page to read it."));
-
     }
 
-    /// <summary>
-    /// Shows the next of the ranked results for the same error.
-    /// </summary>
-    /// <remarks>
-    /// Kept separate from Skip rather than falling through to it. With thirty-odd results, one
-    /// button doing both would put "move past this problem" thirty-seven clicks away - which is
-    /// the one thing it was asked for.
-    /// </remarks>
     private async void NextResultButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_browser.HasNext) return;
@@ -290,17 +240,6 @@ public partial class FixFoundWindow : Window
 
     private void OnBrowserLog(string message) => _context.Logger?.Write(message);
 
-    // ================================================================== actions
-
-    /// <summary>
-    /// Puts the fix on the clipboard in the form you can actually paste.
-    /// </summary>
-    /// <remarks>
-    /// Not the diff. Every diff here is written for a machine to apply - the markers, the hunk
-    /// header and the removed lines are instructions, and pasting them into a source file
-    /// produces something that does not compile. What goes on the clipboard is the code as it
-    /// should end up, context lines included, so it replaces the old block exactly.
-    /// </remarks>
     private void CopyButton_Click(object sender, RoutedEventArgs e)
     {
         if (_current is null || PasteableFix.For(_current) is not { } fix) return;
@@ -311,8 +250,6 @@ public partial class FixFoundWindow : Window
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException)
         {
-            // The clipboard is a shared OS resource and another process can be holding it open.
-            // Losing a copy is a nuisance; crashing the prompt over it is not acceptable.
             _context.Logger?.Write($"Could not copy: {ex.Message}");
 
             MessageBox.Show(this,
@@ -346,14 +283,6 @@ public partial class FixFoundWindow : Window
         Launch(e.Uri);
     }
 
-    /// <summary>
-    /// Opens a URL in the default browser, after checking it is one.
-    /// </summary>
-    /// <remarks>
-    /// The address came off the public internet with the search result. Only http and https are
-    /// launched, because handing an arbitrary scheme to the shell turns a click on a link into
-    /// running something local.
-    /// </remarks>
     private void Launch(Uri uri)
     {
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)

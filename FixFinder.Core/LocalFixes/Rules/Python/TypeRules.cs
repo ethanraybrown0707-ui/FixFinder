@@ -1,21 +1,8 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary><c>TypeError: can only concatenate str (not "int") to str</c></summary>
-/// <remarks>
-/// Python 3.11 and later underline the expression that failed: <c>~</c> under each operand and
-/// <c>^</c> under the operator. That pins both operands exactly - and which one to convert depends on
-/// what the left one is.
-/// <para>
-/// <b>Text on the left means joining text</b>: <c>"Total: " + total</c> wants <c>str(total)</c>.
-/// <b>A value on the left and a number on the right means arithmetic</b>: <c>age + 1</c>, with
-/// <c>age</c> read by <c>input()</c>, wants <c>int(age) + 1</c>. Converting the 1 instead turns 18
-/// into "181", which is the worst kind of fix: the kind that runs. Anything else - two names, say -
-/// could be either, and is refused.
-/// </para>
-/// </remarks>
 public sealed partial class PythonStrConcatenation : ILocalFixRule
 {
     public string Id => "python-str-concatenation";
@@ -29,7 +16,6 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
     [GeneratedRegex(@"^\s*~+\^+~+\s*$")]
     private static partial Regex Underline();
 
-    /// <summary>A string literal, with any prefix, or an explicit str(...).</summary>
     [GeneratedRegex(@"^[rRbBuUfF]{0,2}[""']|^str\(")]
     private static partial Regex Text();
 
@@ -75,16 +61,12 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
 
         if (left.Length == 0 || right.Length == 0) return null;
 
-        // An underline that stops inside a name is not one to act on: wrapping half of `total`
-        // produces `str(tota)l`, which a compile check cannot tell from a fix.
         if (CutsAName(line, leftAt, left) || CutsAName(line, rightAt, right)) return null;
 
         if (Text().IsMatch(left))
         {
             if (Text().IsMatch(right)) return null;
 
-            // Bytes - from a socket, a binary file, a subprocess - are text that has not been decoded yet. str() would join
-            // their printed form, b'hello', quotes and all; decode() gives back the text they hold.
             if (message.Groups["type"].Value == "bytes")
             {
                 var decoded = PythonCode.IsSingleOperand(right) ? $"{right}.decode()" : $"({right}).decode()";
@@ -126,10 +108,6 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
         (at > 0 && CodeText.IsWordChar(line[at - 1]) && CodeText.IsWordChar(operand[0])) ||
         (at + operand.Length < line.Length && CodeText.IsWordChar(line[at + operand.Length]) && CodeText.IsWordChar(operand[^1]));
 
-    /// <summary>
-    /// The operand under a stretch of underline, and where it starts. The underline can take in a
-    /// bracket of the call around it, so any bracket the operand did not open is given back.
-    /// </summary>
     private static (int At, string Operand) Operand(string line, int start, int end, bool isLeft)
     {
         var span = line[start..end];
@@ -723,7 +701,8 @@ public sealed partial class PythonInputNotNumber : ILocalFixRule
     }
 }
 
-/// <summary><c>a bytes-like object is required, not 'str'</c>, and <c>Strings must be encoded before hashing</c> - text where bytes go.</summary>
+/// <summary><c>a bytes-like object is required, not 'str'</c>, and <c>Strings must be encoded before hashing</c> - text where
+/// bytes go.</summary>
 public sealed partial class PythonTextToBytes : ILocalFixRule
 {
     public string Id => "python-text-to-bytes";
@@ -830,7 +809,8 @@ public sealed partial class PythonJsonSet : ILocalFixRule
     }
 }
 
-/// <summary><c>unsupported operand type(s) for +: 'NoneType' and 'int'</c> from a function that works a value out and never returns it.</summary>
+/// <summary><c>unsupported operand type(s) for +: 'NoneType' and 'int'</c> from a function that works a value out and never
+/// returns it.</summary>
 public sealed partial class PythonMissingReturn : ILocalFixRule
 {
     public string Id => "python-missing-return";

@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -73,10 +71,8 @@ public sealed partial class JsArrayCalled : ILocalFixRule
     }
 }
 
-/// <summary>
-/// <c>items.append is not a function</c>, <c>seen.push</c> on a Set, <c>text.contains</c>, <c>Math.squareRoot</c> - a method the value
-/// does not have, answered from what kind of value it was declared as.
-/// </summary>
+/// <summary><c>items.append is not a function</c>, <c>seen.push</c> on a Set, <c>text.contains</c>, <c>Math.squareRoot</c> - a
+/// method the value does not have, answered from what kind of value it was declared as.</summary>
 public sealed partial class JsMemberNotFunction : ILocalFixRule
 {
     public string Id => "js-member-not-function";
@@ -171,7 +167,6 @@ public sealed partial class JsMemberNotFunction : ILocalFixRule
         }
         else if (Properties.Contains(right))
         {
-            // length and size are read, not called - brackets with nothing in them go.
             if (callGroup.Success && args.Length > 0) return null;
 
             var end = callGroup.Success ? callGroup.Index + callGroup.Length : memberGroup.Index + memberGroup.Length;

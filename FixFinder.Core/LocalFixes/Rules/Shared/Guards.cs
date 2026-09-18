@@ -9,7 +9,6 @@ internal static partial class Guards
     [GeneratedRegex(@"(?<a>[A-Za-z_][\w.]*(?:\([^()]*\)|\[[^\]]*\])?|\d+(?:\.\d+)?|\))\s*(?<op>//|/|%)(?![/=*])\s*(?<b>[A-Za-z_][\w.]*(?:\(\s*[^()]*\)|\[[^\]]*\])?)")]
     private static partial Regex Division();
 
-    /// <summary>The line with its one division by a name or a call rewritten to give 0 when the divisor is 0, or null.</summary>
     public static string? GuardDivision(string line, Syntax syntax, bool python)
     {
         var masked = CodeText.Mask(line, syntax);
@@ -40,7 +39,6 @@ internal static partial class Guards
         ("\u2013", "-"), ("\u2014", "-"), ("\u2212", "-"), ("\u2026", "..."), ("\u00A0", " "), ("\u200B", ""),
     ];
 
-    /// <summary>The line with curly quotes, long dashes and hidden spaces from a word processor turned into the characters code uses.</summary>
     public static string? StraightenTypography(string line)
     {
         var straightened = Typography.Aggregate(line, (text, pair) => text.Replace(pair.Wrong, pair.Right, StringComparison.Ordinal));
@@ -59,7 +57,6 @@ internal static partial class Guards
 /// <summary>What the base-case rules share: a function that calls itself with its number one smaller, and never stops.</summary>
 internal static partial class Recursion
 {
-    /// <summary>The line of the function's header and the parameter it counts down, when the function calls itself as name(n - 1).</summary>
     public static (int Header, string Parameter)? CountingDown(IReadOnlyList<string> masked, int errorLine, Regex header, bool python)
     {
         for (var k = errorLine - 1; k >= 0; k--)

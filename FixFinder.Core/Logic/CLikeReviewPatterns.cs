@@ -55,8 +55,6 @@ public static partial class CLikeReviewPatterns
 
     private static bool IsScript(SourceFile source) => Extension(source) is ".js" or ".mjs" or ".cjs";
 
-    // ------------------------------------------------------------------ name = name;
-
     private static IEnumerable<LogicFinding> SelfAssignment(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var self = Extension(source) is ".cpp" or ".cc" or ".cxx" or ".c++" ? "this->" : "this.";
@@ -81,8 +79,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ i = i++;
-
     private static IEnumerable<LogicFinding> LostIncrement(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -100,8 +96,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, $"{match.Groups["lead"].Value}{name}{op};"));
         }
     }
-
-    // ------------------------------------------------------------------ for (i = 0; i <= items.length; i++)
 
     [GeneratedRegex(@"^(?<head>\s*for\s*\([^;]*;\s*(?<index>[A-Za-z_]\w*)\s*)(?<op><=)(?<bound>\s*(?<collection>[A-Za-z_][\w.]*?)\s*\.\s*(?<size>length|Length|Count|size\s*\(\s*\)|count\s*\(\s*\))\s*;)")]
     private static partial Regex LengthLoop();
@@ -156,8 +150,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ if (c == 'y' || 'Y')
-
     private const string Literal = @"(?:""[^""]*""|'[^']*'|-?\d+(?:\.\d+)?)";
 
     [GeneratedRegex(@"(?<![\w.])(?<left>[A-Za-z_][\w.]*(?:\[[^\]]*\])?)\s*(?<op>===|==|!==|!=)\s*(?<first>" + Literal + @")(?<rest>(?:\s*(?<join>\|\||&&)\s*" + Literal + @")+)(?=\s*[)?;,]|\s*(?:\|\||&&))")]
@@ -193,8 +185,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, line[..match.Index] + replacement + line[(match.Index + match.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ if (x > 5) ... else if (x > 5)
 
     private static IEnumerable<LogicFinding> DuplicateCondition(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -240,8 +230,6 @@ public static partial class CLikeReviewPatterns
             }
         }
     }
-
-    // ------------------------------------------------------------------ catch (Exception e) { }
 
     private static IEnumerable<LogicFinding> EmptyCatch(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -327,8 +315,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ for (String name : names) names.remove(name);
-
     private static IEnumerable<LogicFinding> ModifiedWhileLooping(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var csharp = Extension(source) == ".cs";
@@ -362,8 +348,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ if (total == 0.3)
-
     private static IEnumerable<LogicFinding> FloatEquality(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var reals = masked
@@ -393,8 +377,6 @@ public static partial class CLikeReviewPatterns
                     : null);
         }
     }
-
-    // ------------------------------------------------------------------ Java: nextInt() then nextLine()
 
     private static IEnumerable<LogicFinding> ScannerSkipsLine(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -433,8 +415,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ Java: (int) Math.random() * 10
-
     private static IEnumerable<LogicFinding> RandomAlwaysZero(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -453,8 +433,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, line[..match.Index] + $"(int) (Math.random() * {scale})" + line[(match.Index + match.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ Java: Integer a, b; a == b
 
     private static IEnumerable<LogicFinding> WrapperEquality(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -486,8 +464,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ Java: public String tostring()
-
     private static readonly (string Right, string Pattern)[] ObjectMethods =
     [
         ("toString", @"public\s+String\s+(?<name>(?!toString\b)to_?[Ss]tring)\s*\(\s*\)"),
@@ -516,8 +492,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ Java: public boolean equals(Point other)
-
     private static IEnumerable<LogicFinding> EqualsOverload(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -544,8 +518,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ Java: System.out.println(first + second) with two chars
-
     private static IEnumerable<LogicFinding> CharsAdded(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var chars = masked.SelectMany(l => Regex.Matches(l, @"\bchar\s+(?<name>[A-Za-z_]\w*)\s*[=;,)]")).Select(m => m.Groups["name"].Value).ToHashSet();
@@ -571,8 +543,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ result += text inside a loop
-
     private static IEnumerable<LogicFinding> StringBuiltInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var strings = masked.SelectMany(l => Regex.Matches(l, @"\b(?:String|string)\s+(?<name>[A-Za-z_]\w*)\s*=")).Select(m => m.Groups["name"].Value).ToHashSet();
@@ -596,8 +566,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ C#: async void Save()
-
     private static IEnumerable<LogicFinding> AsyncVoid(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -616,8 +584,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, line[..at.Index] + "Task" + line[(at.Index + at.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ C#: public int Age { get { return Age; } }
 
     private static IEnumerable<LogicFinding> PropertyCallsItself(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -640,8 +606,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ C#: int.Parse(Console.ReadLine())
-
     private static IEnumerable<LogicFinding> ParseUnchecked(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -654,8 +618,6 @@ public static partial class CLikeReviewPatterns
                 null);
         }
     }
-
-    // ------------------------------------------------------------------ JavaScript: ==
 
     private static IEnumerable<LogicFinding> LooseEquality(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -675,8 +637,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, corrected));
         }
     }
-
-    // ------------------------------------------------------------------ JavaScript: "Hello ${name}"
 
     private static IEnumerable<LogicFinding> TemplateInQuotes(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -709,8 +669,6 @@ public static partial class CLikeReviewPatterns
         }
     }
 
-    // ------------------------------------------------------------------ JavaScript: items === []
-
     private static IEnumerable<LogicFinding> CompareWithNewArray(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var i = 0; i < masked.Count; i++)
@@ -730,8 +688,6 @@ public static partial class CLikeReviewPatterns
                     source, i + 1, line[..match.Index] + empty + line[(match.Index + match.Length)..]));
         }
     }
-
-    // ------------------------------------------------------------------ x === NaN
 
     private static IEnumerable<LogicFinding> NaNComparison(string id, SourceFile source, IReadOnlyList<string> masked)
     {

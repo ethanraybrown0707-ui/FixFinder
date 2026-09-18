@@ -22,7 +22,6 @@ internal static partial class JavaCode
             ? caret.Column
             : null;
 
-    /// <summary>A note javac prints under the caret, such as <c>first type: char</c>.</summary>
     public static string? Note(LocalFixContext context, string label)
     {
         var output = context.Output;
@@ -69,7 +68,6 @@ internal static partial class JavaCode
 
     public static string WithoutTypeArguments(string type) => type.IndexOf('<') is var generic and > 0 ? type[..generic] : type;
 
-    /// <summary>The first and last line (0-based) of the method around a line: the block one level inside a class.</summary>
     public static (int First, int Last) EnclosingMethod(IReadOnlyList<string> masked, int index)
     {
         var depths = Brackets.BraceDepths(masked);
@@ -83,7 +81,6 @@ internal static partial class JavaCode
         return (first, last);
     }
 
-    /// <summary>The last line of a loop body that starts after <paramref name="after"/> on <paramref name="line"/>.</summary>
     public static int? BodyEnd(IReadOnlyList<string> masked, int line, int after)
     {
         var rest = masked[line][after..];
@@ -105,7 +102,6 @@ internal static partial class JavaCode
         return null;
     }
 
-    /// <summary>The file and line of a runtime exception's first frame in the program's own code.</summary>
     public static (SourceFile Source, int Number, string Line)? AtRuntime(LocalFixContext context, string type)
     {
         if (context.Error is not { LanguageId: "java" } error || error.ExceptionType != type) return null;
@@ -115,13 +111,11 @@ internal static partial class JavaCode
         return (source, number, line);
     }
 
-    /// <summary>A type written so it compiles here: its simple name when imported, its full name otherwise.</summary>
     public static string QualifiedName(SourceFile source, string package, string name) =>
         source.Lines.Any(l => Regex.IsMatch(l, $@"^\s*import\s+{Regex.Escape(package)}\.(?:{Regex.Escape(name)}|\*)\s*;"))
             ? name
             : $"{package}.{name}";
 
-    /// <summary>Every Java file in the program's folder, the one the error named first.</summary>
     public static IEnumerable<SourceFile> SourceFiles(LocalFixContext context)
     {
         if (context.SourceRoot is not { } root || !Directory.Exists(root)) yield break;

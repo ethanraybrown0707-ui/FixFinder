@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
 
-        <!-- ============================== brand ============================== -->
         <Color x:Key="BrandBlue">#1A6DFF</Color>
         <Color x:Key="BrandTeal">#00B3C7</Color>
         <Color x:Key="BrandGreen">#2FCB6B</Color>
@@ -43,7 +42,6 @@
             </DrawingImage.Drawing>
         </DrawingImage>
 
-        <!-- ============================== palette ============================== -->
         <SolidColorBrush x:Key="PageBrush" Color="#F3F5F9"/>
         <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBrush" Color="#F7F9FC"/>
@@ -87,7 +85,6 @@
         <FontFamily x:Key="CodeFont">Cascadia Mono, Consolas</FontFamily>
         <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-        <!-- ============================== text ============================== -->
         <Style x:Key="Hint" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{StaticResource HintBrush}"/>
@@ -119,7 +116,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- ============================== surfaces ============================== -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
@@ -137,7 +133,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
-        <!-- ============================== buttons ============================== -->
         <Style TargetType="Button">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -226,7 +221,6 @@
             </Setter>
         </Style>
 
-        <!-- A language to check the program as: a badge with its short name, and its full name beside it. -->
         <Style x:Key="LanguageTile" TargetType="RadioButton">
             <Setter Property="Background" Value="{StaticResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
@@ -271,7 +265,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- A filter in a row of filters: a pill, filled when chosen. -->
         <Style x:Key="FilterPill" TargetType="RadioButton">
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
@@ -302,7 +295,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- ============================== inputs ============================== -->
         <Style x:Key="InputBox" TargetType="TextBox">
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
@@ -332,7 +324,6 @@
             </Setter>
         </Style>
 
-        <!-- Code shown in a finding: dark, monospaced, selectable, and never edited. -->
         <Style x:Key="CodeBlock" TargetType="TextBox">
             <Setter Property="IsReadOnly" Value="True"/>
             <Setter Property="FontFamily" Value="{StaticResource CodeFont}"/>

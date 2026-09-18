@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -125,7 +124,8 @@ public sealed partial class JavaElif : ILocalFixRule
     }
 }
 
-/// <summary><c>foreach (...)</c> from C#, and <c>for (String n in names)</c> from C# and Python - Java writes <c>for (String n : names)</c>.</summary>
+/// <summary><c>foreach (...)</c> from C#, and <c>for (String n in names)</c> from C# and Python - Java writes <c>for (String n :
+/// names)</c>.</summary>
 public sealed partial class JavaForEach : ILocalFixRule
 {
     public string Id => "java-for-each";
@@ -159,7 +159,8 @@ public sealed partial class JavaForEach : ILocalFixRule
     }
 }
 
-/// <summary>Words from other languages javac cannot find: <c>True</c>, <c>None</c>, <c>bool</c>, <c>print</c>, <c>Console.WriteLine</c>.</summary>
+/// <summary>Words from other languages javac cannot find: <c>True</c>, <c>None</c>, <c>bool</c>, <c>print</c>,
+/// <c>Console.WriteLine</c>.</summary>
 public sealed partial class JavaForeignWord : ILocalFixRule
 {
     public string Id => "java-foreign-word";
@@ -209,7 +210,6 @@ public sealed partial class JavaForeignWord : ILocalFixRule
             var prints = Regex.Matches(masked, $@"(?<![\w$.]){name}\s*\(");
             if (prints.Count != 1) return null;
 
-            // A method of that name in the file is the user's own, called wrongly - not a borrowed word.
             if (CodeText.MaskAll(source.Lines, Syntax.CLike).Any(text => Regex.IsMatch(text, $@"\b(?:void|static|public|private|protected)\b[^;=]*\b{name}\s*\(")))
                 return null;
 
@@ -362,7 +362,6 @@ public sealed partial class JavaPublicClassName : ILocalFixRule
 
         if (!Identifier().IsMatch(fileName) || JavaTypes.Keywords.Contains(fileName)) return null;
 
-        // Named anywhere else - a constructor, a static call - and renaming one line breaks the rest.
         var mentions = CodeText.MaskAll(source.Lines, Syntax.CLike)
             .Sum(text => Regex.Matches(text, $@"(?<![\w$]){Regex.Escape(name)}(?![\w$])").Count);
 
@@ -438,7 +437,6 @@ public sealed partial class JavaSuperFirst : ILocalFixRule
 
         if (!Regex.IsMatch(masked[call], $@"^\s*{keyword}\s*\(.*\)\s*;\s*$")) return null;
 
-        // The constructor's opening brace: the nearest one above that is still open.
         var open = -1;
         var depth = 0;
 

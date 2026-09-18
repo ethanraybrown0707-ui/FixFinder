@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -13,7 +11,6 @@ internal static partial class CSharpCode
         code.StartsWith("CS", StringComparison.Ordinal) &&
         (codes.Length == 0 || codes.Contains(code));
 
-    /// <summary>The C# file, line number, line text and 0-based column of the error, or null.</summary>
     public static (SourceFile Source, int Number, string Line, int Index)? Locate(LocalFixContext context)
     {
         if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
@@ -33,7 +30,6 @@ internal static partial class CSharpCode
          "init value yield when where").Split(' '),
         StringComparer.Ordinal);
 
-    /// <summary>Where an expression starting at <paramref name="start"/> ends: a semicolon, comma or unmatched bracket.</summary>
     public static int ExpressionEnd(string masked, int start)
     {
         var depth = 0;
@@ -63,7 +59,6 @@ internal static partial class CSharpCode
         Enumerable.Range(0, masked.Count)
             .FirstOrDefault(i => Regex.IsMatch(masked[i], $@"\b(?:class|struct|record|interface|enum)\s+{Regex.Escape(name)}\b"), -1);
 
-    /// <summary>The lines one level inside a type's braces.</summary>
     public static IEnumerable<int> MemberLines(IReadOnlyList<string> masked, int declaration)
     {
         var depths = Brackets.BraceDepths(masked);
@@ -77,7 +72,6 @@ internal static partial class CSharpCode
         }
     }
 
-    /// <summary>True when an expression needs brackets before a member access is added to its end.</summary>
     public static bool NeedsBrackets(string masked)
     {
         var depth = 0;
