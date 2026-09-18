@@ -55,6 +55,8 @@ public static class FrameClassifier
         "/usr/lib/golang/src/",
         "/sdk/go1.",
         "/cellar/go/",
+        // Where GitHub's runners install Go, Python, Node and the JDK.
+        "/hostedtoolcache/",
         "java.base/",
         "/jdk",
         "/microsoft visual studio/",

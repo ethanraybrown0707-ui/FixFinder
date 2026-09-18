@@ -241,10 +241,12 @@ public sealed partial class CHeaderGuard : ILocalFixRule
 {
     public string Id => "c-header-guard";
 
-    [GeneratedRegex(@"^redefinition of '(?:struct|union|enum|class) (?<name>\w+)'$")]
+    // A type defined twice is an error before C23; from C23 an identical one is allowed, and a variable defined twice is what
+    // still fails - so both are read.
+    [GeneratedRegex(@"^redefinition of '(?:(?:struct|union|enum|class) )?(?<name>\w+)'$")]
     private static partial Regex GccMessage();
 
-    [GeneratedRegex(@"^'(?<name>\w+)': '(?:struct|union|enum|class)' type redefinition$")]
+    [GeneratedRegex(@"^'(?<name>\w+)': (?:'(?:struct|union|enum|class)' type redefinition|redefinition(?:; multiple initialization)?)$")]
     private static partial Regex MsvcMessage();
 
     [GeneratedRegex(@"^\s*#\s*(?:pragma\s+once|ifndef\s+\w+)")]
@@ -252,7 +254,8 @@ public sealed partial class CHeaderGuard : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        if ((CCode.GccMessage(context.Error, GccMessage()) ?? CCode.MsvcMessage(context.Error, "C2011", MsvcMessage())) is null) return null;
+        if ((CCode.GccMessage(context.Error, GccMessage()) ?? CCode.MsvcMessage(context.Error, "C2011", MsvcMessage()) ??
+             CCode.MsvcMessage(context.Error, "C2374", MsvcMessage()) ?? CCode.MsvcMessage(context.Error, "C2086", MsvcMessage())) is null) return null;
         if (context.Frame?.File is not { } file || context.Read(file) is not { } source) return null;
 
         if (Path.GetExtension(source.Path).ToLowerInvariant() is not (".h" or ".hpp" or ".hh" or ".hxx")) return null;
@@ -288,7 +291,7 @@ public sealed partial class CPthreadStartRoutine : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        if (context.Error.ExceptionType != "compile warning" || CCode.GccMessage(context.Error, GccMessage()) is null) return null;
+        if (context.Error.ExceptionType is not ("compile warning" or "compile error") || CCode.GccMessage(context.Error, GccMessage()) is null) return null;
         if (CCode.Locate(context) is not { } at) return null;
 
         var source = at.Source;
@@ -369,7 +372,7 @@ public sealed partial class CQsortComparator : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        if (context.Error.ExceptionType != "compile warning" || CCode.GccMessage(context.Error, GccMessage()) is null) return null;
+        if (context.Error.ExceptionType is not ("compile warning" or "compile error") || CCode.GccMessage(context.Error, GccMessage()) is null) return null;
         if (CCode.Locate(context) is not { } at || Cpp.IsCpp(at.Source)) return null;
 
         var source = at.Source;

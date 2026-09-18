@@ -185,7 +185,9 @@ public class GoDirectBuildTests : IDisposable
             ExecutablePath = go,
             Arguments = $"build -o \"{Path.Combine(usualFolder, "check.exe")}\" \"{usualCopy}\"",
             WorkingDirectory = usualFolder,
-            Timeout = TimeSpan.FromMinutes(2),
+            // Generous: on a cold runner the first build of fmt and strings, with every other test building at once, has
+            // taken more than two minutes.
+            Timeout = TimeSpan.FromMinutes(5),
         }, CancellationToken.None);
 
         var usual = new CheckResult(true, run.ExitCode, run.Lines, CompileCheck.ErrorsIn(registry, run.Lines));
@@ -198,7 +200,7 @@ public class GoDirectBuildTests : IDisposable
         var directCopy = Path.Combine(directFolder, "app.go");
         await File.WriteAllBytesAsync(directCopy, content);
 
-        var direct = await GoDirectBuild.RunAsync(plan, directCopy, directFolder, TimeSpan.FromMinutes(2), CancellationToken.None);
+        var direct = await GoDirectBuild.RunAsync(plan, directCopy, directFolder, TimeSpan.FromMinutes(5), CancellationToken.None);
 
         Assert.NotNull(direct);
         Assert.True(FasterCheck.Agree(usual, usualFolder, direct, directFolder, everyLine: true, out var difference), difference);

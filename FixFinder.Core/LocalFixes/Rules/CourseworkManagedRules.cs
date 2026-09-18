@@ -432,7 +432,23 @@ public sealed partial class GoWaitGroupByValue : ILocalFixRule
     {
         if (GoCode.Runtime(context.Error, Message()) is null || !context.Error.RawText.Contains("WaitGroup", StringComparison.Ordinal)) return null;
 
-        foreach (var source in GoCode.Files(context))
+        // The program's own files: the source root's, and the folders of the frames that are not Go's own library - the root
+        // can land inside Go's install when every frame of the deadlock is in the runtime.
+        var folders = context.Error.Frames
+            .Select(f => f.File)
+            .Where(f => f is not null && f.EndsWith(".go", StringComparison.OrdinalIgnoreCase) && !Parsing.FrameClassifier.IsVendored(f) && File.Exists(f))
+            .Select(f => Path.GetDirectoryName(f!)!)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var sources = folders
+            .SelectMany(d => Directory.EnumerateFiles(d, "*.go").Take(200))
+            .Select(SourceFile.Read)
+            .OfType<SourceFile>()
+            .Concat(GoCode.Files(context))
+            .GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
+
+        foreach (var source in sources)
         {
             var lines = source.Lines;
             var masked = CodeText.MaskAll(lines, Syntax.CLike);
