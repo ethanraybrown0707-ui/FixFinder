@@ -151,41 +151,6 @@ public class TargetFactoryTests : IDisposable
         Assert.Equal(TargetFactory.DefaultTimeout, plan.Spec!.Timeout);
     }
 
-    /// <summary>
-    /// A .NET target gets a build command guessed from the project above it.
-    /// </summary>
-    /// <remarks>
-    /// Worth guessing rather than asking for. Without one the verifier has to call every
-    /// compiled-language result Inconclusive, because re-running would run the binary from
-    /// before the patch - and somebody who only wanted to pick a file will not know that.
-    /// </remarks>
-    [Fact]
-    public void ADotNetTargetFindsTheProjectToRebuild()
-    {
-        var project = Path.Combine(_temp.Path, "MyApp", "MyApp.csproj");
-        Directory.CreateDirectory(Path.GetDirectoryName(project)!);
-        File.WriteAllText(project, "<Project />");
-
-        var dll = Make(Path.Combine("MyApp", "bin", "Debug", "net8.0", "MyApp.dll"), "not an assembly");
-        var plan = TargetFactory.FromFile(dll);
-
-        Assert.True(plan.Ok, plan.Problem);
-        Assert.NotNull(plan.Spec!.BuildCommand);
-        Assert.Contains("dotnet build", plan.Spec.BuildCommand!, StringComparison.Ordinal);
-        Assert.Contains("MyApp.csproj", plan.Spec.BuildCommand!, StringComparison.Ordinal);
-        Assert.Contains("Rebuilding with", plan.Explanation, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void AScriptNeedsNoBuildCommand()
-    {
-        var plan = TargetFactory.FromFile(Make("loose.py"));
-
-        if (!plan.Ok) return;
-
-        Assert.Null(plan.Spec!.BuildCommand);
-    }
-
     // ------------------------------------------------------------------ refusals
 
     [Theory]

@@ -87,16 +87,6 @@ public sealed record SessionOutcome
     /// </remarks>
     public InstalledPackage? Dependency { get; init; }
 
-    /// <summary>
-    /// Other independent errors in the same output, not yet looked at.
-    /// </summary>
-    /// <remarks>
-    /// Only ever populated for compiler output, where the tool reported everything it found
-    /// before exiting. A crashed program contributes nothing here, because the error that
-    /// stopped it is the only one that exists to be read.
-    /// </remarks>
-    public IReadOnlyList<ParsedError> OtherErrors { get; init; } = [];
-
     /// <summary>True when the failure was the build rather than the program.</summary>
     /// <remarks>
     /// Changes only the wording, not the handling: a compiler diagnostic is searched, ranked and
@@ -106,9 +96,6 @@ public sealed record SessionOutcome
     public bool FailedToCompile { get; init; }
 
     public bool CanApply => Plan is { CanApply: true };
-
-    /// <summary>True when there is something worth putting in front of the user.</summary>
-    public bool WorthShowing => Result is SessionResult.FoundFix or SessionResult.FoundAdvice;
 }
 
 /// <summary>
@@ -126,7 +113,7 @@ public sealed record SessionOutcome
 /// applying stays behind the preview, the dry-run default and the typed confirmation.
 /// </para>
 /// </remarks>
-public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources) : IFixSession
+public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources)
 {
     /// <summary>Candidates whose patches are fetched before giving up on finding an appliable one.</summary>
     /// <remarks>
@@ -724,8 +711,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     ? NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache)
                     : $"FixFinder found this in the code but could not work out a change it could check: {error.Message}.",
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
-                SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings,
-                OtherErrors = others, Dependency = dependency,
+                SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
@@ -809,8 +795,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
-                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others, Dependency = dependency,
+                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
@@ -835,8 +820,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest,
-                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-                OtherErrors = others, Dependency = dependency,
+                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
@@ -864,8 +848,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
-            SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others, Dependency = dependency,
+            SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
         };
     }
 
@@ -959,37 +942,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         TargetRunResult run, ParsedError error, TargetSpec spec, string? sourceFolder, bool failedToCompile,
         SearchBudget? budget = null, CancellationToken cancellationToken = default) =>
         SearchForAsync(run, error, spec, budget, sourceFolder, failedToCompile, cancellationToken: cancellationToken);
-
-    public Task<SessionOutcome> SearchForOtherAsync(
-        SessionOutcome from,
-        ParsedError error,
-        SearchBudget? budget = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (from.Run is null || from.Spec is null)
-            throw new InvalidOperationException("That outcome has no run to take another error from.");
-
-        var remaining = from.OtherErrors.Where(e => !ReferenceEquals(e, error)).ToList();
-
-        return SearchForAsync(
-            from.Run, error, from.Spec, budget, from.SourceRoot, from.FailedToCompile,
-            warnings: null, remaining: remaining, cancellationToken: cancellationToken);
-    }
-
-    // ------------------------------------------------------------------ the loop's view
-
-    // Explicit, because the interface carries no warnings list and the public methods do. Hiding
-    // the parameter here rather than dropping it from the session keeps the loop's dependency as
-    // small as it really is without narrowing what a caller holding the session itself can ask.
-
-    Task<SessionOutcome> IFixSession.RunAsync(
-        LaunchPlan launch, SearchBudget? budget, CancellationToken cancellationToken) =>
-        RunAsync(launch, budget, cancellationToken);
-
-    Task<SessionOutcome> IFixSession.ContinueFromAsync(
-        TargetRunResult run, TargetSpec spec, SearchBudget? budget, string? sourceFolder,
-        bool failedToCompile, CancellationToken cancellationToken) =>
-        ContinueFromAsync(run, spec, budget, sourceFolder, failedToCompile, null, cancellationToken);
 
     // ------------------------------------------------------------------ wording
 

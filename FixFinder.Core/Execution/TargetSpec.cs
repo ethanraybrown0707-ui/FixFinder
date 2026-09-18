@@ -37,15 +37,6 @@ public sealed class TargetSpec
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// Command run through the shell after a patch is applied and before the target is re-run.
-    /// Null for interpreted languages, effectively mandatory for compiled ones - the binary
-    /// that was launched is stale the moment the source changes.
-    /// </summary>
-    public string? BuildCommand { get; init; }
-
-    public string? BuildWorkingDirectory { get; init; }
-
-    /// <summary>
     /// How to decode the target's stdout/stderr bytes.
     /// </summary>
     /// <remarks>
@@ -108,8 +99,6 @@ public sealed class TargetSpec
         LaunchViaDotnet = LaunchViaDotnet,
         ExtraEnvironment = environment ?? ExtraEnvironment,
         Timeout = timeout ?? Timeout,
-        BuildCommand = BuildCommand,
-        BuildWorkingDirectory = BuildWorkingDirectory,
         OutputEncoding = OutputEncoding,
         StandardInput = standardInput,
     };

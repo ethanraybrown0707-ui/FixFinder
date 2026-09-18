@@ -3,7 +3,6 @@ using System.IO;
 using System.Windows;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
-using FixFinder.Core.Verification;
 using FixFinder.Core.Http;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;

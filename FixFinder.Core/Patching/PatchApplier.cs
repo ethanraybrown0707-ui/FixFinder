@@ -74,28 +74,6 @@ public sealed record ApplyPlan(
         new(files ?? [], outcome, explanation);
 }
 
-/// <summary>What actually happened on disk.</summary>
-public sealed record ApplyResult(
-    ApplyPlan Plan,
-    bool WasDryRun,
-    string? BackupFolder,
-    IReadOnlyList<string> Written,
-    string? Failure = null)
-{
-    public bool Ok => Failure is null;
-
-    public string Summary
-    {
-        get
-        {
-            if (Failure is not null) return $"Nothing was applied: {Failure}";
-            if (WasDryRun) return $"Dry run only. {Plan.Files.Count} file(s) would change; nothing was written.";
-
-            return $"Applied to {Written.Count} file(s). Backup: {BackupFolder}";
-        }
-    }
-}
-
 /// <summary>
 /// Applies a parsed patch to the working tree, or explains exactly why it will not.
 /// </summary>
@@ -398,74 +376,6 @@ public sealed class PatchApplier
 
     // ================================================================== applying
 
-    /// <summary>
-    /// Carries out a plan, or reports it without writing when <paramref name="dryRun"/> is set.
-    /// </summary>
-    /// <remarks>
-    /// Dry run is the default everywhere it is offered. The first time anyone applies anything
-    /// it should be a preview, and making that the default rather than an option is the
-    /// difference between a safety feature and a safety feature people forget to switch on.
-    /// </remarks>
-    public ApplyResult Apply(
-        ApplyPlan plan,
-        BackupStore backups,
-        string sourceRoot,
-        bool dryRun = true,
-        string? candidateId = null,
-        string? candidateTitle = null,
-        string? candidateUrl = null)
-    {
-        if (!plan.CanApply)
-            return new ApplyResult(plan, dryRun, null, [], plan.Explanation);
-
-        if (dryRun)
-        {
-            Log?.Invoke($"Dry run: {plan.Files.Count} file(s) would be written, nothing was.");
-            return new ApplyResult(plan with { Outcome = ApplyOutcome.DryRun }, true, null, []);
-        }
-
-        // Taken before a single byte is written, and it covers files the patch would create as
-        // well as ones it changes - otherwise undoing the patch would leave the new files behind.
-        var backupFolder = backups.Create(
-            sourceRoot, plan.TargetPaths, candidateId, candidateTitle, candidateUrl);
-
-        Log?.Invoke($"Backed up {plan.TargetPaths.Count} file(s) to {backupFolder}");
-
-        var written = new List<string>();
-
-        foreach (var file in plan.Files)
-        {
-            var path = file.Path.FullPath!;
-
-            try
-            {
-                var content = file.Path.Outcome == MapOutcome.WouldCreate
-                    ? SourceFile.ForNewFile(file.Patch)
-                    : SourceFile.Read(path).WithHunks(file.Hunks);
-
-                content.WriteTo(path);
-                written.Add(path);
-
-                Log?.Invoke($"Wrote {path}");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Roll straight back. A tree that is half-patched is worse than an unpatched one,
-                // and the backup exists for exactly this moment.
-                Log?.Invoke($"Failed writing {path}: {ex.Message} - rolling back.");
-
-                var restore = backups.Restore(backupFolder);
-                Log?.Invoke($"Rollback: {restore.Summary}");
-
-                return new ApplyResult(plan with { Outcome = ApplyOutcome.Failed }, false, backupFolder, written,
-                    $"{Path.GetFileName(path)} could not be written ({ex.Message}). " +
-                    $"Everything was rolled back: {restore.Summary}");
-            }
-        }
-
-        return new ApplyResult(plan with { Outcome = ApplyOutcome.Applied }, false, backupFolder, written);
-    }
-
     private static string Trim(string text) => text.Length <= 60 ? text : text[..59] + "…";
 }
 
@@ -501,85 +411,6 @@ internal sealed record SourceFile(
         if (endsWithNewline) normalised = normalised[..^1];
 
         return new SourceFile(normalised.Split('\n'), usesCrLf, hasBom, endsWithNewline);
-    }
-
-    /// <summary>Builds the content of a file the patch creates.</summary>
-    public static SourceFile ForNewFile(FilePatch patch)
-    {
-        var lines = patch.Hunks
-            .SelectMany(h => h.Lines)
-            .Where(l => l.Kind is DiffLineKind.Added or DiffLineKind.Context)
-            .ToList();
-
-        var endsWithNewline = lines.Count == 0 || !lines[^1].NoNewlineAtEnd;
-
-        return new SourceFile([.. lines.Select(l => l.Text)], UsesCrLf: false, HasBom: false, endsWithNewline);
-    }
-
-    /// <summary>Produces the patched content, splicing each hunk into the original.</summary>
-    public SourceFile WithHunks(IReadOnlyList<HunkPlan> hunks)
-    {
-        var result = new List<string>();
-        var cursor = 0;
-        var endsWithNewline = EndsWithNewline;
-
-        foreach (var plan in hunks.OrderBy(h => h.AtLine))
-        {
-            for (; cursor < plan.AtLine; cursor++) result.Add(Lines[cursor]);
-
-            foreach (var line in plan.Hunk.NewSide)
-            {
-                result.Add(line.Text);
-
-                // A no-newline marker on the last line of the last hunk decides how the file ends.
-                if (line.NoNewlineAtEnd && plan.EndLine >= Lines.Count) endsWithNewline = false;
-            }
-
-            cursor = plan.EndLine;
-        }
-
-        for (; cursor < Lines.Count; cursor++) result.Add(Lines[cursor]);
-
-        return this with { Lines = result, EndsWithNewline = endsWithNewline };
-    }
-
-    /// <summary>
-    /// Writes through a temporary file in the same folder, then swaps it in.
-    /// </summary>
-    /// <remarks>
-    /// Writing in place means a crash or a full disk halfway through leaves a truncated source
-    /// file and no way back. The swap is the last step and is as close to atomic as the
-    /// filesystem allows.
-    /// </remarks>
-    public void WriteTo(string path)
-    {
-        var ending = UsesCrLf ? "\r\n" : "\n";
-        var text = string.Join(ending, Lines) + (EndsWithNewline ? ending : "");
-
-        var bytes = new UTF8Encoding(false).GetBytes(text);
-
-        if (HasBom) bytes = [0xEF, 0xBB, 0xBF, .. bytes];
-
-        var directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-
-        var temp = Path.Combine(directory, $".fixfinder-{Guid.NewGuid():N}.tmp");
-        File.WriteAllBytes(temp, bytes);
-
-        try
-        {
-            if (File.Exists(path)) File.Replace(temp, path, destinationBackupFileName: null);
-            else File.Move(temp, path);
-        }
-        catch (IOException)
-        {
-            // File.Replace is unavailable across some filesystems and on some network shares.
-            File.Move(temp, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temp)) { try { File.Delete(temp); } catch (IOException) { } }
-        }
     }
 
     private static int CountOccurrences(string text, string needle)

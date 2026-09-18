@@ -112,9 +112,6 @@ public static class TargetFactory
         [".exs"] = new("elixir"),
     };
 
-    /// <summary>Project files that tell us how to rebuild after a patch.</summary>
-    private static readonly string[] BuildMarkers = ["*.sln", "*.csproj", "*.fsproj", "*.vbproj"];
-
     /// <summary>Everything the file picker should offer, built from what can actually be run.</summary>
     public static string FileDialogFilter
     {
@@ -246,54 +243,11 @@ public static class TargetFactory
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = viaDotnet,
             Timeout = timeout ?? DefaultTimeout,
-            BuildCommand = GuessBuildCommand(full, workingDirectory),
-            BuildWorkingDirectory = workingDirectory,
         };
 
         var how = $"Running it{together} with {Path.GetFileNameWithoutExtension(found)}.";
-        if (spec.BuildCommand is { Length: > 0 } build) how += $" Rebuilding with: {build}";
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
-    }
-
-    /// <summary>
-    /// Looks for a project to rebuild, so a patched compiled program is not re-run stale.
-    /// </summary>
-    /// <remarks>
-    /// Worth guessing rather than asking. Without a build command the verifier has to report
-    /// Inconclusive for every compiled language, because re-running would run the binary from
-    /// before the patch - and a person who just wanted to pick a file will not know that.
-    /// </remarks>
-    private static string? GuessBuildCommand(string target, string workingDirectory)
-    {
-        if (!target.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
-            !target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var directory = new DirectoryInfo(workingDirectory);
-
-        // bin\Debug\net8.0\app.dll sits a few levels below the project file.
-        for (var depth = 0; depth < 6 && directory is not null; depth++)
-        {
-            foreach (var marker in BuildMarkers)
-            {
-                try
-                {
-                    var match = directory.GetFiles(marker).FirstOrDefault();
-                    if (match is not null) return $"dotnet build \"{match.FullName}\"";
-                }
-                catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-                {
-                    // An unreadable folder simply yields no guess.
-                }
-            }
-
-            directory = directory.Parent;
-        }
-
-        return null;
     }
 
     private static TargetSpec Build(
@@ -305,8 +259,6 @@ public static class TargetFactory
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = launchViaDotnet,
             Timeout = timeout ?? DefaultTimeout,
-            BuildCommand = GuessBuildCommand(path, workingDirectory),
-            BuildWorkingDirectory = workingDirectory,
         };
 
     /// <summary>Returns the first of an interpreter's names that exists, or null.</summary>

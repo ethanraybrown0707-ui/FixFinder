@@ -28,8 +28,6 @@ public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Expl
         ExtraEnvironment = Run.ExtraEnvironment,
         Timeout = Run.Timeout,
         OutputEncoding = Run.OutputEncoding,
-        BuildCommand = Compile.DisplayCommandLine,
-        BuildWorkingDirectory = Compile.WorkingDirectory,
     };
 }
 

@@ -3,7 +3,6 @@ using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
-using FixFinder.Core.Verification;
 
 namespace FixFinder.Tests;
 
@@ -213,62 +212,6 @@ public class RuntimeSuggestionTests : IDisposable
     // ------------------------------------------------------------------ applying it
 
     /// <summary>
-    /// The whole point: a typo in code nobody else has ever seen, fixed and verified.
-    /// </summary>
-    /// <remarks>
-    /// Goes through the ordinary road - a fenced diff in the candidate body, extracted, parsed,
-    /// path-mapped, context-matched, applied and re-run - so the locally produced patch is
-    /// checked by exactly the machinery every downloaded one is.
-    /// </remarks>
-    [Fact]
-    public async Task ATypoInYourOwnCodeIsFixedAndTheProgramThenRuns()
-    {
-        if (Python is null) return;
-
-        var script = Write("typo.py", """
-            average = 10
-            print("starting")
-            print(avarage)
-            """);
-
-        var error = await CrashOf(script);
-        var candidate = RuntimeSuggestion.For(error, _temp.Path);
-
-        Assert.NotNull(candidate);
-        Assert.Equal(FixTier.AutoAppliable, candidate!.Tier);
-
-        var harvest = await new PatchHarvester(new Core.Http.FixFinderHttpClient())
-            .HarvestAsync(candidate, Core.Http.CacheMode.CacheOnly);
-
-        Assert.True(harvest.HasAppliablePatch, "the fenced diff in the body did not parse");
-
-        var plan = new PatchApplier().Plan(
-            harvest.Patches[0], new SourcePathMapper(_temp.Path, [script]), [script]);
-
-        Assert.True(plan.CanApply, plan.Explanation);
-
-        var backups = new BackupStore(Path.Combine(_temp.Path, "backups"));
-        var applied = new PatchApplier().Apply(plan, backups, _temp.Path, dryRun: false, "runtime", "t", "");
-
-        Assert.True(applied.Ok, applied.Failure);
-        Assert.Contains("print(average)", File.ReadAllText(script));
-
-        // And it really runs now.
-        var after = await new TargetRunner(new ParserRegistry()).RunAsync(
-            new TargetSpec
-            {
-                ExecutablePath = Python,
-                Arguments = $"\"{script}\"",
-                WorkingDirectory = _temp.Path,
-                Timeout = TimeSpan.FromSeconds(30),
-            },
-            CancellationToken.None);
-
-        Assert.Null(after.Error);
-        Assert.Equal(RunOutcome.ExitedClean, after.Outcome);
-    }
-
-    /// <summary>
     /// Two of the same name on one line, and nothing is offered.
     /// </summary>
     /// <remarks>
@@ -307,48 +250,5 @@ public class RuntimeSuggestionTests : IDisposable
         File.Delete(script);
 
         Assert.Null(RuntimeSuggestion.For(error, _temp.Path));
-    }
-
-    /// <summary>
-    /// The correction survives verification, which is what keeps it honest.
-    /// </summary>
-    [Fact]
-    public async Task TheFixIsVerifiedByRerunningLikeAnyOther()
-    {
-        if (Python is null) return;
-
-        var script = Write("verify.py", """
-            total = 5
-            print(totl)
-            """);
-
-        var error = await CrashOf(script);
-        var before = Core.Fingerprinting.FingerprintBuilder.Build(error);
-
-        var candidate = RuntimeSuggestion.For(error, _temp.Path);
-        Assert.NotNull(candidate);
-
-        var harvest = await new PatchHarvester(new Core.Http.FixFinderHttpClient())
-            .HarvestAsync(candidate!, Core.Http.CacheMode.CacheOnly);
-
-        var plan = new PatchApplier().Plan(
-            harvest.Patches[0], new SourcePathMapper(_temp.Path, [script]), [script]);
-
-        var backups = new BackupStore(Path.Combine(_temp.Path, "backups"));
-        var applied = new PatchApplier().Apply(plan, backups, _temp.Path, dryRun: false, "runtime", "t", "");
-
-        Assert.True(applied.Ok, applied.Failure);
-
-        var spec = new TargetSpec
-        {
-            ExecutablePath = Python,
-            Arguments = $"\"{script}\"",
-            WorkingDirectory = _temp.Path,
-            Timeout = TimeSpan.FromSeconds(30),
-        };
-
-        var verdict = await new FixVerifier().VerifyAsync(spec, before, backups, applied.BackupFolder);
-
-        Assert.Equal(FixVerdict.Fixed, verdict.Verdict);
     }
 }

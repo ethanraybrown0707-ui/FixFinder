@@ -127,33 +127,6 @@ public class DependencyPatchTests : IDisposable
     }
 
     /// <summary>
-    /// Applying really writes the library file, and the backup puts it back.
-    /// </summary>
-    [Fact]
-    public async Task ApplyingWritesTheLibraryAndRollbackRestoresIt()
-    {
-        var (outcome, adapters) = Scenario(UpstreamFix);
-        var before = File.ReadAllBytes(adapters);
-
-        var browser = new CandidateBrowser(_http, outcome, CacheMode.CacheOnly);
-        var examined = await browser.CurrentAsync();
-
-        var backups = new BackupStore(Path.Combine(_temp.Path, "backups"));
-
-        // Rooted at the package, exactly as the window does before handing over to FixStep.
-        var applied = new PatchApplier().Apply(
-            examined.Plan!, backups, examined.Into!.Root, dryRun: false, "gh#1", "title", "url");
-
-        Assert.True(applied.Ok, applied.Failure);
-        Assert.Contains("from None", File.ReadAllText(adapters));
-
-        var restored = backups.Restore(applied.BackupFolder!);
-
-        Assert.True(restored.Ok);
-        Assert.Equal(before, File.ReadAllBytes(adapters));
-    }
-
-    /// <summary>
     /// A patch that fits the user's own code is never diverted into a dependency.
     /// </summary>
     /// <remarks>
