@@ -31,6 +31,7 @@ public static class LogicPatterns
         .. PythonReviewPatterns.All,
         .. CLikeLogicPatterns.All,
         .. CLikeReviewPatterns.All,
+        .. ManagedReviewPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

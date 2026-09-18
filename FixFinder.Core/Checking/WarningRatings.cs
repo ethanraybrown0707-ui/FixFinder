@@ -36,6 +36,7 @@ public static class WarningRatings
         Codes(["CS0168", "CS0219", "CS8321", "CS0169", "CS0414"], FindingKind.Style, Severity.Suggestion, Confidence.Certain),
         Codes(["CS0649"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Codes(["CS1717"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-self-assignment"),
+        Codes(["CA2200"], FindingKind.Logic, Severity.Warning, Confidence.Certain, "logic-csharp-throw-ex"),
         Codes(["CS1718"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Codes(["CS0665"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-assignment-in-condition"),
         Codes(["CS0252", "CS0253", "CS0472"], FindingKind.Logic, Severity.Warning, Confidence.Likely),

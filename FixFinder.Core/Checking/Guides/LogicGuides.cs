@@ -239,6 +239,7 @@ internal static class LogicGuides
     [
         .. PythonPatternGuides.All,
         .. BracePatternGuides.All,
+        .. ManagedPatternGuides.All,
         .. Shared,
     ];
 }

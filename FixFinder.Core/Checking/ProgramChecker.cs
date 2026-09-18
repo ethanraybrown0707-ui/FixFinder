@@ -355,8 +355,10 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             if (twin is not null)
             {
-                if (Rank(finding) <= Rank(twin)) return;
+                var better = Rank(finding) > Rank(twin) ? finding : twin;
+                var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
+                finding = better with { Confidence = surest };
             }
 
             _findings.Add(finding);

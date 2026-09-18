@@ -24,8 +24,15 @@ public static partial class FindingFactory
         {
             RuleId = fix?.LocalFix?.RuleId ?? error.ErrorCode ?? error.ShortExceptionType ?? "",
             Error = error,
+            Family = CrashExplainedBy.GetValueOrDefault(error.ShortExceptionType ?? ""),
         };
     }
+
+    private static readonly Dictionary<string, string> CrashExplainedBy = new(StringComparer.Ordinal)
+    {
+        ["KeyNotFoundException"] = "logic-count-from-missing-key",
+        ["NullPointerException"] = "logic-count-from-missing-key",
+    };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>
         FromError(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix) with
