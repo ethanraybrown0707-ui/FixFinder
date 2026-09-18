@@ -174,7 +174,7 @@ public static partial class ManagedReviewPatterns
             {
                 yield return new LogicFinding(id, i + 1,
                     $"`{name}` is never closed, so what is written to it may never reach the file - it stays in memory and is lost when the program ends",
-                    Replace(id, $"Close it when it goes out of scope: using var {name} = ...",
+                    Replace(id, $"Declare {name} with using, so it is closed at the end of the block",
                         "A StreamWriter collects what it is given in memory and only writes it to the file when it is flushed or closed. Nothing " +
                         $"here does either, so the file can end up empty. `using` closes `{name}` at the end of the block, which writes everything out.",
                         source, i + 1, fixedLine))
@@ -187,7 +187,7 @@ public static partial class ManagedReviewPatterns
 
             yield return new LogicFinding(id, i + 1,
                 $"`{name}` is never closed, so the file stays open - and locked against other programs - until the garbage collector gets to it",
-                Replace(id, $"Close it when it goes out of scope: using var {name} = ...",
+                Replace(id, $"Declare {name} with using, so it is closed at the end of the block",
                     $"An open file is held by the operating system until it is closed. `using` closes `{name}` at the end of the block, even when " +
                     "an exception is thrown on the way.",
                     source, i + 1, fixedLine));
@@ -230,7 +230,7 @@ public static partial class ManagedReviewPatterns
         var texts = Declared(masked, @"\b(?:string|String)\s+(?<name>[A-Za-z_]\w*)\s*[=;,)]")
             .Union(Declared(masked, @"\bvar\s+(?<name>[A-Za-z_]\w*)\s*=\s*(?:""|Console\s*\.\s*ReadLine\s*\()"))
             .ToHashSet();
-        var characters = Declared(masked, @"\bchar\s+(?<name>[A-Za-z_]\w*)\s*[=;,:)]")
+        var characters = Declared(masked, @"\bchar\s+(?<name>[A-Za-z_]\w*)(?:\s*[=;,:)]|\s+in\b)")
             .Union(masked
                 .SelectMany(line => Regex.Matches(line, @"\bforeach\s*\(\s*var\s+(?<name>[A-Za-z_]\w*)\s+in\s+(?<text>[A-Za-z_]\w*)\s*\)"))
                 .Where(match => texts.Contains(match.Groups["text"].Value))
@@ -394,7 +394,7 @@ public static partial class ManagedReviewPatterns
             yield return new LogicFinding(id, i + 1,
                 java
                     ? $"printing the array `{name}` prints its type and address - something like [I@1b6d3586 - not what is in it"
-                    : $"printing `{name}` prints the name of its type - System.Int32[] or System.Collections.Generic.List`1[System.Int32] - not what is in it",
+                    : $"printing `{name}` prints the name of its type, such as System.Int32[], rather than what is in it",
                 Replace(id, $"Print what is in it: {shown}",
                     java
                         ? "An array does not know how to turn itself into text, so Java prints its type code and where it is in memory. " +

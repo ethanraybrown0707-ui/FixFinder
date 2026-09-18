@@ -41,6 +41,12 @@ public static partial class FindingFactory
             RuleId = fix?.LocalFix?.RuleId ?? warning.ErrorCode ?? WarningName(warning),
         };
 
+    private static string TitleThen(string title, string explanation)
+    {
+        var trimmed = title.TrimEnd();
+        return (trimmed.Length > 0 && trimmed[^1] is '.' or ':' or ';' ? trimmed : trimmed + ".") + " " + explanation;
+    }
+
     private static string WarningName(ParsedError warning) =>
         LintCategory().Match(warning.Message ?? "") is { Success: true } category
             ? $"{warning.LanguageId}-{category.Value.Trim().Trim('[', ']')}"
@@ -51,7 +57,7 @@ public static partial class FindingFactory
         var guide = Guidebook.For(source.Path, finding.Kind, finding.PatternId);
         var fix = fixCompiles ? finding.Fix : null;
 
-        var suggested = fix is not null ? $"{fix.Title}. {fix.Explanation}" : guide.SuggestedFix;
+        var suggested = fix is not null ? TitleThen(fix.Title, fix.Explanation) : guide.SuggestedFix;
         var example = fix is not null ? CorrectedCode.From(fix, source) : guide.Example;
 
         return new Finding
@@ -83,7 +89,7 @@ public static partial class FindingFactory
         var suspects = result.Suspicious.Take(5).Select(s => s.Line.ToString()).ToList();
 
         var suggested = result.Fix is { } fix
-            ? $"{fix.Title}. {fix.Explanation}"
+            ? TitleThen(fix.Title, fix.Explanation)
             : suspects.Count > 0
                 ? $"Look first at line{(suspects.Count == 1 ? "" : "s")} {string.Join(", ", suspects)} - the wrong runs went through " +
                   "them more than the right ones. FixFinder tried small changes there and none made every run right, so the mistake " +
@@ -135,7 +141,7 @@ public static partial class FindingFactory
     }
 
     private static string FixText(FixCandidate fix) => fix.LocalFix is { } local
-        ? $"{local.Title}. {local.Explanation}"
+        ? TitleThen(local.Title, local.Explanation)
         : fix.Title;
 
     public static string TitleOf(ParsedError error)

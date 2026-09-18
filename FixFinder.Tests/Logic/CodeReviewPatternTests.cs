@@ -212,6 +212,7 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-char-used-as-digit", "Program.cs", "string number = Console.ReadLine();\nint sum = 0;\nfor (int i = 0; i < number.Length; i++)\n{\n    sum += number[i];\n}\n", "    sum += number[i] - '0';")]
     [InlineData("logic-char-used-as-digit", "App.java", "        String code = \"1234\";\n        int first = Integer.valueOf(code.charAt(0));\n", "        int first = (code.charAt(0) - '0');")]
     [InlineData("logic-char-used-as-digit", "Program.cs", "char c = '7';\nint value = Convert.ToInt32(c);\n", "int value = (c - '0');")]
+    [InlineData("logic-char-used-as-digit", "Program.cs", "string number = \"2024\";\nint sum = 0;\nforeach (char c in number)\n{\n    sum += c;\n}\n", "    sum += c - '0';")]
     [InlineData("logic-char-used-as-digit", "Program.cs", "List<int> numbers = new();\nint sum = 0;\nforeach (var n in numbers)\n{\n    sum += n;\n}\n", null)]
     [InlineData("logic-char-used-as-digit", "Program.cs", "string number = \"12\";\nint sum = 0;\nsum += number.Length;\n", null)]
     [InlineData("logic-count-from-missing-key", "App.java", "        Map<String, Integer> counts = new HashMap<>();\n        for (String word : words) {\n            counts.put(word, counts.get(word) + 1);\n        }\n", "            counts.put(word, counts.getOrDefault(word, 0) + 1);")]
