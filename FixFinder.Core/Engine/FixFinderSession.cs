@@ -68,6 +68,9 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 {
     private const int CandidatesToOpen = 3;
 
+    // abort() ends a C or C++ program with 3 on Windows, and a race with another thread can stop it printing why first.
+    private const int WindowsAbortExitCode = 3;
+
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
     public ExpectedBehaviour? Expected { get; init; }
@@ -280,8 +283,9 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (run.Error is null)
         {
             var wentWrong = run.Outcome is RunOutcome.Crashed or RunOutcome.ExitedNonZero;
+            var abortedSilently = run.Outcome == RunOutcome.ExitedNonZero && run.ExitCode == WindowsAbortExitCode;
 
-            if (run.Outcome == RunOutcome.Crashed && rerunWithSanitizer is not null)
+            if ((run.Outcome == RunOutcome.Crashed || abortedSilently) && rerunWithSanitizer is not null)
             {
                 Progress?.Invoke("It crashed without a word - rebuilding it to find where and why...");
 
