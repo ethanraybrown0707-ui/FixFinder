@@ -83,6 +83,12 @@
                             <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
 
+                            <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
+                                <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
+                                <TextBox Text="{Binding SliceCode, Mode=OneWay}" Style="{StaticResource CodeBlock}"
+                                         AutomationProperties.Name="The lines that decide it" AutomationProperties.AutomationId="FindingSlice"/>
+                            </StackPanel>
+
                             <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 

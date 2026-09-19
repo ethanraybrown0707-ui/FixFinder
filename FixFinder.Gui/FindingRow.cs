@@ -59,6 +59,35 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ExampleLabel => Finding.ExampleIsFromYourCode ? "CORRECTED CODE  ·  FROM YOUR FILE" : "EXAMPLE OF CORRECTED CODE";
 
+    /// <summary>The lines that decide the value that goes wrong, numbered, with their shared indent taken off.</summary>
+    public string SliceCode => _sliceCode ??= Render(Finding);
+
+    public bool HasSlice => SliceCode.Length > 0;
+
+    private string? _sliceCode;
+
+    private static string Render(Finding finding)
+    {
+        if (finding.Slice is not { Count: > 1 } lines) return "";
+
+        string[] source;
+        try
+        {
+            source = File.ReadAllLines(finding.File);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return "";
+        }
+
+        var shown = lines.Where(line => line >= 1 && line <= source.Length).Select(line => (Line: line, Text: source[line - 1].TrimEnd())).ToList();
+        if (shown.Count < 2) return "";
+
+        var indent = shown.Where(s => s.Text.Length > 0).Select(s => s.Text.Length - s.Text.TrimStart().Length).DefaultIfEmpty(0).Min();
+        var width = shown[^1].Line.ToString().Length;
+        return string.Join("\n", shown.Select(s => $"{s.Line.ToString().PadLeft(width)}  {(s.Text.Length >= indent ? s.Text[indent..] : s.Text.TrimStart())}"));
+    }
+
     public string CheckedText => Finding.FixCheckedBy is { Length: > 0 } how ? how : "";
 
     public bool HasCheck => CheckedText.Length > 0;
@@ -99,6 +128,12 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             $"Why it matters: {WhyItMatters}",
             $"How to fix it: {SuggestedFix}",
         };
+
+        if (HasSlice)
+        {
+            lines.Insert(lines.Count - 1, "The lines that decide it:");
+            lines.InsertRange(lines.Count - 1, SliceCode.Split('\n').Select(line => "    " + line));
+        }
 
         if (HasWitness) lines.Insert(2, WitnessText);
         if (HasFoundBy) lines.Insert(2, FoundByText);

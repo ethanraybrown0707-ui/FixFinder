@@ -106,6 +106,11 @@ A loop is followed as many times as its bound when the code shows one (`for i in
 with `n` known), and a few times otherwise. A search cut short like that never drops a finding. Paths, steps and time
 are all capped - a quarter of a second per function, five seconds per program - so a large program still checks quickly.
 
+Each of these findings also shows **the lines that decide it**, found by **program slicing**: working backwards from the
+value that goes wrong, through the assignments that can reach it and the conditions that decide whether they run. For
+`return total / count` that is the `def` line, `count = 0`, the loop and `count += 1` - not the lines that only add up
+`total`.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked
@@ -162,7 +167,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
-| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`) and the checks (`Checks`). |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`) and the checks (`Checks`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |

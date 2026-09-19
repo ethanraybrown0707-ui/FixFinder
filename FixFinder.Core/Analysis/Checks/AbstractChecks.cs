@@ -1,6 +1,7 @@
 using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
+using FixFinder.Core.Analysis.Slicing;
 using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
 
@@ -32,7 +33,8 @@ public static class AbstractChecks
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
             var local = new List<AnalysisFinding>();
             new FunctionChecks(graph, fixpoint, evaluator, source, local).Run();
-            findings.AddRange(symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local);
+            var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
+            findings.AddRange(WithSlices(graph, refined));
         }
 
         return findings
@@ -40,6 +42,60 @@ public static class AbstractChecks
             .Select(g => g.OrderBy(f => f.Confidence).First())
             .OrderBy(f => f.Span.File).ThenBy(f => f.Span.Line)
             .ToList();
+    }
+
+    /// <summary>Each finding with the lines that decide the value it is about, when more lines than its own do.</summary>
+    private static IEnumerable<AnalysisFinding> WithSlices(ControlFlowGraph graph, IEnumerable<AnalysisFinding> findings)
+    {
+        ProgramSlicer? slicer = null;
+
+        foreach (var finding in findings)
+        {
+            slicer ??= new ProgramSlicer(graph);
+            var lines = slicer.LinesDeciding(finding.Span, Criterion(Find(graph, finding.Span), finding.CheckId));
+            yield return lines.Count > 1 ? finding with { Slice = lines } : finding;
+        }
+    }
+
+    /// <summary>The value a finding is about: the divisor, the thing used as an object, the collection taken from.</summary>
+    private static IEnumerable<string> Criterion(Expr? at, string check) => (check, at) switch
+    {
+        ("analysis-division-by-zero", Binary division) => Variables(division.Right),
+        ("analysis-null-used", Member member) => Variables(member.Target),
+        ("analysis-null-used", ElementAccess element) => Variables(element.Target),
+        ("analysis-null-used", MoreItems more) => Variables(more.Items),
+        ("analysis-empty-collection", Call { Callee: Member member }) => Variables(member.Target),
+        (_, { } expression) => Variables(expression),
+        _ => [],
+    };
+
+    private static IEnumerable<string> Variables(Expr expression) => expression switch
+    {
+        Member { Target: Name { Identifier: "this" }, MemberName: var field } => [field],
+        Name name => [name.Identifier],
+        _ => IrWalk.Children(expression).SelectMany(Variables),
+    };
+
+    private static Expr? Find(ControlFlowGraph graph, SourceSpan at)
+    {
+        static Expr? Within(Expr expression, SourceSpan span) =>
+            expression.Span == span ? expression : IrWalk.Children(expression).Select(child => Within(child, span)).FirstOrDefault(found => found is not null);
+
+        IEnumerable<Expr> held = graph.Blocks.SelectMany(block => block.Instructions.SelectMany(instruction => instruction switch
+        {
+            AssignInstruction assign => new[] { assign.Target, assign.Value },
+            EvaluateInstruction evaluate => [evaluate.Value],
+            ForgetInstruction forget => forget.Parts,
+            _ => [],
+        }).Concat(block.Terminator switch
+        {
+            Branch branch => [branch.Condition],
+            Leave { Value: { } value } => [value],
+            Raise { Exception: { } thrown } => [thrown],
+            _ => [],
+        }));
+
+        return held.Select(expression => Within(expression, at)).FirstOrDefault(found => found is not null);
     }
 
     /// <summary>Each variable's declared type, where it is declared once with one type.</summary>

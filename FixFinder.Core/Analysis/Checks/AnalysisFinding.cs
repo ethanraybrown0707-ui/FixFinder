@@ -9,6 +9,9 @@ public sealed record AnalysisFinding(
 {
     /// <summary>Inputs that make the line fail, when symbolic execution found some: "`values` is empty".</summary>
     public string? Witness { get; init; }
+
+    /// <summary>The lines that decide the value that goes wrong, found by slicing the function backwards from it.</summary>
+    public IReadOnlyList<int>? Slice { get; init; }
 }
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>

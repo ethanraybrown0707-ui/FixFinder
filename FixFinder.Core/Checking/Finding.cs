@@ -58,5 +58,8 @@ public sealed record Finding
     /// <summary>Inputs that make the line fail, found by following the program path by path.</summary>
     public string? Witness { get; init; }
 
+    /// <summary>The lines that decide the value that goes wrong, in order.</summary>
+    public IReadOnlyList<int>? Slice { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }
