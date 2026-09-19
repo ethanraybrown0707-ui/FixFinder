@@ -71,6 +71,25 @@ list. When an expected output was given, it also runs changed copies of the prog
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
 
+For Python, Java and C#, the logic check also **follows every value through the code** (abstract interpretation). Each
+language is read by its own parser - Python's `ast`, javac's tree API and Roslyn - into one shared form, and each
+function into a graph of the ways through it. Every variable is tracked as the kinds of value it can hold, its range of
+numbers, its range of lengths and whether it can be null, through every branch and loop until nothing changes:
+
+| Check | For example |
+|---|---|
+| Dividing by something that can be zero | `total / count` when the loop that counts may never run |
+| Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked |
+| A position that does not exist | `points[3]` on a list of three |
+| Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack |
+| Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
+| A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
+| A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
+
+These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
+local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so
+the checks stay quiet rather than guess.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked
@@ -94,8 +113,8 @@ A crash is read in fifteen languages, each with its own stack-trace parser: Pyth
 Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a generic reading of its file and line.
 
 Each check is written to stay quiet when it is not sure, because a check that fires on correct code teaches people to
-ignore it. The newest checks were run over large bodies of working code - part of the JDK's own library, npm, and
-FixFinder itself - and each false alarm found there was fixed and kept as a test.
+ignore it. The newest checks were run over large bodies of working code - Python's standard library, part of the JDK's
+own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test.
 
 ## Searching online
 
@@ -127,6 +146,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`) and the checks (`Checks`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |
@@ -137,7 +157,8 @@ To add a check: a logic check goes in `Logic`, with a guide in `Checking/Guides`
 `CodeReviewPatternTests`, including correct code it must leave alone. A fix rule goes in its language's folder under
 `LocalFixes/Rules`, is listed in `LocalFixEngine.Rules`, and gets a guide and a test.
 
-The only NuGet dependency is `System.Security.Cryptography.ProtectedData`, for the token.
+The NuGet dependencies are `System.Security.Cryptography.ProtectedData`, for the token, and `Microsoft.CodeAnalysis.CSharp`
+(Roslyn), to read C#.
 
 ## Build and run
 

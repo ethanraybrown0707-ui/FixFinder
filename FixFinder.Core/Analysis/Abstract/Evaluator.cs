@@ -71,6 +71,9 @@ public sealed class Evaluator(SourceLanguage language)
             : AbstractValue.Unknown,
         Unary unary => UnaryValue(unary, state),
         Binary binary => BinaryValue(binary, state),
+        Conditional { Test: Binary { Operator: BinaryOperator.NotEqual, Left: var tested, Right: Literal { Kind: LiteralKind.Null } }, WhenTrue: var kept } coalesced
+            when ReferenceEquals(tested, kept) =>
+            Evaluate(kept, Assume(state, coalesced.Test, true)).WithoutNull().Join(Evaluate(coalesced.WhenFalse, Assume(state, coalesced.Test, false))),
         Conditional choice => Evaluate(choice.WhenTrue, Assume(state, choice.Test, true))
             .Join(Evaluate(choice.WhenFalse, Assume(state, choice.Test, false))),
         Call call => CallValue(call, state),
@@ -114,7 +117,7 @@ public sealed class Evaluator(SourceLanguage language)
         "dictionary comprehension" => AbstractValue.Of(ValueKind.Dictionary),
         "lambda" or "function" => AbstractValue.Of(ValueKind.Function),
         "class" or "generator" or "AssertionError" or "lambda expression" or "anonymous class" => AbstractValue.Of(ValueKind.Object),
-        "instanceof" => AbstractValue.Boolean,
+        "instanceof" or "is pattern" => AbstractValue.Boolean,
         var what when what.StartsWith("module ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Module),
         var what when what.StartsWith("caught ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Object),
         _ => AbstractValue.Unknown,
@@ -255,6 +258,10 @@ public sealed class Evaluator(SourceLanguage language)
         if (call.Callee is Name { Identifier: var function } && IsPython && !state.Knows(function))
             return BuiltinCall(function, arguments, call);
 
+        if (!IsPython && call.Callee is Member { Target: Name { Identifier: var type }, MemberName: var helper } && !state.Knows(type) &&
+            StaticHelper(type, helper, arguments, call) is { } helped)
+            return helped;
+
         if (call.Callee is Member { Target: var receiverExpression, MemberName: var method })
         {
             var receiver = Evaluate(receiverExpression, state);
@@ -289,6 +296,21 @@ public sealed class Evaluator(SourceLanguage language)
 
         return AbstractValue.Unknown;
     }
+
+    /// <summary>Java and C# library calls on a type rather than a value: Math.max, int.Parse, String.valueOf.</summary>
+    private static AbstractValue? StaticHelper(string type, string method, IReadOnlyList<AbstractValue> arguments, Call call) => (type, method) switch
+    {
+        ("Math", "Abs" or "abs") => BuiltinCall("abs", arguments, call),
+        ("Math", "Max" or "max") => BuiltinCall("max", arguments, call),
+        ("Math", "Min" or "min") => BuiltinCall("min", arguments, call),
+        ("int" or "long" or "short" or "Int32" or "Int64" or "Integer" or "Long", "Parse" or "parseInt" or "parseLong" or "valueOf") =>
+            AbstractValue.Integer(Interval.Top),
+        ("double" or "float" or "decimal" or "Double" or "Float" or "Decimal", "Parse" or "parseDouble" or "parseFloat" or "valueOf") =>
+            AbstractValue.Real(Interval.Top),
+        (_, "TryParse" or "IsNullOrEmpty" or "IsNullOrWhiteSpace") => AbstractValue.Boolean,
+        ("string" or "String", "Join" or "Format" or "Concat" or "join" or "format" or "valueOf") => AbstractValue.Text(Interval.NonNegative),
+        _ => null,
+    };
 
     private static AbstractValue ManagedTextMethod(string method, AbstractValue text) => method switch
     {
@@ -488,6 +510,7 @@ public sealed class Evaluator(SourceLanguage language)
 
     private bool CallsOtherCode(Expr expression) =>
         expression is Call { Callee: var callee } && !(IsPython && callee is Name { Identifier: var builtin } && Builtins.Contains(builtin))
+        || expression is Opaque { What: "await" or "yield" }
         || IrWalk.Children(expression).Any(CallsOtherCode);
 
     /// <summary>A call can change what it is called on, and anything mutable handed to an unknown function.</summary>
@@ -588,6 +611,14 @@ public sealed class Evaluator(SourceLanguage language)
             case Name truthName:
                 return Store(state, truthName.Identifier, TruthOf(state[truthName.Identifier], holds));
 
+            case Opaque { What: "is pattern", Parts: [var matched] } when holds && Followed(matched) is { } matchedName:
+                return Store(state, matchedName, state[matchedName].WithoutNull());
+
+            case Call { Callee: Member { Target: Name { Identifier: "string" or "String" }, MemberName: var test },
+                    Arguments: [{ Value: var tested }] } when !holds && test is "IsNullOrEmpty" or "IsNullOrWhiteSpace" && Followed(tested) is { } testedName:
+                var present = state[testedName].WithoutNull();
+                return Store(state, testedName, test == "IsNullOrEmpty" && present.IsOnly(ValueKind.Text) ? present.WithLength(new Interval(1, double.PositiveInfinity)) : present);
+
             case Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] }:
                 var measured = state[sized.Identifier];
                 return Store(state, sized.Identifier, measured.WithLength(holds ? new Interval(1, double.PositiveInfinity) : Interval.Exactly(0)));
@@ -669,13 +700,7 @@ public sealed class Evaluator(SourceLanguage language)
         if (IsNullLiteral(comparison.Right) || IsNullLiteral(comparison.Left))
         {
             var other = IsNullLiteral(comparison.Right) ? comparison.Left : comparison.Right;
-            var checkedName = other switch
-            {
-                Name named => named.Identifier,
-                Member field when FieldName(field) is { } named => named,
-                _ => null,
-            };
-            if (checkedName is null) return state;
+            if (Followed(other) is not { } checkedName) return state;
 
             var value = state[checkedName];
             return op switch
@@ -713,6 +738,9 @@ public sealed class Evaluator(SourceLanguage language)
     }
 
     private static bool IsNullLiteral(Expr expression) => expression is Literal { Kind: LiteralKind.Null };
+
+    /// <summary>The name a variable is followed under: its own, or for this.x in Java and C#, the field's.</summary>
+    private string? Followed(Expr expression) => expression is Name name ? name.Identifier : FieldName(expression);
 
     /// <summary>Something ordered against a number must be a number itself, or the comparison would have failed.</summary>
     private static AbstractValue AsNumberWhenComparedWithOne(AbstractValue value, AbstractValue other) =>

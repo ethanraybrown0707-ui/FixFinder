@@ -28,11 +28,14 @@ public static class Guidebook
         PythonGuides.All, JavaGuides.All, CSharpGuides.All, NativeGuides.All, JavaScriptGuides.All, GoGuides.All, LogicGuides.All,
     ];
 
+    private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
+    private static readonly IReadOnlyList<GuideEntry> CSharpTable = [.. CSharpGuides.All, .. AnalysisGuides.CSharp];
+
     private static IReadOnlyList<GuideEntry> TableFor(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
         ".py" or ".pyw" => PythonGuides.All,
-        ".java" => JavaGuides.All,
-        ".cs" => CSharpGuides.All,
+        ".java" => JavaTable,
+        ".cs" => CSharpTable,
         ".c" or ".h" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => NativeGuides.All,
         ".js" or ".mjs" or ".cjs" => JavaScriptGuides.All,
         ".go" => GoGuides.All,

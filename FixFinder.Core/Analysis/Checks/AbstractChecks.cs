@@ -232,15 +232,30 @@ public static class AbstractChecks
             }
         }
 
-        /// <summary>Divisors built only from what this analysis can follow - names and len(name) - so a guard on them is seen.</summary>
-        private static bool Followable(Expr expression) => expression switch
+        /// <summary>Divisors built only from what this analysis can follow - names and sizes of names - so a guard on them is seen.</summary>
+        private bool Followable(Expr expression) => expression switch
         {
             Name or Literal => true,
             Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name }] } => true,
+            Member { Target: Name sized, MemberName: "length" or "Length" or "Count" } => IsOwnCollection(sized.Identifier),
+            Call { Callee: Member { Target: Name sized, MemberName: "length" or "size" or "Count" }, Arguments.Count: 0 } => IsOwnCollection(sized.Identifier),
             Unary unary => Followable(unary.Operand),
             Binary binary => Followable(binary.Left) && Followable(binary.Right),
             _ => false,
         };
+
+        /// <summary>
+        /// A collection the caller hands in, which can be empty, or one built here - not a copy of a field, whose size the
+        /// class usually keeps above 0 on purpose.
+        /// </summary>
+        private bool IsOwnCollection(string name) =>
+            graph.Function.Parameters.Any(p => p.Name == name) ||
+            IrWalk.Statements(graph.Function.Body).Any(s => s switch
+            {
+                Declare { Initial: NewObject or CollectionLiteral } declare => declare.Variable == name,
+                Assign { Target: Name target, Value: NewObject or CollectionLiteral } => target.Identifier == name,
+                _ => false,
+            });
 
         private void CheckOperandTypes(Binary binary, AbstractState state)
         {
@@ -305,14 +320,20 @@ public static class AbstractChecks
 
         private void CheckCall(Call call, AbstractState state)
         {
-            if (call.Callee is Member { Target: var owner, MemberName: "pop" } && call.Arguments.Count == 0 &&
+            if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
                 evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
             {
-                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with IndexError",
+                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}",
                     Severity.Error, Confidence.Certain);
             }
 
-            if (!IsPython || call.Callee is not Name { Identifier: var function } || call.Arguments.Count == 0) return;
+            if (!IsPython)
+            {
+                CheckParse(call);
+                return;
+            }
+
+            if (call.Callee is not Name { Identifier: var function } || call.Arguments.Count == 0) return;
 
             var argument = call.Arguments[0].Value;
             var value = evaluator.Evaluate(argument, state);
@@ -325,6 +346,37 @@ public static class AbstractChecks
                 !double.TryParse(text.Trim().Replace("_", ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
                 Report("analysis-not-a-number", call.Span, $"\"{text}\" is not a number, so `{Quote(call)}` fails with ValueError",
                     Severity.Error, Confidence.Certain);
+        }
+
+        /// <summary>The error taking an item from an empty collection raises, for the calls that take one.</summary>
+        private string? TakesAnItem(string method) => evaluator.Language switch
+        {
+            SourceLanguage.Python when method == "pop" => "IndexError",
+            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" => "an InvalidOperationException",
+            SourceLanguage.Java when method is "pop" or "element" or "getFirst" or "getLast" or "removeFirst" or "removeLast" =>
+                "a NoSuchElementException (EmptyStackException for a Stack)",
+            _ => null,
+        };
+
+        /// <summary>int.Parse("abc") and Integer.parseInt("abc") - text that is written into the program and is not a number.</summary>
+        private void CheckParse(Call call)
+        {
+            if (call.Callee is not Member { Target: Name { Identifier: var type }, MemberName: var method } ||
+                call.Arguments is not [{ Value: Literal { Kind: LiteralKind.Text, Value: string text } }, ..]) return;
+
+            var whole = (type, method) is ("int" or "long" or "short" or "Int32" or "Int64", "Parse") or ("Integer", "parseInt" or "valueOf") or ("Long", "parseLong" or "valueOf");
+            var real = (type, method) is ("double" or "float" or "decimal" or "Double" or "Decimal", "Parse") or ("Double", "parseDouble" or "valueOf") or ("Float", "parseFloat");
+            if (!whole && !real) return;
+
+            var trimmed = evaluator.Language == SourceLanguage.CSharp ? text.Trim() : text;
+            var parses = whole
+                ? long.TryParse(trimmed, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out _)
+                : double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
+            if (parses) return;
+
+            var failure = evaluator.Language == SourceLanguage.CSharp ? "a FormatException" : "a NumberFormatException";
+            Report("analysis-not-a-number", call.Span, $"\"{text}\" is not {(whole ? "a whole number" : "a number")}, so `{Quote(call)}` fails with {failure}",
+                Severity.Error, Confidence.Certain);
         }
 
         private void CheckIterable(MoreItems more, AbstractState state)

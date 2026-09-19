@@ -373,6 +373,8 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         if (AllEndIn(".java"))
             return JavaFrontend.FindTools() is { } tools ? JavaFrontend.ReadAsync(files, tools.Javac, tools.Java, cancellationToken) : null;
 
+        if (AllEndIn(".cs")) return CSharpFrontend.ReadAsync(files, cancellationToken);
+
         return null;
     }
 

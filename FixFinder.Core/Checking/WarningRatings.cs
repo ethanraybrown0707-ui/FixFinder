@@ -26,7 +26,7 @@ public static class WarningRatings
 
         Words(@"^\[fallthrough\]", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-switch-fallthrough"),
         Words(@"^\[empty\]", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-empty-if-body"),
-        Words(@"^\[divzero\]", FindingKind.Runtime, Severity.Error, Confidence.Certain),
+        Words(@"^\[divzero\]", FindingKind.Runtime, Severity.Error, Confidence.Certain, "analysis-division-by-zero"),
         Words(@"^\[finally\]", FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Words(@"^\[overrides\]", FindingKind.Logic, Severity.Warning, Confidence.Likely),
         Words(@"^\[(?:rawtypes|unchecked)\]", FindingKind.Style, Severity.Suggestion, Confidence.Likely),
@@ -45,7 +45,8 @@ public static class WarningRatings
         Codes(["CS0108", "CS0114"], FindingKind.Logic, Severity.Warning, Confidence.Possible),
         Codes(["CS0642"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-empty-if-body"),
         Codes(["CS0659", "CS0660", "CS0661"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
-        Codes(["CS8600", "CS8601", "CS8602", "CS8603", "CS8604", "CS8618", "CS8625"], FindingKind.Logic, Severity.Warning, Confidence.Possible),
+        Codes(["CS8602"], FindingKind.Logic, Severity.Warning, Confidence.Possible, "analysis-null-used"),
+        Codes(["CS8600", "CS8601", "CS8603", "CS8604", "CS8618", "CS8625"], FindingKind.Logic, Severity.Warning, Confidence.Possible),
 
         Codes(["C4700", "C4701", "C4703"], FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-uninitialised-total"),
         Codes(["C4715", "C4716"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
@@ -69,7 +70,7 @@ public static class WarningRatings
         Words(@"this statement may fall through", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-switch-fallthrough"),
         Words(@"comparison with string literal", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-c-string-equals"),
         Words(@"address of local variable|reference to local variable", FindingKind.Logic, Severity.Error, Confidence.Likely),
-        Words(@"division by zero", FindingKind.Runtime, Severity.Error, Confidence.Likely),
+        Words(@"division by zero", FindingKind.Runtime, Severity.Error, Confidence.Likely, "analysis-division-by-zero"),
         Words(@"array bounds|array subscript", FindingKind.Runtime, Severity.Error, Confidence.Likely),
         Words(@"implicit declaration of function", FindingKind.Syntax, Severity.Warning, Confidence.Likely),
         Words(@"catching polymorphic type", FindingKind.Logic, Severity.Suggestion, Confidence.Likely, "logic-cpp-catch-by-value"),

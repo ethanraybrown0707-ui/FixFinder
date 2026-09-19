@@ -33,6 +33,10 @@ public static partial class FindingFactory
     {
         ["KeyNotFoundException"] = "logic-count-from-missing-key",
         ["NullPointerException"] = "logic-count-from-missing-key",
+        ["ZeroDivisionError"] = "analysis-division-by-zero",
+        ["DivideByZeroException"] = "analysis-division-by-zero",
+        ["ArithmeticException"] = "analysis-division-by-zero",
+        ["NullReferenceException"] = "analysis-null-used",
     };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>

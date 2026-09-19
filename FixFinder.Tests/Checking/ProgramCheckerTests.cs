@@ -106,6 +106,23 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task ACrashTheAnalysisFoundIsReportedOnce()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var file = Write("average.py", """
+            total = 10
+            count = 0
+            print(total / count)
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Python);
+
+        var division = Assert.Single(report.Findings, f => f.Line == 3);
+        Assert.Equal(Confidence.Certain, division.Confidence);
+    }
+
+    [Fact]
     public async Task JavaErrorsAndWarningsAreAllReported()
     {
         if (!LocalFixLiveTests.Available("java")) return;
@@ -204,6 +221,38 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
         var report = await CheckAsync(file, CodeLanguage.CSharp);
 
         Assert.Contains(report.Findings, f => f.Kind == FindingKind.Runtime);
+    }
+
+    [Fact]
+    public async Task CSharpValuesAreFollowedAndTheCompilersNullWarningIsNotRepeated()
+    {
+        if (!LocalFixLiveTests.Available("dotnet")) return;
+
+        var file = Write(Path.Combine("follow", "Program.cs"), """
+            Console.WriteLine(Label(95));
+            Console.WriteLine(Average([2, 4]));
+
+            static string Label(int score)
+            {
+                string? message = null;
+                if (score > 90) message = "top";
+                return message.ToUpper();
+            }
+
+            static int Average(int[] values)
+            {
+                int total = 0;
+                int count = 0;
+                foreach (var v in values) { total += v; count++; }
+                return total / count;
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.CSharp);
+
+        Assert.Contains(report.Findings, f => f.RuleId == "analysis-division-by-zero" && f.Line == 16);
+        var nullUse = Assert.Single(report.Findings, f => f.Line == 8);
+        Assert.Contains(nullUse.RuleId, new[] { "CS8602", "analysis-null-used" });
     }
 
     [Fact]

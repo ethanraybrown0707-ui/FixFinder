@@ -23,12 +23,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The single NuGet dependency in the whole tool. DPAPI (ProtectedData) is not in the
-         net8.0 BCL, and Security\TokenStore uses it to encrypt the GitHub PAT / Stack
-         Exchange key at rest under the current user. Windows-only at runtime, which is fine
-         here; it compiles everywhere and only throws if actually called off-Windows.
-         Everything else FixFinder needs is in-box: System.Net.Http, System.Text.Json,
-         System.Text.RegularExpressions, System.Reflection.Metadata (portable PDB reading). -->
+    <!-- DPAPI (ProtectedData) is not in the net8.0 BCL, and Security\TokenStore uses it to
+         encrypt the GitHub PAT / Stack Exchange key at rest under the current user.
+         Roslyn (Microsoft.CodeAnalysis.CSharp) is the C# compiler's own parser, which
+         Analysis\Frontends\CSharpFrontend reads C# with. Everything else is in-box. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
@@ -36,8 +35,7 @@
        load it (a fresh unsigned managed DLL under the user profile is blocked with
        0x800711C7). No-op on a machine without the cert, e.g. CI. See ..\sign-for-wdac.ps1. -->
   <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
-    <Exec ContinueOnError="true"
-          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+    <Exec ContinueOnError="true" Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
   </Target>
 
   <!-- The tests compile every entry of the standard header tables, which are internal. -->

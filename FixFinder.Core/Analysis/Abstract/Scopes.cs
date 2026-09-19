@@ -54,6 +54,9 @@ public static class Scopes
                 case Name name:
                     if (!safe) escaping.Add(name.Identifier);
                     break;
+                case Member { MemberName: "Length" or "Count" or "length" } measured:
+                    Visit(measured.Target, true);
+                    break;
                 case Call { Callee: Member { Target: var receiver } } method:
                     Visit(receiver, true);
                     foreach (var argument in method.Arguments) Visit(argument.Value, false);
