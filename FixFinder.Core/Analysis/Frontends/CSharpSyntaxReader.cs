@@ -89,7 +89,10 @@ internal sealed class CSharpSyntaxReader(string file)
                     var fieldType = TypeOf(field.Declaration.Type);
                     var isStatic = HasModifier(field.Modifiers, SyntaxKind.StaticKeyword) || HasModifier(field.Modifiers, SyntaxKind.ConstKeyword);
                     fields.AddRange(field.Declaration.Variables.Select(v =>
-                        new IrField(Span(v), v.Identifier.ValueText, fieldType, v.Initializer is { } initial ? Initial(initial.Value, fieldType) : null, isStatic)));
+                        new IrField(Span(v), v.Identifier.ValueText, fieldType, v.Initializer is { } initial ? Initial(initial.Value, fieldType) : null, isStatic)
+                        {
+                            IsVolatile = HasModifier(field.Modifiers, SyntaxKind.VolatileKeyword),
+                        }));
                     break;
 
                 case PropertyDeclarationSyntax property when IsAutomatic(property):

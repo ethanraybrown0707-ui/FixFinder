@@ -25,7 +25,11 @@ public enum ParameterKind { Normal, KeywordOnly, Rest, Keywords }
 
 public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null, ParameterKind Kind = ParameterKind.Normal);
 
-public sealed record IrField(SourceSpan Span, string Name, IrType Type, Expr? Initial, bool IsStatic);
+public sealed record IrField(SourceSpan Span, string Name, IrType Type, Expr? Initial, bool IsStatic)
+{
+    /// <summary>Declared volatile: every thread sees each write to it straight away.</summary>
+    public bool IsVolatile { get; init; }
+}
 
 public sealed record IrFunction(
     SourceSpan Span,
@@ -41,6 +45,9 @@ public sealed record IrFunction(
     public bool IsConstructor { get; init; }
     public bool IsAsync { get; init; }
     public bool IsGenerator { get; init; }
+
+    /// <summary>Whether the whole method holds its object's lock while it runs (Java's synchronized modifier).</summary>
+    public bool IsSynchronized { get; init; }
 
     /// <summary>Whether a decorator wraps it - one that can change what calling it means, like @property.</summary>
     public bool IsDecorated { get; init; }

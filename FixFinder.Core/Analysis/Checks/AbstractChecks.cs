@@ -66,6 +66,8 @@ public static class AbstractChecks
             findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
         }
 
+        findings.AddRange(new Concurrency(program, source).Check());
+
         return findings
             .GroupBy(f => (f.CheckId, f.Span.File, f.Span.Line))
             .Select(g => g.OrderBy(f => f.Confidence).First())

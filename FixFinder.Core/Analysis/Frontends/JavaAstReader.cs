@@ -55,7 +55,10 @@ internal sealed class JavaAstReader(string file)
                     break;
                 case "VARIABLE":
                     fields.Add(new IrField(Span(member), Text(member, "name"), TypeOf(Field(member, "type")),
-                        Field(member, "initializer") is { } initial ? Expression(initial) : null, HasModifier(member, "STATIC")));
+                        Field(member, "initializer") is { } initial ? Expression(initial) : null, HasModifier(member, "STATIC"))
+                    {
+                        IsVolatile = HasModifier(member, "VOLATILE"),
+                    });
                     break;
                 case { } when IsTypeDeclaration(member):
                     _classes.Add(Class(member));
@@ -81,6 +84,7 @@ internal sealed class JavaAstReader(string file)
             constructor ? IrType.Nothing : TypeOf(Field(node, "returnType")), body)
         {
             IsStatic = HasModifier(node, "STATIC"),
+            IsSynchronized = HasModifier(node, "SYNCHRONIZED"),
             IsConstructor = constructor,
         };
     }

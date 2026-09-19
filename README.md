@@ -101,6 +101,17 @@ replace it. A variable's declared type also sets its range, so `b < 0` for a C# 
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
 
+**Threads** are followed from where the program starts them - `new Thread(...)`, `Task.Run`, `Parallel.For`,
+`threading.Thread(target=...)`, an executor - to the code they run, and whether more than one copy of it runs at once:
+
+| Check | For example |
+|---|---|
+| An update two threads can lose | `count++` in a `Runnable` given to two threads, `total += x` in a `Parallel.For` body |
+| A flag a thread may never see change (the memory model) | `while (running)` on a field that is not `volatile` |
+| Locks taken in opposite orders | `synchronized (a) { synchronized (b) ... }` in one place, `b` then `a` in another |
+| `wait` or `notify` without its lock, or `wait` outside a loop | `wait()` in a method that is not `synchronized` |
+| `run()` called instead of `start()` | `worker.run()`, which runs the work on the calling thread |
+
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so
 the checks stay quiet rather than guess.

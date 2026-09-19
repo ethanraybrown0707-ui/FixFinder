@@ -160,6 +160,33 @@ internal static class AnalysisGuides
             with lock:
                 count += 1
             """),
+        Pattern(["analysis-lost-update"], "An update two threads can lose",
+            "Several threads run this line at once, and += is three steps - read, add, write back - so two threads can read the same old value and one addition is lost.",
+            "The total comes out wrong - smaller than it should be - and differently each time, so the mistake is hard to reproduce.",
+            "Hold a lock around the update, so only one thread does it at a time.",
+            """
+            with lock:
+                counter += 1
+            """),
+
+        Pattern(["analysis-lock-order"], "Locks taken in opposite orders",
+            "Two places take the same two locks in opposite orders. If two threads each get their first lock, each waits for ever for the other's.",
+            "The program freezes - a deadlock - and only sometimes, when the timing lines up.",
+            "Always take the locks in the same order everywhere.",
+            """
+            with first_lock:
+                with second_lock:
+                    move(money)
+            """),
+
+        Pattern(["analysis-run-not-start"], "run() called instead of start()",
+            "Calling run() does the thread's work right here, on the thread that calls it, and waits for it to finish.",
+            "Nothing runs at the same time, so the program is slower than it should be and never actually uses the thread.",
+            "Call start(), which runs the work on the new thread.",
+            """
+            worker = threading.Thread(target=work)
+            worker.start()
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> Java { get; } =
@@ -298,6 +325,68 @@ internal static class AnalysisGuides
                 lock.unlock();
             }
             """),
+        Pattern(["analysis-lost-update"], "An update two threads can lose",
+            "Several threads run this line at once on the same field, and ++ is three steps - read, add, write back - so two threads can read the same old value and one increment is lost.",
+            "The total comes out wrong - smaller than it should be - and differently each time, so the mistake is hard to reproduce.",
+            "Make the update synchronized, or use an AtomicInteger.",
+            """
+            private final AtomicInteger count = new AtomicInteger();
+
+            public void run() {
+                count.incrementAndGet();
+            }
+            """),
+
+        Pattern(["analysis-stale-read"], "A flag a thread may never see change",
+            "A thread loops on this field while another method sets it. The field is not volatile and nothing in the loop synchronises, so Java may keep using the value it read first.",
+            "The thread may never stop, even after the flag is set.",
+            "Declare the field volatile, so every thread sees each write.",
+            """
+            private volatile boolean running = true;
+            """),
+
+        Pattern(["analysis-lock-order"], "Locks taken in opposite orders",
+            "Two places take the same two locks in opposite orders. If two threads each get their first lock, each waits for ever for the other's.",
+            "The program freezes - a deadlock - and only sometimes, when the timing lines up.",
+            "Always take the locks in the same order everywhere.",
+            """
+            synchronized (first) {
+                synchronized (second) {
+                    move(money);
+                }
+            }
+            """),
+
+        Pattern(["analysis-wait-without-lock"], "wait or notify without its lock",
+            "wait(), notify() and notifyAll() must be called while holding the lock of the object they are called on, and here that lock is not held.",
+            "The call throws an IllegalMonitorStateException every time.",
+            "Call it inside synchronized (that object), or from a synchronized method of it.",
+            """
+            synchronized void take() throws InterruptedException {
+                while (!full) {
+                    wait();
+                }
+            }
+            """),
+
+        Pattern(["analysis-wait-not-in-loop"], "wait() not in a loop",
+            "A waiting thread can wake up without being notified, or after another thread has already used what it waited for.",
+            "The code after wait() can run while the condition it needs is still false.",
+            "Wait in a while loop that checks the condition again each time it wakes.",
+            """
+            while (!full) {
+                wait();
+            }
+            """),
+
+        Pattern(["analysis-run-not-start"], "run() called instead of start()",
+            "Calling run() does the thread's work right here, on the thread that calls it, and waits for it to finish.",
+            "Nothing runs at the same time, so the program is slower than it should be and never actually uses the thread.",
+            "Call start(), which runs the work on the new thread.",
+            """
+            Thread worker = new Thread(task);
+            worker.start();
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -414,6 +503,56 @@ internal static class AnalysisGuides
             {
                 count++;
             }
+            """),
+        Pattern(["analysis-lost-update"], "An update two threads can lose",
+            "Several threads run this line at once, and += is three steps - read, add, write back - so two threads can read the same old value and one addition is lost.",
+            "The total comes out wrong - smaller than it should be - and differently each time, so the mistake is hard to reproduce.",
+            "Use Interlocked.Add or Interlocked.Increment, or a lock statement around the update.",
+            """
+            Parallel.For(0, values.Length, i => Interlocked.Add(ref total, values[i]));
+            """),
+
+        Pattern(["analysis-stale-read"], "A flag a thread may never see change",
+            "A thread loops on this field while another method sets it. The field is not volatile and nothing in the loop synchronises, so the compiler may keep using the value it read first.",
+            "The thread may never stop, even after the flag is set.",
+            "Declare the field volatile, or use a CancellationToken.",
+            """
+            private volatile bool running = true;
+            """),
+
+        Pattern(["analysis-lock-order"], "Locks taken in opposite orders",
+            "Two places take the same two locks in opposite orders. If two threads each get their first lock, each waits for ever for the other's.",
+            "The program freezes - a deadlock - and only sometimes, when the timing lines up.",
+            "Always take the locks in the same order everywhere.",
+            """
+            lock (first)
+            {
+                lock (second)
+                {
+                    Move(money);
+                }
+            }
+            """),
+
+        Pattern(["analysis-wait-without-lock"], "Monitor.Wait or Pulse without its lock",
+            "Monitor.Wait, Pulse and PulseAll must be called while holding the lock of the object they are given, and here that lock is not held.",
+            "The call throws a SynchronizationLockException every time.",
+            "Call it inside lock (that object).",
+            """
+            lock (gate)
+            {
+                while (!ready)
+                    Monitor.Wait(gate);
+            }
+            """),
+
+        Pattern(["analysis-wait-not-in-loop"], "Monitor.Wait not in a loop",
+            "A waiting thread can wake up after another thread has already used what it waited for.",
+            "The code after the wait can run while the condition it needs is still false.",
+            "Wait in a while loop that checks the condition again each time it wakes.",
+            """
+            while (!ready)
+                Monitor.Wait(gate);
             """),
     ];
 }
