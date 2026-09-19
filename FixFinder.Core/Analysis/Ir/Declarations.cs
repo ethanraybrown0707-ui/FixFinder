@@ -20,7 +20,10 @@ public sealed record IrType(string Name, IReadOnlyList<IrType> Arguments, bool N
         (Arguments.Count == 0 ? Name : $"{Name}[{string.Join(", ", Arguments)}]") + (Nullable ? "?" : "");
 }
 
-public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null);
+/// <summary>How a parameter takes its argument: in order, only by name, or all the rest (*args, **kwargs).</summary>
+public enum ParameterKind { Normal, KeywordOnly, Rest, Keywords }
+
+public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null, ParameterKind Kind = ParameterKind.Normal);
 
 public sealed record IrField(SourceSpan Span, string Name, IrType Type, Expr? Initial, bool IsStatic);
 
@@ -38,6 +41,9 @@ public sealed record IrFunction(
     public bool IsConstructor { get; init; }
     public bool IsAsync { get; init; }
     public bool IsGenerator { get; init; }
+
+    /// <summary>Whether a decorator wraps it - one that can change what calling it means, like @property.</summary>
+    public bool IsDecorated { get; init; }
 
     /// <summary>The function this one is written inside - it can see and change that function's variables - or the module.</summary>
     public string? EnclosedBy { get; init; }

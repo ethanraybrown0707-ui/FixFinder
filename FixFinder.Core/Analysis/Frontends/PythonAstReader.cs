@@ -207,15 +207,16 @@ internal sealed class PythonAstReader(string file)
         }
 
         if (Field(arguments, "vararg") is { } starred)
-            parameters.Add(Parameter(starred, null) with { Type = IrType.Named("tuple") });
+            parameters.Add(Parameter(starred, null) with { Type = IrType.Named("tuple"), Kind = ParameterKind.Rest });
 
         var keywordDefaults = Items(arguments, "kw_defaults").ToList();
         var keywordOnly = Items(arguments, "kwonlyargs").ToList();
         for (var i = 0; i < keywordOnly.Count; i++)
-            parameters.Add(Parameter(keywordOnly[i], i < keywordDefaults.Count && keywordDefaults[i].ValueKind != JsonValueKind.Null ? keywordDefaults[i] : null));
+            parameters.Add(Parameter(keywordOnly[i], i < keywordDefaults.Count && keywordDefaults[i].ValueKind != JsonValueKind.Null ? keywordDefaults[i] : null)
+                with { Kind = ParameterKind.KeywordOnly });
 
         if (Field(arguments, "kwarg") is { } doubleStarred)
-            parameters.Add(Parameter(doubleStarred, null) with { Type = IrType.Named("dict") });
+            parameters.Add(Parameter(doubleStarred, null) with { Type = IrType.Named("dict"), Kind = ParameterKind.Keywords });
 
         var decorators = Items(node, "decorator_list").Select(DottedName).ToList();
         var name = Text(node, "name");
@@ -235,6 +236,7 @@ internal sealed class PythonAstReader(string file)
             IsStatic = owner is not null && decorators.Contains("staticmethod"),
             IsConstructor = owner is not null && name == "__init__",
             IsGenerator = Yields(Field(node, "body")!.Value),
+            IsDecorated = decorators.Any(d => d is not ("staticmethod" or "classmethod")),
         };
     }
 
@@ -387,8 +389,9 @@ internal sealed class PythonAstReader(string file)
 
             case "Call":
                 var arguments = Items(node, "args").Select(a => new Argument(null, Expression(a)))
-                    .Concat(Items(node, "keywords").Select(k => new Argument(
-                        Text(k, "arg") is { Length: > 0 } keyword ? keyword : null, Expression(Field(k, "value")!.Value))))
+                    .Concat(Items(node, "keywords").Select(k => Text(k, "arg") is { Length: > 0 } keyword
+                        ? new Argument(keyword, Expression(Field(k, "value")!.Value))
+                        : new Argument(null, Opaque.Of(Span(k), "unpacked", Expression(Field(k, "value")!.Value)))))
                     .ToList();
                 return new Call(span, Expression(Field(node, "func")!.Value), arguments);
 

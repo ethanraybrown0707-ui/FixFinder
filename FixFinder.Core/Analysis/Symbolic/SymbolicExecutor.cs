@@ -88,6 +88,9 @@ public sealed partial class SymbolicExecutor
     /// <summary>How long one function may be followed; past it the report is incomplete, like any other budget.</summary>
     public TimeSpan MostTime { get; init; } = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>Whether a call runs one of the program's own functions whose summary says it can return null.</summary>
+    public Func<Call, bool>? MayReturnNull { get; init; }
+
     /// <summary>How many times round a loop is followed when its bound is not known.</summary>
     public int Unrolls { get; init; } = 4;
 

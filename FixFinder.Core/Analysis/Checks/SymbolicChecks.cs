@@ -24,7 +24,10 @@ public static class SymbolicChecks
 
     public static IEnumerable<AnalysisFinding> Refine(ControlFlowGraph graph, Evaluator evaluator, IReadOnlyList<AnalysisFinding> found, SourceText source)
     {
-        var report = new SymbolicExecutor(graph, evaluator.Language, evaluator.Locals ?? new HashSet<string>(), evaluator.Volatile, evaluator.DeclaredTypes).Explore();
+        var report = new SymbolicExecutor(graph, evaluator.Language, evaluator.Locals ?? new HashSet<string>(), evaluator.Volatile, evaluator.DeclaredTypes)
+        {
+            MayReturnNull = call => evaluator.CallReturns?.Invoke(call) is { MayBeNull: true },
+        }.Explore();
         var refined = new List<AnalysisFinding>();
 
         foreach (var finding in found)

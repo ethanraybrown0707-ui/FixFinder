@@ -86,6 +86,20 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
 | A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
 | A loop that never ends | `while n > 0: print(n)` - nothing inside changes `n` |
+| A call that breaks what a function checks for | `root(-4)`, when `root` starts with `if x < 0: raise ValueError` |
+| A call with the wrong arguments (Python) | `area(3)`, when `area` takes a width and a height |
+| A value that can never match its type hint (Python) | `def label(score: int) -> str` that returns `score` |
+| Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
+| A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
+
+The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
+checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
+**contract**. What a function returns is worked out once and used at every call, which is how a function that always
+returns None is caught where its result is used. What a method returns is never assumed, because a subclass can
+replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true.
+
+The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
+used, and a lock that is taken must be released on every way out of the function.
 
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so

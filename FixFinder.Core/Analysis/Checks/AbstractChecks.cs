@@ -15,24 +15,53 @@ public static class AbstractChecks
     /// <summary>How long following paths may add to checking one program; functions past it keep what abstract interpretation found.</summary>
     private static readonly TimeSpan SymbolicBudget = TimeSpan.FromSeconds(5);
 
+    /// <summary>How many times the functions' summaries are worked out again from each other's; enough for a chain of calls.</summary>
+    private const int SummaryRounds = 3;
+
     public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source)
     {
         var findings = new List<AnalysisFinding>();
         var symbolic = System.Diagnostics.Stopwatch.StartNew();
+        var targets = new CallTargets(program);
+        var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
+        var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
 
-        foreach (var function in program.AllFunctions)
+        var functions = program.AllFunctions.Select(function =>
         {
+            var locals = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python);
             var evaluator = new Evaluator(program.Language)
             {
                 Volatile = Scopes.Volatile(program, function),
                 Escaping = Scopes.Escaping(function),
-                Locals = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python),
+                Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
+                CallReturns = call => targets.Resolve(call, function, locals) is { Overridable: false } target && summaries.TryGetValue(target.Function, out var returned)
+                    ? returned
+                    : null,
             };
-            var graph = CfgBuilder.Build(function);
+            return (Function: function, Evaluator: evaluator, Graph: CfgBuilder.Build(function));
+        }).ToList();
+
+        for (var round = 0; round < SummaryRounds; round++)
+        {
+            var changed = false;
+            foreach (var (function, evaluator, graph) in functions.Where(f => Summarised(f.Function)))
+            {
+                var returned = Returned(graph, Fixpoint.Run(graph, evaluator, StartOf(function, evaluator)), evaluator);
+                if (returned is null || summaries.TryGetValue(function, out var known) && known == returned) continue;
+                summaries[function] = returned;
+                changed = true;
+            }
+
+            if (!changed) break;
+        }
+
+        foreach (var (function, evaluator, graph) in functions)
+        {
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
             var local = new List<AnalysisFinding>();
-            new FunctionChecks(graph, fixpoint, evaluator, source, local).Run();
+            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
+                .Run();
             var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
             findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
         }
@@ -43,6 +72,50 @@ public static class AbstractChecks
             .OrderBy(f => f.Span.File).ThenBy(f => f.Span.Line)
             .ToList();
     }
+
+    /// <summary>Functions whose results a summary can stand for: not constructors, generators, async functions or top-level code.</summary>
+    private static bool Summarised(IrFunction function) =>
+        function is { IsConstructor: false, IsGenerator: false, IsAsync: false } && function.Name != IrFunction.ModuleBody &&
+        function.ReturnType.Name != IrType.Nothing.Name;
+
+    /// <summary>
+    /// What a function can return, joined over every way out. A Python function that runs off its end returns None - unless
+    /// the last thing it does is a call, which may well be one that always raises.
+    /// </summary>
+    private static AbstractValue? Returned(ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator)
+    {
+        AbstractValue? joined = null;
+
+        foreach (var block in graph.Blocks)
+        {
+            if (block.Terminator is not Leave leave) continue;
+
+            var state = fixpoint.EntryOf(block.Id);
+            foreach (var instruction in block.Instructions)
+            {
+                if (!state.IsReachable) break;
+                state = evaluator.Apply(state, instruction);
+            }
+
+            if (!state.IsReachable) continue;
+
+            AbstractValue value;
+            if (leave.Value is { } returned) value = evaluator.Evaluate(returned, state);
+            else if (evaluator.Language == SourceLanguage.Python && !MayNotReturn(block.Instructions.LastOrDefault())) value = AbstractValue.Null;
+            else continue;
+
+            joined = joined is null ? value : joined.Join(value);
+        }
+
+        if (joined is not { IsImpossible: false, IsUnknown: false }) return null;
+
+        return joined.IsNull ? joined : joined.WithoutNull() with { NullnessKnown = false };
+    }
+
+    /// <summary>A last call that may never come back: a function of the program's that could always raise, or exit.</summary>
+    private static bool MayNotReturn(Instruction? last) =>
+        last is EvaluateInstruction { Value: Call call } &&
+        (call.Callee is Name { Identifier: var called } && !Evaluator.IsBuiltin(called) || call.CalleeName is "exit" or "quit" or "_exit" or "abort");
 
     /// <summary>Each finding with the lines that decide the value it is about, when more lines than its own do.</summary>
     private static IEnumerable<AnalysisFinding> WithSlices(ControlFlowGraph graph, IEnumerable<AnalysisFinding> findings)
@@ -129,7 +202,8 @@ public static class AbstractChecks
     }
 
     private sealed class FunctionChecks(
-        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings)
+        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets,
+        Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
         private readonly Dictionary<SourceSpan, (bool CanBeTrue, bool CanBeFalse, BasicBlock Block, Branch Branch)> _conditions = [];
 
@@ -159,6 +233,7 @@ public static class AbstractChecks
                         break;
                     case Leave { Value: { } returned }:
                         Inspect(returned, state);
+                        CheckReturnHint(returned, state);
                         break;
                     case Raise { Exception: { } raised }:
                         Inspect(raised, state);
@@ -168,6 +243,7 @@ public static class AbstractChecks
 
             ReportConditions();
             ReportEndlessLoops();
+            new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic)).Check();
         }
 
         /// <summary>Loops whose condition nothing inside them can change: once they start, they never stop.</summary>
@@ -411,6 +487,17 @@ public static class AbstractChecks
 
         private void CheckCall(Call call, AbstractState state)
         {
+            if (targets.Resolve(call, graph.Function, evaluator.Locals ?? new HashSet<string>()) is { Function.IsDecorated: false } target &&
+                !(target.Function.Name.StartsWith("__", StringComparison.Ordinal) && target.Function.Name != "__init__"))
+            {
+                if (IsPython) CheckArguments(call, target);
+                if (Bind(call, target, state) is { } bound)
+                {
+                    CheckContract(call, target, bound);
+                    if (IsPython) CheckArgumentHints(call, target, bound);
+                }
+            }
+
             if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
                 evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
             {
@@ -468,6 +555,156 @@ public static class AbstractChecks
             var failure = evaluator.Language == SourceLanguage.CSharp ? "a FormatException" : "a NumberFormatException";
             Report("analysis-not-a-number", call.Span, $"\"{text}\" is not {(whole ? "a whole number" : "a number")}, so `{Quote(call)}` fails with {failure}",
                 Severity.Error, Confidence.Certain);
+        }
+
+        /// <summary>Cross-function consistency in Python: a call must give a function exactly the arguments it takes.</summary>
+        private void CheckArguments(Call call, CallTarget target)
+        {
+            if (call.Arguments.Any(a => a.Value is Opaque { What: "unpacked" })) return;
+
+            var parameters = target.Parameters;
+            var ordered = parameters.Where(p => p.Kind == ParameterKind.Normal).ToList();
+            var positional = call.Arguments.Count(a => a.Name is null);
+            var named = call.Arguments.Where(a => a.Name is not null).Select(a => a.Name!).ToList();
+            var name = CalledName(target);
+            var shown = Quote(call);
+
+            if (positional > ordered.Count && parameters.All(p => p.Kind != ParameterKind.Rest))
+            {
+                var most = ordered.Count == ordered.Count(p => p.Default is null) ? $"{ordered.Count}" : $"at most {ordered.Count}";
+                Report("analysis-wrong-arguments", call.Span, $"`{shown}` gives {Plural(positional, "argument")}, but `{name}` takes {most}", Severity.Error, Confidence.Certain);
+                return;
+            }
+
+            foreach (var keyword in named)
+            {
+                if (ordered.Take(positional).Any(p => p.Name == keyword))
+                {
+                    Report("analysis-wrong-arguments", call.Span, $"`{shown}` gives `{keyword}` twice - once in order and once by name", Severity.Error, Confidence.Certain);
+                    return;
+                }
+
+                if (!parameters.Any(p => p.Name == keyword && p.Kind is ParameterKind.Normal or ParameterKind.KeywordOnly) && parameters.All(p => p.Kind != ParameterKind.Keywords))
+                {
+                    Report("analysis-wrong-arguments", call.Span, $"`{shown}` names `{keyword}`, which `{name}` does not have", Severity.Error, Confidence.Certain);
+                    return;
+                }
+            }
+
+            var missing = ordered.Skip(positional).Concat(parameters.Where(p => p.Kind == ParameterKind.KeywordOnly))
+                .Where(p => p.Default is null && !named.Contains(p.Name)).Select(p => $"`{p.Name}`").ToList();
+            if (missing.Count > 0)
+                Report("analysis-wrong-arguments", call.Span, $"`{shown}` leaves out {string.Join(" and ", missing)}, which `{name}` needs", Severity.Error, Confidence.Certain);
+        }
+
+        private static string CalledName(CallTarget target) =>
+            target.Function.Name == "__init__" && target.Function.Owner is { } made ? made : target.Function.Name;
+
+        private static string Plural(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+
+        /// <summary>The value each parameter of the called function gets, from the caller's own values; null when it cannot be told.</summary>
+        private Dictionary<string, AbstractValue>? Bind(Call call, CallTarget target, AbstractState state)
+        {
+            if (call.Arguments.Any(a => a.Value is Opaque { What: "unpacked" })) return null;
+
+            var parameters = target.Parameters;
+            var ordered = parameters.Where(p => p.Kind == ParameterKind.Normal).ToList();
+            var bound = new Dictionary<string, AbstractValue>(StringComparer.Ordinal);
+            var position = 0;
+
+            foreach (var argument in call.Arguments)
+            {
+                var name = argument.Name ?? (position < ordered.Count ? ordered[position++].Name : null);
+                if (name is null) return null;
+                bound[name] = evaluator.Evaluate(argument.Value, state);
+            }
+
+            foreach (var parameter in parameters.Where(p => !bound.ContainsKey(p.Name) && p.Kind is ParameterKind.Normal or ParameterKind.KeywordOnly))
+                bound[parameter.Name] = parameter.Default is Literal given ? evaluator.Evaluate(given, AbstractState.Start) : AbstractValue.Unknown;
+
+            return bound;
+        }
+
+        /// <summary>Contract-based verification: a call whose arguments certainly break what the called function checks for.</summary>
+        private void CheckContract(Call call, CallTarget target, Dictionary<string, AbstractValue> bound)
+        {
+            var preconditions = contractsOf(target.Function);
+            if (preconditions.Count == 0) return;
+
+            var callee = new Evaluator(evaluator.Language) { Locals = target.Function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal) };
+            var state = bound.Aggregate(AbstractState.Start, (s, pair) => callee.Store(s, pair.Key, pair.Value));
+
+            foreach (var precondition in preconditions)
+            {
+                if (callee.Assume(state, precondition.Failure, false).IsReachable) continue;
+
+                Report("analysis-contract-broken", call.Span,
+                    $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} (line {precondition.Span.Line})",
+                    Severity.Error, Confidence.Certain);
+                return;
+            }
+        }
+
+        /// <summary>Type-driven checking: a Python hint the value given for it can never match.</summary>
+        private void CheckArgumentHints(Call call, CallTarget target, Dictionary<string, AbstractValue> bound)
+        {
+            foreach (var parameter in target.Parameters)
+            {
+                if (!bound.TryGetValue(parameter.Name, out var value) || call.Arguments.All(a => a.Name != parameter.Name) &&
+                    target.Parameters.Where(p => p.Kind == ParameterKind.Normal).Take(call.Arguments.Count(a => a.Name is null)).All(p => p.Name != parameter.Name)) continue;
+
+                if (Clashes(value, parameter.Type) is { } what)
+                {
+                    Report("analysis-type-hint-broken", call.Span,
+                        $"`{Quote(call)}` passes {what} for `{parameter.Name}`, which `{CalledName(target)}` says is `{parameter.Type}`", Severity.Warning, Confidence.Likely, FindingKind.Logic);
+                    return;
+                }
+            }
+        }
+
+        private void CheckReturnHint(Expr returned, AbstractState state)
+        {
+            var hint = graph.Function.ReturnType;
+            if (!IsPython || hint.IsUnknown || Clashes(evaluator.Evaluate(returned, state), hint) is not { } what) return;
+
+            Report("analysis-type-hint-broken", returned.Span,
+                $"`{graph.Function.Name}` says it returns `{(hint.Name == IrType.Nothing.Name ? "None" : hint)}`, but here it returns {what}", Severity.Warning, Confidence.Likely, FindingKind.Logic);
+        }
+
+        /// <summary>What the value is, when it is certainly none of the kinds the hint allows.</summary>
+        private static string? Clashes(AbstractValue value, IrType hint)
+        {
+            ValueKind? allowed = hint.Name switch
+            {
+                "int" => ValueKind.Integer | ValueKind.Boolean,
+                "float" => ValueKind.Integer | ValueKind.Real | ValueKind.Boolean,
+                "str" => ValueKind.Text,
+                "bool" => ValueKind.Boolean,
+                "list" => ValueKind.List,
+                "dict" => ValueKind.Dictionary,
+                "set" or "frozenset" => ValueKind.Set,
+                "tuple" => ValueKind.Tuple,
+                "None" => ValueKind.Null,
+                _ => null,
+            };
+
+            if (allowed is not { } kinds || value.IsUnknown || value.IsImpossible) return null;
+            if (hint.Nullable) kinds |= ValueKind.Null;
+            if ((kinds & (ValueKind.Integer | ValueKind.Real)) != 0) kinds |= ValueKind.Integer | ValueKind.Real | ValueKind.Boolean;
+            if ((value.Kinds & kinds) != 0) return null;
+
+            return value.Kinds switch
+            {
+                ValueKind.Null => "None",
+                ValueKind.Text => "text",
+                ValueKind.Integer or ValueKind.Real or (ValueKind.Integer | ValueKind.Real) => "a number",
+                ValueKind.Boolean => "True or False",
+                ValueKind.List => "a list",
+                ValueKind.Dictionary => "a dictionary",
+                ValueKind.Tuple => "a tuple",
+                ValueKind.Set => "a set",
+                _ => null,
+            };
         }
 
         private void CheckIterable(MoreItems more, AbstractState state)

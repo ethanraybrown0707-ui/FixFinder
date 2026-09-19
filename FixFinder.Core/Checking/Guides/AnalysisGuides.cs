@@ -111,6 +111,55 @@ internal static class AnalysisGuides
             n = 10
             assert n > 5
             """),
+
+        Pattern(["analysis-contract-broken"], "A call that breaks what the function checks for",
+            "The function starts by checking its arguments and raising an error when they are wrong, and this call certainly gives it arguments it refuses.",
+            "The function raises its error as soon as the call runs.",
+            "Give the function an argument it accepts, or check the value before calling it.",
+            """
+            if x >= 0:
+                print(root(x))
+            """),
+
+        Pattern(["analysis-wrong-arguments"], "A call with the wrong arguments",
+            "The call does not give the function the arguments its definition asks for: one is missing, there is one too many, or a name is wrong.",
+            "Python stops with a TypeError when the call runs.",
+            "Give exactly the arguments the definition lists, in order or by their names.",
+            """
+            def area(width, height):
+                return width * height
+
+            print(area(3, 4))
+            """),
+
+        Pattern(["analysis-type-hint-broken"], "A value that does not match its type hint",
+            "A type hint says what a parameter or return value should be, and this value can never be that type.",
+            "Python does not stop at a wrong hint, but the code that trusts the hint - or a type checker - will be wrong about it.",
+            "Return or pass a value of the hinted type, or change the hint to say what really happens.",
+            """
+            def label(score: int) -> str:
+                if score > 50:
+                    return "pass"
+                return "fail"
+            """),
+
+        Pattern(["analysis-used-after-close"], "Using a file after it is closed",
+            "Every way to this line closes the file first - often by leaving the with block that opened it.",
+            "Reading or writing a closed file stops the program with a ValueError.",
+            "Use the file inside the with block, or open it again.",
+            """
+            with open(path) as handle:
+                first = handle.readline()
+            """),
+
+        Pattern(["analysis-lock-not-released"], "A lock that is not always released",
+            "The lock is taken with acquire(), and on at least one way out of the function it is not released.",
+            "Anything else that needs the lock waits for ever, so the program freezes.",
+            "Use the lock in a with block, which always releases it.",
+            """
+            with lock:
+                count += 1
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> Java { get; } =
@@ -216,6 +265,39 @@ internal static class AnalysisGuides
             int n = 10;
             assert n > 5;
             """),
+
+        Pattern(["analysis-contract-broken"], "A call that breaks what the method checks for",
+            "The method starts by checking its arguments and throwing an exception when they are wrong, and this call certainly gives it arguments it refuses.",
+            "The method throws its exception as soon as the call runs.",
+            "Give the method an argument it accepts, or check the value before calling it.",
+            """
+            if (n >= 0) {
+                System.out.println(half(n));
+            }
+            """),
+
+        Pattern(["analysis-used-after-close"], "Using a stream after it is closed",
+            "Every way to this line closes the stream first.",
+            "Reading or writing a closed stream throws an IOException.",
+            "Finish using the stream before closing it - try-with-resources closes it at the right time.",
+            """
+            try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+                String first = reader.readLine();
+            }
+            """),
+
+        Pattern(["analysis-lock-not-released"], "A lock that is not always released",
+            "The lock is taken with lock(), and on at least one way out of the method - a return, or an exception - it is not unlocked.",
+            "Every other thread that needs the lock waits for ever, so the program freezes.",
+            "Unlock in a finally block, straight after the try that follows lock().",
+            """
+            lock.lock();
+            try {
+                count++;
+            } finally {
+                lock.unlock();
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -301,6 +383,37 @@ internal static class AnalysisGuides
             """
             for (int i = 0; i < 10; i++)
                 Console.WriteLine(i);
+            """),
+
+        Pattern(["analysis-contract-broken"], "A call that breaks what the method checks for",
+            "The method starts by checking its arguments and throwing an exception when they are wrong, and this call certainly gives it arguments it refuses.",
+            "The method throws its exception as soon as the call runs.",
+            "Give the method an argument it accepts, or check the value before calling it.",
+            """
+            if (n >= 0)
+                Console.WriteLine(Half(n));
+            """),
+
+        Pattern(["analysis-used-after-close"], "Using a stream after it is disposed",
+            "Every way to this line closes or disposes the stream first - often by leaving the using block that opened it.",
+            "Using a disposed stream throws an ObjectDisposedException.",
+            "Use the stream inside the using block, or open it again.",
+            """
+            using (var reader = new StreamReader(path))
+            {
+                var first = reader.ReadLine();
+            }
+            """),
+
+        Pattern(["analysis-lock-not-released"], "A lock that is not always released",
+            "The lock is taken with Monitor.Enter, and on at least one way out of the method it is not released.",
+            "Every other thread that needs the lock waits for ever, so the program freezes.",
+            "Use a lock statement, which always releases it.",
+            """
+            lock (gate)
+            {
+                count++;
+            }
             """),
     ];
 }

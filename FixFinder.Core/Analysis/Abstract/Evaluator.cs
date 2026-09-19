@@ -28,6 +28,9 @@ public sealed class Evaluator(SourceLanguage language)
 
     public SourceLanguage Language => language;
 
+    /// <summary>Whether a name is one of the Python builtins the evaluator knows.</summary>
+    public static bool IsBuiltin(string name) => Builtins.Contains(name);
+
     /// <summary>Variables other code can change at any call; they are never treated as known.</summary>
     public IReadOnlySet<string> Volatile { get; init; } = new HashSet<string>();
 
@@ -36,6 +39,9 @@ public sealed class Evaluator(SourceLanguage language)
 
     /// <summary>The function's own variables; anything else belongs to other code, which any call may change.</summary>
     public IReadOnlySet<string>? Locals { get; init; }
+
+    /// <summary>What a call to one of the program's own functions can return, from that function's summary; null when not known.</summary>
+    public Func<Call, AbstractValue?>? CallReturns { get; init; }
 
     /// <summary>Types the program declared for its variables; in Java and C# a variable can only ever hold its declared type.</summary>
     public IReadOnlyDictionary<string, IrType> DeclaredTypes { get; init; } = new Dictionary<string, IrType>();
@@ -253,6 +259,8 @@ public sealed class Evaluator(SourceLanguage language)
 
     private AbstractValue CallValue(Call call, AbstractState state)
     {
+        if (CallReturns?.Invoke(call) is { } summarised) return summarised;
+
         var arguments = call.Arguments.Where(a => a.Name is null).Select(a => Evaluate(a.Value, state)).ToList();
 
         if (call.Callee is Name { Identifier: var function } && IsPython && !state.Knows(function))
@@ -410,7 +418,13 @@ public sealed class Evaluator(SourceLanguage language)
     {
         var value = type.Name switch
         {
-            "int" or "long" or "short" or "byte" or "Integer" or "Long" or "uint" or "ulong" or "Int32" or "Int64" => AbstractValue.Integer(Interval.Top),
+            "byte" when language == SourceLanguage.CSharp => AbstractValue.Integer(new Interval(0, 255)),
+            "byte" or "Byte" or "sbyte" => AbstractValue.Integer(new Interval(-128, 127)),
+            "short" or "Short" or "Int16" => AbstractValue.Integer(new Interval(short.MinValue, short.MaxValue)),
+            "ushort" or "UInt16" => AbstractValue.Integer(new Interval(0, ushort.MaxValue)),
+            "uint" or "UInt32" => AbstractValue.Integer(new Interval(0, uint.MaxValue)),
+            "ulong" or "UInt64" => AbstractValue.Integer(new Interval(0, double.PositiveInfinity)),
+            "int" or "long" or "Integer" or "Long" or "Int32" or "Int64" => AbstractValue.Integer(Interval.Top),
             "char" or "Character" => AbstractValue.Integer(new Interval(0, 65535)),
             "array" => AbstractValue.Of(ValueKind.List),
             "float" or "double" or "Double" or "Float" or "decimal" => AbstractValue.Real(Interval.Top),

@@ -448,6 +448,14 @@ public sealed partial class SymbolicExecutor
 
     private SymbolicValue CallValue(Call call, Path path)
     {
+        if (MayReturnNull?.Invoke(call) == true)
+        {
+            if (call.Callee is Member called) Receiver(called, path);
+            var passed = call.Arguments.Select(a => Evaluate(a.Value, path)).ToList();
+            AfterUnknownCall(call, passed, path);
+            return Lookup(call, SymUnknown.Value, null, path);
+        }
+
         if (IsPython && call.Callee is Name { Identifier: var function } && !path.Store.ContainsKey(function) && !IsOwn(function) && Builtins.Contains(function))
             return Builtin(function, call, path);
 
