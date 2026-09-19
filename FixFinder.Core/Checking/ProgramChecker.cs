@@ -3,6 +3,7 @@ using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Analysis.Checks;
+using FixFinder.Core.Analysis.Diffing;
 using FixFinder.Core.Analysis.Dynamic;
 using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
@@ -32,10 +33,15 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 {
     private const int MostErrorsFixed = 12;
     private const int MostWarningsFixed = 20;
+    private const int MostFixesCompared = 5;
 
     private readonly object _gate = new();
     private readonly List<Finding> _findings = [];
     private readonly List<string> _notes = [];
+    private readonly Dictionary<string, Task> _comparing = [];
+    private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
+    private LaunchPlan? _launch;
+    private CancellationToken _cancellation;
 
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
@@ -53,6 +59,8 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _launch = launch;
+        _cancellation = cancellationToken;
 
         var syntax = Task.Run(() => SyntaxLaneAsync(launch, files, builds, cancellationToken), CancellationToken.None);
         var logic = Task.Run(() => LogicLaneAsync(launch, files, builds.Task, cancellationToken), CancellationToken.None);
@@ -67,6 +75,10 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
 
         var (syntaxSummary, run) = syntax.Result;
+
+        Task[] comparing;
+        lock (_gate) comparing = [.. _comparing.Values];
+        await Task.WhenAll(comparing);
 
         lock (_gate)
         {
@@ -423,12 +435,64 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 finding = better with { Confidence = surest };
             }
 
+            if (finding.Fix is { } fix && _fixChanges.TryGetValue(FixKey(fix), out var changes)) finding = finding with { FixChanges = changes };
+
             _findings.Add(finding);
             snapshot = Sorted(_findings);
         }
 
         FindingsChanged?.Invoke(snapshot);
+        CompareFix(finding);
     }
+
+    /// <summary>Starts working out what a finding's fix changes in what the program does - semantic diffing of the fix.</summary>
+    private void CompareFix(Finding finding)
+    {
+        if (finding.Fix is not { } fix || !FixDiffs.Supports(fix.File) || _launch is not { } launch) return;
+
+        var key = FixKey(fix);
+        lock (_gate)
+        {
+            if (_comparing.ContainsKey(key) || _comparing.Count >= MostFixesCompared) return;
+            _comparing[key] = Task.Run(() => CompareFixAsync(fix, key, launch), CancellationToken.None);
+        }
+    }
+
+    private async Task CompareFixAsync(LocalFix fix, string key, LaunchPlan launch)
+    {
+        IReadOnlyList<string>? changes;
+
+        try
+        {
+            var python = Path.GetExtension(fix.File).Equals(".py", StringComparison.OrdinalIgnoreCase) ? PythonInterpreter(launch) : null;
+            changes = await FixDiffs.DescribeAsync(fix, python, _cancellation);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Comparing a fix with the original stopped early: {ex.Message}");
+            return;
+        }
+
+        if (changes is not { Count: > 0 }) return;
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            _fixChanges[key] = changes;
+            for (var i = 0; i < _findings.Count; i++)
+            {
+                if (_findings[i].Fix is { } other && FixKey(other) == key) _findings[i] = _findings[i] with { FixChanges = changes };
+            }
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    private static string FixKey(LocalFix fix) =>
+        $"{Path.GetFullPath(fix.File).ToUpperInvariant()}|{fix.StartLine}|{fix.RemoveCount}|{string.Join("\n", fix.NewLines)}";
 
     private static bool SameFamily(Finding a, Finding b) => a.Family is { } family && family == b.Family && a.Line == b.Line;
 

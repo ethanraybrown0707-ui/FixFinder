@@ -123,6 +123,30 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task EachFixIsComparedWithTheOriginal()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var file = Write("mean.py", """
+            def average(values):
+                total = 0
+                for v in values:
+                    total += v
+                return total / len(values)
+
+
+            print(average([]))
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Python);
+
+        var withFix = Assert.Single(report.Findings, f => f.Fix is not null && f.Line == 5);
+        foreach (var change in withFix.FixChanges ?? []) output.WriteLine($"changes: {change}");
+        Assert.NotNull(withFix.FixChanges);
+        Assert.StartsWith("When `values` is empty: before, `average` stopped with ZeroDivisionError on line 5; now it ", withFix.FixChanges[0]);
+    }
+
+    [Fact]
     public async Task JavaErrorsAndWarningsAreAllReported()
     {
         if (!LocalFixLiveTests.Available("java")) return;

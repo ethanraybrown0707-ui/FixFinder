@@ -121,6 +121,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ConfirmationText => Finding.Confirmation is { } ran ? $"Confirmed: {ran}" : "";
 
+    /// <summary>What the fix changes in what the program does, from comparing it with the original path by path.</summary>
+    public IReadOnlyList<string> FixChanges => Finding.FixChanges ?? [];
+
+    public bool HasFixChanges => FixChanges.Count > 0;
+
     public string AsText()
     {
         var lines = new List<string>
@@ -150,6 +155,12 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         }
 
         if (HasCheck) lines.Add($"Checked: {CheckedText}");
+
+        if (HasFixChanges)
+        {
+            lines.Add("What the fix changes:");
+            lines.AddRange(FixChanges.Select(change => "    " + change));
+        }
 
         return string.Join(Environment.NewLine, lines);
     }

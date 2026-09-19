@@ -64,5 +64,8 @@ public sealed record Finding
     /// <summary>What running the code with the inputs that break it showed.</summary>
     public string? Confirmation { get; init; }
 
+    /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
+    public IReadOnlyList<string>? FixChanges { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }

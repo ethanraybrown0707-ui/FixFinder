@@ -143,6 +143,21 @@ predicted error on the predicted line does the finding become Certain, and it sa
 ran are compressed, so a loop that went round three times shows as `(5-7)×3`. A method, which needs its object, is left
 as it was.
 
+Every fix for Python, Java or C# code is also checked for **what it changes** (semantic diffing). The fix is made in a
+copy, both versions are read, and each function it touches is followed path by path in both - the same parameter, list
+length or typed number is the same symbol in each - so the solver can find the inputs for which the two versions end
+differently. The finding then says, under **What the fix changes**:
+
+- *When `values` is empty: before, `average` stopped with ZeroDivisionError on line 5; now it returns 0.*
+- *When `score` is 50: before, `grade` returned "fail"; now it returns "pass". For every other input it behaves exactly
+  as before.*
+- *`double` behaves exactly as before for every input - only the code changes*, for a rewrite that changes nothing.
+
+"Exactly as before" is only said when every pair of paths was compared. A path that depends on something the analysis
+cannot follow - an unknown call, a value it had to approximate - means the finding says it could not compare every input
+instead. The same operation on the same inputs counts as the same value in both versions, so `total / people` in both
+agrees without being worked out.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked
@@ -199,7 +214,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
-| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`) and the checks (`Checks`). |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |

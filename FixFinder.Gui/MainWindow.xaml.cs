@@ -372,12 +372,15 @@ public partial class MainWindow : Window
 
     private void ShowFindings(IReadOnlyList<Finding> findings)
     {
-        var expanded = _findings.Where(r => r.IsExpanded).Select(r => r.Finding).ToHashSet();
-        var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => r.Finding).ToHashSet();
+        // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.
+        static string Key(Finding f) => $"{f.File}|{f.Line}|{f.RuleId}|{f.Title}";
+
+        var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
+        var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
 
         _findings = findings.Select(f => new FindingRow(f)
         {
-            IsExpanded = expanded.Contains(f) || (!collapsed.Contains(f) && f.Severity == Severity.Error),
+            IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

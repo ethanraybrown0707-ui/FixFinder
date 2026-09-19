@@ -1,4 +1,5 @@
 using FixFinder.Core.Analysis.Ir;
+using FixFinder.Core.Analysis.Solver;
 
 namespace FixFinder.Core.Analysis.Symbolic;
 
@@ -38,8 +39,36 @@ public sealed class Outcome
     public Expr? Culprit { get; internal set; }
 }
 
+/// <summary>How one path through a function ended: what it returned or the error it stopped with, and what it printed.</summary>
+public sealed record PathEnd(IReadOnlyList<Constraint> Constraints, EndKind Kind, SymbolicValue? Value, string? Detail, IReadOnlyList<SymbolicValue> Printed,
+    bool Approximated)
+{
+    /// <summary>The branch conditions the path took and, for a failure, the failing case: what an explanation should name.</summary>
+    public IReadOnlyList<Constraint> Decisions { get; init; } = [];
+
+    /// <summary>What the path took that is not a constraint, such as "`x` is None".</summary>
+    public IReadOnlyList<string> Facts { get; init; } = [];
+
+    /// <summary>The parameters the path took to be null.</summary>
+    public IReadOnlyList<string> NullParameters { get; init; } = [];
+
+    /// <summary>The parameters the path tested and took not to be null.</summary>
+    public IReadOnlyList<string> NotNullParameters { get; init; } = [];
+
+    /// <summary>Whether the path went a way that depends on what code FixFinder cannot see returned.</summary>
+    public bool OutsideDecided { get; init; }
+}
+
+public enum EndKind { Returns, Fails, Raises }
+
 public sealed class SymbolicReport
 {
+    /// <summary>How every path ended, when the executor was asked to keep them.</summary>
+    public List<PathEnd> Ends { get; } = [];
+
+    /// <summary>The symbols the constraints of the ends are written in.</summary>
+    public SymbolTable? Symbols { get; internal set; }
+
     /// <summary>Every path was followed to its end: no loop was cut short and no budget ran out.</summary>
     public bool Complete { get; internal set; } = true;
 

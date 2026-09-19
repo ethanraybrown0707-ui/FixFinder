@@ -53,6 +53,14 @@ public sealed class LinearTerm : IEquatable<LinearTerm>
         return new LinearTerm(sum, a.Constant + b.Constant * sign);
     }
 
+    /// <summary>The same term over other symbol numbers.</summary>
+    public LinearTerm Renamed(Func<int, int> rename)
+    {
+        var renamed = new SortedDictionary<int, Rational>();
+        foreach (var (symbol, coefficient) in _coefficients) renamed[rename(symbol)] = coefficient;
+        return new LinearTerm(renamed, Constant);
+    }
+
     public Rational Evaluate(IReadOnlyDictionary<int, Rational> values) =>
         _coefficients.Aggregate(Constant, (total, pair) => total + pair.Value * values.GetValueOrDefault(pair.Key, Rational.Zero));
 

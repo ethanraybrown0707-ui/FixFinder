@@ -101,6 +101,18 @@
                                          AutomationProperties.Name="Corrected code"/>
                             </StackPanel>
 
+                            <StackPanel Visibility="{Binding HasFixChanges, Converter={StaticResource Visible}}">
+                                <TextBlock Text="WHAT THE FIX CHANGES" Style="{StaticResource Label}"/>
+                                <ItemsControl ItemsSource="{Binding FixChanges}" Focusable="False"
+                                              AutomationProperties.Name="What the fix changes" AutomationProperties.AutomationId="FindingFixChanges">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock local:InlineCode.Text="{Binding}" Style="{StaticResource Body}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
                             <Border Visibility="{Binding HasCheck, Converter={StaticResource Visible}}"
                                     Background="{StaticResource SuccessSoftBrush}" BorderBrush="{StaticResource SuccessBorderBrush}"
                                     BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,12,0,0">

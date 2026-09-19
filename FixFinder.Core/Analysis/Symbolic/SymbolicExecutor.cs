@@ -91,6 +91,11 @@ public sealed partial class SymbolicExecutor
     /// <summary>Whether a call runs one of the program's own functions whose summary says it can return null.</summary>
     public Func<Call, bool>? MayReturnNull { get; init; }
 
+    /// <summary>Whether to keep how every path ends, for comparing two versions of a function.</summary>
+    public bool KeepEnds { get; init; }
+
+    private readonly Dictionary<string, LinearTerm> _applied = new(StringComparer.Ordinal);
+
     /// <summary>How many times round a loop is followed when its bound is not known.</summary>
     public int Unrolls { get; init; } = 4;
 
@@ -110,6 +115,17 @@ public sealed partial class SymbolicExecutor
         public ImmutableDictionary<Expr, bool> Choices = NoChoices;
         public ImmutableList<string> Facts = [];
         public ImmutableList<string> NullParameters = [];
+        public ImmutableList<string> NotNullParameters = [];
+        public ImmutableList<SymbolicValue> Printed = [];
+
+        /// <summary>The variables given a new value on the path - a parameter among them no longer holds what was passed.</summary>
+        public ImmutableHashSet<string> Reassigned = [];
+
+        /// <summary>How many times each line has been read from on the path, so each read has its own symbol.</summary>
+        public ImmutableDictionary<(SymbolOrigin, int), int> Reads = ImmutableDictionary<(SymbolOrigin, int), int>.Empty;
+
+        /// <summary>The number each typed text was read as, so reading the same text twice gives the same number.</summary>
+        public ImmutableDictionary<(int, bool), LinearTerm> Parsed = ImmutableDictionary<(int, bool), LinearTerm>.Empty;
         public ImmutableDictionary<string, LinearTerm> Truths = ImmutableDictionary<string, LinearTerm>.Empty;
         public bool Approximated;
 
@@ -155,7 +171,22 @@ public sealed partial class SymbolicExecutor
             Run(_pending.Pop());
         }
 
+        _report.Symbols = _symbols;
         return _report;
+    }
+
+    private void End(Path path, IReadOnlyList<Constraint> constraints, EndKind kind, SymbolicValue? value, string? detail, IReadOnlyList<Constraint>? failing = null)
+    {
+        if (!KeepEnds) return;
+
+        _report.Ends.Add(new PathEnd(constraints, kind, value, detail, path.Printed, path.Approximated)
+        {
+            Decisions = failing is null ? path.Decisions : [.. path.Decisions, .. failing],
+            Facts = path.Facts,
+            NullParameters = path.NullParameters,
+            NotNullParameters = path.NotNullParameters,
+            OutsideDecided = path.OutsideDecided,
+        });
     }
 
     private IEnumerable<Path> Starts()
@@ -256,12 +287,21 @@ public sealed partial class SymbolicExecutor
                         Take(next, block, branch);
                         return;
 
-                    case Leave { Value: { } returned }:
-                        Evaluate(returned, next);
+                    case Leave leave:
+                        var value = leave.Value is { } returned ? Evaluate(returned, next) : null;
+                        End(next, next.Constraints, EndKind.Returns, value, null);
                         return;
 
                     case Raise raise:
                         if (raise.Exception is { } thrown) Evaluate(thrown, next);
+                        if (block.ExceptionTargets.Count == 0)
+                            End(next, next.Constraints, EndKind.Raises, null, raise.Exception switch
+                            {
+                                NewObject made => made.Type.Name,
+                                Call { CalleeName: { } name } => name,
+                                Opaque { What: "AssertionError" } => "AssertionError",
+                                _ => "an error",
+                            });
                         foreach (var handler in block.ExceptionTargets)
                         {
                             var caught = next.Copy();
@@ -487,6 +527,7 @@ public sealed partial class SymbolicExecutor
 
             case DeclareInstruction declare:
                 Set(path, declare.Variable, SymUnknown.Value);
+                path.Reassigned = path.Reassigned.Add(declare.Variable);
                 break;
 
             case ForgetInstruction forget:
@@ -584,6 +625,7 @@ public sealed partial class SymbolicExecutor
 
             failed = true;
             outcome.CanFail = true;
+            End(path, asked, EndKind.Fails, null, $"{check}@{span.Line}", @case);
             if (!Trusted(path, asked)) continue;
 
             var typed = @case.SelectMany(c => c.Term.Symbols).ToList();
@@ -604,6 +646,7 @@ public sealed partial class SymbolicExecutor
     {
         var outcome = OutcomeAt(check, span, culprit);
         outcome.CanFail = true;
+        End(path, path.Constraints, EndKind.Fails, null, $"{check}@{span.Line}");
 
         if (Trusted(path, path.Constraints) && Solve(path.Constraints) is { IsSatisfiable: true } result)
         {

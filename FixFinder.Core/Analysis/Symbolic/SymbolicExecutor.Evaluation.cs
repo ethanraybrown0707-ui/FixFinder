@@ -83,6 +83,9 @@ public sealed partial class SymbolicExecutor
 
     private bool IsParameter(string name) => _graph.Function.Parameters.Any(p => p.Name == name);
 
+    /// <summary>The name when it is a parameter that still holds what was passed in, so a symbol for it stands for an input.</summary>
+    private string? InputName(string? name, Path path) => name is not null && IsParameter(name) && !path.Reassigned.Contains(name) ? name : null;
+
     private bool IsOwn(string name) => _locals.Contains(name) || name.StartsWith('$') || name == "this";
 
     private SymbolicValue Read(string name, Path path) =>
@@ -103,12 +106,29 @@ public sealed partial class SymbolicExecutor
         var dropped = names.ToList();
         path.Store = path.Store.RemoveRange(dropped);
         path.Truths = path.Truths.RemoveRange(dropped);
+        path.Reassigned = path.Reassigned.Union(dropped);
     }
 
     /// <summary>Other code has run: whatever this function does not own may have changed.</summary>
     private void ForgetOutside(Path path) => Drop(path, path.Store.Keys.Concat(path.Truths.Keys).Where(name => !IsOwn(name)).ToList());
 
     private SymNumber Approximate(bool whole) => new(_symbols.New("an approximation", SymbolOrigin.Approximation, whole), whole);
+
+    /// <summary>
+    /// An operation the solver cannot follow, such as the product of two unknowns: still an approximation, but the same
+    /// operation on the same values is always the same symbol, so two paths - or two versions - that compute it agree.
+    /// </summary>
+    private SymNumber Applied(string operation, bool whole, params LinearTerm[] operands)
+    {
+        var key = $"{operation}|{whole}|{string.Join("|", operands.Select(o => o.ToString()))}";
+        if (!_applied.TryGetValue(key, out var term))
+        {
+            term = _symbols.New("an approximation", SymbolOrigin.Approximation, whole, applies: new Application(operation, operands));
+            _applied[key] = term;
+        }
+
+        return new SymNumber(term, whole);
+    }
 
     private LinearTerm ApproximateLength(Path path)
     {
@@ -197,7 +217,7 @@ public sealed partial class SymbolicExecutor
         if (value is SymNumber number) return number;
 
         var name = VariableOf(source);
-        var origin = name is not null && IsParameter(name) ? SymbolOrigin.Parameter : SymbolOrigin.Outside;
+        var origin = InputName(name, path) is not null ? SymbolOrigin.Parameter : SymbolOrigin.Outside;
         var made = new SymNumber(_symbols.New(name is null ? Subject(source) : $"`{name}`", origin, whole, name), whole);
         if (name is not null) Set(path, name, made);
         return made;
@@ -207,7 +227,7 @@ public sealed partial class SymbolicExecutor
     private SymSequence AsSequence(Expr source, Path path)
     {
         var name = VariableOf(source);
-        var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path, name));
+        var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path, InputName(name, path)));
         if (name is not null) Set(path, name, made);
         return made;
     }
@@ -239,7 +259,7 @@ public sealed partial class SymbolicExecutor
     {
         if (!path.Truths.TryGetValue(name, out var bit))
         {
-            bit = _symbols.New($"`{name}`", SymbolOrigin.Flag, variable: name);
+            bit = _symbols.New($"`{name}`", SymbolOrigin.Flag, variable: InputName(name, path));
             path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(bit, 0), Constraint.AtMost(bit, 1)]);
             path.Truths = path.Truths.SetItem(name, bit);
         }
@@ -275,13 +295,22 @@ public sealed partial class SymbolicExecutor
             var equal = op is BinaryOperator.Equal or BinaryOperator.Is;
             var name = VariableOf(tested);
 
-            if (other is SymUnknown && !(name is not null && _volatile.Contains(name)) && Choose(comparison, Condition.Either, path))
+            if (other is SymUnknown && !(name is not null && _volatile.Contains(name)))
             {
-                other = SymNull.Value;
-                if (name is not null) Set(path, name, SymNull.Value);
-                if (name is null || !IsParameter(name)) path.OutsideDecided = true;
-                else path.NullParameters = path.NullParameters.Add(name);
-                path.Facts = path.Facts.Add($"{Subject(tested)} is {NullWord}");
+                var parameter = InputName(name, path);
+
+                if (Choose(comparison, Condition.Either, path))
+                {
+                    other = SymNull.Value;
+                    if (name is not null) Set(path, name, SymNull.Value);
+                    if (parameter is null) path.OutsideDecided = true;
+                    else path.NullParameters = path.NullParameters.Add(parameter);
+                    path.Facts = path.Facts.Add($"{Subject(tested)} is {NullWord}");
+                }
+                else if (parameter is not null && !path.NotNullParameters.Contains(parameter))
+                {
+                    path.NotNullParameters = path.NotNullParameters.Add(parameter);
+                }
             }
 
             return other is SymNull == equal ? Condition.True : Condition.False;
@@ -406,7 +435,7 @@ public sealed partial class SymbolicExecutor
                 CheckDivision(binary, a, b, path);
                 return Quotient(binary.Operator, a, b, path);
             default:
-                return Approximate(whole);
+                return Applied(binary.Operator.ToString(), whole, a.Term, b.Term);
         }
     }
 
@@ -431,11 +460,13 @@ public sealed partial class SymbolicExecutor
         var whole = dividend.Whole && divisor.Whole;
         var trueDivision = op == BinaryOperator.Divide && (IsPython || !whole);
 
-        if (!divisor.Term.IsConstant || divisor.Term.Constant.IsZero) return Approximate(!trueDivision && whole);
+        var name = $"{op}{(trueDivision ? "" : IsPython ? " floor" : " truncate")}";
+        if (!divisor.Term.IsConstant || divisor.Term.Constant.IsZero) return Applied(name, !trueDivision && whole, dividend.Term, divisor.Term);
 
         var k = divisor.Term.Constant;
         if (trueDivision) return new SymNumber(dividend.Term * (Rational.One / k), false);
-        if (!whole || k.Sign < 0 || !IsPython && !Solve(path.Constraints.Add(Constraint.Below(dividend.Term, 0))).IsUnsatisfiable) return Approximate(whole);
+        if (!whole || k.Sign < 0 || !IsPython && !Solve(path.Constraints.Add(Constraint.Below(dividend.Term, 0))).IsUnsatisfiable)
+            return Applied(name, whole, dividend.Term, divisor.Term);
 
         var quotient = _symbols.New("a quotient", SymbolOrigin.Derived);
         path.Constraints = path.Constraints.AddRange([
@@ -467,6 +498,13 @@ public sealed partial class SymbolicExecutor
         {
             foreach (var argument in call.Arguments) Evaluate(argument.Value, path);
             return Lookup(call, new SymOther("match"), null, path);
+        }
+
+        if (!IsPython && call.Callee is Member { Target: Member { Target: Name { Identifier: "System" }, MemberName: "out" }, MemberName: "println" or "print" })
+        {
+            var shown = call.Arguments.Select(a => Evaluate(a.Value, path)).ToList();
+            path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, shown.Count, shown));
+            return SymUnknown.Value;
         }
 
         if (call.Callee is Member member)
@@ -551,7 +589,7 @@ public sealed partial class SymbolicExecutor
                 {
                     SymNumber { Whole: true } number => number with { Whole = whole },
                     SymNumber number when !whole => number,
-                    SymText { TypedAt: { } typed } => new SymNumber(_symbols.New($"the number typed at line {typed}", SymbolOrigin.Input, whole, typedAt: typed), whole),
+                    SymText { TypedAt: { } typed } text => Parsed(text, typed, whole, path),
                     SymText { Known: { } text } when whole && long.TryParse(text.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed) =>
                         new SymNumber(parsed, true),
                     _ => Approximate(whole),
@@ -567,6 +605,7 @@ public sealed partial class SymbolicExecutor
                 return Typed(call.Span.Line, path);
 
             case "print":
+                path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, values.Count, values));
                 return SymNull.Value;
 
             case "range" when values.Count is >= 1 and <= 3:
@@ -631,14 +670,14 @@ public sealed partial class SymbolicExecutor
                 return Choose(call, Condition.Of(Constraint.AtLeast(magnitude.Term, 0)), path) ? magnitude : magnitude with { Term = -magnitude.Term };
 
             case ("Integer" or "Long" or "Short" or "int" or "long" or "short" or "Int32" or "Int64" or "Convert", "parseInt" or "parseLong" or "parseShort" or "valueOf" or "Parse" or "ToInt32" or "ToInt64"):
-                return values is [SymText { TypedAt: { } typed }, ..]
-                    ? new SymNumber(_symbols.New($"the number typed at line {typed}", SymbolOrigin.Input, typedAt: typed), true)
-                    : Approximate(true);
+                return values is [SymText { TypedAt: { } typed } typedText, ..] ? Parsed(typedText, typed, true, path) : Approximate(true);
 
             case ("Double" or "Float" or "double" or "float" or "decimal" or "Convert", "parseDouble" or "parseFloat" or "valueOf" or "Parse" or "ToDouble"):
-                return values is [SymText { TypedAt: { } typedReal }, ..]
-                    ? new SymNumber(_symbols.New($"the number typed at line {typedReal}", SymbolOrigin.Input, isWhole: false, typedAt: typedReal), false)
-                    : Approximate(false);
+                return values is [SymText { TypedAt: { } typedReal } real, ..] ? Parsed(real, typedReal, false, path) : Approximate(false);
+
+            case ("Console", "WriteLine" or "Write"):
+                path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, values.Count, values));
+                return SymUnknown.Value;
 
             case ("Console", "ReadLine"):
                 return Typed(call.Span.Line, path);
@@ -661,18 +700,39 @@ public sealed partial class SymbolicExecutor
 
     private SymText Typed(int line, Path path)
     {
-        var characters = _symbols.New($"the text typed at line {line}", SymbolOrigin.TextLength, typedAt: line);
+        var characters = _symbols.New($"the text typed at line {line}", SymbolOrigin.TextLength, typedAt: line, occurrence: Read(SymbolOrigin.TextLength, line, path));
         path.Constraints = path.Constraints.Add(Constraint.AtLeast(characters, 0));
         return new SymText(characters, null, line);
+    }
+
+    /// <summary>Which read of a line this is on the path, counting from 0.</summary>
+    private static int Read(SymbolOrigin origin, int line, Path path)
+    {
+        var occurrence = path.Reads.GetValueOrDefault((origin, line));
+        path.Reads = path.Reads.SetItem((origin, line), occurrence + 1);
+        return occurrence;
+    }
+
+    /// <summary>A typed text read as a number: one symbol per text, whichever way and however often it is read.</summary>
+    private SymNumber Parsed(SymText text, int line, bool whole, Path path)
+    {
+        var read = text.Length.Symbols.ToList() is [var only] ? only : -1;
+        if (read >= 0 && path.Parsed.TryGetValue((read, whole), out var known)) return new SymNumber(known, whole);
+
+        var number = _symbols.New($"the number typed at line {line}", SymbolOrigin.Input, whole, typedAt: line, occurrence: read >= 0 ? _symbols[read].Occurrence : 0);
+        if (read >= 0) path.Parsed = path.Parsed.SetItem((read, whole), number);
+        return new SymNumber(number, whole);
     }
 
     /// <summary>What a Scanner or reader method returns: what someone types.</summary>
     private SymbolicValue? InputValue(string method, Call call, Path path) => method switch
     {
         "nextInt" or "nextLong" or "nextShort" or "nextByte" =>
-            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, typedAt: call.Span.Line), true),
+            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, typedAt: call.Span.Line,
+                occurrence: Read(SymbolOrigin.Input, call.Span.Line, path)), true),
         "nextDouble" or "nextFloat" =>
-            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, isWhole: false, typedAt: call.Span.Line), false),
+            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, isWhole: false, typedAt: call.Span.Line,
+                occurrence: Read(SymbolOrigin.Input, call.Span.Line, path)), false),
         "nextLine" or "next" or "readLine" => Typed(call.Span.Line, path),
         _ => null,
     };
@@ -998,6 +1058,7 @@ public sealed partial class SymbolicExecutor
                 if (!IsPython && value is SymUnknown && _declared.TryGetValue(name.Identifier, out var type))
                     value = FromType(type, source is null ? $"`{name.Identifier}`" : Subject(source), SymbolOrigin.Outside, path);
                 Set(path, name.Identifier, value);
+                path.Reassigned = path.Reassigned.Add(name.Identifier);
                 break;
 
             case Member field when FieldName(field) is { } named:

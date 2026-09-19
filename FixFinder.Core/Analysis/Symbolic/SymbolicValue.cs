@@ -32,7 +32,13 @@ public enum SymbolOrigin
 }
 
 /// <summary>A value not known; <paramref name="Variable"/> names the variable it is, <paramref name="TypedAt"/> the line an input was read on.</summary>
-public sealed record Symbol(int Id, string Describes, SymbolOrigin Origin, bool IsWhole, string? Variable = null, int? TypedAt = null);
+/// <param name="Occurrence">For what is typed, which read of that line on the path it is: the first, the second round a loop...</param>
+/// <param name="Applies">For an approximation of an operation the solver cannot follow, the operation and what it was applied to.</param>
+public sealed record Symbol(int Id, string Describes, SymbolOrigin Origin, bool IsWhole, string? Variable = null, int? TypedAt = null, int Occurrence = 0,
+    Application? Applies = null);
+
+/// <summary>An operation on values - a product of two unknowns, a division by one - that always gives the same result for the same values.</summary>
+public sealed record Application(string Operation, IReadOnlyList<LinearTerm> Operands);
 
 public sealed class SymbolTable
 {
@@ -40,13 +46,16 @@ public sealed class SymbolTable
 
     public Symbol this[int id] => _symbols[id];
 
-    public LinearTerm New(string describes, SymbolOrigin origin, bool isWhole = true, string? variable = null, int? typedAt = null)
+    public LinearTerm New(string describes, SymbolOrigin origin, bool isWhole = true, string? variable = null, int? typedAt = null, int occurrence = 0,
+        Application? applies = null)
     {
-        _symbols.Add(new Symbol(_symbols.Count, describes, origin, isWhole, variable, typedAt));
+        _symbols.Add(new Symbol(_symbols.Count, describes, origin, isWhole, variable, typedAt, occurrence, applies));
         return LinearTerm.Symbol(_symbols.Count - 1);
     }
 
     public bool IsWhole(int id) => _symbols[id].IsWhole;
+
+    public int Count => _symbols.Count;
 }
 
 /// <summary>A value on one path through a function, in terms of symbols for what is not known.</summary>
