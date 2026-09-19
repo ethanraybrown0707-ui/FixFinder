@@ -227,7 +227,8 @@ public static partial class CompilerDiagnostics
         var run = await RunAsync(new TargetSpec
         {
             ExecutablePath = dotnet,
-            Arguments = $"build \"{target}\" -nologo -v q -clp:NoSummary",
+            // A build the SDK thinks is up to date compiles nothing and so reports no warnings; --no-incremental always compiles.
+            Arguments = $"build \"{target}\" --no-incremental -nologo -v q -clp:NoSummary",
             WorkingDirectory = Path.GetDirectoryName(target)!,
             Timeout = Timeout,
         }, log, cancellationToken);

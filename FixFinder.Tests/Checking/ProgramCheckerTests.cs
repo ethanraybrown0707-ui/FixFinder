@@ -175,6 +175,28 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task CheckingTheSameCSharpFileAgainStillReportsItsWarnings()
+    {
+        if (!LocalFixLiveTests.Available("dotnet")) return;
+
+        var file = Write(Path.Combine("again", "Program.cs"), """
+            Console.WriteLine(Twice(2));
+
+            static int Twice(int x)
+            {
+                return x * 2;
+                Console.WriteLine("done");
+            }
+            """);
+
+        var first = await CheckAsync(file, CodeLanguage.CSharp);
+        var second = await CheckAsync(file, CodeLanguage.CSharp);
+
+        Assert.Contains(first.Findings, f => f.RuleId == "CS0162");
+        Assert.Contains(second.Findings, f => f.RuleId == "CS0162");
+    }
+
+    [Fact]
     public async Task WrongOutputIsCheckedOnceItBuilds()
     {
         if (!LocalFixLiveTests.Available("python")) return;
