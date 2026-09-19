@@ -75,7 +75,7 @@ public class HttpCacheTests
         string cacheDirectory, HttpStatusCode status = HttpStatusCode.OK, string body = "{\"ok\":true}")
     {
         var transport = new CountingHandler(status, body);
-        var client = new FixFinderHttpClient(new HttpCache(cacheDirectory), new QuotaTracker(), transport);
+        var client = new FixFinderHttpClient(new HttpCache(cacheDirectory), new QuotaTracker(), transport, PlaybackHttpMessageHandler.ReplayTimeout);
 
         return (client, transport);
     }
@@ -118,7 +118,7 @@ public class HttpCacheTests
         using var folder = new TempFolder();
         var cache = new HttpCache(folder.Path) { Ttl = TimeSpan.FromSeconds(1) };
         var transport = new CountingHandler(HttpStatusCode.OK, "{\"stale\":true}");
-        using var client = new FixFinderHttpClient(cache, new QuotaTracker(), transport);
+        using var client = new FixFinderHttpClient(cache, new QuotaTracker(), transport, PlaybackHttpMessageHandler.ReplayTimeout);
 
         await client.GetAsync("https://example.test/data", "test");
 

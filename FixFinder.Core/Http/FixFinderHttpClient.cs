@@ -28,8 +28,10 @@ public sealed class FixFinderHttpClient : IDisposable
 
     public string? StackExchangeKey { get; private set; }
 
+    public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
+
     public FixFinderHttpClient(
-        HttpCache? cache = null, QuotaTracker? quota = null, HttpMessageHandler? transport = null)
+        HttpCache? cache = null, QuotaTracker? quota = null, HttpMessageHandler? transport = null, TimeSpan? timeout = null)
     {
         Cache = cache ?? new HttpCache();
         Quota = quota ?? new QuotaTracker();
@@ -43,7 +45,7 @@ public sealed class FixFinderHttpClient : IDisposable
         Limiter = new RateLimitHandler(Quota) { InnerHandler = transport };
         var caching = new HttpCacheHandler(Cache) { InnerHandler = Limiter };
 
-        _client = new HttpClient(caching) { Timeout = TimeSpan.FromSeconds(30) };
+        _client = new HttpClient(caching) { Timeout = timeout ?? DefaultTimeout };
         _client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
     }
 

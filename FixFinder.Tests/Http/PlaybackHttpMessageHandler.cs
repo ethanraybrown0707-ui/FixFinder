@@ -87,8 +87,11 @@ public sealed class PlaybackHttpMessageHandler : HttpMessageHandler
         return Task.FromResult(response);
     }
 
+    // A recorded reply comes from memory, so only a machine too busy to schedule the test can make it late.
+    public static readonly TimeSpan ReplayTimeout = TimeSpan.FromMinutes(5);
+
     public FixFinderHttpClient CreateClient(string cacheDirectory) =>
-        new(new HttpCache(cacheDirectory), new QuotaTracker(), this);
+        new(new HttpCache(cacheDirectory), new QuotaTracker(), this, ReplayTimeout);
 }
 
 /// <summary>A temporary folder that deletes itself, for tests that write a cache or a source tree.</summary>
