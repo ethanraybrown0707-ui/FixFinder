@@ -3,6 +3,7 @@ using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Analysis.Checks;
+using FixFinder.Core.Analysis.Dynamic;
 using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Logic;
@@ -347,6 +348,12 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             var findings = AbstractChecks.Run(program, new SourceText());
 
+            if (program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);
+            }
+
             foreach (var finding in findings) Add(FindingFactory.FromAnalysis(finding));
             return findings.Count;
         }
@@ -357,18 +364,19 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    /// <summary>The Python the program runs with, or any Python on this computer.</summary>
+    private static string? PythonInterpreter(LaunchPlan launch) =>
+        launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
+            ? spec.ExecutablePath
+            : PythonFrontend.FindInterpreter();
+
     /// <summary>Reads the program with its own language's parser, or returns null when that language cannot be read yet.</summary>
     private static Task<IrProgram>? ReadProgramAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
         bool AllEndIn(params string[] extensions) => files.All(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()));
 
         if (AllEndIn(".py", ".pyw"))
-        {
-            var interpreter = launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
-                ? spec.ExecutablePath
-                : PythonFrontend.FindInterpreter();
-            return interpreter is null ? null : PythonFrontend.ReadAsync(files, interpreter, cancellationToken);
-        }
+            return PythonInterpreter(launch) is { } interpreter ? PythonFrontend.ReadAsync(files, interpreter, cancellationToken) : null;
 
         if (AllEndIn(".java"))
             return JavaFrontend.FindTools() is { } tools ? JavaFrontend.ReadAsync(files, tools.Javac, tools.Java, cancellationToken) : null;

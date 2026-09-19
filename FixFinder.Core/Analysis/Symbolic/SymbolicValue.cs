@@ -31,7 +31,8 @@ public enum SymbolOrigin
     Approximation,
 }
 
-public sealed record Symbol(int Id, string Describes, SymbolOrigin Origin, bool IsWhole);
+/// <summary>A value not known; <paramref name="Variable"/> names the variable it is, <paramref name="TypedAt"/> the line an input was read on.</summary>
+public sealed record Symbol(int Id, string Describes, SymbolOrigin Origin, bool IsWhole, string? Variable = null, int? TypedAt = null);
 
 public sealed class SymbolTable
 {
@@ -39,9 +40,9 @@ public sealed class SymbolTable
 
     public Symbol this[int id] => _symbols[id];
 
-    public LinearTerm New(string describes, SymbolOrigin origin, bool isWhole = true)
+    public LinearTerm New(string describes, SymbolOrigin origin, bool isWhole = true, string? variable = null, int? typedAt = null)
     {
-        _symbols.Add(new Symbol(_symbols.Count, describes, origin, isWhole));
+        _symbols.Add(new Symbol(_symbols.Count, describes, origin, isWhole, variable, typedAt));
         return LinearTerm.Symbol(_symbols.Count - 1);
     }
 
@@ -60,8 +61,8 @@ public sealed record SymNull : SymbolicValue
     public static SymNull Value { get; } = new();
 }
 
-/// <summary>Text of a length; <paramref name="Typed"/> names the input it was read from, if any.</summary>
-public sealed record SymText(LinearTerm Length, string? Known = null, string? Typed = null) : SymbolicValue;
+/// <summary>Text of a length; <paramref name="TypedAt"/> is the line it was typed at, when it is input.</summary>
+public sealed record SymText(LinearTerm Length, string? Known = null, int? TypedAt = null) : SymbolicValue;
 
 public sealed record SymSequence(CollectionKind Kind, LinearTerm Length, IReadOnlyList<SymbolicValue>? Items = null) : SymbolicValue;
 

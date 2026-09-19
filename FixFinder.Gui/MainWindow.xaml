@@ -75,6 +75,9 @@
                         <TextBlock local:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
+                        <TextBlock local:InlineCode.Text="{Binding ConfirmationText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
+                                   Visibility="{Binding HasConfirmation, Converter={StaticResource Visible}}"/>
 
                         <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
                         <TextBlock local:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>

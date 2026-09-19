@@ -40,7 +40,9 @@ public static class SymbolicChecks
             if (report.Outcomes.TryGetValue((finding.CheckId, finding.Span), out var outcome))
             {
                 if (outcome.CanFail)
-                    refined.Add(outcome.Witness is { Facts.Count: > 0 } witness ? finding with { Witness = witness.ToString(), FoundBy = Confirmed } : finding);
+                    refined.Add(outcome.Witness is { Facts.Count: > 0 } witness
+                        ? finding with { Witness = witness.ToString(), WitnessValues = witness.Values, FoundBy = Confirmed }
+                        : finding);
                 else if (!(mayDrop && !outcome.Unsure))
                     refined.Add(finding);
             }
@@ -58,6 +60,7 @@ public static class SymbolicChecks
                 outcome.Forced ? Confidence.Likely : Confidence.Possible, FindingKind.Runtime, FoundBy)
             {
                 Witness = outcome.Witness is { Facts.Count: > 0 } witness ? witness.ToString() : null,
+                WitnessValues = outcome.Witness?.Values,
             });
         }
 

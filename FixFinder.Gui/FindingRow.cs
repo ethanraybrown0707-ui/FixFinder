@@ -117,6 +117,10 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string WitnessText => Finding.Witness is { } witness ? $"Fails when {witness}" : "";
 
+    public bool HasConfirmation => Finding.Confirmation is not null;
+
+    public string ConfirmationText => Finding.Confirmation is { } ran ? $"Confirmed: {ran}" : "";
+
     public string AsText()
     {
         var lines = new List<string>
@@ -135,6 +139,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             lines.InsertRange(lines.Count - 1, SliceCode.Split('\n').Select(line => "    " + line));
         }
 
+        if (HasConfirmation) lines.Insert(2, ConfirmationText);
         if (HasWitness) lines.Insert(2, WitnessText);
         if (HasFoundBy) lines.Insert(2, FoundByText);
 

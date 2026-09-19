@@ -106,6 +106,7 @@ public sealed partial class SymbolicExecutor
         public ImmutableDictionary<int, int> Limits = ImmutableDictionary<int, int>.Empty;
         public ImmutableDictionary<Expr, bool> Choices = NoChoices;
         public ImmutableList<string> Facts = [];
+        public ImmutableList<string> NullParameters = [];
         public ImmutableDictionary<string, LinearTerm> Truths = ImmutableDictionary<string, LinearTerm>.Empty;
         public bool Approximated;
 
@@ -169,7 +170,7 @@ public sealed partial class SymbolicExecutor
                 continue;
             }
 
-            foreach (var start in starts) Set(start, parameter.Name, FromType(parameter.Type, $"`{parameter.Name}`", SymbolOrigin.Parameter, start));
+            foreach (var start in starts) Set(start, parameter.Name, FromType(parameter.Type, $"`{parameter.Name}`", SymbolOrigin.Parameter, start, parameter.Name));
 
             if (parameter.Default is Literal { Kind: LiteralKind.Null })
             {
@@ -178,6 +179,7 @@ public sealed partial class SymbolicExecutor
                     var none = start.Copy();
                     Set(none, parameter.Name, SymNull.Value);
                     none.Facts = none.Facts.Add($"`{parameter.Name}` is {NullWord}");
+                    none.NullParameters = none.NullParameters.Add(parameter.Name);
                     return none;
                 }).ToList();
                 starts.AddRange(nulls);
@@ -540,7 +542,7 @@ public sealed partial class SymbolicExecutor
     private static string Render(SymbolicValue value) => value switch
     {
         SymNumber number => $"N({number.Term},{number.Whole})",
-        SymText text => $"T({text.Length},{text.Known},{text.Typed})",
+        SymText text => $"T({text.Length},{text.Known},{text.TypedAt})",
         SymSequence sequence => $"S({sequence.Kind},{sequence.Length},[{string.Join(",", sequence.Items?.Select(Render) ?? [])}])",
         SymRange range => $"R({range.Start},{range.Stop},{range.Step})",
         _ => value.ToString(),
@@ -625,6 +627,7 @@ public sealed partial class SymbolicExecutor
     private Witness Describe(IReadOnlyDictionary<int, Rational> model, Path path, IEnumerable<Constraint> failing)
     {
         var facts = new List<string>(path.Facts);
+        var values = path.NullParameters.Select(name => new WitnessValue(name, null, WitnessKind.Nothing, Rational.Zero)).ToList();
         var relevant = failing.Concat(path.Decisions).SelectMany(c => c.Term.Symbols).ToHashSet();
 
         for (var grew = true; grew;)
@@ -658,8 +661,21 @@ public sealed partial class SymbolicExecutor
             };
 
             if (fact is not null && !facts.Any(known => known.StartsWith(symbol.Describes + " ", StringComparison.Ordinal))) facts.Add(fact);
+
+            var kind = symbol.Origin switch
+            {
+                SymbolOrigin.Length => WitnessKind.Items,
+                SymbolOrigin.TextLength => WitnessKind.Characters,
+                SymbolOrigin.Flag => WitnessKind.Truth,
+                SymbolOrigin.Parameter or SymbolOrigin.Input => symbol.IsWhole ? WitnessKind.WholeNumber : WitnessKind.Number,
+                _ => (WitnessKind?)null,
+            };
+
+            if (kind is { } known && (symbol.TypedAt is not null || symbol.Variable is { } variable && IsParameter(variable)) &&
+                !values.Any(v => v.Parameter == symbol.Variable && v.TypedAt == symbol.TypedAt))
+                values.Add(new WitnessValue(symbol.TypedAt is null ? symbol.Variable : null, symbol.TypedAt, known, value));
         }
 
-        return new Witness(facts.Take(4).ToList());
+        return new Witness(facts.Take(4).ToList(), values);
     }
 }

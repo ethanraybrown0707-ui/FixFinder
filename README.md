@@ -111,6 +111,13 @@ value that goes wrong, through the assignments that can reach it and the conditi
 `return total / count` that is the `def` line, `count = 0`, the loop and `count += 1` - not the lines that only add up
 `total`.
 
+For Python, a finding with inputs that break it is then **tried for real**: the function is called with exactly those
+inputs - or, for top-level code, the program is run with them typed in - under a line tracer. Only if it stops with the
+predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
+`average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
+ran are compressed, so a loop that went round three times shows as `(5-7)×3`. A method, which needs its object, is left
+as it was.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked
@@ -167,7 +174,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
-| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`) and the checks (`Checks`). |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`) and the checks (`Checks`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |

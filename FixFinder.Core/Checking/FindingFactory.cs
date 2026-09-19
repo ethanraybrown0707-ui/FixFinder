@@ -106,6 +106,7 @@ public static partial class FindingFactory
             FoundBy = finding.FoundBy,
             Witness = finding.Witness,
             Slice = finding.Slice,
+            Confirmation = finding.Confirmation,
         };
     }
 

@@ -61,5 +61,8 @@ public sealed record Finding
     /// <summary>The lines that decide the value that goes wrong, in order.</summary>
     public IReadOnlyList<int>? Slice { get; init; }
 
+    /// <summary>What running the code with the inputs that break it showed.</summary>
+    public string? Confirmation { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }

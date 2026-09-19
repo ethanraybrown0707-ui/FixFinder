@@ -1,4 +1,5 @@
 using FixFinder.Core.Analysis.Ir;
+using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
 
 namespace FixFinder.Core.Analysis.Checks;
@@ -12,6 +13,15 @@ public sealed record AnalysisFinding(
 
     /// <summary>The lines that decide the value that goes wrong, found by slicing the function backwards from it.</summary>
     public IReadOnlyList<int>? Slice { get; init; }
+
+    /// <summary>The witness as values precise enough to run the code with.</summary>
+    public IReadOnlyList<WitnessValue>? WitnessValues { get; init; }
+
+    /// <summary>The function the finding is in, as the IR names it; <c>&lt;module&gt;</c> for top-level code.</summary>
+    public string? Function { get; init; }
+
+    /// <summary>What running the code with the witness showed, when it failed just as predicted.</summary>
+    public string? Confirmation { get; init; }
 }
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>

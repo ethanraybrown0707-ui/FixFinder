@@ -125,7 +125,7 @@ public sealed partial class SymbolicExecutor
     };
 
     /// <summary>A value of a declared type, with a fresh symbol for what is not known and the type's own limits.</summary>
-    private SymbolicValue FromType(IrType type, string describes, SymbolOrigin origin, Path path)
+    private SymbolicValue FromType(IrType type, string describes, SymbolOrigin origin, Path path, string? variable = null)
     {
         var lengthOrigin = origin == SymbolOrigin.Input ? SymbolOrigin.TextLength : SymbolOrigin.Length;
 
@@ -133,33 +133,34 @@ public sealed partial class SymbolicExecutor
         {
             case "int" or "long" or "short" or "byte" or "sbyte" or "uint" or "ulong" or "ushort" or "char" or "nint" or "Integer" or "Long"
                 or "Short" or "Byte" or "Character" or "Int32" or "Int64":
-                var whole = _symbols.New(describes, origin);
+                var whole = _symbols.New(describes, origin, variable: variable);
                 if (!IsPython && Limits(type.Name) is { } limits)
                     path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(whole, LinearTerm.Of(limits.Low)), Constraint.AtMost(whole, LinearTerm.Of(limits.High))]);
                 return new SymNumber(whole, true);
 
             case "float" or "double" or "decimal" or "Double" or "Float" or "Decimal":
-                return new SymNumber(_symbols.New(describes, origin, isWhole: false), false);
+                return new SymNumber(_symbols.New(describes, origin, isWhole: false, variable: variable), false);
 
             case "bool" or "boolean" or "Boolean":
-                var bit = _symbols.New(describes, origin is SymbolOrigin.Parameter or SymbolOrigin.Outside or SymbolOrigin.Input ? SymbolOrigin.Flag : SymbolOrigin.Derived);
+                var bit = _symbols.New(describes, origin is SymbolOrigin.Parameter or SymbolOrigin.Outside or SymbolOrigin.Input ? SymbolOrigin.Flag : SymbolOrigin.Derived,
+                    variable: variable);
                 path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(bit, 0), Constraint.AtMost(bit, 1)]);
                 return new SymTruth(Condition.Of(Constraint.AtLeast(bit, 1)));
 
             case "str" or "string" or "String":
-                var characters = _symbols.New(describes, SymbolOrigin.TextLength);
+                var characters = _symbols.New(describes, SymbolOrigin.TextLength, variable: variable);
                 path.Constraints = path.Constraints.Add(Constraint.AtLeast(characters, 0));
                 return new SymText(characters);
 
             case "list" or "List" or "ArrayList" or "LinkedList" or "array" or "tuple" or "IList" or "ICollection" or "Collection" or "Deque"
                 or "ArrayDeque" or "Stack" or "Queue" or "Vector" or "IReadOnlyList" or "IReadOnlyCollection":
-                return new SymSequence(type.Name == "tuple" ? CollectionKind.Tuple : CollectionKind.List, Length(describes, lengthOrigin, path));
+                return new SymSequence(type.Name == "tuple" ? CollectionKind.Tuple : CollectionKind.List, Length(describes, lengthOrigin, path, variable));
 
             case "set" or "Set" or "HashSet" or "TreeSet" or "ISet" or "SortedSet":
-                return new SymSequence(CollectionKind.Set, Length(describes, lengthOrigin, path));
+                return new SymSequence(CollectionKind.Set, Length(describes, lengthOrigin, path, variable));
 
             case "dict" or "Dictionary" or "Map" or "HashMap" or "TreeMap" or "IDictionary" or "SortedDictionary":
-                return new SymSequence(CollectionKind.Dictionary, Length(describes, lengthOrigin, path));
+                return new SymSequence(CollectionKind.Dictionary, Length(describes, lengthOrigin, path, variable));
 
             case "None":
                 return SymNull.Value;
@@ -169,9 +170,9 @@ public sealed partial class SymbolicExecutor
         }
     }
 
-    private LinearTerm Length(string describes, SymbolOrigin origin, Path path)
+    private LinearTerm Length(string describes, SymbolOrigin origin, Path path, string? variable = null)
     {
-        var length = _symbols.New(describes, origin);
+        var length = _symbols.New(describes, origin, variable: variable);
         path.Constraints = path.Constraints.Add(Constraint.AtLeast(length, 0));
         return length;
     }
@@ -197,7 +198,7 @@ public sealed partial class SymbolicExecutor
 
         var name = VariableOf(source);
         var origin = name is not null && IsParameter(name) ? SymbolOrigin.Parameter : SymbolOrigin.Outside;
-        var made = new SymNumber(_symbols.New(name is null ? Subject(source) : $"`{name}`", origin, whole), whole);
+        var made = new SymNumber(_symbols.New(name is null ? Subject(source) : $"`{name}`", origin, whole, name), whole);
         if (name is not null) Set(path, name, made);
         return made;
     }
@@ -206,7 +207,7 @@ public sealed partial class SymbolicExecutor
     private SymSequence AsSequence(Expr source, Path path)
     {
         var name = VariableOf(source);
-        var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path));
+        var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path, name));
         if (name is not null) Set(path, name, made);
         return made;
     }
@@ -238,7 +239,7 @@ public sealed partial class SymbolicExecutor
     {
         if (!path.Truths.TryGetValue(name, out var bit))
         {
-            bit = _symbols.New($"`{name}`", SymbolOrigin.Flag);
+            bit = _symbols.New($"`{name}`", SymbolOrigin.Flag, variable: name);
             path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(bit, 0), Constraint.AtMost(bit, 1)]);
             path.Truths = path.Truths.SetItem(name, bit);
         }
@@ -279,6 +280,7 @@ public sealed partial class SymbolicExecutor
                 other = SymNull.Value;
                 if (name is not null) Set(path, name, SymNull.Value);
                 if (name is null || !IsParameter(name)) path.OutsideDecided = true;
+                else path.NullParameters = path.NullParameters.Add(name);
                 path.Facts = path.Facts.Add($"{Subject(tested)} is {NullWord}");
             }
 
@@ -541,7 +543,7 @@ public sealed partial class SymbolicExecutor
                 {
                     SymNumber { Whole: true } number => number with { Whole = whole },
                     SymNumber number when !whole => number,
-                    SymText { Typed: { } typed } => new SymNumber(_symbols.New($"the number typed {typed}", SymbolOrigin.Input, whole), whole),
+                    SymText { TypedAt: { } typed } => new SymNumber(_symbols.New($"the number typed at line {typed}", SymbolOrigin.Input, whole, typedAt: typed), whole),
                     SymText { Known: { } text } when whole && long.TryParse(text.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed) =>
                         new SymNumber(parsed, true),
                     _ => Approximate(whole),
@@ -554,10 +556,7 @@ public sealed partial class SymbolicExecutor
                 return new SymText(1);
 
             case "input":
-                var typedAt = $"at line {call.Span.Line}";
-                var characters = _symbols.New($"the text typed {typedAt}", SymbolOrigin.TextLength);
-                path.Constraints = path.Constraints.Add(Constraint.AtLeast(characters, 0));
-                return new SymText(characters, null, typedAt);
+                return Typed(call.Span.Line, path);
 
             case "print":
                 return SymNull.Value;
@@ -624,17 +623,17 @@ public sealed partial class SymbolicExecutor
                 return Choose(call, Condition.Of(Constraint.AtLeast(magnitude.Term, 0)), path) ? magnitude : magnitude with { Term = -magnitude.Term };
 
             case ("Integer" or "Long" or "Short" or "int" or "long" or "short" or "Int32" or "Int64" or "Convert", "parseInt" or "parseLong" or "parseShort" or "valueOf" or "Parse" or "ToInt32" or "ToInt64"):
-                return values is [SymText { Typed: { } typed }, ..]
-                    ? new SymNumber(_symbols.New($"the number typed {typed}", SymbolOrigin.Input), true)
+                return values is [SymText { TypedAt: { } typed }, ..]
+                    ? new SymNumber(_symbols.New($"the number typed at line {typed}", SymbolOrigin.Input, typedAt: typed), true)
                     : Approximate(true);
 
             case ("Double" or "Float" or "double" or "float" or "decimal" or "Convert", "parseDouble" or "parseFloat" or "valueOf" or "Parse" or "ToDouble"):
-                return values is [SymText { Typed: { } typedReal }, ..]
-                    ? new SymNumber(_symbols.New($"the number typed {typedReal}", SymbolOrigin.Input, isWhole: false), false)
+                return values is [SymText { TypedAt: { } typedReal }, ..]
+                    ? new SymNumber(_symbols.New($"the number typed at line {typedReal}", SymbolOrigin.Input, isWhole: false, typedAt: typedReal), false)
                     : Approximate(false);
 
             case ("Console", "ReadLine"):
-                return Typed($"at line {call.Span.Line}", path);
+                return Typed(call.Span.Line, path);
 
             case ("string" or "String", "IsNullOrEmpty" or "IsNullOrWhiteSpace") when values.Count == 1:
                 return new SymTruth(values[0] switch
@@ -652,19 +651,21 @@ public sealed partial class SymbolicExecutor
         }
     }
 
-    private SymText Typed(string typedAt, Path path)
+    private SymText Typed(int line, Path path)
     {
-        var characters = _symbols.New($"the text typed {typedAt}", SymbolOrigin.TextLength);
+        var characters = _symbols.New($"the text typed at line {line}", SymbolOrigin.TextLength, typedAt: line);
         path.Constraints = path.Constraints.Add(Constraint.AtLeast(characters, 0));
-        return new SymText(characters, null, typedAt);
+        return new SymText(characters, null, line);
     }
 
     /// <summary>What a Scanner or reader method returns: what someone types.</summary>
     private SymbolicValue? InputValue(string method, Call call, Path path) => method switch
     {
-        "nextInt" or "nextLong" or "nextShort" or "nextByte" => new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input), true),
-        "nextDouble" or "nextFloat" => new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, isWhole: false), false),
-        "nextLine" or "next" or "readLine" => Typed($"at line {call.Span.Line}", path),
+        "nextInt" or "nextLong" or "nextShort" or "nextByte" =>
+            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, typedAt: call.Span.Line), true),
+        "nextDouble" or "nextFloat" =>
+            new SymNumber(_symbols.New($"the number typed at line {call.Span.Line}", SymbolOrigin.Input, isWhole: false, typedAt: call.Span.Line), false),
+        "nextLine" or "next" or "readLine" => Typed(call.Span.Line, path),
         _ => null,
     };
 

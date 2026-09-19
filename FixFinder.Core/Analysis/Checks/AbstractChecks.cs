@@ -34,7 +34,7 @@ public static class AbstractChecks
             var local = new List<AnalysisFinding>();
             new FunctionChecks(graph, fixpoint, evaluator, source, local).Run();
             var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
-            findings.AddRange(WithSlices(graph, refined));
+            findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
         }
 
         return findings

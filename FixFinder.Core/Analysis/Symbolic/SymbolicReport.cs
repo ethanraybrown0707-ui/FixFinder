@@ -3,10 +3,18 @@ using FixFinder.Core.Analysis.Ir;
 namespace FixFinder.Core.Analysis.Symbolic;
 
 /// <summary>Concrete values that make a line fail, in the program's own terms: "`values` is empty", "`b` is 3".</summary>
-public sealed record Witness(IReadOnlyList<string> Facts)
+public sealed record Witness(IReadOnlyList<string> Facts, IReadOnlyList<WitnessValue> Values)
 {
     public override string ToString() => Facts.Count == 0 ? "whatever the input" : string.Join(" and ", Facts);
 }
+
+public enum WitnessKind { Number, WholeNumber, Items, Characters, Truth, Nothing }
+
+/// <summary>
+/// One value of a witness, precise enough to run: a parameter's value, or - with <paramref name="TypedAt"/> - what is
+/// typed at the input read on that line.
+/// </summary>
+public sealed record WitnessValue(string? Parameter, int? TypedAt, WitnessKind Kind, Solver.Rational Value);
 
 /// <summary>What exploring every path found at one place where the program can fail.</summary>
 public sealed class Outcome
