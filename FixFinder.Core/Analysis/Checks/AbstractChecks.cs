@@ -20,7 +20,8 @@ public static class AbstractChecks
             {
                 Volatile = Scopes.Volatile(program, function),
                 Escaping = Scopes.Escaping(function),
-                Locals = IrWalk.LocalNames(function),
+                Locals = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python),
+                DeclaredTypes = DeclaredTypes(function),
             };
             var graph = CfgBuilder.Build(function);
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
@@ -34,6 +35,15 @@ public static class AbstractChecks
             .ToList();
     }
 
+    /// <summary>Each variable's declared type, where it is declared once with one type.</summary>
+    private static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
+        function.Parameters.Select(p => (p.Name, p.Type))
+            .Concat(IrWalk.Statements(function.Body).OfType<Declare>().Select(d => (Name: d.Variable, d.Type)))
+            .Where(d => !d.Type.IsUnknown)
+            .GroupBy(d => d.Name)
+            .Where(g => g.Select(d => d.Type).Distinct().Count() == 1)
+            .ToDictionary(g => g.Key, g => g.First().Type, StringComparer.Ordinal);
+
     private static AbstractState StartOf(IrFunction function, Evaluator evaluator)
     {
         var state = AbstractState.Start;
@@ -41,13 +51,16 @@ public static class AbstractChecks
         for (var i = 0; i < function.Parameters.Count; i++)
         {
             var parameter = function.Parameters[i];
-            var value = i == 0 && function.Owner is not null && !function.IsStatic
+            var value = i == 0 && function.Owner is not null && !function.IsStatic && evaluator.Language == SourceLanguage.Python
                 ? AbstractValue.Of(ValueKind.Object)
                 : parameter.Type.IsUnknown ? AbstractValue.Unknown : evaluator.FromType(parameter.Type);
 
             if (parameter.Default is Literal { Kind: LiteralKind.Null }) value = value.Join(AbstractValue.Null);
             state = evaluator.Store(state, parameter.Name, value);
         }
+
+        if (evaluator.Language != SourceLanguage.Python && function.Owner is not null && !function.IsStatic)
+            state = state.With("this", AbstractValue.Of(ValueKind.Object));
 
         return state;
     }
@@ -125,12 +138,12 @@ public static class AbstractChecks
         {
             switch (expression)
             {
-                case Binary { Operator: BinaryOperator.And } both when IsPython:
+                case Binary { Operator: BinaryOperator.And } both:
                     Inspect(both.Left, state);
                     Inspect(both.Right, evaluator.Assume(state, both.Left, true));
                     return;
 
-                case Binary { Operator: BinaryOperator.Or } either when IsPython:
+                case Binary { Operator: BinaryOperator.Or } either:
                     Inspect(either.Left, state);
                     Inspect(either.Right, evaluator.Assume(state, either.Left, false));
                     return;
@@ -178,6 +191,7 @@ public static class AbstractChecks
             ElementAccess element => [element.Target, element.Key],
             Slice slice => new[] { slice.Target, slice.Lower, slice.Upper, slice.Step }.OfType<Expr>(),
             NewObject created => created.Arguments.Select(a => a.Value),
+            Cast cast => [cast.Value],
             CollectionLiteral collection => collection.Items.Concat(collection.Keys ?? []),
             AssignValue assigned => [assigned.Value],
             MoreItems more => [more.Items],
@@ -199,7 +213,12 @@ public static class AbstractChecks
             if (!IsPython && !integersOnly) return;
 
             var range = divisor.Number;
-            var failure = IsPython ? "ZeroDivisionError" : "an ArithmeticException";
+            var failure = evaluator.Language switch
+            {
+                SourceLanguage.Python => "ZeroDivisionError",
+                SourceLanguage.CSharp => "a DivideByZeroException",
+                _ => "an ArithmeticException",
+            };
 
             if (range.IsExact && range.Low == 0)
             {
@@ -253,7 +272,12 @@ public static class AbstractChecks
         {
             var value = evaluator.Evaluate(target, state);
             var none = IsPython ? "None" : "null";
-            var failure = IsPython ? (use is ElementAccess ? "TypeError" : "AttributeError") : "a NullPointerException";
+            var failure = evaluator.Language switch
+            {
+                SourceLanguage.Python => use is ElementAccess ? "TypeError" : "AttributeError",
+                SourceLanguage.CSharp => "a NullReferenceException",
+                _ => "a NullPointerException",
+            };
 
             if (value.IsNull)
                 Report("analysis-null-used", use.Span, $"`{Quote(target)}` is {none} here, so {doing} fails with {failure}", Severity.Error, Confidence.Certain);
@@ -356,6 +380,8 @@ public static class AbstractChecks
                     continue;
                 }
 
+                if (!canBeTrue && OnlyThrows(branch.WhenTrue) || canBeTrue && branch.TestsACase) continue;
+
                 if (!canBeTrue)
                     Report("analysis-never-true", span, $"`{text}` can never be true here, so the code it guards never runs",
                         Severity.Warning, Confidence.Likely, FindingKind.Logic);
@@ -363,6 +389,14 @@ public static class AbstractChecks
                     Report("analysis-always-true", span, $"`{text}` is always true here, so checking it changes nothing",
                         Severity.Suggestion, Confidence.Likely, FindingKind.Logic);
             }
+        }
+
+        /// <summary>Whether a branch does nothing but throw - a guard against the impossible, written on purpose.</summary>
+        private bool OnlyThrows(int block)
+        {
+            var target = graph.Blocks[block];
+            while (target.Instructions.Count == 0 && target.Terminator is Jump jump) target = graph.Blocks[jump.Target];
+            return target.Terminator is Raise && target.Instructions.All(i => i is AssignInstruction or EvaluateInstruction { Value: NewObject or Call });
         }
 
         private static bool IsDeliberateConstant(Expr condition) => condition switch

@@ -23,7 +23,11 @@ public abstract record Terminator(SourceSpan Span);
 public sealed record Jump(SourceSpan Span, int Target) : Terminator(Span);
 
 /// <summary>Goes one way when the condition is true and the other when it is false. Conditions never contain and, or or not.</summary>
-public sealed record Branch(SourceSpan Span, Expr Condition, int WhenTrue, int WhenFalse) : Terminator(Span);
+public sealed record Branch(SourceSpan Span, Expr Condition, int WhenTrue, int WhenFalse) : Terminator(Span)
+{
+    /// <summary>Whether this tests a switch's case label, where the last case matching whatever is left is normal.</summary>
+    public bool TestsACase { get; init; }
+}
 
 public sealed record Leave(SourceSpan Span, Expr? Value) : Terminator(Span);
 

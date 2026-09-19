@@ -156,6 +156,38 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task JavaValuesAreFollowedThroughTheCode()
+    {
+        if (!LocalFixLiveTests.Available("java")) return;
+
+        var file = Write("Average.java", """
+            public class Average {
+                static int average(int[] values) {
+                    int total = 0;
+                    int count = 0;
+                    for (int v : values) {
+                        total += v;
+                        count++;
+                    }
+                    return total / count;
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(average(new int[] {2, 4}));
+                }
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Java);
+
+        var division = Assert.Single(report.Findings, f => f.RuleId == "analysis-division-by-zero");
+        Assert.Equal(9, division.Line);
+        Assert.Equal(Confidence.Possible, division.Confidence);
+        Assert.NotNull(division.FoundBy);
+        Assert.Equal("1 possible mistake in the code", report.LogicSummary);
+    }
+
+    [Fact]
     public async Task CSharpWarningsAndCrashAreReported()
     {
         if (!LocalFixLiveTests.Available("dotnet")) return;

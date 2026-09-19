@@ -24,6 +24,7 @@ public static class IrText
         ElementAccess element => $"{Write(element.Target, true)}[{Of(element.Key)}]",
         Slice slice => $"{Write(slice.Target, true)}[{Optional(slice.Lower)}:{Optional(slice.Upper)}{(slice.Step is null ? "" : ":" + Of(slice.Step))}]",
         NewObject created => $"new {created.Type}({Arguments(created.Arguments)})",
+        Cast cast => $"({cast.Type}) {Write(cast.Value, true)}",
         CollectionLiteral { Kind: CollectionKind.Dictionary } dictionary =>
             "{" + string.Join(", ", dictionary.Keys!.Zip(dictionary.Items, (k, v) => $"{Of(k)}: {Of(v)}")) + "}",
         CollectionLiteral collection => collection.Kind switch

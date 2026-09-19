@@ -13,8 +13,18 @@ public sealed class Evaluator(SourceLanguage language)
         "any", "all", "iter", "next", "super", "object", "id", "hash", "format", "divmod", "pow",
     };
 
-    private static readonly HashSet<string> Growing = new(StringComparer.Ordinal) { "append", "insert", "add", "appendleft" };
-    private static readonly HashSet<string> Shrinking = new(StringComparer.Ordinal) { "remove", "pop", "popleft", "discard" };
+    private static readonly HashSet<string> Growing = new(StringComparer.Ordinal)
+    {
+        "append", "insert", "appendleft", "add", "addFirst", "addLast", "push", "offer", "Add", "Insert", "Push", "Enqueue", "AddFirst", "AddLast",
+    };
+
+    private static readonly HashSet<string> CertainlyShrinking = new(StringComparer.Ordinal)
+    {
+        "pop", "popleft", "RemoveAt", "removeFirst", "removeLast", "Pop", "Dequeue", "RemoveFirst", "RemoveLast",
+    };
+
+    private static readonly HashSet<string> MaybeShrinking = new(StringComparer.Ordinal) { "remove", "discard", "Remove", "poll" };
+
 
     public SourceLanguage Language => language;
 
@@ -26,6 +36,18 @@ public sealed class Evaluator(SourceLanguage language)
 
     /// <summary>The function's own variables; anything else belongs to other code, which any call may change.</summary>
     public IReadOnlySet<string>? Locals { get; init; }
+
+    /// <summary>Types the program declared for its variables; in Java and C# a variable can only ever hold its declared type.</summary>
+    public IReadOnlyDictionary<string, IrType> DeclaredTypes { get; init; } = new Dictionary<string, IrType>();
+
+    /// <summary>
+    /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
+    /// of that name hides it, so both are followed under the one name.
+    /// </summary>
+    private string? FieldName(Expr expression) =>
+        !IsPython && expression is Member { Target: Name { Identifier: "this" }, MemberName: var field } && Locals is not null && !Locals.Contains(field)
+            ? field
+            : null;
 
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
     {
@@ -40,6 +62,10 @@ public sealed class Evaluator(SourceLanguage language)
     public AbstractValue Evaluate(Expr expression, AbstractState state) => expression switch
     {
         Literal literal => Constant(literal),
+        Cast cast => CastValue(cast, state),
+        Member field when FieldName(field) is { } named && state.Knows(named) => state[named],
+        Member { MemberName: "length" or "Length" or "Count" } measured when Evaluate(measured.Target, state).IsOnly(ValueKind.Sized) =>
+            AbstractValue.Integer(Evaluate(measured.Target, state).Length.Meet(Interval.NonNegative)),
         Name name => state.Knows(name.Identifier) ? state[name.Identifier]
             : IsPython && Builtins.Contains(name.Identifier) ? AbstractValue.Of(ValueKind.Function)
             : AbstractValue.Unknown,
@@ -52,7 +78,7 @@ public sealed class Evaluator(SourceLanguage language)
         Slice slice => Evaluate(slice.Target, state) is var sliced && sliced.IsOnly(ValueKind.Text | ValueKind.List | ValueKind.Tuple)
             ? sliced with { Length = new Interval(0, sliced.Length.High) }
             : AbstractValue.Unknown,
-        NewObject => AbstractValue.Of(ValueKind.Object),
+        NewObject created => NewValue(created, state),
         CollectionLiteral collection => AbstractValue.Sized(collection.Kind switch
         {
             CollectionKind.List or CollectionKind.Array => ValueKind.List,
@@ -60,6 +86,7 @@ public sealed class Evaluator(SourceLanguage language)
             CollectionKind.Set => ValueKind.Set,
             _ => ValueKind.Dictionary,
         }, Interval.Exactly(collection.Items.Count)),
+        AssignValue { ValueBeforeAssigning: true } assigned => Evaluate(assigned.Target, state).Join(Evaluate(assigned.Value, state)),
         AssignValue assigned => Evaluate(assigned.Value, state),
         MoreItems => AbstractValue.Boolean,
         NextItem next => ItemOf(Evaluate(next.Items, state)),
@@ -67,8 +94,10 @@ public sealed class Evaluator(SourceLanguage language)
         _ => AbstractValue.Unknown,
     };
 
-    private static AbstractValue Constant(Literal literal) => literal.Kind switch
+    private AbstractValue Constant(Literal literal) => literal.Kind switch
     {
+        LiteralKind.Character when !IsPython && literal.Value is string { Length: 1 } character =>
+            AbstractValue.Integer(Interval.Exactly(character[0])),
         LiteralKind.Integer => AbstractValue.Integer(Interval.Exactly(Convert.ToDouble(literal.Value))),
         LiteralKind.Real => AbstractValue.Real(Interval.Exactly(Convert.ToDouble(literal.Value))),
         LiteralKind.Boolean => new AbstractValue(ValueKind.Boolean, Interval.Exactly(literal.Value is true ? 1 : 0), Interval.Empty),
@@ -84,7 +113,8 @@ public sealed class Evaluator(SourceLanguage language)
         "set comprehension" => AbstractValue.Of(ValueKind.Set),
         "dictionary comprehension" => AbstractValue.Of(ValueKind.Dictionary),
         "lambda" or "function" => AbstractValue.Of(ValueKind.Function),
-        "class" or "generator" or "AssertionError" => AbstractValue.Of(ValueKind.Object),
+        "class" or "generator" or "AssertionError" or "lambda expression" or "anonymous class" => AbstractValue.Of(ValueKind.Object),
+        "instanceof" => AbstractValue.Boolean,
         var what when what.StartsWith("module ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Module),
         var what when what.StartsWith("caught ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Object),
         _ => AbstractValue.Unknown,
@@ -102,6 +132,60 @@ public sealed class Evaluator(SourceLanguage language)
             UnaryOperator.BitNot when operand.IsNumber => AbstractValue.Integer(Interval.Top),
             _ => AbstractValue.Unknown,
         };
+    }
+
+    private AbstractValue CastValue(Cast cast, AbstractState state)
+    {
+        var value = Evaluate(cast.Value, state);
+        var target = FromType(cast.Type);
+
+        if (target.IsOnly(ValueKind.Integer) && value.IsNumber) return AbstractValue.Integer(value.Number.Truncate());
+        if (target.IsOnly(ValueKind.Real) && value.IsNumber) return AbstractValue.Real(value.Number);
+        return target.IsUnknown ? value : target with { NullnessKnown = value.NullnessKnown && !value.MayBeNull, Kinds = target.Kinds | (value.Kinds & ValueKind.Null) };
+    }
+
+    private AbstractValue NewValue(NewObject created, AbstractState state)
+    {
+        var name = created.Type.Name;
+        var arguments = created.Arguments.Select(a => Evaluate(a.Value, state)).ToList();
+
+        if (name == "array")
+            return AbstractValue.Sized(ValueKind.List, arguments is [{ IsNumber: true } size] ? size.Number.Meet(Interval.NonNegative) : Interval.NonNegative);
+
+        var kind = name switch
+        {
+            "ArrayList" or "LinkedList" or "List" or "Vector" or "Stack" or "ArrayDeque" or "Queue" or "LinkedHashSet" => ValueKind.List,
+            "HashMap" or "TreeMap" or "LinkedHashMap" or "Dictionary" or "SortedDictionary" or "Hashtable" => ValueKind.Dictionary,
+            "HashSet" or "TreeSet" or "SortedSet" => ValueKind.Set,
+            "String" or "string" => ValueKind.Text,
+            _ => ValueKind.Nothing,
+        };
+
+        if (kind == ValueKind.Nothing) return AbstractValue.Of(ValueKind.Object);
+        if (kind == ValueKind.Text) return AbstractValue.Text(Interval.NonNegative);
+
+        var copiesAnother = arguments.Any(a => a.MayBe(ValueKind.Sized));
+        return AbstractValue.Sized(kind, copiesAnother ? Interval.NonNegative : Interval.Exactly(0));
+    }
+
+    /// <summary>
+    /// Outside Python a whole number that grows past what an int holds wraps round to a negative one - which is exactly
+    /// what overflow checks like (offset + length) &lt; 0 look for. A result could wrap when a finite end passes an int's
+    /// limit, or when two values with no limit are combined; a counter with no limit going up by one is not evidence.
+    /// </summary>
+    private Interval Wrapped(ValueKind kinds, Interval left, Interval right, Interval result, bool multiplying = false)
+    {
+        if (IsPython || (kinds & ValueKind.Real) != 0 || result.IsEmpty) return result;
+
+        var passesALimit = !double.IsInfinity(result.Low) && result.Low < int.MinValue || !double.IsInfinity(result.High) && result.High > int.MaxValue;
+        var bothUnlimited = multiplying
+            ? (Unlimited(left) && Grows(right)) || (Unlimited(right) && Grows(left))
+            : double.IsPositiveInfinity(left.High) && double.IsPositiveInfinity(right.High) || double.IsNegativeInfinity(left.Low) && double.IsNegativeInfinity(right.Low);
+
+        return passesALimit || bothUnlimited ? Interval.Top : result;
+
+        static bool Unlimited(Interval range) => double.IsInfinity(range.Low) || double.IsInfinity(range.High);
+        static bool Grows(Interval factor) => !(factor.IsExact && Math.Abs(factor.Low) <= 1);
     }
 
     private static AbstractValue Numeric(ValueKind kinds, Interval range) =>
@@ -132,9 +216,9 @@ public sealed class Evaluator(SourceLanguage language)
 
             return binary.Operator switch
             {
-                BinaryOperator.Add => Numeric(kinds, left.Number.Add(right.Number)),
-                BinaryOperator.Subtract => Numeric(kinds, left.Number.Subtract(right.Number)),
-                BinaryOperator.Multiply => Numeric(kinds, left.Number.Multiply(right.Number)),
+                BinaryOperator.Add => Numeric(kinds, Wrapped(kinds, left.Number, right.Number, left.Number.Add(right.Number))),
+                BinaryOperator.Subtract => Numeric(kinds, Wrapped(kinds, left.Number, right.Number.Negate(), left.Number.Subtract(right.Number))),
+                BinaryOperator.Multiply => Numeric(kinds, Wrapped(kinds, left.Number, right.Number, left.Number.Multiply(right.Number), multiplying: true)),
                 BinaryOperator.Divide when IsPython || real => AbstractValue.Real(left.Number.Divide(right.Number)),
                 BinaryOperator.Divide => AbstractValue.Integer(left.Number.Divide(right.Number).Truncate()),
                 BinaryOperator.FloorDivide => Numeric(kinds, left.Number.Divide(right.Number).Floor()),
@@ -180,15 +264,24 @@ public sealed class Evaluator(SourceLanguage language)
                 return AbstractValue.Of(ValueKind.Object).Join(AbstractValue.Null);
 
             if (receiver.IsOnly(ValueKind.Text))
-                return TextMethod(method);
+                return IsPython ? TextMethod(method) : ManagedTextMethod(method, receiver);
+
+            if (!IsPython && receiver.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
+            {
+                if (method is "size" or "Count") return AbstractValue.Integer(receiver.Length.Meet(Interval.NonNegative));
+                if (method is "isEmpty" or "contains" or "containsKey" or "Contains" or "ContainsKey" or "Any") return AbstractValue.Boolean;
+                if (method is "indexOf" or "IndexOf") return AbstractValue.Integer(new Interval(-1, double.PositiveInfinity));
+            }
 
             if (receiver.IsOnly(ValueKind.Dictionary) && method == "get")
                 return call.Arguments.Count >= 2 ? AbstractValue.Unknown.Join(Evaluate(call.Arguments[1].Value, state)) : AbstractValue.Unknown.Join(AbstractValue.Null);
 
             if (receiver.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
             {
-                if (method is "append" or "extend" or "insert" or "remove" or "sort" or "reverse" or "clear" or "add" or "discard" or "update")
+                if (IsPython && method is "append" or "extend" or "insert" or "remove" or "sort" or "reverse" or "clear" or "add" or "discard" or "update")
                     return AbstractValue.Null;
+                if (!IsPython && method is "add" or "remove" or "addAll" or "removeAll" or "Remove" or "offer")
+                    return AbstractValue.Boolean;
                 if (method is "index" or "count") return AbstractValue.Integer(Interval.NonNegative);
                 if (method == "copy") return receiver;
             }
@@ -196,6 +289,18 @@ public sealed class Evaluator(SourceLanguage language)
 
         return AbstractValue.Unknown;
     }
+
+    private static AbstractValue ManagedTextMethod(string method, AbstractValue text) => method switch
+    {
+        "length" => AbstractValue.Integer(text.Length.Meet(Interval.NonNegative)),
+        "charAt" => AbstractValue.Integer(new Interval(0, 65535)),
+        "indexOf" or "lastIndexOf" or "IndexOf" or "LastIndexOf" => AbstractValue.Integer(new Interval(-1, double.PositiveInfinity)),
+        "compareTo" or "CompareTo" or "compareToIgnoreCase" => AbstractValue.Integer(Interval.Top),
+        "equals" or "equalsIgnoreCase" or "Equals" or "isEmpty" or "isBlank" or "contains" or "Contains" or "startsWith" or "StartsWith"
+            or "endsWith" or "EndsWith" or "matches" => AbstractValue.Boolean,
+        "split" or "Split" or "toCharArray" or "ToCharArray" => AbstractValue.Sized(ValueKind.List, Interval.NonNegative),
+        _ => AbstractValue.Text(Interval.NonNegative),
+    };
 
     private static AbstractValue TextMethod(string method) => method switch
     {
@@ -283,7 +388,9 @@ public sealed class Evaluator(SourceLanguage language)
     {
         var value = type.Name switch
         {
-            "int" or "long" or "short" or "byte" or "Integer" or "Long" => AbstractValue.Integer(Interval.Top),
+            "int" or "long" or "short" or "byte" or "Integer" or "Long" or "uint" or "ulong" or "Int32" or "Int64" => AbstractValue.Integer(Interval.Top),
+            "char" or "Character" => AbstractValue.Integer(new Interval(0, 65535)),
+            "array" => AbstractValue.Of(ValueKind.List),
             "float" or "double" or "Double" or "Float" or "decimal" => AbstractValue.Real(Interval.Top),
             "bool" or "boolean" or "Boolean" => AbstractValue.Boolean,
             "str" or "string" or "String" => AbstractValue.Text(Interval.NonNegative),
@@ -295,9 +402,13 @@ public sealed class Evaluator(SourceLanguage language)
             _ => AbstractValue.Unknown,
         };
 
-        if (IsPython) value = value with { NullnessKnown = false };
+        if (IsPython || !IsPrimitive(type.Name)) value = value with { NullnessKnown = false };
         return type.Nullable ? value.Join(AbstractValue.Null) : value;
     }
+
+    /// <summary>Java and C# value types, which can never hold null.</summary>
+    private static bool IsPrimitive(string name) => name is "int" or "long" or "short" or "byte" or "double" or "float" or "boolean" or "bool"
+        or "char" or "decimal" or "uint" or "ulong" or "sbyte" or "ushort";
 
     public AbstractState Apply(AbstractState state, Instruction instruction)
     {
@@ -307,7 +418,8 @@ public sealed class Evaluator(SourceLanguage language)
         {
             case AssignInstruction assign:
                 state = Embedded(state, assign.Value);
-                var assigned = Evaluate(assign.Value, state);
+                if (assign.Target is not Name) state = Embedded(state, assign.Target);
+                var assigned = Evaluate(Settled(assign.Value), state);
                 return AssignTo(ForgetOthersAfterCalls(state, assign.Value), assign.Target, assigned, assign.Value);
 
             case EvaluateInstruction { Value: Name or Member }:
@@ -336,6 +448,8 @@ public sealed class Evaluator(SourceLanguage language)
         switch (target)
         {
             case Name name:
+                if (!IsPython && value.IsUnknown && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
+                    value = FromType(declared);
                 if (valueExpression is Name source && value.IsOnly(ValueKind.List | ValueKind.Dictionary | ValueKind.Set))
                 {
                     var shared = value with { Length = Interval.NonNegative };
@@ -351,6 +465,9 @@ public sealed class Evaluator(SourceLanguage language)
                     return state;
                 }
                 return unpacked.Items.Aggregate(state, (s, item) => AssignTo(s, item, AbstractValue.Unknown, null));
+
+            case Member field when FieldName(field) is { } named:
+                return Store(state, named, value);
 
             case ElementAccess { Target: Name owner } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
                 var dictionary = state[owner.Identifier];
@@ -385,10 +502,13 @@ public sealed class Evaluator(SourceLanguage language)
             var changed = method switch
             {
                 _ when Growing.Contains(method) => collection.IsOnly(ValueKind.Set) ? new Interval(length.Low, length.High + 1) : length.Add(Interval.Exactly(1)),
-                _ when Shrinking.Contains(method) => length.Subtract(Interval.Exactly(1)).Meet(Interval.NonNegative) is { IsEmpty: false } fewer ? fewer : Interval.Exactly(0),
+                _ when CertainlyShrinking.Contains(method) || IsPython && method == "remove" =>
+                    length.Subtract(Interval.Exactly(1)).Meet(Interval.NonNegative) is { IsEmpty: false } fewer ? fewer : Interval.Exactly(0),
+                _ when MaybeShrinking.Contains(method) => new Interval(Math.Max(0, length.Low - 1), length.High),
                 "clear" => Interval.Exactly(0),
                 "extend" or "update" => new Interval(length.Low, double.PositiveInfinity),
-                "sort" or "reverse" or "copy" or "index" or "count" or "get" or "keys" or "values" or "items" => length,
+                "sort" or "reverse" or "copy" or "index" or "count" or "get" or "keys" or "values" or "items" or "size" or "isEmpty"
+                    or "contains" or "containsKey" or "indexOf" or "Contains" or "ContainsKey" or "IndexOf" or "Sort" or "Reverse" => length,
                 _ => Interval.NonNegative,
             };
             state = Store(state, owner.Identifier, collection with { Length = changed });
@@ -412,13 +532,22 @@ public sealed class Evaluator(SourceLanguage language)
         return state;
     }
 
-    private static IEnumerable<AssignValue> Assignments(Expr expression) => expression switch
+    private static IEnumerable<AssignValue> Assignments(Expr expression) =>
+        expression is AssignValue assigned ? [assigned] : IrWalk.Children(expression).SelectMany(Assignments);
+
+    /// <summary>
+    /// The expression as it reads once its own assignments have happened: x = y and ++i read as their target, i++ as the
+    /// target less the step - so a value is never counted twice.
+    /// </summary>
+    private static Expr Settled(Expr expression) => expression switch
     {
-        AssignValue assigned => [assigned],
-        Binary binary => Assignments(binary.Left).Concat(Assignments(binary.Right)),
-        Unary unary => Assignments(unary.Operand),
-        Call call => call.Arguments.SelectMany(a => Assignments(a.Value)),
-        _ => [],
+        AssignValue { ValueBeforeAssigning: false } assigned => assigned.Target,
+        AssignValue { Value: Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract } step } assigned =>
+            new Binary(assigned.Span, step.Operator == BinaryOperator.Add ? BinaryOperator.Subtract : BinaryOperator.Add, assigned.Target, step.Right),
+        AssignValue assigned => Opaque.Of(assigned.Span, "value before assignment"),
+        Binary binary => binary with { Left = Settled(binary.Left), Right = Settled(binary.Right) },
+        Unary unary => unary with { Operand = Settled(unary.Operand) },
+        _ => expression,
     };
 
     /// <summary>What must be true of the variables for <paramref name="condition"/> to come out as <paramref name="holds"/>.</summary>
@@ -426,6 +555,7 @@ public sealed class Evaluator(SourceLanguage language)
     {
         if (!state.IsReachable) return state;
         state = Embedded(state, condition);
+        condition = Settled(condition);
 
         switch (condition)
         {
@@ -539,13 +669,19 @@ public sealed class Evaluator(SourceLanguage language)
         if (IsNullLiteral(comparison.Right) || IsNullLiteral(comparison.Left))
         {
             var other = IsNullLiteral(comparison.Right) ? comparison.Left : comparison.Right;
-            if (other is not Name named) return state;
+            var checkedName = other switch
+            {
+                Name named => named.Identifier,
+                Member field when FieldName(field) is { } named => named,
+                _ => null,
+            };
+            if (checkedName is null) return state;
 
-            var value = state[named.Identifier];
+            var value = state[checkedName];
             return op switch
             {
-                BinaryOperator.Equal or BinaryOperator.Is => Store(state, named.Identifier, value.OnlyNull()),
-                BinaryOperator.NotEqual or BinaryOperator.IsNot => Store(state, named.Identifier, value.WithoutNull()),
+                BinaryOperator.Equal or BinaryOperator.Is => Store(state, checkedName, value.OnlyNull()),
+                BinaryOperator.NotEqual or BinaryOperator.IsNot => Store(state, checkedName, value.WithoutNull()),
                 _ => state,
             };
         }
@@ -596,7 +732,7 @@ public sealed class Evaluator(SourceLanguage language)
                 if (excluded is { IsExact: true } single) refined = Excluding(refined, single.Low, integers);
                 return Store(state, name.Identifier, refined);
 
-            case Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] } when IsPython:
+            case var measuring when LengthOf(measuring) is { } sized:
                 var measured = state[sized.Identifier];
                 var lengthAllowed = allowed.Meet(Interval.NonNegative);
                 var kept = measured.WithLength(lengthAllowed);
@@ -607,6 +743,15 @@ public sealed class Evaluator(SourceLanguage language)
                 return state;
         }
     }
+
+    /// <summary>The variable whose length this expression reads: len(x), x.length, x.length(), x.size(), x.Length or x.Count.</summary>
+    private Name? LengthOf(Expr expression) => expression switch
+    {
+        Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] } when IsPython => sized,
+        Member { Target: Name sized, MemberName: "length" or "Length" or "Count" } when !IsPython => sized,
+        Call { Callee: Member { Target: Name sized, MemberName: "length" or "size" or "Count" }, Arguments.Count: 0 } when !IsPython => sized,
+        _ => null,
+    };
 
     private static AbstractValue Excluding(AbstractValue value, double point, bool integers)
     {

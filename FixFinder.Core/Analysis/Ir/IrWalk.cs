@@ -23,6 +23,7 @@ public static class IrWalk
         Try attempt => attempt.Body.Concat(attempt.Handlers.SelectMany(h => h.Body)).Concat(attempt.Else).Concat(attempt.Finally),
         Switch choice => choice.Cases.SelectMany(c => c.Body),
         Using used => used.Body,
+        Labeled labeled => labeled.Body,
         _ => [],
     };
 
@@ -60,6 +61,7 @@ public static class IrWalk
         ElementAccess element => [element.Target, element.Key],
         Slice slice => new[] { slice.Target, slice.Lower, slice.Upper, slice.Step }.OfType<Expr>(),
         NewObject created => created.Arguments.Select(a => a.Value),
+        Cast cast => [cast.Value],
         CollectionLiteral collection => collection.Items.Concat(collection.Keys ?? []),
         AssignValue assigned => [assigned.Target, assigned.Value],
         MoreItems more => [more.Items],
@@ -71,8 +73,11 @@ public static class IrWalk
     public static IEnumerable<string> Names(Expr expression) =>
         expression is Name name ? [name.Identifier] : Children(expression).SelectMany(Names);
 
-    /// <summary>The names a function binds for itself: its parameters and everything it assigns, less what it declares as outer.</summary>
-    public static HashSet<string> LocalNames(IrFunction function)
+    /// <summary>
+    /// The names a function binds for itself: its parameters, what it declares, and - where assigning a name creates it,
+    /// as in Python - everything it assigns, less what it declares as outer. In Java or C# an assigned name may be a field.
+    /// </summary>
+    public static HashSet<string> LocalNames(IrFunction function, bool assigningDeclares = true)
     {
         var locals = function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
 
@@ -80,7 +85,7 @@ public static class IrWalk
         {
             var bound = statement switch
             {
-                Assign assign => Bound(assign.Target),
+                Assign assign when assigningDeclares => Bound(assign.Target),
                 Declare declare => [declare.Variable],
                 ForEach loop => Bound(loop.Target),
                 Using { Variable: { } variable } => Bound(variable),
@@ -90,7 +95,7 @@ public static class IrWalk
             };
 
             locals.UnionWith(bound);
-            locals.UnionWith(Expressions(statement).SelectMany(AssignedInside).SelectMany(Bound));
+            if (assigningDeclares) locals.UnionWith(Expressions(statement).SelectMany(AssignedInside).SelectMany(Bound));
         }
 
         locals.ExceptWith(function.OuterNames);

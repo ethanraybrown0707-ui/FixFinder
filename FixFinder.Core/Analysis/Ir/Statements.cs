@@ -21,9 +21,12 @@ public sealed record ForEach(SourceSpan Span, Expr Target, Expr Items, IReadOnly
 
 public sealed record Return(SourceSpan Span, Expr? Value) : Stmt(Span);
 
-public sealed record Break(SourceSpan Span) : Stmt(Span);
+public sealed record Break(SourceSpan Span, string? Label = null) : Stmt(Span);
 
-public sealed record Continue(SourceSpan Span) : Stmt(Span);
+public sealed record Continue(SourceSpan Span, string? Label = null) : Stmt(Span);
+
+/// <summary>A statement with a name that break and continue can use to leave it or go round it again.</summary>
+public sealed record Labeled(SourceSpan Span, string Label, IReadOnlyList<Stmt> Body) : Stmt(Span);
 
 public sealed record Throw(SourceSpan Span, Expr? Exception) : Stmt(Span);
 

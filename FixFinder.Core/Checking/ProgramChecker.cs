@@ -4,6 +4,7 @@ using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Frontends;
+using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Sources;
@@ -333,17 +334,17 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
     /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>
     private async Task<int> AnalyseAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
-        if (files.Count == 0 || !files.All(f => Path.GetExtension(f).ToLowerInvariant() is ".py" or ".pyw")) return 0;
-
-        var interpreter = launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
-            ? spec.ExecutablePath
-            : PythonFrontend.FindInterpreter();
-        if (interpreter is null) return 0;
+        if (files.Count == 0) return 0;
 
         try
         {
+            var reading = ReadProgramAsync(launch, files, cancellationToken);
+            if (reading is null) return 0;
+
             Progress?.Invoke(CheckLane.Logic, "Following every value through the code...");
-            var program = await PythonFrontend.ReadAsync(files, interpreter, cancellationToken);
+            var program = await reading;
+            foreach (var problem in program.Problems) Log?.Invoke($"Following the values skipped {problem}");
+
             var findings = AbstractChecks.Run(program, new SourceText());
 
             foreach (var finding in findings) Add(FindingFactory.FromAnalysis(finding));
@@ -354,6 +355,25 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             Log?.Invoke($"Following the values through the code stopped early: {ex.Message}");
             return 0;
         }
+    }
+
+    /// <summary>Reads the program with its own language's parser, or returns null when that language cannot be read yet.</summary>
+    private static Task<IrProgram>? ReadProgramAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        bool AllEndIn(params string[] extensions) => files.All(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant()));
+
+        if (AllEndIn(".py", ".pyw"))
+        {
+            var interpreter = launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
+                ? spec.ExecutablePath
+                : PythonFrontend.FindInterpreter();
+            return interpreter is null ? null : PythonFrontend.ReadAsync(files, interpreter, cancellationToken);
+        }
+
+        if (AllEndIn(".java"))
+            return JavaFrontend.FindTools() is { } tools ? JavaFrontend.ReadAsync(files, tools.Javac, tools.Java, cancellationToken) : null;
+
+        return null;
     }
 
     private async Task<(string? CheckedBy, bool Compiles)> CheckPatternFixAsync(SourceFile source, LocalFix? fix, CancellationToken cancellationToken)

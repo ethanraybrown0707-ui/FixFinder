@@ -9,9 +9,11 @@ public static class CfgBuilder
 
     private abstract record Region;
 
-    private sealed record LoopRegion(int BreakTarget, int ContinueTarget) : Region;
+    private sealed record LoopRegion(int BreakTarget, int ContinueTarget, string? Label = null) : Region;
 
     private sealed record SwitchRegion(int BreakTarget) : Region;
+
+    private sealed record LabelRegion(string Label, int BreakTarget) : Region;
 
     private sealed record CleanupRegion(Action Emit, int HandlerDepth) : Region;
 
@@ -22,6 +24,8 @@ public static class CfgBuilder
         private List<IReadOnlyList<int>> _handlers = [];
         private BasicBlock? _current;
         private int _temporaries;
+        private string? _labelForNextLoop;
+        private bool _testingCases;
 
         public ControlFlowGraph Run()
         {
@@ -116,15 +120,40 @@ public static class CfgBuilder
                     break;
 
                 case Break exit:
-                    RunCleanups(region => region is LoopRegion or SwitchRegion, exit.Span);
-                    if (_current is not null && Innermost<Region>(r => r is LoopRegion or SwitchRegion) is { } breakable)
-                        Seal(new Jump(exit.Span, breakable is LoopRegion loop ? loop.BreakTarget : ((SwitchRegion)breakable).BreakTarget));
+                    bool Leaves(Region region) => exit.Label is null
+                        ? region is LoopRegion or SwitchRegion
+                        : region is LoopRegion { Label: var loopLabel } && loopLabel == exit.Label || region is LabelRegion { Label: var name } && name == exit.Label;
+                    RunCleanups(Leaves, exit.Span);
+                    if (_current is not null && Innermost<Region>(Leaves) is { } left)
+                        Seal(new Jump(exit.Span, left switch
+                        {
+                            LoopRegion loop => loop.BreakTarget,
+                            SwitchRegion choice => choice.BreakTarget,
+                            _ => ((LabelRegion)left).BreakTarget,
+                        }));
+                    else if (_current is not null)
+                        Seal(new Leave(exit.Span, null));
                     break;
 
                 case Continue next:
-                    RunCleanups(region => region is LoopRegion, next.Span);
-                    if (_current is not null && Innermost<LoopRegion>(r => r is LoopRegion) is { } enclosing)
+                    bool Repeats(Region region) => region is LoopRegion { Label: var loopLabel } && (next.Label is null || loopLabel == next.Label);
+                    RunCleanups(Repeats, next.Span);
+                    if (_current is not null && Innermost<LoopRegion>(Repeats) is { } enclosing)
                         Seal(new Jump(next.Span, enclosing.ContinueTarget));
+                    else if (_current is not null)
+                        Seal(new Leave(next.Span, null));
+                    break;
+
+                case Labeled labeled when labeled.Body is [While or For or ForEach]:
+                    _labelForNextLoop = labeled.Label;
+                    Lower(labeled.Body);
+                    break;
+
+                case Labeled labeled:
+                    var afterLabeled = NewBlock();
+                    InRegion(new LabelRegion(labeled.Label, afterLabeled.Id), () => Lower(labeled.Body));
+                    JumpTo(afterLabeled, labeled.Span);
+                    _current = afterLabeled;
                     break;
 
                 case Throw raise:
@@ -195,7 +224,7 @@ public static class CfgBuilder
             Condition(loop.Condition, body.Id, (otherwise ?? after).Id);
 
             _current = body;
-            InRegion(new LoopRegion(after.Id, head.Id), () => Lower(loop.Body));
+            InRegion(new LoopRegion(after.Id, head.Id, TakeLabel()), () => Lower(loop.Body));
             JumpTo(head, loop.Span);
 
             if (otherwise is not null)
@@ -208,8 +237,16 @@ public static class CfgBuilder
             _current = after;
         }
 
+        private string? TakeLabel()
+        {
+            var label = _labelForNextLoop;
+            _labelForNextLoop = null;
+            return label;
+        }
+
         private void LowerFor(For loop)
         {
+            var label = TakeLabel();
             Lower(loop.Setup);
 
             var head = NewBlock();
@@ -225,7 +262,7 @@ public static class CfgBuilder
             else JumpTo(body, loop.Span);
 
             _current = body;
-            InRegion(new LoopRegion(after.Id, step.Id), () => Lower(loop.Body));
+            InRegion(new LoopRegion(after.Id, step.Id, label), () => Lower(loop.Body));
             JumpTo(step, loop.Span);
 
             _current = step;
@@ -237,6 +274,7 @@ public static class CfgBuilder
 
         private void LowerForEach(ForEach loop)
         {
+            var label = TakeLabel();
             var items = loop.Items;
             if (items is not (Name or Literal))
             {
@@ -258,7 +296,7 @@ public static class CfgBuilder
 
             _current = body;
             Emit(new AssignInstruction(loop.Span, loop.Target, new NextItem(loop.Span, items)));
-            InRegion(new LoopRegion(after.Id, head.Id), () => Lower(loop.Body));
+            InRegion(new LoopRegion(after.Id, head.Id, label), () => Lower(loop.Body));
             JumpTo(head, loop.Span);
 
             if (otherwise is not null)
@@ -294,7 +332,9 @@ public static class CfgBuilder
                     .Aggregate((left, right) => new Binary(choice.Span, BinaryOperator.Or, left, right));
 
                 var next = NewBlock();
+                _testingCases = true;
                 Condition(matches, bodies[i].Id, next.Id);
+                _testingCases = false;
                 _current = next;
             }
 
@@ -446,7 +486,7 @@ public static class CfgBuilder
                     break;
 
                 default:
-                    Seal(new Branch(condition.Span, condition, whenTrue, whenFalse));
+                    Seal(new Branch(condition.Span, condition, whenTrue, whenFalse) { TestsACase = _testingCases });
                     break;
             }
         }

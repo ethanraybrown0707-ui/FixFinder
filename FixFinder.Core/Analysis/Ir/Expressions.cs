@@ -57,6 +57,9 @@ public sealed record Slice(SourceSpan Span, Expr Target, Expr? Lower, Expr? Uppe
 
 public sealed record NewObject(SourceSpan Span, IrType Type, IReadOnlyList<Argument> Arguments) : Expr(Span);
 
+/// <summary>A value converted to another type: <c>(double) total</c>, <c>(int) x</c>.</summary>
+public sealed record Cast(SourceSpan Span, IrType Type, Expr Value) : Expr(Span);
+
 public sealed record CollectionLiteral(SourceSpan Span, CollectionKind Kind, IReadOnlyList<Expr> Items, IReadOnlyList<Expr>? Keys = null)
     : Expr(Span);
 
