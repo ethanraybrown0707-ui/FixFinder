@@ -55,7 +55,7 @@ public class AbstractInterpretationTests : IDisposable
         Assert.True(finding is not null, $"{check} not found; found: {string.Join("; ", findings.Select(f => f.CheckId))}");
         Assert.Equal(LineOf(code, marker), finding!.Span.Line);
         Assert.Equal(Enum.Parse<Confidence>(confidence), finding.Confidence);
-        Assert.Equal(AbstractChecks.FoundBy, finding.FoundBy);
+        Assert.StartsWith(AbstractChecks.FoundBy, finding.FoundBy);
     }
 
     [Theory]

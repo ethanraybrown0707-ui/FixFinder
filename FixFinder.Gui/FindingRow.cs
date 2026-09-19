@@ -84,6 +84,10 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string FoundByText => Finding.FoundBy is { } technique ? $"Found by {technique}" : "";
 
+    public bool HasWitness => Finding.Witness is not null;
+
+    public string WitnessText => Finding.Witness is { } witness ? $"Fails when {witness}" : "";
+
     public string AsText()
     {
         var lines = new List<string>
@@ -96,6 +100,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             $"How to fix it: {SuggestedFix}",
         };
 
+        if (HasWitness) lines.Insert(2, WitnessText);
         if (HasFoundBy) lines.Insert(2, FoundByText);
 
         if (HasExample)

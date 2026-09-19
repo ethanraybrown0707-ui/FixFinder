@@ -421,7 +421,10 @@ internal sealed class PythonAstReader(string file)
                 return new AssignValue(span, Expression(Field(node, "target")!.Value), Expression(Field(node, "value")!.Value));
 
             case "Await":
-                return Expression(Field(node, "value")!.Value);
+                return Opaque.Of(span, "await", Expression(Field(node, "value")!.Value));
+
+            case "Yield" or "YieldFrom":
+                return Field(node, "value") is { } yielded ? Opaque.Of(span, "yield", Expression(yielded)) : Opaque.Of(span, "yield");
 
             case "JoinedStr":
                 var formatted = Items(node, "values").Where(v => Kind(v) == "FormattedValue").Select(v => Expression(Field(v, "value")!.Value));

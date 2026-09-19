@@ -29,9 +29,9 @@ public class AnalysisGuideTests
 
     [Theory]
     [InlineData("App.java", "analysis-division-by-zero", "analysis-null-used", "analysis-index-out-of-range", "analysis-empty-collection", "analysis-not-a-number",
-        "analysis-never-true", "analysis-always-true", "analysis-loop-never-runs", "analysis-assert-always-fails")]
+        "analysis-never-true", "analysis-always-true", "analysis-loop-never-runs", "analysis-assert-always-fails", "analysis-loop-never-ends")]
     [InlineData("App.cs", "analysis-division-by-zero", "analysis-null-used", "analysis-index-out-of-range", "analysis-empty-collection", "analysis-not-a-number",
-        "analysis-never-true", "analysis-always-true", "analysis-loop-never-runs")]
+        "analysis-never-true", "analysis-always-true", "analysis-loop-never-runs", "analysis-loop-never-ends")]
     public void EveryCheckTheLanguageCanFailHasAnExampleInThatLanguage(string file, params string[] checks)
     {
         foreach (var check in checks)

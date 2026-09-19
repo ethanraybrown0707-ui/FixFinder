@@ -201,6 +201,7 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(9, division.Line);
         Assert.Equal(Confidence.Possible, division.Confidence);
         Assert.NotNull(division.FoundBy);
+        Assert.Equal("`values` is empty", division.Witness);
         Assert.Equal("1 possible mistake in the code", report.LogicSummary);
     }
 

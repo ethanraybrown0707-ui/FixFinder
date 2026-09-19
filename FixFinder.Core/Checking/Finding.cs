@@ -55,5 +55,8 @@ public sealed record Finding
     /// <summary>The technique that found it, when it was one of the analyses rather than a compiler, a run or a pattern.</summary>
     public string? FoundBy { get; init; }
 
+    /// <summary>Inputs that make the line fail, found by following the program path by path.</summary>
+    public string? Witness { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }

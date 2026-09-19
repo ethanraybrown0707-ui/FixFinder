@@ -5,7 +5,11 @@ namespace FixFinder.Core.Analysis.Checks;
 
 /// <summary>A mistake one of the analyses proved, or showed is possible, with the technique that found it.</summary>
 public sealed record AnalysisFinding(
-    string CheckId, SourceSpan Span, string Message, Severity Severity, Confidence Confidence, FindingKind Kind, string FoundBy);
+    string CheckId, SourceSpan Span, string Message, Severity Severity, Confidence Confidence, FindingKind Kind, string FoundBy)
+{
+    /// <summary>Inputs that make the line fail, when symbolic execution found some: "`values` is empty".</summary>
+    public string? Witness { get; init; }
+}
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>
 public sealed class SourceText

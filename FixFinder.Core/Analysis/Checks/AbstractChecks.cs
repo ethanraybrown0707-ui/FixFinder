@@ -1,6 +1,7 @@
 using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
+using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
 
 namespace FixFinder.Core.Analysis.Checks;
@@ -10,9 +11,13 @@ public static class AbstractChecks
 {
     public const string FoundBy = "abstract interpretation";
 
+    /// <summary>How long following paths may add to checking one program; functions past it keep what abstract interpretation found.</summary>
+    private static readonly TimeSpan SymbolicBudget = TimeSpan.FromSeconds(5);
+
     public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source)
     {
         var findings = new List<AnalysisFinding>();
+        var symbolic = System.Diagnostics.Stopwatch.StartNew();
 
         foreach (var function in program.AllFunctions)
         {
@@ -25,7 +30,9 @@ public static class AbstractChecks
             };
             var graph = CfgBuilder.Build(function);
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
-            new FunctionChecks(graph, fixpoint, evaluator, source, findings).Run();
+            var local = new List<AnalysisFinding>();
+            new FunctionChecks(graph, fixpoint, evaluator, source, local).Run();
+            findings.AddRange(symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local);
         }
 
         return findings
@@ -104,7 +111,35 @@ public static class AbstractChecks
             }
 
             ReportConditions();
+            ReportEndlessLoops();
         }
+
+        /// <summary>Loops whose condition nothing inside them can change: once they start, they never stop.</summary>
+        private void ReportEndlessLoops()
+        {
+            var locals = (evaluator.Locals ?? new HashSet<string>()).Except(evaluator.Volatile).ToHashSet(StringComparer.Ordinal);
+
+            foreach (var (_, condition) in LoopBounds.NeverEnding(graph.Function, locals))
+            {
+                var tests = Leaves(condition).ToList();
+                var head = graph.Blocks.FirstOrDefault(b => b.IsLoopHead && b.Terminator is Branch branch && tests.Contains(branch.Condition, ReferenceEqualityComparer.Instance));
+                if (head is null) continue;
+
+                var entry = fixpoint.EntryOf(head.Id);
+                if (!entry.IsReachable || !evaluator.Assume(entry, condition, true).IsReachable) continue;
+
+                var names = string.Join(" or ", IrWalk.Names(condition).Where(locals.Contains).Distinct().Select(n => $"`{n}`"));
+                Report("analysis-loop-never-ends", condition.Span, $"Nothing inside the loop changes {names}, so once `{Quote(condition)}` is true the loop never ends",
+                    Severity.Error, Confidence.Likely, FindingKind.Logic);
+            }
+        }
+
+        private static IEnumerable<Expr> Leaves(Expr condition) => condition switch
+        {
+            Unary { Operator: UnaryOperator.Not } negation => Leaves(negation.Operand),
+            Binary { Operator: BinaryOperator.And or BinaryOperator.Or } both => Leaves(both.Left).Concat(Leaves(both.Right)),
+            _ => [condition],
+        };
 
         /// <summary>Names given one literal value and never changed - switches like debug = False, not mistakes.</summary>
         private HashSet<string> Switches => _switches ??= IrWalk.Statements(graph.Function.Body)

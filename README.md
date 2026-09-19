@@ -85,10 +85,26 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
 | A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
 | A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
+| A loop that never ends | `while n > 0: print(n)` - nothing inside changes `n` |
 
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so
 the checks stay quiet rather than guess.
+
+Then **symbolic execution** follows each function one path at a time, with a symbol for each value it does not know,
+and asks a constraint solver which ways through are possible. The solver is FixFinder's own: an exact simplex over
+fractions, with branching for whole numbers.
+
+- A line that can fail gets the inputs that make it fail: *Fails when `values` is empty*, *Fails when `person` is null*.
+- A possible mistake no path can actually reach is dropped as a false alarm, once every path has been followed - for
+  example a `None` that only one branch gives, guarded later by the same test.
+- A line that some path cannot help failing on is reported even where the values seen together could not show it:
+  `if a == b:` and then `1 / (a - b)`.
+- Dividing by a number someone types is reported with the number that breaks it.
+
+A loop is followed as many times as its bound when the code shows one (`for i in range(10)`, `for (i = 0; i < n; i++)`
+with `n` known), and a few times otherwise. A search cut short like that never drops a finding. Paths, steps and time
+are all capped - a quarter of a second per function, five seconds per program - so a large program still checks quickly.
 
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
@@ -146,7 +162,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
-| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`) and the checks (`Checks`). |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`) and the checks (`Checks`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |

@@ -92,6 +92,17 @@ internal static class AnalysisGuides
                 n -= 1
             """),
 
+        Pattern(["analysis-loop-never-ends"], "A loop that never ends",
+            "Nothing inside the loop changes what its condition tests, so once the condition is true it stays true for ever.",
+            "The program stops at this loop and never gets any further: it looks frozen until it is closed.",
+            "Change what the condition tests inside the loop - count it down, read the next input into it - or leave the loop with break.",
+            """
+            n = 5
+            while n > 0:
+                print(n)
+                n -= 1
+            """),
+
         Pattern(["analysis-assert-always-fails"], "An assert that always fails",
             "The condition in this assert is false every time the line is reached.",
             "The program stops with an AssertionError here every time.",
@@ -187,6 +198,16 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-loop-never-ends"], "A loop that never ends",
+            "Nothing inside the loop changes what its condition tests, so once the condition is true it stays true for ever.",
+            "The program stops at this loop and never gets any further: it looks frozen until it is closed.",
+            "Change what the condition tests inside the loop - count it down, read the next input into it - or leave the loop with break.",
+            """
+            for (int i = 0; i < 10; i++) {
+                System.out.println(i);
+            }
+            """),
+
         Pattern(["analysis-assert-always-fails"], "An assert that always fails",
             "The condition in this assert is false every time the line is reached.",
             "With assertions turned on (java -ea) the program stops with an AssertionError here every time.",
@@ -271,6 +292,15 @@ internal static class AnalysisGuides
             int n = 10;
             while (n > 0)
                 n--;
+            """),
+
+        Pattern(["analysis-loop-never-ends"], "A loop that never ends",
+            "Nothing inside the loop changes what its condition tests, so once the condition is true it stays true for ever.",
+            "The program stops at this loop and never gets any further: it looks frozen until it is closed.",
+            "Change what the condition tests inside the loop - count it down, read the next input into it - or leave the loop with break.",
+            """
+            for (int i = 0; i < 10; i++)
+                Console.WriteLine(i);
             """),
     ];
 }

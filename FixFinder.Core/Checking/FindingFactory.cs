@@ -104,6 +104,7 @@ public static partial class FindingFactory
             RuleId = finding.CheckId,
             Family = finding.CheckId,
             FoundBy = finding.FoundBy,
+            Witness = finding.Witness,
         };
     }
 
