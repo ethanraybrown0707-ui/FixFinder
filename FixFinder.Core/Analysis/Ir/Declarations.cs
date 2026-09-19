@@ -39,6 +39,12 @@ public sealed record IrFunction(
     public bool IsAsync { get; init; }
     public bool IsGenerator { get; init; }
 
+    /// <summary>The function this one is written inside - it can see and change that function's variables - or the module.</summary>
+    public string? EnclosedBy { get; init; }
+
+    /// <summary>Names this function declares as belonging to an outer scope (Python's global and nonlocal).</summary>
+    public IReadOnlyList<string> OuterNames { get; init; } = [];
+
     public string FullName => Owner is null ? Name : $"{Owner}.{Name}";
 }
 

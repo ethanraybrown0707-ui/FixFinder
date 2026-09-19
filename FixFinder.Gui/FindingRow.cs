@@ -26,7 +26,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ConfidenceTooltip => Finding.Confidence switch
     {
-        Confidence.Certain => "Certain: the compiler, the run or your expected output shows this is wrong.",
+        Confidence.Certain => "Certain: the compiler, the run, your expected output or following every value through the code shows this is wrong.",
         Confidence.Likely => "Likely: code written this way is almost always a mistake.",
         _ => "Possible: this is often a mistake, but it can be what was meant.",
     };
@@ -80,6 +80,10 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ToggleText => IsExpanded ? "Hide details" : "Show details";
 
+    public bool HasFoundBy => Finding.FoundBy is not null;
+
+    public string FoundByText => Finding.FoundBy is { } technique ? $"Found by {technique}" : "";
+
     public string AsText()
     {
         var lines = new List<string>
@@ -91,6 +95,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             $"Why it matters: {WhyItMatters}",
             $"How to fix it: {SuggestedFix}",
         };
+
+        if (HasFoundBy) lines.Insert(2, FoundByText);
 
         if (HasExample)
         {

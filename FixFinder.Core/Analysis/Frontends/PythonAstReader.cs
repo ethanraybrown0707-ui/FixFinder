@@ -8,6 +8,7 @@ internal sealed class PythonAstReader(string file)
 {
     private readonly List<IrFunction> _functions = [];
     private readonly List<IrClass> _classes = [];
+    private readonly Stack<(string Name, List<string> OuterNames)> _enclosing = new();
 
     public List<string> Problems { get; } = [];
 
@@ -143,7 +144,12 @@ internal sealed class PythonAstReader(string file)
                 }
                 break;
 
-            case "Pass" or "Global" or "Nonlocal" or "TypeAlias":
+            case "Global" or "Nonlocal":
+                if (_enclosing.Count > 0)
+                    _enclosing.Peek().OuterNames.AddRange(Items(node, "names").Select(n => n.GetString() ?? ""));
+                break;
+
+            case "Pass" or "TypeAlias":
                 break;
 
             default:
@@ -213,9 +219,18 @@ internal sealed class PythonAstReader(string file)
 
         var decorators = Items(node, "decorator_list").Select(DottedName).ToList();
         var name = Text(node, "name");
+        var fullName = owner is null ? name : $"{owner}.{name}";
+        var enclosedBy = _enclosing.Count > 0 ? _enclosing.Peek().Name : IrFunction.ModuleBody;
 
-        return new IrFunction(Span(node), name, owner, parameters, TypeOf(Field(node, "returns")), Block(node, "body"))
+        var outerNames = new List<string>();
+        _enclosing.Push((fullName, outerNames));
+        var body = Block(node, "body");
+        _enclosing.Pop();
+
+        return new IrFunction(Span(node), name, owner, parameters, TypeOf(Field(node, "returns")), body)
         {
+            EnclosedBy = enclosedBy,
+            OuterNames = outerNames,
             IsAsync = Kind(node) == "AsyncFunctionDef",
             IsStatic = owner is not null && decorators.Contains("staticmethod"),
             IsConstructor = owner is not null && name == "__init__",

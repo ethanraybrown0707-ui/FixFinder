@@ -342,9 +342,9 @@ public partial class MainWindow : Window
         ShowFindings(report.Findings);
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
-            report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime) ? LaneState.Failed : LaneState.Passed);
+            report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime && f.FoundBy is null) ? LaneState.Failed : LaneState.Passed);
         SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
-            report.Findings.Any(f => f.Kind == FindingKind.Logic && f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
+            report.Findings.Any(f => (f.Kind == FindingKind.Logic || f.FoundBy is not null) && f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
 
         ReportSubtitleText.Text = $"{Path.GetFileName(_launch?.ChosenFile ?? "")}  ·  {(_language.IsAny ? "Auto-detected" : _language.Name)}  ·  " +
                                   $"checked at {DateTime.Now:HH:mm}";

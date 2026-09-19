@@ -52,5 +52,8 @@ public sealed record Finding
 
     public string? Family { get; init; }
 
+    /// <summary>The technique that found it, when it was one of the analyses rather than a compiler, a run or a pattern.</summary>
+    public string? FoundBy { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }

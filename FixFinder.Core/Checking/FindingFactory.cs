@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Checking.Guides;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Logic;
@@ -77,6 +78,28 @@ public static partial class FindingFactory
             RuleId = finding.PatternId,
             Fix = fix,
             Family = finding.PatternId,
+        };
+    }
+
+    public static Finding FromAnalysis(AnalysisFinding finding)
+    {
+        var guide = Guidebook.For(finding.Span.File, finding.Kind, finding.CheckId);
+
+        return new Finding
+        {
+            Kind = finding.Kind,
+            Severity = finding.Severity,
+            Confidence = finding.Confidence,
+            File = finding.Span.File,
+            Line = finding.Span.Line,
+            Title = guide.Title ?? Sentence(finding.Message),
+            Explanation = Sentence(finding.Message),
+            WhyItMatters = guide.WhyItMatters,
+            SuggestedFix = guide.SuggestedFix,
+            CorrectedExample = guide.Example,
+            RuleId = finding.CheckId,
+            Family = finding.CheckId,
+            FoundBy = finding.FoundBy,
         };
     }
 

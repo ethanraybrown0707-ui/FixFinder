@@ -2,6 +2,8 @@ using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.Analysis.Checks;
+using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Sources;
@@ -67,7 +69,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         lock (_gate)
         {
             var logicSummary = logic.Result;
-            var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal));
+            var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
             if (logicSummary.EndsWith("in the code", StringComparison.Ordinal))
                 logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
 
@@ -286,12 +288,16 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
             var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
 
+            var analysed = AnalyseAsync(launch, files, cancellationToken);
+
             await ForEachAsync(patterns, async item =>
             {
                 var (checkedBy, compiles) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
                 Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles));
                 Interlocked.Increment(ref found);
             }, cancellationToken);
+
+            found += await analysed;
 
             if (Expected is not { IsEmpty: false } expected || launch.ChosenFile is not { } chosen)
                 return found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
@@ -321,6 +327,32 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         finally
         {
             LaneFinished?.Invoke(CheckLane.Logic, "done");
+        }
+    }
+
+    /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>
+    private async Task<int> AnalyseAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        if (files.Count == 0 || !files.All(f => Path.GetExtension(f).ToLowerInvariant() is ".py" or ".pyw")) return 0;
+
+        var interpreter = launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
+            ? spec.ExecutablePath
+            : PythonFrontend.FindInterpreter();
+        if (interpreter is null) return 0;
+
+        try
+        {
+            Progress?.Invoke(CheckLane.Logic, "Following every value through the code...");
+            var program = await PythonFrontend.ReadAsync(files, interpreter, cancellationToken);
+            var findings = AbstractChecks.Run(program, new SourceText());
+
+            foreach (var finding in findings) Add(FindingFactory.FromAnalysis(finding));
+            return findings.Count;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Following the values through the code stopped early: {ex.Message}");
+            return 0;
         }
     }
 
