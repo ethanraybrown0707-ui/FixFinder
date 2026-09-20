@@ -9,7 +9,10 @@ namespace FixFinder.Core.Analysis.Frontends;
 /// <summary>Reads Go files into the IR with Go's own parser, go/parser, through a small helper built once with the program's Go.</summary>
 public static class GoFrontend
 {
-    private static readonly TimeSpan ToolTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(90);
+
+    /// <summary>Building the reader is a one-off, and on a machine with nothing cached Go has the standard library to compile first.</summary>
+    private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
     private static readonly SemaphoreSlim Building = new(1, 1);
 
     public static string? FindGo() => TargetFactory.FindOnPath("go");
@@ -28,7 +31,7 @@ public static class GoFrontend
                 ExecutablePath = helper.Program,
                 Arguments = $"\"{output}\" " + string.Join(" ", files.Select(f => $"\"{f}\"")),
                 WorkingDirectory = Path.GetDirectoryName(files[0]) ?? Path.GetTempPath(),
-                Timeout = ToolTimeout,
+                Timeout = ReadTimeout,
             }, cancellationToken);
 
             if (!File.Exists(output))
@@ -64,12 +67,16 @@ public static class GoFrontend
                 ExecutablePath = go,
                 Arguments = $"build -o \"{program}\" \"{source}\"",
                 WorkingDirectory = folder,
-                Timeout = ToolTimeout,
+                Timeout = BuildTimeout,
             }, cancellationToken);
 
-            return File.Exists(program)
-                ? (program, null)
-                : (program, "The Go reader could not be built with this Go: " + string.Join(" ", build.Lines.Select(l => l.Text)));
+            if (File.Exists(program)) return (program, null);
+
+            var said = build.Outcome == RunOutcome.TimedOut
+                ? $"it was still going after {BuildTimeout.TotalMinutes:0} minutes"
+                : string.Join(" ", build.Lines.Select(l => l.Text));
+
+            return (program, $"The Go reader could not be built with this Go: {said}".TrimEnd());
         }
         finally
         {

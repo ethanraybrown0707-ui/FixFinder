@@ -85,7 +85,8 @@ public class ConcurrencyTests : IDisposable
     [Fact]
     public async Task EachThreadWithItsOwnRunnableSharesOnlyStaticFields()
     {
-        var code = SharedCounter
+        // A fresh checkout on Windows holds this file with CRLF line endings, so what is looked for is normalised first.
+        var code = SharedCounter.ReplaceLineEndings("\n")
             .Replace("Counter counter = new Counter();\n        new Thread(counter).start();\n        new Thread(counter).start();",
                 "for (int t = 0; t < 2; t++) {\n            new Thread(new Counter()).start();\n        }");
         if (await Java(code) is not { } own) return;
