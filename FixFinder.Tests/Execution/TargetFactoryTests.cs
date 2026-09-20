@@ -122,6 +122,23 @@ public class TargetFactoryTests : IDisposable
         Assert.Equal(TargetFactory.DefaultTimeout, plan.Spec!.Timeout);
     }
 
+    /// <summary>
+    /// Go compiles the standard library before it runs anything on a machine that has never built Go, which
+    /// outlasts the ordinary wait. Killing it there does not make FixFinder slow, it makes it wrong: the
+    /// program is stopped before it reaches the line that crashes, and a program that fails instantly is
+    /// reported as one that never finished.
+    /// </summary>
+    [Fact]
+    public void GoIsGivenTimeToCompileTheStandardLibraryFirst()
+    {
+        var plan = TargetFactory.FromFile(Make("crash.go", "package main"));
+
+        if (!plan.Ok) return;
+
+        Assert.Equal(TargetFactory.FirstRunTimeout, plan.Spec!.Timeout);
+        Assert.True(plan.Spec.Timeout > TargetFactory.DefaultTimeout);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

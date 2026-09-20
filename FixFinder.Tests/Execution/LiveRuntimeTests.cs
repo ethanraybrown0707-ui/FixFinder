@@ -67,16 +67,40 @@ public class LiveRuntimeTests
         var path = Path.Combine(temp.Path, fileName);
         File.WriteAllText(path, source);
 
-        var plan = TargetFactory.FromFile(path, TimeSpan.FromSeconds(120));
+        // A crashing program prints its error the moment it runs, so the wait here is for the runtime to
+        // get that far - and Go gets there by compiling the standard library first on a machine that never
+        // has. Two minutes was not enough for that on a cold runner (run 35531473398, 2026-09-20): the
+        // program was killed before it printed anything. Taking the allowance from TargetFactory means this
+        // also fails if the wait the GUI gives a real target is ever wrong again.
+        var allowance = TargetFactory.TimeoutFor(Path.GetExtension(fileName));
+        if (allowance < TimeSpan.FromSeconds(120)) allowance = TimeSpan.FromSeconds(120);
+
+        var plan = TargetFactory.FromFile(path, allowance);
         Assert.True(plan.Ok, plan.Problem);
 
         var run = await new TargetRunner(new ParserRegistry()).RunAsync(plan.Spec!, CancellationToken.None);
         if (ApplicationControl.Refused(run)) return;
 
-        Assert.NotNull(run.Error);
+        Assert.True(run.Error is not null, Said(run));
         Assert.Equal(language, run.Error!.LanguageId);
         Assert.Contains(expected, run.Error.RawText, StringComparison.Ordinal);
 
         Assert.NotEmpty(run.Error.Frames);
+    }
+
+    /// <summary>What the run actually did, so a failure can be read without opening the machine it ran on.</summary>
+    /// <remarks>
+    /// Left to itself this assertion fails with "value is null" and nothing else, which says only that the
+    /// error was not read and never why - worth an afternoon of digging through a CI log to answer.
+    /// </remarks>
+    private static string Said(TargetRunResult run)
+    {
+        var printed = run.Lines.TakeLast(20).Select(l => $"  [{l.Stream}] {l.Text}").ToList();
+
+        return $"No error was read: the run {run.Outcome} after {run.Duration.TotalSeconds:0.0}s"
+            + $" (exit code {run.ExitCode?.ToString() ?? "none"}). {run.Explanation}"
+            + (printed.Count == 0
+                ? " It printed nothing at all."
+                : Environment.NewLine + "It printed:" + Environment.NewLine + string.Join(Environment.NewLine, printed));
     }
 }

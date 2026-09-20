@@ -21,6 +21,24 @@ public static class TargetFactory
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
+    /// <summary>What a language that compiles the world before running is given instead.</summary>
+    /// <remarks>
+    /// <c>go run</c> compiles the standard library before it compiles the program, which takes minutes on a
+    /// machine that has never built Go and seconds on one that has. A timeout tuned to the second case does
+    /// not merely make the first slow: the program is killed before it reaches the line that crashes, so
+    /// FixFinder reports that it never finished for a program that in fact fails instantly - the wrong answer
+    /// rather than a slow one. Waiting longer is only ever paid by a target that has not finished yet, so a
+    /// generous allowance costs nothing on the machine where the cache is warm.
+    /// </remarks>
+    public static readonly TimeSpan FirstRunTimeout = TimeSpan.FromMinutes(6);
+
+    private static readonly HashSet<string> CompileBeforeRunning =
+        new(StringComparer.OrdinalIgnoreCase) { ".go" };
+
+    /// <summary>How long a file of this kind is given when the caller has not said.</summary>
+    public static TimeSpan TimeoutFor(string extension) =>
+        CompileBeforeRunning.Contains(extension) ? FirstRunTimeout : DefaultTimeout;
+
     private sealed record Runner(
         string? Interpreter, string ArgumentPrefix = "", params string[] Alternatives);
 
@@ -172,7 +190,7 @@ public static class TargetFactory
             Arguments = viaDotnet ? "" : arguments,
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = viaDotnet,
-            Timeout = timeout ?? DefaultTimeout,
+            Timeout = timeout ?? TimeoutFor(extension),
         };
 
         var how = $"Running it{together} with {Path.GetFileNameWithoutExtension(found)}.";
