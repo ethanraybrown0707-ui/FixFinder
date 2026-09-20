@@ -189,6 +189,178 @@ internal static class AnalysisGuides
             """),
     ];
 
+    /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
+    public static IReadOnlyList<GuideEntry> Go { get; } =
+    [
+        Pattern(["analysis-division-by-zero"], "Dividing by something that can be zero",
+            "Following the values through the code shows the whole number being divided by is, or can be, 0 at this line - for example a count that stays 0 when a loop never runs.",
+            "Dividing a whole number by zero panics with `integer divide by zero`, often only for the inputs nobody tried, like an empty slice.",
+            "Check the divisor first and decide what the answer should be when it is 0.",
+            """
+            if count == 0 {
+                return 0
+            }
+            return total / count
+            """),
+
+        Pattern(["analysis-null-used"], "Reading something through a nil pointer",
+            "On at least one way through the code the pointer is nil when this line reads a field through it - for example a value only some branches set.",
+            "Reading a field through a nil pointer panics with `invalid memory address or nil pointer dereference`. A nil slice or map is fine to measure, walk or read from; a pointer is not.",
+            "Check for nil first, or give the pointer a value on every way through the code.",
+            """
+            if node == nil {
+                return 0
+            }
+            return node.value
+            """),
+
+        Pattern(["analysis-index-out-of-range"], "Asking for a position that does not exist",
+            "The slice or array has a known length here, and the position asked for is past its end.",
+            "Positions run from 0 to len(x)-1, so this panics with `index out of range`.",
+            "Use a position inside the slice, such as len(x)-1 for the last item.",
+            """
+            if len(points) > 0 {
+                last := points[len(points)-1]
+                fmt.Println(last)
+            }
+            """),
+
+        Pattern(["analysis-lock-not-released"], "A lock that is not always released",
+            "One way out of this function leaves the mutex locked - usually a return between Lock and Unlock.",
+            "Everything else that needs the lock waits for ever.",
+            "Release it with defer, which runs on every way out of the function.",
+            """
+            c.mu.Lock()
+            defer c.mu.Unlock()
+            c.count += n
+            """),
+
+        Pattern(["analysis-lost-update"], "An update two goroutines can lose",
+            "Several goroutines run this line at once with nothing holding them apart, and it reads a value, changes it and writes it back.",
+            "Two goroutines can read the same old value, so one of the updates is lost.",
+            "Hold a mutex around the update, or use sync/atomic.",
+            """
+            var mu sync.Mutex
+            mu.Lock()
+            count++
+            mu.Unlock()
+            """),
+    ];
+
+    /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
+    public static IReadOnlyList<GuideEntry> JavaScript { get; } =
+    [
+        Pattern(["analysis-null-used"], "Using something that is null or undefined",
+            "On at least one way through the code the value is null or undefined when this line uses it - a variable declared with no value, a search that found nothing, or a field that is not always set.",
+            "Reading a property of null or undefined stops the program with a TypeError.",
+            "Check it first, or reach it with ?. so the whole chain gives undefined instead of failing.",
+            """
+            const found = people.find((p) => p.id === id);
+            if (!found) {
+              return '';
+            }
+            return found.name;
+            """),
+
+        Pattern(["analysis-loop-never-ends"], "A loop that never ends",
+            "Nothing inside the loop changes what its condition reads, so once the loop starts it never stops.",
+            "The program hangs, using the processor and answering nothing.",
+            "Change the value the condition reads inside the loop, or break out of it.",
+            """
+            let left = items.length;
+            while (left > 0) {
+              left -= 1;
+            }
+            """),
+    ];
+
+    /// <summary>What C and C++ do when a program goes wrong, and what the memory checks find.</summary>
+    public static IReadOnlyList<GuideEntry> Native { get; } =
+    [
+        Pattern(["analysis-division-by-zero"], "Dividing by something that can be zero",
+            "Following the values through the code shows the whole number being divided by is, or can be, 0 at this line - for example a count that stays 0 when a loop never runs.",
+            "Dividing a whole number by zero is undefined behaviour: on most machines it stops the program with a floating point exception.",
+            "Check the divisor first and decide what the answer should be when it is 0.",
+            """
+            if (count == 0) {
+                return 0;
+            }
+            return total / count;
+            """),
+
+        Pattern(["analysis-null-used"], "Going through a pointer that can be NULL",
+            "On at least one way through the code the pointer is NULL when this line goes through it - malloc can come back with nothing, and a pointer is only set on some branches.",
+            "Reading or writing through a null pointer is undefined behaviour: it usually stops the program with a segmentation fault.",
+            "Check what you were given before using it.",
+            """
+            int *numbers = malloc(count * sizeof(int));
+            if (numbers == NULL) {
+                return 1;
+            }
+            numbers[0] = 1;
+            """),
+
+        Pattern(["analysis-index-out-of-range"], "Asking for a position that does not exist",
+            "The array has a known size here, and the position asked for is past its end.",
+            "C does not check positions, so this reads or writes memory that belongs to something else - undefined behaviour, and often a crash or a security hole.",
+            "Use a position inside the array, such as size - 1 for the last item.",
+            """
+            int marks[3] = {1, 2, 3};
+            int last = marks[2];
+            """),
+
+        Pattern(["analysis-use-after-free"], "Memory used after it is freed",
+            "This line goes through a pointer whose memory was already freed on the line the message names - often a linked list freed in a loop that then reads the next node.",
+            "The memory may already belong to something else, so this reads or writes whatever is there now: undefined behaviour, and a common security hole.",
+            "Take what you need before freeing, and set the pointer to NULL afterwards.",
+            """
+            struct node *next = n->next;
+            free(n);
+            n = next;
+            """),
+
+        Pattern(["analysis-double-free"], "Memory freed twice",
+            "Every way to this line has already freed the same pointer.",
+            "Freeing memory twice corrupts what the allocator keeps about it: the program usually stops, and it can be exploited.",
+            "Free once, and set the pointer to NULL so a second free does nothing.",
+            """
+            free(buffer);
+            buffer = NULL;
+            """),
+
+        Pattern(["analysis-memory-leak"], "Memory nobody frees",
+            "This memory is asked for here, and the function returns without freeing it, handing it back or storing it anywhere.",
+            "The program keeps hold of memory it can never use again; in something long-running it grows until it stops.",
+            "Free it before every way out of the function, or return it so the caller can.",
+            """
+            int *numbers = malloc(count * sizeof(int));
+            /* ... */
+            free(numbers);
+            """),
+
+        Pattern(["analysis-dangling-pointer"], "The address of something that is about to go",
+            "The address given back belongs to this function, and everything of the function's own is gone once it returns.",
+            "Whatever is written through that address later lands on memory that is now something else's: undefined behaviour.",
+            "Ask for memory that outlives the function, or let the caller pass memory in.",
+            """
+            int *counter(void)
+            {
+                int *count = malloc(sizeof(int));
+                *count = 0;
+                return count;
+            }
+            """),
+
+        Pattern(["analysis-uninitialised-read"], "A value read before it is given one",
+            "Nothing has been put in this variable on any way to this line - C does not clear what it hands you.",
+            "The value is whatever happened to be in that memory, so the program does something different each time it runs.",
+            "Give it a value where it is declared.",
+            """
+            int total = 0;
+            printf("%d\n", total);
+            """),
+    ];
+
     public static IReadOnlyList<GuideEntry> Java { get; } =
     [
         Pattern(["analysis-division-by-zero"], "Dividing by something that can be zero",

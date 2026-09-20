@@ -30,15 +30,18 @@ public static class Guidebook
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
     private static readonly IReadOnlyList<GuideEntry> CSharpTable = [.. CSharpGuides.All, .. AnalysisGuides.CSharp];
+    private static readonly IReadOnlyList<GuideEntry> NativeTable = [.. NativeGuides.All, .. AnalysisGuides.Native];
+    private static readonly IReadOnlyList<GuideEntry> JavaScriptTable = [.. JavaScriptGuides.All, .. AnalysisGuides.JavaScript];
+    private static readonly IReadOnlyList<GuideEntry> GoTable = [.. GoGuides.All, .. AnalysisGuides.Go];
 
     private static IReadOnlyList<GuideEntry> TableFor(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
         ".py" or ".pyw" => PythonGuides.All,
         ".java" => JavaTable,
         ".cs" => CSharpTable,
-        ".c" or ".h" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => NativeGuides.All,
-        ".js" or ".mjs" or ".cjs" => JavaScriptGuides.All,
-        ".go" => GoGuides.All,
+        ".c" or ".h" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => NativeTable,
+        ".js" or ".mjs" or ".cjs" => JavaScriptTable,
+        ".go" => GoTable,
         _ => [],
     };
 
