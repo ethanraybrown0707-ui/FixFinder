@@ -395,6 +395,13 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         if (AllEndIn(".cs")) return CSharpFrontend.ReadAsync(files, cancellationToken);
 
+        if (AllEndIn(".go"))
+            return GoFrontend.FindGo() is { } go ? GoFrontend.ReadAsync(files, go, cancellationToken) : null;
+
+        if (AllEndIn(".js", ".mjs", ".cjs")) return JavaScriptFrontend.ReadAsync(files, cancellationToken);
+
+        if (AllEndIn(".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".hh")) return CFrontend.ReadAsync(files, cancellationToken);
+
         return null;
     }
 

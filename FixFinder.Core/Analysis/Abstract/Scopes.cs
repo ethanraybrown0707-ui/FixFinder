@@ -22,6 +22,8 @@ public static class Scopes
         foreach (var other in program.AllFunctions.Where(f => !ReferenceEquals(f, function) && IsInside(program, f, function)))
             shared.UnionWith(IrWalk.FreeNames(other));
 
+        // A variable whose address was taken can be changed through that pointer by any call it was handed to.
+        shared.UnionWith(function.AddressTaken);
         shared.IntersectWith(IrWalk.LocalNames(function));
         return shared;
     }
@@ -31,8 +33,13 @@ public static class Scopes
         if (outer.Name == IrFunction.ModuleBody) return inner.Name != IrFunction.ModuleBody && SameFile(inner, outer);
 
         var byName = program.AllFunctions.GroupBy(f => f.FullName).ToDictionary(g => g.Key, g => g.First());
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
         for (var parent = inner.EnclosedBy; parent is not null && parent != IrFunction.ModuleBody; parent = byName.GetValueOrDefault(parent)?.EnclosedBy)
+        {
             if (parent == outer.FullName) return true;
+            if (!seen.Add(parent)) break;
+        }
 
         return false;
     }

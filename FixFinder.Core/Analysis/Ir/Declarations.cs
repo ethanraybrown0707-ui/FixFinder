@@ -58,6 +58,9 @@ public sealed record IrFunction(
     /// <summary>Names this function declares as belonging to an outer scope (Python's global and nonlocal).</summary>
     public IReadOnlyList<string> OuterNames { get; init; } = [];
 
+    /// <summary>Variables whose address this function takes, which any call it hands the pointer to can change.</summary>
+    public IReadOnlyList<string> AddressTaken { get; init; } = [];
+
     public string FullName => Owner is null ? Name : $"{Owner}.{Name}";
 }
 

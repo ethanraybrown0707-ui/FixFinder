@@ -51,6 +51,10 @@ public sealed class CallTargets(IrProgram program)
                     return null;
                 }
 
+                // Go calls the package's own functions by name, whichever file they are written in.
+                if (program.Language == SourceLanguage.Go)
+                    return Single(_topLevel[name].Where(f => f.Parameters.Count == arguments)) is { } packaged ? new CallTarget(packaged, false) : null;
+
                 return caller.Owner is { } within ? Method(within, name, arguments, bound: false) : null;
 
             case Member { Target: Name { Identifier: "self" or "cls" or "this" }, MemberName: var method } when caller.Owner is { } owner:

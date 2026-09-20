@@ -418,16 +418,12 @@ public static class SemanticDiff
         _ => past ? "ran to the end" : "runs to the end",
     };
 
-    private static string Failure(string check, SourceLanguage language) => (check, language) switch
+    private static string Failure(string check, SourceLanguage language) => check switch
     {
-        ("analysis-division-by-zero", SourceLanguage.Python) => "ZeroDivisionError",
-        ("analysis-division-by-zero", SourceLanguage.CSharp) => "a DivideByZeroException",
-        ("analysis-division-by-zero", _) => "an ArithmeticException",
-        ("analysis-index-out-of-range", SourceLanguage.Python) or ("analysis-empty-collection", SourceLanguage.Python) => "IndexError",
-        ("analysis-index-out-of-range", _) => "an index out of range exception",
-        ("analysis-null-used", SourceLanguage.Python) => "an error from using None",
-        ("analysis-null-used", SourceLanguage.CSharp) => "a NullReferenceException",
-        ("analysis-null-used", _) => "a NullPointerException",
+        "analysis-division-by-zero" => Failures.DividingByZero(language),
+        "analysis-index-out-of-range" => Failures.OutsideTheList(language),
+        "analysis-empty-collection" => Failures.TakingFromEmpty(language),
+        "analysis-null-used" => language == SourceLanguage.Python ? "an error from using None" : Failures.UsingNothing(language),
         _ => "an error",
     };
 

@@ -151,6 +151,9 @@ public sealed class Concurrency(IrProgram program, SourceText source)
             case Call { Callee: Member { MemberName: "submit" or "execute" or "map" or "runAsync" or "supplyAsync" } method, Arguments: [var runs, ..] }:
                 yield return (runs.Value, method.MemberName == "map");
                 break;
+            case Opaque { What: "go", Parts: [Call { Callee: var goroutine }] }:
+                yield return (goroutine, false);
+                break;
         }
 
         var many = expression is Opaque { What: var what } && (what.Contains("comprehension", StringComparison.Ordinal) || what == "generator");
@@ -243,7 +246,8 @@ public sealed class Concurrency(IrProgram program, SourceText source)
         IrWalk.Statements(function.Body).SelectMany(IrWalk.Expressions).Any(Locking);
 
     private static bool Locking(Expr expression) =>
-        expression is Call { CalleeName: "lock" or "acquire" or "Enter" or "TryEnter" or "lockInterruptibly" } or Call { Callee: Member { Target: Name { Identifier: "Interlocked" } } } ||
+        expression is Call { CalleeName: "lock" or "acquire" or "Enter" or "TryEnter" or "lockInterruptibly" or "Lock" or "RLock" } or
+            Call { Callee: Member { Target: Name { Identifier: "Interlocked" or "atomic" } } } ||
         IrWalk.Children(expression).Any(Locking);
 
     /// <summary>The variable a statement reads, changes and writes back: x += 1, x = x + 1, x++.</summary>

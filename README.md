@@ -71,9 +71,11 @@ list. When an expected output was given, it also runs changed copies of the prog
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
 
-For Python, Java and C#, the logic check also **follows every value through the code** (abstract interpretation). Each
-language is read by its own parser - Python's `ast`, javac's tree API and Roslyn - into one shared form, and each
-function into a graph of the ways through it. Every variable is tracked as the kinds of value it can hold, its range of
+In every language it can read, the logic check also **follows every value through the code** (abstract interpretation).
+Each language is read by a parser that agrees with its own compiler where there is one to ask - Python's `ast`, javac's
+tree API, Roslyn and `go/parser` - and by FixFinder's own reader for C, C++ and JavaScript, where this machine has no
+parser to ask. Everything lands in one shared form, and each
+function becomes a graph of the ways through it. Every variable is tracked as the kinds of value it can hold, its range of
 numbers, its range of lengths and whether it can be null, through every branch and loop until nothing changes:
 
 | Check | For example |
@@ -111,6 +113,26 @@ used, and a lock that is taken must be released on every way out of the function
 | Locks taken in opposite orders | `synchronized (a) { synchronized (b) ... }` in one place, `b` then `a` in another |
 | `wait` or `notify` without its lock, or `wait` outside a loop | `wait()` in a method that is not `synchronized` |
 | `run()` called instead of `start()` | `worker.run()`, which runs the work on the calling thread |
+
+Each language keeps its own rules, and a finding says what that language actually does:
+
+| | |
+|---|---|
+| **Go** | A nil slice has no items and a nil map reads as missing, so `len`, indexing and `range` on them are all fine, while reading a field through a nil pointer is a panic - and a method with a nil receiver is ordinary Go, so `if c == nil` at the top of one is not a test that can never be true. Both sides of a division have the same type, so a whole-number divisor means whole-number division. `panic` is what a guard raises; a deferred call runs on every way out, so a lock released by `defer` is never reported as left locked, and one taken by `defer` is taken for the caller. A slice is a value, so handing it to other code cannot change how long it is. Goroutines started with `go` are followed like any other thread. |
+| **JavaScript** | Dividing by zero gives Infinity rather than failing, and a position past the end gives `undefined`, so neither is reported. Every object and array is true however empty, only `0`, `""`, `null` and `undefined` are false, and `a?.b.c` gives nothing when `a` is nothing - the whole chain is skipped, not just the next step. `typeof x === "number"` says x is something. A variable declared with no value is `undefined`, so reading a field of it is a TypeError. |
+| **C and C++** | Dividing by zero, going through a null pointer and reading past the end of an array are undefined behaviour, which usually stops the program. `malloc` and its like can come back with nothing, so what they return is checked before it is used. |
+| **Python** | Dividing by zero is ZeroDivisionError whatever the numbers are; an empty list is false; text and numbers cannot be added. |
+| **Java and C#** | Whole-number division by zero fails while real division gives infinity; a declared type sets what a variable can hold and how large it can be. |
+
+For **C and C++** the same walk through the graph also checks what happens to memory:
+
+| Check | For example |
+|---|---|
+| Memory used after it is freed | `free(node); printf("%d", node->value);` - including `n = n->next` after `free(n)` in a loop |
+| Memory freed twice | `free(buffer);` on a way through the function that already freed it |
+| Memory nobody frees | `malloc` into a local that is never freed, never returned and never handed on |
+| The address of something that is about to go | `return &count;`, where `count` belongs to the function that is returning |
+| A value read before it is given one | `int total; printf("%d", total);` - unless its address was taken first, as `scanf("%d", &total)` does |
 
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so
@@ -214,7 +236,7 @@ Inside `FixFinder.Core`:
 |---|---|
 | `Checking` | The two checks, the finding model, compiler diagnostics, and the guides in `Checking/Guides`. |
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
-| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`). |
+| `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`), including what each language does when a program goes wrong (`Checks/Failures.cs`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
 | `Execution` | Finding toolchains, building and running programs. |
 | `Parsing` | The stack-trace parsers. |

@@ -1,3 +1,4 @@
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
 
@@ -15,15 +16,15 @@ public sealed class Evaluator(SourceLanguage language)
 
     private static readonly HashSet<string> Growing = new(StringComparer.Ordinal)
     {
-        "append", "insert", "appendleft", "add", "addFirst", "addLast", "push", "offer", "Add", "Insert", "Push", "Enqueue", "AddFirst", "AddLast",
+        "append", "insert", "appendleft", "add", "addFirst", "addLast", "push", "unshift", "offer", "Add", "Insert", "Push", "Enqueue", "AddFirst", "AddLast",
     };
 
     private static readonly HashSet<string> CertainlyShrinking = new(StringComparer.Ordinal)
     {
-        "pop", "popleft", "RemoveAt", "removeFirst", "removeLast", "Pop", "Dequeue", "RemoveFirst", "RemoveLast",
+        "pop", "popleft", "shift", "RemoveAt", "removeFirst", "removeLast", "Pop", "Dequeue", "RemoveFirst", "RemoveLast",
     };
 
-    private static readonly HashSet<string> MaybeShrinking = new(StringComparer.Ordinal) { "remove", "discard", "Remove", "poll" };
+    private static readonly HashSet<string> MaybeShrinking = new(StringComparer.Ordinal) { "remove", "discard", "Remove", "poll", "splice" };
 
 
     public SourceLanguage Language => language;
@@ -58,10 +59,14 @@ public sealed class Evaluator(SourceLanguage language)
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
     {
         if (Volatile.Contains(name)) return state.Without(name);
-        if (Escaping.Contains(name) && value.MayBe(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
-            value = value with { Length = value.Length.Join(Interval.NonNegative) };
+        if (Escaping.Contains(name) && value.MayBe(Shared)) value = value with { Length = value.Length.Join(Interval.NonNegative) };
         return state.With(name, value);
     }
+
+    /// <summary>The kinds of collection whose length other code can change once it has been handed one.</summary>
+    private ValueKind Shared => Failures.ListsKeepTheirLength(language)
+        ? ValueKind.Set | ValueKind.Dictionary
+        : ValueKind.List | ValueKind.Set | ValueKind.Dictionary;
 
     private bool IsPython => language == SourceLanguage.Python;
 
@@ -118,12 +123,16 @@ public sealed class Evaluator(SourceLanguage language)
     private static AbstractValue OpaqueValue(Opaque opaque) => opaque.What switch
     {
         "formatted text" => AbstractValue.Text(Interval.NonNegative),
-        "list comprehension" => AbstractValue.Of(ValueKind.List),
+        "list comprehension" or "a list" => AbstractValue.Of(ValueKind.List),
+        "an object" => AbstractValue.Of(ValueKind.Dictionary),
         "set comprehension" => AbstractValue.Of(ValueKind.Set),
         "dictionary comprehension" => AbstractValue.Of(ValueKind.Dictionary),
         "lambda" or "function" => AbstractValue.Of(ValueKind.Function),
         "class" or "generator" or "AssertionError" or "lambda expression" or "anonymous class" => AbstractValue.Of(ValueKind.Object),
         "instanceof" or "is pattern" => AbstractValue.Boolean,
+        "typed whole number" or "position" => AbstractValue.Integer(Interval.Top),
+        "typed number" => AbstractValue.Real(Interval.Top),
+        "typed text" => AbstractValue.Text(Interval.NonNegative),
         var what when what.StartsWith("module ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Module),
         var what when what.StartsWith("caught ", StringComparison.Ordinal) => AbstractValue.Of(ValueKind.Object),
         _ => AbstractValue.Unknown,
@@ -184,7 +193,7 @@ public sealed class Evaluator(SourceLanguage language)
     /// </summary>
     private Interval Wrapped(ValueKind kinds, Interval left, Interval right, Interval result, bool multiplying = false)
     {
-        if (IsPython || (kinds & ValueKind.Real) != 0 || result.IsEmpty) return result;
+        if (!Failures.NumbersWrapRound(language) || (kinds & ValueKind.Real) != 0 || result.IsEmpty) return result;
 
         var passesALimit = !double.IsInfinity(result.Low) && result.Low < int.MinValue || !double.IsInfinity(result.High) && result.High > int.MaxValue;
         var bothUnlimited = multiplying
@@ -228,7 +237,7 @@ public sealed class Evaluator(SourceLanguage language)
                 BinaryOperator.Add => Numeric(kinds, Wrapped(kinds, left.Number, right.Number, left.Number.Add(right.Number))),
                 BinaryOperator.Subtract => Numeric(kinds, Wrapped(kinds, left.Number, right.Number.Negate(), left.Number.Subtract(right.Number))),
                 BinaryOperator.Multiply => Numeric(kinds, Wrapped(kinds, left.Number, right.Number, left.Number.Multiply(right.Number), multiplying: true)),
-                BinaryOperator.Divide when IsPython || real => AbstractValue.Real(left.Number.Divide(right.Number)),
+                BinaryOperator.Divide when Failures.DivisionGivesReal(language) || real => AbstractValue.Real(left.Number.Divide(right.Number)),
                 BinaryOperator.Divide => AbstractValue.Integer(left.Number.Divide(right.Number).Truncate()),
                 BinaryOperator.FloorDivide => Numeric(kinds, left.Number.Divide(right.Number).Floor()),
                 BinaryOperator.Modulo => Numeric(kinds, left.Number.Modulo(right.Number, signFollowsDivisor: IsPython)),
@@ -265,6 +274,11 @@ public sealed class Evaluator(SourceLanguage language)
 
         if (call.Callee is Name { Identifier: var function } && IsPython && !state.Knows(function))
             return BuiltinCall(function, arguments, call);
+
+        // Asking for memory can come back with nothing, which is why C code checks what it was given.
+        if (language is SourceLanguage.C or SourceLanguage.Cpp && call.Callee is Name { Identifier: var asked } &&
+            asked is "malloc" or "calloc" or "realloc" or "strdup" or "strndup")
+            return AbstractValue.Of(ValueKind.Object).Join(AbstractValue.Null);
 
         if (!IsPython && call.Callee is Member { Target: Name { Identifier: var type }, MemberName: var helper } && !state.Knows(type) &&
             StaticHelper(type, helper, arguments, call) is { } helped)
@@ -316,6 +330,11 @@ public sealed class Evaluator(SourceLanguage language)
         ("double" or "float" or "decimal" or "Double" or "Float" or "Decimal", "Parse" or "parseDouble" or "parseFloat" or "valueOf") =>
             AbstractValue.Real(Interval.Top),
         (_, "TryParse" or "IsNullOrEmpty" or "IsNullOrWhiteSpace") => AbstractValue.Boolean,
+        ("Math", "floor" or "ceil" or "round" or "trunc") => AbstractValue.Integer(Interval.Top),
+        ("Math", "random") => AbstractValue.Real(new Interval(0, 1)),
+        ("Array", "isArray") => AbstractValue.Boolean,
+        ("Object", "keys" or "values" or "entries") => AbstractValue.Sized(ValueKind.List, Interval.NonNegative),
+        ("JSON", "stringify") => AbstractValue.Text(Interval.NonNegative),
         ("string" or "String", "Join" or "Format" or "Concat" or "join" or "format" or "valueOf") => AbstractValue.Text(Interval.NonNegative),
         _ => null,
     };
@@ -327,7 +346,7 @@ public sealed class Evaluator(SourceLanguage language)
         "indexOf" or "lastIndexOf" or "IndexOf" or "LastIndexOf" => AbstractValue.Integer(new Interval(-1, double.PositiveInfinity)),
         "compareTo" or "CompareTo" or "compareToIgnoreCase" => AbstractValue.Integer(Interval.Top),
         "equals" or "equalsIgnoreCase" or "Equals" or "isEmpty" or "isBlank" or "contains" or "Contains" or "startsWith" or "StartsWith"
-            or "endsWith" or "EndsWith" or "matches" => AbstractValue.Boolean,
+            or "endsWith" or "EndsWith" or "matches" or "includes" => AbstractValue.Boolean,
         "split" or "Split" or "toCharArray" or "ToCharArray" => AbstractValue.Sized(ValueKind.List, Interval.NonNegative),
         _ => AbstractValue.Text(Interval.NonNegative),
     };
@@ -418,7 +437,8 @@ public sealed class Evaluator(SourceLanguage language)
     {
         var value = type.Name switch
         {
-            "byte" when language == SourceLanguage.CSharp => AbstractValue.Integer(new Interval(0, 255)),
+            "byte" when language is SourceLanguage.CSharp or SourceLanguage.Go or SourceLanguage.C or SourceLanguage.Cpp =>
+                AbstractValue.Integer(new Interval(0, 255)),
             "byte" or "Byte" or "sbyte" => AbstractValue.Integer(new Interval(-128, 127)),
             "short" or "Short" or "Int16" => AbstractValue.Integer(new Interval(short.MinValue, short.MaxValue)),
             "ushort" or "UInt16" => AbstractValue.Integer(new Interval(0, ushort.MaxValue)),
@@ -554,6 +574,7 @@ public sealed class Evaluator(SourceLanguage language)
         foreach (var argument in call.Arguments)
         {
             if (argument.Value is Name passed && state[passed.Identifier].IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary) &&
+                state[passed.Identifier].MayBe(Shared) &&
                 !(IsPython && call.Callee is Name { Identifier: var builtin } && Builtins.Contains(builtin)))
                 state = Store(state, passed.Identifier, state[passed.Identifier] with { Length = Interval.NonNegative });
         }
@@ -597,7 +618,7 @@ public sealed class Evaluator(SourceLanguage language)
         switch (condition)
         {
             case Literal literal:
-                return Truthy(Constant(literal)) is { } truth && truth != holds ? AbstractState.Unreachable : state;
+                return Truthy(Constant(literal), language) is { } truth && truth != holds ? AbstractState.Unreachable : state;
 
             case Unary { Operator: UnaryOperator.Not } negation:
                 return Assume(state, negation.Operand, !holds);
@@ -633,12 +654,46 @@ public sealed class Evaluator(SourceLanguage language)
                 var present = state[testedName].WithoutNull();
                 return Store(state, testedName, test == "IsNullOrEmpty" && present.IsOnly(ValueKind.Text) ? present.WithLength(new Interval(1, double.PositiveInfinity)) : present);
 
+            // typeof x === 'number' says what x is, and that it is something: in JavaScript only null and undefined are neither.
+            case Binary { Operator: BinaryOperator.Equal } typed when holds && TypeOfTest(typed) is { } named:
+                return AssumeSomething(state, named);
+
             case Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] }:
                 var measured = state[sized.Identifier];
                 return Store(state, sized.Identifier, measured.WithLength(holds ? new Interval(1, double.PositiveInfinity) : Interval.Exactly(0)));
 
             default:
-                return Truthy(Evaluate(condition, state)) is { } known && known != holds ? AbstractState.Unreachable : state;
+                return Truthy(Evaluate(condition, state), language) is { } known && known != holds ? AbstractState.Unreachable : state;
+        }
+    }
+
+    /// <summary>What a typeof test asks about, when what it is compared with rules out nothing at all.</summary>
+    private static Expr? TypeOfTest(Binary comparison)
+    {
+        var (tested, named) = (comparison.Left, comparison.Right) switch
+        {
+            (Opaque { What: "typeof", Parts: [var left] }, Literal { Kind: LiteralKind.Text, Value: string what }) => (left, what),
+            (Literal { Kind: LiteralKind.Text, Value: string what }, Opaque { What: "typeof", Parts: [var right] }) => (right, what),
+            _ => (null, null),
+        };
+
+        // typeof null is "object", and an undefined value answers "undefined", so neither says the value is there.
+        return tested is not null && named is not ("undefined" or "object") ? tested : null;
+    }
+
+    /// <summary>What must hold for a value to be something: a chain that gives nothing when its start is nothing must have got past it.</summary>
+    private AbstractState AssumeSomething(AbstractState state, Expr expression)
+    {
+        switch (expression)
+        {
+            case Conditional { WhenFalse: Literal { Kind: LiteralKind.Null } } choice:
+                return AssumeSomething(Assume(state, choice.Test, true), choice.WhenTrue);
+
+            case Member member when Followed(expression) is null:
+                return AssumeSomething(state, member.Target);
+
+            default:
+                return Followed(expression) is { } name ? Store(state, name, state[name].WithoutNull()) : state;
         }
     }
 
@@ -662,13 +717,16 @@ public sealed class Evaluator(SourceLanguage language)
     };
 
     /// <summary>Whether the value is certainly truthy (true), certainly falsy (false), or could be either (null).</summary>
-    public static bool? Truthy(AbstractValue value)
+    public static bool? Truthy(AbstractValue value, SourceLanguage language = SourceLanguage.Python)
     {
+        var emptyIsFalse = Failures.EmptyIsFalse(language);
+
         if (value.IsImpossible) return null;
         if (value.IsNull) return false;
         if (value.IsOnly(ValueKind.Numeric) && value.Number.IsExact) return value.Number.Low != 0;
         if (value.IsOnly(ValueKind.Numeric) && !value.Number.Contains(0)) return true;
-        if (value.IsOnly(ValueKind.Sized) && value.Length.IsExact && value.Length.Low == 0) return false;
+        if (!emptyIsFalse && value.IsOnly(ValueKind.List | ValueKind.Tuple | ValueKind.Set | ValueKind.Dictionary | ValueKind.Object)) return true;
+        if (value.IsOnly(ValueKind.Sized) && value.Length.IsExact && value.Length.Low == 0) return emptyIsFalse ? false : null;
         if (value.IsOnly(ValueKind.Sized) && value.Length.Low > 0) return true;
         if (value.IsOnly(ValueKind.Function | ValueKind.Module | ValueKind.File)) return true;
         return null;
@@ -678,8 +736,19 @@ public sealed class Evaluator(SourceLanguage language)
     /// Narrows each kind separately: a truthy number is not 0 and a truthy collection is not empty, while a falsy value
     /// can only be 0, empty or null.
     /// </summary>
-    private static AbstractValue TruthOf(AbstractValue value, bool holds)
+    private AbstractValue TruthOf(AbstractValue value, bool holds)
     {
+        if (!Failures.EmptyIsFalse(language))
+        {
+            if (!holds) return value.Kept(ValueKind.Numeric | ValueKind.Text | ValueKind.Null) is var falsy && falsy.IsImpossible ? value : TruthOfFalsy(falsy);
+
+            // Anything that is not a number, a text or nothing is true in JavaScript, however empty it is.
+            var certain = value.Kept(~(ValueKind.Numeric | ValueKind.Text | ValueKind.Null));
+            var narrowed = value.Kept(ValueKind.Numeric | ValueKind.Text);
+            if (!narrowed.IsImpossible) narrowed = TruthOfTruthy(narrowed);
+            return certain.IsImpossible ? narrowed : narrowed.IsImpossible ? certain : certain.Join(narrowed);
+        }
+
         var kinds = holds ? value.Kinds & ~ValueKind.Null : value.Kinds & (ValueKind.Numeric | ValueKind.Sized | ValueKind.Null | ValueKind.Object);
         var number = value.Number;
         var length = value.Length;
@@ -696,6 +765,28 @@ public sealed class Evaluator(SourceLanguage language)
             if (length.IsEmpty) kinds &= ~ValueKind.Sized;
         }
 
+        return new AbstractValue(kinds, number, length) { NullnessKnown = value.NullnessKnown };
+    }
+
+    /// <summary>A number that is not 0, or a text that is not empty.</summary>
+    private static AbstractValue TruthOfTruthy(AbstractValue value)
+    {
+        var kinds = value.Kinds;
+        var number = (kinds & ValueKind.Numeric) != 0 ? WithoutZero(value.Number, (kinds & ValueKind.Real) == 0) : value.Number;
+        var length = (kinds & ValueKind.Text) != 0 ? value.Length.Meet(new Interval(1, double.PositiveInfinity)) : value.Length;
+        if ((kinds & ValueKind.Numeric) != 0 && number.IsEmpty) kinds &= ~ValueKind.Numeric;
+        if ((kinds & ValueKind.Text) != 0 && length.IsEmpty) kinds &= ~ValueKind.Text;
+        return new AbstractValue(kinds, number, length) { NullnessKnown = value.NullnessKnown };
+    }
+
+    /// <summary>In JavaScript only a number, a text or nothing can be false, so a falsy value is one of those.</summary>
+    private static AbstractValue TruthOfFalsy(AbstractValue value)
+    {
+        var number = value.Number.Meet(Interval.Exactly(0));
+        var length = value.Length.Meet(Interval.Exactly(0));
+        var kinds = value.Kinds;
+        if ((kinds & ValueKind.Numeric) != 0 && number.IsEmpty) kinds &= ~ValueKind.Numeric;
+        if ((kinds & ValueKind.Text) != 0 && length.IsEmpty) kinds &= ~ValueKind.Text;
         return new AbstractValue(kinds, number, length) { NullnessKnown = value.NullnessKnown };
     }
 

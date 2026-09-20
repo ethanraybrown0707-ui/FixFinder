@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Solver;
 
@@ -267,6 +268,16 @@ public sealed partial class SymbolicExecutor
         return Condition.Of(Constraint.AtLeast(bit, 1));
     }
 
+    /// <summary>What a typeof test asks about, when what it is compared with is a kind nothing can have.</summary>
+    private static Expr? TypeOfTest(Binary comparison) => (comparison.Left, comparison.Right) switch
+    {
+        (Opaque { What: "typeof", Parts: [var left] }, Literal { Kind: LiteralKind.Text, Value: string what }) when Present(what) => left,
+        (Literal { Kind: LiteralKind.Text, Value: string what }, Opaque { What: "typeof", Parts: [var right] }) when Present(what) => right,
+        _ => null,
+    };
+
+    private static bool Present(string kind) => kind is "number" or "string" or "boolean" or "function" or "bigint" or "symbol";
+
     private static bool IsComparison(BinaryOperator op) =>
         op is BinaryOperator.Equal or BinaryOperator.NotEqual or BinaryOperator.Less or BinaryOperator.LessOrEqual or BinaryOperator.Greater
             or BinaryOperator.GreaterOrEqual or BinaryOperator.Is or BinaryOperator.IsNot;
@@ -287,6 +298,10 @@ public sealed partial class SymbolicExecutor
     private Condition Compare(Binary comparison, Path path)
     {
         var op = comparison.Operator;
+
+        // typeof nothing is never "number", "string", "boolean" or "function", whichever way round the test is written.
+        if (op is BinaryOperator.Equal or BinaryOperator.NotEqual && TypeOfTest(comparison) is { } asked && Evaluate(asked, path) is SymNull)
+            return op == BinaryOperator.Equal ? Condition.False : Condition.True;
 
         if (IsNullLiteral(comparison.Right) || IsNullLiteral(comparison.Left))
         {
@@ -490,6 +505,14 @@ public sealed partial class SymbolicExecutor
         if (IsPython && call.Callee is Name { Identifier: var function } && !path.Store.ContainsKey(function) && !IsOwn(function) && Builtins.Contains(function))
             return Builtin(function, call, path);
 
+        // Asking for memory in C can come back with nothing; both ways are followed.
+        if (_language is SourceLanguage.C or SourceLanguage.Cpp && call.Callee is Name { Identifier: var asked } &&
+            asked is "malloc" or "calloc" or "realloc" or "strdup" or "strndup")
+        {
+            foreach (var argument in call.Arguments) Evaluate(argument.Value, path);
+            return Lookup(call, new SymOther("memory"), null, path);
+        }
+
         if (!IsPython && call.Callee is Member { Target: Name { Identifier: var type }, MemberName: var helper } && !path.Store.ContainsKey(type) && !IsOwn(type) &&
             StaticCall(type, helper, call, path) is { } helped)
             return helped;
@@ -509,7 +532,7 @@ public sealed partial class SymbolicExecutor
 
         if (call.Callee is Member member)
         {
-            var receiver = Receiver(member, path);
+            var receiver = Receiver(member, path, checking: !Failures.NothingCanRunMethods(_language));
             var arguments = call.Arguments.Select(a => Evaluate(a.Value, path)).ToList();
 
             if (MethodValue(member, receiver, arguments, call, path) is { } known) return known;
@@ -538,11 +561,12 @@ public sealed partial class SymbolicExecutor
         return SymNull.Value;
     }
 
-    private SymbolicValue Receiver(Member member, Path path)
+    /// <param name="checking">False where the language lets a method run on nothing, so only reading a field is a mistake.</param>
+    private SymbolicValue Receiver(Member member, Path path, bool checking = true)
     {
         Record(member.Span);
         var target = Evaluate(member.Target, path);
-        Dereferenced(member.Span, path, member.Target, target);
+        if (checking) Dereferenced(member.Span, path, member.Target, target);
         return target;
     }
 
@@ -674,6 +698,10 @@ public sealed partial class SymbolicExecutor
 
             case ("Double" or "Float" or "double" or "float" or "decimal" or "Convert", "parseDouble" or "parseFloat" or "valueOf" or "Parse" or "ToDouble"):
                 return values is [SymText { TypedAt: { } typedReal } real, ..] ? Parsed(real, typedReal, false, path) : Approximate(false);
+
+            case ("fmt", "Println" or "Print" or "Printf"):
+                path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, values.Count, values));
+                return SymUnknown.Value;
 
             case ("Console", "WriteLine" or "Write"):
                 path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, values.Count, values));
@@ -904,6 +932,8 @@ public sealed partial class SymbolicExecutor
 
     private void CheckIndex(SourceSpan span, LinearTerm length, LinearTerm index, Path path, Expr culprit)
     {
+        if (!Failures.ReadingPastTheEndFails(_language)) return;
+
         var lowest = IsPython ? -length : LinearTerm.Of(0);
 
         Check("analysis-index-out-of-range", span, path, culprit,
@@ -1019,6 +1049,14 @@ public sealed partial class SymbolicExecutor
     {
         switch (opaque.What)
         {
+            case "typed whole number" or "typed number":
+                var whole = opaque.What == "typed whole number";
+                return new SymNumber(_symbols.New($"the number typed at line {opaque.Span.Line}", SymbolOrigin.Input, whole, typedAt: opaque.Span.Line,
+                    occurrence: Read(SymbolOrigin.Input, opaque.Span.Line, path)), whole);
+
+            case "typed text":
+                return Typed(opaque.Span.Line, path);
+
             case "is pattern" when opaque.Parts is [var subject]:
                 return new SymTruth(Evaluate(subject, path) is SymNull ? Condition.False : Condition.Either);
 

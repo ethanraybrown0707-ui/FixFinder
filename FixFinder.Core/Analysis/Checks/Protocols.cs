@@ -180,11 +180,11 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     {
         switch (value)
         {
-            case Call { Callee: Member { Target: Name { Identifier: var owner }, MemberName: "close" or "Close" or "Dispose" } } close when state.ContainsKey(owner):
+            case Call { Callee: Member { Target: var closed, MemberName: "close" or "Close" or "Dispose" } } close when Owner(closed) is { } owner && state.ContainsKey(owner):
                 state[owner] = [new Mark(Phase.Closed, close.Span.Line, close.Span)];
                 return true;
 
-            case Call { Callee: Member { Target: Name { Identifier: var owner }, MemberName: var method } } call when Acquires(method) && !_handedOn.Contains(owner):
+            case Call { Callee: Member { Target: var taken, MemberName: var method } } call when Acquires(method) && Owner(taken) is { } owner && !_handedOn.Contains(owner):
                 state[owner] = [new Mark(Phase.Held, call.Span.Line, call.Span)];
                 return true;
 
@@ -192,7 +192,7 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
                 state["monitor " + guarded] = [new Mark(Phase.Held, enter.Span.Line, enter.Span)];
                 return true;
 
-            case Call { Callee: Member { Target: Name { Identifier: var owner }, MemberName: var method } } when Releases(method) && state.ContainsKey(owner):
+            case Call { Callee: Member { Target: var released, MemberName: var method } } when Releases(method) && Owner(released) is { } owner && state.ContainsKey(owner):
                 state[owner] = [new Mark(Phase.Released, 0, SourceSpan.None)];
                 return true;
 
@@ -224,9 +224,28 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
 
     private static bool Calls(Expr expression) => expression is Call or NewObject || IrWalk.Children(expression).Any(Calls);
 
-    private bool Acquires(string method) => IsPython ? method == "acquire" : method is "lock" or "lockInterruptibly";
+    /// <summary>What a lock or file is held under: its own name, or the field's name when it belongs to this object.</summary>
+    private static string? Owner(Expr receiver) => receiver switch
+    {
+        Name name => name.Identifier,
+        Member { Target: Name { Identifier: "this" or "self" }, MemberName: var field } => field,
+        _ => null,
+    };
 
-    private bool Releases(string method) => IsPython ? method == "release" : method == "unlock";
+    /// <summary>
+    /// The locks this function releases somewhere. A function that only takes a lock is taking it for whoever called it
+    /// - threading's _acquire_restore does exactly that - so being left holding it is not a mistake.
+    /// </summary>
+    private HashSet<string> Released => _released ??= IrWalk.Statements(graph.Function.Body).SelectMany(IrWalk.Expressions)
+        .Select(e => e is Call { Callee: Member { Target: var owner, MemberName: var method } } && Releases(method) ? Owner(owner) : null)
+        .OfType<string>()
+        .ToHashSet(StringComparer.Ordinal);
+
+    private HashSet<string>? _released;
+
+    private bool Acquires(string method) => IsPython ? method == "acquire" : method is "lock" or "lockInterruptibly" or "Lock" or "RLock";
+
+    private bool Releases(string method) => IsPython ? method == "release" : method is "unlock" or "Unlock" or "RUnlock";
 
     /// <summary>What opens a file or stream: open(...), new FileReader(...), File.OpenText(...) and their like.</summary>
     private bool Opens(Expr value) => value switch
@@ -273,6 +292,9 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     {
         foreach (var (name, marks) in state)
         {
+            var lockedFor = name.StartsWith("monitor ", StringComparison.Ordinal) ? name["monitor ".Length..] : name;
+            if (!Released.Contains(lockedFor)) continue;
+
             foreach (var held in marks.Where(m => m.Phase == Phase.Held))
             {
                 if (!_reported.Add(held.At)) continue;
@@ -287,6 +309,8 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     /// <summary>A call made while holding a lock, outside any try: if it throws, the unlock after it never runs.</summary>
     private void LeftByException(State state, Call call)
     {
+        if (!Failures.CallsCanThrow(language)) return;
+
         foreach (var (name, marks) in state)
         {
             if (marks.Count == 0 || !marks.All(m => m.Phase == Phase.Held)) continue;

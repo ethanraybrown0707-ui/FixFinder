@@ -76,7 +76,7 @@ public static class SymbolicChecks
 
         var whole = source.Of(span) is { Length: > 0 } text ? text : "this";
         var culprit = outcome.Culprit is { } value ? Quote(value) : "the value";
-        var none = language == SourceLanguage.Python ? "None" : "null";
+        var none = Failures.Nothing(language);
 
         if (!outcome.Forced)
         {
@@ -99,18 +99,11 @@ public static class SymbolicChecks
         };
     }
 
-    private static string Failure(SourceLanguage language, string kind) => (language, kind) switch
+    private static string Failure(SourceLanguage language, string kind) => kind switch
     {
-        (SourceLanguage.Python, "zero") => "ZeroDivisionError",
-        (SourceLanguage.Python, "index" or "empty") => "IndexError",
-        (SourceLanguage.Python, _) => "AttributeError or TypeError",
-        (SourceLanguage.CSharp, "zero") => "a DivideByZeroException",
-        (SourceLanguage.CSharp, "index") => "an index out of range exception",
-        (SourceLanguage.CSharp, "null") => "a NullReferenceException",
-        (SourceLanguage.CSharp, _) => "an InvalidOperationException",
-        (_, "zero") => "an ArithmeticException",
-        (_, "index") => "an IndexOutOfBoundsException",
-        (_, "null") => "a NullPointerException",
-        _ => "a NoSuchElementException",
+        "zero" => Failures.DividingByZero(language),
+        "index" => Failures.OutsideTheList(language),
+        "null" => language == SourceLanguage.Python ? "AttributeError or TypeError" : Failures.UsingNothing(language),
+        _ => Failures.TakingFromEmpty(language),
     };
 }

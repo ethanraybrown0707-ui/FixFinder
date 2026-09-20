@@ -8,7 +8,8 @@ namespace FixFinder.Core.Analysis.Diffing;
 /// <summary>What one proposed fix does to the program's behaviour, found by reading the file before and after it.</summary>
 public static class FixDiffs
 {
-    public static bool Supports(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".java" or ".cs";
+    public static bool Supports(string file) =>
+        Path.GetExtension(file).ToLowerInvariant() is ".py" or ".java" or ".cs" or ".go" or ".js" or ".mjs" or ".c" or ".cpp" or ".cc" or ".h" or ".hpp";
 
     /// <summary>The fix's effect in sentences, or null when the file cannot be read in both versions.</summary>
     public static async Task<IReadOnlyList<string>?> DescribeAsync(LocalFix fix, string? python, CancellationToken cancellationToken)
@@ -48,6 +49,9 @@ public static class FixDiffs
             ".py" when python is not null => await PythonFrontend.ReadAsync([file], python, cancellationToken),
             ".java" when JavaFrontend.FindTools() is { } tools => await JavaFrontend.ReadAsync([file], tools.Javac, tools.Java, cancellationToken),
             ".cs" => await CSharpFrontend.ReadAsync([file], cancellationToken),
+            ".go" when GoFrontend.FindGo() is { } go => await GoFrontend.ReadAsync([file], go, cancellationToken),
+            ".js" or ".mjs" => await JavaScriptFrontend.ReadAsync([file], cancellationToken),
+            ".c" or ".cpp" or ".cc" or ".h" or ".hpp" => await CFrontend.ReadAsync([file], cancellationToken),
             _ => null,
         };
 }

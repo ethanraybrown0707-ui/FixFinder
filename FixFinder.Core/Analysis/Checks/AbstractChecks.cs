@@ -198,7 +198,9 @@ public static class AbstractChecks
         }
 
         if (evaluator.Language != SourceLanguage.Python && function.Owner is not null && !function.IsStatic)
-            state = state.With("this", AbstractValue.Of(ValueKind.Object));
+            state = state.With("this", Failures.ReceiverCanBeNothing(evaluator.Language)
+                ? AbstractValue.Of(ValueKind.Object) with { NullnessKnown = false }
+                : AbstractValue.Of(ValueKind.Object));
 
         return state;
     }
@@ -246,6 +248,7 @@ public static class AbstractChecks
             ReportConditions();
             ReportEndlessLoops();
             new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic)).Check();
+            new MemorySafety(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence)).Check();
         }
 
         /// <summary>Loops whose condition nothing inside them can change: once they start, they never stop.</summary>
@@ -275,11 +278,20 @@ public static class AbstractChecks
             _ => [condition],
         };
 
-        /// <summary>Names given one literal value and never changed - switches like debug = False, not mistakes.</summary>
+        /// <summary>
+        /// Names that only ever hold a value written into the code: a switch like debug = False, or a flag set to true
+        /// where something is found. Whether such a name holds is the program's own business, not a mistake - and where
+        /// a flag is set deep inside loops, following every value cannot always see how it gets there.
+        /// </summary>
         private HashSet<string> Switches => _switches ??= IrWalk.Statements(graph.Function.Body)
-            .OfType<Assign>()
-            .GroupBy(a => a.Target is Name name ? name.Identifier : "")
-            .Where(g => g.Key.Length > 0 && g.Count() == 1 && g.Single() is { Value: Literal, Compound: null })
+            .Select(s => s switch
+            {
+                Assign { Target: Name name } assign => (Name: name.Identifier, Literal: assign is { Value: Literal, Compound: null }),
+                Declare declare => (Name: declare.Variable, Literal: declare.Initial is Literal or null),
+                _ => (Name: "", Literal: false),
+            })
+            .GroupBy(s => s.Name)
+            .Where(g => g.Key.Length > 0 && g.All(s => s.Literal))
             .Select(g => g.Key)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -303,7 +315,8 @@ public static class AbstractChecks
 
         private string Quote(Expr expression) => source.Of(expression.Span) is { Length: > 0 } text ? text : IrText.Of(expression);
 
-        private void Inspect(Expr expression, AbstractState state)
+        /// <param name="asCallee">Whether this is what a call runs, which some languages allow on nothing.</param>
+        private void Inspect(Expr expression, AbstractState state, bool asCallee = false)
         {
             switch (expression)
             {
@@ -329,7 +342,8 @@ public static class AbstractChecks
                     break;
 
                 case Member member when member.Target is not Literal && !IsSpecialName(member.MemberName):
-                    CheckNotNull(member.Target, member, state, $"reading `.{member.MemberName}`");
+                    if (!asCallee || !Failures.NothingCanRunMethods(evaluator.Language))
+                        CheckNotNull(member.Target, member, state, $"reading `.{member.MemberName}`");
                     break;
 
                 case ElementAccess element:
@@ -346,7 +360,8 @@ public static class AbstractChecks
                     break;
             }
 
-            foreach (var child in Children(expression)) Inspect(child, state);
+            foreach (var child in Children(expression))
+                Inspect(child, state, asCallee: expression is Call call && ReferenceEquals(child, call.Callee));
         }
 
         private static bool IsSpecialName(string name) => name.Length > 4 && name.StartsWith("__", StringComparison.Ordinal) && name.EndsWith("__", StringComparison.Ordinal);
@@ -362,7 +377,7 @@ public static class AbstractChecks
             NewObject created => created.Arguments.Select(a => a.Value),
             Cast cast => [cast.Value],
             CollectionLiteral collection => collection.Items.Concat(collection.Keys ?? []),
-            AssignValue assigned => [assigned.Value],
+            AssignValue assigned => assigned.Target is Name ? [assigned.Value] : [assigned.Value, assigned.Target],
             MoreItems more => [more.Items],
             NextItem next => [next.Items],
             Opaque opaque => opaque.Parts,
@@ -378,16 +393,13 @@ public static class AbstractChecks
             if (!divisor.IsNumber) return;
             if (binary.Operator == BinaryOperator.Modulo && !dividend.IsNumber) return;
 
-            var integersOnly = dividend.IsOnly(ValueKind.Integer | ValueKind.Boolean) && divisor.IsOnly(ValueKind.Integer | ValueKind.Boolean);
+            var integersOnly = Failures.WholeNumberDivision(evaluator.Language,
+                dividend.IsOnly(ValueKind.Integer | ValueKind.Boolean), divisor.IsOnly(ValueKind.Integer | ValueKind.Boolean),
+                dividend.IsOnly(ValueKind.Real), divisor.IsOnly(ValueKind.Real), binary.Left is Literal, binary.Right is Literal);
             if (!IsPython && !integersOnly) return;
 
             var range = divisor.Number;
-            var failure = evaluator.Language switch
-            {
-                SourceLanguage.Python => "ZeroDivisionError",
-                SourceLanguage.CSharp => "a DivideByZeroException",
-                _ => "an ArithmeticException",
-            };
+            var failure = Failures.DividingByZero(evaluator.Language);
 
             if (range.IsExact && range.Low == 0)
             {
@@ -454,14 +466,11 @@ public static class AbstractChecks
 
         private void CheckNotNull(Expr target, Expr use, AbstractState state, string doing)
         {
+            if (use is ElementAccess && Failures.NothingCanBeIndexed(evaluator.Language)) return;
+
             var value = evaluator.Evaluate(target, state);
-            var none = IsPython ? "None" : "null";
-            var failure = evaluator.Language switch
-            {
-                SourceLanguage.Python => use is ElementAccess ? "TypeError" : "AttributeError",
-                SourceLanguage.CSharp => "a NullReferenceException",
-                _ => "a NullPointerException",
-            };
+            var none = Failures.Nothing(evaluator.Language);
+            var failure = Failures.UsingNothing(evaluator.Language, takingAnItem: use is ElementAccess);
 
             if (value.IsNull)
                 Report("analysis-null-used", use.Span, $"`{Quote(target)}` is {none} here, so {doing} fails with {failure}", Severity.Error, Confidence.Certain);
@@ -474,6 +483,7 @@ public static class AbstractChecks
             var target = evaluator.Evaluate(element.Target, state);
             var key = evaluator.Evaluate(element.Key, state);
 
+            if (!Failures.ReadingPastTheEndFails(evaluator.Language)) return;
             if (!target.IsOnly(ValueKind.List | ValueKind.Tuple | ValueKind.Text) || !key.IsOnly(ValueKind.Integer) || target.Length.IsEmpty) return;
 
             var length = target.Length;
@@ -483,7 +493,7 @@ public static class AbstractChecks
 
             var size = length.IsExact ? $"has {length.Low} item{(length.Low == 1 ? "" : "s")}" : $"has at most {length.High} items";
             Report("analysis-index-out-of-range", element.Span,
-                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {(IsPython ? "IndexError" : "an index out of range exception")}",
+                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {Failures.OutsideTheList(evaluator.Language)}",
                 Severity.Error, Confidence.Certain);
         }
 
@@ -531,8 +541,8 @@ public static class AbstractChecks
         /// <summary>The error taking an item from an empty collection raises, for the calls that take one.</summary>
         private string? TakesAnItem(string method) => evaluator.Language switch
         {
-            SourceLanguage.Python when method == "pop" => "IndexError",
-            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" => "an InvalidOperationException",
+            SourceLanguage.Python when method == "pop" => Failures.TakingFromEmpty(SourceLanguage.Python),
+            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" => Failures.TakingFromEmpty(SourceLanguage.CSharp),
             SourceLanguage.Java when method is "pop" or "element" or "getFirst" or "getLast" or "removeFirst" or "removeLast" =>
                 "a NoSuchElementException (EmptyStackException for a Stack)",
             _ => null,
@@ -715,8 +725,8 @@ public static class AbstractChecks
             var source = more.Items is Name { Identifier: var held } && held.StartsWith('$') ? null : more.Items;
             var shown = source is null ? "what the loop goes through" : $"`{Quote(source)}`";
 
-            if (items.IsNull)
-                Report("analysis-null-used", more.Span, $"{shown} is {(IsPython ? "None" : "null")} here, so the loop cannot go through it",
+            if (items.IsNull && !Failures.NothingCanBeWalked(evaluator.Language))
+                Report("analysis-null-used", more.Span, $"{shown} is {Failures.Nothing(evaluator.Language)} here, so the loop cannot go through it",
                     Severity.Error, Confidence.Certain);
             else if (IsPython && items.IsOnly(ValueKind.Integer | ValueKind.Real | ValueKind.Boolean))
                 Report("analysis-type-mismatch", more.Span, $"{shown} is a number, and a for loop cannot go through a number - TypeError",

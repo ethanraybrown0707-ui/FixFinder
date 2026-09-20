@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Solver;
@@ -221,7 +222,7 @@ public sealed partial class SymbolicExecutor
         }
 
         if (!IsPython && function.Owner is not null && !function.IsStatic)
-            foreach (var start in starts) Set(start, "this", new SymOther("this"));
+            foreach (var start in starts) Set(start, "this", Failures.ReceiverCanBeNothing(_language) ? SymUnknown.Value : new SymOther("this"));
 
         return starts;
     }
