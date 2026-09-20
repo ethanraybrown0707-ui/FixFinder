@@ -84,9 +84,11 @@ public sealed class LogicRepair
             if (finding is { Fix: { } fix, Kind: Checking.FindingKind.Logic } && finding.Severity != Checking.Severity.Suggestion) candidates.Add((fix, true));
         }
 
-        var scores = coverageUsed
-            ? suspicious.Take(MostLines).ToDictionary(s => s.Line, s => s.Ochiai)
-            : Enumerable.Range(1, source.Count).ToDictionary(line => line, _ => 0.0);
+        // Suspiciousness decides the order changes are tried in, never which lines are tried at all: where a run's lines
+        // were recorded imperfectly, the line holding the mistake can be missing from the ranking, and a change that is
+        // never tried can never be the answer. Unranked lines simply come last.
+        var ranked = coverageUsed ? suspicious.Take(MostLines).ToDictionary(s => s.Line, s => s.Ochiai) : [];
+        var scores = Enumerable.Range(1, source.Count).ToDictionary(line => line, line => ranked.GetValueOrDefault(line, -1.0));
 
         var edits = scores.Keys
             .SelectMany(line => Mutations.For(source, line))
