@@ -125,7 +125,9 @@ internal static partial class PythonStandardLibrary
 
             var output = process.StandardOutput.ReadToEndAsync();
 
-            if (!process.WaitForExit(20_000))
+            // Patient on purpose: when this question goes unanswered the fix on offer becomes "install a package called
+            // maths", which is the worse answer, so a slow or busy machine must not be allowed to decide it.
+            if (!process.WaitForExit(45_000))
             {
                 try { process.Kill(entireProcessTree: true); }
                 catch (InvalidOperationException) { }
@@ -133,7 +135,7 @@ internal static partial class PythonStandardLibrary
                 return null;
             }
 
-            return process.ExitCode == 0 && output.Wait(5_000) ? output.Result : null;
+            return process.ExitCode == 0 && output.Wait(15_000) ? output.Result : null;
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
