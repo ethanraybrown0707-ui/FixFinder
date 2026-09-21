@@ -73,14 +73,16 @@ public sealed class MemorySafety(
 
             foreach (var next in graph.Successors(block.Id))
             {
+                var arriving = Arriving(state, block, next);
+
                 if (!entry.TryGetValue(next, out var known))
                 {
-                    entry[next] = state.Copy();
+                    entry[next] = arriving;
                     pending.Enqueue(next);
                     continue;
                 }
 
-                if (known.Join(state)) pending.Enqueue(next);
+                if (known.Join(arriving)) pending.Enqueue(next);
             }
         }
 
@@ -93,6 +95,47 @@ public sealed class MemorySafety(
             Ending(state, block);
         }
     }
+
+    /// <summary>The state as it reaches one successor, with anything that edge proves holds nothing dropped.</summary>
+    private static State Arriving(State state, BasicBlock block, int next)
+    {
+        var arriving = state.Copy();
+        if (ProvenEmpty(block, next) is { } name) arriving.Remove(name);
+        return arriving;
+    }
+
+    /// <summary>The pointer an edge out of this block proves is null, if it proves anything at all.</summary>
+    /// <remarks>
+    /// <c>if (p == NULL) return 1;</c> is how careful C checks that an allocation worked, and down the branch it takes
+    /// there is nothing allocated - that is what the branch established. Carrying the same state down both edges makes
+    /// that return look like a way out of the function with memory still held, so the idiom is reported as the very leak
+    /// it exists to prevent. Following the condition on the edge is the whole fix: everywhere else the two paths still
+    /// join, so a genuine leak down the other branch is still found.
+    /// </remarks>
+    private static string? ProvenEmpty(BasicBlock block, int next)
+    {
+        if (block.Terminator is not Branch branch) return null;
+
+        var takenWhenTrue = next == branch.WhenTrue;
+        if (!takenWhenTrue && next != branch.WhenFalse) return null;
+
+        return branch.Condition switch
+        {
+            Binary { Operator: BinaryOperator.Equal } equal when takenWhenTrue => ComparedWithNull(equal),
+            Binary { Operator: BinaryOperator.NotEqual } unequal when !takenWhenTrue => ComparedWithNull(unequal),
+            Unary { Operator: UnaryOperator.Not, Operand: Name negated } when takenWhenTrue => negated.Identifier,
+            Name bare when !takenWhenTrue => bare.Identifier,
+            _ => null,
+        };
+    }
+
+    /// <summary>The name in a comparison against null, whichever side it is written on.</summary>
+    private static string? ComparedWithNull(Binary comparison) => (comparison.Left, comparison.Right) switch
+    {
+        (Name name, Literal { Kind: LiteralKind.Null }) => name.Identifier,
+        (Literal { Kind: LiteralKind.Null }, Name name) => name.Identifier,
+        _ => null,
+    };
 
     /// <summary>Every local that starts with nothing in it, which reading before writing is a mistake.</summary>
     private State Start()

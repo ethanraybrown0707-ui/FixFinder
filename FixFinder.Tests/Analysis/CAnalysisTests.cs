@@ -162,6 +162,63 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-memory-leak");
     }
 
+    /// <summary>
+    /// Checking that an allocation worked is not a leak. Down the branch the check takes there is nothing allocated to
+    /// free, and reporting it there would flag the idiom in every careful C program - the one written precisely to stop
+    /// the mistake being reported.
+    /// </summary>
+    [Fact]
+    public async Task CheckingThatAllocationWorkedIsNotALeak()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            int total(int n)
+            {
+                int *numbers = malloc(n * sizeof(int));
+
+                if (numbers == NULL) {
+                    return 0;
+                }
+
+                numbers[0] = 1;
+                int first = numbers[0];
+
+                free(numbers);
+                return first;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-memory-leak");
+    }
+
+    /// <summary>The other side of it: following the branch must not lose a leak down the path where the memory is real.</summary>
+    [Fact]
+    public async Task MemoryKeptPastTheAllocationCheckIsStillALeak()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            int total(int n)
+            {
+                int *numbers = malloc(n * sizeof(int));
+
+                if (numbers == NULL) {
+                    return 0;
+                }
+
+                numbers[0] = 1;
+                return 1;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.Contains(findings, f => f.CheckId == "analysis-memory-leak");
+    }
+
     [Fact]
     public async Task TheAddressOfSomethingLocalIsNotHandedBack()
     {
