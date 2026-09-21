@@ -7,10 +7,6 @@ using FixFinder.Core.Parsing;
 namespace FixFinder.Core.LocalFixes;
 
 /// <summary>What compiling the changed copy produced.</summary>
-/// <param name="Ran">False when there was nothing to compile it with; the fix is then not offered.</param>
-/// <param name="ExitCode">The compiler's exit code.</param>
-/// <param name="Lines">Everything the compiler printed.</param>
-/// <param name="Errors">Every error in that output, as the parsers read it.</param>
 public sealed record CheckResult(
     bool Ran, int? ExitCode, IReadOnlyList<CapturedLine> Lines, IReadOnlyList<ParsedError> Errors)
 {
@@ -19,45 +15,19 @@ public sealed record CheckResult(
     public static CheckResult NotRun { get; } = new(false, null, [], []);
 }
 
-/// <summary>
-/// Compiles a copy of a file with a fix made in it, somewhere that is not the user's source tree.
-/// </summary>
-/// <remarks>
-/// This is what makes a fix worked out by rules safe to offer. A rule reads an error and a line of
-/// code and proposes a change; the compiler then says whether the change did what it claims. The
-/// nearest name to a misspelt one, an import picked from a table, a brace appended at the end of a
-/// file - each is a claim about code the rule has only partly read, and each is checked by the one
-/// thing that has read all of it.
-/// <para>
-/// <b>Nothing is run.</b> Python is byte-compiled with <c>py_compile</c>, which parses the file and
-/// executes none of it; Java and C are compiled and linked but the result is never started. Every
-/// check happens in a fresh folder under the temp directory that is deleted afterwards, with the
-/// original folder added to the include or source path so that the file's neighbours still resolve.
-/// </para>
-/// </remarks>
+/// <summary>Compiles a copy of a file with a fix made in it, somewhere that is not the user's source tree.</summary>
 public static class CompileCheck
 {
-    /// <summary>Where the copies are compiled.</summary>
-    /// <remarks>
-    /// The temp folder rather than FixFinder's own folder under LocalAppData, and that is not a
-    /// preference. The Python most Windows 11 machines have is the Microsoft Store build, which is a
-    /// packaged app, and a packaged app sees its own private view of LocalAppData: a file FixFinder
-    /// writes there simply does not exist as far as that python.exe can tell. py_compile answered
-    /// every copy with "No such file or directory" and exit 1, so every Python fix was refused - and
-    /// the syntax fixes that were accepted had never really been compiled. The temp folder is shared
-    /// with packaged apps.
-    /// </remarks>
     public static string Root { get; } = Path.Combine(Path.GetTempPath(), "FixFinder-check");
 
-    /// <summary>How long one check may take. A cold MSVC environment alone is a few seconds.</summary>
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
 
-    /// <summary>True when there is a way to check a file of this kind at all.</summary>
     public static bool CanCheck(string path) => Path.GetExtension(path).ToLowerInvariant() switch
     {
         ".py" or ".java" or ".cs" => true,
         ".js" or ".mjs" or ".cjs" or ".go" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
+        ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
     };
 
@@ -85,10 +55,10 @@ public static class CompileCheck
 
             var result = Path.GetExtension(copy).ToLowerInvariant() switch
             {
-                ".cs" when !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes)) =>
+                ".cs" when !CSharpDirectCompile.HasDirectives(Encoding.UTF8.GetString(bytes)) && ProgramLayout.CSharpProject(source.Path) is null =>
                     await CompileCSharpAsync(spec, copy, folder, cancellationToken),
                 ".java" => await CompileJavaAsync(spec, copy, source.Path, folder, cancellationToken),
-                ".go" when GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
+                ".go" when ProgramLayout.GoPackageOf(source.Path).IsSingleFile && GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
                     await CompileGoAsync(spec, copy, folder, plan, bytes, cancellationToken),
                 _ => await CompileAsync(spec, direct: false, cancellationToken),
             };
@@ -115,8 +85,6 @@ public static class CompileCheck
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // A compiler that has not quite let go of its output. The folder is inside
-                // FixFinder's own data, so leaving it behind costs disk and nothing else.
             }
         }
     }
@@ -134,17 +102,12 @@ public static class CompileCheck
         return new CheckResult(true, run.ExitCode, lines, ErrorsIn(registry, lines));
     }
 
-    /// <summary>
-    /// A C# check: the SDK's compiler run directly once it has agreed with <c>dotnet build</c> on this
-    /// machine, and <c>dotnet build</c> until then - with the direct compile run beside it and compared.
-    /// </summary>
     private static async Task<CheckResult> CompileCSharpAsync(
         TargetSpec build, string copy, string folder, CancellationToken cancellationToken)
     {
         var name = Path.GetFileName(copy);
         var captured = CSharpDirectCompile.TemplateFor(name, build.ExecutablePath);
 
-        // Nothing to compare with: the SDK's compile could not be captured for files of this name.
         if (captured.IsCompletedSuccessfully && captured.Result is null) return await CompileAsync(build, direct: false, cancellationToken);
 
         return await FasterCheck.RunAsync(
@@ -158,10 +121,6 @@ public static class CompileCheck
             copy, folder, everyLine: false, cancellationToken);
     }
 
-    /// <summary>
-    /// A Java check: javac kept running between checks once it has agreed with javac started afresh, and
-    /// javac started afresh until then - with the running one asked the same thing and compared.
-    /// </summary>
     private static async Task<CheckResult> CompileJavaAsync(
         TargetSpec javac, string copy, string original, string folder, CancellationToken cancellationToken)
     {
@@ -173,10 +132,9 @@ public static class CompileCheck
             token => CompileAsync(javac, direct: false, token),
             async (target, targetFolder, token) =>
             {
-                if (await server.CompileAsync(JavacArguments(target, Path.GetDirectoryName(original)!, targetFolder), Timeout, token) is not { } reply)
+                if (await server.CompileAsync(JavacArguments(target, ProgramLayout.JavaSourceRoot(original), targetFolder), Timeout, token) is not { } reply)
                     return null;
 
-                // Read back exactly as a javac process's output is: its error stream, decoded and split into lines the same way.
                 var lines = JavaCompileServer.Lines(reply.Output, javac.OutputEncoding);
 
                 return new CheckResult(true, reply.ExitCode, lines, ErrorsIn(new ParserRegistry(), lines));
@@ -184,14 +142,6 @@ public static class CompileCheck
             copy, folder, everyLine: true, cancellationToken);
     }
 
-    /// <summary>Starts, in the background, what the first check of a file like this one would otherwise wait for.</summary>
-    /// <remarks>
-    /// Only Go's plan is worth starting early. It is asked for once for each combination of file name and
-    /// imports - nearly every program is a new combination - and most proposed changes leave the imports as
-    /// they are, so the plan for the file as it stands is the plan its checks will use. C#'s compile is
-    /// captured once per file name and javac is started once per JDK, and the first checks of both are
-    /// compared against the usual way regardless, so starting either early would save nothing.
-    /// </remarks>
     public static void Prepare(SourceFile source)
     {
         if (!Path.GetExtension(source.Path).Equals(".go", StringComparison.OrdinalIgnoreCase)) return;
@@ -201,19 +151,15 @@ public static class CompileCheck
             var content = source.Render(source.Lines);
             var name = Path.GetFileName(source.Path);
 
-            if (TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
+            if (ProgramLayout.GoPackageOf(source.Path).IsSingleFile &&
+                TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
                 _ = GoDirectBuild.PlanFor(go, key, name, content);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Only ever a head start; the check itself asks again.
         }
     }
 
-    /// <summary>
-    /// A Go check: the compiler and linker go build would run, run directly once that has agreed with go build
-    /// on this machine, and go build until then - with the direct build run beside it and compared.
-    /// </summary>
     private static async Task<CheckResult> CompileGoAsync(
         TargetSpec build, string copy, string folder, string key, byte[] content, CancellationToken cancellationToken)
     {
@@ -221,15 +167,12 @@ public static class CompileCheck
         var trust = GoDirectBuild.TrustFor(go);
         var planned = GoDirectBuild.PlanFor(go, key, Path.GetFileName(copy), content);
 
-        // Nothing to compare with: go build would not say how it builds files like this one.
         if (planned.IsCompletedSuccessfully && planned.Result is null) return await CompileAsync(build, direct: false, cancellationToken);
 
         return await FasterCheck.RunAsync(
             "go",
             trust,
             token => CompileAsync(build, direct: false, token),
-            // A plan still being made is waited for: making one is go build's own start-up and no more, so
-            // waiting for it and then compiling is never slower than go build would have been.
             async (target, targetFolder, token) =>
                 await planned.WaitAsync(token) is { } plan
                     ? await GoDirectBuild.RunAsync(plan, target, targetFolder, Timeout, token)
@@ -237,35 +180,15 @@ public static class CompileCheck
             copy, folder, everyLine: true, cancellationToken);
     }
 
-    /// <summary>What javac is given for a check, one argument at a time.</summary>
-    internal static IReadOnlyList<string> JavacArguments(string copy, string originalFolder, string folder) =>
-        ["-proc:none", "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", originalFolder, copy];
+    internal static IReadOnlyList<string> JavacArguments(string copy, string sourceRoot, string folder) =>
+        ["-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy];
 
-    /// <summary>Checks already compiled, by everything that decided how they came out.</summary>
-    /// <remarks>
-    /// The same change to the same file comes up again more often than it sounds: two rules that
-    /// arrive at the same edit, the next error in a run that one fix would also have cured, a
-    /// warning checked after its error, or the same program run twice. A compiler given the same
-    /// input answers the same way, so the answer is kept rather than asked for again.
-    /// </remarks>
     private static readonly ConcurrentDictionary<string, CheckResult> Remembered = new(StringComparer.Ordinal);
 
-    /// <summary>Enough for every proposal in a long session; past it, the lot is forgotten and relearned.</summary>
     private const int MostRemembered = 256;
 
-    /// <summary>More files than this next to the one being checked, and nothing is remembered for it.</summary>
     private const int MostNeighbours = 2000;
 
-    /// <summary>
-    /// Everything a check's outcome depends on, as one hash, or null when that cannot be pinned down.
-    /// </summary>
-    /// <remarks>
-    /// The compiler and its arguments, the file it was given, the byte-for-byte content, and - for
-    /// Java, C and C++, which read the files beside it through the source or include path - the name,
-    /// size and last change of every file in that folder. A header edited between two checks is a
-    /// different check. A C# file with <c>#:</c> directives can name packages and projects anywhere,
-    /// so it is never remembered at all.
-    /// </remarks>
     internal static string? KeyFor(TargetSpec spec, string folder, string original, byte[] content)
     {
         var extension = Path.GetExtension(original).ToLowerInvariant();
@@ -277,6 +200,8 @@ public static class CompileCheck
         if (extension == ".cs" && directives.Any(line => line.StartsWith("#:", StringComparison.Ordinal)))
             return null;
 
+        if (extension == ".cs" && ProgramLayout.CSharpProject(original) is not null) return null;
+
         var key = new StringBuilder()
             .Append(spec.ExecutablePath).Append('\n')
             .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
@@ -287,21 +212,19 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx")
         {
-            // `#include "../shared.h"` reaches out of the folder through the include path, to files
-            // the listing below does not cover.
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
 
-            if (Neighbours(Path.GetDirectoryName(original)!) is not { } listing) return null;
+            var around = extension == ".java" ? ProgramLayout.JavaSourceRoot(original) : Path.GetDirectoryName(original)!;
+            if (Neighbours(around) is not { } listing) return null;
             key.Append(listing);
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key.ToString())));
     }
 
-    /// <summary>Every file under a folder, with its size and last change, or null when there are too many to list.</summary>
     private static string? Neighbours(string folder)
     {
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 };
@@ -325,16 +248,6 @@ public static class CompileCheck
         return listing.ToString();
     }
 
-    /// <summary>
-    /// Whether a check's answer came from the compiler reading the file, and not from something
-    /// around it that could be different next time.
-    /// </summary>
-    /// <remarks>
-    /// A clean compile is always the file's own doing, and so is an error the compiler placed inside
-    /// the file. Anything else - a linker complaint, a package that failed to download, a compiler that
-    /// exited without a word - might not happen again, and remembering it would refuse a good fix for
-    /// as long as FixFinder stays open.
-    /// </remarks>
     internal static bool WorthRemembering(CheckResult result, string copy)
     {
         if (!result.Ran) return false;
@@ -348,13 +261,10 @@ public static class CompileCheck
             Path.GetFileName(file).Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Every error in some compiler output: the first, then the rest.</summary>
     public static IReadOnlyList<ParsedError> ErrorsIn(ParserRegistry registry, IReadOnlyList<CapturedLine> lines)
     {
         if (registry.Parse(lines) is not { } first) return [];
 
-        // The generic parser reads any line with a file and a number in it, which a clean build's
-        // banner can have. A check only cares about what a real compiler parser recognised.
         if (first.LanguageId == "generic") return [];
 
         return [first, .. registry.Others(first, lines)];
@@ -370,8 +280,6 @@ public static class CompileCheck
                 var interpreter = python ?? TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py");
                 if (interpreter is null) return null;
 
-                // -X utf8 so a file with non-ASCII in it reports the same errors here as it did
-                // when it ran, rather than a decoding error of its own.
                 return Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
 
             case ".java":
@@ -379,28 +287,66 @@ public static class CompileCheck
 
                 return Spec(
                     javac.Program,
-                    string.Join(" ", JavacArguments(copy, originalFolder, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
+                    string.Join(" ", JavacArguments(copy, ProgramLayout.JavaSourceRoot(original), folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":
-                return Native(copy, originalFolder, folder);
+                return Native(copy, originalFolder, folder, others: ProgramLayout.NativeSources(original).Skip(1).ToList());
+
+            case ".h" or ".hpp" or ".hh" or ".hxx":
+            {
+                if (ProgramLayout.HeaderProgram(original) is not { Count: > 0 } including) return null;
+
+                foreach (var file in ProgramLayout.HeaderNeighbours(original))
+                {
+                    var target = Path.Combine(folder, Path.GetFileName(file));
+                    if (!target.Equals(copy, StringComparison.OrdinalIgnoreCase)) File.Copy(file, target, overwrite: true);
+                }
+
+                var copies = including.Select(file => Path.Combine(folder, Path.GetFileName(file))).ToList();
+                return Native(copies[0], originalFolder, folder, others: copies.Skip(1).ToList());
+            }
 
             case ".js" or ".mjs" or ".cjs":
-                // --check parses the file and runs none of it. It cannot see what only happens when the file runs - a
-                // misspelt name, a module that does not export something - so for those it proves the file still parses.
                 if (TargetFactory.FindOnPath("node") is not { } node) return null;
 
                 return Spec(node, $"--check \"{copy}\"", folder);
 
             case ".go":
-                // A build, not a run: go build compiles and links, and the binary it leaves is deleted with the folder.
                 if (TargetFactory.FindOnPath("go") is not { } go) return null;
 
-                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
+                var program = ProgramLayout.GoPackageOf(original);
+                if (program.IsSingleFile) return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
+
+                if (program.Module is not null)
+                {
+                    var module = Path.Combine(folder, "module");
+                    if (!CopyTree(program.Module, module, original, copy)) return null;
+
+                    return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" .", module);
+                }
+
+                var files = new List<string> { copy };
+
+                foreach (var other in program.Files.Skip(1))
+                {
+                    var target = Path.Combine(folder, Path.GetFileName(other));
+                    File.Copy(other, target, overwrite: true);
+                    files.Add(target);
+                }
+
+                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" {string.Join(" ", files.Select(f => $"\"{f}\""))}", folder);
 
             case ".cs":
-                // The .NET SDK builds a single .cs file on its own, the same way FixFinder runs one.
                 if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;
+
+                if (ProgramLayout.CSharpProject(original) is { } project)
+                {
+                    var copied = Path.Combine(folder, "project");
+                    if (!CopyTree(Path.GetDirectoryName(project)!, copied, original, copy)) return null;
+
+                    return Spec(dotnet, $"build \"{Path.Combine(copied, Path.GetFileName(project))}\" -nologo -v q", copied);
+                }
 
                 return Spec(dotnet, $"build \"{copy}\" -nologo -v q", folder);
 
@@ -409,31 +355,23 @@ public static class CompileCheck
         }
     }
 
-    /// <summary>The same compiler the build chose, in the same order: GNU first, then MSVC.</summary>
-    /// <remarks>
-    /// It has to be the same one. A fix that satisfies gcc and not cl, or the reverse, would be
-    /// verified against a build the user never runs.
-    /// </remarks>
-    /// <param name="reuseMsvcEnvironment">False calls vcvarsall for this check alone, as every check once did; a test compares the two.</param>
-    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true)
+    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true, IReadOnlyList<string>? others = null)
     {
         var cpp = !Path.GetExtension(copy).Equals(".c", StringComparison.OrdinalIgnoreCase);
         var exe = Path.Combine(folder, "check.exe");
+        var rest = string.Concat((others ?? []).Select(o => $" \"{o}\""));
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = cpp ? "-std=c++17 " : "";
-            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"", folder);
+            var standard = CompiledLanguages.GnuWarnings(cpp);
+            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"{rest}", folder);
         }
 
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;
 
         var flags = cpp ? "/nologo /W3 /EHsc /std:c++17" : "/nologo /W3";
-        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"";
+        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"{rest}";
 
-        // The same cl.exe with the same arguments in the same folder, in the environment the script
-        // sets up - captured once rather than rebuilt for every check, which took ten times longer
-        // than the compile. When it could not be captured, the script is called here as it always was.
         if (reuseMsvcEnvironment && Toolchains.MsvcEnvironment() is { } environment && Toolchains.ClIn(environment) is { } cl)
         {
             return new TargetSpec
@@ -460,6 +398,38 @@ public static class CompileCheck
         ]), new UTF8Encoding(false));
 
         return Spec("cmd.exe", $"/c \"{batch}\"", folder);
+    }
+
+    private static readonly HashSet<string> NotCopied = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
+
+    private const int MostProjectFiles = 500;
+
+    private static bool CopyTree(string from, string to, string original, string changed)
+    {
+        var files = new List<string>();
+        var pending = new Stack<string>([from]);
+
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+
+            foreach (var sub in Directory.EnumerateDirectories(directory))
+                if (!NotCopied.Contains(Path.GetFileName(sub))) pending.Push(sub);
+
+            files.AddRange(Directory.EnumerateFiles(directory));
+            if (files.Count > MostProjectFiles) return false;
+        }
+
+        foreach (var file in files)
+        {
+            var target = Path.Combine(to, Path.GetRelativePath(from, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            var isOriginal = Path.GetFullPath(file).Equals(Path.GetFullPath(original), StringComparison.OrdinalIgnoreCase);
+            File.Copy(isOriginal ? changed : file, target, overwrite: true);
+        }
+
+        return true;
     }
 
     private static TargetSpec Spec(string program, string arguments, string folder) => new()

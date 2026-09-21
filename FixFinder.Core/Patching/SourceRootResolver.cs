@@ -3,28 +3,20 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.Patching;
 
-/// <summary>How a source root was arrived at. Always shown to the user alongside the path.</summary>
+/// <summary>How a source root was arrived at.</summary>
 public enum SourceRootOrigin
 {
     NotFound,
 
-    /// <summary>The user typed or browsed to it. Wins over everything else.</summary>
     UserSpecified,
 
-    /// <summary>Read from file paths embedded in the stack trace.</summary>
     StackTracePaths,
 
-    /// <summary>Read from the document table of a portable PDB beside the target.</summary>
     PortablePdb,
 
-    /// <summary>Guessed from a naming convention. Offered as a suggestion, never applied silently.</summary>
     SiblingHeuristic,
 }
 
-/// <param name="Path">The resolved folder, or null.</param>
-/// <param name="Origin">How it was found.</param>
-/// <param name="Explanation">Plain-English account, shown under the field in step 2.</param>
-/// <param name="NeedsConfirmation">True for a guess the user should look at before it is used.</param>
 public sealed record SourceRootResult(
     string? Path, SourceRootOrigin Origin, string Explanation, bool NeedsConfirmation = false)
 {
@@ -32,18 +24,9 @@ public sealed record SourceRootResult(
         new(null, SourceRootOrigin.NotFound, explanation);
 }
 
-/// <summary>
-/// Works out where the target program's source code lives.
-/// </summary>
-/// <remarks>
-/// Nothing downstream is safe without this. It bounds every file FixFinder may write, so the
-/// result and <b>how it was reached</b> are always surfaced and always editable - a source root
-/// that was guessed and one the user typed carry very different weight, and hiding the
-/// difference would be the wrong kind of convenience.
-/// </remarks>
+/// <summary>Works out where the target program's source code lives.</summary>
 public static class SourceRootResolver
 {
-    /// <summary>Files that mark the root of a project in the languages FixFinder parses.</summary>
     private static readonly string[] ProjectMarkers =
     [
         "*.sln", "*.csproj", "*.fsproj", "*.vbproj",
@@ -52,15 +35,8 @@ public static class SourceRootResolver
         "CMakeLists.txt", "Makefile", "composer.json", ".git",
     ];
 
-    /// <summary>How far up from a source file to look for a project marker.</summary>
     private const int MaxWalkUp = 8;
 
-    /// <summary>
-    /// Resolves a source root, trying each strategy in descending order of trustworthiness.
-    /// </summary>
-    /// <param name="userSpecified">What the user typed in step 2, if anything.</param>
-    /// <param name="error">The parsed error, whose frames carry real paths when built locally.</param>
-    /// <param name="spec">The target, used to find a PDB and to try the sibling heuristic.</param>
     public static SourceRootResult Resolve(string? userSpecified, ParsedError? error, TargetSpec? spec)
     {
         if (!string.IsNullOrWhiteSpace(userSpecified))
@@ -80,13 +56,6 @@ public static class SourceRootResolver
             "paths, and there is no readable PDB beside the target. Set the folder with Browse.");
     }
 
-    /// <summary>
-    /// Walks up from a frame's file to the nearest project marker.
-    /// </summary>
-    /// <remarks>
-    /// The highest-value strategy in practice: anything compiled or run on this machine has real
-    /// paths in its trace, and those paths point at the actual source, not at a guess.
-    /// </remarks>
     private static SourceRootResult? FromStackTrace(ParsedError error)
     {
         string? firstRealFile = null;
@@ -97,11 +66,6 @@ public static class SourceRootResolver
             if (!Path.IsPathRooted(frame.File)) continue;
             if (!File.Exists(frame.File)) continue;
 
-            // Never root in somebody else's package. The innermost frame of a crash inside a
-            // library is in site-packages or node_modules, and rooting there would bound every
-            // file FixFinder may write to the inside of an installed dependency - the one place
-            // a patch must never land, since the next install overwrites it and the change
-            // belongs upstream anyway.
             if (FrameClassifier.IsVendored(frame.File)) continue;
 
             firstRealFile ??= frame.File;
@@ -115,11 +79,6 @@ public static class SourceRootResolver
 
         if (firstRealFile is null) return null;
 
-        // The trace points at a real file on this machine, but nothing above it looks like a
-        // project - a loose script, or a folder with no manifest. Its own directory is the only
-        // defensible answer, and it is a good one: it bounds writes to where the crashing file
-        // actually lives. Flagged for confirmation because it is narrower than a project root
-        // and a patch touching a sibling folder would be refused under it.
         var directory = Path.GetDirectoryName(firstRealFile)!;
 
         return new SourceRootResult(directory, SourceRootOrigin.StackTracePaths,
@@ -139,14 +98,6 @@ public static class SourceRootResolver
             $"read from {Path.GetFileNameWithoutExtension(spec.ExecutablePath)}.pdb, which records the path of every source file in the build");
     }
 
-    /// <summary>
-    /// Handles the "…\Foo-broken\app.dll next to …\Foo\" convention.
-    /// </summary>
-    /// <remarks>
-    /// Returned with <c>NeedsConfirmation</c> set. It is a guess from a folder name and nothing
-    /// more, and a wrong source root is the one mistake that could put a patch in the wrong
-    /// repository - so this one always stops and asks.
-    /// </remarks>
     private static SourceRootResult? FromSiblingFolder(TargetSpec spec)
     {
         var directory = Path.GetDirectoryName(Path.GetFullPath(spec.ExecutablePath));
@@ -178,7 +129,6 @@ public static class SourceRootResolver
 
     private static IEnumerable<ErrorFrame> EnumerateFrames(ParsedError error)
     {
-        // Root cause first: its frames are where the failure actually happened.
         foreach (var frame in error.RootCause.Frames) yield return frame;
 
         foreach (var frame in error.Frames) yield return frame;
@@ -217,7 +167,6 @@ public static class SourceRootResolver
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
-            // A folder we cannot read is a folder we cannot use as a source root.
             return false;
         }
 

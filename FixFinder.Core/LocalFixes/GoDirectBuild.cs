@@ -6,37 +6,14 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes;
 
-/// <summary>
-/// Builds one Go file the way <c>go build</c> does, by running the compiler and linker it runs with the
-/// arguments it passes - without the go command's own start-up in front of them.
-/// </summary>
-/// <remarks>
-/// On Windows the go command takes about a fifth of a second to start before it does anything, and a check
-/// with a compile error spends little else. <c>go build -n</c> prints the plan instead of carrying it out:
-/// the import configuration, the exact <c>compile</c> command, the link. That plan depends on the file's
-/// name, its package clause and what it imports, and on nothing else in it - so it is asked for once for each
-/// combination, and every later check of a file that matches runs the two tools directly.
-/// <para>
-/// <b>What the go command prints is reproduced, not approximated.</b> When a tool fails, go build prints
-/// <c># command-line-arguments</c> and then the tool's output with the package folder shortened to <c>.</c>
-/// and its work folder to <c>$WORK</c>, and exits 1. The same rewriting is done here, the same way. A tool
-/// that prints anything while succeeding, or fails without a word, is left to go build.
-/// </para>
-/// <para>
-/// <b>Anything else the go command decides from a file's contents sends it back to go build</b>: build
-/// constraints, cgo, <c>//go:embed</c>, <c>//go:debug</c>, a test file, or an import this reader cannot
-/// read plainly. So does a plan whose cached packages have gone, or a Go whose tools have changed since it
-/// was made. And it is used alone only once it has agreed with go build on this machine - see
-/// <see cref="FasterCheck"/>.
-/// </para>
-/// </remarks>
+/// <summary>Builds one Go file the way <c>go build</c> does, by running the compiler and linker it runs with the arguments it
+/// passes - without the go command's own start-up in front of them.</summary>
 internal static partial class GoDirectBuild
 {
     private static readonly ConcurrentDictionary<string, Lazy<Task<Plan?>>> Plans = new(StringComparer.Ordinal);
 
     private static readonly ConcurrentDictionary<string, FasterCheck.Trust> Trusts = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>How far building directly has earned trust for this Go.</summary>
     internal static FasterCheck.Trust TrustFor(string go) => Trusts.GetOrAdd(go, _ => new FasterCheck.Trust());
 
     internal sealed record Command(string Program, IReadOnlyList<string> Arguments, IReadOnlyDictionary<string, string> Environment, bool InPackageFolder);
@@ -50,10 +27,6 @@ internal static partial class GoDirectBuild
         IReadOnlyList<string> CachedPackages,
         IReadOnlyList<(string Path, DateTime Written, long Length)> Tools);
 
-    /// <summary>
-    /// What decides go build's plan for this file - its name, package and imports - or null when something
-    /// in it could change the plan in a way that is not worth reading.
-    /// </summary>
     internal static string? KeyFor(string fileName, string text)
     {
         if (fileName.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase)) return null;
@@ -73,16 +46,11 @@ internal static partial class GoDirectBuild
         return $"{fileName}\n{header.Package}\n{string.Join("\n", header.Imports.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}";
     }
 
-    /// <summary>
-    /// The package name and import paths at the top of a Go file, or null for anything but the plain forms:
-    /// <c>import "fmt"</c>, <c>import name "fmt"</c> and a parenthesised list of either, with comments anywhere.
-    /// </summary>
     internal static (string Package, IReadOnlyList<string> Imports)? Header(string text)
     {
         var tokens = new List<string>();
         var i = text.Length > 0 && text[0] == '﻿' ? 1 : 0;
 
-        // Enough tokens to reach the end of the imports: identifiers, strings and punctuation, comments skipped.
         while (i < text.Length)
         {
             var c = text[i];
@@ -126,7 +94,6 @@ internal static partial class GoDirectBuild
                 i++;
             }
 
-            // Past the imports once a declaration keyword appears.
             if (tokens.Count > 0 && tokens[^1] is "func" or "var" or "const" or "type") break;
         }
 
@@ -180,12 +147,6 @@ internal static partial class GoDirectBuild
     private static bool Identifier(string token) =>
         token.Length > 0 && (char.IsLetter(token[0]) || token[0] == '_') && token is not ("import" or "package" or "func" or "var" or "const" or "type");
 
-    /// <summary>The plan for files like this one, asked for once and shared.</summary>
-    /// <remarks>
-    /// Asked for without the caller's cancellation, because it is shared by every check that matches, and
-    /// from the file's bytes rather than its path, because the check that asked may be finished and its
-    /// folder gone before the plan is.
-    /// </remarks>
     internal static Task<Plan?> PlanFor(string go, string key, string fileName, byte[] content)
     {
         var id = $"{go}\n{key}";
@@ -195,8 +156,6 @@ internal static partial class GoDirectBuild
         {
             var (plan, final) = await CaptureAsync(go, fileName, content);
 
-            // Not final - a package not built yet, a timeout - and the next check that matches asks again. By
-            // then the go build that answered this one will usually have built what was missing.
             if (!final) Plans.TryRemove(new KeyValuePair<string, Lazy<Task<Plan?>>>(id, made!));
 
             return plan;
@@ -228,7 +187,6 @@ internal static partial class GoDirectBuild
 
             if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled) return (null, false);
 
-            // go build itself refused - an import that does not exist, say. Asking again would refuse again.
             if (run.ExitCode != 0) return (null, true);
 
             var plan = Read(run.Lines.OrderBy(l => l.Sequence).Select(l => l.Text).ToList(), probe, out var unbuilt);
@@ -251,19 +209,8 @@ internal static partial class GoDirectBuild
         }
     }
 
-    /// <summary>
-    /// A plan from what <c>go build -n</c> printed, or null when any of it is not understood.
-    /// </summary>
-    /// <remarks>
-    /// Only the file's own package is kept - the plan also lists every standard package it depends on, which
-    /// the build cache already holds. Refusing is always safe; it only means go build.
-    /// </remarks>
     internal static Plan? Read(IReadOnlyList<string> lines, string probe) => Read(lines, probe, out _);
 
-    /// <param name="unbuilt">
-    /// True when the plan was refused because a package it imports has not been built yet. go build would
-    /// build it first, in the same work folder; a plan run on its own has nothing there to import.
-    /// </param>
     internal static Plan? Read(IReadOnlyList<string> lines, string probe, out bool unbuilt)
     {
         unbuilt = false;
@@ -324,7 +271,6 @@ internal static partial class GoDirectBuild
             commands.Add(new Command(words[0], words.Skip(1).ToList(), environment, inPackageFolder));
         }
 
-        // One compile of this file, then at most one link, and nothing it writes outside the work folder.
         if (commands.Count is < 1 or > 2 || !commands[0].Program.EndsWith("compile.exe", StringComparison.OrdinalIgnoreCase)) return null;
         if (commands.Count == 2 && !commands[1].Program.EndsWith("link.exe", StringComparison.OrdinalIgnoreCase)) return null;
         if (commands[0].Arguments.Count(a => a.Equals(probe, StringComparison.OrdinalIgnoreCase)) != 1) return null;
@@ -350,8 +296,6 @@ internal static partial class GoDirectBuild
                 var package = entry["packagefile ".Length..equals];
                 var path = entry[(equals + 1)..];
 
-                // Only this file's own compiled package may come from the work folder. Anything else there is
-                // a package go build would have to build first - found on a machine whose build cache is empty.
                 if (path.StartsWith("$WORK", StringComparison.Ordinal))
                 {
                     if (package == Description) continue;
@@ -373,13 +317,8 @@ internal static partial class GoDirectBuild
             tools.Select(t => (t.FullName, t.LastWriteTimeUtc, t.Length)).ToList());
     }
 
-    /// <summary>
-    /// What go build would report for a copy of a file at <paramref name="copy"/>, built in
-    /// <paramref name="folder"/>, or null when this plan cannot say.
-    /// </summary>
     internal static async Task<CheckResult?> RunAsync(Plan plan, string copy, string folder, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        // A plan is only as good as the cache and tools it names: go cleans its cache, and Go gets updated.
         if (plan.CachedPackages.Any(path => !File.Exists(path))) return null;
 
         foreach (var (path, written, length) in plan.Tools)
@@ -446,10 +385,6 @@ internal static partial class GoDirectBuild
         return new CheckResult(true, 0, [], []);
     }
 
-    /// <summary>
-    /// The go command's own rewriting of a tool's output, one line at a time: a path replaced where it starts
-    /// the line, follows a tab at the start of the line, or follows a space.
-    /// </summary>
     internal static string ReplacePrefix(string line, string old, string replacement)
     {
         if (!line.Contains(old, StringComparison.Ordinal)) return line;
@@ -462,7 +397,6 @@ internal static partial class GoDirectBuild
         return line;
     }
 
-    /// <summary>The words of one printed command: NAME='value' assignments, Go-quoted strings, and bare words.</summary>
     internal static List<string>? Words(string line)
     {
         var words = new List<string>();

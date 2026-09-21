@@ -4,42 +4,17 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads PHP fatal errors, parse errors and warnings.</summary>
-/// <remarks>
-/// PHP prints the same failure two different ways depending on how it was configured. Run from the
-/// command line with <c>log_errors</c> on it prefixes every line with <c>PHP </c>; run through a
-/// web server with <c>display_errors</c> on it does not. Both are accepted, because which one a
-/// user sees is a setting they probably did not choose.
-/// <para>
-/// <b>The location is written two ways too</b>, and the difference is not cosmetic. An uncaught
-/// exception ends <c>in /app/thing.php:12</c>; a parse error or a warning ends <c>in
-/// /app/thing.php on line 12</c>. A parser that knows only the first reads a parse error's file
-/// path as <c>/app/thing.php on line 12</c> and finds no source file at all.
-/// </para>
-/// <para>
-/// The capital F in <c>Fatal error</c> is load-bearing for detection: Go and gcc both print a
-/// lower-case <c>fatal error:</c>, and matching case-insensitively here would have this parser
-/// bidding for their output.
-/// </para>
-/// </remarks>
 public sealed partial class PhpParser : IStackTraceParser
 {
     public string LanguageId => "php";
     public string DisplayName => "PHP";
 
-    /// <summary>
-    /// The failure line, with either location form.
-    /// </summary>
-    /// <remarks>
-    /// <c>line</c> appears twice by design - .NET takes whichever alternative actually matched,
-    /// which keeps the two location forms in one pattern instead of two near-identical ones.
-    /// </remarks>
     [GeneratedRegex(
         @"^(?:PHP\s+)?(?<severity>Fatal error|Parse error|Recoverable fatal error|Warning|Notice|Deprecated)" +
         @":\s+(?:Uncaught\s+(?<type>[A-Za-z_\\][\w\\]*)\s*:\s*)?(?<msg>.*?)" +
         @"\s+in\s+(?<file>.+?)(?::(?<line>\d+)|\s+on line\s+(?<line>\d+))\s*$")]
     private static partial Regex HeaderPattern();
 
-    /// <summary>A stack-trace entry, or the <c>{main}</c> sentinel that ends every PHP trace.</summary>
     [GeneratedRegex(@"^#(?<order>\d+)\s+(?:(?<file>.+?)\((?<line>\d+)\):\s*(?<sym>.+)|(?<main>\{main\}))\s*$")]
     private static partial Regex FramePattern();
 
@@ -63,8 +38,6 @@ public sealed partial class PhpParser : IStackTraceParser
 
     public ParsedError? Parse(IReadOnlyList<CapturedLine> lines)
     {
-        // Searched backwards: a script can print several warnings before the one that kills it,
-        // and the fatal one is the last.
         var headerIndex = -1;
         for (var i = lines.Count - 1; i >= 0; i--)
         {
@@ -113,8 +86,6 @@ public sealed partial class PhpParser : IStackTraceParser
 
             end = i + 1;
 
-            // "#1 {main}" is the bottom of every PHP trace and names no location, so it is a
-            // terminator rather than a frame.
             if (frame.Groups["main"].Success) break;
 
             frames.Add(new ErrorFrame
@@ -127,8 +98,6 @@ public sealed partial class PhpParser : IStackTraceParser
             });
         }
 
-        // A parse error names no exception class, but "ParseError" is what PHP 7+ calls the
-        // throwable for one and is what an answer about it will be written against.
         var type = header.Groups["type"].Success
             ? header.Groups["type"].Value
             : severity.Contains("Parse", StringComparison.Ordinal) ? "ParseError" : null;

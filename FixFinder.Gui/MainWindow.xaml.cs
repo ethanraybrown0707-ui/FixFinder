@@ -1,58 +1,68 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using FixFinder.Core;
+using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
-using FixFinder.Core.Patching;
+using FixFinder.Core.Logic;
 using FixFinder.Core.Security;
 using FixFinder.Core.Sources;
 using Microsoft.Win32;
 
-// UIElement has a CacheMode property of its own - a WPF bitmap-caching hint - and an inherited
-// member beats a using alias in name lookup, so the HTTP one needs a different name here.
-using HttpCacheMode = FixFinder.Core.Http.CacheMode;
-
 namespace FixFinder.Gui;
 
-/// <summary>
-/// The whole tool: pick a program, run it, and be asked about a fix if there is one.
-/// </summary>
-/// <remarks>
-/// Deliberately thin. Everything the window used to ask for up front - where the source is,
-/// which query to send, which of thirty results to open, whether its patch fits - is worked out
-/// by <see cref="FixFinderSession"/>, because every one of those had a defensible default and
-/// none of them is a decision worth making before seeing whether the program even crashes.
-/// <para>
-/// Two gates survive the simplification, and they are the two that matter: a confirmation naming
-/// the exact command line before anything is launched, and the typed confirmation in the preview
-/// before anything is written. Neither is a setting.
-/// </para>
-/// </remarks>
+/// <summary>Pick a program, press its language, and read the report.</summary>
 public partial class MainWindow : Window
 {
+    private sealed record LanguageBadge(string Short, string Colour, string TextColour = "#FFFFFF");
+
+    private static readonly Dictionary<string, LanguageBadge> Badges = new()
+    {
+        ["Python"] = new("Py", "#3776AB"),
+        ["Java"] = new("Java", "#E76F00"),
+        ["C#"] = new("C#", "#7B3FB8"),
+        ["C"] = new("C", "#5C6BC0"),
+        ["C++"] = new("C++", "#00599C"),
+        ["JavaScript"] = new("JS", "#F7DF1E", "#2B2B2B"),
+        ["Go"] = new("Go", "#00ADD8"),
+        ["Any language"] = new("Auto", "#5B6679"),
+    };
+
     private readonly ObservableCollection<OutputRow> _output = [];
+    private readonly ObservableCollection<ExpectedRunRow> _extraRuns = [];
+    private readonly ObservableCollection<FindingRow> _visibleFindings = [];
+    private readonly ObservableCollection<string> _notes = [];
 
     private readonly FixFinderHttpClient _http = new();
     private readonly FixSourceRegistry _sources = new();
 
+    private List<FindingRow> _findings = [];
+    private Severity? _filter;
+
+    private string? _chosenPath;
     private LaunchPlan? _launch;
+    private CodeLanguage _language = CodeLanguage.Any;
+
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
-    private LoopResult? _result;
 
-    /// <summary>How the last round was answered, so the next prompt can say how it got there.</summary>
-    private RoundChoice? _previousChoice;
-
-    /// <param name="initialFile">
-    /// A program named on the command line, or dropped onto the exe in Explorer. Selected but
-    /// never run - the confirmation before launching still has to be answered.
-    /// </param>
     public MainWindow(string? initialFile = null)
     {
         InitializeComponent();
 
         OutputListBox.ItemsSource = _output;
+        ExtraRunsList.ItemsSource = _extraRuns;
+        FindingsList.ItemsSource = _visibleFindings;
+        NotesList.ItemsSource = _notes;
+
+        AddLanguageTiles();
+        UpdateFilterCounts();
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -80,18 +90,21 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    // ================================================================== choosing
+    private void ChooseFileButton_Click(object sender, RoutedEventArgs e) => PickFile();
 
-    private void ChooseFileButton_Click(object sender, RoutedEventArgs e)
+    private bool PickFile()
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Pick the program to run",
-            Filter = TargetFactory.FileDialogFilter,
+            Title = _language.IsAny ? "Choose the program to check" : $"Choose the {_language.Name} program to check",
+            Filter = _language.FileDialogFilter(TargetFactory.FileDialogFilter),
             CheckFileExists = true,
         };
 
-        if (dialog.ShowDialog(this) == true) Choose(dialog.FileName);
+        if (dialog.ShowDialog(this) != true) return false;
+
+        Choose(dialog.FileName);
+        return true;
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -106,136 +119,193 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>
-    /// Works out how the file would be launched, and says so before anything runs.
-    /// </summary>
-    /// <remarks>
-    /// Shown rather than done quietly. "Running it with python" is the one piece of guesswork in
-    /// the whole simplified flow, and it is the piece most likely to be wrong - a file with two
-    /// plausible interpreters, or the wrong Python on PATH - so it is stated where it can be
-    /// disagreed with.
-    /// </remarks>
     private void Choose(string path)
     {
+        _chosenPath = path;
         _launch = TargetFactory.FromFile(path);
-        _result = null;
-        _previousChoice = null;
 
-        ResultText.Visibility = Visibility.Collapsed;
-        _output.Clear();
+        NothingChosenPanel.Visibility = Visibility.Collapsed;
+        ChosenPanel.Visibility = Visibility.Visible;
 
-        if (!_launch.Ok)
+        ShowChosen(_launch.ChosenFile ?? path);
+        HowItRunsText.Text = _launch.Ok ? _launch.Explanation : _launch.Problem ?? "";
+        HowItRunsText.Foreground = (Brush)FindResource(_launch.Ok ? "HintBrush" : "ErrorBrush");
+
+        var detected = CodeLanguage.Of(path);
+        UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
+
+        LanguageHintText.Text = detected is null
+            ? "Press the language it was written in, or Auto to let FixFinder work it out."
+            : $"This looks like {detected.Name}. Press {detected.Name} to check its syntax and logic together.";
+    }
+
+    private void ShowChosen(string path)
+    {
+        ChosenFileText.Text = Path.GetFileName(path) is { Length: > 0 } name ? name : path;
+        ChosenFileText.ToolTip = path;
+        ChosenFolderText.Text = Path.GetDirectoryName(path) ?? "";
+        ChosenFolderText.ToolTip = path;
+    }
+
+    private void AddLanguageTiles()
+    {
+        var order = new[] { CodeLanguage.Python, CodeLanguage.Java, CodeLanguage.CSharp, CodeLanguage.C, CodeLanguage.Cpp, CodeLanguage.JavaScript, CodeLanguage.Go };
+
+        foreach (var language in order.Concat(CodeLanguage.All.Except(order)))
         {
-            ChosenFileText.Text = Path.GetFileName(path);
-            HowItRunsText.Text = "";
-            FindFixButton.IsEnabled = false;
+            var badge = Badges.GetValueOrDefault(language.Name) ?? new LanguageBadge(language.Name[..1], "#5B6679");
+            var name = language.IsAny ? "Auto-detect" : language.Name;
 
-            StatusText.Text = "That one cannot be run.";
-            ShowResult(_launch.Problem!, problem: true);
+            var tile = new RadioButton
+            {
+                GroupName = "Language",
+                Tag = language,
+                Style = (Style)FindResource("LanguageTile"),
+                ToolTip = language.IsAny
+                    ? "Work out the language from the file, and check it with everything FixFinder knows."
+                    : $"Check it as {language.Name}: compile and run it, and read it for logic mistakes, at the same time.",
+                Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children =
+                    {
+                        new Border
+                        {
+                            Width = 34, Height = 26, CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 10, 0),
+                            Background = (Brush)new BrushConverter().ConvertFromString(badge.Colour)!,
+                            Child = new TextBlock
+                            {
+                                Text = badge.Short, FontSize = 11, FontWeight = FontWeights.Bold,
+                                Foreground = (Brush)new BrushConverter().ConvertFromString(badge.TextColour)!,
+                                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                            },
+                        },
+                        new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center },
+                    },
+                },
+            };
+
+            var id = language.Name.Replace("C#", "CSharp").Replace("C++", "Cpp");
+            AutomationProperties.SetAutomationId(tile, "Language" + new string(id.Where(char.IsLetterOrDigit).ToArray()));
+            AutomationProperties.SetName(tile, $"Check as {name}");
+
+            tile.Click += LanguageTile_Click;
+            LanguagePanel.Children.Add(tile);
+        }
+    }
+
+    private async void LanguageTile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton { Tag: CodeLanguage language } || _cancellation is not null) return;
+
+        _language = language;
+
+        if (_chosenPath is null && !PickFile()) return;
+
+        if (_language.Refuses(_chosenPath!) is { } refusal)
+        {
+            var detected = CodeLanguage.Of(_chosenPath!);
+            ShowProblem("That file is in a different language.", $"{refusal} Press {detected!.Name} instead, or choose a {_language.Name} file.");
+            OfferLanguage(detected);
             return;
         }
 
-        ChosenFileText.Text = _launch.ChosenFile ?? _launch.Spec!.ExecutablePath;
-        HowItRunsText.Text = _launch.Explanation;
-        FindFixButton.IsEnabled = true;
-        StatusText.Text = "Ready.";
+        await CheckAsync();
     }
 
-    // ================================================================== running
-
-    private async void FindFixButton_Click(object sender, RoutedEventArgs e)
+    private void OfferLanguage(CodeLanguage? detected)
     {
-        if (_launch is not { Ok: true, Spec: not null }) return;
+        if (detected is null || detected == _language)
+        {
+            UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
+            return;
+        }
 
-        // Typed answers belong to this run and every re-run of it, so they go into the spec itself.
-        var launch = InputTextBox.Text is { Length: > 0 } typed
-            ? _launch with { Spec = _launch.Spec.WithInput(typed) }
-            : _launch;
+        UseDetectedLanguageButton.Content = $"This looks like {detected.Name} - check it as {detected.Name}";
+        UseDetectedLanguageButton.Tag = detected;
+        UseDetectedLanguageButton.Visibility = Visibility.Visible;
+    }
 
-        var spec = launch.Spec!;
+    private void UseDetectedLanguageButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (UseDetectedLanguageButton.Tag is not CodeLanguage detected) return;
 
-        // The gate that has to stay. FixFinder is about to run a program as this user, with
-        // this user's environment, and the exact command line is the one thing nobody should
-        // have to infer from a file name.
-        // A compiled language runs two commands, and the confirmation names both. Showing only
-        // the second would be describing something other than what is about to happen.
-        var commands = _launch.Compile is { } compile
-            ? $"{compile.DisplayCommandLine}\n\nthen:\n\n{spec.DisplayCommandLine}"
-            : spec.DisplayCommandLine;
+        var tile = LanguagePanel.Children.OfType<RadioButton>().FirstOrDefault(t => t.Tag is CodeLanguage language && language == detected);
+        if (tile is null) return;
 
-        var confirmed = MessageBox.Show(this,
-            "FixFinder is about to run this, as you, and capture everything it prints:\n\n" +
-            $"{commands}\n\n" +
-            $"In: {spec.WorkingDirectory}\n\n" +
-            (spec.StandardInput is { } answers ? $"Typing into it:\n\n{answers}\n\n" : "") +
-            "Continue?",
-            "Run this program?", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel);
+        tile.IsChecked = true;
+        tile.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, tile));
+    }
 
-        if (confirmed != MessageBoxResult.OK) return;
+    private void AddRunButton_Click(object sender, RoutedEventArgs e) => _extraRuns.Add(new ExpectedRunRow());
 
-        _output.Clear();
-        ResultText.Visibility = Visibility.Collapsed;
-        SetBusy(true);
+    private void RemoveRunButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is ExpectedRunRow row) _extraRuns.Remove(row);
+    }
+
+    private async Task CheckAsync()
+    {
+        _launch = TargetFactory.FromFile(_chosenPath!);
+
+        if (!_launch.Ok || _launch.Spec is null)
+        {
+            ShowProblem("That program cannot be run.", _launch.Problem ?? "");
+            return;
+        }
+
+        var input = InputTextBox.Text is { Length: > 0 } typed ? typed : null;
+        var launch = _launch with { Spec = _launch.Spec.WithArguments(ArgumentsTextBox.Text).WithInput(input) };
+        _launch = launch;
+
+        var expected = ExpectedBehaviour.From(
+            new[] { new ExpectedRun(input, ExpectedOutputTextBox.Text) }
+                .Concat(_extraRuns.Select(r => new ExpectedRun(r.Input.Length > 0 ? r.Input : null, r.Expected))),
+            ArgumentsTextBox.Text);
+
+        StartReport(launch);
 
         _logger?.Dispose();
         _logger = new FixFinderLogger();
         LogPathText.Text = _logger.FilePath;
-        _logger.WriteSection("Target");
-        if (_launch.Compile is { } logged) _logger.Write($"build: {logged.DisplayCommandLine}");
-        _logger.Write(spec.DisplayCommandLine);
+        OpenLogButton.Visibility = Visibility.Visible;
+        _logger.WriteSection("Check");
+        _logger.Write($"language: {_language.Name}");
+        if (launch.Compile is { } compile) _logger.Write($"build: {compile.DisplayCommandLine}");
+        _logger.Write($"run: {launch.Spec!.DisplayCommandLine}");
 
         _cancellation = new CancellationTokenSource();
 
-        var session = new FixFinderSession(_http, _sources);
-        session.Progress += OnProgress;
-        session.Log += OnLog;
-        session.LineCaptured += OnLineCaptured;
+        var checker = new ProgramChecker(_http, _sources) { Language = _language, Expected = expected.IsEmpty ? null : expected };
+        checker.FindingsChanged += OnFindingsChanged;
+        checker.Progress += OnProgress;
+        checker.LaneFinished += OnLaneFinished;
+        checker.LineCaptured += OnLineCaptured;
+        checker.Log += OnLog;
 
         try
         {
-            var budget = SearchBudget.Default with
-            {
-                Cache = OfflineCheckBox.IsChecked == true ? HttpCacheMode.CacheOnly : HttpCacheMode.Normal,
-            };
-
-            var loop = new FixLoop(session) { Ask = AskAboutAsync };
-            loop.Log += OnLog;
-            loop.RoundStarting += OnRoundStarting;
-
-            try
-            {
-                _result = await loop.RunAsync(launch, budget, _cancellation.Token);
-            }
-            finally
-            {
-                loop.Log -= OnLog;
-                loop.RoundStarting -= OnRoundStarting;
-            }
-
-            _logger.WriteSection("Result");
-            _logger.Write($"{_result.End} after {_result.Rounds.Count} round(s): {_result.Headline}");
-            foreach (var warning in _result.Last.Warnings) _logger.Write($"warning: {warning}");
-
-            Show(_result);
+            var report = await checker.CheckAsync(launch, _cancellation.Token);
+            FinishReport(report);
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Stopped.";
+            SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, "Stopped", LaneState.Stopped);
+            SetLane(LogicStatusText, LogicIcon, LogicProgress, "Stopped", LaneState.Stopped);
             _logger.Write("Stopped by the user.");
         }
         catch (Exception ex)
         {
-            // The session already turns expected failures into outcomes, so reaching here means
-            // something unforeseen. Say so rather than leaving a spinner running forever.
-            StatusText.Text = "FixFinder itself failed.";
-            ShowResult($"Something inside FixFinder went wrong: {ex.Message}", problem: true);
+            ShowProblem("FixFinder itself failed.", ex.Message);
             _logger.Write($"FixFinder itself failed: {ex}");
         }
         finally
         {
-            session.Progress -= OnProgress;
-            session.Log -= OnLog;
-            session.LineCaptured -= OnLineCaptured;
+            checker.FindingsChanged -= OnFindingsChanged;
+            checker.Progress -= OnProgress;
+            checker.LaneFinished -= OnLaneFinished;
+            checker.LineCaptured -= OnLineCaptured;
+            checker.Log -= OnLog;
 
             _cancellation.Dispose();
             _cancellation = null;
@@ -243,123 +313,282 @@ public partial class MainWindow : Window
         }
     }
 
+    private void StartReport(LaunchPlan launch)
+    {
+        _output.Clear();
+        _notes.Clear();
+        _findings = [];
+        _visibleFindings.Clear();
+        FilterAll.IsChecked = true;
+        UpdateFilterCounts();
+
+        FilterPanel.Visibility = Visibility.Collapsed;
+        EmptyState.Visibility = Visibility.Collapsed;
+        CopyReportButton.IsEnabled = false;
+
+        ReportSubtitleText.Text = $"{Path.GetFileName(launch.ChosenFile ?? launch.Spec!.ExecutablePath)}  ·  " +
+                                  $"{(_language.IsAny ? "language worked out automatically" : _language.Name)}  ·  checking…";
+
+        SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, launch.NeedsCompiling ? "Compiling…" : "Reading the code…", LaneState.Running);
+        SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the code for logic mistakes…", LaneState.Running);
+
+        SetBusy(true);
+    }
+
+    private void FinishReport(CheckReport report)
+    {
+        foreach (var note in report.Notes) _notes.Add(note);
+
+        ShowFindings(report.Findings);
+
+        SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
+            report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime && f.FoundBy is null) ? LaneState.Failed : LaneState.Passed);
+        SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
+            report.Findings.Any(f => (f.Kind == FindingKind.Logic || f.FoundBy is not null) && f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
+
+        ReportSubtitleText.Text = $"{Path.GetFileName(_launch?.ChosenFile ?? "")}  ·  {(_language.IsAny ? "Auto-detected" : _language.Name)}  ·  " +
+                                  $"checked at {DateTime.Now:HH:mm}";
+
+        if (report.Run?.Run is { } run && _output.Count == 0)
+        {
+            foreach (var line in run.Lines) _output.Add(new OutputRow { DisplayLine = line.DisplayLine, IsError = line.IsError });
+        }
+
+        if (report.Findings.Count == 0)
+        {
+            EmptyState.Visibility = Visibility.Visible;
+            EmptyTitleText.Text = "No problems found";
+            EmptyBodyText.Text = "It builds and runs, and nothing in the code looks like a logic mistake. Give it the output it should print, " +
+                                 "under Input and expected output, to check what it prints as well.";
+        }
+
+        _logger?.WriteSection("Findings");
+        foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
+
+        CopyReportButton.IsEnabled = report.Findings.Count > 0;
+    }
+
+    private void OnFindingsChanged(IReadOnlyList<Finding> findings) => Dispatcher.BeginInvoke(() => ShowFindings(findings));
+
+    private void ShowFindings(IReadOnlyList<Finding> findings)
+    {
+        // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.
+        static string Key(Finding f) => $"{f.File}|{f.Line}|{f.RuleId}|{f.Title}";
+
+        var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
+        var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
+
+        _findings = findings.Select(f => new FindingRow(f)
+        {
+            IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
+        }).ToList();
+
+        FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_findings.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
+
+        UpdateFilterCounts();
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        _visibleFindings.Clear();
+
+        foreach (var row in _findings.Where(r => _filter is null || r.Finding.Severity == _filter))
+            _visibleFindings.Add(row);
+    }
+
+    private void UpdateFilterCounts()
+    {
+        int Count(Severity severity) => _findings.Count(r => r.Finding.Severity == severity);
+
+        FilterAll.Content = $"All  {_findings.Count}";
+        FilterErrors.Content = $"Errors  {Count(Severity.Error)}";
+        FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
+        FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
+    }
+
+    private void Filter_Checked(object sender, RoutedEventArgs e)
+    {
+        _filter = sender == FilterErrors ? Severity.Error
+            : sender == FilterWarnings ? Severity.Warning
+            : sender == FilterSuggestions ? Severity.Suggestion
+            : null;
+
+        if (_findings is not null) ApplyFilter();
+    }
+
+    private void OnProgress(CheckLane lane, string message) => Dispatcher.BeginInvoke(() =>
+    {
+        if (lane == CheckLane.Syntax) SyntaxStatusText.Text = message;
+        else LogicStatusText.Text = message;
+    });
+
+    private void OnLaneFinished(CheckLane lane, string _) => Dispatcher.BeginInvoke(() =>
+    {
+        (lane == CheckLane.Syntax ? SyntaxProgress : LogicProgress).Visibility = Visibility.Collapsed;
+    });
+
+    private void OnLineCaptured(CapturedLine line) =>
+        Dispatcher.BeginInvoke(() => _output.Add(new OutputRow { DisplayLine = line.DisplayLine, IsError = line.IsError }));
+
+    private void OnLog(string message) => _logger?.Write(message);
+
     private void StopButton_Click(object sender, RoutedEventArgs e)
     {
         StopButton.IsEnabled = false;
-        StatusText.Text = "Stopping...";
+        SyntaxStatusText.Text = "Stopping…";
+        LogicStatusText.Text = "Stopping…";
         _cancellation?.Cancel();
-    }
-
-    // ================================================================== reporting
-
-    /// <summary>
-    /// Puts one round's findings in front of the user, and reports the answer to the loop.
-    /// </summary>
-    /// <remarks>
-    /// Only two of the outcomes open anything. A program that ran fine, or crashed with nothing
-    /// published about it, is a complete answer on its own - interrupting with a dialog to say
-    /// "nothing happened" would train people to dismiss the dialog that matters.
-    /// <para>
-    /// Runs on the UI thread: the loop is awaited from here, so its continuations come back to
-    /// the dispatcher and <c>ShowDialog</c> is legal. That is also what makes the loop block on
-    /// the answer rather than racing ahead of it.
-    /// </para>
-    /// </remarks>
-    private Task<RoundDecision> AskAboutAsync(SessionOutcome outcome, int round, CancellationToken cancellationToken)
-    {
-        if (round > 1) ShowOutputOf(outcome);
-
-        if (!outcome.WorthShowing || cancellationToken.IsCancellationRequested)
-            return Task.FromResult(RoundDecision.Stop);
-
-        var found = new FixFoundWindow(
-            new FixFoundContext(outcome, _http, _logger, round, _previousChoice)) { Owner = this };
-
-        found.ShowDialog();
-
-        var decision = found.Decision ?? RoundDecision.Stop;
-        _previousChoice = decision.Choice;
-
-        return Task.FromResult(decision);
-    }
-
-    /// <summary>Says what happened across every round, once the loop has finished.</summary>
-    private void Show(LoopResult result)
-    {
-        StatusText.Text = result.Headline;
-
-        // An unattended run answers its own prompts, so nothing has refilled the pane since the
-        // first round. What is worth seeing is the run that ended it.
-        if (result.Looped) ShowOutputOf(result.Last);
-
-        ShowResult(result.Detail, problem: result.End is LoopEnd.CouldNotRun);
-
-        if (result.Last.Warnings.Count > 0)
-            ResultText.Text += "\n\n" + string.Join("\n", result.Last.Warnings);
-
-        // The captured output is worth a glance when something went wrong, and is noise when
-        // nothing did. After a loop it is the last round's output, which is the one still failing.
-        DetailsExpander.IsExpanded = result.Last.Error is not null && _output.Count > 0;
-    }
-
-    private void OnRoundStarting(int round) => Dispatcher.BeginInvoke(() =>
-    {
-        if (round > 1) StatusText.Text = $"That worked. Error {round} — looking for the next fix...";
-    });
-
-    /// <summary>
-    /// Replaces the output pane with the run this round is about.
-    /// </summary>
-    /// <remarks>
-    /// Only the first round streams. Every round after it is the verifier's re-run - the program
-    /// has already been built and run again to decide whether the last patch helped, and the loop
-    /// deliberately reuses that run rather than launching a third time. Its output arrives with
-    /// the result rather than line by line, so the pane is refilled from it here.
-    /// <para>
-    /// Replaced rather than appended: three crashes stacked in one list, with nothing marking
-    /// where each began, would bury the error actually being asked about.
-    /// </para>
-    /// </remarks>
-    private void ShowOutputOf(SessionOutcome outcome)
-    {
-        if (outcome.Run is not { } run) return;
-
-        _output.Clear();
-
-        foreach (var line in run.Lines)
-            _output.Add(new OutputRow { DisplayLine = line.DisplayLine, IsError = line.IsError });
-    }
-
-    private void ShowResult(string text, bool problem)
-    {
-        ResultText.Text = text;
-        ResultText.Foreground = problem
-            ? System.Windows.Media.Brushes.Firebrick
-            : System.Windows.Media.Brushes.Black;
-
-        ResultText.Visibility = Visibility.Visible;
     }
 
     private void SetBusy(bool busy)
     {
-        BusyBar.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        StopButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         StopButton.IsEnabled = busy;
 
-        FindFixButton.IsEnabled = !busy && _launch is { Ok: true };
+        LanguagePanel.IsEnabled = !busy;
         ChooseFileButton.IsEnabled = !busy;
+        ChooseAnotherButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
-        OfflineCheckBox.IsEnabled = !busy;
+        UseDetectedLanguageButton.IsEnabled = !busy;
+        AllowDrop = !busy;
     }
 
-    private void OnProgress(string message) => Dispatcher.BeginInvoke(() => StatusText.Text = message);
+    private enum LaneState
+    {
+        Running,
+        Passed,
+        Warned,
+        Failed,
+        Stopped,
+    }
 
-    private void OnLog(string message) => _logger?.Write(message);
+    private void SetLane(TextBlock status, TextBlock icon, ProgressBar progress, string text, LaneState state)
+    {
+        status.Text = text;
+        status.ToolTip = text;
+        progress.Visibility = state == LaneState.Running ? Visibility.Visible : Visibility.Collapsed;
 
-    private void OnLineCaptured(CapturedLine line) =>
-        Dispatcher.BeginInvoke(() =>
-            _output.Add(new OutputRow { DisplayLine = line.DisplayLine, IsError = line.IsError }));
+        (icon.Text, icon.Foreground) = state switch
+        {
+            LaneState.Passed => ("", (Brush)FindResource("SuccessBrush")),
+            LaneState.Warned => ("", (Brush)FindResource("WarningBrush")),
+            LaneState.Failed => ("", (Brush)FindResource("ErrorBrush")),
+            LaneState.Stopped => ("", (Brush)FindResource("HintBrush")),
+            _ => (icon == SyntaxIcon ? "" : "", (Brush)FindResource("AccentBrush")),
+        };
+    }
 
-    // ================================================================== the small print
+    private void ShowProblem(string title, string text)
+    {
+        _findings = [];
+        _visibleFindings.Clear();
+        FilterPanel.Visibility = Visibility.Collapsed;
+
+        EmptyState.Visibility = Visibility.Visible;
+        EmptyTitleText.Text = title;
+        EmptyBodyText.Text = text;
+    }
+
+    private void ToggleDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is FindingRow row) row.IsExpanded = !row.IsExpanded;
+    }
+
+    private void CopyExample_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is FindingRow row && Copy(row.CorrectedExample) && sender is Button button)
+            Flash(button, "Copied");
+    }
+
+    private void CopyReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        var header = $"FixFinder report for {Path.GetFileName(_launch?.ChosenFile ?? "")} ({_language.Name})";
+        var text = string.Join(Environment.NewLine + Environment.NewLine,
+            new[] { header }.Concat(_notes).Concat(_findings.Select(r => r.AsText())));
+
+        if (Copy(text)) Flash(CopyReportButton, "Copied");
+    }
+
+    private void ShowInFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not FindingRow row || !File.Exists(row.Finding.File)) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{row.Finding.File}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
+        {
+            _logger?.Write($"Could not open the folder: {ex.Message}");
+        }
+    }
+
+    private async void SearchOnline_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not FindingRow { Finding.Error: { } error } row || _launch?.Spec is not { } spec) return;
+
+        var button = sender as Button;
+        if (button is not null) button.IsEnabled = false;
+
+        try
+        {
+            var session = new FixFinderSession(_http, _sources) { Language = _language };
+            session.Log += OnLog;
+
+            var run = new TargetRunResult
+            {
+                Outcome = RunOutcome.ExitedNonZero,
+                Lines = [],
+                Duration = TimeSpan.Zero,
+                Explanation = "",
+                Error = error,
+            };
+
+            var outcome = await session.LookUpAsync(run, error, spec, _launch.SourceFolder, row.Finding.Kind == FindingKind.Syntax);
+            session.Log -= OnLog;
+
+            new FixFoundWindow(new FixFoundContext(outcome, _http, _logger)) { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"The search did not work:\n\n{ex.Message}", "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            if (button is not null) button.IsEnabled = true;
+        }
+    }
+
+    private bool Copy(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            return true;
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            MessageBox.Show(this, "Another program is using the clipboard. Try again in a moment.", "FixFinder",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+    }
+
+    private static void Flash(Button button, string text)
+    {
+        var original = button.Content;
+        button.Content = text;
+
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        timer.Tick += (_, _) =>
+        {
+            button.Content = original;
+            timer.Stop();
+        };
+        timer.Start();
+    }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -369,23 +598,17 @@ public partial class MainWindow : Window
         if (settings.Saved) _logger?.Write("Credentials updated.");
     }
 
-    private void BackupsButton_Click(object sender, RoutedEventArgs e)
+    private void OpenLogButton_Click(object sender, RoutedEventArgs e)
     {
-        var store = new BackupStore();
+        if (_logger?.FilePath is not { } path || !File.Exists(path)) return;
 
         try
         {
-            Directory.CreateDirectory(store.Root);
-
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(store.Root)
-            {
-                UseShellExecute = true,
-            });
+            Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
         }
-        catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
         {
-            MessageBox.Show(this, $"Could not open the backups folder:\n\n{ex.Message}",
-                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, $"Could not open the log:\n\n{ex.Message}", "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

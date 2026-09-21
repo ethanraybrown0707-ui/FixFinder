@@ -5,46 +5,23 @@ using FixFinder.Core.Http;
 
 namespace FixFinder.Core.Sources;
 
-/// <summary>
-/// Searches Stack Overflow through the Stack Exchange API.
-/// </summary>
-/// <remarks>
-/// Always advisory, never appliable. Stack Overflow answers are prose with code blocks in them,
-/// essentially never unified diffs, so there is nothing here a patch engine could apply without
-/// a language model deciding what the prose meant - and there is deliberately not one in this
-/// tool. What this source is genuinely good at is the case web search is good at: an error from
-/// a library you did not write, which hundreds of other people have already hit.
-/// <para>
-/// Two requests per search, no matter how many results come back: one search, then a single
-/// batched call that fetches the answers to every question at once. The API charges per
-/// request, not per item, so fetching answers one question at a time would cost ten times as
-/// much for exactly the same data.
-/// </para>
-/// <para>
-/// Rendering an answer body obliges us to attribute it under CC BY-SA, per the API terms. Every
-/// candidate therefore carries its own attribution line rather than the window assembling one,
-/// so the obligation cannot be lost by displaying a candidate somewhere new.
-/// </para>
-/// </remarks>
+/// <summary>Searches Stack Overflow through the Stack Exchange API.</summary>
 public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSource
 {
     public const string Bucket = "stackexchange";
 
     private const string ApiRoot = "https://api.stackexchange.com/2.3";
 
-    /// <summary>Questions carried through to the answers call. The API caps a batch at 100 ids.</summary>
     private const int QuestionsToDetail = 10;
 
     public string Name => "Stack Overflow";
     public bool RequiresNetwork => true;
 
-    /// <summary>Always true - the API works unkeyed. A key only raises the daily allowance.</summary>
     public bool IsConfigured => true;
 
     public string QuotaBucket => Bucket;
     public QuotaStatus? Quota => http.Quota.Get(Bucket);
 
-    /// <summary>Written to the log so a run can be retraced. Never includes the app key.</summary>
     public event Action<string>? Log;
 
     public async Task<FixSearchResult> SearchAsync(
@@ -59,9 +36,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         if (search.Failure is not null)
             return FixSearchResult.Failed(Name, search.Failure, queries);
 
-        // The relaxed query drops the quoted literals - the file name, the missing key, the
-        // assembly version - which is exactly what makes a tight query unmatchable when the
-        // value is unique to this run. Only worth a second request when the first found nothing.
         if (search.Questions.Count == 0 && queries.Count < budget.MaxSearchCalls)
         {
             Log?.Invoke("Stack Overflow: no results for the tight query, retrying with the relaxed one.");
@@ -94,8 +68,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
 
         return new FixSearchResult(Name, candidates, queries, requests);
     }
-
-    // ------------------------------------------------------------------ requests
 
     private sealed record SearchOutcome(
         IReadOnlyList<QuestionRecord> Questions, int NetworkRequests, string? Failure);
@@ -133,14 +105,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         return new SearchOutcome(questions, network, null);
     }
 
-    /// <summary>
-    /// Fetches the answers to every chosen question in one request.
-    /// </summary>
-    /// <remarks>
-    /// The ids go in the path separated by semicolons, which is the API's batching convention
-    /// and the single most valuable thing to know about it here: it turns ten requests into one
-    /// against a daily allowance of three hundred.
-    /// </remarks>
     private async Task<(IReadOnlyList<AnswerRecord> Answers, int Requests)> FetchAnswersAsync(
         IEnumerable<long> questionIds, SearchBudget budget, CancellationToken ct)
     {
@@ -157,9 +121,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
 
         if (!result.Ok)
         {
-            // Losing the answers is a degraded result, not a failed search: the questions still
-            // carry their own bodies and their titles, which is often enough to recognise the
-            // problem. Saying so beats returning nothing.
             Log?.Invoke($"Stack Overflow: could not fetch answer bodies - {Describe(result)}");
             return ([], network);
         }
@@ -178,19 +139,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         return (answers, network);
     }
 
-    /// <summary>
-    /// Reads the fields Stack Exchange wraps around every response: the quota, and the backoff.
-    /// </summary>
-    /// <remarks>
-    /// The backoff is the one that bites. It arrives in the body rather than a header, so no
-    /// HTTP handler can see it, and ignoring it does not produce an error - it produces a
-    /// temporary ban some minutes later, by which time the cause is long out of sight.
-    /// <para>
-    /// The quota is only reported when the response actually came from the network. A cached
-    /// response carries the figures from whenever it was stored, and replaying those would make
-    /// the label in the window count down while nothing was being requested at all.
-    /// </para>
-    /// </remarks>
     private void ReadWrapper(JsonElement root, bool fromCache)
     {
         if (root.Int64OrNull("backoff") is { } seconds and > 0)
@@ -217,8 +165,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
 
     private string KeyParameter() =>
         http.StackExchangeKey is { Length: > 0 } key ? $"&key={Uri.EscapeDataString(key)}" : "";
-
-    // ------------------------------------------------------------------ reading
 
     private sealed record QuestionRecord(
         long Id, string Title, string Link, string BodyHtml, int Score, int AnswerCount,
@@ -252,14 +198,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         item.TryGet("owner", out var owner) ? owner.StringOrEmpty("display_name") : "",
         item.UnixSecondsOrNull("last_activity_date"));
 
-    /// <summary>
-    /// Pairs a question with its best answer.
-    /// </summary>
-    /// <remarks>
-    /// The accepted answer wins over a higher-voted one, which is the opposite of what raw
-    /// popularity would suggest and is right here: the person who actually had the problem said
-    /// this was what fixed it. Score decides only when nothing was accepted.
-    /// </remarks>
     private FixCandidate ToCandidate(QuestionRecord question, IReadOnlyList<AnswerRecord> answers)
     {
         var mine = answers.Where(a => a.QuestionId == question.Id).ToArray();
@@ -291,8 +229,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
             Url = question.Link,
             BodyText = bodyText,
 
-            // The answer's HTML, not the question's: M5 pulls code blocks out of this, and the
-            // code that fixes the problem is in the answer.
             RawBody = best?.BodyHtml ?? question.BodyHtml,
             RawBodyIsHtml = true,
 
@@ -308,22 +244,17 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
             IsClosed = question.ClosedReason is { Length: > 0 },
             ClosedReason = question.ClosedReason,
 
-            // A closed question here is one the site turned down, not one it settled.
             Closure = ClosureMeaning.Rejected,
             DuplicateOfUrl = duplicate ? question.Link : null,
 
             Attribution = attribution,
 
-            // Stack Overflow is advisory by definition. Nothing here is ever auto-applied.
             Tier = FixTier.Advisory,
         };
     }
 
-    // ------------------------------------------------------------------ plumbing
-
     private static string WebDecode(string text) => System.Net.WebUtility.HtmlDecode(text);
 
-    /// <summary>Keeps a query inside a length the API will accept without complaint.</summary>
     private static string Trim(string query) => query.Length <= 240 ? query : query[..240];
 
     private static JsonDocument? Parse(string body, out string? failure)
@@ -335,9 +266,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         }
         catch (JsonException)
         {
-            // Almost always one specific mistake: Stack Exchange gzips every response whether
-            // or not you asked for it, so a client without automatic decompression reads the
-            // compressed bytes as text and lands here.
             failure =
                 "Stack Exchange returned something that was not JSON. If this persists, the " +
                 "response was probably still compressed when it was read.";
@@ -346,7 +274,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         }
     }
 
-    /// <summary>Prefers the API's own error text over the generic HTTP description.</summary>
     private static string Describe(HttpResult result)
     {
         if (result.WasCacheMiss) return "Cached results only is on, and this search is not cached.";
@@ -362,7 +289,6 @@ public sealed class StackOverflowFixSource(FixFinderHttpClient http) : IFixSourc
         }
         catch (JsonException)
         {
-            // Fall through to the HTTP-level description.
         }
 
         return result.Failure ?? $"Stack Exchange returned {(int)result.Status}.";

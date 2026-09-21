@@ -6,21 +6,12 @@ using FixFinder.Core.Security;
 
 namespace FixFinder.Gui;
 
-/// <summary>
-/// Holds the two optional API credentials and shows what is stored on disk.
-/// </summary>
-/// <remarks>
-/// A stored secret is never put back into its box. The box stays empty and a masked summary is
-/// shown beside it, so leaving this window open on screen, or capturing it, cannot reveal a
-/// token - and an empty box on Save means "leave what is stored alone", not "clear it". Clearing
-/// is an explicit button, because those two intentions must never be expressed the same way.
-/// </remarks>
+/// <summary>Holds the two optional API credentials and shows what is stored on disk.</summary>
 public partial class SettingsWindow : Window
 {
     private readonly FixFinderHttpClient _http;
     private StoredCredentials _stored;
 
-    /// <summary>Set when Save was pressed, so the caller knows to re-apply the credentials.</summary>
     public bool Saved { get; private set; }
 
     public SettingsWindow(FixFinderHttpClient http)
@@ -91,7 +82,6 @@ public partial class SettingsWindow : Window
         {
             Directory.CreateDirectory(_http.Cache.Directory);
 
-            // UseShellExecute so this opens the folder in Explorer rather than trying to run it.
             Process.Start(new ProcessStartInfo(_http.Cache.Directory) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is IOException or System.ComponentModel.Win32Exception)
@@ -120,7 +110,6 @@ public partial class SettingsWindow : Window
 
     private void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        // An empty box means "leave whatever is stored alone". Clearing is a separate button.
         var github = GitHubTokenBox.Password is { Length: > 0 } typedToken
             ? typedToken.Trim()
             : _stored.GitHubToken;
@@ -149,8 +138,6 @@ public partial class SettingsWindow : Window
         _http.SetGitHubToken(credentials.GitHubToken);
         _http.SetStackExchangeKey(credentials.StackExchangeKey);
 
-        // Cleared as soon as they have been used, so a typed secret does not sit in a control
-        // that something else could read.
         GitHubTokenBox.Clear();
         StackExchangeKeyBox.Clear();
 

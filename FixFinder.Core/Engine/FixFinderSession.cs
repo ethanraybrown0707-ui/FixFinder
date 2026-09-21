@@ -3,6 +3,7 @@ using FixFinder.Core.Fingerprinting;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.LocalFixes.Rules;
+using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Patching;
@@ -14,30 +15,16 @@ namespace FixFinder.Core.Engine;
 /// <summary>How a whole run turned out, in the terms a person would use.</summary>
 public enum SessionResult
 {
-    /// <summary>The program could not be started at all.</summary>
     CouldNotRun,
 
-    /// <summary>It ran and did not go wrong. Nothing to fix.</summary>
     RanFine,
 
-    /// <summary>
-    /// It failed, but said nothing a parser could use.
-    /// </summary>
-    /// <remarks>
-    /// Separate from <see cref="RanFine"/> because they are opposite answers to "did it work".
-    /// A C program killed by an access violation prints absolutely nothing and exits
-    /// 0xC0000005; folding that in with a clean exit reported a crash as a success, which is the
-    /// one thing a tool for finding crashes must never do.
-    /// </remarks>
     FailedSilently,
 
-    /// <summary>It went wrong, but nothing published matches the error.</summary>
     NothingFound,
 
-    /// <summary>Something relevant was found, but it is prose and cannot be applied.</summary>
     FoundAdvice,
 
-    /// <summary>A patch was found that applies cleanly to this source tree.</summary>
     FoundFix,
 }
 
@@ -46,13 +33,10 @@ public sealed record SessionOutcome
 {
     public required SessionResult Result { get; init; }
 
-    /// <summary>One line, written to be shown as the heading of a prompt.</summary>
     public required string Headline { get; init; }
 
-    /// <summary>A short paragraph saying what happened and what can be done about it.</summary>
     public required string Detail { get; init; }
 
-    /// <summary>The target that was run, kept so verification can repeat it exactly.</summary>
     public TargetSpec? Spec { get; init; }
 
     public TargetRunResult? Run { get; init; }
@@ -61,95 +45,58 @@ public sealed record SessionOutcome
 
     public IReadOnlyList<FixCandidate> Candidates { get; init; } = [];
 
-    /// <summary>The best candidate, and the one the prompt is about.</summary>
     public FixCandidate? Best { get; init; }
 
     public HarvestResult? Harvest { get; init; }
 
-    /// <summary>Set when a patch was found and located; this is what Apply would carry out.</summary>
     public ApplyPlan? Plan { get; init; }
 
     public string? SourceRoot { get; init; }
     public IReadOnlyList<string> StackTraceFiles { get; init; } = [];
 
-    /// <summary>Anything that went wrong on the way but did not stop the run.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
-    /// <summary>
-    /// The installed dependency this crash went through, when it went through one.
-    /// </summary>
-    /// <remarks>
-    /// Not a place FixFinder writes by default, and never without being asked for that run. It is
-    /// carried because the commonest published fix in existence is a fix to a library, and a
-    /// patch for a library changes that library's files - which are on this disk, outside the
-    /// project, and were previously resolving to nothing at all.
-    /// </remarks>
     public InstalledPackage? Dependency { get; init; }
 
-    /// <summary>
-    /// Other independent errors in the same output, not yet looked at.
-    /// </summary>
-    /// <remarks>
-    /// Only ever populated for compiler output, where the tool reported everything it found
-    /// before exiting. A crashed program contributes nothing here, because the error that
-    /// stopped it is the only one that exists to be read.
-    /// </remarks>
-    public IReadOnlyList<ParsedError> OtherErrors { get; init; } = [];
-
-    /// <summary>True when the failure was the build rather than the program.</summary>
-    /// <remarks>
-    /// Changes only the wording, not the handling: a compiler diagnostic is searched, ranked and
-    /// answered exactly like a runtime crash, because from the search's point of view it is the
-    /// same kind of thing - text identifying a problem somebody else has already had.
-    /// </remarks>
     public bool FailedToCompile { get; init; }
 
     public bool CanApply => Plan is { CanApply: true };
-
-    /// <summary>True when there is something worth putting in front of the user.</summary>
-    public bool WorthShowing => Result is SessionResult.FoundFix or SessionResult.FoundAdvice;
 }
 
-/// <summary>
-/// Runs the whole thing end to end: launch, read the crash, search, rank, and work out
-/// whether the best answer is something that can actually be applied.
-/// </summary>
-/// <remarks>
-/// Exists so the window can be a file picker and a button. Every decision the old panels asked
-/// the user to make - where the source is, which query to send, which candidate to open, whether
-/// its patch fits - has a defensible default, and the ones that do not are reported as warnings
-/// rather than as questions asked up front. Keeping the sequence here rather than in the window
-/// also means it can be tested without WPF.
-/// <para>
-/// Nothing in here writes to disk. The session decides what <i>could</i> be applied and stops;
-/// applying stays behind the preview, the dry-run default and the typed confirmation.
-/// </para>
-/// </remarks>
-public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources) : IFixSession
+/// <summary>Runs the program, reads the crash, searches and ranks answers, and works out whether the best one fits the program.</summary>
+public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry sources)
 {
-    /// <summary>Candidates whose patches are fetched before giving up on finding an appliable one.</summary>
-    /// <remarks>
-    /// Only the top few. Each one costs requests, and a patch sitting tenth in a ranked list is
-    /// not one anybody should be applying to their source tree unattended.
-    /// </remarks>
     private const int CandidatesToOpen = 3;
 
-    private readonly ParserRegistry _parsers = new();
+    // abort() ends a C or C++ program with 3 on Windows, and a race with another thread can stop it printing why first.
+    private const int WindowsAbortExitCode = 3;
 
-    /// <summary>Raised as each stage starts, for the one status line the window shows.</summary>
+    public CodeLanguage Language { get; init; } = CodeLanguage.Any;
+
+    public ExpectedBehaviour? Expected { get; init; }
+
+    public bool SearchOnline { get; init; } = true;
+
+    public bool CheckLogic { get; init; } = true;
+
+    private string? _chosen;
+
+    private ParserRegistry? _registry;
+
+    private ParserRegistry Parsers => _registry ??= Language.Parsers();
+
     public event Action<string>? Progress;
 
     public event Action<string>? Log;
     public event Action<CapturedLine>? LineCaptured;
 
-    /// <summary>
-    /// Runs the whole sequence for a file that was picked, building it first if it needs it.
-    /// </summary>
     public async Task<SessionOutcome> RunAsync(
         LaunchPlan launch,
         SearchBudget? budget = null,
         CancellationToken cancellationToken = default)
     {
+        _chosen = launch.ChosenFile;
+
         if (!launch.Ok)
         {
             return new SessionOutcome
@@ -167,29 +114,24 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             var (built, build) = await BuildAsync(compile, launch, budget, cancellationToken);
             if (built is not null) return built;
 
-            // Kept, because a build that succeeded can still hold the explanation for what happens
-            // next: C compiles a call to an undeclared malloc with only a warning, and the program
-            // then dies without printing a word.
             buildOutput = build?.Lines;
         }
 
-        var sanitizer = launch is { Compile: not null, ChosenFile: { } chosen }
-            ? SanitizerFor(chosen, launch.Spec!)
-            : null;
+        var sanitizer = SanitizerFor(launch);
 
         return await RunAsync(launch.Spec!, budget, cancellationToken, launch.SourceFolder, buildOutput, sanitizer);
     }
 
-    /// <summary>
-    /// A way to rebuild and rerun a C or C++ program under AddressSanitizer, or null where there is none.
-    /// </summary>
+    public Func<CancellationToken, Task<TargetRunResult?>>? SanitizerFor(LaunchPlan launch) =>
+        launch is { Compile: not null, ChosenFile: { } chosen, Spec: { } run } ? SanitizerFor(chosen, run) : null;
+
     private Func<CancellationToken, Task<TargetRunResult?>>? SanitizerFor(string source, TargetSpec run)
     {
         if (CompiledLanguages.PrepareSanitized(source, run) is not { } plan) return null;
 
         return async cancellationToken =>
         {
-            var runner = new TargetRunner(_parsers);
+            var runner = new TargetRunner(Parsers);
 
             void ForwardLog(string message) => Log?.Invoke(message);
             runner.Log += ForwardLog;
@@ -215,21 +157,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         };
     }
 
-    /// <summary>
-    /// Builds the program, and turns a failed build into an error worth looking up.
-    /// </summary>
-    /// <remarks>
-    /// Returns null when the build succeeded and the run should go ahead. A compiler diagnostic
-    /// is a better search term than most runtime messages: <c>error C2065</c> and
-    /// <c>error CS0103</c> are globally unique, and everyone who has hit one has pasted it
-    /// verbatim into a search box.
-    /// </remarks>
     private async Task<(SessionOutcome? Outcome, TargetRunResult? Build)> BuildAsync(
         TargetSpec compile, LaunchPlan launch, SearchBudget? budget, CancellationToken cancellationToken)
     {
         Progress?.Invoke("Compiling...");
 
-        var runner = new TargetRunner(_parsers);
+        var runner = new TargetRunner(Parsers);
 
         void ForwardLog(string message) => Log?.Invoke(message);
         void ForwardLine(CapturedLine line) => LineCaptured?.Invoke(line);
@@ -268,8 +201,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         Log?.Invoke($"Build failed: {build.Explanation}");
 
-        // A build that failed without printing anything a parser recognised leaves nothing to
-        // search for, and saying so is better than searching for the compiler's exit code.
         if (build.Error is null)
         {
             return (new SessionOutcome
@@ -299,14 +230,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     {
         var warnings = new List<string>();
 
-        // ---------------------------------------------------------- run it
         Progress?.Invoke($"Running {Path.GetFileName(spec.ExecutablePath)}...");
 
-        var runner = new TargetRunner(_parsers);
+        var runner = new TargetRunner(Parsers);
 
-        // Named handlers, not lambdas. A "-=" against a freshly written lambda removes nothing,
-        // because it is a different delegate instance from the one that was added - which is
-        // harmless while the runner is a local, and becomes a leak the moment it is not.
         void ForwardLog(string message) => Log?.Invoke(message);
         void ForwardLine(CapturedLine line) => LineCaptured?.Invoke(line);
 
@@ -342,16 +269,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             buildOutput: buildOutput, rerunWithSanitizer: rerunWithSanitizer);
     }
 
-    /// <summary>
-    /// Does everything after the running: read the error, find the source, search, rank, plan.
-    /// </summary>
-    /// <remarks>
-    /// Public so a run that has already happened elsewhere can be picked up without repeating it.
-    /// The loop needs exactly this: after a patch, the verifier has already built and re-run the
-    /// program to reach its verdict, and launching a third time to search for the error it just
-    /// reported would be both slower and less honest - a fresh run can fail differently, and the
-    /// search would then be about an error nobody was shown.
-    /// </remarks>
     public async Task<SessionOutcome> ContinueFromAsync(
         TargetRunResult run,
         TargetSpec spec,
@@ -366,18 +283,21 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (run.Error is null)
         {
             var wentWrong = run.Outcome is RunOutcome.Crashed or RunOutcome.ExitedNonZero;
+            var abortedSilently = run.Outcome == RunOutcome.ExitedNonZero && run.ExitCode == WindowsAbortExitCode;
 
-            // A native crash prints nothing, which leaves nothing to search for and nowhere to look.
-            // AddressSanitizer finds where it happened; the build's own warnings sometimes say why.
-            if (run.Outcome == RunOutcome.Crashed && rerunWithSanitizer is not null)
+            if ((run.Outcome == RunOutcome.Crashed || abortedSilently) && rerunWithSanitizer is not null)
             {
-                Progress?.Invoke("It crashed without a word - rebuilding it with AddressSanitizer to find where...");
+                Progress?.Invoke("It crashed without a word - rebuilding it to find where and why...");
 
-                if (await rerunWithSanitizer(cancellationToken) is { Error: { } located } sanitized)
+                var sanitized = await rerunWithSanitizer(cancellationToken);
+                NoteRefused(sanitized, ref warnings);
+
+                if (sanitized is { Error: { } located })
                 {
                     (warnings ??= []).Add(
-                        "It crashed without printing anything, so FixFinder rebuilt it with AddressSanitizer and ran " +
-                        "it once more to find where. The error shown is from that second run.");
+                        "It crashed without printing anything, so FixFinder rebuilt it to find where and why - with " +
+                        "AddressSanitizer, and for C++ a handler that names an exception nothing caught - and ran it once " +
+                        "more. The error shown is from that second run.");
 
                     return await SearchForAsync(
                         sanitized, located, spec, budget, sourceFolder, failedToCompile: false,
@@ -385,9 +305,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 }
             }
 
-            // Still nothing to read, but the build warned about something that is a silent crash by
-            // itself: a pointer-returning function never declared, which 64-bit Windows cuts in half,
-            // or printf told to read a number as a string.
             if (wentWrong && buildOutput is { Count: > 0 } && CrashingWarning(buildOutput) is { } warned)
             {
                 return await SearchForAsync(
@@ -395,19 +312,81 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput);
             }
 
+            if (run.Outcome == RunOutcome.ExitedClean && (buildOutput is { Count: > 0 } || rerunWithSanitizer is not null))
+            {
+                if (buildOutput is { Count: > 0 } && SilentBugWarning(buildOutput) is { } bug)
+                {
+                    (warnings ??= []).Add(
+                        "It ran without failing, but the compiler warned about a mistake that does not always show when " +
+                        "the program runs - it depends on what happens to be in memory - so it is treated as the error.");
+
+                    return await SearchForAsync(
+                        run, bug, spec, budget, sourceFolder, failedToCompile: false,
+                        warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
+                }
+
+                if (rerunWithSanitizer is not null)
+                {
+                    Progress?.Invoke("It ran without failing - checking it once more under AddressSanitizer...");
+
+                    var checkedRun = await rerunWithSanitizer(cancellationToken);
+                    NoteRefused(checkedRun, ref warnings);
+
+                    if (checkedRun is { Error: { } found })
+                    {
+                        (warnings ??= []).Add(
+                            "It ran without failing, so FixFinder rebuilt it with AddressSanitizer, which checks every memory " +
+                            "access, and ran it once more. That run found a mistake the first one happened to survive. The " +
+                            "error shown is from that second run.");
+
+                        return await SearchForAsync(
+                            checkedRun, found, spec, budget, sourceFolder, failedToCompile: false,
+                            warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
+                    }
+                }
+            }
+
+            if (CheckLogic && _chosen is { } chosen && run.Outcome is RunOutcome.ExitedClean or RunOutcome.TimedOut or RunOutcome.Crashed)
+            {
+                if (run.Outcome == RunOutcome.ExitedClean && Expected is { IsEmpty: false } expected)
+                    return await LogicAsync(run, spec, chosen, expected, budget, sourceFolder, warnings, cancellationToken);
+
+                if (StaticLogicError(chosen, run.Outcome) is { } logic)
+                {
+                    (warnings ??= []).Add(run.Outcome switch
+                    {
+                        RunOutcome.TimedOut => "It never finished, and the code has a loop that cannot end - nothing inside it moves it on.",
+                        RunOutcome.Crashed => "It crashed without a word, and the code does something that crashes on some systems and not others.",
+                        _ => "It ran without failing, but the code has a logic mistake that makes it do something other than what it sets out to.",
+                    });
+
+                    return await SearchForAsync(
+                        run, logic, spec, budget, sourceFolder, failedToCompile: false,
+                        warnings: warnings, cancellationToken: cancellationToken, ranWithoutFailing: true);
+                }
+            }
+
             return new SessionOutcome
             {
                 Result = wentWrong ? SessionResult.FailedSilently : SessionResult.RanFine,
                 Headline = NoErrorHeadline(run),
                 Detail = NoErrorDetail(run),
-                Spec = spec, Run = run,
+                Spec = spec, Run = run, Warnings = warnings ?? [],
                 SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
             };
         }
 
-        // A program that stopped because it asked for input is not broken yet - it has not got far
-        // enough to be. Searching "EOF when reading a line" finds nothing worth reading, and the real
-        // mistake, if there is one, is somewhere past the question it never got an answer to.
+        if (run.Error.LanguageId == "generic" && run.ExitCode == 0 && buildOutput is { Count: > 0 } && SilentBugWarning(buildOutput) is { } warnedInstead)
+        {
+            (warnings ??= []).Add(
+                "It exited normally, but the compiler warned about a mistake that does not always show when the program runs, so " +
+                "that warning is treated as the error rather than the output it printed.");
+
+            return await SearchForAsync(
+                run, warnedInstead, spec, budget, sourceFolder, failedToCompile: false,
+                warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
+        }
+
         if (AskedForInput(run.Error)) return NeedsInput(run, run.Error, spec, sourceFolder);
 
         return await SearchForAsync(
@@ -415,7 +394,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             warnings: warnings, cancellationToken: cancellationToken);
     }
 
-    /// <summary>True when the program died reading input that was never typed.</summary>
     private static bool AskedForInput(ParsedError error) => error.LanguageId switch
     {
         "python" => error.ExceptionType == "EOFError" &&
@@ -450,16 +428,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         };
     }
 
-    /// <summary>
-    /// Everything after an error has been caught: fingerprint it, find the source, search,
-    /// rank, and work out whether the best answer can actually be applied.
-    /// </summary>
-    /// <remarks>
-    /// Shared by the two ways an error can arrive. A compiler diagnostic and a runtime crash
-    /// are the same thing from here on - text that identifies a problem somebody else has
-    /// probably already had - and giving them separate paths would mean two places to fix
-    /// every time the search changes.
-    /// </remarks>
     private async Task<SessionOutcome> SearchForAsync(
         TargetRunResult run,
         ParsedError error,
@@ -470,33 +438,27 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         List<string>? warnings = null,
         IReadOnlyList<ParsedError>? remaining = null,
         CancellationToken cancellationToken = default,
-        IReadOnlyList<CapturedLine>? buildOutput = null)
+        IReadOnlyList<CapturedLine>? buildOutput = null,
+        bool ranWithoutFailing = false,
+        LocalFixFound? decided = null)
     {
         warnings ??= [];
 
-        // ---------------------------------------------------------- understand it
+        var searchWeb = SearchOnline && error.LanguageId != "logic";
+
         var fingerprint = FingerprintBuilder.Build(error);
         var stackFiles = FilesIn(error);
 
-        // What else this run reported, so a diagnostic nobody can act on can be stepped past
-        // rather than ending everything. Computed once here, and narrowed on each skip.
-        var others = remaining ?? _parsers.Others(error, run.Lines);
+        var others = remaining ?? Parsers.Others(error, run.Lines);
         var dependency = InstalledPackages.From(stackFiles);
 
-        // Recorded because it is a place FixFinder may now be asked to write, and the log is the
-        // audit trail for everything it writes. Detecting it changes nothing on its own: the
-        // project is still tried first, and a patch only lands here if the user types the
-        // package's name to confirm it.
         if (dependency is { } package)
             Log?.Invoke($"The crash went through {package.Name}, installed at {package.Root}");
 
         Log?.Invoke($"Detected: {error.Summary} (confidence {error.Confidence})");
 
-        // ---------------------------------------------------------- where does it live
         var rootResult = SourceRootResolver.Resolve(userSpecified: null, error, spec);
 
-        // A compiled program runs from a build folder, so when nothing in the trace points at
-        // real source the folder the file was picked from is the only honest answer.
         var sourceRoot = rootResult.Path ?? (Directory.Exists(sourceFolder ?? "") ? sourceFolder : null);
 
         if (sourceRoot is null)
@@ -510,29 +472,21 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             Log?.Invoke($"Source root: {sourceRoot} ({rootResult.Explanation})");
         }
 
-        // ---------------------------------------------------------- look for a fix
-        // Put in front of the search results rather than ranked among them, because it is not one
-        // of them. Every weight in the ranker estimates how likely a stranger's post is to be
-        // about this crash; this came out of this crash, and names this file and this line. It is
-        // also the only fix in the tool that can address code nobody else has ever seen.
-        var suggestion = RuntimeSuggestion.For(error, sourceRoot);
+        var suggestion = decided is null ? RuntimeSuggestion.For(error, sourceRoot) : null;
 
-        // The same idea for the far larger set of mistakes whose message pins the answer down
-        // without spelling it out - a missing import, a semicolon, a loop one step too long. Worked
-        // out from the code, and offered only once a compiler has agreed with it.
-        //
-        // Started before the search and run alongside it, because neither needs the other: the
-        // search spends its time waiting on the network and this spends its time waiting on a
-        // compiler. One after the other, the local fix waited for every web request to finish first.
         using var stopLocal = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var localFix = suggestion is null
+        var localFix = decided is not null
+            ? Task.FromResult<LocalFixFound?>(decided)
+            : suggestion is null
             ? Task.Run(
                 () => LocalFixAsync(run, error, others, spec, sourceRoot, failedToCompile, buildOutput, stopLocal.Token),
                 CancellationToken.None)
             : Task.FromResult<LocalFixFound?>(null);
 
-        Progress?.Invoke(suggestion is null
+        Progress?.Invoke(!searchWeb
+            ? "Working out the fix from your code..."
+            : suggestion is null
             ? "Looking for a published fix, and working one out from your code..."
             : "Looking for a published fix...");
 
@@ -540,12 +494,12 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         try
         {
-            search = await sources.SearchAsync(
-                fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken);
+            search = searchWeb
+                ? await sources.SearchAsync(fingerprint, budget ?? SearchBudget.Default, enabled: null, cancellationToken)
+                : new AggregateSearchResult([], [], 0);
         }
         catch
         {
-            // Nothing will read the local fix now, so its compilers are stopped rather than left running.
             stopLocal.Cancel();
             await Task.WhenAny(localFix);
             throw;
@@ -568,14 +522,9 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
             ranked = [local.Candidate, .. ranked];
 
-            // The planner applies a patch only to a file the error names. A linker error names no
-            // file at all, and this fix was worked out from - and checked against - exactly this one.
             if (!stackFiles.Contains(local.File, StringComparer.OrdinalIgnoreCase)) stackFiles = [.. stackFiles, local.File];
         }
 
-        // The other answer that does not come from searching. A missing package is not a patch to
-        // anything - the code is right and the environment is short - so it arrives as a command
-        // rather than a diff, which is what the Dependency tier was reserved for.
         if (MissingModule.For(error, spec) is { } install)
         {
             Log?.Invoke($"The interpreter is missing a package: {install.Command}");
@@ -583,10 +532,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             ranked = [install, .. ranked];
         }
 
-        // The same answer for every other ecosystem FixFinder can read. Kept as a separate call
-        // rather than folded into the one above because Python's runs off the interpreter that
-        // crashed, and nothing else can: there is only ever one node or one cargo in play, but a
-        // machine with several Pythons will happily install into the wrong one.
         else if (MissingDependency.For(error, spec) is { } dependencyInstall)
         {
             Log?.Invoke($"A dependency is missing: {dependencyInstall.Title}");
@@ -599,15 +544,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.NothingFound,
-                Headline = failedToCompile ? $"It did not compile: {error.Summary}" : $"It crashed: {error.Summary}",
-                Detail = NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache),
+                Headline = failedToCompile ? $"It did not compile: {error.Summary}"
+                    : ranWithoutFailing ? $"It ran, but: {error.Summary}"
+                    : $"It crashed: {error.Summary}",
+                Detail = searchWeb
+                    ? NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache)
+                    : $"FixFinder found this in the code but could not work out a change it could check: {error.Message}.",
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
-                SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings,
-                OtherErrors = others, Dependency = dependency,
+                SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
-        // ---------------------------------------------------------- can any of it be applied
         Progress?.Invoke($"Checking the best of {ranked.Count} results...");
 
         var harvester = new PatchHarvester(http);
@@ -626,7 +573,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
             if (!harvest.HasAppliablePatch || sourceRoot is null) continue;
 
-            var plan = new PatchApplier().Plan(
+            var plan = new PatchPlanner().Plan(
                 harvest.Patches[0], new SourcePathMapper(sourceRoot, stackFiles), stackFiles);
 
             if (!plan.CanApply)
@@ -635,10 +582,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 continue;
             }
 
-            // The floor the ranker documents, enforced here as well as in the ordering. A patch
-            // that fits is not the same as a patch that belongs: a weakly-matched diff applying
-            // cleanly by coincidence is more dangerous than an obviously irrelevant one, because
-            // it arrives looking like an answer.
             if (candidate.Score < CandidateRanker.AutoAppliableFloor)
             {
                 Log?.Invoke(
@@ -648,8 +591,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 continue;
             }
 
-            // The first candidate whose patch genuinely fits wins, and it becomes the one the
-            // prompt is about even if it was not top of the ranked list.
             best = candidate;
             bestHarvest = harvest;
             bestPlan = plan;
@@ -672,9 +613,11 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.FoundFix,
-                Headline = "Found a fix that fits your code.",
-                // The title is shown directly above this in the prompt, so repeating it here
-                // just pushes the part that matters further down the window.
+                Headline = error.ExceptionType == "wrong output"
+                    ? "Found the change that makes it print what you expected."
+                    : error.LanguageId == "logic"
+                        ? "Found a logic mistake in the code, and a fix for it."
+                        : "Found a fix that fits your code.",
                 Detail =
                     $"It changes {files} file{(files == 1 ? "" : "s")} " +
                     $"(+{bestPlan.Files.Sum(f => f.Patch.AddedCount)} " +
@@ -683,19 +626,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
-                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others, Dependency = dependency,
+                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
-        // The same bar, used for the second of the two things it should govern. A score below the
-        // point at which FixFinder would act on a result is also below the point at which it
-        // should claim the result looks relevant - the top of a weak set is still the top of a
-        // weak set, and announcing it as a find is how a search tool teaches people to stop
-        // believing it. It is still shown; only the claim about it changes.
-        // A package to install is neither a patch nor advice, and calling it either misreports it.
-        // "Nothing attached to it is a patch, you can make the change yourself" is precisely
-        // wrong about an answer that is one command and no change to any file.
         if (best is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
         {
             return new SessionOutcome
@@ -709,15 +643,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest,
-                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-                OtherErrors = others, Dependency = dependency,
+                SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
             };
         }
 
-        // Nobody has written about a mistake only your program has, so when the culprit is your
-        // own code nothing found deserves to be called relevant - however well its title matches.
-        // The detail pane has always said as much, directly underneath a headline announcing a
-        // find, leaving the reader to work out which of the two to believe.
         var yours = fingerprint.CulpritIsFirstParty && !IsEnvironmental(fingerprint);
 
         var convincing = !yours && best.Score >= CandidateRanker.AutoAppliableFloor;
@@ -738,18 +667,10 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
-            SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings,
-            OtherErrors = others, Dependency = dependency,
+            SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
         };
     }
 
-    /// <summary>
-    /// A fix worked out from the program's own code and checked by compiling a copy, or null.
-    /// </summary>
-    /// <remarks>
-    /// When the error is a crash the rules cannot read, the build's warnings get a turn, because
-    /// for C they are often the whole explanation.
-    /// </remarks>
     private static ParsedError? CrashingWarning(IReadOnlyList<CapturedLine> buildOutput) =>
         MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
             (w.ErrorCode == "C4013" && CStandardLibrary.ReturnsPointer.Any(name =>
@@ -761,7 +682,30 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             (w.Message ?? "").StartsWith("format '", StringComparison.Ordinal) && AddressExpected(w.Message) ||
             (w.Message ?? "").StartsWith("reference to local variable '", StringComparison.Ordinal));
 
-    /// <summary>scanf handed a value where it needs somewhere to store one: <c>type 'int *', but ... has type 'int'</c>.</summary>
+    private static ParsedError? SilentBugWarning(IReadOnlyList<CapturedLine> buildOutput)
+    {
+        static bool Gcc(string message) =>
+            message.StartsWith("call to 'gets' declared with attribute warning", StringComparison.Ordinal) ||
+            message.StartsWith("implicit declaration of function 'gets'", StringComparison.Ordinal) ||
+            message.StartsWith("initializer-string for array of 'char' is too long", StringComparison.Ordinal) ||
+            message.StartsWith("function returns address of local variable", StringComparison.Ordinal) ||
+            message.StartsWith("reference to local variable '", StringComparison.Ordinal) ||
+            message.Contains("called on pointer returned from a mismatched allocation function", StringComparison.Ordinal) ||
+            message.StartsWith("format '%s' expects", StringComparison.Ordinal) ||
+            message.StartsWith("format '", StringComparison.Ordinal) && AddressExpected(message) ||
+            message.StartsWith("format '", StringComparison.Ordinal) && message.Contains("has type 'char (*)[", StringComparison.Ordinal) ||
+            message.StartsWith("comparison with string literal results in unspecified behavio", StringComparison.Ordinal) ||
+            message.StartsWith("passing argument 3 of 'pthread_create' from incompatible pointer type", StringComparison.Ordinal) ||
+            message.StartsWith("passing argument 4 of 'qsort' from incompatible pointer type", StringComparison.Ordinal) ||
+            message.Contains("which has non-virtual destructor", StringComparison.Ordinal) ||
+            message.StartsWith("catching polymorphic type", StringComparison.Ordinal);
+
+        return GccClangParser.ParseWarnings(buildOutput).FirstOrDefault(w => Gcc(w.Message ?? ""))
+            ?? MsvcParser.ParseWarnings(buildOutput).FirstOrDefault(w =>
+                w.ErrorCode is "C4172" or "C4045" or "C4700" ||
+                (w.ErrorCode == "C4477" && ((w.Message ?? "").Contains("format string '%s'", StringComparison.Ordinal) || AddressExpected(w.Message))));
+    }
+
     private static bool AddressExpected(string? message) =>
         message is not null &&
         System.Text.RegularExpressions.Regex.IsMatch(message, @"type '(?<want>[^']+?) ?\*', but (?:variadic )?argument \d+ has type '\k<want>'");
@@ -779,6 +723,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             SourceRoot = sourceRoot,
             FromBuild = failedToCompile,
             PythonInterpreter = error.LanguageId == "python" ? spec.ExecutablePath : null,
+            Language = Language,
         };
 
         void Relay(string message) => Log?.Invoke(message);
@@ -786,51 +731,14 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         if (await LocalFixEngine.FindAsync(context, Relay, cancellationToken) is { } found) return found;
 
         return buildOutput is { Count: > 0 } && !failedToCompile && error.ExceptionType != "compile warning"
-            ? await LocalFixEngine.ForBuildWarningsAsync(buildOutput, sourceRoot, Relay, cancellationToken)
+            ? await LocalFixEngine.ForBuildWarningsAsync(buildOutput, sourceRoot, Relay, cancellationToken, Language)
             : null;
     }
 
-    /// <summary>
-    /// Looks up one of the other errors from a run that has already happened.
-    /// </summary>
-    /// <remarks>
-    /// What Skip calls. The program is not run again - it reported all of these at once, and
-    /// running it a second time to reach an error already sitting in the output would be both
-    /// slower and a different run. The errors left after this one are passed through, so each
-    /// skip narrows what remains rather than offering the same list forever.
-    /// </remarks>
-    public Task<SessionOutcome> SearchForOtherAsync(
-        SessionOutcome from,
-        ParsedError error,
-        SearchBudget? budget = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (from.Run is null || from.Spec is null)
-            throw new InvalidOperationException("That outcome has no run to take another error from.");
-
-        var remaining = from.OtherErrors.Where(e => !ReferenceEquals(e, error)).ToList();
-
-        return SearchForAsync(
-            from.Run, error, from.Spec, budget, from.SourceRoot, from.FailedToCompile,
-            warnings: null, remaining: remaining, cancellationToken: cancellationToken);
-    }
-
-    // ------------------------------------------------------------------ the loop's view
-
-    // Explicit, because the interface carries no warnings list and the public methods do. Hiding
-    // the parameter here rather than dropping it from the session keeps the loop's dependency as
-    // small as it really is without narrowing what a caller holding the session itself can ask.
-
-    Task<SessionOutcome> IFixSession.RunAsync(
-        LaunchPlan launch, SearchBudget? budget, CancellationToken cancellationToken) =>
-        RunAsync(launch, budget, cancellationToken);
-
-    Task<SessionOutcome> IFixSession.ContinueFromAsync(
-        TargetRunResult run, TargetSpec spec, SearchBudget? budget, string? sourceFolder,
-        bool failedToCompile, CancellationToken cancellationToken) =>
-        ContinueFromAsync(run, spec, budget, sourceFolder, failedToCompile, null, cancellationToken);
-
-    // ------------------------------------------------------------------ wording
+    public Task<SessionOutcome> LookUpAsync(
+        TargetRunResult run, ParsedError error, TargetSpec spec, string? sourceFolder, bool failedToCompile,
+        SearchBudget? budget = null, CancellationToken cancellationToken = default) =>
+        SearchForAsync(run, error, spec, budget, sourceFolder, failedToCompile, cancellationToken: cancellationToken);
 
     private static string NoErrorHeadline(TargetRunResult run) => run.Outcome switch
     {
@@ -866,16 +774,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             "not say so in a form anything could look up.",
     };
 
-    /// <summary>
-    /// Error types that are about the machine rather than about the code.
-    /// </summary>
-    /// <remarks>
-    /// These break the first-party heuristic, and the warning it produces is not merely unhelpful
-    /// but backwards. A missing module is raised on the <c>import</c> line in your own file, so
-    /// the culprit frame is yours - yet "no issue or answer exists for a bug only your program
-    /// has" is exactly wrong: <c>No module named 'yaml'</c> is one of the most answered
-    /// questions there is, and the tool reliably finds an exact match for it.
-    /// </remarks>
     private static readonly string[] EnvironmentalTypes =
     [
         "ModuleNotFoundError", "ImportError", "FileNotFoundException", "DllNotFoundException",
@@ -883,17 +781,113 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         "FileLoadException", "LoadError", "PackageNotFoundError",
     ];
 
-    /// <summary>True when the crash is about a missing dependency rather than about your logic.</summary>
     private static bool IsEnvironmental(ErrorFingerprint fingerprint) =>
         fingerprint.ShortExceptionType is { Length: > 0 } type &&
         EnvironmentalTypes.Contains(type, StringComparer.OrdinalIgnoreCase);
 
+    private void NoteRefused(TargetRunResult? rerun, ref List<string>? warnings)
+    {
+        if (rerun is not { Outcome: RunOutcome.LaunchFailed }) return;
+
+        (warnings ??= []).Add(
+            "FixFinder rebuilt it with AddressSanitizer to check every memory access, but Windows would not start that build" +
+            (rerun.LaunchError is { Length: > 0 } reason ? $": {reason}" : ".") + " So this run has not been checked that way.");
+    }
+
+    private ParsedError? StaticLogicError(string file, RunOutcome outcome)
+    {
+        if (LocalFixes.SourceFile.Read(file) is not { } source || !Language.Reads(new LogicPatternRule())) return null;
+
+        var findings = LogicPatterns.Scan(source, message => Log?.Invoke(message))
+            .Where(f => f.Fix is not null && f.Kind == Checking.FindingKind.Logic && f.Severity != Checking.Severity.Suggestion)
+            .Where(f => outcome switch
+            {
+                RunOutcome.TimedOut => f.PatternId.EndsWith("loop-never-advances", StringComparison.Ordinal),
+                RunOutcome.Crashed => f.PatternId == "logic-string-literal-modified",
+                _ => true,
+            })
+            .ToList();
+
+        if (findings is not [var first, ..]) return null;
+
+        Log?.Invoke($"Logic mistake in the code: {first.PatternId} at line {first.Line} - {first.Message}");
+        return LogicPatterns.ToError(first, source);
+    }
+
+    private async Task<SessionOutcome> LogicAsync(
+        TargetRunResult run, TargetSpec spec, string chosen, ExpectedBehaviour expected, SearchBudget? budget,
+        string? sourceFolder, List<string>? warnings, CancellationToken cancellationToken)
+    {
+        warnings ??= [];
+
+        var repair = new LogicRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(message);
+
+        var result = await repair.RunAsync(chosen, expected, spec.Timeout, cancellationToken);
+
+        if (result is null)
+        {
+            if (StaticLogicError(chosen, RunOutcome.ExitedClean) is { } logic)
+            {
+                warnings.Add("Every run printed what you expected, but the code has a logic mistake that other input could show.");
+                return await SearchForAsync(run, logic, spec, budget, sourceFolder, failedToCompile: false, warnings: warnings, cancellationToken: cancellationToken, ranWithoutFailing: true);
+            }
+
+            return new SessionOutcome
+            {
+                Result = SessionResult.RanFine,
+                Headline = expected.Runs.Count == 1 ? "It ran, and printed what you expected." : $"It ran, and all {expected.Runs.Count} runs printed what you expected.",
+                Detail = "The output matched line for line. Nothing to fix.",
+                Spec = spec, Run = run,
+                SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
+            };
+        }
+
+        foreach (var note in result.Notes) warnings.Add(note);
+
+        var at = result.Fix?.StartLine ?? result.Suspicious.FirstOrDefault()?.Line;
+        var error = LogicPatterns.WrongOutput(result.Mismatch, chosen, at);
+        var runName = expected.Runs.Count == 1 ? "It" : $"Run {result.FailingRun} of {expected.Runs.Count}";
+
+        Log?.Invoke($"Wrong output: {runName} - {result.Mismatch.Describe()}");
+
+        if (result.Fix is { } fix && LocalFixes.SourceFile.Read(chosen) is { } source)
+        {
+            var widened = fix.Unambiguous(source);
+            var root = Directory.Exists(sourceFolder ?? "") ? sourceFolder : Path.GetDirectoryName(chosen);
+
+            if (LocalFixDiff.Render(source, widened, RuntimeSuggestion.RelativePath(source.Path, root)) is { } diff)
+            {
+                var candidate = LocalFixEngine.CandidateFor(
+                    widened, source, diff, LogicRepair.Describe(result),
+                    result.FromPattern ? fix.Explanation : $"{runName} printed the wrong thing: {result.Mismatch.Describe()}. {fix.Explanation}");
+
+                return await SearchForAsync(
+                    run, error, spec, budget, sourceFolder, failedToCompile: false, warnings: warnings, cancellationToken: cancellationToken,
+                    ranWithoutFailing: true, decided: new LocalFixFound(candidate, chosen));
+            }
+        }
+
+        var lines = result.Suspicious.Take(5).Select(s => $"line {s.Line} (Ochiai {s.Ochiai:0.00})").ToList();
+
+        return new SessionOutcome
+        {
+            Result = SessionResult.NothingFound,
+            Headline = $"{runName} printed the wrong thing: {result.Mismatch.Describe()}.",
+            Detail =
+                $"FixFinder tried {result.Tried} small change{(result.Tried == 1 ? "" : "s")} and none of them made every run print what you expected. " +
+                (lines.Count > 0
+                    ? $"The lines most likely to hold the mistake - the ones the wrong runs went through more than the right ones - are {string.Join(", ", lines)}."
+                    : "The mistake may need more than one change, or a change bigger than one word or number."),
+            Spec = spec, Run = run, Error = error, Warnings = warnings,
+            SourceRoot = Directory.Exists(sourceFolder ?? "") ? sourceFolder : null,
+        };
+    }
+
     private static string NothingFoundDetail(
         ErrorFingerprint fingerprint, IReadOnlyList<string> failures, CacheMode cache)
     {
-        // Said before anything else, because in this mode "nothing was found" is not a fact
-        // about the error at all - nothing was looked for. Reporting it as though the services
-        // were unreachable would be a straightforwardly misleading answer to a deliberate choice.
         if (cache == CacheMode.CacheOnly && failures.Count > 0)
         {
             return
@@ -916,19 +910,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
               "showing you.";
     }
 
-    /// <summary>
-    /// Said when the error is in the user's own code, where searching cannot answer it.
-    /// </summary>
-    /// <remarks>
-    /// The results are still shown, and still worth a glance - somebody else's version of the
-    /// same kind of mistake often explains the kind well. What is dropped is the claim that any
-    /// of them is about <i>this</i> program, because none of them can be, and saying so while the
-    /// paragraph below admits the opposite asks the reader to referee the tool against itself.
-    /// <para>
-    /// It is also the only honest answer to "why can I not apply any of these". A typo in one
-    /// file has no published patch anywhere; no ranking change would ever produce one.
-    /// </para>
-    /// </remarks>
     private static string FirstPartyDetail(ErrorFingerprint fingerprint, int count)
     {
         var where = fingerprint.CulpritFile is { Length: > 0 } file ? $" in {file}" : "";
@@ -941,15 +922,6 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             "same kind of mistake. Read them if the kind is unfamiliar; the fix itself is yours.";
     }
 
-    /// <summary>
-    /// Said when the best of everything found is still not much, so the window does not oversell it.
-    /// </summary>
-    /// <remarks>
-    /// Written for the case that produced it: a Python syntax error, where the closest result was
-    /// a question Stack Overflow had itself closed as unsuitable. The score is quoted because a
-    /// number with the reasons behind it - which the detail pane lists - is something a person can
-    /// disagree with, where "looks relevant" is only an assertion.
-    /// </remarks>
     private static string WeakMatchDetail(FixCandidate best, ErrorFingerprint fingerprint, int count)
     {
         var yours = fingerprint.CulpritIsFirstParty && !IsEnvironmental(fingerprint)

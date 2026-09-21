@@ -2,24 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace FixFinder.Core.Fingerprinting;
 
-/// <summary>
-/// Strips the parts of an error message that are unique to this machine and this run, leaving
-/// the part that other people would also have seen.
-/// </summary>
-/// <remarks>
-/// Absolute paths, GUIDs, addresses, PIDs, timestamps and line numbers are what make an error
-/// message unique to you. They are also exactly what makes a search for it return nothing.
-/// <para>
-/// <b>The one genuinely hard call is quoted literals.</b> In
-/// <c>KeyError: 'user_id'</c>, <c>No module named 'requests'</c> and
-/// <c>Could not load file or assembly 'Newtonsoft.Json'</c>, the quoted token <i>is</i> the
-/// error - strip it and the query becomes a generic search for the exception type. But when the
-/// quoted text is user data - a customer name, a file the user happens to have - keeping it
-/// makes the query unmatchable. There is no rule that gets both right, so FixFinder does not
-/// try to guess: the <b>tight</b> query keeps the literal and the <b>relaxed</b> query drops it,
-/// and both are run.
-/// </para>
-/// </remarks>
+/// <summary>Strips the parts of an error message that are unique to this machine and this run, leaving the part that other people
+/// would also have seen.</summary>
 public static partial class ErrorNormalizer
 {
     [GeneratedRegex(@"[A-Za-z]:\\[^\s""'<>|]+")]
@@ -52,12 +36,8 @@ public static partial class ErrorNormalizer
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
 
-    /// <summary>The rules, in the order they are applied. Order matters - see the remarks below.</summary>
     public static IReadOnlyList<NormalizationRule> Rules { get; } =
     [
-        // Paths run first, and reduce to the bare file name rather than vanishing: "Program.cs"
-        // is a useful search term, "C:\Users\dev\..." is not. Running these after the number
-        // rules would leave mangled path fragments behind.
         new()
         {
             Name = "WindowsPath",
@@ -131,13 +111,6 @@ public static partial class ErrorNormalizer
         },
     ];
 
-    /// <summary>
-    /// Applies the rules to <paramref name="text"/>, returning the result and what changed.
-    /// </summary>
-    /// <param name="relaxed">
-    /// True to also apply the relaxed-only rules - i.e. to build the fallback query rather than
-    /// the precise one.
-    /// </param>
     public static (string Text, IReadOnlyList<AppliedNormalization> Trace) Normalize(string text, bool relaxed)
     {
         var trace = new List<AppliedNormalization>();

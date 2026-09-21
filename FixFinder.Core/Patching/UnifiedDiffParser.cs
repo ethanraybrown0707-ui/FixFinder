@@ -2,35 +2,9 @@ using System.Text.RegularExpressions;
 
 namespace FixFinder.Core.Patching;
 
-/// <summary>
-/// Reads a unified diff into <see cref="FilePatch"/>es, or refuses it.
-/// </summary>
-/// <remarks>
-/// A plain state machine, and deliberately an unforgiving one. Every input it sees came from a
-/// stranger's issue comment on the public internet, and its output decides what gets written to
-/// your source tree - so anything it cannot account for exactly is refused rather than guessed
-/// at. There is no repair pass, no fuzzy matching and no partial acceptance: a patch either
-/// reconciles line for line, or it does not apply.
-/// <para>
-/// The two details that break naive parsers, both learnt the hard way:
-/// </para>
-/// <list type="bullet">
-/// <item><description>
-/// A context line is a space followed by text - but a context line that was <i>empty</i> is a
-/// lone space, and every markdown renderer on the internet strips trailing whitespace. By the
-/// time a diff has been pasted into an issue and rendered back out, those lines are empty
-/// strings. Treating an empty line inside a hunk as the end of the hunk is the single most
-/// common reason a perfectly good patch "fails to parse".
-/// </description></item>
-/// <item><description>
-/// In <c>@@ -a,b +c,d @@</c> the counts are optional and absent means one, so <c>@@ -1 +1 @@</c>
-/// is legal and means a single line on each side.
-/// </description></item>
-/// </list>
-/// </remarks>
+/// <summary>Reads a unified diff into <c>FilePatch</c>es, or refuses it.</summary>
 public static partial class UnifiedDiffParser
 {
-    /// <summary>Largest diff worth reading. Beyond this it is a release, not a fix.</summary>
     private const int MaximumLines = 50_000;
 
     [GeneratedRegex(@"^@@+ -(?<oldStart>\d+)(?:,(?<oldCount>\d+))? \+(?<newStart>\d+)(?:,(?<newCount>\d+))? @@+(?<heading>.*)$")]
@@ -39,11 +13,6 @@ public static partial class UnifiedDiffParser
     [GeneratedRegex(@"^diff --git (?<a>.+?) (?<b>.+)$")]
     private static partial Regex GitHeaderPattern();
 
-    /// <summary>True when the text looks like it contains a unified diff at all.</summary>
-    /// <remarks>
-    /// Cheap and permissive on purpose: it decides only whether the full parse is worth running,
-    /// and the parse itself is the thing that decides whether a diff is real.
-    /// </remarks>
     public static bool LooksLikeDiff(string text) =>
         text.Contains("@@ -", StringComparison.Ordinal) ||
         text.Contains("diff --git ", StringComparison.Ordinal);
@@ -52,9 +21,6 @@ public static partial class UnifiedDiffParser
     {
         if (string.IsNullOrWhiteSpace(text)) return ParsedPatch.Refused("the text was empty");
 
-        // Normalised at parse time so a diff pasted through a Windows editor and one straight
-        // from git are the same thing here. The file's own line ending is decided at apply time
-        // from the file itself, never from the patch.
         var lines = text.ReplaceLineEndings("\n").Split('\n');
 
         if (lines.Length > MaximumLines)
@@ -75,7 +41,6 @@ public static partial class UnifiedDiffParser
                 continue;
             }
 
-            // A bare diff with no git header: "--- a/x" then "+++ b/y".
             if (line.StartsWith("--- ", StringComparison.Ordinal) &&
                 index + 1 < lines.Length &&
                 lines[index + 1].StartsWith("+++ ", StringComparison.Ordinal))
@@ -93,9 +58,6 @@ public static partial class UnifiedDiffParser
 
         if (files.Any(f => f.IsBinary))
         {
-            // Refused outright rather than skipped. A patch that is partly binary cannot be
-            // applied whole, and applying only the text half would leave the tree in a state
-            // neither the author nor the user ever intended.
             return ParsedPatch.Refused("the patch contains binary content, which cannot be applied as text");
         }
 
@@ -105,18 +67,14 @@ public static partial class UnifiedDiffParser
         return new ParsedPatch(files);
     }
 
-    /// <summary>Convenience wrapper for callers that only care whether it worked.</summary>
     public static bool TryParse(string text, out ParsedPatch patch)
     {
         patch = Parse(text);
         return patch.Ok;
     }
 
-    // ------------------------------------------------------------------ files
-
     private readonly record struct FileResult(FilePatch? File, string? Rejection);
 
-    /// <summary>Reads one file section introduced by <c>diff --git</c>, extended headers and all.</summary>
     private static FileResult ParseGitFile(string[] lines, ref int index)
     {
         var header = GitHeaderPattern().Match(lines[index]);
@@ -127,7 +85,6 @@ public static partial class UnifiedDiffParser
 
         bool isNew = false, isDeleted = false, isRename = false, isBinary = false;
 
-        // The extended headers sit between "diff --git" and the first "---" or "@@".
         while (index < lines.Length)
         {
             var line = lines[index];
@@ -173,7 +130,6 @@ public static partial class UnifiedDiffParser
                 continue;
             }
 
-            // Anything else before the first hunk is prose from the commit message.
             index++;
         }
 
@@ -184,7 +140,6 @@ public static partial class UnifiedDiffParser
             Build(oldPath, newPath, hunks, isNew, isDeleted, isRename, isBinary), null);
     }
 
-    /// <summary>Reads a file section that has no git header, just <c>---</c> and <c>+++</c>.</summary>
     private static FileResult ParseBareFile(string[] lines, ref int index)
     {
         var oldPath = ReadPath(lines[index][4..]);
@@ -212,8 +167,6 @@ public static partial class UnifiedDiffParser
             IsBinary = isBinary,
         };
 
-    // ------------------------------------------------------------------ hunks
-
     private static List<DiffHunk> ParseHunks(string[] lines, ref int index, out string? rejection)
     {
         rejection = null;
@@ -227,7 +180,6 @@ public static partial class UnifiedDiffParser
             var oldStart = int.Parse(match.Groups["oldStart"].Value);
             var newStart = int.Parse(match.Groups["newStart"].Value);
 
-            // Absent means one. "@@ -1 +1 @@" is a legal single-line hunk.
             var oldCount = match.Groups["oldCount"].Success ? int.Parse(match.Groups["oldCount"].Value) : 1;
             var newCount = match.Groups["newCount"].Success ? int.Parse(match.Groups["newCount"].Value) : 1;
 
@@ -239,9 +191,6 @@ public static partial class UnifiedDiffParser
             var seenOld = body.Count(l => l.Kind is DiffLineKind.Context or DiffLineKind.Removed);
             var seenNew = body.Count(l => l.Kind is DiffLineKind.Context or DiffLineKind.Added);
 
-            // The reconciliation check, and the reason there is no repair path. A hunk whose
-            // header disagrees with its body has been truncated, reflowed or hand-edited, and
-            // any guess about which is wrong would be a guess about what to write to disk.
             if (seenOld != oldCount || seenNew != newCount)
             {
                 rejection =
@@ -258,15 +207,6 @@ public static partial class UnifiedDiffParser
         return hunks;
     }
 
-    /// <summary>
-    /// Reads hunk lines until the header's counts are satisfied.
-    /// </summary>
-    /// <remarks>
-    /// Driven by the counts rather than by looking for the end, which is what makes an empty
-    /// context line survive. A hunk that has not yet met its promised line counts is still
-    /// running, so an empty string inside it is an empty context line whose trailing space a
-    /// markdown renderer removed - not a blank line after the hunk.
-    /// </remarks>
     private static List<DiffLine> ReadHunkBody(string[] lines, ref int index, int oldCount, int newCount)
     {
         var body = new List<DiffLine>();
@@ -279,12 +219,12 @@ public static partial class UnifiedDiffParser
 
             if (line.StartsWith(@"\", StringComparison.Ordinal))
             {
-                // "\ No newline at end of file" belongs to the line above it.
                 if (body.Count > 0) body[^1] = body[^1] with { NoNewlineAtEnd = true };
                 index++;
                 continue;
             }
 
+            // An unchanged line is a lone space, which markdown strips, so an empty line is still context.
             if (line.Length == 0)
             {
                 body.Add(new DiffLine(DiffLineKind.Context, ""));
@@ -313,15 +253,12 @@ public static partial class UnifiedDiffParser
                     break;
 
                 default:
-                    // Not a hunk line at all - the hunk ended early and the counts will not
-                    // reconcile, which the caller turns into a refusal.
                     return body;
             }
 
             index++;
         }
 
-        // A trailing no-newline marker sits after the last counted line.
         if (index < lines.Length && lines[index].StartsWith(@"\", StringComparison.Ordinal))
         {
             if (body.Count > 0) body[^1] = body[^1] with { NoNewlineAtEnd = true };
@@ -331,14 +268,10 @@ public static partial class UnifiedDiffParser
         return body;
     }
 
-    // ------------------------------------------------------------------ paths
-
-    /// <summary>Reads a path from a <c>---</c> or <c>+++</c> line, dropping any timestamp.</summary>
     private static string? ReadPath(string raw)
     {
         var text = raw.Trim();
 
-        // Classic diff appends a tab and a timestamp; git does not.
         var tab = text.IndexOf('\t');
         if (tab >= 0) text = text[..tab];
 
@@ -347,14 +280,6 @@ public static partial class UnifiedDiffParser
         return text is "/dev/null" or "" ? null : StripPrefix(text);
     }
 
-    /// <summary>
-    /// Removes git's <c>a/</c> and <c>b/</c> prefixes.
-    /// </summary>
-    /// <remarks>
-    /// Only ever a prefix strip. Resolving a path to somewhere on this disk is
-    /// <see cref="SourcePathMapper"/>'s job, and keeping the two apart is deliberate: this class
-    /// must not be in a position to produce an absolute path at all.
-    /// </remarks>
     private static string? StripPrefix(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) return null;

@@ -4,18 +4,6 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Parsing.Parsers;
 
 /// <summary>Reads Elixir and Erlang exception output.</summary>
-/// <remarks>
-/// Elixir's <c>** (ArithmeticError)</c> header is one of the most distinctive in any language, so
-/// detection is cheap and precise. The frames are the awkward part: they come in three shapes and
-/// only one of them names a file that exists on this machine.
-/// <list type="bullet">
-/// <item><c>(my_app 0.1.0) lib/my_app.ex:9: MyApp.divide/2</c> - application, file, function.</item>
-/// <item><c>lib/my_app.ex:9: MyApp.divide/2</c> - the same without the application.</item>
-/// <item><c>:erlang./(1, 0)</c> - an Erlang built-in, which has no file at all.</item>
-/// </list>
-/// The third is kept as a frame with no location rather than dropped, because it is frequently the
-/// innermost one and therefore the thing that actually failed.
-/// </remarks>
 public sealed partial class ElixirParser : IStackTraceParser
 {
     public string LanguageId => "elixir";
@@ -24,12 +12,10 @@ public sealed partial class ElixirParser : IStackTraceParser
     [GeneratedRegex(@"^\*\*\s+\((?<type>[A-Za-z_][\w.]*)\)\s*(?<msg>.*)$")]
     private static partial Regex HeaderPattern();
 
-    /// <summary>A frame that names a file, with the application prefix optional.</summary>
     [GeneratedRegex(
         @"^\s+(?:\((?<app>[^)]+)\)\s+)?(?<file>[^\s:()]+\.(?:ex|exs|erl)):(?<line>\d+):\s*(?<sym>.+?)\s*$")]
     private static partial Regex FramePattern();
 
-    /// <summary>An Erlang built-in, which has no file.</summary>
     [GeneratedRegex(@"^\s+(?<sym>:[a-z_]\w*\.[^\s(]+)\(.*\)\s*$")]
     private static partial Regex BuiltInPattern();
 
@@ -67,8 +53,6 @@ public sealed partial class ElixirParser : IStackTraceParser
         {
             var text = lines[i].Text;
 
-            // The message can wrap onto its own indented line before the frames start, and an
-            // Elixir trace is always indented, so a blank line is the only reliable terminator.
             if (text.Trim().Length == 0) break;
 
             if (FramePattern().Match(text) is { Success: true } frame)

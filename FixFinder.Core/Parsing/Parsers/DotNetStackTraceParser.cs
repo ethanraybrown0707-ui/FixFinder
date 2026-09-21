@@ -3,17 +3,7 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>
-/// Reads .NET crash output, including the <c>---&gt;</c> inner-exception chain.
-/// </summary>
-/// <remarks>
-/// The chain is the part worth care. .NET prints every nested exception header first, then the
-/// innermost exception's frames, then <c>--- End of inner exception stack trace ---</c>, then
-/// the next level's frames, and so on outwards. So the parser reads headers into a stack, then
-/// attributes frames to the deepest exception, popping one level at each end-of-inner marker.
-/// Attributing every frame to the outer exception - the obvious mistake - would put the culprit
-/// in the wrapper rather than in the code that actually threw.
-/// </remarks>
+/// <summary>Reads .NET crash output, including the <c>---&gt;</c> inner-exception chain.</summary>
 public sealed partial class DotNetStackTraceParser : IStackTraceParser
 {
     public string LanguageId => "csharp";
@@ -30,16 +20,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
 
     private const string EndOfInnerMarker = "--- End of inner exception stack trace ---";
 
-    /// <summary>
-    /// The async resume boundary. Frames after it belong to whoever awaited the failing call.
-    /// </summary>
-    /// <remarks>
-    /// The line itself is skipped, but the frames after it are treated as ordinary frames
-    /// rather than being marked as runtime internals. They are usually the user's own awaiting
-    /// method, and demoting them would push culprit selection away from exactly the code a
-    /// person would want to look at first. <see cref="FrameClassifier"/> decides origin from
-    /// the path instead, which is a far more reliable signal than position in the trace.
-    /// </remarks>
     private const string PreviousLocationMarker = "--- End of stack trace from previous location ---";
 
     public int Detect(IReadOnlyList<string> lines)
@@ -52,7 +32,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
             if (line.Contains(EndOfInnerMarker, StringComparison.Ordinal)) score += 25;
             if (line.Contains(PreviousLocationMarker, StringComparison.Ordinal)) score += 25;
 
-            // "at Namespace.Type.Method() in C:\path\File.cs:line 42" is unmistakably .NET.
             var frame = FramePattern().Match(line);
             if (frame.Success)
                 score += frame.Groups["file"].Success ? 20 : 8;
@@ -69,7 +48,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
         var start = FindHeaderIndex(lines);
         if (start < 0) return null;
 
-        // Each entry is one level of the ---> chain, outermost first.
         var levels = new List<Level>();
         var index = start;
 
@@ -106,8 +84,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
                 continue;
             }
 
-            // A second ---> after frames have started: an AggregateException sibling. Treat it
-            // as another level rather than ending the trace.
             var sibling = InnerHeaderPattern().Match(text);
             if (sibling.Success)
             {
@@ -120,7 +96,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
             var frame = FramePattern().Match(text);
             if (!frame.Success)
             {
-                // Blank lines inside a trace are common; anything else ends it.
                 if (text.Trim().Length == 0) continue;
                 break;
             }
@@ -138,7 +113,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
 
         var raw = ParserHelpers.RawTextOf(lines, start, end);
 
-        // Built inside out so each level carries the one below it as its cause.
         ParsedError? built = null;
         for (var level = levels.Count - 1; level >= 0; level--)
         {
@@ -160,8 +134,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
 
     private static int FindHeaderIndex(IReadOnlyList<CapturedLine> lines)
     {
-        // Search backwards: when a program prints several errors, the fatal one is last, and
-        // that is the one worth searching for.
         for (var i = lines.Count - 1; i >= 0; i--)
         {
             var text = lines[i].Text;
@@ -172,8 +144,6 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
         {
             if (!HeaderPattern().IsMatch(lines[i].Text)) continue;
 
-            // A bare "SomeException: message" only counts if a .NET-shaped frame follows it;
-            // otherwise it is just as likely to be a log line quoting an exception name.
             for (var j = i + 1; j < Math.Min(i + 4, lines.Count); j++)
                 if (FramePattern().IsMatch(lines[j].Text) || InnerHeaderPattern().IsMatch(lines[j].Text))
                     return i;

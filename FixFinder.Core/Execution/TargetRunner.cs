@@ -4,51 +4,22 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.Execution;
 
-/// <summary>
-/// Launches the target program and captures everything it writes to stdout and stderr.
-/// </summary>
-/// <remarks>
-/// This is the piece with the most ways to go quietly wrong, so the ordering below is
-/// deliberate rather than incidental - see the comments in <see cref="RunAsync"/>. The two
-/// classic failures it is built to avoid are the redirected-pipe deadlock (reading one stream
-/// to completion while the other fills its buffer) and the invisible hang of a program blocked
-/// on <c>Console.ReadLine()</c>.
-/// </remarks>
+/// <summary>Launches the target program and captures everything it writes to stdout and stderr.</summary>
 public sealed class TargetRunner
 {
-    /// <summary>Raised on a thread-pool thread for every line, as it arrives.</summary>
-    /// <remarks>The GUI must marshal this onto the UI thread; the run log does not need to.</remarks>
     public event Action<CapturedLine>? LineCaptured;
 
-    /// <summary>Progress and diagnostics about the run itself, not output from the target.</summary>
     public event Action<string>? Log;
 
-    /// <summary>
-    /// How long to wait after the process exits for its output pipes to close.
-    /// </summary>
-    /// <remarks>
-    /// Needed because a grandchild that inherited the pipe handles keeps them open after the
-    /// child is gone, and the end-of-stream sentinel then never arrives. Without this guard the
-    /// run would hang forever on a program that spawns a background helper - which is a very
-    /// ordinary thing for a program to do.
-    /// </remarks>
+    // A grandchild process that inherited the pipes can hold them open long after the program itself exits.
     private static readonly TimeSpan StreamCloseGrace = TimeSpan.FromSeconds(5);
 
-    /// <summary>Fraction of decoded characters that may be U+FFFD before we suspect the codepage.</summary>
     private const double ReplacementCharWarningRatio = 0.005;
 
     private readonly ParserRegistry _parsers;
 
     public TargetRunner(ParserRegistry? parsers = null) => _parsers = parsers ?? new ParserRegistry();
 
-    /// <summary>
-    /// Folders holding the user's own code, used to tell their frames from a library's.
-    /// </summary>
-    /// <remarks>
-    /// Optional, and the runner works without it - but until it is set, every frame outside a
-    /// vendor directory reads as "origin unknown", and FixFinder cannot tell the user that the
-    /// crash is in their own code and that searching is unlikely to help.
-    /// </remarks>
     public IReadOnlyList<string> SourceRoots { get; set; } = [];
 
     public async Task<TargetRunResult> RunAsync(TargetSpec spec, CancellationToken cancellationToken)
@@ -58,8 +29,6 @@ public sealed class TargetRunner
         var stopwatch = Stopwatch.StartNew();
         var sequence = 0;
 
-        // Completed when each stream reports end-of-stream, which Process signals by raising the
-        // handler one final time with a null Data.
         var stdOutClosed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var stdErrClosed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -78,9 +47,6 @@ public sealed class TargetRunner
 
         using var process = new Process { StartInfo = BuildStartInfo(spec), EnableRaisingEvents = true };
 
-        // Subscribed BEFORE Start(). Handlers attached afterwards can miss output from a
-        // program that writes and exits immediately - which is exactly what a crashing
-        // program does.
         process.OutputDataReceived += (_, e) => Receive(e, StreamKind.StdOut, stdOutClosed);
         process.ErrorDataReceived += (_, e) => Receive(e, StreamKind.StdErr, stdErrClosed);
 
@@ -110,12 +76,8 @@ public sealed class TargetRunner
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        // Closing stdin immediately turns "waits forever for input nobody will type" into a
-        // clean end-of-input the program can handle. Without it, anything that calls
-        // Console.ReadLine() burns the whole timeout on every single run and looks like a hang.
         try
         {
-            // Typed as a person would type it: each answer ended by Enter, and then nothing more.
             if (spec.StandardInput is { Length: > 0 } typed)
             {
                 var text = typed.ReplaceLineEndings("\n");
@@ -123,11 +85,11 @@ public sealed class TargetRunner
                 await process.StandardInput.FlushAsync();
             }
 
+            // Closed so a program that reads input gets end-of-file instead of waiting until the timeout.
             process.StandardInput.Close();
         }
         catch (IOException)
         {
-            // The process already exited and took the pipe with it. Nothing to write or close.
         }
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -144,8 +106,6 @@ public sealed class TargetRunner
         }
         catch (OperationCanceledException)
         {
-            // Which of the two linked sources fired decides what this run means: a user
-            // pressing Stop is not the same event as a program that would not finish.
             stoppedByUser = cancellationToken.IsCancellationRequested;
             timedOut = !stoppedByUser;
 
@@ -157,14 +117,9 @@ public sealed class TargetRunner
         }
         finally
         {
-            // Belt and braces for the paths that fall out of the try without a kill - an
-            // exception from WaitForExitAsync that is not cancellation, for instance.
             KillTree(process);
         }
 
-        // Only now wait on the sentinels. A process can exit while its pipes still hold
-        // buffered output, and reading result.Lines before this point can miss the last few
-        // lines of a stack trace - the most important lines in the entire run.
         var streamsClosedCleanly = true;
         try
         {
@@ -189,8 +144,6 @@ public sealed class TargetRunner
         var encodingWarning = DetectEncodingProblem(captured, spec);
         if (encodingWarning is not null) Log?.Invoke(encodingWarning);
 
-        // Parsed before classifying, because the parsed trace - not the exit code - is what
-        // decides whether this run counts as a crash. See RunClassifier.
         var parsed = _parsers.Parse(captured, SourceRoots);
         if (parsed is not null)
             Log?.Invoke($"Detected: {parsed.LanguageId} · {parsed.Summary} · confidence {parsed.Confidence}");
@@ -215,8 +168,6 @@ public sealed class TargetRunner
     {
         var startInfo = new ProcessStartInfo
         {
-            // UseShellExecute must be false for redirection to be possible at all, and it also
-            // means no console window flashes up for a console target.
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -228,10 +179,6 @@ public sealed class TargetRunner
             WorkingDirectory = spec.WorkingDirectory,
         };
 
-        // Arguments are passed as one raw string rather than through ArgumentList, because the
-        // user typed them as a command line in step 1 - re-quoting each whitespace-separated
-        // piece would change what they meant. Only the program path, which FixFinder supplies
-        // itself, gets quoted.
         if (spec.LaunchViaDotnet)
         {
             startInfo.FileName = "dotnet";
@@ -251,7 +198,6 @@ public sealed class TargetRunner
         return startInfo;
     }
 
-    /// <summary>Kills the process and everything it started, tolerating the race with a natural exit.</summary>
     private static void KillTree(Process process)
     {
         try
@@ -260,23 +206,17 @@ public sealed class TargetRunner
         }
         catch (InvalidOperationException)
         {
-            // The process exited between HasExited and Kill. Normal, and not worth reporting.
         }
         catch (NotSupportedException)
         {
-            // Killing a tree is unsupported for this process kind; the child itself is gone.
         }
         catch (Win32Exception)
         {
-            // Access denied killing a descendant, e.g. one that elevated. The target is dead.
         }
     }
 
     private static string DescribeLaunchFailure(Exception ex, TargetSpec spec)
     {
-        // 0x800711C7 arrives here as Win32Exception 4551. Naming it is worth the special case:
-        // the message Windows supplies is generic, and this is the single most likely reason a
-        // freshly-built binary refuses to start on this machine.
         if (ex is Win32Exception { NativeErrorCode: 4551 })
         {
             return $"An Application Control policy blocked '{spec.ExecutablePath}' (0x800711C7). " +
@@ -287,15 +227,6 @@ public sealed class TargetRunner
         return $"Could not start '{spec.ExecutablePath}': {ex.Message}";
     }
 
-    /// <summary>
-    /// Warns when the decoded output is peppered with U+FFFD, which means the bytes were not in
-    /// <see cref="TargetSpec.OutputEncoding"/>.
-    /// </summary>
-    /// <remarks>
-    /// Detection only - it deliberately does not re-decode with a guessed codepage. Silently
-    /// swapping the encoding would change the error text the search queries are built from,
-    /// and a wrong guess is worse than a visible warning.
-    /// </remarks>
     private static string? DetectEncodingProblem(IReadOnlyList<CapturedLine> lines, TargetSpec spec)
     {
         var total = 0;
@@ -304,8 +235,6 @@ public sealed class TargetRunner
         foreach (var line in lines)
         {
             total += line.Text.Length;
-            // Compared as a numeric code point rather than a pasted literal, so the check cannot
-            // be broken by this file itself being re-saved in the wrong encoding.
             foreach (var c in line.Text)
                 if (c == (char)0xFFFD) replacements++;
         }
@@ -329,9 +258,6 @@ public sealed class TargetRunner
                 $"Still running after {spec.Timeout.TotalSeconds:0.#}s and was killed. If this program is " +
                 "meant to keep running, raise the timeout - a crash it prints before then is still captured.");
 
-        // A weak read from the generic fallback is not enough to overrule a zero exit code.
-        // Anything scoring below this is reported, but does not on its own turn "finished" into
-        // "crashed" - which is the call that sends FixFinder off searching.
         var confident = parsed is not null && parsed.Confidence >= 30;
 
         var (outcome, explanation) = RunClassifier.Classify(exitCode!.Value, confident);

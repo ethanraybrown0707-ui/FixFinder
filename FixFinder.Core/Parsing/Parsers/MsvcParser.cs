@@ -3,16 +3,7 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>
-/// Reads MSBuild / MSVC / Roslyn compiler diagnostics: <c>Program.cs(12,17): error CS0103: ...</c>
-/// </summary>
-/// <remarks>
-/// The <b>error code</b> is why this parser matters. <c>CS0103</c> or <c>C2065</c> is a globally
-/// unique, stable identifier that people quote verbatim in issue titles and question headlines.
-/// An exact-code search finds the right answer where message tokens return noise, so the code is
-/// lifted into <see cref="ParsedError.ErrorCode"/> and given its own high weight in both the
-/// query builder and the ranker - rather than being left buried in the message text.
-/// </remarks>
+/// <summary>Reads MSBuild / MSVC / Roslyn compiler diagnostics: <c>Program.cs(12,17): error CS0103: ...</c></summary>
 public sealed partial class MsvcParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "msvc";
@@ -38,22 +29,6 @@ public sealed partial class MsvcParser : IStackTraceParser, IMultiErrorParser
 
     public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) => ParseAll(lines).FirstOrDefault();
 
-    /// <summary>
-    /// Every error the build reported, in source order.
-    /// </summary>
-    /// <remarks>
-    /// The first is still the one to start with - a build reports in source order and the first
-    /// error is usually the cause of the ones after it - but the rest are real, independent and
-    /// present in the same output, which is what lets a diagnostic nobody can fix be stepped past
-    /// rather than ending the run. Warnings stay out: they did not stop the build.
-    /// <para>
-    /// <b>Linker errors are in, and were not before.</b> A misspelt function in C is not a compile
-    /// error at all - the compiler only warns <c>C4013 'prinft' undefined</c> - so the one error is
-    /// the linker's <c>LNK2019: unresolved external symbol prinft</c>. Without it, the only line
-    /// anything read was the summary after it, <c>LNK1120: 1 unresolved externals</c>, which names
-    /// nothing. That summary is now kept only when nothing more specific was printed.
-    /// </para>
-    /// </remarks>
     public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
     {
         var errors = new List<ParsedError>();
@@ -87,10 +62,6 @@ public sealed partial class MsvcParser : IStackTraceParser, IMultiErrorParser
         return errors.Any(e => e.ExceptionType == "link error") ? errors : [.. errors, .. summaries];
     }
 
-    /// <summary>
-    /// The warnings a build printed. They never stopped it, and are sometimes the whole explanation
-    /// for what happened when it ran.
-    /// </summary>
     public static IReadOnlyList<ParsedError> ParseWarnings(IReadOnlyList<CapturedLine> lines)
     {
         var warnings = new List<ParsedError>();
@@ -127,7 +98,6 @@ public sealed partial class MsvcParser : IStackTraceParser, IMultiErrorParser
         ],
     };
 
-    /// <summary>A linker error: <c>app.obj : error LNK2019: unresolved external symbol prinft ...</c></summary>
     [GeneratedRegex(@"^\s*(?<obj>(?:[A-Za-z]:)?[^\s(:][^(:]*?)\s*:\s*(?:fatal\s+)?error\s+(?<code>LNK\d+)\s*:\s*(?<msg>.*?)\s*$")]
     private static partial Regex LinkerPattern();
 }

@@ -3,76 +3,36 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>
-/// Reads gcc/clang diagnostics, AddressSanitizer reports, and bare runtime death messages.
-/// </summary>
-/// <remarks>
-/// Three unrelated shapes share this parser because they share a toolchain, and they are tried
-/// in descending order of how much information they carry: an ASan report has real frames, a
-/// compiler diagnostic has a file and line, and <c>Segmentation fault (core dumped)</c> has
-/// nothing but itself. That last one is still worth recognising - it is a real crash, and
-/// reporting "a segfault with no detail" is far more useful than reporting nothing at all.
-/// </remarks>
+/// <summary>Reads gcc/clang diagnostics, AddressSanitizer reports, and bare runtime death messages.</summary>
 public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParser
 {
     public string LanguageId => "gcc";
     public string DisplayName => "gcc / clang";
 
-    /// <summary>A compiler diagnostic: <c>app.c:3:18: error: ...</c></summary>
-    /// <remarks>
-    /// The optional drive letter is the difference between reading gcc on Windows and not reading
-    /// it at all. MinGW prints the path it was given, <c>C:\src\app.c:3:18:</c>, and a file pattern
-    /// that stops at the first colon read <c>C</c> as the file and matched nothing - so every gcc
-    /// error on Windows fell to the generic parser, which kept the whole line, path and all, as
-    /// the message.
-    /// </remarks>
     [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^\s:][^:]*?):(?<line>\d+):(?<col>\d+):\s*(?<sev>fatal error|error|warning|note):\s*(?<msg>.*)$")]
     private static partial Regex DiagnosticPattern();
 
-    /// <summary>
-    /// The linker's own error: <c>app.c:3:(.text+0x18): undefined reference to `prinft'</c>.
-    /// </summary>
-    /// <remarks>
-    /// A misspelt function in C is not a compile error - the compiler warns and carries on - so this
-    /// is the only error there is. Without it, the line read was <c>collect2.exe: error: ld returned
-    /// 1 exit status</c>, which names nothing.
-    /// </remarks>
     [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^:\r\n]+?):(?:(?<line>\d+):)?\([^)]*\):\s*undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
     private static partial Regex LinkerPattern();
 
-    /// <summary>
-    /// The same error from inside a library, which names an object file rather than a source line - MinGW's
-    /// <c>libmingw32.a(...crtexewin.o):crtexewin.c:(.text+0x130): undefined reference to `WinMain'</c>
-    /// when there is no <c>main</c> to start from.
-    /// </summary>
     [GeneratedRegex(@"undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$")]
     private static partial Regex LibraryLinkerPattern();
 
     [GeneratedRegex(@"^==\d+==\s*ERROR:\s*(?<tool>\w+Sanitizer):\s*(?<type>[\w \-]+?)(?:\s+on\s+.*)?$")]
     private static partial Regex SanitizerPattern();
 
-    /// <summary>What went wrong, without the process id in front or the registers behind.</summary>
     [GeneratedRegex(@"^==\d+==\s*ERROR:\s*\w+Sanitizer:\s*(?<body>.+?)(?:\s+\(pc\s.*|\s+at pc\s.*)?$")]
     private static partial Regex SanitizerHeader();
 
     [GeneratedRegex(@"^\s+#(?<n>\d+)\s+0x[0-9a-fA-F]+\s+in\s+(?<sym>.+?)\s+(?<file>[^\s]+?):(?<line>\d+)(?::(?<col>\d+))?\s*$")]
     private static partial Regex SanitizerFramePattern();
 
-    /// <summary>
-    /// libstdc++'s last words for a C++ exception nothing caught: <c>terminate called after throwing an instance of
-    /// 'std::out_of_range'</c>, or <c>terminate called without an active exception</c> for a thread never joined.
-    /// </summary>
-    /// <remarks>
-    /// The line after it, <c>what():  ...</c>, is the exception's own message. No stack comes with either, so the error
-    /// names what was thrown and not where - which is still everything, next to the bare exit code 3 left without it.
-    /// </remarks>
     [GeneratedRegex(@"^terminate called (?:after throwing an instance of '(?<type>[^']+)'|without an active exception)\s*$")]
     private static partial Regex TerminatePattern();
 
     [GeneratedRegex(@"^\s*what\(\):\s*(?<what>.*?)\s*$")]
     private static partial Regex WhatPattern();
 
-    /// <summary>Runtime deaths that print one line and nothing else.</summary>
     private static readonly string[] FatalRuntimeMessages =
     [
         "Segmentation fault",
@@ -96,8 +56,6 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             var diagnostic = DiagnosticPattern().Match(line);
             if (diagnostic.Success)
             {
-                // Only count severities that mean a failure. A wall of warnings from a build
-                // that succeeded is not what FixFinder is being asked about.
                 var severity = diagnostic.Groups["sev"].Value;
                 score += severity is "error" or "fatal error" ? 30 : 4;
             }
@@ -138,8 +96,6 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             var frame = SanitizerFramePattern().Match(lines[i].Text);
             if (!frame.Success)
             {
-                // Frames come in blocks separated by prose; stop at the first blank line
-                // after at least one frame has been read.
                 if (frames.Count > 0 && lines[i].Text.Trim().Length == 0) break;
                 continue;
             }
@@ -156,15 +112,10 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             end = i + 1;
         }
 
-        // The header as printed is "==43860==ERROR: AddressSanitizer: access-violation on unknown
-        // address 0x0 (pc 0x7ff7... bp 0x0 sp 0x00fd... T0)". The process id and the registers
-        // change every run, and as a headline they bury the four words that matter.
         var message = SanitizerHeader().Match(lines[index].Text) is { Success: true } body
             ? body.Groups["body"].Value.Trim()
             : lines[index].Text.Trim();
 
-        // AddressSanitizer says so itself when the address is in the zero page. That is a null
-        // pointer, which is the most useful thing anyone can be told about an access violation.
         for (var i = index + 1; i < end; i++)
         {
             if (!lines[i].Text.Contains("address points to the zero page", StringComparison.Ordinal)) continue;
@@ -185,14 +136,6 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
         };
     }
 
-    /// <summary>
-    /// Every diagnostic the compiler reported, in source order.
-    /// </summary>
-    /// <remarks>
-    /// A sanitizer report or a fatal runtime message is a single failure and stays single: the
-    /// process died once. Only the compile path can hold several, because a compiler keeps going
-    /// after the first error and says so.
-    /// </remarks>
     public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
     {
         if (ParseSanitizer(lines) is { } sanitizer) return [sanitizer];
@@ -284,7 +227,6 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
         return errors;
     }
 
-    /// <summary>Every warning in a build's output, for the few warnings that explain a crash.</summary>
     public static IReadOnlyList<ParsedError> ParseWarnings(IReadOnlyList<CapturedLine> lines)
     {
         var warnings = new List<ParsedError>();
@@ -354,9 +296,6 @@ public sealed partial class GccClangParser : IStackTraceParser, IMultiErrorParse
             return new ParsedError
             {
                 LanguageId = LanguageId,
-                // Low on purpose: it is definitely a crash, but there is nothing here to locate
-                // it with, and the confidence number is what tells the user how much to trust
-                // whatever the search turns up.
                 Confidence = 45,
                 RawText = lines[i].Text,
                 FirstLineSequence = lines[i].Sequence,

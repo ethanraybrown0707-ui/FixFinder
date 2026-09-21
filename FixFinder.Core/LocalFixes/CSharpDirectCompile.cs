@@ -6,36 +6,14 @@ using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes;
 
-/// <summary>
-/// Compiles one C# file the way <c>dotnet build</c> does, by running the compiler it runs with the
-/// arguments it passes - without the second of MSBuild around it.
-/// </summary>
-/// <remarks>
-/// <c>dotnet build Program.cs</c> spends about a second per check, and very little of it compiling:
-/// the compiler itself, through the compiler server the SDK keeps running, answers in about a tenth of
-/// that. So the arguments are asked for once per file name - a build that stops short of compiling
-/// hands them back exactly, one per line - and every later check runs the SDK's own csc with them.
-/// <para>
-/// <b>Nothing about the compile is reconstructed.</b> The compiler is the one in the installed SDK,
-/// not a copy FixFinder carries; the references, analyzers, source generators, warning levels, defines
-/// and language version are the SDK's, captured rather than listed here. Only the paths change: the file
-/// being checked, where its output goes, and the two lines of the SDK's generated settings that name
-/// the file and its folder.
-/// </para>
-/// <para>
-/// <b>And it is not trusted until it has agreed.</b> Like every quicker check, it earns its place through
-/// <see cref="FasterCheck"/>: the first checks of each file name compile both ways and compare exit code,
-/// every error and every diagnostic line. A file with <c>#:</c> directives, which can pull in packages and
-/// other projects, always uses <c>dotnet build</c>.
-/// </para>
-/// </remarks>
+/// <summary>Compiles one C# file the way <c>dotnet build</c> does, by running the compiler it runs with the arguments it passes -
+/// without the second of MSBuild around it.</summary>
 internal static partial class CSharpDirectCompile
 {
     private static readonly ConcurrentDictionary<string, Lazy<Task<Template?>>> Templates = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, FasterCheck.Trust> Trusts = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>How far the direct compile has earned trust for files of this name.</summary>
     internal static FasterCheck.Trust TrustFor(string fileName) => Trusts.GetOrAdd(fileName, _ => new FasterCheck.Trust());
 
     /// <summary>What an argument does once the file being checked is known.</summary>
@@ -51,14 +29,9 @@ internal static partial class CSharpDirectCompile
 
     internal sealed record Argument(Part Part, string Text, string? FileName = null, string? Content = null);
 
-    /// <summary>
-    /// The compile <c>dotnet build</c> runs for a file of one name, with the paths that change taken out.
-    /// </summary>
+    /// <summary>The compile <c>dotnet build</c> runs for a file of one name, with the paths that change taken out.</summary>
     internal sealed record Template(string Compiler, bool Shared, IReadOnlyList<Argument> Arguments, string ProbeFolder);
 
-    /// <summary>
-    /// The compile for a copy of a C# file at <paramref name="copy"/>, run in <paramref name="folder"/>.
-    /// </summary>
     internal static TargetSpec SpecFor(Template template, string copy, string folder, TimeSpan timeout)
     {
         var obj = Path.Combine(folder, "obj");
@@ -100,33 +73,21 @@ internal static partial class CSharpDirectCompile
         return new TargetSpec
         {
             ExecutablePath = template.Compiler,
-            // /noconfig only counts on the command line; in a response file the compiler ignores it and says so.
             Arguments = $"{(template.Shared ? "-shared " : "")}-nologo -noconfig \"@{response}\"",
             WorkingDirectory = folder,
             Timeout = timeout,
         };
     }
 
-    /// <summary>
-    /// The compiler's output as <c>dotnet build</c> prints it. A diagnostic with no file - a source
-    /// generator's, say - comes out of the compiler as <c>error SYSLIB1062: ...</c>, and MSBuild names
-    /// the tool that reported it: <c>CSC : error SYSLIB1062: ...</c>.
-    /// </summary>
     internal static IReadOnlyList<CapturedLine> AsBuildPrintsIt(IReadOnlyList<CapturedLine> lines) =>
         lines.Select(line => Unplaced().IsMatch(line.Text) ? line with { Text = "CSC : " + line.Text } : line).ToList();
 
     [GeneratedRegex(@"^(?:error|warning|info) [A-Za-z]+\d+: ")]
     private static partial Regex Unplaced();
 
-    /// <summary>The template for files of this name, captured once and shared by every check that asks.</summary>
-    /// <remarks>
-    /// Captured without the caller's cancellation, because it is shared: a check stopped because another
-    /// rule's fix won must not take the capture with it for every check after.
-    /// </remarks>
     internal static Task<Template?> TemplateFor(string fileName, string dotnet) =>
         Templates.GetOrAdd(fileName, name => new Lazy<Task<Template?>>(() => Task.Run(() => CaptureAsync(name, dotnet)))).Value;
 
-    /// <summary>True when a C# file's own text can change how it is built, so only dotnet build will do.</summary>
     internal static bool HasDirectives(string text) =>
         text.Split('\n').Any(line => line.TrimStart().StartsWith("#:", StringComparison.Ordinal));
 
@@ -155,9 +116,6 @@ internal static partial class CSharpDirectCompile
             await File.WriteAllTextAsync(probe, "Console.WriteLine();\n");
             await File.WriteAllTextAsync(targets, CaptureTargets);
 
-            // A design-time build: the compiler is asked for its arguments and not run, which is how
-            // editors learn them. The build then fails for want of the output it never made; only the
-            // file of arguments matters.
             var spec = new TargetSpec
             {
                 ExecutablePath = dotnet,
@@ -191,14 +149,6 @@ internal static partial class CSharpDirectCompile
         }
     }
 
-    /// <summary>
-    /// A template from the captured lines, or null when anything in them is not understood.
-    /// </summary>
-    /// <remarks>
-    /// Refusing is always safe - it only means dotnet build - so anything unfamiliar is a refusal: a
-    /// compiler swapped in by a package, a missing compiler, or an argument that points at the capture's
-    /// own folders in a way not accounted for below.
-    /// </remarks>
     internal static Template? Read(IReadOnlyList<string> lines, string probe)
     {
         if (lines.Count < 5) return null;
@@ -259,7 +209,6 @@ internal static partial class CSharpDirectCompile
 
         if (arguments.Count(a => a.Part == Part.Source) != 1) return null;
 
-        // Two generated files with one name would overwrite each other in the check's folder.
         var generated = arguments.Where(a => a.FileName is not null && a.Part is Part.GeneratedSource or Part.GeneratedSettings).Select(a => a.FileName!);
         if (generated.Count() != generated.Distinct(StringComparer.OrdinalIgnoreCase).Count()) return null;
 

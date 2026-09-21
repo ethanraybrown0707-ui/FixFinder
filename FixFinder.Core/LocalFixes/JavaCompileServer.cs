@@ -5,29 +5,7 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.LocalFixes;
 
-/// <summary>
-/// javac, kept running between checks.
-/// </summary>
-/// <remarks>
-/// A javac process spends about six hundred milliseconds starting a Java virtual machine and a few tens
-/// compiling a small file. Build tools avoid paying that every time by keeping one JVM and calling the
-/// compiler inside it, and so does this: one <c>java</c> from the same JDK as javac, running a small
-/// program that hands each request to <c>com.sun.tools.javac.Main</c> - the class the javac launcher
-/// itself runs - with the same arguments.
-/// <para>
-/// <b>It writes what javac writes.</b> A javac process prints its diagnostics to its error stream in that
-/// stream's character set; the running compiler writes into a buffer through a writer with the same
-/// character set, and the bytes come back to be decoded and split into lines exactly as a process's would.
-/// Compared byte for byte against javac on the same files, including non-ASCII names and a hundred and
-/// twenty errors, the output was identical. It is still only used once it has agreed on this machine -
-/// see <see cref="FasterCheck"/>.
-/// </para>
-/// <para>
-/// The program exits when FixFinder closes its input, which happens when FixFinder exits for any reason,
-/// and after fifteen minutes with nothing to do. A JDK older than 11, which cannot run a single source file,
-/// is simply never used this way.
-/// </para>
-/// </remarks>
+/// <summary>javac, kept running between checks.</summary>
 internal sealed class JavaCompileServer
 {
     private static readonly ConcurrentDictionary<string, JavaCompileServer> Servers = new(StringComparer.OrdinalIgnoreCase);
@@ -106,12 +84,10 @@ internal sealed class JavaCompileServer
 
     private JavaCompileServer(string java) => _java = java;
 
-    /// <summary>How far this JDK's running compiler has earned trust.</summary>
     public FasterCheck.Trust Trust { get; } = new();
 
     public sealed record Reply(int ExitCode, byte[] Output);
 
-    /// <summary>The running compiler for the JDK a javac belongs to, or null when that JDK has no java beside it.</summary>
     public static JavaCompileServer? For(string javac)
     {
         var java = Path.Combine(Path.GetDirectoryName(javac) ?? "", "java.exe");
@@ -119,10 +95,6 @@ internal sealed class JavaCompileServer
         return File.Exists(java) ? Servers.GetOrAdd(java, path => new JavaCompileServer(path)) : null;
     }
 
-    /// <summary>
-    /// What javac reports for these arguments, or null when the running compiler could not answer - in
-    /// which case the check is run the usual way.
-    /// </summary>
     public async Task<Reply?> CompileAsync(IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var id = Interlocked.Increment(ref _nextId);
@@ -161,7 +133,6 @@ internal sealed class JavaCompileServer
         }
     }
 
-    /// <summary>A javac process's error stream, decoded and split into lines the way a process's output is read.</summary>
     public static IReadOnlyList<CapturedLine> Lines(byte[] output, Encoding encoding)
     {
         var lines = new List<CapturedLine>();
@@ -173,12 +144,10 @@ internal sealed class JavaCompileServer
         return lines;
     }
 
-    /// <summary>The running process, started if it is not. Called holding the gate.</summary>
     private Process? Started()
     {
         if (_process is { HasExited: false }) return _process;
 
-        // Exited without ever answering: this JDK cannot run it, and trying again would only fail again.
         if (_process is not null && !_answered)
         {
             _broken = true;
@@ -187,7 +156,6 @@ internal sealed class JavaCompileServer
 
         try
         {
-            // Named for its content, so every FixFinder that runs this version shares one copy of it.
             var version = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(Program)))[..12];
             var folder = Path.Combine(CompileCheck.Root, "javac-" + version);
             var source = Path.Combine(folder, "FixFinderJavac.java");
