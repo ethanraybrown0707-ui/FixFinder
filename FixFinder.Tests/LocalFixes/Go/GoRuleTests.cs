@@ -1,5 +1,6 @@
 using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Parsing.Parsers;
 
@@ -223,26 +224,38 @@ public class GoRuleTests : IDisposable
         Assert.Equal("package main", Assert.Single(fix!.NewLines));
     }
 
+    /// <summary>
+    /// Whether <c>go doc</c> can actually answer for a package on this machine. The rule reads the real exported names
+    /// out of it and offers nothing at all when it cannot, which is the right answer rather than a guess - so with no
+    /// answer there is no fix here to check. Go being on PATH is not enough: on a cold, busy machine running several Go
+    /// commands at once, <c>go doc</c> itself can fail, and it did on CI run 35587174207 (2026-09-21), where this test
+    /// failed with a bare NullReferenceException that said nothing about why.
+    /// </summary>
+    private static bool DocumentationAnswersFor(string package) =>
+        TargetFactory.FindOnPath("go") is not null && GoCode.ExportedNames(package).Count > 0;
+
     [Fact]
     public void AnUnexportedSpellingWithoutGosHintIsTheSameWordCapitalised()
     {
-        if (TargetFactory.FindOnPath("go") is null) return;
+        if (!DocumentationAnswersFor("fmt")) return;
 
         var file = Write("app.go", "\tfmt.println(\"hello\")\n");
         var fix = Fix("go-package-member", Error("compile error", "undefined: fmt.println", file, 1));
 
-        Assert.Equal("\tfmt.Println(\"hello\")", Assert.Single(fix!.NewLines));
+        Assert.NotNull(fix);
+        Assert.Equal("\tfmt.Println(\"hello\")", Assert.Single(fix.NewLines));
     }
 
     [Fact]
     public void AMisspeltPackageMemberIsReadFromGoDoc()
     {
-        if (TargetFactory.FindOnPath("go") is null) return;
+        if (!DocumentationAnswersFor("strings")) return;
 
         var file = Write("app.go", "\tfmt.Println(strings.Contians(\"hello\", \"ell\"))\n");
         var fix = Fix("go-package-member", Error("compile error", "undefined: strings.Contians", file, 1));
 
-        Assert.Equal("\tfmt.Println(strings.Contains(\"hello\", \"ell\"))", Assert.Single(fix!.NewLines));
+        Assert.NotNull(fix);
+        Assert.Equal("\tfmt.Println(strings.Contains(\"hello\", \"ell\"))", Assert.Single(fix.NewLines));
     }
 
     private static IReadOnlyList<CapturedLine> Lines(params string[] text) =>
