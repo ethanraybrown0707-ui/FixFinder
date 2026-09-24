@@ -392,8 +392,13 @@
                                         <TextBlock Text="Drop a program file here" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,0"/>
                                         <TextBlock Text="or press a language below to pick one" Style="{StaticResource Hint}"
                                                    HorizontalAlignment="Center" Margin="0,2,0,12"/>
-                                        <Button x:Name="ChooseFileButton" AutomationProperties.AutomationId="ChooseFileButton"
-                                                Content="Choose a file…" HorizontalAlignment="Center" Click="ChooseFileButton_Click"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button x:Name="ChooseFileButton" AutomationProperties.AutomationId="ChooseFileButton"
+                                                    Content="Choose a file…" Click="ChooseFileButton_Click"/>
+                                            <Button x:Name="ChooseFolderButton" AutomationProperties.AutomationId="ChooseFolderButton"
+                                                    Content="Choose a folder…" Margin="8,0,0,0" Click="ChooseFolderButton_Click"
+                                                    ToolTip="Check every program in a folder. Build output, dependencies and caches are left alone."/>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <StackPanel x:Name="ChosenPanel" Margin="16,14" Visibility="Collapsed">
@@ -411,6 +416,33 @@
                                         <Button x:Name="ChooseAnotherButton" AutomationProperties.AutomationId="ChooseAnotherButton"
                                                 Content="Choose another file" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                                 Margin="0,8,0,0" Click="ChooseFileButton_Click"/>
+                                    </StackPanel>
+
+                                    <StackPanel x:Name="FolderPanel" Margin="16,14" Visibility="Collapsed">
+                                        <TextBlock x:Name="FolderSummaryText" AutomationProperties.AutomationId="FolderSummaryText"
+                                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock x:Name="FolderProgressText" AutomationProperties.AutomationId="FolderProgressText"
+                                                   Style="{StaticResource Hint}" Margin="0,4,0,8"/>
+
+                                        <ListBox x:Name="FolderList" AutomationProperties.AutomationId="FolderList"
+                                                 MaxHeight="220" BorderThickness="0" Background="Transparent"
+                                                 SelectionChanged="FolderList_SelectionChanged"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel MinWidth="240" Margin="0,1">
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding StatusText}" VerticalAlignment="Center"
+                                                                   Margin="10,0,0,0" FontSize="12" Foreground="{Binding StatusBrush}"/>
+                                                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Entry}"/>
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <Button x:Name="ChooseAnotherFolderButton" AutomationProperties.AutomationId="ChooseAnotherFolderButton"
+                                                Content="Choose another folder" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
+                                                Margin="0,8,0,0" Click="ChooseFolderButton_Click"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>

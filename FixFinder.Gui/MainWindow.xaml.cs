@@ -98,6 +98,121 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
+
+    private readonly ObservableCollection<ProgramRow> _programs = [];
+    private CancellationTokenSource? _folderCheck;
+
+    private void ChooseFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog { Title = "Choose the folder to check" };
+        if (dialog.ShowDialog(this) != true) return;
+
+        _ = CheckFolderAsync(dialog.FolderName);
+    }
+
+    /// <summary>
+    /// Checks every program a folder holds, one at a time, filling in the list as each finishes.
+    /// </summary>
+    /// <remarks>
+    /// One at a time on purpose: checking a program compiles it and runs it, and a folder's worth of that at once
+    /// would fight itself for the machine and make each one slower. The scan itself and every check happen away from
+    /// the window, so the list stays usable and a finished program can be read while the rest are still going.
+    /// </remarks>
+    private async Task CheckFolderAsync(string folder)
+    {
+        _folderCheck?.Cancel();
+        _folderCheck = new CancellationTokenSource();
+        var cancellation = _folderCheck.Token;
+
+        _programs.Clear();
+        FolderList.ItemsSource = _programs;
+
+        NothingChosenPanel.Visibility = Visibility.Collapsed;
+        ChosenPanel.Visibility = Visibility.Collapsed;
+        FolderPanel.Visibility = Visibility.Visible;
+        EmptyState.Visibility = Visibility.Collapsed;
+
+        FolderSummaryText.Text = Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar));
+        FolderProgressText.Text = "Looking through the folder…";
+
+        var plan = await Task.Run(() => ProjectScan.Of(folder), cancellation);
+
+        if (cancellation.IsCancellationRequested) return;
+
+        foreach (var program in plan.Programs) _programs.Add(new ProgramRow(program));
+
+        FolderSummaryText.Text = plan.Summary;
+
+        if (_programs.Count == 0)
+        {
+            FolderProgressText.Text = "Nothing in this folder is a program FixFinder can check.";
+            return;
+        }
+
+        var checkedSoFar = 0;
+
+        foreach (var row in _programs)
+        {
+            if (cancellation.IsCancellationRequested) return;
+
+            row.Starting();
+            FolderProgressText.Text = $"Checking {row.Program.Name} - {checkedSoFar} of {_programs.Count} done";
+
+            try
+            {
+                var report = await CheckOneAsync(row.Program.Entry, cancellation);
+                row.Finished(report?.Findings ?? []);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Write($"Checking {row.Program.Entry} stopped early: {ex.Message}");
+                row.CouldNotCheck();
+            }
+
+            checkedSoFar++;
+
+            // Show the first program that has something wrong with it, so the report is not empty while the rest run.
+            if (FolderList.SelectedItem is null && row.State == ProgramState.HasProblems) FolderList.SelectedItem = row;
+        }
+
+        var withProblems = _programs.Count(r => r.State == ProgramState.HasProblems);
+        var problems = _programs.Where(r => r.Findings is not null).Sum(r => r.Findings!.Count(f => f.Severity != Severity.Suggestion));
+
+        FolderProgressText.Text = problems == 0
+            ? $"Nothing wrong found in {Many(_programs.Count, "program")}."
+            : $"{Many(problems, "problem")} in {Many(withProblems, "file")}.";
+    }
+
+    /// <summary>Checks one program of a folder, away from the window, and gives back what it found.</summary>
+    private async Task<CheckReport?> CheckOneAsync(string file, CancellationToken cancellation)
+    {
+        var launch = TargetFactory.FromFile(file);
+        if (!launch.Ok) return null;
+
+        var checker = new ProgramChecker(_http, _sources) { Language = CodeLanguage.Of(file) ?? CodeLanguage.Any };
+
+        return await Task.Run(() => checker.CheckAsync(launch, cancellation), cancellation);
+    }
+
+    private void FolderList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (FolderList.SelectedItem is not ProgramRow row) return;
+
+        ShowChosen(row.Program.Entry);
+        _chosenPath = row.Program.Entry;
+
+        ShowFindings(row.Findings ?? []);
+
+        EmptyState.Visibility = row.Findings is { Count: > 0 } ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>"3 problems", and "1 problem" rather than "1 problems".</summary>
+    private static string Many(int count, string thing) => count == 1 ? $"1 {thing}" : $"{count} {thing}s";
+
     private void ChooseFileButton_Click(object sender, RoutedEventArgs e) => PickFile();
 
     private bool PickFile()
