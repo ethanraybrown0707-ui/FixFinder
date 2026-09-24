@@ -26,12 +26,16 @@ public static class AbstractChecks
         var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
         var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
 
+        // Built once for the program: which functions are written inside which is a fact about the whole program, and
+        // working it out for each function separately reads the whole program once per function.
+        var nesting = new Nesting(program);
+
         var functions = program.AllFunctions.Select(function =>
         {
             var locals = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python);
             var evaluator = new Evaluator(program.Language)
             {
-                Volatile = Scopes.Volatile(program, function),
+                Volatile = nesting.Volatile(function),
                 Escaping = Scopes.Escaping(function),
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
@@ -59,10 +63,13 @@ public static class AbstractChecks
         foreach (var (function, evaluator, graph) in functions)
         {
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
+
             var local = new List<AnalysisFinding>();
             new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
                 .Run();
+
             var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
+
             findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
         }
 
