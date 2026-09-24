@@ -7,8 +7,10 @@ internal static class AnalysisGuides
 {
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
-        Pattern(["analysis-division-by-zero"], "Dividing by something that can be zero",
+        AtEveryLevel(["analysis-division-by-zero"], "Dividing by something that can be zero",
+            "Dividing splits something into equal parts, and there is no way to split something into zero parts - so Python gives up rather than answer. FixFinder followed the values along one route through the code and found the number on the bottom of the division can be 0 by the time this line runs.",
             "Following the values through the code shows the number being divided by is, or can be, 0 at this line - for example a count that stays 0 when a loop never runs.",
+            "The divisor's abstract value includes 0 on at least one path reaching this line, so the division raises ZeroDivisionError.",
             "Dividing by zero stops the program with an error, often only for the inputs nobody tried, like an empty list.",
             "Check the divisor first and decide what the answer should be when it is 0.",
             """
@@ -17,8 +19,10 @@ internal static class AnalysisGuides
             return total / count
             """),
 
-        Pattern(["analysis-null-used"], "Using something that can be None",
+        AtEveryLevel(["analysis-null-used"], "Using something that can be None",
+            "None is Python's way of saying there is nothing here - it is what a search gives back when it found no match. It has no attributes and no items, so asking it for one stops the program. FixFinder found a route through the code where the value is still None when this line uses it.",
             "On at least one way through the code, the value is None when this line uses it - for example a variable set to None and only sometimes given a real value, or a search that found nothing.",
+            "The value's abstract domain includes None on at least one path reaching this line, so the attribute access, call or subscript raises AttributeError or TypeError.",
             "Reading an attribute of None, calling a method on it or taking an item from it stops the program with an error.",
             "Check for None before using it, or make sure every way through the code gives it a real value.",
             """
@@ -36,8 +40,10 @@ internal static class AnalysisGuides
             print("Age: " + str(age))
             """),
 
-        Pattern(["analysis-index-out-of-range"], "Asking for a position that does not exist",
+        AtEveryLevel(["analysis-index-out-of-range"], "Asking for a position that does not exist",
+            "Counting positions starts at 0, not 1, so a list of four things has positions 0, 1, 2 and 3 - there is no position 4. FixFinder knows how long this list is at this point in the code, and the position being asked for is past its last one.",
             "The list or text has a known length here, and the position asked for is past its end.",
+            "The index is outside 0 to length - 1 on this path, so the subscript raises IndexError.",
             "Positions run from 0 to length - 1, so this stops the program with an IndexError.",
             "Use a position inside the list, such as -1 for the last item.",
             """

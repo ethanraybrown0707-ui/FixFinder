@@ -7,6 +7,22 @@ namespace FixFinder.Core.Checking.Guides;
 public sealed record MistakeGuide(string Explanation, string WhyItMatters, string SuggestedFix, string Example)
 {
     public string? Title { get; init; }
+
+    /// <summary>
+    /// The same explanation for someone new to programming, and for someone who works on this every day.
+    /// </summary>
+    /// <remarks>
+    /// Both are optional, and where one is missing <see cref="Explanation"/> is used at that level too. Saying the same
+    /// thing three times is better than saying a different thing at one of them: the level changes who is reading, not
+    /// what is true of the program.
+    /// </remarks>
+    public string? ForBeginners { get; init; }
+
+    /// <inheritdoc cref="ForBeginners"/>
+    public string? ForTechnical { get; init; }
+
+    /// <summary>The explanation at each depth, falling back to the one wording wherever another was not written.</summary>
+    public Explained Explanations => Explained.Of(Explanation, ForBeginners, ForTechnical);
 }
 
 /// <summary>A guide and the errors it describes.</summary>

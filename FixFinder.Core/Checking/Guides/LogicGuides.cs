@@ -9,6 +9,22 @@ internal static class LogicGuides
         Guide = new MistakeGuide(explanation, why, fix, example) { Title = title },
     };
 
+    /// <summary>
+    /// The same guide with the explanation also written for someone new to programming and for someone who works on
+    /// this every day. The three say the same thing about the same program; only the words differ.
+    /// </summary>
+    internal static GuideEntry AtEveryLevel(
+        string[] ids, string title, string beginner, string explanation, string technical, string why, string fix, string example) => new()
+    {
+        RuleIds = ids,
+        Guide = new MistakeGuide(explanation, why, fix, example)
+        {
+            Title = title,
+            ForBeginners = beginner,
+            ForTechnical = technical,
+        },
+    };
+
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
         Pattern(["wrong-output"], "Wrong output",

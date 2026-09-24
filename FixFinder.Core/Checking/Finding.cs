@@ -73,5 +73,21 @@ public sealed record Finding
     /// </summary>
     public CodeChange? Change { get; init; }
 
+    private readonly Explained? _explanations;
+
+    /// <summary>
+    /// The explanation at each depth a reader might want it, carried on the finding so changing depth is a matter of
+    /// reading a different string rather than checking the program again. <see cref="Explanation"/> is the middle one.
+    /// </summary>
+    /// <remarks>
+    /// Where nothing sets this, every depth gives the one explanation that was written. That is the honest default: a
+    /// finding whose wording nobody has written three ways should repeat itself rather than have two of them invented.
+    /// </remarks>
+    public Explained Explanations
+    {
+        get => _explanations ?? Explained.Of(Explanation);
+        init => _explanations = value;
+    }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }

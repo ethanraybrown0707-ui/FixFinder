@@ -23,6 +23,9 @@ public static class Guidebook
     public static bool HasRule(string ruleId) =>
         AllTables.Any(table => table.Any(entry => entry.RuleIds.Contains(ruleId, StringComparer.Ordinal)));
 
+    /// <summary>Every guide FixFinder has, for checks that hold of all of them rather than of one.</summary>
+    public static IEnumerable<MistakeGuide> Every() => AllTables.SelectMany(table => table).Select(entry => entry.Guide);
+
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
         PythonGuides.All, JavaGuides.All, CSharpGuides.All, NativeGuides.All, JavaScriptGuides.All, GoGuides.All, LogicGuides.All,
