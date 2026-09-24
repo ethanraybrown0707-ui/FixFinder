@@ -44,6 +44,12 @@ public sealed record Finding
 
     public string? FixCheckedBy { get; init; }
 
+    /// <summary>
+    /// How far the fix was actually taken - compiled, run, matched against what the program should print - and what
+    /// each of those showed. A fix nobody tested carries no claim rather than an empty one.
+    /// </summary>
+    public Verification Verified { get; init; } = Verification.NotTested;
+
     public string RuleId { get; init; } = "";
 
     public ParsedError? Error { get; init; }

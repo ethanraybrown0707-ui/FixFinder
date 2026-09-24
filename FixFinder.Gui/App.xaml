@@ -75,6 +75,16 @@
         <SolidColorBrush x:Key="DangerBrush" Color="#D92D20"/>
         <SolidColorBrush x:Key="DangerSoftBrush" Color="#FEF3F2"/>
 
+        <!-- The before-and-after sits on the same dark code background as the corrected code, so the tints are what
+             red and green become there: enough to read a line's fate from its colour, not enough to fight the code. -->
+        <SolidColorBrush x:Key="DiffRemovedBrush" Color="#3B1A1C"/>
+        <SolidColorBrush x:Key="DiffRemovedTextBrush" Color="#FDA29B"/>
+        <SolidColorBrush x:Key="DiffRemovedMarkBrush" Color="#7A2822"/>
+        <SolidColorBrush x:Key="DiffAddedBrush" Color="#102A1C"/>
+        <SolidColorBrush x:Key="DiffAddedTextBrush" Color="#8FE0A8"/>
+        <SolidColorBrush x:Key="DiffAddedMarkBrush" Color="#1C5334"/>
+        <SolidColorBrush x:Key="DiffGutterBrush" Color="#64748B"/>
+
         <SolidColorBrush x:Key="CodeBrush" Color="#0F172A"/>
         <SolidColorBrush x:Key="CodeTextBrush" Color="#E2E8F0"/>
         <SolidColorBrush x:Key="ConsoleBrush" Color="#0F172A"/>

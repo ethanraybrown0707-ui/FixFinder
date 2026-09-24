@@ -95,6 +95,95 @@
                             <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 
+                            <StackPanel Visibility="{Binding HasVerification, Converter={StaticResource Visible}}">
+                                <TextBlock Text="VERIFICATION" Style="{StaticResource Label}"/>
+                                <ItemsControl ItemsSource="{Binding VerificationLines}" Focusable="False"
+                                              AutomationProperties.Name="Verification"
+                                              AutomationProperties.AutomationId="FindingVerification">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                                <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="18"
+                                                           FontSize="12.5" Foreground="{StaticResource HintBrush}"/>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12.5"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                                            </StackPanel>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Passed}" Value="True">
+                                                    <Setter TargetName="Mark" Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Failed}" Value="True">
+                                                    <Setter TargetName="Mark" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock x:Name="VerdictText" Text="{Binding VerificationSummary}" Margin="18,4,0,0"
+                                           FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}"
+                                           AutomationProperties.AutomationId="FindingVerificationSummary">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsVerified}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding HasChange, Converter={StaticResource Visible}}">
+                                <TextBlock Text="WHAT CHANGES" Style="{StaticResource Label}"/>
+
+                                <CheckBox IsChecked="{Binding ChangeShown, Mode=TwoWay}" Content="{Binding ChangeToggleText}"
+                                          Margin="0,0,0,6" Focusable="True"
+                                          AutomationProperties.AutomationId="FindingChangeToggle"
+                                          AutomationProperties.Name="{Binding ChangeToggleText}"/>
+
+                                <Border Background="{StaticResource CodeBrush}" CornerRadius="6" Padding="8,6"
+                                        Visibility="{Binding ChangeShown, Converter={StaticResource Visible}}">
+                                    <ItemsControl ItemsSource="{Binding ChangeLines}" Focusable="False"
+                                                  AutomationProperties.Name="What changes"
+                                                  AutomationProperties.AutomationId="FindingChange">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border x:Name="Row" Padding="4,1" CornerRadius="3">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock x:Name="Sign" Text=" " Width="12"
+                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                   Foreground="{StaticResource DiffGutterBrush}"/>
+                                                        <TextBlock Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
+                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                   Foreground="{StaticResource DiffGutterBrush}"/>
+                                                        <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
+                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                   Foreground="{StaticResource CodeTextBrush}"
+                                                                   TextWrapping="NoWrap"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource DiffRemovedBrush}"/>
+                                                        <Setter TargetName="Code" Property="Foreground" Value="{StaticResource DiffRemovedTextBrush}"/>
+                                                        <Setter TargetName="Sign" Property="Text" Value="-"/>
+                                                        <Setter TargetName="Sign" Property="Foreground" Value="{StaticResource DiffRemovedTextBrush}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="Added">
+                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource DiffAddedBrush}"/>
+                                                        <Setter TargetName="Code" Property="Foreground" Value="{StaticResource DiffAddedTextBrush}"/>
+                                                        <Setter TargetName="Sign" Property="Text" Value="+"/>
+                                                        <Setter TargetName="Sign" Property="Foreground" Value="{StaticResource DiffAddedTextBrush}"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
                                 <TextBlock Text="{Binding ExampleLabel}" Style="{StaticResource Label}"/>
                                 <TextBox Text="{Binding CorrectedExample, Mode=OneWay}" Style="{StaticResource CodeBlock}"
@@ -410,6 +499,19 @@
                                  Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
                     <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
                                  Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
+
+                    <TextBlock Text="Explain for" VerticalAlignment="Center" Margin="18,0,8,0"
+                               FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+
+                    <ComboBox x:Name="ExplanationLevelBox" Width="116" VerticalAlignment="Center"
+                              SelectionChanged="ExplanationLevel_Changed"
+                              AutomationProperties.AutomationId="ExplanationLevelBox"
+                              AutomationProperties.Name="How much to explain"
+                              ToolTip="Changes how a finding is worded. What was found, how sure FixFinder is, and the fix stay the same.">
+                        <ComboBoxItem Content="Beginner"/>
+                        <ComboBoxItem Content="Student"/>
+                        <ComboBoxItem Content="Technical"/>
+                    </ComboBox>
                 </StackPanel>
 
                 <ItemsControl x:Name="NotesList" Grid.Row="3" AutomationProperties.AutomationId="NotesList">

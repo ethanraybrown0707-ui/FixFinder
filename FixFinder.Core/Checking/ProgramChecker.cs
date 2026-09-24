@@ -35,11 +35,16 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
     private const int MostWarningsFixed = 20;
     private const int MostFixesCompared = 5;
 
+    /// <summary>How many fixes are actually run to see whether they work; each one runs the program again.</summary>
+    private const int MostFixesVerified = 3;
+
     private readonly object _gate = new();
     private readonly List<Finding> _findings = [];
     private readonly List<string> _notes = [];
     private readonly Dictionary<string, Task> _comparing = [];
     private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
+    private readonly Dictionary<string, Task> _verifying = [];
+    private readonly Dictionary<string, Verification> _verified = [];
     private LaunchPlan? _launch;
     private CancellationToken _cancellation;
 
@@ -76,9 +81,11 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         var (syntaxSummary, run) = syntax.Result;
 
-        Task[] comparing;
-        lock (_gate) comparing = [.. _comparing.Values];
-        await Task.WhenAll(comparing);
+        // Both of these run in the background while the report fills in; the report waits for them so that what it
+        // finally says about a fix is what was actually established, not what had been established so far.
+        Task[] finishing;
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        await Task.WhenAll(finishing);
 
         lock (_gate)
         {
@@ -306,8 +313,8 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             await ForEachAsync(patterns, async item =>
             {
-                var (checkedBy, compiles) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
-                Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles));
+                var (checkedBy, compiles, verified) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
+                Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles) with { Verified = verified });
                 Interlocked.Increment(ref found);
             }, cancellationToken);
 
@@ -405,24 +412,56 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         return null;
     }
 
-    private async Task<(string? CheckedBy, bool Compiles)> CheckPatternFixAsync(SourceFile source, LocalFix? fix, CancellationToken cancellationToken)
+    /// <summary>
+    /// Compiles a copy of the file with the change in it, and says what that showed.
+    /// </summary>
+    /// <remarks>
+    /// The copy is the point: the person's own file is never written to in order to find out whether a fix is any
+    /// good. What comes back is deliberately modest - compiling shows the change is valid code, not that it works -
+    /// so the stage recorded is Compiled and nothing further is claimed from it.
+    /// </remarks>
+    private async Task<(string? CheckedBy, bool Compiles, Verification Verified)> CheckPatternFixAsync(
+        SourceFile source, LocalFix? fix, CancellationToken cancellationToken)
     {
-        if (fix is null || fix.ApplyTo(source) is not { } changed) return (null, false);
-        if (!CompileCheck.CanCheck(source.Path)) return (null, true);
+        if (fix is null || fix.ApplyTo(source) is not { } changed) return (null, false, Verification.NotTested);
+
+        if (!CompileCheck.CanCheck(source.Path))
+        {
+            return (null, true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Skipped, "This language is not compiled before it runs."));
+        }
 
         var after = await CompileCheck.RunAsync(source, changed, null, cancellationToken);
-        if (!after.Ran) return ("Not checked - there was nothing to compile it with.", true);
+
+        if (!after.Ran)
+        {
+            return ("Not checked - there was nothing to compile it with.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Skipped, "There was nothing on this machine to compile it with."));
+        }
 
         var name = Path.GetFileName(source.Path);
-        if (after.Clean) return ($"A copy of {name} with this change compiles.", true);
+
+        if (after.Clean)
+        {
+            return ($"A copy of {name} with this change compiles.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Passed, $"A copy of {name} with this change compiles."));
+        }
 
         var before = await CompileCheck.RunAsync(source, source.Lines, null, cancellationToken);
         var editedTo = fix.StartLine + Math.Max(fix.NewLines.Count, 1) - 1;
         var inEdit = after.Errors.Any(e => LocalFixContext.OwnFrame(e)?.Line is { } line && line >= fix.StartLine - 1 && line <= editedTo + 1);
 
-        return before.Ran && after.Errors.Count <= before.Errors.Count && !inEdit
-            ? ($"A copy of {name} with this change adds no new errors.", true)
-            : (null, false);
+        if (before.Ran && after.Errors.Count <= before.Errors.Count && !inEdit)
+        {
+            // The file did not compile before the change either, and the change did not make that worse or add an
+            // error of its own - which is as much as compiling can show about a file that was already broken.
+            return ($"A copy of {name} with this change adds no new errors.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Inconclusive,
+                $"A copy of {name} with this change adds no new errors, but the file did not compile before it either."));
+        }
+
+        return (null, false, Verification.NotTested.With(
+            VerificationStage.Compiled, StageResult.Failed, $"A copy of {name} with this change does not compile."));
     }
 
     private void Add(Finding finding)
@@ -443,6 +482,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             }
 
             if (finding.Fix is { } fix && _fixChanges.TryGetValue(FixKey(fix), out var changes)) finding = finding with { FixChanges = changes };
+            if (finding.Fix is { } tried && _verified.TryGetValue(FixKey(tried), out var already)) finding = finding with { Verified = already };
 
             _findings.Add(finding);
             snapshot = Sorted(_findings);
@@ -450,6 +490,62 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         FindingsChanged?.Invoke(snapshot);
         CompareFix(finding);
+        VerifyFix(finding);
+    }
+
+    /// <summary>
+    /// Starts running a copy of the program with the fix in it, to find out whether the failure stops happening.
+    /// </summary>
+    /// <remarks>
+    /// Only worth the run when there is something for it to settle: a failure that might stop, or output the person
+    /// said the program should print. Bounded the same way the fix comparison is, because each one of these runs the
+    /// program again and a report full of fixes would otherwise run it a dozen times.
+    /// </remarks>
+    private void VerifyFix(Finding finding)
+    {
+        if (finding.Fix is not { } fix || finding.Verified.ResultOf(VerificationStage.Compiled) == StageResult.Failed) return;
+        if (finding.Error is null && Expected is not { IsEmpty: false }) return;
+        if (SourceFile.Read(fix.File) is not { } source) return;
+
+        var key = FixKey(fix);
+
+        lock (_gate)
+        {
+            if (_verifying.ContainsKey(key) || _verifying.Count >= MostFixesVerified) return;
+            _verifying[key] = Task.Run(() => VerifyFixAsync(finding, source, fix, key), CancellationToken.None);
+        }
+    }
+
+    private async Task VerifyFixAsync(Finding finding, SourceFile source, LocalFix fix, string key)
+    {
+        Verification verified;
+
+        try
+        {
+            verified = await FixRun.CheckAsync(finding.Verified, source, fix, finding.Error, Expected, _cancellation);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Trying a fix out stopped early: {ex.Message}");
+            return;
+        }
+
+        if (!verified.WasTested) return;
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            _verified[key] = verified;
+            for (var i = 0; i < _findings.Count; i++)
+            {
+                if (_findings[i].Fix is { } other && FixKey(other) == key) _findings[i] = _findings[i] with { Verified = verified };
+            }
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
     }
 
     /// <summary>Starts working out what a finding's fix changes in what the program does - semantic diffing of the fix.</summary>

@@ -43,6 +43,9 @@ public partial class MainWindow : Window
     private readonly FixSourceRegistry _sources = new();
 
     private List<FindingRow> _findings = [];
+
+    /// <summary>What the person chose last time they used FixFinder, read once when the window opens.</summary>
+    private readonly Preferences _preferences = Preferences.Load();
     private Severity? _filter;
 
     private string? _chosenPath;
@@ -63,6 +66,8 @@ public partial class MainWindow : Window
 
         AddLanguageTiles();
         UpdateFilterCounts();
+
+        ExplanationLevelBox.SelectedIndex = (int)_preferences.Explanations;
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -381,6 +386,7 @@ public partial class MainWindow : Window
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
+            Level = _preferences.Explanations,
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -406,6 +412,29 @@ public partial class MainWindow : Window
         FilterErrors.Content = $"Errors  {Count(Severity.Error)}";
         FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
         FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
+    }
+
+    /// <summary>
+    /// Changes how the findings on screen are worded, and nothing else about them.
+    /// </summary>
+    /// <remarks>
+    /// Every wording a finding has was worked out when the program was checked, so this hands each row the new level
+    /// and the rows read a different string. Nothing is compiled again, nothing is run again, and no finding appears
+    /// or disappears - which is the whole point of the setting.
+    /// </remarks>
+    private void ExplanationLevel_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (ExplanationLevelBox.SelectedIndex < 0) return;
+
+        var chosen = (ExplanationLevel)ExplanationLevelBox.SelectedIndex;
+        if (chosen == _preferences.Explanations) return;
+
+        _preferences.Explanations = chosen;
+        foreach (var row in _findings) row.Level = chosen;
+
+        // Failing to write a preference is not worth interrupting anybody over; it is remembered for this session
+        // either way.
+        _preferences.Save();
     }
 
     private void Filter_Checked(object sender, RoutedEventArgs e)

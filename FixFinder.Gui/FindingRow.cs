@@ -47,7 +47,52 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string Title => Finding.Title;
 
-    public string Explanation => Finding.Explanation;
+    private ExplanationLevel _level = ExplanationLevel.Student;
+
+    /// <summary>
+    /// How much the reader wants explained. The window sets it on every row when the choice changes, and the only
+    /// thing that moves is the wording: nothing here is worked out again, and the program is not checked again.
+    /// </summary>
+    public ExplanationLevel Level
+    {
+        get => _level;
+        set
+        {
+            if (_level == value) return;
+
+            _level = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Explanation)));
+        }
+    }
+
+    public string Explanation => Finding.Explanations.At(Level);
+
+    /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
+    public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
+
+    public bool HasChange => ChangeLines.Count > 0;
+
+    public string ChangeSummary => Finding.Change?.Summary ?? "";
+
+    private bool ChangeIsLong => Finding.Change?.IsLong == true;
+
+    private bool? _changeShown;
+
+    /// <summary>A short change is open; a long one waits to be asked for, so the card stays readable.</summary>
+    public bool ChangeShown
+    {
+        get => _changeShown ?? !ChangeIsLong;
+        set
+        {
+            if (ChangeShown == value) return;
+
+            _changeShown = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ChangeShown)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ChangeToggleText)));
+        }
+    }
+
+    public string ChangeToggleText => ChangeShown ? "Hide the change" : $"Show the change  ·  {ChangeSummary}";
 
     public string WhyItMatters => Finding.WhyItMatters;
 
@@ -91,6 +136,30 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string CheckedText => Finding.FixCheckedBy is { Length: > 0 } how ? how : "";
 
     public bool HasCheck => CheckedText.Length > 0;
+
+    /// <summary>One tested stage, as a mark and a sentence the reader can hold the claim against.</summary>
+    public sealed record VerificationLine(string Mark, string Text, bool Passed, bool Failed);
+
+    public bool HasVerification => Finding.Verified.WasTested;
+
+    public bool IsVerified => Finding.Verified.IsVerified;
+
+    public string VerificationSummary => Finding.Verified.Summary;
+
+    public IReadOnlyList<VerificationLine> VerificationLines => Finding.Verified.Steps
+        .OrderBy(step => step.Stage)
+        .Select(step => new VerificationLine(
+            step.Result switch
+            {
+                StageResult.Passed => "✓",
+                StageResult.Failed => "✕",
+                StageResult.Inconclusive => "?",
+                _ => "–",
+            },
+            step.Detail,
+            step.Result == StageResult.Passed,
+            step.Result == StageResult.Failed))
+        .ToList();
 
     public bool CanSearch => Finding.Error is not null && Finding.Kind is FindingKind.Syntax or FindingKind.Runtime;
 
