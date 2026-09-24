@@ -52,6 +52,18 @@ public sealed record Finding
 
     public string RuleId { get; init; } = "";
 
+    /// <summary>
+    /// What this finding is, as one string: where it is and what was found there. Two reports of the same mistake in
+    /// the same place are the same finding, which is what lets one be named as the cause of another.
+    /// </summary>
+    public string Id => $"{Path.GetFileName(File)}:{Line?.ToString() ?? "?"}:{RuleId}:{Title}";
+
+    /// <summary>
+    /// The finding this one follows from, where there is real evidence that fixing that one removes this one. Null
+    /// whenever the evidence is not that specific, because a wrong grouping hides a real problem inside another.
+    /// </summary>
+    public Relation? CausedBy { get; init; }
+
     public ParsedError? Error { get; init; }
 
     public LocalFix? Fix { get; init; }

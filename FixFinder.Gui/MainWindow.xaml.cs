@@ -383,10 +383,19 @@ public partial class MainWindow : Window
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
 
+        // Which findings follow from which is worked out in Core; the window only has to look up the lines, which it
+        // can do because it is the one place that can see the whole report at once.
+        var byId = findings.ToDictionary(f => f.Id, f => f, StringComparer.Ordinal);
+        var followers = findings.Where(f => f.CausedBy is not null)
+            .GroupBy(f => f.CausedBy!.RootId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)[.. g.Select(f => f.Line ?? 0).Where(line => line > 0).Order()], StringComparer.Ordinal);
+
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
             Level = _preferences.Explanations,
+            FollowsLine = f.CausedBy is { } cause && byId.TryGetValue(cause.RootId, out var root) ? root.Line : null,
+            ExplainsLines = followers.GetValueOrDefault(f.Id, []),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

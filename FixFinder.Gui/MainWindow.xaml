@@ -83,6 +83,22 @@
                         <TextBlock local:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
 
                         <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}">
+                            <Border Background="{StaticResource AccentSoftBrush}" BorderBrush="{StaticResource SuggestionBorderBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
+                                    Visibility="{Binding Explains, Converter={StaticResource Visible}}">
+                                <TextBlock Text="{Binding ExplainsText}" TextWrapping="Wrap" FontSize="12.5"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           AutomationProperties.AutomationId="FindingExplains"/>
+                            </Border>
+
+                            <Border Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
+                                    Visibility="{Binding Follows, Converter={StaticResource Visible}}">
+                                <TextBlock Text="{Binding FollowsText}" TextWrapping="Wrap" FontSize="12.5"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           AutomationProperties.AutomationId="FindingFollows"/>
+                            </Border>
+
                             <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
 

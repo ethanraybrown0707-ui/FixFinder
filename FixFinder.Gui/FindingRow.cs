@@ -140,6 +140,28 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>One tested stage, as a mark and a sentence the reader can hold the claim against.</summary>
     public sealed record VerificationLine(string Mark, string Text, bool Passed, bool Failed);
 
+    /// <summary>The line of the finding this one follows from, filled in by the window, which can see them all.</summary>
+    public int? FollowsLine { get; init; }
+
+    /// <summary>The lines of the findings that follow from this one.</summary>
+    public IReadOnlyList<int> ExplainsLines { get; init; } = [];
+
+    public bool Follows => FollowsLine is not null;
+
+    public string FollowsText => FollowsLine is { } line
+        ? $"Follows from the problem on line {line} - fixing that one should remove this."
+        : "";
+
+    public bool Explains => ExplainsLines.Count > 0;
+
+    public string ExplainsText => ExplainsLines.Count switch
+    {
+        0 => "",
+        1 => $"The problem on line {ExplainsLines[0]} looks like a consequence of this one, so fixing this may remove it too.",
+        _ => $"The problems on lines {string.Join(", ", ExplainsLines[..^1])} and {ExplainsLines[^1]} look like consequences of this one, " +
+             "so fixing this may remove them too.",
+    };
+
     public bool HasState => Finding.State is { Rows.Count: > 0 };
 
     public string StateHeading => Finding.State is { } state ? $"WHAT LINE {state.Line} DID, EACH TIME IT RAN" : "";

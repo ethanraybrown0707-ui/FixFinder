@@ -613,12 +613,15 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    /// <summary>
+    /// The report's order: worst first, then by where it is - and then the findings that follow from another are put
+    /// behind the one they follow from, so a reader meets the cause before the four reports of its consequences.
+    /// </summary>
     private static List<Finding> Sorted(IEnumerable<Finding> findings) =>
-        findings
+        [.. RootCauses.Link([.. findings
             .OrderBy(f => f.Severity)
             .ThenBy(f => f.File, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(f => f.Line ?? 0)
-            .ToList();
+            .ThenBy(f => f.Line ?? 0)])];
 
     private static async Task ForEachAsync<T>(IEnumerable<T> items, Func<T, Task> body, CancellationToken cancellationToken)
     {
