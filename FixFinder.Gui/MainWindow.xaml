@@ -95,6 +95,68 @@
                             <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 
+                            <StackPanel Visibility="{Binding HasState, Converter={StaticResource Visible}}">
+                                <TextBlock Text="{Binding StateHeading}" Style="{StaticResource Label}"/>
+
+                                <Border Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                                        BorderThickness="1" CornerRadius="6" Padding="8,6"
+                                        AutomationProperties.AutomationId="FindingState" AutomationProperties.Name="What the line did">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                            <TextBlock Text="#" Width="34" FontFamily="{StaticResource CodeFont}" FontSize="12"
+                                                       Foreground="{StaticResource HintBrush}"/>
+                                            <ItemsControl ItemsSource="{Binding StateColumns}" Focusable="False">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
+                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12"
+                                                                   Foreground="{StaticResource HintBrush}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding StateRows}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="StateRow" CornerRadius="3" Padding="0,1">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Number}" Width="34"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                            <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
+                                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                                   Foreground="{StaticResource TextBrush}"/>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWhereItFailed}" Value="True">
+                                                            <Setter TargetName="StateRow" Property="Background" Value="{StaticResource ErrorSoftBrush}"/>
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Text="{Binding StateCutNote}" Margin="34,4,0,0" FontSize="11.5"
+                                                   Foreground="{StaticResource HintBrush}"
+                                                   Visibility="{Binding StateWasCut, Converter={StaticResource Visible}}"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding HasVerification, Converter={StaticResource Visible}}">
                                 <TextBlock Text="VERIFICATION" Style="{StaticResource Label}"/>
                                 <ItemsControl ItemsSource="{Binding VerificationLines}" Focusable="False"

@@ -140,6 +140,18 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>One tested stage, as a mark and a sentence the reader can hold the claim against.</summary>
     public sealed record VerificationLine(string Mark, string Text, bool Passed, bool Failed);
 
+    public bool HasState => Finding.State is { Rows.Count: > 0 };
+
+    public string StateHeading => Finding.State is { } state ? $"WHAT LINE {state.Line} DID, EACH TIME IT RAN" : "";
+
+    public IReadOnlyList<string> StateColumns => Finding.State?.Columns ?? [];
+
+    public IReadOnlyList<StateRow> StateRows => Finding.State?.Rows ?? [];
+
+    public bool StateWasCut => Finding.State?.WasCut == true;
+
+    public string StateCutNote => Finding.State?.CutNote ?? "";
+
     public bool HasVerification => Finding.Verified.WasTested;
 
     public bool IsVerified => Finding.Verified.IsVerified;

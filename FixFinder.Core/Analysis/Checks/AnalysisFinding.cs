@@ -22,6 +22,9 @@ public sealed record AnalysisFinding(
 
     /// <summary>What running the code with the witness showed, when it failed just as predicted.</summary>
     public string? Confirmation { get; init; }
+
+    /// <summary>What the variables held each time the line ran, recorded during the run that confirmed it.</summary>
+    public StateTrace? State { get; init; }
 }
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>

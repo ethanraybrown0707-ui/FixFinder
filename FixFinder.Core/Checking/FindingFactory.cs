@@ -110,6 +110,7 @@ public static partial class FindingFactory
             Witness = finding.Witness,
             Slice = finding.Slice,
             Confirmation = finding.Confirmation,
+            State = finding.State,
         };
     }
 

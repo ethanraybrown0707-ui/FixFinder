@@ -70,6 +70,12 @@ public sealed record Finding
     /// <summary>What running the code with the inputs that break it showed.</summary>
     public string? Confirmation { get; init; }
 
+    /// <summary>
+    /// What the variables held each time the failing line ran, taken from that same run. Null wherever the program
+    /// could not be run, because a trace of values nobody observed would be a guess dressed as evidence.
+    /// </summary>
+    public StateTrace? State { get; init; }
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 
