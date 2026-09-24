@@ -577,6 +577,9 @@
                                  Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
                     <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
                                  Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
+                    <RadioButton x:Name="FilterPerformance" AutomationProperties.AutomationId="FilterPerformance" GroupName="Filter"
+                                 Style="{StaticResource FilterPill}" Checked="Filter_Checked"
+                                 ToolTip="Work the program does more times than it needs to. None of it is an error."/>
 
                     <TextBlock Text="Explain for" VerticalAlignment="Center" Margin="18,0,8,0"
                                FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>

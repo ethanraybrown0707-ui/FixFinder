@@ -48,6 +48,9 @@ public partial class MainWindow : Window
     private readonly Preferences _preferences = Preferences.Load();
     private Severity? _filter;
 
+    /// <summary>Set instead of <see cref="_filter"/> when the reader wants only what would make the program quicker.</summary>
+    private bool _performanceOnly;
+
     private string? _chosenPath;
     private LaunchPlan? _launch;
     private CodeLanguage _language = CodeLanguage.Any;
@@ -409,8 +412,11 @@ public partial class MainWindow : Window
     {
         _visibleFindings.Clear();
 
-        foreach (var row in _findings.Where(r => _filter is null || r.Finding.Severity == _filter))
-            _visibleFindings.Add(row);
+        var shown = _performanceOnly
+            ? _findings.Where(r => r.Finding.Kind == FindingKind.Performance)
+            : _findings.Where(r => _filter is null || r.Finding.Severity == _filter);
+
+        foreach (var row in shown) _visibleFindings.Add(row);
     }
 
     private void UpdateFilterCounts()
@@ -421,6 +427,7 @@ public partial class MainWindow : Window
         FilterErrors.Content = $"Errors  {Count(Severity.Error)}";
         FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
         FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
+        FilterPerformance.Content = $"Performance  {_findings.Count(f => f.Finding.Kind == FindingKind.Performance)}";
     }
 
     /// <summary>
@@ -448,6 +455,8 @@ public partial class MainWindow : Window
 
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {
+        _performanceOnly = sender == FilterPerformance;
+
         _filter = sender == FilterErrors ? Severity.Error
             : sender == FilterWarnings ? Severity.Warning
             : sender == FilterSuggestions ? Severity.Suggestion

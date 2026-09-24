@@ -23,6 +23,9 @@ public enum FindingKind
     Runtime,
     Logic,
     Style,
+
+    /// <summary>Work the program does more times than it needs to. Never an error: a slow program that is right is right.</summary>
+    Performance,
 }
 
 public sealed record Finding

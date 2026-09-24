@@ -158,8 +158,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     {
         0 => "",
         1 => $"The problem on line {ExplainsLines[0]} looks like a consequence of this one, so fixing this may remove it too.",
-        _ => $"The problems on lines {string.Join(", ", ExplainsLines[..^1])} and {ExplainsLines[^1]} look like consequences of this one, " +
-             "so fixing this may remove them too.",
+        _ => $"The problems on lines {string.Join(", ", ExplainsLines.Take(ExplainsLines.Count - 1))} and {ExplainsLines[^1]} " +
+             "look like consequences of this one, so fixing this may remove them too.",
     };
 
     public bool HasState => Finding.State is { Rows.Count: > 0 };

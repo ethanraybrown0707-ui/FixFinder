@@ -74,6 +74,7 @@ public static class AbstractChecks
         }
 
         findings.AddRange(new Concurrency(program, source).Check());
+        findings.AddRange(PerformanceChecks.Run(program, source));
 
         return findings
             .GroupBy(f => (f.CheckId, f.Span.File, f.Span.Line))

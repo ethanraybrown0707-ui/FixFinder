@@ -27,6 +27,24 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        AtEveryLevel(["analysis-repeated-search"], "Searching the whole list on every pass",
+            "Looking for something in a list means going through it from the start until it turns up. Doing that once "
+            + "inside a loop means doing it again for every item the loop has, so a list ten times longer takes a "
+            + "hundred times as long rather than ten.",
+            "The loop searches the same collection from the start on every pass, so the work grows with the length of "
+            + "the loop multiplied by the length of the collection.",
+            "The search is linear and sits inside a loop, so the pass is quadratic in the two lengths.",
+            "It is correct either way, and stays quick while both are small. It is the pattern that gets slow first as "
+            + "real data arrives, and the reason is rarely obvious afterwards.",
+            "If the collection does not change inside the loop, put it in a set or dictionary once before the loop and "
+            + "look there instead - that answers in the same time however long it gets.",
+            """
+            wanted = set(names)
+            for person in people:
+                if person in wanted:
+                    ...
+            """),
+
         Pattern(["wrong-output"], "Wrong output",
             "The program ran to the end, but what it printed is not what you said it should print.",
             "The program looks as if it works, and gives the wrong answer.",
