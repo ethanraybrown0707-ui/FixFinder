@@ -81,6 +81,7 @@ public static partial class FindingFactory
             FixCheckedBy = fix is not null ? fixCheckedBy : null,
             RuleId = finding.PatternId,
             Fix = fix,
+            Change = fix is not null ? CodeChange.From(fix, source) : null,
             Family = finding.PatternId,
         };
     }
@@ -142,6 +143,7 @@ public static partial class FindingFactory
             FixCheckedBy = result.Fix is not null ? LogicRepair.Describe(result) : null,
             RuleId = "wrong-output",
             Fix = result.Fix,
+            Change = result.Fix is { } repaired ? CodeChange.From(repaired, source) : null,
             Family = "wrong-output",
         };
     }
@@ -151,6 +153,10 @@ public static partial class FindingFactory
         MistakeGuide guide, FixCandidate? fix)
     {
         var example = fix is not null ? CorrectedCode.From(fix) : null;
+
+        // A candidate from a source other than a local rule carries no structural edit, and without one there is
+        // nothing to lay side by side: the example is shown on its own rather than as a change to the user's code.
+        var edit = fix?.LocalFix;
 
         return new Finding
         {
@@ -166,7 +172,8 @@ public static partial class FindingFactory
             CorrectedExample = example ?? guide.Example,
             ExampleIsFromYourCode = example is not null,
             FixCheckedBy = example is not null ? fix?.CheckedBy : null,
-            Fix = fix?.LocalFix,
+            Fix = edit,
+            Change = edit is not null ? CodeChange.From(edit, SourceFile.Read(edit.File)) : null,
         };
     }
 

@@ -67,5 +67,11 @@ public sealed record Finding
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 
+    /// <summary>
+    /// The user's own lines beside the lines the fix would leave them as, built from the fix rather than described.
+    /// Null whenever there is no fix, so nothing is ever shown as a change that FixFinder did not actually work out.
+    /// </summary>
+    public CodeChange? Change { get; init; }
+
     public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
 }
