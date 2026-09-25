@@ -115,7 +115,17 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private SourceSpan Span(CToken token) => new(file, token.Line, token.Column, token.EndLine, token.EndColumn);
 
-    private SourceSpan From(CToken start) => new(file, start.Line, start.Column, tokens[Math.Max(0, _at - 1)].EndLine, tokens[Math.Max(0, _at - 1)].EndColumn);
+    /// <summary>From a token to the last one read.</summary>
+    /// <remarks>
+    /// Clamped at both ends, the way <see cref="Current"/> and <see cref="Take"/> are. Take lets the position run past
+    /// the end of the tokens on purpose, so a program that stops half way through a declaration is read to its end
+    /// rather than refused - and this was the one read that forgot it, which made exactly those programs throw.
+    /// </remarks>
+    private SourceSpan From(CToken start)
+    {
+        var last = tokens[Math.Clamp(_at - 1, 0, tokens.Count - 1)];
+        return new SourceSpan(file, start.Line, start.Column, last.EndLine, last.EndColumn);
+    }
 
     private void SkipTo(string text)
     {

@@ -86,7 +86,17 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
     private SourceSpan Span(JsToken token) => new(file, token.Line, token.Column, token.EndLine, token.EndColumn);
 
-    private SourceSpan From(JsToken start) => new(file, start.Line, start.Column, tokens[Math.Max(0, _at - 1)].EndLine, tokens[Math.Max(0, _at - 1)].EndColumn);
+    /// <summary>From a token to the last one read.</summary>
+    /// <remarks>
+    /// Clamped at both ends, the way <see cref="Current"/> and <see cref="Take"/> are. Take lets the position run past
+    /// the end of the tokens on purpose, so a program that stops half way through a statement is read to its end rather
+    /// than refused - and this was the one read that forgot it, which made exactly those programs throw.
+    /// </remarks>
+    private SourceSpan From(JsToken start)
+    {
+        var last = tokens[Math.Clamp(_at - 1, 0, tokens.Count - 1)];
+        return new SourceSpan(file, start.Line, start.Column, last.EndLine, last.EndColumn);
+    }
 
     private void EndStatement() => Eat(";");
 
