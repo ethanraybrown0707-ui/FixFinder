@@ -174,6 +174,19 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string StateCutNote => Finding.State?.CutNote ?? "";
 
+    /// <summary>Where the fix came from, so it can be checked rather than taken on trust.</summary>
+    public bool HasOrigin => Finding.CameFrom is not null && Finding.Fix is not null;
+
+    public string OriginText => Finding.CameFrom is { } came
+        ? came.HasLink
+            ? $"Taken from {came.SourceName}: {came.Title}"
+            : $"Worked out by FixFinder's own rule `{came.Title}`"
+        : "";
+
+    public bool HasOriginLink => Finding.CameFrom?.HasLink == true;
+
+    public string OriginUrl => Finding.CameFrom?.Url ?? "";
+
     public bool HasVerification => Finding.Verified.WasTested;
 
     public bool IsVerified => Finding.Verified.IsVerified;

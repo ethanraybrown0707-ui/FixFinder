@@ -173,6 +173,17 @@
                                 </Border>
                             </StackPanel>
 
+                            <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
+                                <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
+                                <TextBlock local:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"
+                                           AutomationProperties.AutomationId="FindingOrigin"/>
+                                <Button Content="{Binding OriginUrl}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
+                                        Tag="{Binding}" Click="OpenOrigin_Click" Margin="0,2,0,0"
+                                        AutomationProperties.AutomationId="FindingOriginLink"
+                                        ToolTip="Opens the page this fix was taken from, so you can judge it yourself."
+                                        Visibility="{Binding HasOriginLink, Converter={StaticResource Visible}}"/>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding HasVerification, Converter={StaticResource Visible}}">
                                 <TextBlock Text="VERIFICATION" Style="{StaticResource Label}"/>
                                 <ItemsControl ItemsSource="{Binding VerificationLines}" Focusable="False"

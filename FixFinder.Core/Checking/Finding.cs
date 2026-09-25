@@ -71,6 +71,12 @@ public sealed record Finding
 
     public LocalFix? Fix { get; init; }
 
+    /// <summary>
+    /// Where the fix came from - one of FixFinder's own rules, or the page it was taken from - so the reader can
+    /// check it rather than take it on trust. Null where a fix arrived with no source to name.
+    /// </summary>
+    public FixOrigin? CameFrom { get; init; }
+
     public string? Family { get; init; }
 
     /// <summary>The technique that found it, when it was one of the analyses rather than a compiler, a run or a pattern.</summary>

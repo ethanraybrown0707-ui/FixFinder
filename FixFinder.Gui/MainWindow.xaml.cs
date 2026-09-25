@@ -543,6 +543,28 @@ public partial class MainWindow : Window
         _history.Record(now);
     }
 
+    /// <summary>
+    /// Opens the page a fix was taken from, so the reader can judge it themselves.
+    /// </summary>
+    /// <remarks>
+    /// Only http and https are opened. The address comes from a page somebody else wrote, so handing it to the
+    /// shell without looking would be handing a stranger the choice of what runs.
+    /// </remarks>
+    private void OpenOrigin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FindingRow row } || row.Finding.CameFrom is not { HasLink: true } came) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(new Uri(came.Url!).AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UriFormatException)
+        {
+            MessageBox.Show(this, $"Could not open that link:\n\n{ex.Message}", "FixFinder",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void ShowFindings(IReadOnlyList<Finding> findings)
     {
         // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.

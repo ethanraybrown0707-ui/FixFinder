@@ -83,6 +83,7 @@ public static partial class FindingFactory
             RuleId = finding.PatternId,
             Fix = fix,
             Change = fix is not null ? CodeChange.From(fix, source) : null,
+            CameFrom = FixOrigin.OwnRule(fix?.RuleId),
             Family = finding.PatternId,
         };
     }
@@ -148,6 +149,7 @@ public static partial class FindingFactory
             RuleId = "wrong-output",
             Fix = result.Fix,
             Change = result.Fix is { } repaired ? CodeChange.From(repaired, source) : null,
+            CameFrom = result.Fix is null ? null : FixOrigin.OwnRule("wrong-output"),
             Family = "wrong-output",
         };
     }
@@ -179,7 +181,22 @@ public static partial class FindingFactory
             FixCheckedBy = example is not null ? fix?.CheckedBy : null,
             Fix = edit,
             Change = edit is not null ? CodeChange.From(edit, SourceFile.Read(edit.File)) : null,
+            CameFrom = Origin(fix, edit),
         };
+    }
+
+    /// <summary>
+    /// Where a fix came from: the page, when it was taken from one, and otherwise the rule of FixFinder's own that
+    /// worked it out. A candidate with neither is left unattributed rather than credited to something plausible.
+    /// </summary>
+    private static FixOrigin? Origin(FixCandidate? candidate, LocalFix? edit)
+    {
+        if (candidate is { Url.Length: > 0 } page)
+        {
+            return new FixOrigin { SourceName = page.SourceName, Title = page.Title, Url = page.Url };
+        }
+
+        return FixOrigin.OwnRule(edit?.RuleId);
     }
 
     private static string FixText(FixCandidate fix) => fix.LocalFix is { } local
