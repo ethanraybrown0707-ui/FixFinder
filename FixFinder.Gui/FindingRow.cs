@@ -24,12 +24,16 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         _ => "●○○",
     };
 
-    public string ConfidenceTooltip => Finding.Confidence switch
-    {
-        Confidence.Certain => "Certain: the compiler, the run, your expected output or following every value through the code shows this is wrong.",
-        Confidence.Likely => "Likely: code written this way is almost always a mistake.",
-        _ => "Possible: this is often a mistake, but it can be what was meant.",
-    };
+    /// <summary>
+    /// What stands behind this finding's confidence, rather than what the word means in general.
+    /// </summary>
+    /// <remarks>
+    /// The same word covers a compiler refusing the file and a pattern that is usually a mistake, and a reader
+    /// deciding whether to act on a finding wants the difference, not the dictionary definition.
+    /// </remarks>
+    public string ConfidenceTooltip => Evidence.Behind(Finding);
+
+    public string EvidenceText => Evidence.For(Finding);
 
     public string KindText => Finding.Kind switch
     {

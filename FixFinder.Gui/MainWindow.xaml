@@ -99,6 +99,10 @@
                                            AutomationProperties.AutomationId="FindingFollows"/>
                             </Border>
 
+                            <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
+                            <TextBlock local:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
+                                       AutomationProperties.AutomationId="FindingEvidence"/>
+
                             <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
                             <TextBlock local:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
 
