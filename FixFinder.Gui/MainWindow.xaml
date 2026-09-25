@@ -533,6 +533,21 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="ActivityPill" Style="{StaticResource Pill}" Margin="0,0,10,0"
+                                Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                AutomationProperties.AutomationId="ActivityPill"
+                                AutomationProperties.Name="{Binding Text, ElementName=ActivityText}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="ActivityIcon" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12"
+                                           Margin="0,0,7,0" Foreground="{DynamicResource HintBrush}"/>
+                                <TextBlock x:Name="ActivityText" Text="Not running" FontSize="11.5"
+                                           Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <ProgressBar x:Name="ActivityProgress" Style="{StaticResource ThinProgress}"
+                                             Width="34" Height="3" Margin="8,0,0,0" IsIndeterminate="True"
+                                             VerticalAlignment="Center" Visibility="Collapsed"/>
+                            </StackPanel>
+                        </Border>
+
                         <Button x:Name="CopyReportButton" AutomationProperties.AutomationId="CopyReportButton"
                                 Style="{StaticResource QuietButton}" IsEnabled="False" Click="CopyReportButton_Click"
                                 ToolTip="Copies every finding as plain text.">

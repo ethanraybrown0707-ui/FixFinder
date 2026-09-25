@@ -135,9 +135,17 @@ public partial class MainWindow : Window
         FolderSummaryText.Text = Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar));
         FolderProgressText.Text = "Looking through the folder…";
 
+        SetBusy(true);
+        ShowActivity(true, "Looking through the folder…");
+
         var plan = await Task.Run(() => ProjectScan.Of(folder), cancellation);
 
-        if (cancellation.IsCancellationRequested) return;
+        if (cancellation.IsCancellationRequested)
+        {
+            SetBusy(false);
+            ShowActivity(false, "Stopped");
+            return;
+        }
 
         foreach (var program in plan.Programs) _programs.Add(new ProgramRow(program));
 
@@ -146,6 +154,8 @@ public partial class MainWindow : Window
         if (_programs.Count == 0)
         {
             FolderProgressText.Text = "Nothing in this folder is a program FixFinder can check.";
+            SetBusy(false);
+            ShowActivity(false, "Nothing to check");
             return;
         }
 
@@ -153,10 +163,16 @@ public partial class MainWindow : Window
 
         foreach (var row in _programs)
         {
-            if (cancellation.IsCancellationRequested) return;
+            if (cancellation.IsCancellationRequested)
+            {
+                SetBusy(false);
+                ShowActivity(false, "Stopped");
+                return;
+            }
 
             row.Starting();
             FolderProgressText.Text = $"Checking {row.Program.Name} - {checkedSoFar} of {_programs.Count} done";
+            ShowActivity(true, $"Checking {checkedSoFar + 1} of {_programs.Count}…");
 
             try
             {
@@ -165,6 +181,8 @@ public partial class MainWindow : Window
             }
             catch (OperationCanceledException)
             {
+                SetBusy(false);
+                ShowActivity(false, "Stopped");
                 return;
             }
             catch (Exception ex)
@@ -178,6 +196,9 @@ public partial class MainWindow : Window
             // Show the first program that has something wrong with it, so the report is not empty while the rest run.
             if (FolderList.SelectedItem is null && row.State == ProgramState.HasProblems) FolderList.SelectedItem = row;
         }
+
+        SetBusy(false);
+        ShowActivity(false, "Finished");
 
         var withProblems = _programs.Count(r => r.State == ProgramState.HasProblems);
         var problems = _programs.Where(r => r.Findings is not null).Sum(r => r.Findings!.Count(f => f.Severity != Severity.Suggestion));
@@ -604,14 +625,37 @@ public partial class MainWindow : Window
         _cancellation?.Cancel();
     }
 
+    /// <summary>
+    /// Says whether FixFinder is working, in one place that is always on screen.
+    /// </summary>
+    /// <remarks>
+    /// The two lane cards show how far each check has got, but only while a single file is being checked, and a
+    /// check of a folder can run for minutes with the lanes idle between programs. This says the plain thing - it is
+    /// running, or it is not - so nobody has to work that out from what a status line last said.
+    /// </remarks>
+    private void ShowActivity(bool running, string doing)
+    {
+        ActivityText.Text = doing;
+        ActivityPill.ToolTip = doing;
+        ActivityProgress.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+
+        ActivityIcon.Text = running ? "" : "";
+        ActivityIcon.Foreground = (Brush)FindResource(running ? "AccentBrush" : "HintBrush");
+        ActivityPill.Background = (Brush)FindResource(running ? "AccentSoftBrush" : "SubtleBrush");
+    }
+
     private void SetBusy(bool busy)
     {
+        ShowActivity(busy, busy ? "Checking…" : "Not running");
+
         StopButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         StopButton.IsEnabled = busy;
 
         LanguagePanel.IsEnabled = !busy;
         ChooseFileButton.IsEnabled = !busy;
         ChooseAnotherButton.IsEnabled = !busy;
+        ChooseFolderButton.IsEnabled = !busy;
+        ChooseAnotherFolderButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
         UseDetectedLanguageButton.IsEnabled = !busy;
         AllowDrop = !busy;
