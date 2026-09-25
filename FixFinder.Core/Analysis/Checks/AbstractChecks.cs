@@ -23,6 +23,7 @@ public static class AbstractChecks
         var findings = new List<AnalysisFinding>();
         var symbolic = System.Diagnostics.Stopwatch.StartNew();
         var targets = new CallTargets(program);
+        var effects = new Effects(program, targets);
         var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
         var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
 
@@ -65,7 +66,7 @@ public static class AbstractChecks
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
 
             var local = new List<AnalysisFinding>();
-            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
+            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, effects, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
                 .Run();
 
             var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
@@ -214,7 +215,7 @@ public static class AbstractChecks
     }
 
     private sealed class FunctionChecks(
-        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets,
+        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets, Effects effects,
         Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
         private readonly Dictionary<SourceSpan, (bool CanBeTrue, bool CanBeFalse, BasicBlock Block, Branch Branch)> _conditions = [];
@@ -223,6 +224,9 @@ public static class AbstractChecks
 
         public void Run()
         {
+            // What held before each step, for the checks that need a statement's state after the walk: which names share an object.
+            var before = new Dictionary<SourceSpan, AbstractState>();
+
             foreach (var block in graph.Blocks)
             {
                 var state = fixpoint.EntryOf(block.Id);
@@ -230,6 +234,7 @@ public static class AbstractChecks
 
                 foreach (var instruction in block.Instructions)
                 {
+                    before.TryAdd(instruction.Span, state);
                     foreach (var expression in ExpressionsOf(instruction)) Inspect(expression, state);
                     state = evaluator.Apply(state, instruction);
                     if (!state.IsReachable) break;
@@ -255,6 +260,7 @@ public static class AbstractChecks
 
             ReportConditions();
             ReportEndlessLoops();
+            new ChangedWhileLooping(graph, evaluator, before, targets, effects, Quote, findings.Add).Check();
             new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic)).Check();
             new MemorySafety(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence)).Check();
         }

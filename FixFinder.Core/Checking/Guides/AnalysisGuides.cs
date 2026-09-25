@@ -208,6 +208,18 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        AtEveryLevel(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",
+            "A for loop walks through a list one position at a time. Taking an item out moves everything after it back one place, so the loop steps over the item that moved into the gap - and here the change is made under another name for the same list, or inside a function the loop calls, where it is easy to miss.",
+            "The loop's collection is changed while the loop is still walking over it - through another name that holds the same collection, or in a function the loop calls. A list then skips or repeats items; a dictionary or set stops the loop with RuntimeError.",
+            "A structural change to the iterated object - reached through an alias, or through a callee's effect summary - happens between two steps of its iterator.",
+            "Items are missed without any error, or the loop stops with RuntimeError part-way through.",
+            "Loop over a copy - for item in list(items): - or collect what to change and change it after the loop.",
+            """
+            for mark in list(marks):
+                if mark < 50:
+                    drop(marks, mark)
+            """),
+
         AtEveryLevel(["analysis-read-before-join"], "Reading a result before the threads have finished",
             "Starting a thread is like asking someone to count a pile of coins while you get on with something else. Reading the total straight away gets whatever they have counted so far, not the final answer. join() is waiting for them to say they have finished.",
             "The thread was started, but this line runs before the join() that waits for it, so the thread may still be changing the value. The line reads whatever it holds at that moment - often not the final result.",
@@ -595,6 +607,16 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",
+            "The loop's collection is changed while the for-each loop is still walking over it - through another name that holds the same collection, or in a method the loop calls.",
+            "The loop can stop with a ConcurrentModificationException, often only for some data.",
+            "Loop over a copy, or remove through the iterator with it.remove(), or collect what to remove and call removeAll after the loop.",
+            """
+            for (String item : new ArrayList<>(items)) {
+                discard(item);
+            }
+            """),
+
         Pattern(["analysis-read-before-join"], "Reading a result before the threads have finished",
             "The thread was started, but this line runs before the join() that waits for it, so the thread may still be changing the value. The line reads whatever it holds at that moment - often not the final result.",
             "The program shows a value from part-way through - different on each run, and usually wrong.",
@@ -805,6 +827,17 @@ internal static class AnalysisGuides
                 {
                     Move(money);
                 }
+            }
+            """),
+
+        Pattern(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",
+            "The loop's collection is changed while the foreach loop is still walking over it - through another name that holds the same collection, or in a method the loop calls.",
+            "The next step of the loop throws InvalidOperationException: the collection was modified.",
+            "Loop over a copy with ToList(), or collect what to change and change it after the loop.",
+            """
+            foreach (var name in names.ToList())
+            {
+                alias.Add(name + "!");
             }
             """),
 

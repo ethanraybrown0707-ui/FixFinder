@@ -29,6 +29,17 @@ public static partial class FindingFactory
         };
     }
 
+    /// <summary>
+    /// The pattern check that reports the same mistake at the same line, so the two become one finding. A collection
+    /// changed while a loop walks it is found by a pattern where the code says so plainly and by analysis where it does not.
+    /// </summary>
+    private static string? SameMistakeAs(string checkId, string file) => (checkId, Path.GetExtension(file).ToLowerInvariant()) switch
+    {
+        ("analysis-changed-while-looping", ".py" or ".pyw") => "logic-python-modified-while-looping",
+        ("analysis-changed-while-looping", ".java" or ".cs") => "logic-modified-while-looping",
+        _ => null,
+    };
+
     private static readonly Dictionary<string, string> CrashExplainedBy = new(StringComparer.Ordinal)
     {
         ["KeyNotFoundException"] = "logic-count-from-missing-key",
@@ -106,7 +117,7 @@ public static partial class FindingFactory
             SuggestedFix = guide.SuggestedFix,
             CorrectedExample = guide.Example,
             RuleId = finding.CheckId,
-            Family = finding.CheckId,
+            Family = SameMistakeAs(finding.CheckId, finding.Span.File) ?? finding.CheckId,
             FoundBy = finding.FoundBy,
             Witness = finding.Witness,
             Slice = finding.Slice,

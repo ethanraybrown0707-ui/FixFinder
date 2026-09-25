@@ -565,9 +565,26 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
         CallsOtherCode(expression) ? ForgetOthers(state) : state;
 
-    /// <summary>Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in.</summary>
-    private AbstractState ForgetOthers(AbstractState state) =>
-        Locals is null ? state : state.Names.Where(name => !Locals.Contains(name)).ToList().Aggregate(state, (s, name) => s.Without(name));
+    /// <summary>
+    /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
+    /// hidden copies the code itself makes - the collection a loop walks - are the function's own and no other code can
+    /// change them, unless they share their object with something that is forgotten.
+    /// </summary>
+    private AbstractState ForgetOthers(AbstractState state)
+    {
+        if (Locals is null) return state;
+
+        foreach (var name in state.Names.Where(name => !Locals.Contains(name) && !IsHidden(name)).ToList())
+        {
+            var hiddenCopies = state.AliasesOf(name).Where(IsHidden).ToList();
+            state = hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy));
+        }
+
+        return state;
+    }
+
+    /// <summary>The control-flow graph's own temporaries - $items0, $result2 - which the program never names.</summary>
+    private static bool IsHidden(string name) => name.StartsWith('$');
 
     private bool CallsOtherCode(Expr expression) =>
         expression is Call { Callee: var callee } && !(IsPython && callee is Name { Identifier: var builtin } && Builtins.Contains(builtin))

@@ -107,6 +107,13 @@ used, and a lock that is taken must be released on every way out of the function
 empties `a` too - and a finding about `a` says that `b` is the same list. Where two ways through the code meet, two names
 share a list only if they do on both.
 
+Each function has an **effect summary**: which of its parameters' lists, dictionaries and sets it adds to or removes
+from, which fields of its object, which module variables - with the line that does it, followed through the functions it
+calls. With aliasing, that makes changing a collection while a loop walks over it a matter of meaning, not spelling:
+`passed.remove(mark)` inside `for mark in marks:` when `passed = marks`, or `drop(marks, mark)` when `drop` removes from
+the list it is given. A list then skips items, a Python dictionary or set raises `RuntimeError`, Java can throw
+`ConcurrentModificationException` and C# throws `InvalidOperationException`.
+
 **Threads** are followed from where the program starts them - `new Thread(...)`, `Task.Run`, `Parallel.For`,
 `threading.Thread(target=...)`, an executor - to the code they run, and whether more than one copy of it runs at once:
 
