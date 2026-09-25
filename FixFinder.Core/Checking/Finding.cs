@@ -77,6 +77,12 @@ public sealed record Finding
     /// </summary>
     public FixOrigin? CameFrom { get; init; }
 
+    /// <summary>
+    /// Where to read more about what this is, on the documentation for the language it is written in. A search
+    /// rather than a page, and nothing at all for a language whose documentation search has not been checked.
+    /// </summary>
+    public FurtherReading? FurtherReading => Documentation.For(this);
+
     public string? Family { get; init; }
 
     /// <summary>The technique that found it, when it was one of the analyses rather than a compiler, a run or a pattern.</summary>

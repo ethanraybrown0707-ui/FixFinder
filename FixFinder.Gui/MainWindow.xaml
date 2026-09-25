@@ -177,6 +177,14 @@
                                 </Border>
                             </StackPanel>
 
+                            <StackPanel Visibility="{Binding HasFurtherReading, Converter={StaticResource Visible}}">
+                                <TextBlock Text="READ MORE ABOUT THIS" Style="{StaticResource Label}"/>
+                                <Button Content="{Binding FurtherReadingText}" Style="{StaticResource LinkButton}"
+                                        HorizontalAlignment="Left" Tag="{Binding}" Click="OpenFurtherReading_Click"
+                                        AutomationProperties.AutomationId="FindingFurtherReading"
+                                        ToolTip="{Binding FurtherReadingUrl}"/>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
                                 <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
                                 <TextBlock local:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"

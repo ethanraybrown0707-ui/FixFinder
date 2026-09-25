@@ -178,6 +178,15 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string StateCutNote => Finding.State?.CutNote ?? "";
 
+    /// <summary>Where to read more about what this finding is about, on the language's own documentation.</summary>
+    public bool HasFurtherReading => Finding.FurtherReading is not null;
+
+    public string FurtherReadingText => Finding.FurtherReading is { } reading
+        ? $"Search {reading.SiteName} for {reading.Term}"
+        : "";
+
+    public string FurtherReadingUrl => Finding.FurtherReading?.Url ?? "";
+
     /// <summary>Where the fix came from, so it can be checked rather than taken on trust.</summary>
     public bool HasOrigin => Finding.CameFrom is not null && Finding.Fix is not null;
 

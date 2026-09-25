@@ -550,13 +550,35 @@ public partial class MainWindow : Window
     /// Only http and https are opened. The address comes from a page somebody else wrote, so handing it to the
     /// shell without looking would be handing a stranger the choice of what runs.
     /// </remarks>
+    private void OpenFurtherReading_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.FurtherReading is { } reading) Open(reading.Url);
+    }
+
     private void OpenOrigin_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: FindingRow row } || row.Finding.CameFrom is not { HasLink: true } came) return;
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.CameFrom is { HasLink: true } came) Open(came.Url!);
+    }
+
+    /// <summary>
+    /// Opens a web address, and only a web address.
+    /// </summary>
+    /// <remarks>
+    /// Some of these come from pages other people wrote, so the scheme is checked here rather than trusted: handing an
+    /// arbitrary address to the shell is handing somebody else the choice of what runs.
+    /// </remarks>
+    private void Open(string address)
+    {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, $"That link is not an ordinary web address, so it was not opened:\n\n{address}",
+                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         try
         {
-            Process.Start(new ProcessStartInfo(new Uri(came.Url!).AbsoluteUri) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UriFormatException)
         {
