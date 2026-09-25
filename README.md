@@ -113,6 +113,12 @@ value only inside a `try` has none if the `try` failed before that line, so read
 `except` block that carries on without giving it one, raises `UnboundLocalError` - and a read behind a condition, which a
 flag set by the `try` may guard, is not claimed.
 
+**Taint**: text the person running the program controls - what they type, the program's arguments, its environment -
+is followed through assignments, joining and formatting text, and the program's own functions in both directions, to
+where it becomes something that runs: `eval` and `exec`, a shell command, SQL. Turning it into a number ends it, and a
+query given its values separately (`execute("... WHERE name = ?", (name,))`) is safe, since only a query's own text
+is checked. What code FixFinder cannot see returns is never assumed to carry taint.
+
 **Resource ownership**: a file or stream a function opens is its own until it is closed or handed on - returned, stored,
 passed to a call, or wrapped in another stream, which owns it from then on (**escape analysis**). One still its own and
 still open on a way out of the function is never closed, and for a writer that can mean the file is left empty. Python's

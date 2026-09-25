@@ -208,6 +208,32 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        AtEveryLevel(["analysis-code-injection"], "Running what the user typed as code",
+            "eval() treats the text it is given as a piece of Python and runs it. Here the text is whatever the person running the program typed - so they can type any Python at all, and it runs as if it were part of your program.",
+            "Text the person running the program controls reaches eval() or exec(), which run it as Python code - with every permission the program has.",
+            "A taint flow from an input source reaches a code-evaluation sink with no sanitisation in between.",
+            "Anything typed runs: it can read or delete files, or do anything else the program is allowed to.",
+            "For a number use int() or float(); for a Python literal such as a list, ast.literal_eval().",
+            """
+            count = int(input("How many? "))
+            """),
+
+        Pattern(["analysis-command-injection"], "Running a shell command built from what the user typed",
+            "The command is built from text the person running the program controls, and run through the shell - where a ; starts a second command of their choosing.",
+            "Whoever runs the program can make it run any command at all.",
+            "Pass the command and its arguments as a list to subprocess.run, without shell=True.",
+            """
+            subprocess.run(["ls", folder])
+            """),
+
+        Pattern(["analysis-sql-injection"], "SQL built from what the user typed",
+            "The query is built by putting text the person running the program controls into the SQL itself, so what they type is read as SQL - SQL injection.",
+            "Typing ' OR '1'='1 can show every row, and worse can change or delete data.",
+            "Keep the SQL fixed and pass the values separately, with ? placeholders.",
+            """
+            connection.execute("SELECT * FROM orders WHERE customer = ?", (name,))
+            """),
+
         Pattern(["analysis-thread-started-twice"], "A thread started twice",
             "A thread object runs its work once. After start() has been called on it, it can never be started again - not even after it has finished.",
             "The second start() stops the program with RuntimeError: threads can only be started once.",
@@ -660,6 +686,23 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-command-injection"], "Running a command built from outside text",
+            "The command line is built from text the person running the program controls - what they typed, or the program's arguments - so that text can add arguments of its own choosing.",
+            "Whoever runs the program can change what the command does.",
+            "Pass the command and each argument separately, as a String[] or to a ProcessBuilder.",
+            """
+            new ProcessBuilder("ls", folder).start();
+            """),
+
+        Pattern(["analysis-sql-injection"], "SQL built from outside text",
+            "The query is built by joining text the person running the program controls into the SQL itself, so that text is read as SQL - SQL injection.",
+            "Typing ' OR '1'='1 can show every row, and worse can change or delete data.",
+            "Use a PreparedStatement with ? placeholders, and set each value with setString.",
+            """
+            PreparedStatement query = connection.prepareStatement("SELECT * FROM orders WHERE customer = ?");
+            query.setString(1, customer);
+            """),
+
         Pattern(["analysis-thread-started-twice"], "A thread started twice",
             "A Thread object runs its work once. After start() has been called on it, it can never be started again - not even after it has finished.",
             "The second start() throws an IllegalThreadStateException.",
@@ -924,6 +967,23 @@ internal static class AnalysisGuides
                     Move(money);
                 }
             }
+            """),
+
+        Pattern(["analysis-command-injection"], "Starting a program named by outside text",
+            "Process.Start is given text the person running the program controls - what they typed, or the program's arguments - so that text chooses what runs.",
+            "Whoever runs the program can make it start a program of their choosing.",
+            "Check the text against the commands the program means to run before starting one.",
+            """
+            if (allowed.Contains(tool)) Process.Start(tool);
+            """),
+
+        Pattern(["analysis-sql-injection"], "SQL built from outside text",
+            "The command's text is built from text the person running the program controls, so that text is read as SQL - SQL injection.",
+            "Typing ' OR '1'='1 can show every row, and worse can change or delete data.",
+            "Keep the SQL fixed and pass the values as parameters.",
+            """
+            var command = new SqlCommand("SELECT * FROM Orders WHERE Customer = @name", connection);
+            command.Parameters.AddWithValue("@name", name);
             """),
 
         Pattern(["analysis-thread-started-twice"], "A thread started twice",

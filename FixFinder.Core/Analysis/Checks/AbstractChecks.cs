@@ -75,6 +75,7 @@ public static class AbstractChecks
         }
 
         findings.AddRange(new Concurrency(program, source).Check());
+        findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));
 
         return findings
