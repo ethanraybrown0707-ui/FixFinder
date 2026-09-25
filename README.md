@@ -103,6 +103,16 @@ replace it. A variable's declared type also sets its range, so `b < 0` for a C# 
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
 
+Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed;
+a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a thread a
+second time, or joining one never started, is found - including a thread made before a loop and started inside it.
+
+**Exception flow**: a `return`, `break` or `continue` in a `finally` block replaces what the `try` block returned and
+throws its error away, so it is reported in Java and Python (C# refuses to compile one). In Python, a variable given its
+value only inside a `try` has none if the `try` failed before that line, so reading it in the `finally` block, or after an
+`except` block that carries on without giving it one, raises `UnboundLocalError` - and a read behind a condition, which a
+flag set by the `try` may guard, is not claimed.
+
 **Resource ownership**: a file or stream a function opens is its own until it is closed or handed on - returned, stored,
 passed to a call, or wrapped in another stream, which owns it from then on (**escape analysis**). One still its own and
 still open on a way out of the function is never closed, and for a writer that can mean the file is left empty. Python's

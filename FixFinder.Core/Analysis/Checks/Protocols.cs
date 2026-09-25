@@ -14,9 +14,11 @@ namespace FixFinder.Core.Analysis.Checks;
 /// Each variable's possible states are carried forward through the graph and joined where ways meet; a violation is
 /// reported only where every way into it agrees.
 /// </summary>
-public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, Func<Expr, string> quote, Action<string, SourceSpan, string, Severity, Confidence> report)
+public sealed class Protocols(
+    ControlFlowGraph graph, SourceLanguage language, Func<Expr, string> quote, Action<string, SourceSpan, string, Severity, Confidence> report,
+    IReadOnlySet<string>? threadClasses = null)
 {
-    private enum Phase { Open, Closed, Held, Released, Untracked }
+    private enum Phase { Open, Closed, Held, Released, Untracked, ThreadNew, ThreadStarted }
 
     /// <summary>Where a tracked variable is in its protocol, and the line that put it there.</summary>
     private sealed record Mark(Phase Phase, int Line, SourceSpan At)
@@ -153,6 +155,7 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
             case AssignInstruction { Target: Name { Identifier: var name }, Value: var value } assign:
                 Uses(state, value, reporting);
                 if (Opens(value)) state[name] = [new Mark(Phase.Open, assign.Span.Line, assign.Span) { Writes = OpensForWriting(value) }];
+                else if (MakesThread(value)) state[name] = [new Mark(Phase.ThreadNew, assign.Span.Line, assign.Span)];
                 else state.Remove(name);
                 break;
 
@@ -219,6 +222,66 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     }
 
     /// <summary>
+    /// A thread's life as a state machine: made, then started, once. start() on a thread already started is an error in
+    /// every language; join() on one never started is an error in Python and C#, and in Java returns at once, waiting for
+    /// nothing. What makes a thread: new Thread(...), threading.Thread(...), or a class of the program's own that is one.
+    /// </summary>
+    private bool MakesThread(Expr value) => value switch
+    {
+        NewObject { Type.Name: var type } when !IsPython => type == "Thread" || threadClasses?.Contains(type) == true,
+        Call { CalleeName: "Thread" } when IsPython => true,
+        Call { Callee: Name { Identifier: var type } } when IsPython => threadClasses?.Contains(type) == true,
+        _ => false,
+    };
+
+    /// <summary>Whether a name holds a thread on every way to here - one tracked on some ways only is left alone.</summary>
+    private static bool IsThread(State state, string name) =>
+        state.TryGetValue(name, out var marks) && marks.Count > 0 && marks.All(m => m.Phase is Phase.ThreadNew or Phase.ThreadStarted);
+
+    private void StartedAgain(State state, string thread, Call start)
+    {
+        var earlier = state[thread].Where(m => m.Phase == Phase.ThreadStarted).ToList();
+        if (earlier.Count == 0 || !_reported.Add(start.Span)) return;
+
+        var lines = string.Join(" or ", earlier.Select(m => m.Line).Distinct().Order());
+        var failure = language switch
+        {
+            SourceLanguage.Python => "RuntimeError: threads can only be started once",
+            SourceLanguage.CSharp => "a ThreadStateException",
+            _ => "an IllegalThreadStateException",
+        };
+
+        if (earlier.Count == state[thread].Count)
+        {
+            report("analysis-thread-started-twice", start.Span,
+                $"`{quote(start)}` starts `{thread}` again, but it was already started on line {lines}, and a thread can only be started once - this fails with {failure}. " +
+                "Make a new thread for each piece of work", Severity.Error, Confidence.Certain);
+        }
+        else
+        {
+            report("analysis-thread-started-twice", start.Span,
+                $"`{quote(start)}` can start `{thread}` a second time - it may already have been started on line {lines}, as on a second time round a loop - and a " +
+                $"thread can only be started once: that fails with {failure}. Make a new thread for each piece of work", Severity.Error, Confidence.Likely);
+        }
+    }
+
+    private void JoinedBeforeStart(State state, string thread, Call join)
+    {
+        if (!state[thread].All(m => m.Phase == Phase.ThreadNew) || !_reported.Add(join.Span)) return;
+
+        var (what, severity) = language switch
+        {
+            SourceLanguage.Python => ("this fails with RuntimeError: cannot join thread before it is started", Severity.Error),
+            SourceLanguage.CSharp => ("this fails with a ThreadStateException", Severity.Error),
+            _ => ("so it returns at once without waiting for anything, and the code after it runs as if the work were done", Severity.Warning),
+        };
+
+        report("analysis-join-before-start", join.Span,
+            $"`{quote(join)}` waits for `{thread}`, which has not been started - {what}. Call `{thread}.{(language == SourceLanguage.CSharp ? "Start" : "start")}()` first",
+            severity, Confidence.Certain);
+    }
+
+    /// <summary>
     /// Whether what opens a file opens it for writing: a writer or output stream, File.CreateText and its like, or Python's
     /// open with a mode that writes, appends, creates or updates.
     /// </summary>
@@ -244,6 +307,16 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     {
         switch (value)
         {
+            case Call { Callee: Member { Target: var thread, MemberName: "start" or "Start" }, Arguments.Count: 0 } start
+                when Owner(thread) is { } started && IsThread(state, started):
+                if (reporting) StartedAgain(state, started, start);
+                state[started] = [new Mark(Phase.ThreadStarted, start.Span.Line, start.Span)];
+                return true;
+
+            case Call { Callee: Member { Target: var thread, MemberName: "join" or "Join" } } join when Owner(thread) is { } joined && IsThread(state, joined):
+                if (reporting) JoinedBeforeStart(state, joined, join);
+                return true;
+
             case Call { Callee: Member { Target: var closed, MemberName: "close" or "Close" or "Dispose" } } close when Owner(closed) is { } owner && state.ContainsKey(owner):
                 state[owner] = [new Mark(Phase.Closed, close.Span.Line, close.Span)];
                 return true;

@@ -208,6 +208,50 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        Pattern(["analysis-thread-started-twice"], "A thread started twice",
+            "A thread object runs its work once. After start() has been called on it, it can never be started again - not even after it has finished.",
+            "The second start() stops the program with RuntimeError: threads can only be started once.",
+            "Make a new Thread for each piece of work.",
+            """
+            for attempt in range(3):
+                worker = threading.Thread(target=work)
+                worker.start()
+                worker.join()
+            """),
+
+        Pattern(["analysis-join-before-start"], "Waiting for a thread that was never started",
+            "join() waits for a thread to finish, but this thread has not been started yet, so there is nothing to wait for.",
+            "The program stops with RuntimeError: cannot join thread before it is started.",
+            "Call start() before join().",
+            """
+            worker.start()
+            worker.join()
+            """),
+
+        Pattern(["analysis-finally-overrides"], "Leaving a finally block with return, break or continue",
+            "A finally block runs however the try block ends. A return, break or continue in it takes over: it replaces the value the try block returned, and an error the try block raised is dropped as if it never happened.",
+            "Errors disappear without a trace, and a function returns something other than what its try block returned.",
+            "Keep finally for cleaning up - closing, releasing - and return from the try block instead.",
+            """
+            try:
+                return open(path).read()
+            finally:
+                print("done")
+            """),
+
+        AtEveryLevel(["analysis-unassigned-after-error"], "A variable that may have no value after an error",
+            "The variable is only given its value inside the try block. If the line that gives it fails, the program jumps straight to the except block - and the variable never gets a value at all, so reading it afterwards fails too.",
+            "The variable gets its value only inside the try block, so when the try fails before that line, it has none - and the code that reads it after the except block, or in the finally block, raises UnboundLocalError.",
+            "The name is bound only on the try block's normal path; on the exceptional edge from before the binding it is unbound where it is read.",
+            "The program stops with UnboundLocalError - often hiding the error that caused it.",
+            "Give the variable a value before the try, or in the except block, or leave the function in the except block.",
+            """
+            try:
+                number = int(text)
+            except ValueError:
+                number = 0
+            """),
+
         Pattern(["analysis-resource-not-closed"], "A file that is never closed",
             "The function opens a file and keeps it - nothing else is given it to close - but on this way out of the function it is never closed.",
             "The file stays open until the program ends, and what was written to it may never be saved.",
@@ -616,6 +660,39 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-thread-started-twice"], "A thread started twice",
+            "A Thread object runs its work once. After start() has been called on it, it can never be started again - not even after it has finished.",
+            "The second start() throws an IllegalThreadStateException.",
+            "Make a new Thread for each piece of work.",
+            """
+            for (int i = 0; i < 3; i++) {
+                Thread worker = new Thread(task);
+                worker.start();
+                worker.join();
+            }
+            """),
+
+        Pattern(["analysis-join-before-start"], "Waiting for a thread that was never started",
+            "join() waits for a thread to finish, but this thread has not been started yet, so join() returns at once without waiting for anything.",
+            "The code after join() runs as if the thread's work were done, when it has not even begun.",
+            "Call start() before join().",
+            """
+            worker.start();
+            worker.join();
+            """),
+
+        Pattern(["analysis-finally-overrides"], "Leaving a finally block with return, break or continue",
+            "A finally block runs however the try block ends. A return, break or continue in it takes over: it replaces the value the try block returned, and an exception the try block threw is dropped as if it never happened.",
+            "Exceptions disappear without a trace, and a method returns something other than what its try block returned.",
+            "Keep finally for cleaning up - closing, releasing - and return from the try block instead.",
+            """
+            try {
+                return Integer.parseInt(text);
+            } finally {
+                System.out.println("done");
+            }
+            """),
+
         Pattern(["analysis-resource-not-closed"], "A file or stream that is never closed",
             "The method opens a file or stream and keeps it - it is not returned, stored or wrapped in another stream - but on this way out of the method it is never closed.",
             "A writer that is never closed may never write out what it holds, so the file is left empty or cut short; any stream left open holds on to the file.",
@@ -847,6 +924,28 @@ internal static class AnalysisGuides
                     Move(money);
                 }
             }
+            """),
+
+        Pattern(["analysis-thread-started-twice"], "A thread started twice",
+            "A Thread object runs its work once. After Start() has been called on it, it can never be started again - not even after it has finished.",
+            "The second Start() throws a ThreadStateException.",
+            "Make a new Thread for each piece of work - or use Task.Run.",
+            """
+            for (var i = 0; i < 3; i++)
+            {
+                var worker = new Thread(Work);
+                worker.Start();
+                worker.Join();
+            }
+            """),
+
+        Pattern(["analysis-join-before-start"], "Waiting for a thread that was never started",
+            "Join() waits for a thread to finish, but this thread has not been started yet.",
+            "Join() throws a ThreadStateException.",
+            "Call Start() before Join().",
+            """
+            worker.Start();
+            worker.Join();
             """),
 
         Pattern(["analysis-resource-not-closed"], "A file or stream that is never disposed of",

@@ -222,6 +222,14 @@ public static class AbstractChecks
 
         private bool IsPython => evaluator.Language == SourceLanguage.Python;
 
+        /// <summary>The program's own classes that are threads - class Worker extends Thread - whose objects start and join like one.</summary>
+        private HashSet<string> ThreadClasses => _threadClasses ??= effects.Program.Classes
+            .Where(c => c.Bases.Any(b => b is "Thread" or "threading.Thread"))
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        private HashSet<string>? _threadClasses;
+
         public void Run()
         {
             // What held before each step, for the checks that need a statement's state after the walk: which names share an object.
@@ -261,7 +269,9 @@ public static class AbstractChecks
             ReportConditions();
             ReportEndlessLoops();
             new ChangedWhileLooping(graph, evaluator, before, targets, effects, Quote, findings.Add).Check();
-            new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic)).Check();
+            new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic),
+                ThreadClasses).Check();
+            new ExceptionFlow(graph.Function, evaluator.Language, findings.Add).Check();
             new MemorySafety(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence)).Check();
         }
 
