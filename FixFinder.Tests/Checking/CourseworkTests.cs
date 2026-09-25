@@ -89,7 +89,7 @@ public class CourseworkTests
         foreach (var (name, text) in files)
             File.WriteAllText(Path.Combine(temp.Path, name), text);
 
-        var plan = TargetFactory.FromFile(Path.Combine(temp.Path, chosen), TimeSpan.FromMinutes(3));
+        var plan = TargetFactory.FromFile(Path.Combine(temp.Path, chosen), LiveAllowance.For(chosen, TimeSpan.FromMinutes(3)));
         Assert.True(plan.Ok, plan.Problem);
         if (input is not null) plan = plan with { Spec = plan.Spec!.WithInput(input) };
 

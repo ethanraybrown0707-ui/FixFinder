@@ -84,7 +84,7 @@ public class JsGoLiveTests
         var path = Path.Combine(temp.Path, fileName);
         File.WriteAllText(path, source);
 
-        var plan = TargetFactory.FromFile(path, TimeSpan.FromMinutes(3));
+        var plan = TargetFactory.FromFile(path, LiveAllowance.For(path, TimeSpan.FromMinutes(3)));
         Assert.True(plan.Ok, plan.Problem);
 
         using var http = new FixFinderHttpClient();

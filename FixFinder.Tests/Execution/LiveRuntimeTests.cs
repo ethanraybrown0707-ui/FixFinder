@@ -70,12 +70,8 @@ public class LiveRuntimeTests
         // A crashing program prints its error the moment it runs, so the wait here is for the runtime to
         // get that far - and Go gets there by compiling the standard library first on a machine that never
         // has. Two minutes was not enough for that on a cold runner (run 35531473398, 2026-09-20): the
-        // program was killed before it printed anything. Taking the allowance from TargetFactory means this
-        // also fails if the wait the GUI gives a real target is ever wrong again.
-        var allowance = TargetFactory.TimeoutFor(Path.GetExtension(fileName));
-        if (allowance < TimeSpan.FromSeconds(120)) allowance = TimeSpan.FromSeconds(120);
-
-        var plan = TargetFactory.FromFile(path, allowance);
+        // program was killed before it printed anything.
+        var plan = TargetFactory.FromFile(path, LiveAllowance.For(path, TimeSpan.FromSeconds(120)));
         Assert.True(plan.Ok, plan.Problem);
 
         var run = await new TargetRunner(new ParserRegistry()).RunAsync(plan.Spec!, CancellationToken.None);
