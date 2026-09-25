@@ -161,7 +161,9 @@ public static partial class LineCoverage
 
         var sources = ProgramLayout.NativeSources(file);
         var objects = new List<string>();
-        var standard = cpp ? "-std=c++17 " : "";
+        // The same standard the program is built and its fixes checked with, so a repair is never searched for under a
+        // different version of the language than the one the person chose.
+        var standard = LanguageStandards.Current.Gnu(cpp);
 
         foreach (var (source, index) in sources.Select((s, i) => (s, i)))
         {

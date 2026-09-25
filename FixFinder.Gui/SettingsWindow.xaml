@@ -57,6 +57,43 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,18,18,0">
 
+                <GroupBox Header="Language versions" Margin="0,0,0,12">
+                    <StackPanel Margin="4">
+                        <TextBlock Style="{DynamicResource Hint}" Margin="0,0,0,10"
+                                   Text="The version your course uses. Programs are built with it, and every fix is compiled with it before it is offered - so a fix that needs a later version is never shown. Python, JavaScript and Go run on whatever is installed."/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="170"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="C" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="CStandardBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="CStandardBox" AutomationProperties.Name="C version"/>
+
+                            <TextBlock Grid.Row="1" Text="C++" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="CppStandardBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="CppStandardBox" AutomationProperties.Name="C++ version"/>
+
+                            <TextBlock Grid.Row="2" Text="Java" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="JavaReleaseBox" Grid.Row="2" Grid.Column="1"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="JavaReleaseBox" AutomationProperties.Name="Java version"/>
+                        </Grid>
+
+                        <TextBlock Style="{DynamicResource Hint}" Margin="0,8,0,0"
+                                   Text="With Microsoft's compiler, C89, C99, C23 and C++11 have no setting of their own, so it uses its default for those. gcc and clang follow every choice."/>
+                    </StackPanel>
+                </GroupBox>
+
                 <GroupBox Header="Appearance" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock Text="Which colours FixFinder uses. It changes at once - nothing is checked again."

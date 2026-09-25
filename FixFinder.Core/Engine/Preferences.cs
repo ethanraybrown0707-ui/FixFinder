@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Engine;
 
@@ -34,6 +36,20 @@ public sealed class Preferences
 
     /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
+
+    /// <summary>
+    /// Which version of C, C++ and Java the person's course uses. Kept as plain text so the file stays readable; what
+    /// reaches a compiler is checked against the listed versions first, so an edited file cannot pass anything else.
+    /// </summary>
+    public string CStandard { get; set; } = LanguageStandards.Default.C;
+
+    public string CppStandard { get; set; } = LanguageStandards.Default.Cpp;
+
+    public string JavaRelease { get; set; } = LanguageStandards.Default.Java;
+
+    /// <summary>The versions chosen here, as the compilers are given them. Worked out, so not written down twice.</summary>
+    [JsonIgnore]
+    public LanguageStandards Standards => new() { C = CStandard, Cpp = CppStandard, Java = JavaRelease };
 
     public static Preferences Load(string? path = null)
     {

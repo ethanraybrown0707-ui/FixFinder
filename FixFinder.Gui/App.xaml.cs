@@ -37,7 +37,11 @@ public partial class App : Application
         DispatcherUnhandledException += OnUnhandledException;
 
         // Before the window exists, so it is built in the colours it will keep rather than repainted on sight.
-        Theme.Apply(Preferences.Load().Appearance);
+        var preferences = Preferences.Load();
+        Theme.Apply(preferences.Appearance);
+
+        // Before anything is compiled, so the first build and the first fix checked are both held to the course's version.
+        Core.Execution.LanguageStandards.Current = preferences.Standards;
 
         var window = new MainWindow(e.Args.FirstOrDefault(a => !a.StartsWith('-') && !a.StartsWith('/')));
 

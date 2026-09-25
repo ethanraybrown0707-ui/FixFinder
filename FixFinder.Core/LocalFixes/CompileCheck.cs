@@ -181,7 +181,14 @@ public static class CompileCheck
     }
 
     internal static IReadOnlyList<string> JavacArguments(string copy, string sourceRoot, string folder) =>
-        ["-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy];
+    [
+        .. JavaRelease(),
+        "-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy,
+    ];
+
+    /// <summary>The Java release a fix is checked against, as the two arguments javac takes it in, or nothing at all.</summary>
+    private static IEnumerable<string> JavaRelease() =>
+        LanguageStandards.Current.JavaReleaseNumber is { Length: > 0 } release ? ["--release", release] : [];
 
     private static readonly ConcurrentDictionary<string, CheckResult> Remembered = new(StringComparer.Ordinal);
 
@@ -202,7 +209,12 @@ public static class CompileCheck
 
         if (extension == ".cs" && ProgramLayout.CSharpProject(original) is not null) return null;
 
+        // The chosen language versions are part of what was checked, and a result remembered under one must never answer
+        // for another - a "compiles" from Java 17 would pass a fix written with var that Java 8 rejects. Today the version
+        // already reaches the key through the compiler's arguments below; it is stated here as well so that stays true
+        // for any way of compiling that does not happen to put the version on its command line.
         var key = new StringBuilder()
+            .Append(LanguageStandards.Current).Append('\n')
             .Append(spec.ExecutablePath).Append('\n')
             .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
             .Append(spec.LaunchViaDotnet).Append('\n')
@@ -369,7 +381,7 @@ public static class CompileCheck
 
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;
 
-        var flags = cpp ? "/nologo /W3 /EHsc /std:c++17" : "/nologo /W3";
+        var flags = CompiledLanguages.MsvcFlags(cpp, debugInfo: false);
         var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"{rest}";
 
         if (reuseMsvcEnvironment && Toolchains.MsvcEnvironment() is { } environment && Toolchains.ClIn(environment) is { } cl)
