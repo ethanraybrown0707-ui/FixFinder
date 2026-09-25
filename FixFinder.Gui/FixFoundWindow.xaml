@@ -4,7 +4,7 @@
         Title="FixFinder - search results" Height="620" Width="780" MinHeight="440" MinWidth="620"
         Icon="Assets/FixFinder.ico"
         FontFamily="Segoe UI" FontSize="13"
-        Background="{StaticResource PageBrush}" Foreground="{StaticResource TextBrush}"
+        Background="{DynamicResource PageBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Grid>
         <Grid.RowDefinitions>
@@ -14,17 +14,17 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource CardBrush}" Padding="22,16">
+        <Border Grid.Row="0" Background="{DynamicResource CardBrush}" Padding="22,16">
             <StackPanel>
                 <TextBlock x:Name="HeadlineText" AutomationProperties.AutomationId="HeadlineText"
                            FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
                 <TextBlock x:Name="ErrorText" AutomationProperties.AutomationId="FoundErrorText"
                            Margin="0,6,0,0" TextWrapping="Wrap" FontFamily="{StaticResource CodeFont}" FontSize="12"
-                           Foreground="{StaticResource ErrorBrush}"/>
+                           Foreground="{DynamicResource ErrorBrush}"/>
             </StackPanel>
         </Border>
 
-        <Rectangle Grid.Row="1" Height="3" Fill="{StaticResource BrandBlendBrush}"/>
+        <Rectangle Grid.Row="1" Height="3" Fill="{DynamicResource BrandBlendBrush}"/>
 
         <Grid Grid.Row="2" Margin="22,16,22,0">
             <Grid.RowDefinitions>
@@ -56,7 +56,7 @@
             <DockPanel Grid.Row="2">
                 <TextBlock DockPanel.Dock="Top" x:Name="ContentHeaderText" Style="{StaticResource Label}" Margin="0,0,0,6"
                            Text="WHAT IT CHANGES"/>
-                <Border Background="{StaticResource CodeBrush}" CornerRadius="10" Padding="0,8">
+                <Border Background="{DynamicResource CodeBrush}" CornerRadius="10" Padding="0,8">
                     <ListBox x:Name="ContentListBox" AutomationProperties.AutomationId="FoundContentListBox"
                              Background="Transparent" BorderThickness="0"
                              FontFamily="{StaticResource CodeFont}" FontSize="12"
@@ -75,7 +75,7 @@
                                 <TextBlock Text="{Binding Text}" TextWrapping="NoWrap">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource CodeTextBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource CodeTextBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsAdded}" Value="True">
                                                     <Setter Property="Foreground" Value="#86EFAC"/>
@@ -102,13 +102,13 @@
             </DockPanel>
         </Grid>
 
-        <Border Grid.Row="3" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+        <Border Grid.Row="3" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="0,1,0,0" Padding="22,12" Margin="0,16,0,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
                     <TextBlock x:Name="OtherResultsText" AutomationProperties.AutomationId="OtherResultsText" Style="{StaticResource Hint}"/>
                     <TextBlock x:Name="CopiedText" AutomationProperties.AutomationId="CopiedText" Style="{StaticResource Hint}"
-                               Foreground="{StaticResource SuccessBrush}" FontWeight="SemiBold" Margin="0,2,0,0" Visibility="Collapsed"/>
+                               Foreground="{DynamicResource SuccessBrush}" FontWeight="SemiBold" Margin="0,2,0,0" Visibility="Collapsed"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

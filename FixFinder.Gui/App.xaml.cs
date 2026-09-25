@@ -2,6 +2,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
+using FixFinder.Core.Engine;
+
 namespace FixFinder.Gui;
 
 public partial class App : Application
@@ -33,6 +35,9 @@ public partial class App : Application
         base.OnStartup(e);
 
         DispatcherUnhandledException += OnUnhandledException;
+
+        // Before the window exists, so it is built in the colours it will keep rather than repainted on sight.
+        Theme.Apply(Preferences.Load().Appearance);
 
         var window = new MainWindow(e.Args.FirstOrDefault(a => !a.StartsWith('-') && !a.StartsWith('/')));
 

@@ -3,6 +3,17 @@ using FixFinder.Core.Checking;
 
 namespace FixFinder.Core.Engine;
 
+/// <summary>Which colours the window uses, and whether that is a choice or whatever Windows is set to.</summary>
+public enum AppearanceChoice
+{
+    /// <summary>Follow whatever Windows is set to, and what FixFinder does when nobody has chosen.</summary>
+    System,
+
+    Light,
+
+    Dark,
+}
+
 /// <summary>
 /// The few choices that belong to the person rather than to any one run, kept between sessions.
 /// </summary>
@@ -20,6 +31,9 @@ public sealed class Preferences
 
     /// <summary>How much the reader wants explained. Student is the middle, and what is used when nobody has chosen.</summary>
     public ExplanationLevel Explanations { get; set; } = ExplanationLevel.Student;
+
+    /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
+    public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
 
     public static Preferences Load(string? path = null)
     {

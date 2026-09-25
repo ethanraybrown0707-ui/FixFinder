@@ -1,0 +1,60 @@
+<!--
+    The dark theme. Every key in Light.xaml appears here with the same name, because a brush missing from one theme
+    leaves whatever uses it painted in something it inherited, which reads as a rendering fault rather than a choice.
+
+    The severity colours are lightened rather than kept: #D92D20 on a near-black card is legible but muddy, and red,
+    amber and green have to stay tellable apart from each other at a glance for the report to work at all. The code and
+    console surfaces barely move - they were already dark, and the diff tints on them are the same in both themes.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <SolidColorBrush x:Key="PageBrush" Color="#11161F"/>
+    <SolidColorBrush x:Key="CardBrush" Color="#1A212C"/>
+    <SolidColorBrush x:Key="SubtleBrush" Color="#212A37"/>
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#2C3646"/>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#3A4657"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#263140"/>
+    <SolidColorBrush x:Key="PressedBrush" Color="#2E3A4B"/>
+
+    <SolidColorBrush x:Key="TextBrush" Color="#E7ECF3"/>
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#B2BDCD"/>
+    <SolidColorBrush x:Key="HintBrush" Color="#8493A8"/>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#5B9BFF"/>
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#7FB2FF"/>
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#3D82EE"/>
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#1B2942"/>
+
+    <SolidColorBrush x:Key="ErrorBrush" Color="#FF8A80"/>
+    <SolidColorBrush x:Key="ErrorSoftBrush" Color="#2E1A1C"/>
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#5A2B2B"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#F4B267"/>
+    <SolidColorBrush x:Key="WarningSoftBrush" Color="#2C2318"/>
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#584428"/>
+    <SolidColorBrush x:Key="SuggestionBrush" Color="#5B9BFF"/>
+    <SolidColorBrush x:Key="SuggestionSoftBrush" Color="#1B2942"/>
+    <SolidColorBrush x:Key="SuggestionBorderBrush" Color="#2F4468"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="#6FD18F"/>
+    <SolidColorBrush x:Key="SuccessSoftBrush" Color="#16281F"/>
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#2B4F39"/>
+
+    <SolidColorBrush x:Key="DangerBrush" Color="#FF8A80"/>
+    <SolidColorBrush x:Key="DangerSoftBrush" Color="#2E1A1C"/>
+
+    <SolidColorBrush x:Key="DiffRemovedBrush" Color="#3B1A1C"/>
+    <SolidColorBrush x:Key="DiffRemovedTextBrush" Color="#FDA29B"/>
+    <SolidColorBrush x:Key="DiffRemovedMarkBrush" Color="#7A2822"/>
+    <SolidColorBrush x:Key="DiffAddedBrush" Color="#102A1C"/>
+    <SolidColorBrush x:Key="DiffAddedTextBrush" Color="#8FE0A8"/>
+    <SolidColorBrush x:Key="DiffAddedMarkBrush" Color="#1C5334"/>
+    <SolidColorBrush x:Key="DiffGutterBrush" Color="#7A8BA3"/>
+
+    <SolidColorBrush x:Key="CodeBrush" Color="#0B1220"/>
+    <SolidColorBrush x:Key="CodeTextBrush" Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="ConsoleBrush" Color="#0B1220"/>
+    <SolidColorBrush x:Key="ConsoleTextBrush" Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="ConsoleErrorBrush" Color="#FCA5A5"/>
+    <SolidColorBrush x:Key="ConsoleSelectedBrush" Color="#1E293B"/>
+
+</ResourceDictionary>

@@ -5,7 +5,7 @@
         Title="FixFinder" Height="880" Width="1260" MinHeight="640" MinWidth="1000"
         Icon="Assets/FixFinder.ico"
         FontFamily="Segoe UI" FontSize="13"
-        Background="{StaticResource PageBrush}" Foreground="{StaticResource TextBrush}"
+        Background="{DynamicResource PageBrush}" Foreground="{DynamicResource TextBrush}"
         AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
@@ -23,7 +23,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="{StaticResource ConsoleSelectedBrush}"/>
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource ConsoleSelectedBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -32,7 +32,7 @@
         </Style>
 
         <DataTemplate x:Key="FindingTemplate" DataType="{x:Type local:FindingRow}">
-            <Border x:Name="Card" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+            <Border x:Name="Card" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1" CornerRadius="12" Margin="0,0,0,12"
                     AutomationProperties.Name="{Binding Title}">
                 <Grid>
@@ -41,61 +41,61 @@
                         <ColumnDefinition/>
                     </Grid.ColumnDefinitions>
 
-                    <Border x:Name="Accent" Grid.Column="0" CornerRadius="11,0,0,11" Background="{StaticResource ErrorBrush}"/>
+                    <Border x:Name="Accent" Grid.Column="0" CornerRadius="11,0,0,11" Background="{DynamicResource ErrorBrush}"/>
 
                     <StackPanel Grid.Column="1" Margin="16,14,18,14">
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" Text="{Binding LocationText}" VerticalAlignment="Center"
-                                       FontFamily="{StaticResource CodeFont}" FontSize="12" Foreground="{StaticResource HintBrush}"/>
+                                       FontFamily="{StaticResource CodeFont}" FontSize="12" Foreground="{DynamicResource HintBrush}"/>
 
                             <StackPanel Orientation="Horizontal">
                                 <Border x:Name="SeverityPill" Style="{StaticResource Pill}"
-                                        Background="{StaticResource ErrorSoftBrush}" BorderBrush="{StaticResource ErrorBorderBrush}">
+                                        Background="{DynamicResource ErrorSoftBrush}" BorderBrush="{DynamicResource ErrorBorderBrush}">
                                     <TextBlock x:Name="SeverityLabel" Text="{Binding SeverityText}" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{StaticResource ErrorBrush}"/>
+                                               Foreground="{DynamicResource ErrorBrush}"/>
                                 </Border>
-                                <Border Style="{StaticResource Pill}" Background="{StaticResource SubtleBrush}"
-                                        BorderBrush="{StaticResource CardBorderBrush}" ToolTip="{Binding ConfidenceTooltip}">
+                                <Border Style="{StaticResource Pill}" Background="{DynamicResource SubtleBrush}"
+                                        BorderBrush="{DynamicResource CardBorderBrush}" ToolTip="{Binding ConfidenceTooltip}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding ConfidenceDots}" FontSize="9" Foreground="{StaticResource AccentBrush}"
+                                        <TextBlock Text="{Binding ConfidenceDots}" FontSize="9" Foreground="{DynamicResource AccentBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                        <TextBlock Text="{Binding ConfidenceText}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        <TextBlock Text="{Binding ConfidenceText}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource Pill}" Background="{StaticResource SubtleBrush}"
-                                        BorderBrush="{StaticResource CardBorderBrush}">
-                                    <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                <Border Style="{StaticResource Pill}" Background="{DynamicResource SubtleBrush}"
+                                        BorderBrush="{DynamicResource CardBorderBrush}">
+                                    <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                 </Border>
                             </StackPanel>
                         </DockPanel>
 
                         <TextBlock local:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding FoundByText}" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,0"
+                        <TextBlock Text="{Binding FoundByText}" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"
                                    Visibility="{Binding HasFoundBy, Converter={StaticResource Visible}}"/>
                         <TextBlock local:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
                         <TextBlock local:InlineCode.Text="{Binding ConfirmationText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
-                                   Foreground="{StaticResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
                                    Visibility="{Binding HasConfirmation, Converter={StaticResource Visible}}"/>
 
                         <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
                         <TextBlock local:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
 
                         <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}">
-                            <Border Background="{StaticResource AccentSoftBrush}" BorderBrush="{StaticResource SuggestionBorderBrush}"
+                            <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
                                     BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
                                     Visibility="{Binding Explains, Converter={StaticResource Visible}}">
                                 <TextBlock Text="{Binding ExplainsText}" TextWrapping="Wrap" FontSize="12.5"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"
                                            AutomationProperties.AutomationId="FindingExplains"/>
                             </Border>
 
-                            <Border Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                            <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                                     BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
                                     Visibility="{Binding Follows, Converter={StaticResource Visible}}">
                                 <TextBlock Text="{Binding FollowsText}" TextWrapping="Wrap" FontSize="12.5"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"
                                            AutomationProperties.AutomationId="FindingFollows"/>
                             </Border>
 
@@ -114,13 +114,13 @@
                             <StackPanel Visibility="{Binding HasState, Converter={StaticResource Visible}}">
                                 <TextBlock Text="{Binding StateHeading}" Style="{StaticResource Label}"/>
 
-                                <Border Background="{StaticResource SubtleBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                                <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                                         BorderThickness="1" CornerRadius="6" Padding="8,6"
                                         AutomationProperties.AutomationId="FindingState" AutomationProperties.Name="What the line did">
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
                                             <TextBlock Text="#" Width="34" FontFamily="{StaticResource CodeFont}" FontSize="12"
-                                                       Foreground="{StaticResource HintBrush}"/>
+                                                       Foreground="{DynamicResource HintBrush}"/>
                                             <ItemsControl ItemsSource="{Binding StateColumns}" Focusable="False">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
@@ -129,7 +129,7 @@
                                                     <DataTemplate>
                                                         <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
                                                                    FontFamily="{StaticResource CodeFont}" FontSize="12"
-                                                                   Foreground="{StaticResource HintBrush}"/>
+                                                                   Foreground="{DynamicResource HintBrush}"/>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -142,7 +142,7 @@
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Number}" Width="34"
                                                                        FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                             <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
                                                                 <ItemsControl.ItemsPanel>
                                                                     <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
@@ -151,7 +151,7 @@
                                                                     <DataTemplate>
                                                                         <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
                                                                                    FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                                   Foreground="{StaticResource TextBrush}"/>
+                                                                                   Foreground="{DynamicResource TextBrush}"/>
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
@@ -159,7 +159,7 @@
                                                     </Border>
                                                     <DataTemplate.Triggers>
                                                         <DataTrigger Binding="{Binding IsWhereItFailed}" Value="True">
-                                                            <Setter TargetName="StateRow" Property="Background" Value="{StaticResource ErrorSoftBrush}"/>
+                                                            <Setter TargetName="StateRow" Property="Background" Value="{DynamicResource ErrorSoftBrush}"/>
                                                         </DataTrigger>
                                                     </DataTemplate.Triggers>
                                                 </DataTemplate>
@@ -167,7 +167,7 @@
                                         </ItemsControl>
 
                                         <TextBlock Text="{Binding StateCutNote}" Margin="34,4,0,0" FontSize="11.5"
-                                                   Foreground="{StaticResource HintBrush}"
+                                                   Foreground="{DynamicResource HintBrush}"
                                                    Visibility="{Binding StateWasCut, Converter={StaticResource Visible}}"/>
                                     </StackPanel>
                                 </Border>
@@ -182,16 +182,16 @@
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
                                                 <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="18"
-                                                           FontSize="12.5" Foreground="{StaticResource HintBrush}"/>
+                                                           FontSize="12.5" Foreground="{DynamicResource HintBrush}"/>
                                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12.5"
-                                                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
                                             </StackPanel>
                                             <DataTemplate.Triggers>
                                                 <DataTrigger Binding="{Binding Passed}" Value="True">
-                                                    <Setter TargetName="Mark" Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                    <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding Failed}" Value="True">
-                                                    <Setter TargetName="Mark" Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                    <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
                                                 </DataTrigger>
                                             </DataTemplate.Triggers>
                                         </DataTemplate>
@@ -199,13 +199,13 @@
                                 </ItemsControl>
 
                                 <TextBlock x:Name="VerdictText" Text="{Binding VerificationSummary}" Margin="18,4,0,0"
-                                           FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}"
+                                           FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"
                                            AutomationProperties.AutomationId="FindingVerificationSummary">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsVerified}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -221,7 +221,7 @@
                                           AutomationProperties.AutomationId="FindingChangeToggle"
                                           AutomationProperties.Name="{Binding ChangeToggleText}"/>
 
-                                <Border Background="{StaticResource CodeBrush}" CornerRadius="6" Padding="8,6"
+                                <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6"
                                         Visibility="{Binding ChangeShown, Converter={StaticResource Visible}}">
                                     <ItemsControl ItemsSource="{Binding ChangeLines}" Focusable="False"
                                                   AutomationProperties.Name="What changes"
@@ -232,28 +232,28 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock x:Name="Sign" Text=" " Width="12"
                                                                    FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{StaticResource DiffGutterBrush}"/>
+                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
                                                         <TextBlock Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
                                                                    FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{StaticResource DiffGutterBrush}"/>
+                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
                                                         <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
                                                                    FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{StaticResource CodeTextBrush}"
+                                                                   Foreground="{DynamicResource CodeTextBrush}"
                                                                    TextWrapping="NoWrap"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <DataTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding Kind}" Value="Removed">
-                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource DiffRemovedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{StaticResource DiffRemovedTextBrush}"/>
+                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffRemovedBrush}"/>
+                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
                                                         <Setter TargetName="Sign" Property="Text" Value="-"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{StaticResource DiffRemovedTextBrush}"/>
+                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding Kind}" Value="Added">
-                                                        <Setter TargetName="Row" Property="Background" Value="{StaticResource DiffAddedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{StaticResource DiffAddedTextBrush}"/>
+                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffAddedBrush}"/>
+                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
                                                         <Setter TargetName="Sign" Property="Text" Value="+"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{StaticResource DiffAddedTextBrush}"/>
+                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
                                                     </DataTrigger>
                                                 </DataTemplate.Triggers>
                                             </DataTemplate>
@@ -281,13 +281,13 @@
                             </StackPanel>
 
                             <Border Visibility="{Binding HasCheck, Converter={StaticResource Visible}}"
-                                    Background="{StaticResource SuccessSoftBrush}" BorderBrush="{StaticResource SuccessBorderBrush}"
+                                    Background="{DynamicResource SuccessSoftBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}"
                                     BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,12,0,0">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="13"
-                                               Foreground="{StaticResource SuccessBrush}" Margin="0,1,8,0" VerticalAlignment="Top"/>
+                                               Foreground="{DynamicResource SuccessBrush}" Margin="0,1,8,0" VerticalAlignment="Top"/>
                                     <TextBlock Text="{Binding CheckedText}" TextWrapping="Wrap" FontSize="12"
-                                               Foreground="{StaticResource SuccessBrush}"/>
+                                               Foreground="{DynamicResource SuccessBrush}"/>
                                 </DockPanel>
                             </Border>
                         </StackPanel>
@@ -309,16 +309,16 @@
 
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding SeverityText}" Value="Warning">
-                    <Setter TargetName="Accent" Property="Background" Value="{StaticResource WarningBrush}"/>
-                    <Setter TargetName="SeverityPill" Property="Background" Value="{StaticResource WarningSoftBrush}"/>
-                    <Setter TargetName="SeverityPill" Property="BorderBrush" Value="{StaticResource WarningBorderBrush}"/>
-                    <Setter TargetName="SeverityLabel" Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                    <Setter TargetName="Accent" Property="Background" Value="{DynamicResource WarningBrush}"/>
+                    <Setter TargetName="SeverityPill" Property="Background" Value="{DynamicResource WarningSoftBrush}"/>
+                    <Setter TargetName="SeverityPill" Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}"/>
+                    <Setter TargetName="SeverityLabel" Property="Foreground" Value="{DynamicResource WarningBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding SeverityText}" Value="Suggestion">
-                    <Setter TargetName="Accent" Property="Background" Value="{StaticResource SuggestionBrush}"/>
-                    <Setter TargetName="SeverityPill" Property="Background" Value="{StaticResource SuggestionSoftBrush}"/>
-                    <Setter TargetName="SeverityPill" Property="BorderBrush" Value="{StaticResource SuggestionBorderBrush}"/>
-                    <Setter TargetName="SeverityLabel" Property="Foreground" Value="{StaticResource SuggestionBrush}"/>
+                    <Setter TargetName="Accent" Property="Background" Value="{DynamicResource SuggestionBrush}"/>
+                    <Setter TargetName="SeverityPill" Property="Background" Value="{DynamicResource SuggestionSoftBrush}"/>
+                    <Setter TargetName="SeverityPill" Property="BorderBrush" Value="{DynamicResource SuggestionBorderBrush}"/>
+                    <Setter TargetName="SeverityLabel" Property="Foreground" Value="{DynamicResource SuggestionBrush}"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -332,7 +332,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource CardBrush}" Padding="24,12">
+        <Border Grid.Row="0" Background="{DynamicResource CardBrush}" Padding="24,12">
             <DockPanel>
                 <Button DockPanel.Dock="Right" x:Name="SettingsButton" AutomationProperties.AutomationId="SettingsButton"
                         Style="{StaticResource QuietButton}" VerticalAlignment="Center" Click="SettingsButton_Click"
@@ -348,13 +348,13 @@
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="FixFinder" FontSize="20" FontWeight="SemiBold"/>
                         <TextBlock Text="Checks a program's syntax and logic together, and shows how to fix every mistake it finds."
-                                   FontSize="12" Foreground="{StaticResource HintBrush}"/>
+                                   FontSize="12" Foreground="{DynamicResource HintBrush}"/>
                     </StackPanel>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <Rectangle Grid.Row="1" Height="3" Fill="{StaticResource BrandBlendBrush}"/>
+        <Rectangle Grid.Row="1" Height="3" Fill="{DynamicResource BrandBlendBrush}"/>
 
         <Grid Grid.Row="2" Margin="20,18,20,8">
             <Grid.ColumnDefinitions>
@@ -375,11 +375,11 @@
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
                                                 <Setter Property="Stroke" Value="#BFCADA"/>
-                                                <Setter Property="Fill" Value="{StaticResource SubtleBrush}"/>
+                                                <Setter Property="Fill" Value="{DynamicResource SubtleBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
-                                                        <Setter Property="Stroke" Value="{StaticResource AccentBrush}"/>
-                                                        <Setter Property="Fill" Value="{StaticResource AccentSoftBrush}"/>
+                                                        <Setter Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                                                        <Setter Property="Fill" Value="{DynamicResource AccentSoftBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -388,7 +388,7 @@
 
                                     <StackPanel x:Name="NothingChosenPanel" Margin="16,20" HorizontalAlignment="Center">
                                         <TextBlock Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="26" HorizontalAlignment="Center"
-                                                   Foreground="{StaticResource AccentBrush}"/>
+                                                   Foreground="{DynamicResource AccentBrush}"/>
                                         <TextBlock Text="Drop a program file here" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,0"/>
                                         <TextBlock Text="or press a language below to pick one" Style="{StaticResource Hint}"
                                                    HorizontalAlignment="Center" Margin="0,2,0,12"/>
@@ -404,7 +404,7 @@
                                     <StackPanel x:Name="ChosenPanel" Margin="16,14" Visibility="Collapsed">
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE943;" FontSize="18"
-                                                       Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0"/>
+                                                       Foreground="{DynamicResource AccentBrush}" Margin="0,0,10,0"/>
                                             <TextBlock x:Name="ChosenFileText" AutomationProperties.AutomationId="ChosenFileText"
                                                        FontFamily="{StaticResource CodeFont}" FontSize="14" FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
@@ -491,7 +491,7 @@
                                 <ItemsControl x:Name="ExtraRunsList" AutomationProperties.AutomationId="ExtraRunsList">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,4,0,0">
+                                            <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,4,0,0">
                                                 <StackPanel>
                                                     <DockPanel>
                                                         <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource LinkButton}"
@@ -545,7 +545,7 @@
                                 Margin="8,0,0,0" Visibility="Collapsed" Click="StopButton_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE71A;" FontSize="12" Margin="0,0,8,0"
-                                           Foreground="{StaticResource ErrorBrush}"/>
+                                           Foreground="{DynamicResource ErrorBrush}"/>
                                 <TextBlock Text="Stop"/>
                             </StackPanel>
                         </Button>
@@ -569,7 +569,7 @@
                         <Grid>
                             <DockPanel Margin="16,12">
                                 <TextBlock x:Name="SyntaxIcon" DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE943;"
-                                           FontSize="20" Foreground="{StaticResource HintBrush}" Margin="0,0,12,0"/>
+                                           FontSize="20" Foreground="{DynamicResource HintBrush}" Margin="0,0,12,0"/>
                                 <StackPanel>
                                     <TextBlock Text="Syntax check" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="SyntaxStatusText" AutomationProperties.AutomationId="SyntaxStatusText"
@@ -586,7 +586,7 @@
                         <Grid>
                             <DockPanel Margin="16,12">
                                 <TextBlock x:Name="LogicIcon" DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE9D9;"
-                                           FontSize="20" Foreground="{StaticResource HintBrush}" Margin="0,0,12,0"/>
+                                           FontSize="20" Foreground="{DynamicResource HintBrush}" Margin="0,0,12,0"/>
                                 <StackPanel>
                                     <TextBlock Text="Logic check" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="LogicStatusText" AutomationProperties.AutomationId="LogicStatusText"
@@ -614,7 +614,7 @@
                                  ToolTip="Work the program does more times than it needs to. None of it is an error."/>
 
                     <TextBlock Text="Explain for" VerticalAlignment="Center" Margin="18,0,8,0"
-                               FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                               FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"/>
 
                     <ComboBox x:Name="ExplanationLevelBox" Width="116" VerticalAlignment="Center"
                               SelectionChanged="ExplanationLevel_Changed"
@@ -630,12 +630,12 @@
                 <ItemsControl x:Name="NotesList" Grid.Row="3" AutomationProperties.AutomationId="NotesList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource AccentSoftBrush}" BorderBrush="{StaticResource SuggestionBorderBrush}"
+                            <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
                                     BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,0,0,10">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE946;" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0"
-                                               Foreground="{StaticResource AccentBrush}"/>
-                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                               Foreground="{DynamicResource AccentBrush}"/>
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                 </DockPanel>
                             </Border>
                         </DataTemplate>
@@ -662,10 +662,10 @@
                 <Expander Grid.Row="5" x:Name="DetailsExpander" AutomationProperties.AutomationId="DetailsExpander"
                           IsExpanded="False" Margin="0,8,0,0">
                     <Expander.Header>
-                        <TextBlock Text="What the program printed" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}"/>
+                        <TextBlock Text="What the program printed" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"/>
                     </Expander.Header>
 
-                    <Border Background="{StaticResource ConsoleBrush}" CornerRadius="10" Margin="0,8,0,0" Padding="0,8" Height="170">
+                    <Border Background="{DynamicResource ConsoleBrush}" CornerRadius="10" Margin="0,8,0,0" Padding="0,8" Height="170">
                         <ListBox x:Name="OutputListBox" AutomationProperties.AutomationId="OutputListBox"
                                  Background="Transparent" BorderThickness="0"
                                  FontFamily="{StaticResource CodeFont}" FontSize="12"
@@ -677,10 +677,10 @@
                                     <TextBlock Text="{Binding DisplayLine}" TextWrapping="NoWrap">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource ConsoleTextBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource ConsoleTextBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsError}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource ConsoleErrorBrush}"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource ConsoleErrorBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -694,8 +694,8 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="3" Background="{StaticResource CardBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,8">
+        <Border Grid.Row="3" Background="{DynamicResource CardBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Padding="24,8">
             <DockPanel>
                 <Button DockPanel.Dock="Right" x:Name="OpenLogButton" AutomationProperties.AutomationId="OpenLogButton"
                         Content="Open log" Style="{StaticResource LinkButton}" VerticalAlignment="Center"

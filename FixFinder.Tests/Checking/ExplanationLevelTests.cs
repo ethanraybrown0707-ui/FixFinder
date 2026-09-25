@@ -118,6 +118,34 @@ public class ExplanationLevelTests
         Assert.Equal(ExplanationLevel.Technical, Preferences.Load(file).Explanations);
     }
 
+    /// <summary>Following Windows is the choice for anybody who has not made one, so it is what an empty file means.</summary>
+    [Fact]
+    public void AppearanceFollowsWindowsUntilSomebodySaysOtherwise()
+    {
+        using var temp = new TempFolder();
+        var file = Path.Combine(temp.Path, "preferences.json");
+
+        Assert.Equal(AppearanceChoice.System, new Preferences().Appearance);
+
+        Assert.True(new Preferences { Appearance = AppearanceChoice.Dark }.Save(file));
+        Assert.Equal(AppearanceChoice.Dark, Preferences.Load(file).Appearance);
+    }
+
+    /// <summary>The two preferences are kept in one file, so writing one must not lose the other.</summary>
+    [Fact]
+    public void ChoosingColoursDoesNotForgetHowMuchToExplain()
+    {
+        using var temp = new TempFolder();
+        var file = Path.Combine(temp.Path, "preferences.json");
+
+        new Preferences { Explanations = ExplanationLevel.Beginner, Appearance = AppearanceChoice.Dark }.Save(file);
+
+        var read = Preferences.Load(file);
+
+        Assert.Equal(ExplanationLevel.Beginner, read.Explanations);
+        Assert.Equal(AppearanceChoice.Dark, read.Appearance);
+    }
+
     [Fact]
     public void APreferenceFileThatCannotBeReadIsTreatedAsOneThatWasNeverWritten()
     {

@@ -7,7 +7,7 @@
         Title="FixFinder settings" Width="700" Height="820" MinHeight="480"
         Icon="Assets/FixFinder.ico"
         FontFamily="Segoe UI" FontSize="13"
-        Background="{StaticResource PageBrush}" Foreground="{StaticResource TextBrush}"
+        Background="{DynamicResource PageBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         ShowInTaskbar="False">
     <Window.Resources>
@@ -18,7 +18,7 @@
         </Style>
         <Style x:Key="Hint" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{StaticResource HintBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource HintBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
@@ -26,7 +26,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="GroupBox">
-                        <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                        <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="1" CornerRadius="12" Padding="16,12">
                             <StackPanel>
                                 <ContentPresenter ContentSource="Header" TextBlock.FontSize="15" TextBlock.FontWeight="SemiBold" Margin="0,0,0,8"/>
@@ -38,7 +38,7 @@
             </Setter>
         </Style>
         <Style TargetType="PasswordBox">
-            <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}"/>
             <Setter Property="Padding" Value="6,4"/>
         </Style>
     </Window.Resources>
@@ -56,6 +56,21 @@
         </StackPanel>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,18,18,0">
+
+                <GroupBox Header="Appearance" Margin="0,0,0,12">
+                    <StackPanel Margin="4">
+                        <TextBlock Text="Which colours FixFinder uses. It changes at once - nothing is checked again."
+                                   Style="{DynamicResource Hint}" Margin="0,0,0,8"/>
+                        <ComboBox x:Name="AppearanceBox" Width="160" HorizontalAlignment="Left"
+                                  SelectionChanged="Appearance_Changed"
+                                  AutomationProperties.AutomationId="AppearanceBox"
+                                  AutomationProperties.Name="Appearance">
+                            <ComboBoxItem Content="Follow Windows"/>
+                            <ComboBoxItem Content="Light"/>
+                            <ComboBoxItem Content="Dark"/>
+                        </ComboBox>
+                    </StackPanel>
+                </GroupBox>
 
                 <GroupBox Header="API credentials (both optional)" Margin="0,0,0,12">
                     <Grid Margin="4">
@@ -119,7 +134,7 @@
                                    Text="Encrypted with Windows DPAPI under your account, with extra entropy. It cannot be read by another user, on another machine, or by another program running as you."/>
 
                         <TextBlock x:Name="CacheStateText" AutomationProperties.AutomationId="CacheStateText"
-                                   TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource HintBrush}" Margin="0,0,0,8"/>
+                                   TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource HintBrush}" Margin="0,0,0,8"/>
                         <StackPanel Orientation="Horizontal">
                             <Button x:Name="OpenCacheFolderButton" AutomationProperties.AutomationId="OpenCacheFolderButton"
                                     Content="Open folder" Padding="10,4" Click="OpenCacheFolderButton_Click"/>

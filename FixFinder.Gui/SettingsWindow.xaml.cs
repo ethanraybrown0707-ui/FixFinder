@@ -4,6 +4,9 @@ using System.Windows;
 using FixFinder.Core.Http;
 using FixFinder.Core.Security;
 
+using System.Windows.Controls;
+using FixFinder.Core.Engine;
+
 namespace FixFinder.Gui;
 
 /// <summary>Holds the two optional API credentials and shows what is stored on disk.</summary>
@@ -24,6 +27,8 @@ public partial class SettingsWindow : Window
         CredentialPathText.Text = TokenStore.FilePath;
         ToolchainsText.Text = string.Join(Environment.NewLine, Core.Execution.Toolchains.Describe());
 
+        AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
+
         RefreshCredentialState();
         RefreshCacheState();
 
@@ -34,6 +39,28 @@ public partial class SettingsWindow : Window
             StackExchangeKeyBox.IsEnabled = false;
             SaveSettingsButton.IsEnabled = false;
         }
+    }
+
+    /// <summary>What the person chose last time, read once so changing it here can be written straight back.</summary>
+    private readonly Preferences _preferences = Preferences.Load();
+
+    /// <summary>
+    /// Repaints the whole application at once, and writes the choice down.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is checked again and no finding moves: the colours are the only thing this touches. Failing to write
+    /// the preference is not worth interrupting anybody over - it holds for this session either way.
+    /// </remarks>
+    private void Appearance_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (AppearanceBox.SelectedIndex < 0) return;
+
+        var chosen = (AppearanceChoice)AppearanceBox.SelectedIndex;
+        if (chosen == _preferences.Appearance) return;
+
+        _preferences.Appearance = chosen;
+        Theme.Apply(chosen);
+        _preferences.Save();
     }
 
     private void RefreshCredentialState()
