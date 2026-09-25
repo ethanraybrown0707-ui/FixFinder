@@ -208,6 +208,29 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        AtEveryLevel(["analysis-read-before-join"], "Reading a result before the threads have finished",
+            "Starting a thread is like asking someone to count a pile of coins while you get on with something else. Reading the total straight away gets whatever they have counted so far, not the final answer. join() is waiting for them to say they have finished.",
+            "The thread was started, but this line runs before the join() that waits for it, so the thread may still be changing the value. The line reads whatever it holds at that moment - often not the final result.",
+            "No happens-before edge orders the thread's writes before this read: only join() creates one, and the read comes before it.",
+            "The program shows a value from part-way through - different on each run, and usually wrong.",
+            "Read the result after join() has returned for every thread that changes it.",
+            """
+            worker.start()
+            worker.join()
+            print(total)
+            """),
+
+        AtEveryLevel(["analysis-data-race"], "Shared data used without the lock that guards it",
+            "A lock is like a talking stick: only whoever holds it may change the shared value. Here one thread holds the stick while it changes the value, but another changes it without the stick - so the stick stops nothing.",
+            "This data is used with a lock in one place and without it - or with a different lock - in another, by threads that can run at the same time. A lock only protects data if everything that uses the data holds that same lock.",
+            "The two accesses' locksets are disjoint and neither happens before the other, so they race.",
+            "Changes can be lost and totals come out wrong - differently from one run to the next.",
+            "Hold the same lock everywhere the data is used.",
+            """
+            with lock:
+                total += 1
+            """),
+
         Pattern(["analysis-run-not-start"], "run() called instead of start()",
             "Calling run() does the thread's work right here, on the thread that calls it, and waits for it to finish.",
             "Nothing runs at the same time, so the program is slower than it should be and never actually uses the thread.",
@@ -572,6 +595,26 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-read-before-join"], "Reading a result before the threads have finished",
+            "The thread was started, but this line runs before the join() that waits for it, so the thread may still be changing the value. The line reads whatever it holds at that moment - often not the final result.",
+            "The program shows a value from part-way through - different on each run, and usually wrong.",
+            "Read the result after join() has returned for every thread that changes it.",
+            """
+            worker.start();
+            worker.join();
+            System.out.println(total);
+            """),
+
+        Pattern(["analysis-data-race"], "Shared data used without the lock that guards it",
+            "This data is used with a lock in one place and without it - or with a different lock - in another, by threads that can run at the same time. A lock only protects data if everything that uses the data holds that same lock.",
+            "Changes can be lost, and a thread can read an out-of-date value - differently from one run to the next.",
+            "Hold the same lock everywhere the data is used - for example, make the method that reads it synchronized too.",
+            """
+            public synchronized int getBalance() {
+                return balance;
+            }
+            """),
+
         Pattern(["analysis-wait-without-lock"], "wait or notify without its lock",
             "wait(), notify() and notifyAll() must be called while holding the lock of the object they are called on, and here that lock is not held.",
             "The call throws an IllegalMonitorStateException every time.",
@@ -762,6 +805,26 @@ internal static class AnalysisGuides
                 {
                     Move(money);
                 }
+            }
+            """),
+
+        Pattern(["analysis-read-before-join"], "Reading a result before the threads have finished",
+            "The work was started on another thread, but this line runs before the Join() or Wait() that waits for it, so the work may still be changing the value. The line reads whatever it holds at that moment - often not the final result.",
+            "The program shows a value from part-way through - different on each run, and usually wrong.",
+            "Read the result after the thread's Join() or the task's Wait() - or after awaiting it.",
+            """
+            task.Wait();
+            Console.WriteLine(total);
+            """),
+
+        Pattern(["analysis-data-race"], "Shared data used without the lock that guards it",
+            "This data is used with a lock in one place and without it - or with a different lock - in another, by threads that can run at the same time. A lock only protects data if everything that uses the data holds that same lock.",
+            "Changes can be lost, and a thread can read an out-of-date value - differently from one run to the next.",
+            "Take the same lock everywhere the data is used.",
+            """
+            lock (gate)
+            {
+                total += amount;
             }
             """),
 

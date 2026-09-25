@@ -21,7 +21,7 @@ namespace FixFinder.Core.Analysis.Checks;
 /// with no second thread at all.
 /// </para>
 /// </remarks>
-internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlySet<IrFunction> threadBodies)
+internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnlySet<IrFunction> threadBodies)
 {
     /// <summary>The most locks in a cycle looked for. Real deadlocks seldom involve more than four; this only bounds the search.</summary>
     private const int MostLocksInACycle = 12;
@@ -35,57 +35,32 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     /// <summary>How much one function's summary keeps; a long chain of calls repeats the same locks many times over.</summary>
     private const int MostPerSummary = 256;
 
-    /// <summary>How far a name is looked up through the functions it is written inside.</summary>
-    private const int MostNesting = 32;
-
-    private const int NoParameter = -1;
-
-    /// <summary>A lock the code takes whose value cannot be named - synchronized (next()), lock (locks[i]) - so could be any.</summary>
-    private static readonly LockName Unnamed = new("?", "?");
-
     private static readonly Summary NothingTaken = new([], []);
 
     private static readonly string[] CountWords = ["", "", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
 
-    private readonly CallTargets _targets = new(program);
-    private readonly HashSet<string> _classes = program.Classes.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
     private readonly Dictionary<IrFunction, Summary> _summaries = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<IrFunction> _summarising = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<IrFunction, HashSet<string>> _locals = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<IrFunction, HashSet<string>> _sharedLocals = new(ReferenceEqualityComparer.Instance);
     private readonly List<Edge> _edges = [];
     private readonly List<AnalysisFinding> _findings = [];
     private readonly HashSet<(string File, int Line)> _reportedAt = [];
-    private Dictionary<IrFunction, List<IrFunction>>? _nested;
     private Dictionary<string, LockSort>? _pythonSorts;
 
-    /// <summary>
-    /// A lock as the whole program knows it. The identity is the same wherever the code means the same lock - a field
-    /// belongs to its class, a local to its function - and Shown is how the code at hand writes it. A lock reached through
-    /// one of the function's parameters has no identity of its own until a call says what that parameter is.
-    /// </summary>
-    private sealed record LockName(string Identity, string Shown, int Parameter = NoParameter, string Path = "")
-    {
-        public bool IsKnown => Identity != "?";
-
-        public bool IsConcrete => Parameter == NoParameter;
-    }
-
     /// <summary>A lock the thread holds, where it took it, and inside how many branches and loops of the function.</summary>
-    private sealed record Holding(LockName Lock, SourceSpan TakenAt, int Branches);
+    private sealed record Holding(SharedName Lock, SourceSpan TakenAt, int Branches);
 
     /// <summary>
     /// A lock a function takes, the locks it already holds by then, and where - in the function's own terms.
     /// <paramref name="Always"/> when every run of the function takes it: it sits in no branch or loop, after no return.
     /// </summary>
-    private sealed record Taking(LockName Lock, IReadOnlyList<Holding> Held, SourceSpan At, bool Always);
+    private sealed record Taking(SharedName Lock, IReadOnlyList<Holding> Held, SourceSpan At, bool Always);
 
     /// <summary>
     /// A lock taken while another is held, with every lock the thread holds as it waits - what says whether two such
     /// places can be busy at the same time. <paramref name="Started"/> when it happens on a thread the code starts, which
     /// holds none of its starter's locks.
     /// </summary>
-    private sealed record Edge(LockName From, LockName To, IReadOnlyList<LockName> Guards, SourceSpan At, string How, IrFunction In, bool Started);
+    private sealed record Edge(SharedName From, SharedName To, IReadOnlyList<SharedName> Guards, SourceSpan At, string How, IrFunction In, bool Started);
 
     /// <summary>What calling a function does with locks: the locks it takes, and its edges still waiting on what callers pass it.</summary>
     private sealed record Summary(IReadOnlyList<Taking> Takings, IReadOnlyList<Edge> Pending);
@@ -127,8 +102,8 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
         if (!_summarising.Add(function)) return NothingTaken;
 
         var scope = new Scope(function);
-        IReadOnlyList<Holding> held = function.IsSynchronized && _targets.ClassOf(function) is { } owner
-            ? [new Holding(function.IsStatic ? new LockName($"{owner}.class", $"{owner}.class") : new LockName($"{owner}.this", "this"), function.Span, 0)]
+        IReadOnlyList<Holding> held = function.IsSynchronized && names.Targets.ClassOf(function) is { } owner
+            ? [new Holding(function.IsStatic ? new SharedName($"{owner}.class", $"{owner}.class") : new SharedName($"{owner}.this", "this"), function.Span, 0)]
             : [];
 
         Visit(scope, function.Body, held, 0);
@@ -181,7 +156,7 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     /// A lock the function takes itself. Returns whether the thread holds one more lock after it - not so when it
     /// already held this one, which is either taken again at once or, for a lock that cannot be, the thread's end.
     /// </summary>
-    private bool Take(Scope scope, LockName taken, IReadOnlyList<Holding> held, SourceSpan at, int branches)
+    private bool Take(Scope scope, SharedName taken, IReadOnlyList<Holding> held, SourceSpan at, int branches)
     {
         if (held.FirstOrDefault(h => h.Lock.Identity == taken.Identity) is { } already)
         {
@@ -222,7 +197,7 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
             {
                 if (Translate(taking.Lock, call, target, scope.Function) is not { IsKnown: true } taken) continue;
 
-                var alsoHeld = taking.Held.Select(h => h with { Lock = Translate(h.Lock, call, target, scope.Function) ?? Unnamed, Branches = branches }).ToList();
+                var alsoHeld = taking.Held.Select(h => h with { Lock = Translate(h.Lock, call, target, scope.Function) ?? SharedName.Unnamed, Branches = branches }).ToList();
                 var always = branches == 0 && !scope.MayHaveReturned && taking.Always;
 
                 if (held.FirstOrDefault(h => h.Lock.Identity == taken.Identity) is { } already)
@@ -259,7 +234,7 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
             }
 
             var onItsOwn = launch || edge.Started;
-            IReadOnlyList<LockName> guards = [.. (onItsOwn ? [] : held).Select(h => h.Lock), .. edge.Guards.Select(g => Translate(g, call, target, scope.Function) ?? Unnamed)];
+            IReadOnlyList<SharedName> guards = [.. (onItsOwn ? [] : held).Select(h => h.Lock), .. edge.Guards.Select(g => Translate(g, call, target, scope.Function) ?? SharedName.Unnamed)];
             var how = launch
                 ? $"starts a thread running `{target.Function.Name}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Where(edge.At, call.Span)}"
                 : $"calls `{Quote(call)}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Where(edge.At, call.Span)}";
@@ -283,8 +258,8 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     {
         if (expression is Call call)
         {
-            if (_targets.Resolve(call, function, LocalsOf(function)) is { } target) yield return (call, target, false);
-            if (Started(call) is { } started && _targets.Resolve(started, function, LocalsOf(function)) is { } runs) yield return (started, runs, true);
+            if (names.Targets.Resolve(call, function, names.LocalsOf(function)) is { } target) yield return (call, target, false);
+            if (Started(call) is { } started && names.Targets.Resolve(started, function, names.LocalsOf(function)) is { } runs) yield return (started, runs, true);
         }
 
         foreach (var child in IrWalk.Children(expression))
@@ -310,12 +285,12 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     }
 
     /// <summary>A lock the callee names by one of its parameters, as the call names it - or the callee's lock unchanged.</summary>
-    private LockName? Translate(LockName lockName, Call call, CallTarget target, IrFunction caller)
+    private SharedName? Translate(SharedName lockName, Call call, CallTarget target, IrFunction caller)
     {
         if (lockName.IsConcrete || !lockName.IsKnown) return lockName;
         if (ArgumentFor(call, target, lockName.Parameter) is not { } argument || LockIn(argument, caller) is not { IsKnown: true } passed) return null;
 
-        return new LockName(passed.Identity + lockName.Path, passed.Shown + lockName.Path, passed.Parameter, passed.Path + lockName.Path);
+        return new SharedName(passed.Identity + lockName.Path, passed.Shown + lockName.Path, passed.Parameter, passed.Path + lockName.Path);
     }
 
     private static Expr? ArgumentFor(Call call, CallTarget target, int parameterIndex)
@@ -335,148 +310,16 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     /// The lock a lock region takes, or null when it is not a lock anything else could hold: a Python with on something
     /// made on the spot, something made as a file or a connection rather than a lock, or a lock new to this call.
     /// </summary>
-    private LockName? LockIn(Using used, IrFunction function) =>
+    private SharedName? LockIn(Using used, IrFunction function) =>
         used.Purpose == UsingPurpose.Either && used.Resource is Call ? null : LockIn(used.Resource, function);
 
-    private LockName? LockIn(Expr expression, IrFunction function)
+    private SharedName? LockIn(Expr expression, IrFunction function)
     {
-        var named = Named(expression, function);
+        var named = names.Named(expression, function);
         return named is { IsKnown: true, IsConcrete: true } && SortOf(named) == LockSort.NotALock ? null : named;
     }
 
-    /// <summary>What a lock expression names, before asking whether it was made as a lock.</summary>
-    private LockName? Named(Expr expression, IrFunction function) => expression switch
-    {
-        Name { Identifier: "this" or "self" } when _targets.ClassOf(function) is { } owner => new LockName($"{owner}.this", Shown(expression)),
-        Name { Identifier: var name } => Variable(name, function, Shown(expression)),
-        Member { Target: Name { Identifier: "this" or "self" }, MemberName: var field } when _targets.ClassOf(function) is { } owner =>
-            new LockName($"{owner}.{field}", Shown(expression)),
-        Member { Target: Name { Identifier: var type }, MemberName: var field } when _classes.Contains(type) && !LocalsOf(function).Contains(type) =>
-            new LockName($"{type}.{field}", Shown(expression)),
-        Member { Target: var target, MemberName: var field } => Named(target, function) is { IsKnown: true } inner
-            ? new LockName($"{inner.Identity}.{field}", Shown(expression), inner.Parameter, $"{inner.Path}.{field}")
-            : Unnamed,
-        _ => Unnamed,
-    };
-
-    /// <summary>
-    /// What a name means in a function: one of its own parameters, a variable of its own or of the code it is written
-    /// in, a field of its class, or a global. A local that never leaves its function is null - each call makes its own.
-    /// </summary>
-    private LockName? Variable(string name, IrFunction function, string shown)
-    {
-        var scope = function;
-
-        for (var depth = 0; scope is not null && depth < MostNesting; depth++)
-        {
-            if (scope.Name == IrFunction.ModuleBody) return new LockName(name, shown);
-
-            var parameterIndex = IndexOf(scope.Parameters, name);
-            if (parameterIndex >= 0)
-            {
-                // A lambda's use of the parameter of the method around it is fixed for the lambda's whole life, like a local.
-                return ReferenceEquals(scope, function)
-                    ? new LockName($"{KeyOf(scope)}({name})", shown, parameterIndex)
-                    : new LockName($"{KeyOf(scope)}:{name}", shown);
-            }
-
-            if (!scope.OuterNames.Contains(name) && LocalsOf(scope).Contains(name))
-                return SharedLocalsOf(scope).Contains(name) ? new LockName($"{KeyOf(scope)}:{name}", shown) : null;
-
-            scope = _targets.Enclosing(scope);
-        }
-
-        return _targets.ClassOf(function) is { } owner && program.Language != SourceLanguage.Python
-            ? new LockName($"{owner}.{name}", shown)
-            : new LockName(name, shown);
-    }
-
-    private static int IndexOf(IReadOnlyList<IrParameter> parameters, string name)
-    {
-        for (var index = 0; index < parameters.Count; index++)
-            if (parameters[index].Name == name) return index;
-
-        return -1;
-    }
-
-    /// <summary>Overloads and lambdas on the same line can share a full name; where the function starts tells them apart.</summary>
-    private static string KeyOf(IrFunction function) => $"{function.FullName}@{function.Span.Line}";
-
-    private HashSet<string> LocalsOf(IrFunction function)
-    {
-        if (_locals.TryGetValue(function, out var known)) return known;
-        return _locals[function] = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python);
-    }
-
-    /// <summary>
-    /// A function's variables that other code, and so other threads, can reach: captured by a lambda or a function
-    /// written inside it, passed to a call, stored in an object, or returned.
-    /// </summary>
-    private HashSet<string> SharedLocalsOf(IrFunction function)
-    {
-        if (_sharedLocals.TryGetValue(function, out var known)) return known;
-
-        _nested ??= NestedFunctions();
-        var locals = LocalsOf(function);
-        var shared = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var nested in _nested.GetValueOrDefault(function) ?? [])
-            shared.UnionWith(IrWalk.FreeNames(nested));
-
-        foreach (var statement in IrWalk.Statements(function.Body))
-        {
-            switch (statement)
-            {
-                case Assign { Target: Member or ElementAccess, Value: Name stored }:
-                    shared.Add(stored.Identifier);
-                    break;
-                case Return { Value: Name returned }:
-                    shared.Add(returned.Identifier);
-                    break;
-            }
-
-            foreach (var expression in IrWalk.Expressions(statement)) shared.UnionWith(Passed(expression));
-        }
-
-        shared.IntersectWith(locals);
-        return _sharedLocals[function] = shared;
-    }
-
-    private Dictionary<IrFunction, List<IrFunction>> NestedFunctions()
-    {
-        var nested = new Dictionary<IrFunction, List<IrFunction>>(ReferenceEqualityComparer.Instance);
-
-        foreach (var function in program.AllFunctions)
-        {
-            if (_targets.Enclosing(function) is not { } outer) continue;
-            if (!nested.TryGetValue(outer, out var inside)) nested[outer] = inside = [];
-            inside.Add(function);
-        }
-
-        return nested;
-    }
-
-    /// <summary>Names handed to a call or a new object - directly, or inside a tuple or list of arguments.</summary>
-    private static IEnumerable<string> Passed(Expr expression)
-    {
-        var handed = expression switch
-        {
-            Call call => call.Arguments.SelectMany(a => Handed(a.Value)),
-            NewObject made => made.Arguments.SelectMany(a => Handed(a.Value)),
-            _ => [],
-        };
-
-        return handed.Concat(IrWalk.Children(expression).SelectMany(Passed));
-    }
-
-    private static IEnumerable<string> Handed(Expr value) => value switch
-    {
-        Name name => [name.Identifier],
-        CollectionLiteral items => items.Items.SelectMany(Handed),
-        _ => [],
-    };
-
-    private LockSort SortOf(LockName lockName)
+    private LockSort SortOf(SharedName lockName)
     {
         if (!lockName.IsKnown || !lockName.IsConcrete) return LockSort.Unknown;
         if (program.Language != SourceLanguage.Python) return LockSort.Reentrant;
@@ -494,7 +337,7 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     {
         var made = new Dictionary<string, HashSet<LockSort>>(StringComparer.Ordinal);
 
-        void Made(LockName? named, Expr? value)
+        void Made(SharedName? named, Expr? value)
         {
             if (named is not { IsKnown: true, IsConcrete: true } || value is not Call creation) return;
             if (!made.TryGetValue(named.Identity, out var sorts)) made[named.Identity] = sorts = [];
@@ -508,10 +351,10 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
                 switch (statement)
                 {
                     case Assign assign:
-                        Made(Named(assign.Target, function), assign.Value);
+                        Made(names.Named(assign.Target, function), assign.Value);
                         break;
                     case Declare declare:
-                        Made(Variable(declare.Variable, function, declare.Variable), declare.Initial);
+                        Made(names.Variable(declare.Variable, function, declare.Variable), declare.Initial);
                         break;
                 }
             }
@@ -519,7 +362,7 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
 
         foreach (var type in program.Classes)
             foreach (var field in type.Fields)
-                Made(new LockName($"{type.Name}.{field.Name}", field.Name), field.Initial);
+                Made(new SharedName($"{type.Name}.{field.Name}", field.Name), field.Initial);
 
         return made.ToDictionary(
             entry => entry.Key,
@@ -664,8 +507,8 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
         if (function.Name == IrFunction.ModuleBody) return true;
         if (function is { IsStatic: true, Owner: not null, Name: "main" or "Main" } && program.Language is SourceLanguage.Java or SourceLanguage.CSharp) return true;
 
-        return depth < MostNesting && function.Name.StartsWith("lambda at line ", StringComparison.Ordinal) && !threadBodies.Contains(function) &&
-            _targets.Enclosing(function) is { } outer && IsMainCode(outer, depth + 1);
+        return depth < ProgramNames.MostNesting && function.Name.StartsWith("lambda at line ", StringComparison.Ordinal) && !threadBodies.Contains(function) &&
+            names.Targets.Enclosing(function) is { } outer && IsMainCode(outer, depth + 1);
     }
 
     private void ReportCycle(IReadOnlyList<Edge> cycle, int index)
@@ -702,7 +545,5 @@ internal sealed class LockOrder(IrProgram program, SourceText source, IReadOnlyS
     private static string Where(SourceSpan place, SourceSpan from) =>
         place.File == from.File ? $"line {place.Line}" : $"line {place.Line} of {Path.GetFileName(place.File)}";
 
-    private string Shown(Expr expression) => source.Of(expression.Span) is { Length: > 0 } text ? text : IrText.Of(expression);
-
-    private string Quote(Call call) => source.Of(call.Span) is { Length: > 0 } text ? text : IrText.Of(call);
+    private string Quote(Call call) => names.Shown(call);
 }

@@ -32,7 +32,12 @@ public sealed class Concurrency(IrProgram program, SourceText source)
         var bodies = Bodies();
         foreach (var body in bodies) LostUpdates(body);
         foreach (var body in bodies) StaleReads(body);
-        _findings.AddRange(new LockOrder(program, source, new HashSet<IrFunction>(bodies.Select(b => b.Function), ReferenceEqualityComparer.Instance)).Check());
+        var names = new ProgramNames(program, source);
+        _findings.AddRange(new LockOrder(program, names, new HashSet<IrFunction>(bodies.Select(b => b.Function), ReferenceEqualityComparer.Instance)).Check());
+
+        // A line already reported as a lost update or a stale read says what goes wrong there; a race at it would repeat it.
+        var said = _findings.Where(f => f.CheckId is "analysis-lost-update" or "analysis-stale-read").Select(f => (f.Span.File, f.Span.Line)).ToHashSet();
+        _findings.AddRange(new Races(program, names).Check().Where(f => !said.Contains((f.Span.File, f.Span.Line))));
         var underLock = CalledUnderLock();
         foreach (var function in program.AllFunctions.Where(f => !underLock.Contains(f.FullName) && f.Name is not ("wait" or "notify" or "notifyAll")))
             WaitAndNotify(function);

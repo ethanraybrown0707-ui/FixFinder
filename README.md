@@ -113,6 +113,8 @@ used, and a lock that is taken must be released on every way out of the function
 | Locks taken in opposite orders | `synchronized (a) { synchronized (b) ... }` in one place, `b` then `a` in another |
 | Locks taken round a circle, of any length | `first` then `second`, `second` then `third`, `third` then `first` - three threads, one at each |
 | A Python `Lock` taken again by the thread holding it | `with self.lock:` around a call to a method that takes `self.lock` too |
+| A result read before the threads changing it have finished | `print(total)` between `worker.start()` and `worker.join()` |
+| Shared data used without the lock that guards it elsewhere | a `synchronized` `deposit()` and a `getBalance()` that is not, called on another thread |
 | `wait` or `notify` without its lock, or `wait` outside a loop | `wait()` in a method that is not `synchronized` |
 | `run()` called instead of `start()` | `worker.run()`, which runs the work on the calling thread |
 
@@ -123,6 +125,14 @@ in opposite orders. Any cycle in the graph is a possible deadlock, however many 
 threads could be at all its places at once: a lock held around all of them lets one thread in at a time, and the main
 thread cannot be at two places together, so neither is reported. Java's and C#'s locks can be taken again by the thread
 holding them; a Python `threading.Lock` cannot, which is why taking one twice is a deadlock with no second thread.
+
+Races come from two relations. **Happens-before** orders the code that starts threads against the threads: what comes
+before `start()` happens before everything the thread does, and everything the thread does happens before the `join()`
+that waits for it - so code between the two runs at the same time as the thread. A thread handed to other code, which
+could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it -
+by `synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the
+function it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock
+is held at both. A field of an object is only shared by threads using that same object.
 
 Each language keeps its own rules, and a finding says what that language actually does:
 
