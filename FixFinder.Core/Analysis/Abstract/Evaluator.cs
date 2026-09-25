@@ -56,7 +56,23 @@ public sealed class Evaluator(SourceLanguage language)
             ? field
             : null;
 
+    /// <summary>
+    /// What is now known about the object a name holds - after a change to it, or a test of it - which is as true of every
+    /// other name holding the same object. Giving a name a new object is <see cref="Rebind"/>.
+    /// </summary>
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
+    {
+        var sharing = state.AliasesOf(name).ToList();
+
+        state = StoreOne(state, name, value);
+        foreach (var alias in sharing) state = StoreOne(state, alias, value);
+        return state;
+    }
+
+    /// <summary>A name given a new value: whatever object it shared before, it shares no longer.</summary>
+    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name), name, value);
+
+    private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
         if (Volatile.Contains(name)) return state.Without(name);
         if (Escaping.Contains(name) && value.MayBe(Shared)) value = value with { Length = value.Length.Join(Interval.NonNegative) };
@@ -489,7 +505,7 @@ public sealed class Evaluator(SourceLanguage language)
                 return ForgetOthers(state);
 
             case DeclareInstruction declare:
-                return Store(state, declare.Variable, FromType(declare.Type));
+                return Rebind(state, declare.Variable, FromType(declare.Type));
 
             case ForgetInstruction forget:
                 return forget.Names.Aggregate(state, (s, name) => s.Without(name));
@@ -506,12 +522,20 @@ public sealed class Evaluator(SourceLanguage language)
             case Name name:
                 if (!IsPython && value.IsUnknown && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
                     value = FromType(declared);
-                if (valueExpression is Name source && value.IsOnly(ValueKind.List | ValueKind.Dictionary | ValueKind.Set))
+
+                // b = a: both names now hold the one object, so a change made through either is a change to both.
+                if (valueExpression is Name { Identifier: var source } && source != name.Identifier && Tracked(source) && Tracked(name.Identifier))
+                    return Rebind(state, name.Identifier, value).Aliasing(name.Identifier, source);
+
+                // items += more extends a Python list in place, where items = items + more makes a new one - and once
+                // lowered the two look alike. For a list that other names share, neither is guessed: their lengths are forgotten.
+                if (IsPython && valueExpression is Binary { Left: Name { Identifier: var extended } } && extended == name.Identifier &&
+                    state.AliasesOf(name.Identifier).Any() && state[name.Identifier].MayBe(ValueKind.List))
                 {
-                    var shared = value with { Length = Interval.NonNegative };
-                    return Store(Store(state, source.Identifier, shared), name.Identifier, shared);
+                    state = Store(state, name.Identifier, state[name.Identifier] with { Length = Interval.NonNegative });
                 }
-                return Store(state, name.Identifier, value);
+
+                return Rebind(state, name.Identifier, value);
 
             case CollectionLiteral { Kind: CollectionKind.Tuple or CollectionKind.List } unpacked:
                 if (valueExpression is CollectionLiteral { Items.Count: var count } packed && count == unpacked.Items.Count)
@@ -523,7 +547,7 @@ public sealed class Evaluator(SourceLanguage language)
                 return unpacked.Items.Aggregate(state, (s, item) => AssignTo(s, item, AbstractValue.Unknown, null));
 
             case Member field when FieldName(field) is { } named:
-                return Store(state, named, value);
+                return Rebind(state, named, value);
 
             case ElementAccess { Target: Name owner } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
                 var dictionary = state[owner.Identifier];
@@ -533,6 +557,9 @@ public sealed class Evaluator(SourceLanguage language)
                 return state;
         }
     }
+
+    /// <summary>Whether a name can be followed as sharing an object: not one that other code can change at any call.</summary>
+    private bool Tracked(string name) => !Volatile.Contains(name);
 
     /// <summary>What was learned about variables that are not the function's own is lost once other code has run.</summary>
     private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>

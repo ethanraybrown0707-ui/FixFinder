@@ -122,6 +122,12 @@ public sealed partial class SymbolicExecutor
         /// <summary>The variables given a new value on the path - a parameter among them no longer holds what was passed.</summary>
         public ImmutableHashSet<string> Reassigned = [];
 
+        /// <summary>
+        /// For each variable holding the same collection as others - b after b = a - those others. A change made through
+        /// one is a change to all of them. Always symmetric.
+        /// </summary>
+        public ImmutableDictionary<string, ImmutableHashSet<string>> Aliases = ImmutableDictionary.Create<string, ImmutableHashSet<string>>(StringComparer.Ordinal);
+
         /// <summary>How many times each line has been read from on the path, so each read has its own symbol.</summary>
         public ImmutableDictionary<(SymbolOrigin, int), int> Reads = ImmutableDictionary<(SymbolOrigin, int), int>.Empty;
 
@@ -527,6 +533,7 @@ public sealed partial class SymbolicExecutor
                 break;
 
             case DeclareInstruction declare:
+                Unalias(path, declare.Variable);
                 Set(path, declare.Variable, SymUnknown.Value);
                 path.Reassigned = path.Reassigned.Add(declare.Variable);
                 break;
@@ -611,10 +618,21 @@ public sealed partial class SymbolicExecutor
     /// Asks whether any of the failing cases can happen on this path, keeping the first trusted witness; and whether the
     /// path fails whatever its inputs are - true when the safe case cannot hold at all.
     /// </summary>
-    private void Check(string check, SourceSpan span, Path path, Expr culprit, IReadOnlyList<IReadOnlyList<Constraint>> failing, IReadOnlyList<Constraint> safe)
+    private void Check(string check, SourceSpan span, Path path, Expr culprit, IReadOnlyList<IReadOnlyList<Constraint>> failing, IReadOnlyList<Constraint> safe,
+        Expr? collection = null)
     {
         var outcome = OutcomeAt(check, span, culprit);
         var failed = false;
+
+        if (collection is not null && VariableOf(collection) is { } held && outcome.SharedWith.Count == 0)
+        {
+            var sharing = (path.Aliases.GetValueOrDefault(held) ?? []).Where(other => !other.StartsWith('$')).Order(StringComparer.Ordinal).ToList();
+            if (sharing.Count > 0 && failing.Any(@case => Solve(path.Constraints.AddRange(@case)).IsSatisfiable))
+            {
+                outcome.Collection = held;
+                outcome.SharedWith = sharing;
+            }
+        }
 
         foreach (var @case in failing)
         {

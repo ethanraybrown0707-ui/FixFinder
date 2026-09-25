@@ -501,8 +501,26 @@ public static class AbstractChecks
 
             var size = length.IsExact ? $"has {length.Low} item{(length.Low == 1 ? "" : "s")}" : $"has at most {length.High} items";
             Report("analysis-index-out-of-range", element.Span,
-                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {Failures.OutsideTheList(evaluator.Language)}",
+                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {Failures.OutsideTheList(evaluator.Language)}" +
+                SharedWith(element.Target, state),
                 Severity.Error, Confidence.Certain);
+        }
+
+        /// <summary>
+        /// When other names hold the same list - b after b = a - a change made through one of them may be why this one is
+        /// empty, and saying so turns a puzzling finding into an obvious one. The loop's own hidden copies are not named.
+        /// </summary>
+        private string SharedWith(Expr collection, AbstractState state)
+        {
+            if (collection is not Name { Identifier: var name }) return "";
+
+            var others = state.AliasesOf(name).Where(other => !other.StartsWith('$')).Order(StringComparer.Ordinal).ToList();
+            if (others.Count == 0) return "";
+
+            var named = string.Join(" and ", others.Select(other => $"`{other}`"));
+            return others.Count == 1
+                ? $". {named} is the same list as `{name}`, so a change made through {named} is made to `{name}` too"
+                : $". {named} are the same list as `{name}`, so a change made through any of them is made to `{name}` too";
         }
 
         private void CheckCall(Call call, AbstractState state)
@@ -521,7 +539,7 @@ public static class AbstractChecks
             if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
                 evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
             {
-                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}",
+                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
                     Severity.Error, Confidence.Certain);
             }
 

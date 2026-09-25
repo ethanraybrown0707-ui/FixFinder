@@ -70,7 +70,24 @@ public static class SymbolicChecks
         return refined;
     }
 
-    private static string Message(string check, SourceSpan span, Outcome outcome, SourceLanguage language, SourceText source)
+    private static string Message(string check, SourceSpan span, Outcome outcome, SourceLanguage language, SourceText source) =>
+        Failing(check, span, outcome, language, source) + SharedWith(outcome);
+
+    /// <summary>
+    /// When other names hold the same list on the failing path - b after b = a - a change made through one of them may be
+    /// why this one is empty, and saying so turns a puzzling finding into an obvious one.
+    /// </summary>
+    private static string SharedWith(Outcome outcome)
+    {
+        if (outcome.Collection is not { } name || outcome.SharedWith.Count == 0) return "";
+
+        var named = string.Join(" and ", outcome.SharedWith.Select(other => $"`{other}`"));
+        return outcome.SharedWith.Count == 1
+            ? $". {named} is the same list as `{name}`, so a change made through {named} is made to `{name}` too"
+            : $". {named} are the same list as `{name}`, so a change made through any of them is made to `{name}` too";
+    }
+
+    private static string Failing(string check, SourceSpan span, Outcome outcome, SourceLanguage language, SourceText source)
     {
         string Quote(Expr expression) => source.Of(expression.Span) is { Length: > 0 } text ? text : IrText.Of(expression);
 

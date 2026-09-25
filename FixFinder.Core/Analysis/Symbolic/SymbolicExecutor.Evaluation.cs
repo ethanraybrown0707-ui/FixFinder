@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Numerics;
 using FixFinder.Core.Analysis.Checks;
@@ -102,9 +103,46 @@ public sealed partial class SymbolicExecutor
         path.Truths = path.Truths.Remove(name);
     }
 
+    /// <summary>
+    /// A change to the collection a variable holds - made through it, or learned about it - which is as true of every
+    /// other variable holding the same collection. Giving a variable a new value is <see cref="Assign"/>.
+    /// </summary>
+    private void Changed(Path path, string name, SymbolicValue value)
+    {
+        Set(path, name, value);
+        foreach (var alias in path.Aliases.GetValueOrDefault(name) ?? []) Set(path, alias, value);
+    }
+
+    /// <summary>After b = a: b leaves whatever collection it shared before and shares a's, with every name already sharing it.</summary>
+    private static void Alias(Path path, string name, string of)
+    {
+        Unalias(path, name);
+
+        var group = (path.Aliases.GetValueOrDefault(of) ?? []).Add(of);
+        foreach (var member in group)
+            path.Aliases = path.Aliases.SetItem(member, (path.Aliases.GetValueOrDefault(member) ?? ImmutableHashSet.Create<string>(StringComparer.Ordinal)).Add(name));
+
+        path.Aliases = path.Aliases.SetItem(name, group.WithComparer(StringComparer.Ordinal));
+    }
+
+    /// <summary>A variable given a new value shares nothing with anyone any more.</summary>
+    private static void Unalias(Path path, string name)
+    {
+        if (!path.Aliases.TryGetValue(name, out var others)) return;
+
+        path.Aliases = path.Aliases.Remove(name);
+        foreach (var other in others)
+        {
+            if (!path.Aliases.TryGetValue(other, out var theirs)) continue;
+            var remaining = theirs.Remove(name);
+            path.Aliases = remaining.IsEmpty ? path.Aliases.Remove(other) : path.Aliases.SetItem(other, remaining);
+        }
+    }
+
     private static void Drop(Path path, IEnumerable<string> names)
     {
         var dropped = names.ToList();
+        foreach (var name in dropped) Unalias(path, name);
         path.Store = path.Store.RemoveRange(dropped);
         path.Truths = path.Truths.RemoveRange(dropped);
         path.Reassigned = path.Reassigned.Union(dropped);
@@ -220,7 +258,7 @@ public sealed partial class SymbolicExecutor
         var name = VariableOf(source);
         var origin = InputName(name, path) is not null ? SymbolOrigin.Parameter : SymbolOrigin.Outside;
         var made = new SymNumber(_symbols.New(name is null ? Subject(source) : $"`{name}`", origin, whole, name), whole);
-        if (name is not null) Set(path, name, made);
+        if (name is not null) Changed(path, name, made);
         return made;
     }
 
@@ -229,7 +267,7 @@ public sealed partial class SymbolicExecutor
     {
         var name = VariableOf(source);
         var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path, InputName(name, path)));
-        if (name is not null) Set(path, name, made);
+        if (name is not null) Changed(path, name, made);
         return made;
     }
 
@@ -317,7 +355,7 @@ public sealed partial class SymbolicExecutor
                 if (Choose(comparison, Condition.Either, path))
                 {
                     other = SymNull.Value;
-                    if (name is not null) Set(path, name, SymNull.Value);
+                    if (name is not null) Changed(path, name, SymNull.Value);
                     if (parameter is null) path.OutsideDecided = true;
                     else path.NullParameters = path.NullParameters.Add(parameter);
                     path.Facts = path.Facts.Add($"{Subject(tested)} is {NullWord}");
@@ -584,10 +622,10 @@ public sealed partial class SymbolicExecutor
 
         for (var i = 0; i < call.Arguments.Count && i < arguments.Count; i++)
             if (call.Arguments[i].Value is Name { Identifier: var passed } && arguments[i] is SymSequence sequence)
-                Set(path, passed, new SymSequence(sequence.Kind, ApproximateLength(path)));
+                Changed(path, passed, new SymSequence(sequence.Kind, ApproximateLength(path)));
 
         if (call.Callee is Member { Target: Name { Identifier: var owner } } && path.Store.GetValueOrDefault(owner) is SymSequence changed)
-            Set(path, owner, new SymSequence(changed.Kind, ApproximateLength(path)));
+            Changed(path, owner, new SymSequence(changed.Kind, ApproximateLength(path)));
     }
 
     private SymbolicValue Builtin(string function, Call call, Path path)
@@ -772,7 +810,7 @@ public sealed partial class SymbolicExecutor
 
         void Update(SymbolicValue changed)
         {
-            if (owner is not null) Set(path, owner, changed);
+            if (owner is not null) Changed(path, owner, changed);
         }
 
         switch (receiver)
@@ -801,7 +839,7 @@ public sealed partial class SymbolicExecutor
 
                 if (Taking.Contains(method) && arguments.Count == 0)
                 {
-                    Check("analysis-empty-collection", call.Span, path, member.Target, [[Constraint.Same(length, 0)]], [Constraint.AtLeast(length, 1)]);
+                    Check("analysis-empty-collection", call.Span, path, member.Target, [[Constraint.Same(length, 0)]], [Constraint.AtLeast(length, 1)], member.Target);
                     if (!Constrain(path, [Constraint.AtLeast(length, 1)])) throw new PathEnded();
 
                     if (!TakingWithoutRemoving.Contains(method)) Update(sequence with { Length = length - LinearTerm.Of(1), Items = null });
@@ -820,7 +858,7 @@ public sealed partial class SymbolicExecutor
                     case "Any" when arguments.Count == 0:
                         return new SymTruth(Condition.Of(Constraint.AtLeast(length, 1)));
                     case "get" when !IsPython && sequence.Kind is CollectionKind.List or CollectionKind.Array && arguments is [SymNumber { Whole: true } index]:
-                        CheckIndex(call.Span, length, index.Term, path, call.Arguments[0].Value);
+                        CheckIndex(call.Span, length, index.Term, path, call.Arguments[0].Value, member.Target);
                         return sequence.Items is { } listed && Position(index.Term, listed.Count) is { } at ? listed[at] : SymUnknown.Value;
                     case "copy" or "Copy" or "ToList" or "ToArray" or "clone":
                         return sequence;
@@ -855,7 +893,7 @@ public sealed partial class SymbolicExecutor
                     case "isEmpty" or "IsEmpty" when arguments.Count == 0:
                         return new SymTruth(Condition.Of(Constraint.Same(text.Length, 0)));
                     case "charAt" when arguments is [SymNumber { Whole: true } index]:
-                        CheckIndex(call.Span, text.Length, index.Term, path, call.Arguments[0].Value);
+                        CheckIndex(call.Span, text.Length, index.Term, path, call.Arguments[0].Value, member.Target);
                         return new SymNumber(ApproximateLength(path), true);
                     case "toCharArray" or "ToCharArray":
                         return new SymSequence(CollectionKind.List, text.Length);
@@ -907,12 +945,12 @@ public sealed partial class SymbolicExecutor
                 if (key is SymUnknown && VariableOf(element.Key) is not null) key = AsNumber(element.Key, key, path, true);
                 if (key is not SymNumber { Whole: true } index) return SymUnknown.Value;
 
-                CheckIndex(element.Span, sequence.Length, index.Term, path, element.Key);
+                CheckIndex(element.Span, sequence.Length, index.Term, path, element.Key, element.Target);
 
                 return sequence.Items is { } items && Position(index.Term, items.Count, IsPython) is { } at ? items[at] : SymUnknown.Value;
 
             case SymText text:
-                if (key is SymNumber { Whole: true } position) CheckIndex(element.Span, text.Length, position.Term, path, element.Key);
+                if (key is SymNumber { Whole: true } position) CheckIndex(element.Span, text.Length, position.Term, path, element.Key, element.Target);
                 return IsPython ? new SymText(1) : new SymNumber(ApproximateLength(path), true);
 
             default:
@@ -930,7 +968,7 @@ public sealed partial class SymbolicExecutor
         return at >= 0 && at < count ? at : null;
     }
 
-    private void CheckIndex(SourceSpan span, LinearTerm length, LinearTerm index, Path path, Expr culprit)
+    private void CheckIndex(SourceSpan span, LinearTerm length, LinearTerm index, Path path, Expr culprit, Expr collection)
     {
         if (!Failures.ReadingPastTheEndFails(_language)) return;
 
@@ -938,7 +976,7 @@ public sealed partial class SymbolicExecutor
 
         Check("analysis-index-out-of-range", span, path, culprit,
             [[Constraint.AtLeast(index, length)], [Constraint.Below(index, lowest)]],
-            [Constraint.AtLeast(index, lowest), Constraint.Below(index, length)]);
+            [Constraint.AtLeast(index, lowest), Constraint.Below(index, length)], collection);
 
         if (!Constrain(path, [Constraint.AtLeast(index, lowest), Constraint.Below(index, length)])) throw new PathEnded();
     }
@@ -1095,11 +1133,26 @@ public sealed partial class SymbolicExecutor
             case Name name:
                 if (!IsPython && value is SymUnknown && _declared.TryGetValue(name.Identifier, out var type))
                     value = FromType(type, source is null ? $"`{name.Identifier}`" : Subject(source), SymbolOrigin.Outside, path);
+
+                // items += more extends a Python list in place, where items = items + more makes a new one - and once
+                // lowered the two look alike. For a list other names share, neither is guessed: their lengths are forgotten.
+                if (IsPython && source is Binary { Left: Name { Identifier: var extended } } && extended == name.Identifier &&
+                    path.Aliases.ContainsKey(name.Identifier) && path.Store.GetValueOrDefault(name.Identifier) is SymSequence { Kind: CollectionKind.List } before)
+                {
+                    Changed(path, name.Identifier, before with { Length = ApproximateLength(path), Items = null });
+                }
+
+                Unalias(path, name.Identifier);
                 Set(path, name.Identifier, value);
                 path.Reassigned = path.Reassigned.Add(name.Identifier);
+
+                // b = a: both names now hold the one collection, so a change made through either is a change to both.
+                if (source is Name { Identifier: var of } && of != name.Identifier && value is SymSequence or SymUnknown && !_volatile.Contains(of))
+                    Alias(path, name.Identifier, of);
                 break;
 
             case Member field when FieldName(field) is { } named:
+                Unalias(path, named);
                 Set(path, named, value);
                 break;
 
@@ -1121,12 +1174,12 @@ public sealed partial class SymbolicExecutor
                 {
                     var grown = ApproximateLength(path);
                     path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(grown, dictionary.Length), Constraint.AtMost(grown, dictionary.Length + LinearTerm.Of(1))]);
-                    Set(path, owner, dictionary with { Length = grown });
+                    Changed(path, owner, dictionary with { Length = grown });
                 }
                 else if (container is SymSequence { Kind: CollectionKind.List or CollectionKind.Array } list && key is SymNumber { Whole: true } index)
                 {
-                    CheckIndex(element.Span, list.Length, index.Term, path, element.Key);
-                    if (VariableOf(element.Target) is { } listed && list.Items is not null) Set(path, listed, list with { Items = null });
+                    CheckIndex(element.Span, list.Length, index.Term, path, element.Key, element.Target);
+                    if (VariableOf(element.Target) is { } listed && list.Items is not null) Changed(path, listed, list with { Items = null });
                 }
 
                 break;

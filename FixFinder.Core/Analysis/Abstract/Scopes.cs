@@ -20,12 +20,17 @@ public static class Scopes
     private static bool SameFile(IrFunction a, IrFunction b) => string.Equals(a.Span.File, b.Span.File, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Collections that are aliased, stored, returned or handed to code FixFinder cannot see - after which their length
-    /// can change without this function saying so.
+    /// Collections that are stored, returned or handed to code FixFinder cannot see - after which their length can change
+    /// without this function saying so.
     /// </summary>
+    /// <remarks>
+    /// b = a between two of the function's own variables is not a way out: the evaluator follows both names as one
+    /// object. But it is one object, so if either name escapes, both do.
+    /// </remarks>
     public static HashSet<string> Escaping(IrFunction function)
     {
         var escaping = new HashSet<string>(StringComparer.Ordinal);
+        var sharing = new List<(string Name, string Of)>();
 
         void Visit(Expr expression, bool safe)
         {
@@ -76,6 +81,12 @@ public static class Scopes
                 case If or While or AssertThat or For:
                     foreach (var expression in IrWalk.Expressions(statement)) Visit(expression, true);
                     break;
+                case Assign { Target: Name { Identifier: var name }, Value: Name { Identifier: var of } }:
+                    sharing.Add((name, of));
+                    break;
+                case Declare { Variable: var name, Initial: Name { Identifier: var of } }:
+                    sharing.Add((name, of));
+                    break;
                 case Assign { Target: Name } assign:
                     Visit(assign.Value, false);
                     break;
@@ -86,6 +97,19 @@ public static class Scopes
                 default:
                     foreach (var expression in IrWalk.Expressions(statement)) Visit(expression, false);
                     break;
+            }
+        }
+
+        // An object escapes through any of its names.
+        for (var spreading = true; spreading;)
+        {
+            spreading = false;
+            foreach (var (name, of) in sharing)
+            {
+                if (escaping.Contains(name) == escaping.Contains(of)) continue;
+                escaping.Add(name);
+                escaping.Add(of);
+                spreading = true;
             }
         }
 
