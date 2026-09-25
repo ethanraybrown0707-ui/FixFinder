@@ -19,7 +19,11 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
     private enum Phase { Open, Closed, Held, Released, Untracked }
 
     /// <summary>Where a tracked variable is in its protocol, and the line that put it there.</summary>
-    private sealed record Mark(Phase Phase, int Line, SourceSpan At);
+    private sealed record Mark(Phase Phase, int Line, SourceSpan At)
+    {
+        /// <summary>Whether the file was opened for writing, so leaving it open can lose what was written.</summary>
+        public bool Writes { get; init; }
+    }
 
     private sealed class State : Dictionary<string, HashSet<Mark>>
     {
@@ -60,9 +64,17 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
 
         void Visit(Expr expression)
         {
-            if (expression is Call call)
-                foreach (var argument in call.Arguments)
-                    if (argument.Value is Name { Identifier: var passed }) handed.Add(passed);
+            // Handed to a call, which may close it - or to a new object, such as a BufferedReader around a FileReader,
+            // which owns it from then on and closes it when it is itself closed.
+            var arguments = expression switch
+            {
+                Call call => call.Arguments,
+                NewObject made => made.Arguments,
+                _ => [],
+            };
+
+            foreach (var argument in arguments)
+                if (argument.Value is Name { Identifier: var passed }) handed.Add(passed);
 
             foreach (var child in IrWalk.Children(expression)) Visit(child);
         }
@@ -140,7 +152,7 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
         {
             case AssignInstruction { Target: Name { Identifier: var name }, Value: var value } assign:
                 Uses(state, value, reporting);
-                if (Opens(value)) state[name] = [new Mark(Phase.Open, assign.Span.Line, assign.Span)];
+                if (Opens(value)) state[name] = [new Mark(Phase.Open, assign.Span.Line, assign.Span) { Writes = OpensForWriting(value) }];
                 else state.Remove(name);
                 break;
 
@@ -171,9 +183,61 @@ public sealed class Protocols(ControlFlowGraph graph, SourceLanguage language, F
             case Leave leave:
                 if (leave.Value is { } value) Uses(state, value, reporting);
                 if (reporting) StillHeld(state, leave);
+                if (reporting) StillOpen(state, leave);
                 break;
         }
     }
+
+    /// <summary>
+    /// Resource ownership: a file or stream this function opened belongs to it until it is closed or handed to other code
+    /// - returned, stored, given to a call or to an object that wraps it. One still open and still its own on a way out
+    /// of the function is never closed. Python's own top-level code is left out: the interpreter closes its files at exit.
+    /// </summary>
+    private void StillOpen(State state, Leave leave)
+    {
+        if (IsPython && graph.Function.Name == IrFunction.ModuleBody) return;
+
+        foreach (var (name, marks) in state)
+        {
+            if (name.StartsWith("monitor ", StringComparison.Ordinal) || _handedOn.Contains(name)) continue;
+
+            var everyWay = marks.All(m => m.Phase == Phase.Open);
+            foreach (var opened in marks.Where(m => m.Phase == Phase.Open))
+            {
+                if (!_reported.Add(opened.At)) continue;
+
+                var consequence = opened.Writes
+                    ? "so what was written to it may never reach the file"
+                    : "so the file stays open until the program ends";
+
+                report("analysis-resource-not-closed", opened.At,
+                    $"`{name}`, opened here, is still open {(everyWay ? "" : "on some ways ")}when the function returns on line {leave.Span.Line}, and nothing " +
+                    $"else was given it to close - {consequence}. {CloseAdvice}",
+                    IsPython ? Severity.Suggestion : Severity.Warning, Confidence.Likely);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether what opens a file opens it for writing: a writer or output stream, File.CreateText and its like, or Python's
+    /// open with a mode that writes, appends, creates or updates.
+    /// </summary>
+    private bool OpensForWriting(Expr value) => value switch
+    {
+        Call { Callee: Name { Identifier: "open" } } opened when IsPython =>
+            (opened.Arguments.FirstOrDefault(a => a.Name == "mode") ?? opened.Arguments.Where(a => a.Name is null).Skip(1).FirstOrDefault()) is
+                { Value: Literal { Value: string mode } } && mode.IndexOfAny(['w', 'a', 'x', '+']) >= 0,
+        NewObject { Type.Name: "FileWriter" or "BufferedWriter" or "FileOutputStream" or "PrintWriter" or "ObjectOutputStream" or "StreamWriter" or "BinaryWriter" } => true,
+        Call { Callee: Member { Target: Name { Identifier: "File" }, MemberName: "OpenWrite" or "CreateText" or "AppendText" or "Create" } } => true,
+        _ => false,
+    };
+
+    private string CloseAdvice => language switch
+    {
+        SourceLanguage.Python => "Open it with `with open(...) as f:`, which closes it however the function ends",
+        SourceLanguage.CSharp => "Declare it with `using`, which disposes of it however the method ends",
+        _ => "Open it in a try-with-resources - try (var reader = ...) { ... } - which closes it however the method ends",
+    };
 
     /// <summary>Calls that move a variable along its protocol: close, lock and unlock. False when the value is none of them.</summary>
     private bool Moves(State state, Expr value, BasicBlock block, bool reporting)

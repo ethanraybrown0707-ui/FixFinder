@@ -37,6 +37,7 @@ public static partial class FindingFactory
     {
         ("analysis-changed-while-looping", ".py" or ".pyw") => "logic-python-modified-while-looping",
         ("analysis-changed-while-looping", ".java" or ".cs") => "logic-modified-while-looping",
+        ("analysis-resource-not-closed", ".py" or ".pyw") => "logic-python-file-not-closed",
         _ => null,
     };
 

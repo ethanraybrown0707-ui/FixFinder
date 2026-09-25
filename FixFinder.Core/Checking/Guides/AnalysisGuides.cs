@@ -208,6 +208,15 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        Pattern(["analysis-resource-not-closed"], "A file that is never closed",
+            "The function opens a file and keeps it - nothing else is given it to close - but on this way out of the function it is never closed.",
+            "The file stays open until the program ends, and what was written to it may never be saved.",
+            "Open it with with, which closes it however the function ends.",
+            """
+            with open(path) as handle:
+                return handle.read()
+            """),
+
         AtEveryLevel(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",
             "A for loop walks through a list one position at a time. Taking an item out moves everything after it back one place, so the loop steps over the item that moved into the gap - and here the change is made under another name for the same list, or inside a function the loop calls, where it is easy to miss.",
             "The loop's collection is changed while the loop is still walking over it - through another name that holds the same collection, or in a function the loop calls. A list then skips or repeats items; a dictionary or set stops the loop with RuntimeError.",
@@ -607,6 +616,16 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-resource-not-closed"], "A file or stream that is never closed",
+            "The method opens a file or stream and keeps it - it is not returned, stored or wrapped in another stream - but on this way out of the method it is never closed.",
+            "A writer that is never closed may never write out what it holds, so the file is left empty or cut short; any stream left open holds on to the file.",
+            "Open it in a try-with-resources, which closes it however the method ends.",
+            """
+            try (FileWriter writer = new FileWriter("report.txt")) {
+                writer.write("total: " + total);
+            }
+            """),
+
         Pattern(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",
             "The loop's collection is changed while the for-each loop is still walking over it - through another name that holds the same collection, or in a method the loop calls.",
             "The loop can stop with a ConcurrentModificationException, often only for some data.",
@@ -828,6 +847,15 @@ internal static class AnalysisGuides
                     Move(money);
                 }
             }
+            """),
+
+        Pattern(["analysis-resource-not-closed"], "A file or stream that is never disposed of",
+            "The method opens a file or stream and keeps it - it is not returned, stored or wrapped in another stream - but on this way out of the method it is never disposed of.",
+            "A writer that is never disposed of may never write out what it holds, so the file is left empty or cut short; any stream left open holds on to the file.",
+            "Declare it with using, which disposes of it however the method ends.",
+            """
+            using var writer = new StreamWriter("report.txt");
+            writer.Write($"total: {total}");
             """),
 
         Pattern(["analysis-changed-while-looping"], "A collection changed while a loop walks over it",

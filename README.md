@@ -103,6 +103,11 @@ replace it. A variable's declared type also sets its range, so `b < 0` for a C# 
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
 
+**Resource ownership**: a file or stream a function opens is its own until it is closed or handed on - returned, stored,
+passed to a call, or wrapped in another stream, which owns it from then on (**escape analysis**). One still its own and
+still open on a way out of the function is never closed, and for a writer that can mean the file is left empty. Python's
+top-level code is left out: the interpreter closes its files when the program ends.
+
 **Aliasing** is followed: after `b = a`, both names hold the one list until either is given another value, so `b.clear()`
 empties `a` too - and a finding about `a` says that `b` is the same list. Where two ways through the code meet, two names
 share a list only if they do on both.
