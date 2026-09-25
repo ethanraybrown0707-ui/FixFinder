@@ -273,6 +273,7 @@ public static class AbstractChecks
             new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic),
                 ThreadClasses).Check();
             new ExceptionFlow(graph.Function, evaluator.Language, findings.Add).Check();
+            new LoopReasoning(graph.Function, evaluator.Language, findings.Add).Check();
             new MemorySafety(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence)).Check();
         }
 

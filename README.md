@@ -113,6 +113,15 @@ value only inside a `try` has none if the `try` failed before that line, so read
 `except` block that carries on without giving it one, raises `UnboundLocalError` - and a read behind a condition, which a
 flag set by the `try` may guard, is not claimed.
 
+**Loops** are reasoned about with **relations between variables**, settled by the constraint solver. A counted loop's
+counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 1` - so `a[i + 1]` is found past the end
+on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from
+`a.length`, or `a[i - 1]` on a Java loop's first time round. A while loop's **candidate invariants** - its condition's
+relation, such as `lo <= hi`, and the bounds its starting values give - are kept only when the solver shows them
+**inductive**: true on entry, and kept by every way through the body. Within them, a state that one time round leaves
+unchanged is a loop that never ends - the binary search that sets `lo = mid` gets stuck when `hi` is `lo + 1`, and the
+finding shows that state and the invariants that make it reachable.
+
 **Taint**: text the person running the program controls - what they type, the program's arguments, its environment -
 is followed through assignments, joining and formatting text, and the program's own functions in both directions, to
 where it becomes something that runs: `eval` and `exec`, a shell command, SQL. Turning it into a number ends it, and a

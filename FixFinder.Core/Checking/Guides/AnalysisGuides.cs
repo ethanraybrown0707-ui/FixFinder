@@ -208,6 +208,21 @@ internal static class AnalysisGuides
             self.lock = threading.RLock()
             """),
 
+        AtEveryLevel(["analysis-loop-can-get-stuck"], "A loop that can come back round with nothing changed",
+            "A loop ends when its variables move far enough - lo and hi meeting, say. Here there is a situation where going round once leaves them exactly where they were, so the next time round is the same as the last, and so is every one after it.",
+            "In the state shown, one way through the loop changes none of the variables its condition tests, so the loop repeats that same state for ever. FixFinder checked the state is one the loop can reach: it keeps every relation the loop's own code keeps.",
+            "A fixed point of the loop body's transition relation exists inside the loop's inductive invariants and its guard, so the loop does not terminate from that state.",
+            "The program hangs - often only for particular inputs, such as a two-item list in a binary search.",
+            "Make every way through the loop move its variables closer to the end - lo = mid + 1 rather than lo = mid.",
+            """
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if a[mid] < x:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            """),
+
         AtEveryLevel(["analysis-code-injection"], "Running what the user typed as code",
             "eval() treats the text it is given as a piece of Python and runs it. Here the text is whatever the person running the program typed - so they can type any Python at all, and it runs as if it were part of your program.",
             "Text the person running the program controls reaches eval() or exec(), which run it as Python code - with every permission the program has.",
@@ -686,6 +701,21 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-loop-can-get-stuck"], "A loop that can come back round with nothing changed",
+            "In the state shown, one way through the loop changes none of the variables its condition tests, so the loop repeats that same state for ever. FixFinder checked the state is one the loop can reach: it keeps every relation the loop's own code keeps.",
+            "The program hangs - often only for particular inputs, such as a two-item array in a binary search.",
+            "Make every way through the loop move its variables closer to the end - lo = mid + 1 rather than lo = mid.",
+            """
+            while (lo < hi) {
+                int mid = (lo + hi) / 2;
+                if (a[mid] < x) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+            """),
+
         Pattern(["analysis-command-injection"], "Running a command built from outside text",
             "The command line is built from text the person running the program controls - what they typed, or the program's arguments - so that text can add arguments of its own choosing.",
             "Whoever runs the program can change what the command does.",
@@ -966,6 +996,19 @@ internal static class AnalysisGuides
                 {
                     Move(money);
                 }
+            }
+            """),
+
+        Pattern(["analysis-loop-can-get-stuck"], "A loop that can come back round with nothing changed",
+            "In the state shown, one way through the loop changes none of the variables its condition tests, so the loop repeats that same state for ever. FixFinder checked the state is one the loop can reach: it keeps every relation the loop's own code keeps.",
+            "The program hangs - often only for particular inputs, such as a two-item array in a binary search.",
+            "Make every way through the loop move its variables closer to the end - lo = mid + 1 rather than lo = mid.",
+            """
+            while (lo < hi)
+            {
+                var mid = (lo + hi) / 2;
+                if (a[mid] < x) lo = mid + 1;
+                else hi = mid;
             }
             """),
 
