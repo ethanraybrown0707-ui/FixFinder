@@ -46,6 +46,9 @@ public partial class MainWindow : Window
 
     /// <summary>What the person chose last time they used FixFinder, read once when the window opens.</summary>
     private readonly Preferences _preferences = Preferences.Load();
+
+    /// <summary>What was found the last few times, so a report can say whether things are getting better.</summary>
+    private readonly CheckHistory _history = CheckHistory.Load();
     private Severity? _filter;
 
     /// <summary>Set instead of <see cref="_filter"/> when the reader wants only what would make the program quicker.</summary>
@@ -178,6 +181,10 @@ public partial class MainWindow : Window
             {
                 var report = await CheckOneAsync(row.Program.Entry, cancellation);
                 row.Finished(report?.Findings ?? []);
+
+                // A program checked as part of a folder was still checked, so it counts: the next look at that file on
+                // its own has something to be compared with.
+                if (report is not null) _history.Record(CheckRecord.Of(row.Program.Entry, report.Findings));
             }
             catch (OperationCanceledException)
             {
@@ -484,6 +491,7 @@ public partial class MainWindow : Window
         foreach (var note in report.Notes) _notes.Add(note);
 
         ShowFindings(report.Findings);
+        RememberThisCheck(report);
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
             report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime && f.FoundBy is null) ? LaneState.Failed : LaneState.Passed);
@@ -513,6 +521,27 @@ public partial class MainWindow : Window
     }
 
     private void OnFindingsChanged(IReadOnlyList<Finding> findings) => Dispatcher.BeginInvoke(() => ShowFindings(findings));
+
+    /// <summary>
+    /// Writes this check down and says how it compares with the last one of the same program.
+    /// </summary>
+    /// <remarks>
+    /// The comparison is the point of keeping any of it. Five problems is good news or bad news depending on what
+    /// there were before, and only the history knows which. Counts and times are kept, never code.
+    /// </remarks>
+    private void RememberThisCheck(CheckReport report)
+    {
+        if (_chosenPath is not { Length: > 0 } file) return;
+
+        var now = CheckRecord.Of(file, report.Findings);
+        var said = CheckHistory.Since(_history.LastTime(file), now);
+
+        SinceLastText.Text = said ?? "";
+        SinceLastText.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
+
+        // Recorded after the comparison, so this check is not compared with itself.
+        _history.Record(now);
+    }
 
     private void ShowFindings(IReadOnlyList<Finding> findings)
     {
