@@ -9,6 +9,12 @@ internal sealed class JavaAstReader(string file)
     private readonly List<IrFunction> _functions = [];
     private readonly List<IrClass> _classes = [];
 
+    /// <summary>The methods and lambdas being read, innermost on top: a lambda belongs to the one it is written in.</summary>
+    private readonly Stack<string> _enclosing = new();
+
+    /// <summary>The classes being read, innermost on top, for a lambda written in a field's initialiser rather than a method.</summary>
+    private readonly Stack<string> _owners = new();
+
     public (IReadOnlyList<IrFunction> Functions, IReadOnlyList<IrClass> Classes) ReadUnit(JsonElement unit)
     {
         foreach (var declaration in Items(unit, "typeDecls").Where(IsTypeDeclaration))
@@ -45,6 +51,7 @@ internal sealed class JavaAstReader(string file)
         var name = Text(node, "simpleName");
         var fields = new List<IrField>();
         var methods = new List<IrFunction>();
+        _owners.Push(name);
 
         foreach (var member in Items(node, "members"))
         {
@@ -69,24 +76,61 @@ internal sealed class JavaAstReader(string file)
         var bases = new[] { Field(node, "extendsClause") }.OfType<JsonElement>().Concat(Items(node, "implementsClause"))
             .Select(t => TypeOf(t).Name).ToList();
 
+        _owners.Pop();
         return new IrClass(Span(node), name, bases, fields, methods);
     }
 
     private IrFunction Function(JsonElement node, string owner)
     {
         var constructor = Text(node, "name") == "<init>";
-        var parameters = Items(node, "parameters")
-            .Select(p => new IrParameter(Span(p), Text(p, "name"), TypeOf(Field(p, "type"))))
-            .ToList();
-        var body = Field(node, "body") is { } block ? Block(block) : [];
+        var name = constructor ? owner : Text(node, "name");
+        var parameters = Parameters(node);
 
-        return new IrFunction(Span(node), constructor ? owner : Text(node, "name"), owner, parameters,
+        _enclosing.Push($"{owner}.{name}");
+        var body = Field(node, "body") is { } block ? Block(block) : [];
+        _enclosing.Pop();
+
+        return new IrFunction(Span(node), name, owner, parameters,
             constructor ? IrType.Nothing : TypeOf(Field(node, "returnType")), body)
         {
             IsStatic = HasModifier(node, "STATIC"),
             IsSynchronized = HasModifier(node, "SYNCHRONIZED"),
             IsConstructor = constructor,
         };
+    }
+
+    private List<IrParameter> Parameters(JsonElement node) =>
+        Items(node, "parameters").Select(p => new IrParameter(Span(p), Text(p, "name"), TypeOf(Field(p, "type")))).ToList();
+
+    /// <summary>
+    /// A lambda as a function of its own, enclosed by the method it is written in - as the C# reader does. The code a
+    /// thread runs is usually written as one, so a lambda nobody reads is a thread nobody checks.
+    /// </summary>
+    private IrFunction Lambda(JsonElement node)
+    {
+        var span = Span(node);
+        var name = $"lambda at line {span.Line}";
+        var enclosedBy = _enclosing.Count > 0 ? _enclosing.Peek() : null;
+        var owner = enclosedBy ?? (_owners.Count > 0 ? _owners.Peek() : null);
+
+        _enclosing.Push(owner is null ? name : $"{owner}.{name}");
+        IReadOnlyList<Stmt> body = Field(node, "body") is not { } written ? []
+            : Kind(written) == "BLOCK" ? Block(written)
+            : [new Return(Span(written), Expression(written))];
+        _enclosing.Pop();
+
+        var lambda = new IrFunction(span, name, owner, Parameters(node), IrType.Unknown, body) { EnclosedBy = enclosedBy };
+        return lambda with { OuterNames = Captured(lambda) };
+    }
+
+    /// <summary>The names a lambda uses from the code around it. Java only lets it read the method's variables, never change them.</summary>
+    private static List<string> Captured(IrFunction lambda)
+    {
+        var own = IrWalk.LocalNames(lambda, assigningDeclares: false);
+        return IrWalk.Statements(lambda.Body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Names)
+            .Where(n => n != "this" && !own.Contains(n))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
     }
 
     private IReadOnlyList<Stmt> Block(JsonElement node) => Statements(node).ToList();
@@ -168,7 +212,7 @@ internal sealed class JavaAstReader(string file)
                 break;
 
             case "SYNCHRONIZED":
-                yield return new Using(span, Expression(Field(node, "expression")!.Value), null, Optional(node, "block"));
+                yield return new Using(span, Expression(Field(node, "expression")!.Value), null, Optional(node, "block")) { Purpose = UsingPurpose.Lock };
                 break;
 
             case "EMPTY_STATEMENT":
@@ -209,8 +253,8 @@ internal sealed class JavaAstReader(string file)
         foreach (var resource in Items(node, "resources").Reverse())
         {
             body = Kind(resource) == "VARIABLE"
-                ? [new Using(span, Expression(Field(resource, "initializer")!.Value), new Name(Span(resource), Text(resource, "name")), body)]
-                : [new Using(span, Expression(resource), null, body)];
+                ? [new Using(span, Expression(Field(resource, "initializer")!.Value), new Name(Span(resource), Text(resource, "name")), body) { Purpose = UsingPurpose.Resource }]
+                : [new Using(span, Expression(resource), null, body) { Purpose = UsingPurpose.Resource }];
         }
 
         var handlers = Items(node, "catches").Select(Catch).ToList();
@@ -338,6 +382,7 @@ internal sealed class JavaAstReader(string file)
                 return Opaque.Of(span, "instanceof", Expression(Field(node, "expression")!.Value));
 
             case "LAMBDA_EXPRESSION":
+                _functions.Add(Lambda(node));
                 return Opaque.Of(span, "lambda expression");
 
             case "MEMBER_REFERENCE":

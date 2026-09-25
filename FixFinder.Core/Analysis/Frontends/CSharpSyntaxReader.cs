@@ -284,7 +284,7 @@ internal sealed class CSharpSyntaxReader(string file)
         foreach (var variable in declaration.Variables.Reverse())
         {
             var resource = variable.Initializer is { } initial ? Initial(initial.Value, type) : Opaque.Of(Span(variable), "resource");
-            body = [new Using(span, resource, new Name(Span(variable.Identifier.GetLocation()), variable.Identifier.ValueText), body)];
+            body = [new Using(span, resource, new Name(Span(variable.Identifier.GetLocation()), variable.Identifier.ValueText), body) { Purpose = UsingPurpose.Resource }];
         }
 
         foreach (var variable in declaration.Variables)
@@ -323,8 +323,9 @@ internal sealed class CSharpSyntaxReader(string file)
             ],
             SwitchStatementSyntax choice => [new Switch(span, Expression(choice.Expression), choice.Sections.Select(Section).ToList())],
             UsingStatementSyntax { Declaration: { } resources } used => Used(resources, span, Body(used.Statement)),
-            UsingStatementSyntax used => [new Using(span, used.Expression is { } resource ? Expression(resource) : Opaque.Of(span, "resource"), null, Body(used.Statement))],
-            LockStatementSyntax locked => [new Using(span, Expression(locked.Expression), null, Body(locked.Statement))],
+            UsingStatementSyntax used => [new Using(span, used.Expression is { } resource ? Expression(resource) : Opaque.Of(span, "resource"), null, Body(used.Statement))
+                { Purpose = UsingPurpose.Resource }],
+            LockStatementSyntax locked => [new Using(span, Expression(locked.Expression), null, Body(locked.Statement)) { Purpose = UsingPurpose.Lock }],
             CheckedStatementSyntax checkedBlock => Block(checkedBlock.Block.Statements),
             UnsafeStatementSyntax unsafeBlock => Block(unsafeBlock.Block.Statements),
             FixedStatementSyntax pinned => [.. Declared(pinned.Declaration), .. Body(pinned.Statement)],

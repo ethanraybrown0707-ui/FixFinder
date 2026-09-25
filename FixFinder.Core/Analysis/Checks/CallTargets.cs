@@ -32,7 +32,56 @@ public sealed class CallTargets(IrProgram program)
 
     private readonly ILookup<string, IrClass> _classes = program.Classes.ToLookup(c => c.Name, StringComparer.Ordinal);
 
+    private readonly ILookup<string, IrFunction> _byFullName = program.AllFunctions.ToLookup(f => f.FullName, StringComparer.Ordinal);
+
     private bool IsPython => program.Language == SourceLanguage.Python;
+
+    /// <summary>
+    /// The function a lambda or nested function is written in. Overloads share a name, so it is the one whose code
+    /// contains this one's.
+    /// </summary>
+    public IrFunction? Enclosing(IrFunction function)
+    {
+        if (function.EnclosedBy is not { } outer) return null;
+
+        var named = _byFullName[outer].Where(f => !ReferenceEquals(f, function)).ToList();
+        return named.FirstOrDefault(f => Contains(f.Span, function.Span)) ?? (named.Count == 1 ? named[0] : null);
+    }
+
+    private static bool Contains(SourceSpan outer, SourceSpan inner) =>
+        outer.File == inner.File && (outer.Line, outer.Column).CompareTo((inner.Line, inner.Column)) <= 0 &&
+        (outer.EndLine, outer.EndColumn).CompareTo((inner.EndLine, inner.EndColumn)) >= 0;
+
+    /// <summary>
+    /// The class whose methods a function calls by name or on this and self: its own, or - for a lambda or a function
+    /// written inside a method - the class of that method, whose object it still has.
+    /// </summary>
+    public string? ClassOf(IrFunction function)
+    {
+        if (_classOf.TryGetValue(function, out var known)) return known;
+
+        string? found = null;
+        var current = function;
+
+        for (var depth = 0; current is not null && depth < MostNesting; depth++)
+        {
+            if (current.Owner is { } owner && _classes[owner].Any())
+            {
+                found = owner;
+                break;
+            }
+
+            current = Enclosing(current);
+        }
+
+        return _classOf[function] = found;
+    }
+
+    /// <summary>Worked out once per function: every call a function makes asks, and abstract interpretation asks on every pass.</summary>
+    private readonly Dictionary<IrFunction, string?> _classOf = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>Lambdas inside lambdas are rarely more than a few deep; this only stops a malformed program looping.</summary>
+    private const int MostNesting = 32;
 
     public CallTarget? Resolve(Call call, IrFunction caller, IReadOnlySet<string> callerLocals)
     {
@@ -55,9 +104,9 @@ public sealed class CallTargets(IrProgram program)
                 if (program.Language == SourceLanguage.Go)
                     return Single(_topLevel[name].Where(f => f.Parameters.Count == arguments)) is { } packaged ? new CallTarget(packaged, false) : null;
 
-                return caller.Owner is { } within ? Method(within, name, arguments, bound: false) : null;
+                return ClassOf(caller) is { } within ? Method(within, name, arguments, bound: false) : null;
 
-            case Member { Target: Name { Identifier: "self" or "cls" or "this" }, MemberName: var method } when caller.Owner is { } owner:
+            case Member { Target: Name { Identifier: "self" or "cls" or "this" }, MemberName: var method } when ClassOf(caller) is { } owner:
                 return Method(owner, method, arguments, bound: IsPython);
 
             case Member { Target: Name { Identifier: var type }, MemberName: var method } when !callerLocals.Contains(type) && _classes[type].Any():

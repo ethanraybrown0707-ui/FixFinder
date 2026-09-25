@@ -111,8 +111,18 @@ used, and a lock that is taken must be released on every way out of the function
 | An update two threads can lose | `count++` in a `Runnable` given to two threads, `total += x` in a `Parallel.For` body |
 | A flag a thread may never see change (the memory model) | `while (running)` on a field that is not `volatile` |
 | Locks taken in opposite orders | `synchronized (a) { synchronized (b) ... }` in one place, `b` then `a` in another |
+| Locks taken round a circle, of any length | `first` then `second`, `second` then `third`, `third` then `first` - three threads, one at each |
+| A Python `Lock` taken again by the thread holding it | `with self.lock:` around a call to a method that takes `self.lock` too |
 | `wait` or `notify` without its lock, or `wait` outside a loop | `wait()` in a method that is not `synchronized` |
 | `run()` called instead of `start()` | `worker.run()`, which runs the work on the calling thread |
+
+Deadlocks are found in a **lock-order graph**: an edge from one lock to another wherever the second is taken while the
+first is held, including inside a function called while it is held - with that function's parameters replaced by what
+the call passes, so `transfer(a, b)` on one thread and `transfer(b, a)` on another are seen to take the same two locks
+in opposite orders. Any cycle in the graph is a possible deadlock, however many locks it goes through, but only when
+threads could be at all its places at once: a lock held around all of them lets one thread in at a time, and the main
+thread cannot be at two places together, so neither is reported. Java's and C#'s locks can be taken again by the thread
+holding them; a Python `threading.Lock` cannot, which is why taking one twice is a deadlock with no second thread.
 
 Each language keeps its own rules, and a finding says what that language actually does:
 

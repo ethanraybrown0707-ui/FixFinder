@@ -42,8 +42,18 @@ public sealed record SwitchCase(IReadOnlyList<Expr> Labels, IReadOnlyList<Stmt> 
 
 public sealed record Switch(SourceSpan Span, Expr Subject, IReadOnlyList<SwitchCase> Cases) : Stmt(Span);
 
-/// <summary>A resource used for a block and closed after it: Python's <c>with</c>, C#'s <c>using</c>, Java's try-with-resources.</summary>
-public sealed record Using(SourceSpan Span, Expr Resource, Expr? Variable, IReadOnlyList<Stmt> Body) : Stmt(Span);
+/// <summary>What a <see cref="Using"/> block is for: a lock held while it runs, a resource closed after it, or - Python's with - either.</summary>
+public enum UsingPurpose { Either, Lock, Resource }
+
+/// <summary>
+/// A resource used for a block and closed after it - Python's <c>with</c>, C#'s <c>using</c>, Java's try-with-resources -
+/// or a lock held for one: Java's <c>synchronized</c>, C#'s <c>lock</c>.
+/// </summary>
+public sealed record Using(SourceSpan Span, Expr Resource, Expr? Variable, IReadOnlyList<Stmt> Body) : Stmt(Span)
+{
+    /// <summary>Whether the language says which it is. A C# using is never a lock, however much it looks like one.</summary>
+    public UsingPurpose Purpose { get; init; }
+}
 
 /// <summary>A statement the front end could not represent; the names it may change are forgotten.</summary>
 public sealed record OpaqueStmt(SourceSpan Span, string What, IReadOnlyList<string> MayAssign, IReadOnlyList<Expr> Parts) : Stmt(Span);

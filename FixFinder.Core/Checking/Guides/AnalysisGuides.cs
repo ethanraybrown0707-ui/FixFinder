@@ -185,6 +185,29 @@ internal static class AnalysisGuides
                     move(money)
             """),
 
+        AtEveryLevel(["analysis-lock-cycle"], "Locks taken round a circle",
+            "Picture people round a table, each holding one fork and waiting for the fork of the person beside them. Nobody lets go, so nobody ever eats. FixFinder found places in the program that take locks in an order that goes all the way round like that: each one holds a lock the next one is waiting for.",
+            "Each of these places takes a lock while holding another, and following them round comes back to the first lock. With a thread at each place, every thread holds the lock the next one needs, and all of them wait for ever.",
+            "The lock-order graph has a cycle whose edges no common lock guards, so one thread per edge can each block on the lock held by the next.",
+            "The program freezes - a deadlock - and only when the threads' timing lines up, so it can pass every test and still hang.",
+            "Give the locks one order and take them in that order everywhere - for example, always the lower-numbered one first.",
+            """
+            first, second = sorted([left, right], key=id)
+            with first:
+                with second:
+                    eat()
+            """),
+
+        AtEveryLevel(["analysis-lock-reacquired"], "A lock taken again by the thread holding it",
+            "A Lock is like a key only one person can hold at a time. This thread already has the key, and then waits for it to be handed over - but the only one who could hand it over is the thread itself, so it waits for ever.",
+            "This thread already holds the lock, and here it tries to take it again. A threading.Lock cannot be taken twice, even by the thread holding it, so the thread waits for itself and never goes on.",
+            "threading.Lock is not reentrant: acquire() by the owning thread blocks until a release() that thread can never reach - a deadlock with no second thread.",
+            "The program hangs at this line whenever it gets here, with no error message.",
+            "Use threading.RLock, which the thread holding it can take again, or arrange for the lock to be taken only once.",
+            """
+            self.lock = threading.RLock()
+            """),
+
         Pattern(["analysis-run-not-start"], "run() called instead of start()",
             "Calling run() does the thread's work right here, on the thread that calls it, and waits for it to finish.",
             "Nothing runs at the same time, so the program is slower than it should be and never actually uses the thread.",
@@ -535,6 +558,20 @@ internal static class AnalysisGuides
             }
             """),
 
+        Pattern(["analysis-lock-cycle"], "Locks taken round a circle",
+            "Each of these places takes a lock while holding another, and following them round comes back to the first lock. With a thread at each place, every thread holds the lock the next one needs, and all of them wait for ever.",
+            "The program freezes - a deadlock - and only when the threads' timing lines up, so it can pass every test and still hang.",
+            "Give the locks one order and take them in that order everywhere - for example, by an id each object has.",
+            """
+            Account first = a.id < b.id ? a : b;
+            Account second = a.id < b.id ? b : a;
+            synchronized (first) {
+                synchronized (second) {
+                    move(money);
+                }
+            }
+            """),
+
         Pattern(["analysis-wait-without-lock"], "wait or notify without its lock",
             "wait(), notify() and notifyAll() must be called while holding the lock of the object they are called on, and here that lock is not held.",
             "The call throws an IllegalMonitorStateException every time.",
@@ -703,6 +740,22 @@ internal static class AnalysisGuides
             "The program freezes - a deadlock - and only sometimes, when the timing lines up.",
             "Always take the locks in the same order everywhere.",
             """
+            lock (first)
+            {
+                lock (second)
+                {
+                    Move(money);
+                }
+            }
+            """),
+
+        Pattern(["analysis-lock-cycle"], "Locks taken round a circle",
+            "Each of these places takes a lock while holding another, and following them round comes back to the first lock. With a thread at each place, every thread holds the lock the next one needs, and all of them wait for ever.",
+            "The program freezes - a deadlock - and only when the threads' timing lines up, so it can pass every test and still hang.",
+            "Give the locks one order and take them in that order everywhere - for example, by an Id each object has.",
+            """
+            var first = a.Id < b.Id ? a : b;
+            var second = a.Id < b.Id ? b : a;
             lock (first)
             {
                 lock (second)

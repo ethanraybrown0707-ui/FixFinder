@@ -6,8 +6,8 @@ namespace FixFinder.Core.Analysis.Checks;
 /// <summary>
 /// Concurrency, as the memory model sees it: the code that threads run, found from where the program starts them, and
 /// what that code does to state other threads share. It finds updates two threads can lose, flags a thread may never see
-/// change, locks taken in opposite orders, wait and notify without the lock they need, and run() called where start()
-/// was meant.
+/// change, locks taken in orders that go round in a circle (see <see cref="LockOrder"/>), wait and notify without the
+/// lock they need, and run() called where start() was meant.
 /// </summary>
 public sealed class Concurrency(IrProgram program, SourceText source)
 {
@@ -32,7 +32,7 @@ public sealed class Concurrency(IrProgram program, SourceText source)
         var bodies = Bodies();
         foreach (var body in bodies) LostUpdates(body);
         foreach (var body in bodies) StaleReads(body);
-        LockOrder();
+        _findings.AddRange(new LockOrder(program, source, new HashSet<IrFunction>(bodies.Select(b => b.Function), ReferenceEqualityComparer.Instance)).Check());
         var underLock = CalledUnderLock();
         foreach (var function in program.AllFunctions.Where(f => !underLock.Contains(f.FullName) && f.Name is not ("wait" or "notify" or "notifyAll")))
             WaitAndNotify(function);
@@ -57,7 +57,7 @@ public sealed class Concurrency(IrProgram program, SourceText source)
                     While loop => ((IEnumerable<Stmt>)loop.Body, locks),
                     For loop => (loop.Body.Concat(loop.Step), locks),
                     ForEach loop => (loop.Body, locks),
-                    Using { Variable: null } used when LockKey(used.Resource) is { } key => (used.Body, (IReadOnlyList<string>)[.. locks, key]),
+                    Using used when LockOrder.IsLockRegion(used) && LockKey(used.Resource) is { } key => (used.Body, (IReadOnlyList<string>)[.. locks, key]),
                     _ => (null, locks),
                 };
 
@@ -306,31 +306,6 @@ public sealed class Concurrency(IrProgram program, SourceText source)
         Assign { Target: Member { Target: Name { Identifier: "this" }, MemberName: var field } } => field == name,
         _ => false,
     };
-
-    /// <summary>Deadlock by lock order: somewhere a takes b while holding a, and somewhere else b is taken with a held.</summary>
-    private void LockOrder()
-    {
-        var pairs = new List<(string Outer, string Inner, SourceSpan At)>();
-
-        foreach (var function in program.AllFunctions)
-        {
-            foreach (var place in Places(function))
-            {
-                if (place.Statement is not Using { Variable: null } used || LockKey(used.Resource) is not { } inner) continue;
-                foreach (var outer in place.Locks.Where(o => o != inner)) pairs.Add((outer, inner, used.Span));
-            }
-        }
-
-        foreach (var (outer, inner, at) in pairs)
-        {
-            var other = pairs.FirstOrDefault(p => p.Outer == inner && p.Inner == outer).At;
-            if (other is null) continue;
-
-            Report("analysis-lock-order", at,
-                $"This takes `{inner}` while holding `{outer}`, but line {other.Line} takes `{outer}` while holding `{inner}` - two threads doing both can wait for each other for ever",
-                Severity.Warning, Confidence.Likely);
-        }
-    }
 
     /// <summary>wait and notify need the lock of the object they are called on; wait belongs in a loop that checks the condition again.</summary>
     private void WaitAndNotify(IrFunction function)
