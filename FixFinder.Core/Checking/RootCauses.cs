@@ -71,6 +71,10 @@ public static partial class RootCauses
 
             foreach (var (finding, index, _) in members.Skip(1))
             {
+                // Two reports of the same mistake in the same place are the same finding. Saying one follows from the
+                // other would tell the reader to fix the line they are already looking at.
+                if (string.Equals(finding.Id, root.Id, StringComparison.Ordinal)) continue;
+
                 // Certain of the relationship, which is not a claim about the finding itself: both name the same
                 // undefined thing in the same file, so one definition settles both.
                 linked[index] = finding with { CausedBy = new Relation(root.Id, RelationKind.SameMissingName, Confidence.Certain) };
@@ -80,28 +84,43 @@ public static partial class RootCauses
         return Ordered(linked);
     }
 
-    /// <summary>Roots first, then what follows from them, then everything else as it was.</summary>
+    /// <summary>
+    /// Roots first, then what follows from them, then everything else as it was.
+    /// </summary>
+    /// <remarks>
+    /// Which finding has been placed is tracked by where it sits, not by what it is called. Two findings can share a
+    /// name - same file, same line, same rule, same title - and treating the name as the finding drops one of them,
+    /// which is the one thing rearranging a report must never do.
+    /// </remarks>
     private static IReadOnlyList<Finding> Ordered(IReadOnlyList<Finding> findings)
     {
-        var following = findings.Where(f => f.CausedBy is not null).ToLookup(f => f.CausedBy!.RootId, StringComparer.Ordinal);
-        if (following.Count == 0) return findings;
+        if (findings.All(finding => finding.CausedBy is null)) return findings;
 
-        var placed = new List<Finding>();
-        var done = new HashSet<string>(StringComparer.Ordinal);
+        var placed = new List<Finding>(findings.Count);
+        var taken = new bool[findings.Count];
 
-        foreach (var finding in findings)
+        for (var root = 0; root < findings.Count; root++)
         {
-            if (finding.CausedBy is not null || !done.Add(finding.Id)) continue;
+            if (taken[root] || findings[root].CausedBy is not null) continue;
 
-            placed.Add(finding);
-            foreach (var follower in following[finding.Id])
+            taken[root] = true;
+            placed.Add(findings[root]);
+
+            for (var follower = 0; follower < findings.Count; follower++)
             {
-                if (done.Add(follower.Id)) placed.Add(follower);
+                if (taken[follower] || findings[follower].CausedBy?.RootId != findings[root].Id) continue;
+
+                taken[follower] = true;
+                placed.Add(findings[follower]);
             }
         }
 
-        // Anything whose root is not in this report keeps its place rather than disappearing.
-        placed.AddRange(findings.Where(f => !done.Contains(f.Id)));
+        // Anything whose cause is not in this report keeps its place rather than disappearing.
+        for (var left = 0; left < findings.Count; left++)
+        {
+            if (!taken[left]) placed.Add(findings[left]);
+        }
+
         return placed;
     }
 
