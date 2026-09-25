@@ -221,12 +221,43 @@ permissions selected** raises those limits; FixFinder only reads public data, so
 encrypted with Windows DPAPI under your account, and responses are cached as plain JSON under
 `%LOCALAPPDATA%\FixFinder\cache`. Settings shows what is stored where, and which languages this computer can run.
 
+## From your editor
+
+`fixfinder` runs the same check from a terminal or from any editor's task, and prints each finding as one line in the
+format compilers use - so the findings land in the editor's own list of problems, and a click goes to the line. Nothing
+has to be installed into the editor.
+
+```
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll marks.py
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68" --level beginner
+```
+
+| | |
+|---|---|
+| `--format msbuild` | The default. The format Visual Studio and Rider use, and the one VS Code's built-in `$msCompile` reads - checked against that matcher's pattern, copied from VS Code's source, in `CommandLineTests`. |
+| `--format gcc` | `file:line:column: error: message`, for tools that expect gcc's form, Eclipse among them. A suggestion is a `note`, since gcc's form has no word for it. |
+| `--format json` | Everything each finding says, for another program to use. |
+| `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
+| `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
+
+It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
+findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a
+problem. It exits with 0 when nothing is wrong, 1 when there is at least one error - so a build step can stop on it - and
+2 when the program could not be checked at all. The language versions chosen in Settings apply here too.
+
+**VS Code:** copy `Editors/vscode-tasks.json` into your project's `.vscode/tasks.json` and change the path to
+`fixfinder.dll`. *Terminal → Run Task → FixFinder: check this file* checks whatever file is open.
+
+**Eclipse, Visual Studio, and anything else with external tools:** add `dotnet` as an external tool with the path to
+`fixfinder.dll` and the current file as its arguments, choosing `--format gcc` where the tool reads gcc's form.
+
 ## Layout
 
 | Project | |
 |---|---|
 | `FixFinder.Core` | Everything but the window. `net8.0`, so the tests run without a desktop. |
 | `FixFinder.Gui` | The WPF window. |
+| `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |
 
