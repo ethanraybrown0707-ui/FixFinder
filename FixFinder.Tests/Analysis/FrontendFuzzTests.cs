@@ -36,8 +36,12 @@ public class FrontendFuzzTests(ITestOutputHelper output) : IDisposable
     private static readonly int SeedOffset =
         int.TryParse(Environment.GetEnvironmentVariable("FIXFINDER_FUZZ_SEED"), out var offset) ? offset : 0;
 
-    /// <summary>Far longer than any honest parse takes. A parse still going after this is stuck, not slow.</summary>
-    private static readonly TimeSpan LongestParse = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Far longer than any honest parse takes - they take milliseconds - so a parse still going after this is stuck, not
+    /// slow. Generous on purpose: a real hang never ends, so a longer limit loses nothing in catching one, and a limit
+    /// tuned to this machine's speed only turns a slower machine's ordinary pace into a failure.
+    /// </summary>
+    private static readonly TimeSpan LongestParse = TimeSpan.FromSeconds(30);
 
     private readonly TempFolder _temp = new();
 
@@ -163,7 +167,18 @@ public class FrontendFuzzTests(ITestOutputHelper output) : IDisposable
         var failures = new List<string>();
         var index = 0;
 
-        foreach (var original in seeds)
+        // How long each case took, so a reader that is slow but not yet stuck shows up before it becomes a timeout on a
+        // slower machine - which is how a pathological input first shows itself.
+        var slowest = new List<(double Milliseconds, int Case, string What)>();
+
+        // Each starting program twice: with Unix line endings and with Windows ones, set here rather than inherited. The
+        // programs are written inside this file, and a fresh Windows checkout gives it CRLF where this copy has LF - so
+        // left to the checkout, the same seed damaged different programs on different machines, and "seed 1972, case 7"
+        // named a different program on CI than here. Setting the endings makes the seed mean the same thing everywhere,
+        // and doing both covers what students on Windows actually hand in.
+        var starts = seeds.SelectMany(program => new[] { program.ReplaceLineEndings("\n"), program.ReplaceLineEndings("\r\n") });
+
+        foreach (var original in starts)
         {
             var source = original;
 
@@ -178,12 +193,22 @@ public class FrontendFuzzTests(ITestOutputHelper output) : IDisposable
                 var file = Path.Combine(_temp.Path, $"case{index}{extension}");
                 await File.WriteAllTextAsync(file, source, Encoding.UTF8);
 
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 var trouble = await TryAsync(file, read);
+                clock.Stop();
+
+                slowest.Add((clock.Elapsed.TotalMilliseconds, index, what));
+
                 if (trouble is null) continue;
 
                 var shown = source.Length > 160 ? source[..160] + "…" : source;
                 failures.Add($"seed {seed}, case {index} ({what}): {trouble}\n    {shown.Replace("\n", "\n    ")}");
             }
+        }
+
+        foreach (var (milliseconds, slowCase, what) in slowest.OrderByDescending(s => s.Milliseconds).Take(3))
+        {
+            output.WriteLine($"slowest: seed {seed}, case {slowCase} ({what}) took {milliseconds:0} ms");
         }
 
         return failures;
@@ -192,39 +217,53 @@ public class FrontendFuzzTests(ITestOutputHelper output) : IDisposable
     /// <summary>What went wrong with one case, or null when the parser and the analyses behaved.</summary>
     private static async Task<string?> TryAsync(string file, Func<IReadOnlyList<string>, Task<IrProgram>> read)
     {
-        IrProgram program;
+        var (program, readingTrouble) = await TimedAsync(() => read([file]), "reading it");
+        if (readingTrouble is not null) return readingTrouble;
+
+        var (_, analysingTrouble) = await TimedAsync(() =>
+        {
+            AbstractChecks.Run(program!, new SourceText());
+            PerformanceChecks.Run(program!, new SourceText());
+            return Task.FromResult(true);
+        }, "the analyses of what it read");
+
+        return analysingTrouble;
+    }
+
+    /// <summary>
+    /// Runs one piece of work, and says what went wrong if it threw or never came back.
+    /// </summary>
+    /// <remarks>
+    /// The clock starts when the work does, not when it is handed over. The suite runs these alongside tests that
+    /// compile and run whole programs, and on a busy CI runner a job that takes a millisecond can wait a long time for a
+    /// thread to run on: counted from the hand-over, two such jobs once looked like ten-second hangs (CI run on 33b1c7b,
+    /// 2026-09-25) when the same programs, reproduced exactly, finished in a millisecond here. Waiting for a thread is the
+    /// machine being busy, not the reader being stuck.
+    /// </remarks>
+    private static async Task<(T? Value, string? Trouble)> TimedAsync<T>(Func<Task<T>> work, string what)
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var running = Task.Run(() =>
+        {
+            started.TrySetResult();
+            return work();
+        });
+
+        await started.Task;
 
         try
         {
-            program = await Task.Run(() => read([file])).WaitAsync(LongestParse);
+            return (await running.WaitAsync(LongestParse), null);
         }
         catch (TimeoutException)
         {
-            return $"reading it did not finish within {LongestParse.TotalSeconds:0} seconds";
+            return (default, $"{what} was still going {LongestParse.TotalSeconds:0} seconds after it started");
         }
         catch (Exception ex)
         {
-            return $"reading it threw {ex.GetType().Name}: {ex.Message}{Where(ex)}";
+            return (default, $"{what} threw {ex.GetType().Name}: {ex.Message}{Where(ex)}");
         }
-
-        try
-        {
-            await Task.Run(() =>
-            {
-                AbstractChecks.Run(program, new SourceText());
-                PerformanceChecks.Run(program, new SourceText());
-            }).WaitAsync(LongestParse);
-        }
-        catch (TimeoutException)
-        {
-            return $"the analyses of what it read did not finish within {LongestParse.TotalSeconds:0} seconds";
-        }
-        catch (Exception ex)
-        {
-            return $"the analyses of what it read threw {ex.GetType().Name}: {ex.Message}{Where(ex)}";
-        }
-
-        return null;
     }
 
     /// <summary>The innermost line of FixFinder's own code the exception came from, so a failure says where to look.</summary>
@@ -254,6 +293,7 @@ public class FrontendFuzzTests(ITestOutputHelper output) : IDisposable
     {
         Report(await AttackAsync([C[0]], ".c", files => CFrontend.ReadAsync(files), seed: 1972));
     }
+
 
     [Fact]
     public async Task TheCppReaderSurvivesAnythingItIsGiven()
