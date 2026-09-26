@@ -327,7 +327,12 @@ Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a ge
 
 Each check is written to stay quiet when it is not sure, because a check that fires on correct code teaches people to
 ignore it. The newest checks were run over large bodies of working code - Python's standard library, part of the JDK's
-own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test.
+own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test. So are
+thirty-three correct programs written the way each language is really written - Python dataclasses, match statements
+and threads; Java records, streams and executors; C# LINQ and pattern matching; JavaScript classes, prototypes and
+async functions; C that manages its own memory; C++ templates, lambdas and RAII; Go generics and goroutines - each of
+which must be read whole and draw no error or warning, beside programs split into modules whose mistakes cross from
+one file to another and must be found where the call is made.
 
 ## Searching online
 
