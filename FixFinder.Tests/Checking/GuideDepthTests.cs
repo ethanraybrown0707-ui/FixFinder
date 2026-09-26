@@ -16,6 +16,7 @@ public class GuideDepthTests
         ["Native"] = NativeGuides.All,
         ["JavaScript"] = JavaScriptGuides.All,
         ["Go"] = GoGuides.All,
+        ["Shared logic"] = LogicGuides.SharedGuides,
     };
 
     public static TheoryData<string> Written
