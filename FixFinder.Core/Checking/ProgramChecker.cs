@@ -45,12 +45,25 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
     private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
     private readonly Dictionary<string, Task> _verifying = [];
     private readonly Dictionary<string, Verification> _verified = [];
+
+    /// <summary>Set for a check of the code alone, which compiles and runs nothing.</summary>
+    private bool _codeOnly;
+
+    /// <summary>How many functions the analyses took unchanged from the last check, and how many they looked at afresh.</summary>
+    private int _reusedFunctions;
+    private int _analysedFunctions;
     private LaunchPlan? _launch;
     private CancellationToken _cancellation;
 
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
     public ExpectedBehaviour? Expected { get; init; }
+
+    /// <summary>
+    /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
+    /// could have changed. Null analyses everything every time.
+    /// </summary>
+    public AnalysisCache? Cache { get; init; }
 
     public event Action<IReadOnlyList<Finding>>? FindingsChanged;
     public event Action<CheckLane, string>? Progress;
@@ -93,6 +106,9 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
             if (logicSummary.EndsWith("in the code", StringComparison.Ordinal))
                 logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
+
+            if (_reusedFunctions > 0)
+                logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
             return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, run);
         }
@@ -305,20 +321,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         {
             Progress?.Invoke(CheckLane.Logic, "Reading the code for logic mistakes...");
 
-            var found = 0;
-            var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
-            var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
-
-            var analysed = AnalyseAsync(launch, files, cancellationToken);
-
-            await ForEachAsync(patterns, async item =>
-            {
-                var (checkedBy, compiles, verified) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
-                Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles) with { Verified = verified });
-                Interlocked.Increment(ref found);
-            }, cancellationToken);
-
-            found += await analysed;
+            var found = await CodeFindingsAsync(launch, files, cancellationToken);
 
             if (Expected is not { IsEmpty: false } expected || launch.ChosenFile is not { } chosen)
                 return found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
@@ -351,6 +354,66 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    /// <summary>
+    /// Reads the code for mistakes - its patterns, and what following every value through it shows - without compiling
+    /// or running the program: a check that can follow every save without costing the program's time or its side effects.
+    /// </summary>
+    /// <remarks>
+    /// What it skips is said rather than left out quietly: the report says the program was not compiled or run, and code
+    /// that does not read as its language at all is noted, since otherwise the report would find no mistakes in it.
+    /// </remarks>
+    public async Task<CheckReport> CheckCodeAsync(LaunchPlan launch, CancellationToken cancellationToken = default)
+    {
+        if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
+
+        var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
+        _launch = launch;
+        _cancellation = cancellationToken;
+        _codeOnly = true;
+
+        int found;
+        try
+        {
+            found = await CodeFindingsAsync(launch, files, cancellationToken);
+        }
+        finally
+        {
+            LaneFinished?.Invoke(CheckLane.Logic, "done");
+        }
+
+        Task[] finishing;
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        await Task.WhenAll(finishing);
+
+        lock (_gate)
+        {
+            var logicSummary = found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
+            if (_reusedFunctions > 0)
+                logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
+
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null);
+        }
+    }
+
+    /// <summary>The logic patterns and the analyses, together: everything a check finds from the code alone.</summary>
+    private async Task<int> CodeFindingsAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        var found = 0;
+        var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
+        var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
+
+        var analysed = AnalyseAsync(launch, files, cancellationToken);
+
+        await ForEachAsync(patterns, async item =>
+        {
+            var (checkedBy, compiles, verified) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
+            Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles) with { Verified = verified });
+            Interlocked.Increment(ref found);
+        }, cancellationToken);
+
+        return found + await analysed;
+    }
+
     /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>
     private async Task<int> AnalyseAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
@@ -365,9 +428,25 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             var program = await reading;
             foreach (var problem in program.Problems) Log?.Invoke($"Following the values skipped {problem}");
 
-            var findings = AbstractChecks.Run(program, new SourceText());
+            // A full check compiles or runs the program and reports such a problem with its fix; reading the code alone
+            // would otherwise just find nothing in the part it could not read.
+            if (_codeOnly && program.Problems.Count > 0)
+            {
+                Note($"Part of the code could not be read, so it was not checked: {program.Problems[0]}. " +
+                     "Check it with its language to compile or run it, which reports the mistake with a fix.");
+            }
 
-            if (program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
+            var findings = AbstractChecks.Run(program, new SourceText(), Cache);
+            if (Cache is { LastRun: { Reused: > 0 } run })
+            {
+                Log?.Invoke($"{Count(run.Reused, "function")} had not changed since the last check, so what was found in them then was used again; " +
+                            $"{Count(run.Analysed, "function")} analysed afresh.");
+                _reusedFunctions = run.Reused;
+                _analysedFunctions = run.Analysed;
+            }
+
+            // Confirming runs the program's own functions, which a check of the code alone never does.
+            if (!_codeOnly && program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
             {
                 Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
                 findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);

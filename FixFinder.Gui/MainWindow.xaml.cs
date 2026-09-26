@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using FixFinder.Core;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
@@ -64,6 +65,27 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
 
+    /// <summary>
+    /// What the analyses found in each function during this session, so checking again after an edit only analyses the
+    /// functions the edit could have changed.
+    /// </summary>
+    private readonly AnalysisCache _analysisCache = new();
+
+    /// <summary>Watches the program's folder while Check on save is on, so the code is read again after every save.</summary>
+    private FileSystemWatcher? _saveWatcher;
+
+    /// <summary>The program's own files, which are the only ones whose saving means anything here.</summary>
+    private HashSet<string> _watchedFiles = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Waits for a burst of writes to settle before the code is read again: an editor often saves in several steps, and
+    /// reading half a file would report mistakes that are not there.
+    /// </summary>
+    private readonly System.Windows.Threading.DispatcherTimer _saveSettling = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+    /// <summary>The code check running after a save, if one is; a newer save replaces it.</summary>
+    private CancellationTokenSource? _codeCheck;
+
     public MainWindow(string? initialFile = null)
     {
         InitializeComponent();
@@ -75,6 +97,7 @@ public partial class MainWindow : Window
 
         AddLanguageTiles();
         UpdateFilterCounts();
+        _saveSettling.Tick += SaveSettled_Tick;
 
         ExplanationDepthSlider.Value = (int)_preferences.Explanations;
         ExplanationDepthText.Text = DepthName(_preferences.Explanations);
@@ -98,6 +121,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StopWatchingForSaves();
+        _codeCheck?.Cancel();
         _cancellation?.Cancel();
         _logger?.Dispose();
         _http.Dispose();
@@ -225,7 +250,7 @@ public partial class MainWindow : Window
         var launch = TargetFactory.FromFile(file);
         if (!launch.Ok) return null;
 
-        var checker = new ProgramChecker(_http, _sources) { Language = CodeLanguage.Of(file) ?? CodeLanguage.Any };
+        var checker = new ProgramChecker(_http, _sources) { Language = CodeLanguage.Of(file) ?? CodeLanguage.Any, Cache = _analysisCache };
 
         return await Task.Run(() => checker.CheckAsync(launch, cancellation), cancellation);
     }
@@ -236,6 +261,10 @@ public partial class MainWindow : Window
 
         ShowChosen(row.Program.Entry);
         _chosenPath = row.Program.Entry;
+
+        // Check on save follows one program; a folder's programs were each checked once, as they were.
+        CheckOnSaveBox.IsChecked = false;
+        CheckOnSaveBox.IsEnabled = false;
 
         ShowFindings(row.Findings ?? []);
 
@@ -279,6 +308,14 @@ public partial class MainWindow : Window
     {
         _chosenPath = path;
         _launch = TargetFactory.FromFile(path);
+
+        // Watching follows the file: saves to the one chosen before mean nothing now.
+        CheckOnSaveBox.IsEnabled = _launch.Ok;
+        if (CheckOnSaveBox.IsChecked == true)
+        {
+            if (_launch.Ok) WatchForSaves();
+            else CheckOnSaveBox.IsChecked = false;
+        }
 
         NothingChosenPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Visible;
@@ -402,6 +439,8 @@ public partial class MainWindow : Window
 
     private async Task CheckAsync()
     {
+        // A full check reads the code as well, and does more besides.
+        _codeCheck?.Cancel();
         _launch = TargetFactory.FromFile(_chosenPath!);
 
         if (!_launch.Ok || _launch.Spec is null)
@@ -432,7 +471,12 @@ public partial class MainWindow : Window
 
         _cancellation = new CancellationTokenSource();
 
-        var checker = new ProgramChecker(_http, _sources) { Language = _language, Expected = expected.IsEmpty ? null : expected };
+        var checker = new ProgramChecker(_http, _sources)
+        {
+            Language = _language,
+            Expected = expected.IsEmpty ? null : expected,
+            Cache = _analysisCache,
+        };
         checker.FindingsChanged += OnFindingsChanged;
         checker.Progress += OnProgress;
         checker.LaneFinished += OnLaneFinished;
@@ -735,6 +779,123 @@ public partial class MainWindow : Window
 
         SeverityFilters.Visibility = _showingEfficiency ? Visibility.Collapsed : Visibility.Visible;
         ApplyFilter();
+    }
+
+    private async void CheckOnSave_Changed(object sender, RoutedEventArgs e)
+    {
+        if (CheckOnSaveBox.IsChecked != true)
+        {
+            StopWatchingForSaves();
+            return;
+        }
+
+        WatchForSaves();
+        await CheckCodeAgainAsync();
+    }
+
+    private void WatchForSaves()
+    {
+        StopWatchingForSaves();
+        if (_chosenPath is not { } file || Path.GetDirectoryName(file) is not { } folder || !Directory.Exists(folder)) return;
+
+        _watchedFiles = new HashSet<string>(ProgramFiles.Of(file).Append(file).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        _saveWatcher = new FileSystemWatcher(folder)
+        {
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+        };
+        _saveWatcher.Changed += OnFileSaved;
+        _saveWatcher.Created += OnFileSaved;
+        _saveWatcher.Renamed += OnFileSaved;
+        _saveWatcher.EnableRaisingEvents = true;
+    }
+
+    private void StopWatchingForSaves()
+    {
+        _saveSettling.Stop();
+        if (_saveWatcher is null) return;
+
+        _saveWatcher.EnableRaisingEvents = false;
+        _saveWatcher.Dispose();
+        _saveWatcher = null;
+    }
+
+    /// <summary>Raised on a background thread for every file in the folder; only the program's own files count.</summary>
+    private void OnFileSaved(object sender, FileSystemEventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        if (!_watchedFiles.Contains(Path.GetFullPath(e.FullPath))) return;
+
+        _saveSettling.Stop();
+        _saveSettling.Start();
+    });
+
+    private async void SaveSettled_Tick(object? sender, EventArgs e)
+    {
+        _saveSettling.Stop();
+        await CheckCodeAgainAsync();
+    }
+
+    /// <summary>
+    /// Reads the saved code again and replaces the report with what it finds. The program is not compiled or run, and
+    /// the report says so; functions that have not changed since the last check keep what was found in them then.
+    /// </summary>
+    private async Task CheckCodeAgainAsync()
+    {
+        // A full check is already reading the code, and more besides.
+        if (_cancellation is not null || _launch is not { Ok: true } launch) return;
+
+        _codeCheck?.Cancel();
+        var reading = new CancellationTokenSource();
+        _codeCheck = reading;
+
+        var checker = new ProgramChecker(_http, _sources) { Language = _language, Cache = _analysisCache };
+        checker.Log += OnLog;
+
+        try
+        {
+            SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the saved code again...", LaneState.Running);
+            var report = await checker.CheckCodeAsync(launch, reading.Token);
+            if (!reading.IsCancellationRequested) ShowCodeReport(report);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            SetLane(LogicStatusText, LogicIcon, LogicProgress, "The saved code could not be read", LaneState.Failed);
+            _logger?.Write($"Reading the saved code failed: {ex}");
+        }
+        finally
+        {
+            checker.Log -= OnLog;
+            if (ReferenceEquals(_codeCheck, reading)) _codeCheck = null;
+            reading.Dispose();
+        }
+    }
+
+    private void ShowCodeReport(CheckReport report)
+    {
+        _notes.Clear();
+        foreach (var note in report.Notes) _notes.Add(note);
+
+        ShowFindings(report.Findings);
+
+        if (report.Findings.Count == 0)
+        {
+            EmptyState.Visibility = Visibility.Visible;
+            EmptyTitleText.Text = "No mistakes found in the code";
+            EmptyBodyText.Text = "It was read again as it was saved, but not compiled or run. Press its language to check what it does when it runs.";
+        }
+
+        SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary, LaneState.Stopped);
+        SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
+            report.Findings.Any(f => f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
+
+        ReportSubtitleText.Text = $"{Path.GetFileName(_chosenPath ?? "")}  ·  read again as saved at {DateTime.Now:HH:mm:ss}  ·  not compiled or run";
+        CopyReportButton.IsEnabled = report.Findings.Count > 0;
+
+        _logger?.WriteSection("Checked on save");
+        foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
     }
 
     private void OnProgress(CheckLane lane, string message) => Dispatcher.BeginInvoke(() =>

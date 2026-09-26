@@ -26,6 +26,10 @@ until the program prints what it should. FixFinder never changes your files.
    taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
    and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
    Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
+5. **Optionally, tick Check on save.** FixFinder then reads the code again every time the program is saved - the logic
+   patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
+   press the language to do that. Code that does not read as its language at all is noted rather than reported as having
+   no mistakes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and

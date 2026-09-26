@@ -579,6 +579,12 @@
                             </StackPanel>
                         </Border>
 
+                        <CheckBox x:Name="CheckOnSaveBox" AutomationProperties.AutomationId="CheckOnSaveBox"
+                                  Content="Check on save" VerticalAlignment="Center" Margin="0,0,14,0" IsEnabled="False"
+                                  FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"
+                                  Checked="CheckOnSave_Changed" Unchecked="CheckOnSave_Changed"
+                                  ToolTip="Reads the code again every time the program is saved, and updates the report. The program is not compiled or run - press its language to do that."/>
+
                         <Button x:Name="CopyReportButton" AutomationProperties.AutomationId="CopyReportButton"
                                 Style="{StaticResource QuietButton}" IsEnabled="False" Click="CopyReportButton_Click"
                                 ToolTip="Copies every finding as plain text.">
