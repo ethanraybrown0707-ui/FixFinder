@@ -11,6 +11,7 @@ public class GuideDepthTests
     private static readonly Dictionary<string, IReadOnlyList<GuideEntry>> Tables = new()
     {
         ["Python"] = PythonGuides.All,
+        ["Java"] = JavaGuides.All,
     };
 
     public static TheoryData<string> Written
