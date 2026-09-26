@@ -7,7 +7,27 @@ public sealed record Evaluate(SourceSpan Span, Expr Value) : Stmt(Span);
 
 public sealed record Assign(SourceSpan Span, Expr Target, Expr Value, BinaryOperator? Compound = null) : Stmt(Span);
 
-public sealed record Declare(SourceSpan Span, string Variable, IrType Type, Expr? Initial) : Stmt(Span);
+public sealed record Declare(SourceSpan Span, string Variable, IrType Type, Expr? Initial) : Stmt(Span)
+{
+    /// <summary>How long the variable's memory lasts. Only C and C++ declare anything but an ordinary local.</summary>
+    public Lifetime Lifetime { get; init; }
+}
+
+/// <summary>How long a local variable's memory lasts, which decides whether its address is still good once the function returns.</summary>
+public enum Lifetime
+{
+    /// <summary>Made each time the declaration runs and gone when the function returns: an ordinary local.</summary>
+    Call,
+
+    /// <summary>
+    /// Made once and kept beyond the call - static and extern for the whole run, thread_local for the thread's - so it is
+    /// set up once, not each time the declaration runs, and holds whatever the last call left in it.
+    /// </summary>
+    Program,
+
+    /// <summary>Memory that belongs to something else, which the variable is only another name for: a C++ reference.</summary>
+    Borrowed,
+}
 
 public sealed record If(SourceSpan Span, Expr Condition, IReadOnlyList<Stmt> Then, IReadOnlyList<Stmt> Else) : Stmt(Span);
 

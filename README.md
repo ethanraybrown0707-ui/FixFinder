@@ -192,8 +192,8 @@ For **C and C++** the same walk through the graph also checks what happens to me
 | Memory used after it is freed | `free(node); printf("%d", node->value);` - including `n = n->next` after `free(n)` in a loop |
 | Memory freed twice | `free(buffer);` on a way through the function that already freed it |
 | Memory nobody frees | `malloc` into a local that is never freed, never returned and never handed on |
-| The address of something that is about to go | `return &count;`, where `count` belongs to the function that is returning |
-| A value read before it is given one | `int total; printf("%d", total);` - unless its address was taken first, as `scanf("%d", &total)` does |
+| The address of something that is about to go | `return &count;` or `return &scores[0];`, where `count` or the array `scores` belongs to the function that is returning - not a global, a `static` or a C++ reference, whose memory outlasts the call |
+| A value read before it is given one | `int total; printf("%d", total);` - unless its address was taken first, as `scanf("%d", &total)` does. A `static` starts at zero, and on later calls holds what the last one left |
 
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so

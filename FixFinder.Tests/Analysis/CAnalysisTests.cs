@@ -236,6 +236,75 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task AnElementOfALocalArrayIsNotHandedBack()
+    {
+        const string code = """
+            int *first_score(void)
+            {
+                int scores[3] = {90, 75, 60};
+                return &scores[0];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.Contains(findings, f => f.CheckId == "analysis-dangling-pointer" && f.Span.Line == 4);
+    }
+
+    [Fact]
+    public async Task TheAddressOfSomethingThatOutlivesTheFunctionIsSafeToHandBack()
+    {
+        const string code = """
+            int total = 0;
+
+            int *running_total(void)
+            {
+                return &total;
+            }
+
+            int *call_count(void)
+            {
+                static int calls;
+                calls++;
+                return &calls;
+            }
+
+            int *second_slot(void)
+            {
+                int *slots = malloc(4 * sizeof(int));
+                return &slots[1];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-dangling-pointer");
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-uninitialised-read");
+    }
+
+    [Fact]
+    public async Task AStaticLocalIsSetOnceAndKeepsItsValueBetweenCalls()
+    {
+        const string code = """
+            int share_of_calls(void)
+            {
+                static int calls = 0;
+                int share = 0;
+                if (calls > 0)
+                {
+                    share = 100 / calls;
+                }
+                calls++;
+                return share;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId is "analysis-never-true" or "analysis-always-true");
+    }
+
+    [Fact]
     public async Task MemoryThatMayNotHaveBeenGivenIsCheckedBeforeItIsUsed()
     {
         const string code = """

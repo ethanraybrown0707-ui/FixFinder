@@ -56,6 +56,15 @@ public sealed class MemorySafety(
     /// <summary>Variables whose address was taken, which whatever was given the pointer may have filled in.</summary>
     private readonly HashSet<string> _filledIn = HandedOn(graph, ownership: false);
 
+    /// <summary>
+    /// The locals whose memory is this call's own and goes when it returns, with their types. A global, a static and a
+    /// C++ reference are not among them: their memory outlasts the call or belongs to something else.
+    /// </summary>
+    private readonly Dictionary<string, IrType> _callsOwn = IrWalk.Statements(graph.Function.Body).OfType<Declare>()
+        .Where(declare => declare.Lifetime == Lifetime.Call)
+        .GroupBy(declare => declare.Variable, StringComparer.Ordinal)
+        .ToDictionary(declared => declared.Key, declared => declared.First().Type, StringComparer.Ordinal);
+
     public void Check()
     {
         if (language is not (SourceLanguage.C or SourceLanguage.Cpp)) return;
@@ -144,7 +153,7 @@ public sealed class MemorySafety(
 
         foreach (var declare in IrWalk.Statements(graph.Function.Body).OfType<Declare>())
         {
-            if (declare.Initial is not null || !Plain(declare.Type) || _filledIn.Contains(declare.Variable)) continue;
+            if (declare.Initial is not null || declare.Lifetime != Lifetime.Call || !Plain(declare.Type) || _filledIn.Contains(declare.Variable)) continue;
             state[declare.Variable] = [new Mark(Phase.Unset, declare.Span.Line, declare.Span)];
         }
 
@@ -238,7 +247,8 @@ public sealed class MemorySafety(
                 break;
 
             case DeclareInstruction declare:
-                state[declare.Variable] = _filledIn.Contains(declare.Variable) || !Plain(declare.Type)
+                // A static starts at zero, or holds what the last call left in it; a reference is bound to what it names.
+                state[declare.Variable] = declare.Lifetime != Lifetime.Call || _filledIn.Contains(declare.Variable) || !Plain(declare.Type)
                     ? [new Mark(Phase.Gone, declare.Span.Line, declare.Span)]
                     : [new Mark(Phase.Unset, declare.Span.Line, declare.Span)];
                 break;
@@ -335,13 +345,25 @@ public sealed class MemorySafety(
             Severity.Error, Confidence.Certain);
     }
 
+    /// <summary>
+    /// The local whose own memory an address is in - the variable itself, or an element of an array declared in it - or
+    /// null when it may be anywhere else. An element or field reached through a pointer is wherever the pointer points,
+    /// and a struct's field is left out too: a typedef can hide the pointer that p-&gt;next goes through.
+    /// </summary>
+    private string? CallsOwn(Expr addressed) => addressed switch
+    {
+        Name name when _callsOwn.ContainsKey(name.Identifier) => name.Identifier,
+        ElementAccess { Target: Name array } when _callsOwn.TryGetValue(array.Identifier, out var type) && type.Name == "array" => array.Identifier,
+        Cast cast => CallsOwn(cast.Value),
+        _ => null,
+    };
+
     /// <summary>What is left when a function returns: memory nobody freed, and the address of something that is about to go.</summary>
     private void Ending(State state, BasicBlock block)
     {
         if (block.Terminator is Leave leave)
         {
-            if (leave.Value is Opaque { What: "address of", Parts: [var addressed] } && Root(addressed) is { } local &&
-                graph.Function.Parameters.All(p => p.Name != local) && _reported.Add(leave.Span))
+            if (leave.Value is Opaque { What: "address of", Parts: [var addressed] } && CallsOwn(addressed) is { } local && _reported.Add(leave.Span))
             {
                 report("analysis-dangling-pointer", leave.Span,
                     $"`{local}` belongs to this function and is gone once it returns, so the address given back points at memory that is no longer there",

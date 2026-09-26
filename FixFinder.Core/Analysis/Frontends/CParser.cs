@@ -926,7 +926,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private List<Stmt> LocalDeclaration(SourceSpan span)
     {
+        var typeStart = _at;
         var type = TypeName(out var tag);
+        var lifetime = ReadSince(typeStart, OutlastingStorage) ? Lifetime.Program : Lifetime.Call;
         if (tag is not null) ReadStructBody(tag);
 
         var statements = new List<Stmt>();
@@ -935,6 +937,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         {
             var mark = _at;
             var stars = Stars();
+            var declared = cpp && ReadSince(mark, ReferenceMark) ? Lifetime.Borrowed : lifetime;
             var holdsFunction = FunctionPointer();
             if (holdsFunction) stars++;
             if (Current.Kind is not (CTokenKind.Identifier or CTokenKind.Keyword)) break;
@@ -945,7 +948,10 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             {
                 // The rest of a function pointer's shape - ) (int, char *) - says nothing about the variable itself.
                 while (!Is(";") && !Is(",") && !AtEnd && Reading()) _at++;
-                statements.Add(new Declare(From(nameToken), Declare(nameToken.Text, type with { Pointers = stars }), IrType.Named("func"), null));
+                statements.Add(new Declare(From(nameToken), Declare(nameToken.Text, type with { Pointers = stars }), IrType.Named("func"), null)
+                {
+                    Lifetime = declared,
+                });
                 if (!Eat(",")) break;
                 continue;
             }
@@ -965,13 +971,31 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 initial = new NewObject(From(nameToken), IrType.Named("array"), dimensions[0] is { } size ? [new Argument(null, size)] : []);
             }
 
-            statements.Add(new Declare(From(nameToken), name, variable.Ir, initial));
+            // A static is set up the first time only; on every later call it holds what the last one left, so its value
+            // on the way in is not known.
+            statements.Add(new Declare(From(nameToken), name, variable.Ir, declared == Lifetime.Program ? null : initial) { Lifetime = declared });
             if (_at == mark) _at++;
             if (!Eat(",")) break;
         }
 
         Eat(";");
         return statements;
+    }
+
+    /// <summary>The words that make a local's memory outlast the call: kept for the whole run, or for the thread's.</summary>
+    private static readonly HashSet<string> OutlastingStorage = new(StringComparer.Ordinal) { "static", "extern", "_Thread_local", "thread_local" };
+
+    private static readonly HashSet<string> ReferenceMark = new(StringComparer.Ordinal) { "&" };
+
+    /// <summary>Whether any token read since <paramref name="from"/> is one of <paramref name="words"/>.</summary>
+    private bool ReadSince(int from, HashSet<string> words)
+    {
+        for (var index = from; index < _at && index < tokens.Count; index++)
+        {
+            if (words.Contains(tokens[index].Text)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>What a variable starts with: a value, or a list of values in braces.</summary>

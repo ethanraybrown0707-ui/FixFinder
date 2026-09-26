@@ -87,7 +87,7 @@ public static class CfgBuilder
                     break;
 
                 case Declare declare:
-                    Emit(new DeclareInstruction(declare.Span, declare.Variable, declare.Type));
+                    Emit(new DeclareInstruction(declare.Span, declare.Variable, declare.Type) { Lifetime = declare.Lifetime });
                     if (declare.Initial is { } initial) Emit(new AssignInstruction(declare.Span, new Name(declare.Span, declare.Variable), initial));
                     break;
 

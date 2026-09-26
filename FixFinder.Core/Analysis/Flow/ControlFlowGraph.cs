@@ -9,7 +9,10 @@ public sealed record AssignInstruction(SourceSpan Span, Expr Target, Expr Value)
 
 public sealed record EvaluateInstruction(SourceSpan Span, Expr Value) : Instruction(Span);
 
-public sealed record DeclareInstruction(SourceSpan Span, string Variable, IrType Type) : Instruction(Span);
+public sealed record DeclareInstruction(SourceSpan Span, string Variable, IrType Type) : Instruction(Span)
+{
+    public Lifetime Lifetime { get; init; }
+}
 
 /// <summary>The names a statement the front end could not represent may have changed.</summary>
 public sealed record ForgetInstruction(SourceSpan Span, IReadOnlyList<string> Names, IReadOnlyList<Expr> Parts) : Instruction(Span);
