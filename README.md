@@ -21,8 +21,11 @@ until the program prints what it should. FixFinder never changes your files.
    too, and the change that makes it right is searched for.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
-   as its data grows - none of them is a mistake. Each finding has **Copy corrected code**, **Search online** for the
-   error on GitHub and Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
+   as its data grows - none of them is a mistake. The **Explanations** slider sets how in depth each finding is
+   explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
+   taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
+   and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
+   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and

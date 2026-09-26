@@ -76,7 +76,8 @@ public partial class MainWindow : Window
         AddLanguageTiles();
         UpdateFilterCounts();
 
-        ExplanationLevelBox.SelectedIndex = (int)_preferences.Explanations;
+        ExplanationDepthSlider.Value = (int)_preferences.Explanations;
+        ExplanationDepthText.Text = DepthName(_preferences.Explanations);
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -681,18 +682,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Changes how the findings on screen are worded, and nothing else about them.
+    /// Changes how in depth the findings on screen are explained, and nothing else about them.
     /// </summary>
     /// <remarks>
     /// Every wording a finding has was worked out when the program was checked, so this hands each row the new level
     /// and the rows read a different string. Nothing is compiled again, nothing is run again, and no finding appears
     /// or disappears - which is the whole point of the setting.
     /// </remarks>
-    private void ExplanationLevel_Changed(object sender, SelectionChangedEventArgs e)
+    private void ExplanationDepth_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (ExplanationLevelBox.SelectedIndex < 0) return;
+        // The slider is given its range while the window is still being built, before the label beside it exists.
+        if (ExplanationDepthText is null) return;
 
-        var chosen = (ExplanationLevel)ExplanationLevelBox.SelectedIndex;
+        var chosen = (ExplanationLevel)(int)Math.Round(ExplanationDepthSlider.Value);
+        ExplanationDepthText.Text = DepthName(chosen);
         if (chosen == _preferences.Explanations) return;
 
         _preferences.Explanations = chosen;
@@ -702,6 +705,14 @@ public partial class MainWindow : Window
         // either way.
         _preferences.Save();
     }
+
+    /// <summary>What each stop on the slider is called: who the explanation is written for.</summary>
+    private static string DepthName(ExplanationLevel level) => level switch
+    {
+        ExplanationLevel.Beginner => "Beginner",
+        ExplanationLevel.Technical => "Technical",
+        _ => "Student",
+    };
 
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {
