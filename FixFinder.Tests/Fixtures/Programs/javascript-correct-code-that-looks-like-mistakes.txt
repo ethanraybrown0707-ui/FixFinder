@@ -1,0 +1,39 @@
+==> main.js <==
+function removeEmpty(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim() === '') {
+      lines.splice(i, 1);
+    }
+  }
+  return lines;
+}
+
+function middle(low, high) {
+  return Math.floor((low + high) / 2);
+}
+
+function isMissing(value) {
+  return value == null;
+}
+
+function lastIndexOf(items, wanted) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i] === wanted) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function countDown(from) {
+  const seen = [];
+  let n = from;
+  while (n > 0) {
+    seen.push(n);
+    n -= 1;
+  }
+  return seen;
+}
+
+console.log(removeEmpty(['a', ' ', 'b']), middle(2, 9), isMissing(undefined), isMissing(0));
+console.log(lastIndexOf([1, 2, 1], 1), countDown(3));

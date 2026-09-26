@@ -1,0 +1,52 @@
+==> main.py <==
+def add_item(item, basket=None):
+    if basket is None:
+        basket = []
+    basket.append(item)
+    return basket
+
+
+def show_menu(options):
+    for number, option in enumerate(options, start=1):
+        print(f"{number}. {option}")
+
+
+def remove_negatives(numbers):
+    for index in range(len(numbers) - 1, -1, -1):
+        if numbers[index] < 0:
+            del numbers[index]
+    return numbers
+
+
+def middle(low, high):
+    return (low + high) // 2
+
+
+def keep_positive(numbers):
+    return [number for number in numbers if number > 0]
+
+
+def find(words, wanted):
+    for word in words:
+        if word == wanted:
+            return word
+    return None
+
+
+def pairs(items):
+    result = []
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            result.append((items[i], items[j]))
+    return result
+
+
+count = 0
+while True:
+    count += 1
+    if count >= 3:
+        break
+
+show_menu(["start", "quit"])
+print(add_item("a"), add_item("b"), remove_negatives([1, -2, 3]), middle(2, 9))
+print(keep_positive([-1, 2]), find(["x", "y"], "y"), pairs([1, 2, 3]), count)

@@ -1,0 +1,65 @@
+==> Main.java <==
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+    enum Light { RED, AMBER, GREEN }
+
+    static int binarySearch(int[] sorted, int target) {
+        int lo = 0;
+        int hi = sorted.length - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (sorted[mid] == target) {
+                return mid;
+            }
+            if (sorted[mid] < target) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    static void removeOdd(List<Integer> numbers) {
+        for (int i = numbers.size() - 1; i >= 0; i--) {
+            if (numbers.get(i) % 2 != 0) {
+                numbers.remove(i);
+            }
+        }
+    }
+
+    static int pages(int items, int perPage) {
+        return (items + perPage - 1) / perPage;
+    }
+
+    static String describe(String name, Light light) {
+        if (name == null) {
+            return "nobody";
+        }
+        if (light == Light.RED) {
+            return name + " stops";
+        }
+        return name + " goes";
+    }
+
+    static int digits(int number) {
+        int count = 0;
+        do {
+            number /= 10;
+            count++;
+        } while (number != 0);
+        return count;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(binarySearch(new int[] {1, 3, 5, 7}, 5));
+        List<Integer> numbers = new ArrayList<>(List.of(1, 2, 3, 4, 5));
+        removeOdd(numbers);
+        System.out.println(numbers + " " + pages(21, 10) + " " + digits(1234));
+        System.out.println(describe(null, Light.GREEN) + describe("Ada", Light.RED));
+        int half = 7 / 2;
+        System.out.println(half);
+    }
+}
