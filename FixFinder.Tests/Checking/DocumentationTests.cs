@@ -54,6 +54,20 @@ public class DocumentationTests
     }
 
     /// <summary>A language with no documentation search that was checked gets no link, rather than a guessed one.</summary>
+    /// <summary>A loop searching a list is sped up with the language's set, so the set is what is looked up.</summary>
+    [Theory]
+    [InlineData(@"C:\work\thing.py", "set")]
+    [InlineData(@"C:\work\Thing.java", "HashSet")]
+    [InlineData(@"C:\work\Thing.cs", "HashSet")]
+    [InlineData(@"C:\work\thing.js", "Set")]
+    public void ASearchInALoopSendsTheReaderToTheLanguagesSet(string file, string term)
+    {
+        var reading = Documentation.For(About(file, "analysis-repeated-search"));
+
+        Assert.NotNull(reading);
+        Assert.Equal(term, reading.Term);
+    }
+
     [Theory]
     [InlineData(@"C:\work\thing.rb")]
     [InlineData(@"C:\work\thing.php")]

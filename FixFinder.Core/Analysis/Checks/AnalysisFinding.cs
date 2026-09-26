@@ -25,6 +25,9 @@ public sealed record AnalysisFinding(
 
     /// <summary>What the variables held each time the line ran, recorded during the run that confirmed it.</summary>
     public StateTrace? State { get; init; }
+
+    /// <summary>A change to the program that removes what was found, when one can be written that changes nothing else.</summary>
+    public LocalFixes.LocalFix? Fix { get; init; }
 }
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>
@@ -45,6 +48,13 @@ public sealed class SourceText
 
     public string? Line(string file, int number)
     {
+        var lines = Lines(file);
+        return number >= 1 && number <= lines.Count ? lines[number - 1] : null;
+    }
+
+    /// <summary>Every line of the file, or none when it cannot be read.</summary>
+    public IReadOnlyList<string> Lines(string file)
+    {
         if (!_lines.TryGetValue(file, out var lines))
         {
             try { lines = File.ReadAllLines(file); }
@@ -52,6 +62,6 @@ public sealed class SourceText
             _lines[file] = lines;
         }
 
-        return number >= 1 && number <= lines.Length ? lines[number - 1] : null;
+        return lines;
     }
 }

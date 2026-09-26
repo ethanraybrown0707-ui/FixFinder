@@ -646,34 +646,55 @@
                     </Border>
                 </Grid>
 
-                <StackPanel x:Name="FilterPanel" Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12" Visibility="Collapsed">
-                    <RadioButton x:Name="FilterAll" AutomationProperties.AutomationId="FilterAll" GroupName="Filter"
-                                 Style="{StaticResource FilterPill}" IsChecked="True" Checked="Filter_Checked"/>
-                    <RadioButton x:Name="FilterErrors" AutomationProperties.AutomationId="FilterErrors" GroupName="Filter"
-                                 Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
-                    <RadioButton x:Name="FilterWarnings" AutomationProperties.AutomationId="FilterWarnings" GroupName="Filter"
-                                 Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
-                    <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
-                                 Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
-                    <TextBlock x:Name="SinceLastText" AutomationProperties.AutomationId="SinceLastText"
-                               VerticalAlignment="Center" Margin="0,0,0,0" FontSize="12" Visibility="Collapsed"
-                               Foreground="{DynamicResource SecondaryTextBrush}"/>
-                    <RadioButton x:Name="FilterPerformance" AutomationProperties.AutomationId="FilterPerformance" GroupName="Filter"
-                                 Style="{StaticResource FilterPill}" Checked="Filter_Checked"
-                                 ToolTip="Work the program does more times than it needs to. None of it is an error."/>
+                <StackPanel Grid.Row="2">
+                    <StackPanel x:Name="ViewTabs" Orientation="Horizontal" Margin="0,0,0,12" Visibility="Collapsed">
+                        <RadioButton x:Name="ProblemsTab" AutomationProperties.AutomationId="ProblemsTab" GroupName="View"
+                                     Style="{StaticResource ViewTab}" IsChecked="True" Checked="View_Checked"
+                                     ToolTip="What is wrong with the program, or likely to go wrong."/>
+                        <RadioButton x:Name="EfficiencyTab" AutomationProperties.AutomationId="EfficiencyTab" GroupName="View"
+                                     Style="{StaticResource ViewTab}" Checked="View_Checked"
+                                     ToolTip="Ways the program could do less work as its data grows. None of them is a mistake."/>
+                    </StackPanel>
 
-                    <TextBlock Text="Explain for" VerticalAlignment="Center" Margin="18,0,8,0"
-                               FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                    <StackPanel x:Name="FilterPanel" Orientation="Horizontal" Margin="0,0,0,12" Visibility="Collapsed">
+                        <StackPanel x:Name="SeverityFilters" Orientation="Horizontal">
+                            <RadioButton x:Name="FilterAll" AutomationProperties.AutomationId="FilterAll" GroupName="Filter"
+                                         Style="{StaticResource FilterPill}" IsChecked="True" Checked="Filter_Checked"/>
+                            <RadioButton x:Name="FilterErrors" AutomationProperties.AutomationId="FilterErrors" GroupName="Filter"
+                                         Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
+                            <RadioButton x:Name="FilterWarnings" AutomationProperties.AutomationId="FilterWarnings" GroupName="Filter"
+                                         Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
+                            <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
+                                         Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
+                            <TextBlock x:Name="SinceLastText" AutomationProperties.AutomationId="SinceLastText"
+                                       VerticalAlignment="Center" Margin="0,0,0,0" FontSize="12" Visibility="Collapsed"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
+                        </StackPanel>
 
-                    <ComboBox x:Name="ExplanationLevelBox" Width="116" VerticalAlignment="Center"
-                              SelectionChanged="ExplanationLevel_Changed"
-                              AutomationProperties.AutomationId="ExplanationLevelBox"
-                              AutomationProperties.Name="How much to explain"
-                              ToolTip="Changes how a finding is worded. What was found, how sure FixFinder is, and the fix stay the same.">
-                        <ComboBoxItem Content="Beginner"/>
-                        <ComboBoxItem Content="Student"/>
-                        <ComboBoxItem Content="Technical"/>
-                    </ComboBox>
+                        <TextBlock Text="Explain for" VerticalAlignment="Center" Margin="18,0,8,0"
+                                   FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"/>
+
+                        <ComboBox x:Name="ExplanationLevelBox" Width="116" VerticalAlignment="Center"
+                                  SelectionChanged="ExplanationLevel_Changed"
+                                  AutomationProperties.AutomationId="ExplanationLevelBox"
+                                  AutomationProperties.Name="How much to explain"
+                                  ToolTip="Changes how a finding is worded. What was found, how sure FixFinder is, and the fix stay the same.">
+                            <ComboBoxItem Content="Beginner"/>
+                            <ComboBoxItem Content="Student"/>
+                            <ComboBoxItem Content="Technical"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <Border x:Name="EfficiencyIntro" AutomationProperties.AutomationId="EfficiencyIntro" Visibility="Collapsed"
+                            Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
+                            BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,0,0,10">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE945;" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0"
+                                       Foreground="{DynamicResource AccentBrush}"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Text="Ways this program could do less work as its data grows. Each one says what FixFinder noticed and why it costs time and, where FixFinder can show that a change gives exactly the same answers, what to change and why it is quicker. None of them is a mistake: the program is right either way."/>
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
 
                 <ItemsControl x:Name="NotesList" Grid.Row="3" AutomationProperties.AutomationId="NotesList">

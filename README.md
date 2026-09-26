@@ -19,9 +19,10 @@ until the program prints what it should. FixFinder never changes your files.
 3. **Optionally, say what it should print.** Arguments, the input to type and the expected output go in the boxes under
    the program, and **+ Add another run** adds more. With them, a program that runs but prints the wrong thing is caught
    too, and the change that makes it right is searched for.
-4. **Read the report.** The filters show every finding, or only the errors, warnings or suggestions. Each finding has
-   **Copy corrected code**, **Search online** for the error on GitHub and Stack Overflow, and **Show in folder**.
-   **Copy report** copies every finding as plain text.
+4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
+   every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
+   as its data grows - none of them is a mistake. Each finding has **Copy corrected code**, **Search online** for the
+   error on GitHub and Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
@@ -249,6 +250,22 @@ differently. The finding then says, under **What the fix changes**:
 cannot follow - an unknown call, a value it had to approximate - means the finding says it could not compare every input
 instead. The same operation on the same inputs counts as the same value in both versions, so `total / people` in both
 agrees without being worked out.
+
+The **Efficiency** tab lists work a program repeats as its data grows. FixFinder reports a list, an array or a string
+searched from the start on every pass of a loop that does not change it - `if word in stop_words:` inside
+`for word in text.split():` - and only where the code shows what is searched: a set, a dictionary or a range goes
+straight to the item, so searching one is never reported, and a parameter with no type is reported as *possible*, with
+the finding saying that FixFinder cannot see which kind of collection it is.
+
+Where FixFinder can show that a change gives exactly the same answers, the finding shows it on your own lines - a set
+made once before the loop and searched instead - and says why it is quicker. That takes all of these: the list is the
+function's own, made from a literal or a copy, and is never handed to other code or seen by a nested function; the loop
+only reads it; it has its value on every way to the loop; its items compare the same way in a set (plain values in
+Python, `String`, `Integer` and the like in Java, `string`, `int` and the like in C#, anything in JavaScript, whose
+`Set.has` compares exactly as `includes` does); and the new line cannot land inside anything else, such as an `if`
+written without braces. A Java or C# change also has to compile before it is shown. Searching text for a piece of text
+is never changed this way. C and C++ are not checked for this: FixFinder's reader does not follow C++'s template types,
+and a member `count` or `find` there belongs to a set or a map as often as to a string.
 
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 

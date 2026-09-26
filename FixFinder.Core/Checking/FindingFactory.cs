@@ -100,9 +100,16 @@ public static partial class FindingFactory
         };
     }
 
-    public static Finding FromAnalysis(AnalysisFinding finding)
+    /// <param name="source">The file the finding is in, needed to show a change to it side by side.</param>
+    /// <param name="fixCheckedBy">What checking the change showed, when it was checked.</param>
+    /// <param name="fixCompiles">False when a copy of the file with the change did not compile, so it is not offered.</param>
+    public static Finding FromAnalysis(AnalysisFinding finding, SourceFile? source = null, string? fixCheckedBy = null, bool fixCompiles = false)
     {
         var guide = Guidebook.For(finding.Span.File, finding.Kind, finding.CheckId);
+
+        // A change worked out for this very code shows what it would be, in place of the guide's general example - but
+        // only once a copy of the file with it has been checked, and never when that copy did not compile.
+        var fix = source is not null && fixCompiles ? finding.Fix : null;
 
         return new Finding
         {
@@ -115,8 +122,13 @@ public static partial class FindingFactory
             Explanation = Sentence(finding.Message),
             Explanations = Explained.Of(Sentence(finding.Message), guide.ForBeginners, guide.ForTechnical),
             WhyItMatters = guide.WhyItMatters,
-            SuggestedFix = guide.SuggestedFix,
-            CorrectedExample = guide.Example,
+            SuggestedFix = fix is not null ? TitleThen(fix.Title, fix.Explanation) : guide.SuggestedFix,
+            CorrectedExample = fix is not null ? CorrectedCode.From(fix, source!) : guide.Example,
+            ExampleIsFromYourCode = fix is not null,
+            FixCheckedBy = fix is not null ? fixCheckedBy : null,
+            Fix = fix,
+            Change = fix is not null ? CodeChange.From(fix, source) : null,
+            CameFrom = fix is not null ? FixOrigin.OwnRule(fix.RuleId) : null,
             RuleId = finding.CheckId,
             Family = SameMistakeAs(finding.CheckId, finding.Span.File) ?? finding.CheckId,
             FoundBy = finding.FoundBy,

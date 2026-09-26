@@ -27,17 +27,19 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
-        AtEveryLevel(["analysis-repeated-search"], "Searching the whole list on every pass",
-            "Looking for something in a list means going through it from the start until it turns up. Doing that once "
-            + "inside a loop means doing it again for every item the loop has, so a list ten times longer takes a "
-            + "hundred times as long rather than ten.",
-            "The loop searches the same collection from the start on every pass, so the work grows with the length of "
-            + "the loop multiplied by the length of the collection.",
-            "The search is linear and sits inside a loop, so the pass is quadratic in the two lengths.",
+        AtEveryLevel(["analysis-repeated-search"], "Searching from the start on every pass",
+            "Looking for something in a list, or in a piece of text, means going through it from the start until it "
+            + "turns up. Doing that inside a loop means doing it again on every pass, so when the loop and the list both "
+            + "get ten times longer, the work gets a hundred times bigger rather than ten.",
+            "The loop searches the same collection from the start on every pass, so the work grows with the number of "
+            + "passes multiplied by the length of the collection.",
+            "The search is linear and runs once per iteration, so the loop costs O(n*m) for n iterations over m items; "
+            + "a hashed lookup built once before it makes that O(n + m) on average.",
             "It is correct either way, and stays quick while both are small. It is the pattern that gets slow first as "
             + "real data arrives, and the reason is rarely obvious afterwards.",
-            "If the collection does not change inside the loop, put it in a set or dictionary once before the loop and "
-            + "look there instead - that answers in the same time however long it gets.",
+            "If the collection does not change inside the loop and its items can go in a set, put them in a set once "
+            + "before the loop and search that instead - a set answers in about the same time however many items it "
+            + "holds. Searching text for a piece of text cannot be sped up this way.",
             """
             wanted = set(names)
             for person in people:

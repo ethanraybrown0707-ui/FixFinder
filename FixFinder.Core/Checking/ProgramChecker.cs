@@ -373,7 +373,20 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);
             }
 
-            foreach (var finding in findings) Add(FindingFactory.FromAnalysis(finding));
+            foreach (var finding in findings)
+            {
+                // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.
+                if (finding.Fix is { } fix && SourceFile.Read(fix.File) is { } source)
+                {
+                    var (checkedBy, compiles, verified) = await CheckPatternFixAsync(source, fix, cancellationToken);
+                    Add(FindingFactory.FromAnalysis(finding, source, checkedBy, compiles) with { Verified = verified });
+                }
+                else
+                {
+                    Add(FindingFactory.FromAnalysis(finding));
+                }
+            }
+
             return findings.Count;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

@@ -40,6 +40,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         FindingKind.Syntax => "Syntax",
         FindingKind.Runtime => "Runtime",
         FindingKind.Logic => "Logic",
+        FindingKind.Performance => "Efficiency",
         _ => "Style",
     };
 

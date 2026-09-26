@@ -64,8 +64,10 @@ public static class Documentation
         if (finding.Error?.ShortExceptionType is { Length: > 0 } thrown) return thrown;
         if (finding.Error?.ErrorCode is { Length: > 0 } code) return code;
 
-        // Rule names read as what they are about once the language prefix is off: analysis-division-by-zero.
         var rule = finding.RuleId;
+        if (LookedUpAs.TryGetValue((rule, Guides.Guidebook.LanguageName(finding.File)), out var named)) return named;
+
+        // Rule names read as what they are about once the language prefix is off: analysis-division-by-zero.
         if (rule.Length == 0) return null;
 
         var withoutPrefix = rule.Split('-', 2) is [var first, var rest] && Prefixes.Contains(first) ? rest : rule;
@@ -73,6 +75,18 @@ public static class Documentation
 
         return words.Length < 3 ? null : words;
     }
+
+    /// <summary>
+    /// Where the useful thing to read about is what the fix uses rather than what the rule is called: a loop that searches
+    /// a list is sped up with the language's set, so that is what is looked up.
+    /// </summary>
+    private static readonly Dictionary<(string Rule, string Language), string> LookedUpAs = new()
+    {
+        [("analysis-repeated-search", "Python")] = "set",
+        [("analysis-repeated-search", "Java")] = "HashSet",
+        [("analysis-repeated-search", "C#")] = "HashSet",
+        [("analysis-repeated-search", "JavaScript")] = "Set",
+    };
 
     private static readonly HashSet<string> Prefixes = new(StringComparer.OrdinalIgnoreCase)
     {

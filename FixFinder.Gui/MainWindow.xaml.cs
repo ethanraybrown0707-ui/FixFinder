@@ -51,8 +51,11 @@ public partial class MainWindow : Window
     private readonly CheckHistory _history = CheckHistory.Load();
     private Severity? _filter;
 
-    /// <summary>Set instead of <see cref="_filter"/> when the reader wants only what would make the program quicker.</summary>
-    private bool _performanceOnly;
+    /// <summary>
+    /// Set while the Efficiency tab is open. It lists only what would make the program quicker, none of which is a
+    /// problem, so the severity filters do not apply to it.
+    /// </summary>
+    private bool _showingEfficiency;
 
     private string? _chosenPath;
     private LaunchPlan? _launch;
@@ -235,7 +238,8 @@ public partial class MainWindow : Window
 
         ShowFindings(row.Findings ?? []);
 
-        EmptyState.Visibility = row.Findings is { Count: > 0 } ? Visibility.Collapsed : Visibility.Visible;
+        // With findings, the open tab has already said whether it has any of them to show.
+        if (row.Findings is not { Count: > 0 }) EmptyState.Visibility = Visibility.Visible;
     }
 
     /// <summary>"3 problems", and "1 problem" rather than "1 problems".</summary>
@@ -474,6 +478,8 @@ public partial class MainWindow : Window
         UpdateFilterCounts();
 
         FilterPanel.Visibility = Visibility.Collapsed;
+        ViewTabs.Visibility = Visibility.Collapsed;
+        EfficiencyIntro.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
         CopyReportButton.IsEnabled = false;
 
@@ -616,6 +622,7 @@ public partial class MainWindow : Window
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ViewTabs.Visibility = FilterPanel.Visibility;
         if (_findings.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
 
         UpdateFilterCounts();
@@ -626,22 +633,51 @@ public partial class MainWindow : Window
     {
         _visibleFindings.Clear();
 
-        var shown = _performanceOnly
-            ? _findings.Where(r => r.Finding.Kind == FindingKind.Performance)
-            : _findings.Where(r => _filter is null || r.Finding.Severity == _filter);
+        var shown = _showingEfficiency
+            ? _findings.Where(IsEfficiency)
+            : _findings.Where(r => !IsEfficiency(r) && (_filter is null || r.Finding.Severity == _filter));
 
         foreach (var row in shown) _visibleFindings.Add(row);
+
+        // The pills are checked while the window is still being built, before these exist.
+        if (!IsInitialized) return;
+
+        EfficiencyIntro.Visibility = _showingEfficiency && _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowEmptyTab();
+    }
+
+    /// <summary>A way to make the program quicker, which belongs on the Efficiency tab rather than among the problems.</summary>
+    private static bool IsEfficiency(FindingRow row) => row.Finding.Kind == FindingKind.Performance;
+
+    /// <summary>What a tab with nothing on it says, so an empty tab is not mistaken for one still waiting for results.</summary>
+    private void ShowEmptyTab()
+    {
+        if (_findings.Count == 0) return;
+
+        var empty = _visibleFindings.Count == 0 && (_showingEfficiency || _filter is null);
+        EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        if (!empty) return;
+
+        (EmptyTitleText.Text, EmptyBodyText.Text) = _showingEfficiency
+            ? ("Nothing to speed up was found",
+               "FixFinder looks for work that grows with the data - a list searched from the start on every pass of a loop, for " +
+               "example - and found none here. That is not a promise the program is quick: it is only what FixFinder can show.")
+            : ("No problems found",
+               "Nothing in the code looks like a mistake. The Efficiency tab lists ways the program could do less work.");
     }
 
     private void UpdateFilterCounts()
     {
-        int Count(Severity severity) => _findings.Count(r => r.Finding.Severity == severity);
+        var problems = _findings.Where(r => !IsEfficiency(r)).ToList();
+        int Count(Severity severity) => problems.Count(r => r.Finding.Severity == severity);
 
-        FilterAll.Content = $"All  {_findings.Count}";
+        ProblemsTab.Content = $"Problems  {problems.Count}";
+        EfficiencyTab.Content = $"Efficiency  {_findings.Count - problems.Count}";
+
+        FilterAll.Content = $"All  {problems.Count}";
         FilterErrors.Content = $"Errors  {Count(Severity.Error)}";
         FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
         FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
-        FilterPerformance.Content = $"Performance  {_findings.Count(f => f.Finding.Kind == FindingKind.Performance)}";
     }
 
     /// <summary>
@@ -669,14 +705,25 @@ public partial class MainWindow : Window
 
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {
-        _performanceOnly = sender == FilterPerformance;
-
         _filter = sender == FilterErrors ? Severity.Error
             : sender == FilterWarnings ? Severity.Warning
             : sender == FilterSuggestions ? Severity.Suggestion
             : null;
 
         if (_findings is not null) ApplyFilter();
+    }
+
+    /// <summary>
+    /// Moves between what is wrong with the program and how it could do less work. Both tabs show their findings the
+    /// same way; the severity filters only make sense among problems, so they are hidden on the Efficiency tab.
+    /// </summary>
+    private void View_Checked(object sender, RoutedEventArgs e)
+    {
+        _showingEfficiency = sender == EfficiencyTab;
+        if (!IsInitialized) return;
+
+        SeverityFilters.Visibility = _showingEfficiency ? Visibility.Collapsed : Visibility.Visible;
+        ApplyFilter();
     }
 
     private void OnProgress(CheckLane lane, string message) => Dispatcher.BeginInvoke(() =>
@@ -769,6 +816,8 @@ public partial class MainWindow : Window
         _findings = [];
         _visibleFindings.Clear();
         FilterPanel.Visibility = Visibility.Collapsed;
+        ViewTabs.Visibility = Visibility.Collapsed;
+        EfficiencyIntro.Visibility = Visibility.Collapsed;
 
         EmptyState.Visibility = Visibility.Visible;
         EmptyTitleText.Text = title;
