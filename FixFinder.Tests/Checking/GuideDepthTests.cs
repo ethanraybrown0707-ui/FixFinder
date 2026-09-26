@@ -18,6 +18,8 @@ public class GuideDepthTests
         ["Go"] = GoGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
+        ["Brace patterns"] = BracePatternGuides.All,
+        ["Managed patterns"] = ManagedPatternGuides.All,
     };
 
     public static TheoryData<string> Written
