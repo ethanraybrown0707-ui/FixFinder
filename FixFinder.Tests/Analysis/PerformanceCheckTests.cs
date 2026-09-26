@@ -617,6 +617,64 @@ public class PerformanceCheckTests : IDisposable
     }
 
     /// <summary>
+    /// A var is given the type the code makes plain: written text is a string, and a loop's var over a List&lt;string&gt;
+    /// holds strings - so the text and what is added to it are both known, and the change is offered.
+    /// </summary>
+    [Fact]
+    public async Task CSharpVarTextAndLoopVariableGetAStringBuilder()
+    {
+        var path = await WriteAsync("Report.cs", """
+            using System.Collections.Generic;
+
+            public static class Report
+            {
+                public static string Lines(List<string> names)
+                {
+                    var text = "";
+                    foreach (var name in names)
+                    {
+                        text += name;
+                    }
+                    return text;
+                }
+            }
+            """);
+        var found = PerformanceChecks.Run(await CSharpFrontend.ReadAsync([path]), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        var fix = Assert.IsType<LocalFix>(finding.Fix);
+        Assert.Contains("            textBuilder.Append(name);", fix.NewLines);
+    }
+
+    /// <summary>
+    /// A loop's var over a list of char arrays holds arrays, which + writes as the array's name and append as its
+    /// letters, so the text is still reported but no change is offered.
+    /// </summary>
+    [Fact]
+    public async Task JavaLoopVariableHoldingArraysGetsNoChange()
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        var path = await WriteAsync("Main.java", """
+            import java.util.*;
+
+            public class Main {
+                static String join(List<char[]> words) {
+                    String text = "";
+                    for (var letters : words) {
+                        text += letters;
+                    }
+                    return text;
+                }
+            }
+            """);
+        var found = PerformanceChecks.Run(await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        Assert.Null(finding.Fix);
+    }
+
+    /// <summary>
     /// The cost is the same whatever else the loop does, so each of these is still reported - but a StringBuilder would
     /// not give the same text, or the same program, so no change is offered.
     /// </summary>
@@ -659,6 +717,42 @@ public class PerformanceCheckTests : IDisposable
 
         var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
         Assert.Contains("the loop that begins on line 5", finding.Message);
+    }
+
+    /// <summary>
+    /// The logic lane's pattern notices the same += from the text alone. The whole check reports it once: the analysis's
+    /// finding, which knows the text's type and brings the change, takes the pattern's place on that line.
+    /// </summary>
+    [Fact]
+    public async Task TextBuiltInALoopIsReportedOnceByTheWholeCheck()
+    {
+        var path = await WriteAsync("Report.cs", """
+            using System.Collections.Generic;
+
+            public static class Report
+            {
+                public static string Lines(List<string> names)
+                {
+                    string text = "";
+                    foreach (var name in names)
+                    {
+                        text += name;
+                    }
+                    return text;
+                }
+            }
+            """);
+
+        using var http = new FixFinder.Core.Http.FixFinderHttpClient();
+        var launch = FixFinder.Core.Execution.TargetFactory.FromFile(path);
+        Assert.True(launch.Ok, launch.Problem);
+
+        var checker = new ProgramChecker(http, new FixFinder.Core.Sources.FixSourceRegistry()) { Language = CodeLanguage.Of(path) ?? CodeLanguage.Any };
+        var report = await checker.CheckCodeAsync(launch);
+
+        var finding = Assert.Single(report.Findings, f => f.Line == 10);
+        Assert.Equal(TextBuiltInALoop.Rule, finding.RuleId);
+        Assert.Equal(FindingKind.Performance, finding.Kind);
     }
 
     /// <summary>CPython usually grows a string in place, and JavaScript engines join strings lazily, so there nothing is said.</summary>

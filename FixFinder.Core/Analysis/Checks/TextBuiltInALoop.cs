@@ -43,7 +43,7 @@ internal static class TextBuiltInALoop
     {
         if (program.Language is not (SourceLanguage.Java or SourceLanguage.CSharp)) yield break;
 
-        var declared = DeclaredTypes(function);
+        var declared = DeclaredTypes(function, program.Language);
         var texts = declared.Where(pair => pair.Value.Name is "String" or "string").Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal);
         var reported = new HashSet<string>(StringComparer.Ordinal);
 
@@ -118,13 +118,52 @@ internal static class TextBuiltInALoop
         _ => IrWalk.Expressions(statement).SelectMany(IrWalk.Within).Any(inner => inner is AssignValue assigned && IrWalk.Binds(assigned.Target, text)),
     };
 
-    private static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
-        function.Parameters.Select(p => (p.Name, p.Type))
-            .Concat(IrWalk.Statements(function.Body).OfType<Declare>().Select(d => (Name: d.Variable, d.Type)))
-            .Where(pair => !pair.Type.IsUnknown)
+    /// <summary>
+    /// The type of each name every declaration of it agrees on. A var is only given a type the code makes plain: written
+    /// text is a string, and a loop's var over a collection declared as holding one type - List&lt;string&gt;, String[] -
+    /// takes that type. A name declared anywhere with a var nothing makes plain has no type here at all.
+    /// </summary>
+    private static Dictionary<string, IrType> DeclaredTypes(IrFunction function, SourceLanguage language)
+    {
+        var statements = IrWalk.Statements(function.Body).ToList();
+        var declarations = statements.OfType<Declare>().ToList();
+
+        var written = Agreed(function.Parameters.Select(p => (p.Name, p.Type)).Concat(declarations.Select(d => (Name: d.Variable, d.Type))));
+
+        IrType Plain(Declare declaration)
+        {
+            if (!declaration.Type.IsUnknown) return declaration.Type;
+            if (declaration.Initial is Literal { Kind: LiteralKind.Text }) return IrType.Named(language == SourceLanguage.Java ? "String" : "string");
+
+            var loop = statements.OfType<ForEach>().FirstOrDefault(each => each.Target is Name target && target.Span == declaration.Span);
+            return loop?.Items is Name { Identifier: var items } && written.TryGetValue(items, out var collection) && ItemsOf(collection) is { } item
+                ? item
+                : IrType.Unknown;
+        }
+
+        return Agreed(function.Parameters.Select(p => (p.Name, p.Type)).Concat(declarations.Select(d => (Name: d.Variable, Type: Plain(d)))));
+    }
+
+    private static Dictionary<string, IrType> Agreed(IEnumerable<(string Name, IrType Type)> declared) =>
+        declared
             .GroupBy(pair => pair.Name, StringComparer.Ordinal)
-            .Where(group => group.Select(pair => pair.Type.Name).Distinct().Count() == 1)
+            .Where(group => group.All(pair => !pair.Type.IsUnknown) && group.Select(pair => pair.Type.ToString()).Distinct().Count() == 1)
             .ToDictionary(group => group.Key, group => group.First().Type, StringComparer.Ordinal);
+
+    /// <summary>The collections whose one type argument is the type of every item a loop over them gives.</summary>
+    private static readonly HashSet<string> HoldingOneType = new(StringComparer.Ordinal)
+    {
+        "List", "IList", "IReadOnlyList", "ICollection", "IReadOnlyCollection", "IEnumerable", "Collection", "Iterable",
+        "ArrayList", "LinkedList", "Set", "HashSet", "ISet", "SortedSet", "TreeSet", "LinkedHashSet",
+    };
+
+    /// <summary>The type of the items a collection declared with this type holds, when the type says so.</summary>
+    private static IrType? ItemsOf(IrType collection) => collection switch
+    {
+        { Name: "array", Arguments: [var item] } => item,
+        { Arguments: [var item] } when HoldingOneType.Contains(collection.Name) => item,
+        _ => null,
+    };
 
     /// <summary>
     /// The change to a StringBuilder: made from the text just before the loop, added to in the loop, and turned back into

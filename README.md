@@ -301,7 +301,9 @@ the loop, added to inside, and turned back into the text after - and only where 
 function's own and starts as written text, so it is never null; each piece is text, a character, a number or a truth
 value, which a `StringBuilder` writes exactly as `+` does, and `text = text + a + b` adds `a` and then `b` rather than
 their sum; nothing reads the text inside the loop or from a lambda written in the function; and the loop is not inside a
-`try`, where a `catch` could read the text half built.
+`try`, where a `catch` could read the text half built. A `var` counts as a string when it is given written text, and a
+loop's `var` takes the type of the items its collection is declared to hold - `List<string>`, `String[]`. The logic
+lane's own pattern for the same `+=` is folded into this finding, so the line is reported once.
 
 Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
 found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
