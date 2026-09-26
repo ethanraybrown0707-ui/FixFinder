@@ -38,7 +38,7 @@ headers beside them.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
 | **Line** | The file and line it is on. |
-| **Explanation** | What is wrong, in the program's own names. |
+| **Explanation** | What is wrong, in the program's own names - explained at the depth the **Explanations** slider is set to. Every kind of mistake FixFinder knows is written three ways: for a beginner, with the idea behind it spelled out in plain words; as it is usually taught; and in the language's own terms, saying which version of the language changed the rule where one did. Whatever the depth, the finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a general example. |

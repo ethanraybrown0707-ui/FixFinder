@@ -1,10 +1,12 @@
+using FixFinder.Core.Checking;
 using FixFinder.Core.Checking.Guides;
 
 namespace FixFinder.Tests;
 
 /// <summary>
 /// Every guide explains its mistake three ways - for a beginner, for a student and in technical terms - so the slider
-/// always changes what is said. The tables are listed here as each is written at every depth.
+/// always changes what is said. Each table is checked on its own, so a failure names it, and every guide FixFinder has is
+/// checked as well, so a guide added later cannot be written at one depth only.
 /// </summary>
 public class GuideDepthTests
 {
@@ -20,6 +22,12 @@ public class GuideDepthTests
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,
         ["Managed patterns"] = ManagedPatternGuides.All,
+        ["Python analyses"] = AnalysisGuides.All,
+        ["Go analyses"] = AnalysisGuides.Go,
+        ["JavaScript analyses"] = AnalysisGuides.JavaScript,
+        ["C and C++ analyses"] = AnalysisGuides.Native,
+        ["Java analyses"] = AnalysisGuides.Java,
+        ["C# analyses"] = AnalysisGuides.CSharp,
     };
 
     public static TheoryData<string> Written
@@ -47,6 +55,33 @@ public class GuideDepthTests
             Assert.NotEqual(guide.ForBeginners, guide.Explanation);
             Assert.NotEqual(guide.ForTechnical, guide.Explanation);
             Assert.NotEqual(guide.ForBeginners, guide.ForTechnical);
+        }
+    }
+
+    [Fact]
+    public void EveryGuideFixFinderHasIsWrittenAtEveryDepth()
+    {
+        foreach (var guide in Guidebook.Every())
+        {
+            var named = guide.Title ?? guide.Explanation;
+            Assert.True(guide.Explanations.VariesByLevel, $"the same words at every depth for: {named}");
+            Assert.False(string.IsNullOrWhiteSpace(guide.ForBeginners), $"no beginner's explanation for: {named}");
+            Assert.False(string.IsNullOrWhiteSpace(guide.ForTechnical), $"no technical explanation for: {named}");
+        }
+    }
+
+    /// <summary>The guide used when nothing more specific is known is written at every depth too, for every kind of finding.</summary>
+    [Fact]
+    public void EveryGeneralGuideIsWrittenAtEveryDepth()
+    {
+        foreach (var kind in Enum.GetValues<FindingKind>())
+        {
+            var guide = GeneralGuides.For("Python", kind);
+
+            Assert.True(guide.Explanations.VariesByLevel, $"the same words at every depth for {kind}");
+            Assert.False(string.IsNullOrWhiteSpace(guide.ForBeginners), $"no beginner's explanation for {kind}");
+            Assert.False(string.IsNullOrWhiteSpace(guide.ForTechnical), $"no technical explanation for {kind}");
+            Assert.True(guide.ForBeginners!.Length > guide.Explanation.Length, $"the beginner's explanation is shorter for {kind}");
         }
     }
 
