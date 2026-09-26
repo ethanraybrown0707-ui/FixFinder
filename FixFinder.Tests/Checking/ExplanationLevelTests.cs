@@ -65,6 +65,28 @@ public class ExplanationLevelTests
     }
 
     /// <summary>
+    /// Moving the slider changes how much is explained, never what was found: at every depth a finding starts with what
+    /// it found in this program, and the beginner's and technical depths then add the guide's account at their depth.
+    /// </summary>
+    [Fact]
+    public void EveryDepthKeepsWhatWasFoundInThisProgram()
+    {
+        const string found = "`names` is a list, so `person in names` looks through it from the start on every pass";
+        var analysis = new FixFinder.Core.Analysis.Checks.AnalysisFinding(
+            "analysis-repeated-search", new FixFinder.Core.Analysis.Ir.SourceSpan(@"C:\work\shop.py", 5), found,
+            Severity.Suggestion, Confidence.Likely, FindingKind.Performance, "looking at how the work grows with the data");
+        var guide = Guidebook.For(@"C:\work\shop.py", FindingKind.Performance, "analysis-repeated-search");
+
+        var finding = FindingFactory.FromAnalysis(analysis);
+
+        foreach (var level in Enum.GetValues<ExplanationLevel>())
+            Assert.StartsWith(found, finding.Explanations.At(level));
+
+        Assert.EndsWith(guide.ForBeginners!, finding.Explanations.At(ExplanationLevel.Beginner));
+        Assert.EndsWith(guide.ForTechnical!, finding.Explanations.At(ExplanationLevel.Technical));
+    }
+
+    /// <summary>
     /// The rule the whole feature rests on: everything except the wording is the same at every level. A reader who
     /// switches to Beginner must not be told a different severity, a different line or a different fix.
     /// </summary>
