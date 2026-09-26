@@ -305,7 +305,8 @@ internal static class PythonPatternGuides
         AtEveryLevel(["logic-python-file-not-closed"], "A file opened and never closed",
             "Opening a file is like borrowing it: you have to hand it back by closing it. Until then, what you wrote may still " +
             "be waiting in memory rather than saved. A with block closes the file for you, even if something goes wrong.",
-            "The file stays open until the program ends, and what was written may not be saved.",
+            "Nothing closes the file, so it stays open until Python cleans the file object up - for a file kept at the top of the " +
+            "program, when the program ends - and what was written may not be saved until then.",
             "File objects buffer writes, which are flushed when the file is closed. Leaving the closing to garbage collection " +
             "depends on the implementation - CPython closes promptly through reference counting, PyPy may not - while a with " +
             "statement closes the file on leaving the block, even when an exception is raised.",
