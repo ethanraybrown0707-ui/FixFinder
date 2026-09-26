@@ -86,6 +86,8 @@ public static class Documentation
         [("analysis-repeated-search", "Java")] = "HashSet",
         [("analysis-repeated-search", "C#")] = "HashSet",
         [("analysis-repeated-search", "JavaScript")] = "Set",
+        [("analysis-text-built-in-loop", "Java")] = "StringBuilder",
+        [("analysis-text-built-in-loop", "C#")] = "StringBuilder",
     };
 
     private static readonly HashSet<string> Prefixes = new(StringComparer.OrdinalIgnoreCase)

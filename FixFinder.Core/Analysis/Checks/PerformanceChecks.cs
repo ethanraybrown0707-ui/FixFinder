@@ -60,6 +60,8 @@ public static class PerformanceChecks
             // Outer loops come first, so a search inside two loops is reported against the outer one when neither changes it.
             foreach (var loop in IrWalk.Statements(function.Body).Where(s => s is ForEach or For or While))
                 Inspect(program, function, loop, evidence, methods, source, findings);
+
+            findings.AddRange(TextBuiltInALoop.In(program, function, source));
         }
 
         return findings

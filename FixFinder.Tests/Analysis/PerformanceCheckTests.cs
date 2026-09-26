@@ -522,6 +522,156 @@ public class PerformanceCheckTests : IDisposable
         Assert.Equal(before, after);
     }
 
+    /// <summary>
+    /// Java text built with += in a loop: every piece is added to a StringBuilder instead, the text is made from it once
+    /// the loop ends, and the program prints exactly what it printed before - including text = text + grade + i, whose
+    /// pieces are added one after the other rather than summed first.
+    /// </summary>
+    [Fact]
+    public async Task JavaTextBuiltInALoopGetsAStringBuilderThatWritesTheSame()
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        const string code = """
+            public class Main {
+                static String report(int[] marks, String name) {
+                    String text = "Marks for ";
+                    text += name;
+                    text = text + ":";
+                    for (int i = 0; i < marks.length; i++) {
+                        char grade = marks[i] >= 70 ? 'A' : 'B';
+                        text += " " + marks[i];
+                        text = text + grade + i;
+                        if (marks[i] > 90) {
+                            text += '!';
+                        }
+                    }
+                    return text;
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(report(new int[] {95, 64, 72}, "ada"));
+                    System.out.println(report(new int[0], "alan"));
+                }
+            }
+            """;
+
+        var path = await WriteAsync("Main.java", code);
+        var found = PerformanceChecks.Run(await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        Assert.Equal(8, finding.Span.Line);
+        Assert.StartsWith("`text` is a String, and a String never changes once it is made, so `text += \" \" + marks[i]` makes a new one", finding.Message);
+        Assert.Equal(FindingKind.Performance, finding.Kind);
+
+        var fix = Assert.IsType<LocalFix>(finding.Fix);
+        Assert.Equal("        StringBuilder textBuilder = new StringBuilder().append(text);", fix.NewLines[0]);
+        Assert.Contains("            textBuilder.append(\" \" + marks[i]);", fix.NewLines);
+        Assert.Contains("            textBuilder.append(grade).append(i);", fix.NewLines);
+        Assert.Contains("                textBuilder.append('!');", fix.NewLines);
+        Assert.Equal("        text = textBuilder.toString();", fix.NewLines[^1]);
+
+        var changedFolder = Path.GetDirectoryName(await WriteAsync(Path.Combine("changed", "Main.java"), Changed(fix)))!;
+        if (await OutputAsync(tools.Javac, "Main.java", _temp.Path) is null) return;
+        Assert.NotNull(await OutputAsync(tools.Javac, "Main.java", changedFolder));
+
+        var before = await OutputAsync(tools.Java, "-cp . Main", _temp.Path);
+        var after = await OutputAsync(tools.Java, "-cp . Main", changedFolder);
+
+        Assert.Equal("Marks for ada: 95A0! 64B1 72A2\nMarks for alan:\n", before);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public async Task CSharpTextBuiltInALoopGetsAStringBuilder()
+    {
+        const string code = """
+            using System.Collections.Generic;
+
+            public static class Report
+            {
+                public static string Lines(List<string> names)
+                {
+                    string text = "";
+                    foreach (var name in names)
+                    {
+                        text += name.ToUpper();
+                        text += '\n';
+                    }
+                    return text;
+                }
+            }
+            """;
+
+        var path = await WriteAsync("Report.cs", code);
+        var found = PerformanceChecks.Run(await CSharpFrontend.ReadAsync([path]), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        var fix = Assert.IsType<LocalFix>(finding.Fix);
+        Assert.Equal("        var textBuilder = new System.Text.StringBuilder(text);", fix.NewLines[0]);
+        Assert.Contains("            textBuilder.Append(name.ToUpper());", fix.NewLines);
+        Assert.Equal("        text = textBuilder.ToString();", fix.NewLines[^1]);
+
+        var changed = await WriteAsync(Path.Combine("changed", "Report.cs"), Changed(fix));
+        Assert.Empty((await CSharpFrontend.ReadAsync([changed])).Problems);
+    }
+
+    /// <summary>
+    /// The cost is the same whatever else the loop does, so each of these is still reported - but a StringBuilder would
+    /// not give the same text, or the same program, so no change is offered.
+    /// </summary>
+    [Theory]
+    [InlineData("the text is read inside the loop", "String text = \"\";\n        for (String word : words) {\n            if (text.length() > 20) break;\n            text += word;\n        }")]
+    [InlineData("the text starts as null", "String text = null;\n        for (String word : words) {\n            text += word;\n        }")]
+    [InlineData("a piece is an array, which + and append write differently", "String text = \"\";\n        char[] letters = {'a', 'b'};\n        for (String word : words) {\n            text += letters;\n        }")]
+    [InlineData("the loop is inside a try", "String text = \"\";\n        try {\n            for (String word : words) {\n                text += word;\n            }\n        } catch (RuntimeException problem) {\n            return text;\n        }")]
+    public async Task JavaTextBuiltInALoopIsReportedWithoutAChangeWhereTheChangeCouldDiffer(string shape, string body)
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        var path = await WriteAsync("Main.java", $"import java.util.*;\n\npublic class Main {{\n    static String join(List<String> words) {{\n        {body}\n        return text;\n    }}\n}}\n");
+        var found = PerformanceChecks.Run(await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        Assert.True(finding.Fix is null, shape);
+    }
+
+    /// <summary>A line of text started afresh on each pass of the outer loop only grows inside the inner one, which is the one reported.</summary>
+    [Fact]
+    public async Task TextStartedAfreshEachPassIsReportedAgainstTheLoopThatBuildsIt()
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        var path = await WriteAsync("Main.java", """
+            public class Main {
+                static void grid(int rows, int columns) {
+                    for (int row = 0; row < rows; row++) {
+                        String line = "";
+                        for (int column = 0; column < columns; column++) {
+                            line += row * column + " ";
+                        }
+                        System.out.println(line);
+                    }
+                }
+            }
+            """);
+        var found = PerformanceChecks.Run(await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java), new SourceText());
+
+        var finding = Assert.Single(found, f => f.CheckId == TextBuiltInALoop.Rule);
+        Assert.Contains("the loop that begins on line 5", finding.Message);
+    }
+
+    /// <summary>CPython usually grows a string in place, and JavaScript engines join strings lazily, so there nothing is said.</summary>
+    [Fact]
+    public async Task TextBuiltInALoopIsNotReportedInPythonOrJavaScript()
+    {
+        if (await CheckAsync("def join(words):\n    text = \"\"\n    for word in words:\n        text += word\n    return text\n") is { } python)
+            Assert.DoesNotContain(python, f => f.CheckId == TextBuiltInALoop.Rule);
+
+        var script = await WriteAsync("join.js", "function join(words) {\n  let text = '';\n  for (const word of words) {\n    text += word;\n  }\n  return text;\n}\n");
+        Assert.DoesNotContain(PerformanceChecks.Run(await JavaScriptFrontend.ReadAsync([script]), new SourceText()), f => f.CheckId == TextBuiltInALoop.Rule);
+    }
+
     /// <summary>A change from an analysis is shown only once a copy of the file with it has been checked and compiles.</summary>
     [Fact]
     public async Task AChangeIsOnlyShownOnceItsCopyCompiles()

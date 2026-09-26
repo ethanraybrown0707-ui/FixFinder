@@ -293,6 +293,16 @@ written without braces. A Java or C# change also has to compile before it is sho
 is never changed this way. C and C++ are not checked for this: FixFinder's reader does not follow C++'s template types,
 and a member `count` or `find` there belongs to a set or a map as often as to a string.
 
+Text built a piece at a time in a Java or C# loop - `text += name` - is reported too (CWE-1046): a string there never
+changes once made, so each `+=` makes a new one and copies all the text built so far into it, and the work grows with
+the square of the number of pieces. Python and JavaScript are left out, since CPython usually grows the string in place
+and JavaScript engines join strings lazily. The change offered builds the text in a `StringBuilder` - made from it before
+the loop, added to inside, and turned back into the text after - and only where it gives the same text: the text is the
+function's own and starts as written text, so it is never null; each piece is text, a character, a number or a truth
+value, which a `StringBuilder` writes exactly as `+` does, and `text = text + a + b` adds `a` and then `b` rather than
+their sum; nothing reads the text inside the loop or from a lambda written in the function; and the loop is not inside a
+`try`, where a `catch` could read the text half built.
+
 Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
 found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
 can call - found by name, so a call through any object still counts, and by following its calls through what its module

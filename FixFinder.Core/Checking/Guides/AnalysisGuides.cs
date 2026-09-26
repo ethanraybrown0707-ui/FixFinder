@@ -970,6 +970,20 @@ internal static class AnalysisGuides
             Thread worker = new Thread(task);
             worker.start();
             """),
+
+        AtEveryLevel(["analysis-text-built-in-loop"], "Building text a piece at a time in a loop",
+            "A String in Java can never be changed once it is made. So text += piece does not add to the text you have - it makes a brand new String, copies all the text so far into it, then adds the piece. Inside a loop that copying happens on every pass, and each copy is longer than the one before.",
+            "Strings cannot be changed, so each += inside the loop makes a new String and copies all the text built so far into it; the work grows with the square of the number of pieces.",
+            "String is immutable, so each concatenation allocates a new String and copies the accumulated characters; building n pieces this way is O(n^2) in the length copied, where a StringBuilder appends to a growing buffer in amortised O(1) per character.",
+            "It gives the right text either way and is quick for a few pieces. With thousands of pieces the copying dominates, and the program slows down far more than the amount of text would suggest.",
+            "Collect the pieces in a StringBuilder, which adds each one to the end of the text it already holds, and turn it into a String once the loop is done.",
+            """
+            StringBuilder report = new StringBuilder();
+            for (String name : names) {
+                report.append(name).append('\n');
+            }
+            String text = report.toString();
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1298,6 +1312,21 @@ internal static class AnalysisGuides
             """
             while (!ready)
                 Monitor.Wait(gate);
+            """),
+
+        AtEveryLevel(["analysis-text-built-in-loop"], "Building text a piece at a time in a loop",
+            "A string in C# can never be changed once it is made. So text += piece does not add to the text you have - it makes a brand new string, copies all the text so far into it, then adds the piece. Inside a loop that copying happens on every pass, and each copy is longer than the one before.",
+            "Strings cannot be changed, so each += inside the loop makes a new string and copies all the text built so far into it; the work grows with the square of the number of pieces.",
+            "System.String is immutable, so each concatenation allocates a new string and copies the accumulated characters; building n pieces this way is O(n^2) in the length copied, where a StringBuilder appends to a growing buffer in amortised O(1) per character.",
+            "It gives the right text either way and is quick for a few pieces. With thousands of pieces the copying dominates, and the program slows down far more than the amount of text would suggest.",
+            "Collect the pieces in a StringBuilder, which adds each one to the end of the text it already holds, and turn it into a string once the loop is done.",
+            """
+            var report = new StringBuilder();
+            foreach (var name in names)
+            {
+                report.Append(name).Append('\n');
+            }
+            var text = report.ToString();
             """),
     ];
 }

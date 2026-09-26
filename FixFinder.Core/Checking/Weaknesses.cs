@@ -54,6 +54,7 @@ public static class Weaknesses
     private static readonly Weakness AfterRelease = new(672, "Operation on a Resource after Expiration or Release");
     private static readonly Weakness AlwaysFalse = new(570, "Expression is Always False");
     private static readonly Weakness AlwaysTrue = new(571, "Expression is Always True");
+    private static readonly Weakness ImmutableTextConcatenation = new(1046, "Creation of Immutable Text Using String Concatenation");
 
     private static readonly Dictionary<string, Weakness> ByRule = new(StringComparer.Ordinal)
     {
@@ -82,6 +83,7 @@ public static class Weaknesses
         ["analysis-used-after-close"] = AfterRelease,
         ["analysis-never-true"] = AlwaysFalse,
         ["analysis-always-true"] = AlwaysTrue,
+        ["analysis-text-built-in-loop"] = ImmutableTextConcatenation,
     };
 
     /// <summary>The languages whose "nothing" is a pointer to nothing, which is what CWE-476 is about.</summary>

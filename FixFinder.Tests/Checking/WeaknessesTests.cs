@@ -32,6 +32,8 @@ public class WeaknessesTests
         { "analysis-unassigned-after-error", "parse.py", 457 },
         { "analysis-never-true", "grade.py", 570 },
         { "analysis-always-true", "grade.py", 571 },
+        { "analysis-text-built-in-loop", "Report.java", 1046 },
+        { "analysis-text-built-in-loop", "Report.cs", 1046 },
     };
 
     [Theory]

@@ -414,7 +414,7 @@ internal static partial class SetBeforeTheLoop
     /// line, and - where braces make blocks - the line before it ends a statement or opens or closes a block, so the new
     /// line cannot become the body of an if or a loop written without braces.
     /// </summary>
-    private static bool LoopStartsItsLine(IReadOnlyList<string> lines, int loopLine, SourceLanguage language)
+    internal static bool LoopStartsItsLine(IReadOnlyList<string> lines, int loopLine, SourceLanguage language)
     {
         if (!LoopKeyword().IsMatch(lines[loopLine - 1].TrimStart())) return false;
         if (language == SourceLanguage.Python) return true;
