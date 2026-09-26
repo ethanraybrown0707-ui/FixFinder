@@ -270,6 +270,15 @@ written without braces. A Java or C# change also has to compile before it is sho
 is never changed this way. C and C++ are not checked for this: FixFinder's reader does not follow C++'s template types,
 and a member `count` or `find` there belongs to a set or a map as often as to a string.
 
+Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
+found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
+can call - found by name, so a call through any object still counts - and every function those can call; every line
+outside a function in every file; and the list of every function, with what each declares global. After an edit, a
+function is analysed again only if one of those changed, and the logic lane says how many were unchanged. The summaries
+of what each function returns, and the checks across the whole program - threads, locks, text from outside, repeated
+work - are always worked out afresh. The tests compare every result taken from the cache with a fresh analysis of the
+same code.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked

@@ -18,9 +18,14 @@ public static class AbstractChecks
     /// <summary>How many times the functions' summaries are worked out again from each other's; enough for a chain of calls.</summary>
     private const int SummaryRounds = 3;
 
-    public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source)
+    /// <param name="cache">
+    /// What earlier checks found in each function. A function whose code, and the code it depends on, is unchanged keeps
+    /// what was found in it before; the rest are analysed afresh, and the checks across the whole program always run.
+    /// </param>
+    public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source, AnalysisCache? cache = null)
     {
         var findings = new List<AnalysisFinding>();
+        var keys = cache is null ? null : AnalysisCache.KeysFor(program, source);
         var symbolic = System.Diagnostics.Stopwatch.StartNew();
         var targets = new CallTargets(program);
         var effects = new Effects(program, targets);
@@ -47,7 +52,11 @@ public static class AbstractChecks
             return (Function: function, Evaluator: evaluator, Graph: CfgBuilder.Build(function));
         }).ToList();
 
-        for (var round = 0; round < SummaryRounds; round++)
+        // Summaries are only needed to analyse a function afresh; when every function was analysed before with the same
+        // code, there is nothing to work them out for.
+        var allKnown = keys is not null && functions.All(f => cache!.TryGet(keys[f.Function], canRefine: true, out _));
+
+        for (var round = 0; round < SummaryRounds && !allKnown; round++)
         {
             var changed = false;
             foreach (var (function, evaluator, graph) in functions.Where(f => Summarised(f.Function)))
@@ -61,18 +70,34 @@ public static class AbstractChecks
             if (!changed) break;
         }
 
+        var (reused, analysed) = (0, 0);
+
         foreach (var (function, evaluator, graph) in functions)
         {
+            var canRefine = symbolic.Elapsed < SymbolicBudget;
+            if (keys is not null && cache!.TryGet(keys[function], canRefine, out var before))
+            {
+                findings.AddRange(before);
+                reused++;
+                continue;
+            }
+
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
 
             var local = new List<AnalysisFinding>();
             new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, effects, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
                 .Run();
 
-            var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
+            var refined = canRefine ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
 
-            findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
+            var found = WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }).ToList();
+            findings.AddRange(found);
+            analysed++;
+
+            if (keys is not null) cache!.Store(keys[function], found, refined: canRefine);
         }
+
+        cache?.Finished(reused, analysed);
 
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
