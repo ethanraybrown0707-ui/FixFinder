@@ -10,18 +10,30 @@ internal static class PythonAstScript
         import sys
 
 
-        def convert(node):
+        def dotnet_column(lines, number, offset):
+            # ast counts a column in UTF-8 bytes and .NET in UTF-16 characters; the two differ as soon as a line holds
+            # anything outside ASCII, and every quote of the code would then be cut in the wrong place.
+            if 1 <= number <= len(lines):
+                before = lines[number - 1][:offset].decode("utf-8", errors="replace")
+                return len(before.encode("utf-16-le")) // 2
+            return offset
+
+
+        def convert(node, lines):
             if isinstance(node, ast.AST):
                 result = {"_": type(node).__name__}
                 for field, value in ast.iter_fields(node):
-                    result[field] = convert(value)
+                    result[field] = convert(value, lines)
                 for position in ("lineno", "col_offset", "end_lineno", "end_col_offset"):
                     value = getattr(node, position, None)
                     if value is not None:
                         result[position] = value
+                for line_field, column_field in (("lineno", "col_offset"), ("end_lineno", "end_col_offset")):
+                    if line_field in result and column_field in result:
+                        result[column_field] = dotnet_column(lines, result[line_field], result[column_field])
                 return result
             if isinstance(node, list):
-                return [convert(item) for item in node]
+                return [convert(item, lines) for item in node]
             if node is None or isinstance(node, (bool, str)):
                 return node
             if isinstance(node, int):
@@ -41,8 +53,10 @@ internal static class PythonAstScript
             for path in files:
                 try:
                     with open(path, encoding="utf-8-sig") as handle:
-                        tree = ast.parse(handle.read(), filename=path)
-                    results.append({"path": path, "tree": convert(tree)})
+                        source = handle.read()
+                    tree = ast.parse(source, filename=path)
+                    lines = [line.encode("utf-8") for line in source.split("\n")]
+                    results.append({"path": path, "tree": convert(tree, lines)})
                 except SyntaxError as error:
                     results.append({"path": path, "problem": "line %s: %s" % (error.lineno, error.msg)})
                 except (OSError, ValueError, RecursionError) as error:
