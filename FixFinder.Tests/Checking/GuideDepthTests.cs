@@ -12,6 +12,7 @@ public class GuideDepthTests
     {
         ["Python"] = PythonGuides.All,
         ["Java"] = JavaGuides.All,
+        ["CSharp"] = CSharpGuides.All,
     };
 
     public static TheoryData<string> Written
