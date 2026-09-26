@@ -57,6 +57,32 @@ public class IdiomaticProgramTests(ITestOutputHelper output) : IDisposable
         Assert.Empty(mistakes);
     }
 
+    /// <summary>
+    /// The whole check FixFinder makes of the code without running it - the logic lane's patterns as well as the
+    /// analyses, as Check on save makes it - draws no error or warning either.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Programs))]
+    public async Task IdiomaticCodeDrawsNothingFromTheWholeCheck(string name)
+    {
+        var files = Write(name, await File.ReadAllTextAsync(Path.Combine(Folder, name + ".txt")));
+
+        using var http = new FixFinder.Core.Http.FixFinderHttpClient();
+        var launch = FixFinder.Core.Execution.TargetFactory.FromFile(files[0]);
+        Assert.True(launch.Ok, launch.Problem);
+
+        var checker = new ProgramChecker(http, new FixFinder.Core.Sources.FixSourceRegistry())
+        {
+            Language = FixFinder.Core.CodeLanguage.Of(files[0]) ?? FixFinder.Core.CodeLanguage.Any,
+        };
+        var report = await checker.CheckCodeAsync(launch);
+
+        var mistakes = report.Findings.Where(f => f.Severity != Severity.Suggestion).ToList();
+        foreach (var finding in mistakes) output.WriteLine($"{Path.GetFileName(finding.File)}:{finding.Line} [{finding.Severity}] {finding.RuleId}: {finding.Explanation}");
+
+        Assert.Empty(mistakes);
+    }
+
     /// <summary>The program read by its language's reader - or null when the tools that reader needs are not installed.</summary>
     private static async Task<IrProgram?> ReadAsync(List<string> files) => Path.GetExtension(files[0]) switch
     {
