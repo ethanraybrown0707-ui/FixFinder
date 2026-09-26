@@ -1,0 +1,54 @@
+==> Main.java <==
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+public class Main {
+    static List<String> find(Connection connection, String name) throws SQLException {
+        List<String> found = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement("SELECT email FROM people WHERE name = ?")) {
+            statement.setString(1, name);
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    found.add(rows.getString(1));
+                }
+            }
+        }
+        return found;
+    }
+
+    static String pageQuery(String page) {
+        int number = Integer.parseInt(page.trim());
+        return "SELECT * FROM posts LIMIT 10 OFFSET " + (number * 10);
+    }
+
+    static int parseOrDefault(String text, int fallback) {
+        int value;
+        try {
+            value = Integer.parseInt(text);
+        } catch (NumberFormatException problem) {
+            return fallback;
+        }
+        return value;
+    }
+
+    public static void main(String[] args) throws SQLException {
+        Scanner in = new Scanner(System.in);
+        String name = in.nextLine();
+        String page = in.nextLine();
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite::memory:")) {
+            System.out.println(find(connection, name));
+            try (PreparedStatement statement = connection.prepareStatement(pageQuery(page))) {
+                statement.executeQuery();
+            }
+        }
+        System.out.println(parseOrDefault(args.length > 0 ? args[0] : "x", 1));
+        ProcessBuilder listing = new ProcessBuilder("ls", "-l", name);
+        System.out.println(listing.command());
+    }
+}

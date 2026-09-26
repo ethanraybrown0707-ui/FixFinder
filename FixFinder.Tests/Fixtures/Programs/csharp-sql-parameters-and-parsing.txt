@@ -1,0 +1,41 @@
+==> Program.cs <==
+using System;
+using System.Data;
+using System.Data.Common;
+
+public static class Program
+{
+    static void Find(DbConnection connection, string name)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT email FROM people WHERE name = @name";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "@name";
+        parameter.Value = name;
+        command.Parameters.Add(parameter);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            Console.WriteLine(reader.GetString(0));
+        }
+    }
+
+    static void Page(DbConnection connection, string pageText)
+    {
+        var page = int.Parse(pageText);
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT * FROM posts LIMIT 10 OFFSET {page * 10}";
+        command.ExecuteNonQuery();
+    }
+
+    public static void Run(DbConnection connection)
+    {
+        var name = Console.ReadLine() ?? "";
+        Find(connection, name);
+        Page(connection, Console.ReadLine() ?? "0");
+    }
+
+    public static void Main()
+    {
+    }
+}
