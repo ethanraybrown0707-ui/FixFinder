@@ -81,6 +81,7 @@ public static class DiagnosticLines
             whyItMatters = finding.WhyItMatters,
             suggestedFix = finding.SuggestedFix,
             verified = finding.Verified.Summary,
+            cwe = finding.Weakness is { } weakness ? $"CWE-{weakness.Id}" : null,
         }), Engine.JsonOptions.Default);
 
     /// <summary>

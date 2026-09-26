@@ -185,6 +185,14 @@
                                         ToolTip="{Binding FurtherReadingUrl}"/>
                             </StackPanel>
 
+                            <StackPanel Visibility="{Binding HasWeakness, Converter={StaticResource Visible}}">
+                                <TextBlock Text="CLASSIFIED AS (MITRE CWE)" Style="{StaticResource Label}"/>
+                                <Button Content="{Binding WeaknessText}" Style="{StaticResource LinkButton}"
+                                        HorizontalAlignment="Left" Tag="{Binding}" Click="OpenWeakness_Click"
+                                        AutomationProperties.AutomationId="FindingWeakness"
+                                        ToolTip="{Binding WeaknessUrl}"/>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
                                 <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
                                 <TextBlock local:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"

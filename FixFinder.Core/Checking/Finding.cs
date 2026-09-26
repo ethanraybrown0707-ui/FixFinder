@@ -83,6 +83,9 @@ public sealed record Finding
     /// </summary>
     public FurtherReading? FurtherReading => Documentation.For(this);
 
+    /// <summary>The CWE entry this is an instance of - MITRE's independent description of the weakness - or null when none fits exactly.</summary>
+    public Weakness? Weakness => Weaknesses.For(RuleId, File);
+
     public string? Family { get; init; }
 
     /// <summary>The technique that found it, when it was one of the analyses rather than a compiler, a run or a pattern.</summary>

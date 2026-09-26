@@ -26,9 +26,13 @@ public static class Guidebook
     /// <summary>Every guide FixFinder has, for checks that hold of all of them rather than of one.</summary>
     public static IEnumerable<MistakeGuide> Every() => AllTables.SelectMany(table => table).Select(entry => entry.Guide);
 
+    /// <summary>
+    /// Every table a guide can be found in - each language's own, with the analyses' guides for that language, which are
+    /// looked up alongside it and belong in "every" as much as the rest.
+    /// </summary>
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
-        PythonGuides.All, JavaGuides.All, CSharpGuides.All, NativeGuides.All, JavaScriptGuides.All, GoGuides.All, LogicGuides.All,
+        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, LogicGuides.All,
     ];
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];

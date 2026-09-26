@@ -555,6 +555,11 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.FurtherReading is { } reading) Open(reading.Url);
     }
 
+    private void OpenWeakness_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.Weakness is { } weakness) Open(weakness.Url);
+    }
+
     private void OpenOrigin_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.CameFrom is { HasLink: true } came) Open(came.Url!);

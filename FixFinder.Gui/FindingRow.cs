@@ -187,6 +187,13 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string FurtherReadingUrl => Finding.FurtherReading?.Url ?? "";
 
+    /// <summary>The CWE entry this finding is an instance of, when one fits exactly.</summary>
+    public bool HasWeakness => Finding.Weakness is not null;
+
+    public string WeaknessText => Finding.Weakness is { } weakness ? $"CWE-{weakness.Id}: {weakness.Title}" : "";
+
+    public string WeaknessUrl => Finding.Weakness?.Url ?? "";
+
     /// <summary>Where the fix came from, so it can be checked rather than taken on trust.</summary>
     public bool HasOrigin => Finding.CameFrom is not null && Finding.Fix is not null;
 

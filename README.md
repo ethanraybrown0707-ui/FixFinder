@@ -175,6 +175,15 @@ by `synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally
 function it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock
 is held at both. A field of an object is only shared by threads using that same object.
 
+Each finding that is an instance of a weakness in MITRE's **Common Weakness Enumeration** says which - CWE-89 for SQL
+injection, CWE-833 for a deadlock, CWE-835 for a loop that never ends, and so on - with a link to the entry, an
+authoritative description independent of FixFinder's own. Every entry was fetched and its title copied from it; CWE
+numbers are permanent, so the links do not move. A rule is classified only where the entry's own description fits
+everything the rule reports, in that language: CWE-584 is a `return` in a `finally` block, and FixFinder's rule also
+reports `break` and `continue`; CWE-129 is an index that comes in from outside unchecked, and FixFinder's index rule
+also reports one worked out a step too far inside the function; CWE-476 is a NULL *pointer*, which Java's `null` and
+Go's `nil` are and Python's `None` is not. The command line's JSON carries the CWE too.
+
 Each language keeps its own rules, and a finding says what that language actually does:
 
 | | |
