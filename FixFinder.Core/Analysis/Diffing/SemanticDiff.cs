@@ -122,6 +122,7 @@ public static class SemanticDiff
         {
             KeepEnds = true,
             MostTime = TimeSpan.FromMilliseconds(400),
+            OwnTypes = program.Classes.Select(type => type.Name).ToHashSet(StringComparer.Ordinal),
         }.Explore();
 
     /// <summary>Two ends that the same inputs can reach, in shared symbols.</summary>

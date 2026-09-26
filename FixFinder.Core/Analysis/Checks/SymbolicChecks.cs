@@ -27,6 +27,7 @@ public static class SymbolicChecks
         var report = new SymbolicExecutor(graph, evaluator.Language, evaluator.Locals ?? new HashSet<string>(), evaluator.Volatile, evaluator.DeclaredTypes)
         {
             MayReturnNull = call => evaluator.CallReturns?.Invoke(call) is { MayBeNull: true },
+            OwnTypes = evaluator.OwnTypes,
         }.Explore();
         var refined = new List<AnalysisFinding>();
 

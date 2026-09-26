@@ -1,0 +1,124 @@
+==> main.go <==
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+var ErrEmpty = errors.New("empty stack")
+
+type Stack struct {
+	items []int
+}
+
+func (s *Stack) Push(value int) {
+	s.items = append(s.items, value)
+}
+
+func (s *Stack) Pop() (int, error) {
+	if len(s.items) == 0 {
+		return 0, ErrEmpty
+	}
+	last := s.items[len(s.items)-1]
+	s.items = s.items[:len(s.items)-1]
+	return last, nil
+}
+
+type Shape interface {
+	Area() float64
+}
+
+type Rect struct{ Width, Height float64 }
+
+type Circle struct{ Radius float64 }
+
+func (r Rect) Area() float64   { return r.Width * r.Height }
+func (c Circle) Area() float64 { return 3.14159 * c.Radius * c.Radius }
+
+func describe(shape Shape) string {
+	switch concrete := shape.(type) {
+	case Rect:
+		return fmt.Sprintf("rect %.1f", concrete.Width)
+	case Circle:
+		return fmt.Sprintf("circle %.1f", concrete.Radius)
+	default:
+		return "unknown"
+	}
+}
+
+func parseAll(texts []string) ([]int, error) {
+	numbers := make([]int, 0, len(texts))
+	for _, text := range texts {
+		number, err := strconv.Atoi(strings.TrimSpace(text))
+		if err != nil {
+			return nil, fmt.Errorf("reading %q: %w", text, err)
+		}
+		numbers = append(numbers, number)
+	}
+	return numbers, nil
+}
+
+func produce(count int) <-chan int {
+	out := make(chan int, count)
+	go func() {
+		defer close(out)
+		for i := 0; i < count; i++ {
+			out <- i * i
+		}
+	}()
+	return out
+}
+
+func lookup(ages map[string]int, name string) string {
+	age, ok := ages[name]
+	if !ok {
+		return name + " unknown"
+	}
+	return fmt.Sprintf("%s is %d", name, age)
+}
+
+func main() {
+	var stack Stack
+	stack.Push(1)
+	stack.Push(2)
+	if top, err := stack.Pop(); err == nil {
+		fmt.Println(top)
+	}
+	_, _ = stack.Pop()
+	if _, err := stack.Pop(); errors.Is(err, ErrEmpty) {
+		fmt.Println("empty now")
+	}
+
+	fmt.Println(describe(Rect{2, 3}), describe(Circle{1}))
+
+	if numbers, err := parseAll([]string{" 1", "2 "}); err == nil {
+		fmt.Println(numbers)
+	}
+	if _, err := parseAll([]string{"x"}); err != nil {
+		fmt.Println(err)
+	}
+
+	total := 0
+	for square := range produce(4) {
+		total += square
+	}
+	fmt.Println(total)
+
+	done := make(chan struct{})
+	results := make(chan string, 1)
+	go func() {
+		results <- "work"
+		close(done)
+	}()
+	select {
+	case result := <-results:
+		fmt.Println(result)
+	case <-done:
+		fmt.Println("finished")
+	}
+
+	fmt.Println(lookup(map[string]int{"ada": 36}, "ada"), lookup(nil, "bob"))
+}

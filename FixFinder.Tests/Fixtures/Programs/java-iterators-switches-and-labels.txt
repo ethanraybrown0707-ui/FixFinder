@@ -1,0 +1,119 @@
+==> Main.java <==
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+public class Main {
+    static int daysIn(int month) {
+        return switch (month) {
+            case 2 -> 28;
+            case 4, 6, 9, 11 -> 30;
+            default -> 31;
+        };
+    }
+
+    static List<Integer> withoutNegatives(List<Integer> numbers) {
+        List<Integer> kept = new ArrayList<>(numbers);
+        Iterator<Integer> each = kept.iterator();
+        while (each.hasNext()) {
+            if (each.next() < 0) {
+                each.remove();
+            }
+        }
+        return kept;
+    }
+
+    static Map<String, List<String>> groupByFirstLetter(List<String> words) {
+        Map<String, List<String>> groups = new HashMap<>();
+        for (String word : words) {
+            if (word.isEmpty()) {
+                continue;
+            }
+            groups.computeIfAbsent(word.substring(0, 1), letter -> new ArrayList<>()).add(word);
+        }
+        return groups;
+    }
+
+    static int countOf(Map<String, Integer> counts, String key) {
+        return counts.getOrDefault(key, 0);
+    }
+
+    static int balanced(String text) {
+        Deque<Character> open = new ArrayDeque<>();
+        for (char c : text.toCharArray()) {
+            if (c == '(') {
+                open.push(c);
+            } else if (c == ')') {
+                if (open.isEmpty()) {
+                    return -1;
+                }
+                open.pop();
+            }
+        }
+        return open.size();
+    }
+
+    static int findPair(int[][] grid, int target) {
+        int found = -1;
+        search:
+        for (int row = 0; row < grid.length; row++) {
+            for (int column = 0; column < grid[row].length; column++) {
+                if (grid[row][column] == target) {
+                    found = row * 10 + column;
+                    break search;
+                }
+            }
+        }
+        return found;
+    }
+
+    static double average(int[] values) throws EmptyInput {
+        if (values.length == 0) {
+            throw new EmptyInput("nothing to average");
+        }
+        long total = 0;
+        for (int value : values) {
+            total += value;
+        }
+        return (double) total / values.length;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(daysIn(2) + daysIn(4) + daysIn(1));
+        System.out.println(withoutNegatives(Arrays.asList(3, -1, 4)));
+        System.out.println(groupByFirstLetter(List.of("apple", "avocado", "banana", "")));
+        System.out.println(countOf(new HashMap<>(), "x"));
+        System.out.println(balanced("(()())") + " " + balanced("())"));
+        System.out.println(findPair(new int[][] {{1, 2}, {3, 4}}, 4));
+        try {
+            System.out.println(average(new int[] {2, 4}));
+            System.out.println(average(new int[0]));
+        } catch (EmptyInput problem) {
+            System.out.println(problem.getMessage());
+        } finally {
+            System.out.println("done");
+        }
+        StringBuilder line = new StringBuilder();
+        for (String arg : args) {
+            if (line.length() > 0) {
+                line.append(' ');
+            }
+            line.append(arg);
+        }
+        System.out.println(line);
+        if (args.length > 0) {
+            System.out.println(args[0].toUpperCase());
+        }
+    }
+}
+==> EmptyInput.java <==
+public class EmptyInput extends Exception {
+    public EmptyInput(String message) {
+        super(message);
+    }
+}

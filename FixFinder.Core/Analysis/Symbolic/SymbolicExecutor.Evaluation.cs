@@ -186,6 +186,8 @@ public sealed partial class SymbolicExecutor
     /// <summary>A value of a declared type, with a fresh symbol for what is not known and the type's own limits.</summary>
     private SymbolicValue FromType(IrType type, string describes, SymbolOrigin origin, Path path, string? variable = null)
     {
+        if (OwnTypes.Contains(type.Name)) return SymUnknown.Value;
+
         var lengthOrigin = origin == SymbolOrigin.Input ? SymbolOrigin.TextLength : SymbolOrigin.Length;
 
         switch (type.Name)
@@ -1018,7 +1020,7 @@ public sealed partial class SymbolicExecutor
         if (name == "array")
             return arguments is [SymNumber { Whole: true } size] ? new SymSequence(CollectionKind.Array, size.Term) : new SymSequence(CollectionKind.Array, ApproximateLength(path));
 
-        var kind = name switch
+        var kind = OwnTypes.Contains(name) ? null : name switch
         {
             "ArrayList" or "LinkedList" or "List" or "Vector" or "Stack" or "ArrayDeque" or "Queue" or "Collection" or "ObservableCollection" => CollectionKind.List,
             "HashMap" or "TreeMap" or "LinkedHashMap" or "Dictionary" or "SortedDictionary" or "Hashtable" or "ConcurrentDictionary" => CollectionKind.Dictionary,

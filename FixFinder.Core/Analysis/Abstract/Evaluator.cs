@@ -48,6 +48,12 @@ public sealed class Evaluator(SourceLanguage language)
     public IReadOnlyDictionary<string, IrType> DeclaredTypes { get; init; } = new Dictionary<string, IrType>();
 
     /// <summary>
+    /// The classes and structs the program defines itself. A Stack the program writes is its own object, whatever it
+    /// is called: its push and pop do what its code says, not what java.util.Stack's do.
+    /// </summary>
+    public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
+
+    /// <summary>
     /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
     /// of that name hides it, so both are followed under the one name.
     /// </summary>
@@ -186,7 +192,7 @@ public sealed class Evaluator(SourceLanguage language)
         if (name == "array")
             return AbstractValue.Sized(ValueKind.List, arguments is [{ IsNumber: true } size] ? size.Number.Meet(Interval.NonNegative) : Interval.NonNegative);
 
-        var kind = name switch
+        var kind = OwnTypes.Contains(name) ? ValueKind.Nothing : name switch
         {
             "ArrayList" or "LinkedList" or "List" or "Vector" or "Stack" or "ArrayDeque" or "Queue" or "LinkedHashSet" => ValueKind.List,
             "HashMap" or "TreeMap" or "LinkedHashMap" or "Dictionary" or "SortedDictionary" or "Hashtable" => ValueKind.Dictionary,
@@ -451,7 +457,7 @@ public sealed class Evaluator(SourceLanguage language)
 
     public AbstractValue FromType(IrType type)
     {
-        var value = type.Name switch
+        var value = OwnTypes.Contains(type.Name) ? AbstractValue.Of(ValueKind.Object) : type.Name switch
         {
             "byte" when language is SourceLanguage.CSharp or SourceLanguage.Go or SourceLanguage.C or SourceLanguage.Cpp =>
                 AbstractValue.Integer(new Interval(0, 255)),

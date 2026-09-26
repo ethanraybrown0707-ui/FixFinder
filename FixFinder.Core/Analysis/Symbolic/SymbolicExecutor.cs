@@ -47,6 +47,12 @@ public sealed partial class SymbolicExecutor
     }
 
     /// <summary>
+    /// The classes and structs the program defines itself, which are its own objects whatever they are called - a Stack
+    /// the program writes is not java.util.Stack.
+    /// </summary>
+    public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
+
+    /// <summary>
     /// Variables the function does arithmetic with - subtracts, multiplies, divides, negates, counts a range to, indexes
     /// with. Where they are compared with each other they are compared as numbers, so x1 == x2 constrains x2 - x1.
     /// </summary>

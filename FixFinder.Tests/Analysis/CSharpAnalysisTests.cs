@@ -130,6 +130,7 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("a whole number kept in a float", "    static float F()\n    {\n        float f = 0;\n        return 10 / f;\n    }")]
     [InlineData("a double that a method returns", "    static double Zero() { return 0; }\n    static double F() => 10 / Zero();")]
     [InlineData("a number written with thousands separators", "    static double F() => double.Parse(\"1,000.5\") + int.Parse(\" 42 \");")]
+    [InlineData("a Stack class of the program's own", "    class Stack\n    {\n        private readonly int[] _items = new int[10];\n        private int _size;\n        public void Push(int value) => _items[_size++] = value;\n        public int Pop() => _size == 0 ? -1 : _items[--_size];\n    }\n\n    static int F()\n    {\n        var stack = new Stack();\n        stack.Push(1);\n        stack.Pop();\n        return stack.Pop();\n    }")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         var findings = await Analyse(body);

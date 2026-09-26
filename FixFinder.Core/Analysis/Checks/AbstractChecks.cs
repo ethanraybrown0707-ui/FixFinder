@@ -29,6 +29,7 @@ public static class AbstractChecks
         var symbolic = System.Diagnostics.Stopwatch.StartNew();
         var targets = new CallTargets(program);
         var effects = new Effects(program, targets);
+        var ownTypes = program.Classes.Select(type => type.Name).ToHashSet(StringComparer.Ordinal);
         var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
         var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
 
@@ -45,6 +46,7 @@ public static class AbstractChecks
                 Escaping = Scopes.Escaping(function),
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
+                OwnTypes = ownTypes,
                 CallReturns = call => targets.Resolve(call, function, locals) is { Overridable: false } target && summaries.TryGetValue(target.Function, out var returned)
                     ? returned
                     : null,
@@ -723,7 +725,11 @@ public static class AbstractChecks
             var preconditions = contractsOf(target.Function);
             if (preconditions.Count == 0) return;
 
-            var callee = new Evaluator(evaluator.Language) { Locals = target.Function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal) };
+            var callee = new Evaluator(evaluator.Language)
+            {
+                Locals = target.Function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+                OwnTypes = evaluator.OwnTypes,
+            };
             var state = bound.Aggregate(AbstractState.Start, (s, pair) => callee.Store(s, pair.Key, pair.Value));
 
             foreach (var precondition in preconditions)

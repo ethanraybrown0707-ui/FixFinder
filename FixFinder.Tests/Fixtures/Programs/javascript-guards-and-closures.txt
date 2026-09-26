@@ -1,0 +1,98 @@
+==> main.js <==
+const inventory = [
+  { name: 'pen', price: 1.5, stock: 10 },
+  { name: 'pad', price: 3, stock: 0 },
+];
+
+function priceOf(name) {
+  const item = inventory.find((entry) => entry.name === name);
+  if (!item) {
+    return null;
+  }
+  return item.price;
+}
+
+function lastOf(items) {
+  if (items.length === 0) {
+    return undefined;
+  }
+  return items[items.length - 1];
+}
+
+function firstNumber(text) {
+  const match = text.match(/(\d+)/);
+  if (match === null) {
+    return 0;
+  }
+  return Number(match[1]);
+}
+
+function parseSettings(json) {
+  try {
+    const { volume = 5, theme = 'light' } = JSON.parse(json);
+    return { volume, theme };
+  } catch (error) {
+    return { volume: 5, theme: 'light' };
+  }
+}
+
+function describe(kind) {
+  switch (kind) {
+    case 'a':
+    case 'b':
+      return 'early letter';
+    case 'z':
+      return 'last letter';
+    default:
+      return 'some letter';
+  }
+}
+
+class Shape {
+  constructor(name) {
+    this.name = name;
+  }
+
+  area() {
+    return 0;
+  }
+
+  static largest(shapes) {
+    return shapes.reduce((best, shape) => (best === null || shape.area() > best.area() ? shape : best), null);
+  }
+}
+
+class Square extends Shape {
+  constructor(side) {
+    super('square');
+    this.side = side;
+  }
+
+  area() {
+    return this.side * this.side;
+  }
+}
+
+function makeCounter() {
+  let count = 0;
+  return () => {
+    count += 1;
+    return count;
+  };
+}
+
+async function totals(fetchers) {
+  const results = await Promise.all(fetchers.map((fetch) => fetch()));
+  return results.reduce((sum, value) => sum + value, 0);
+}
+
+const next = makeCounter();
+next();
+console.log(priceOf('pen') ?? 'unknown', priceOf('ink') ?? 'unknown');
+console.log(lastOf([1, 2, 3]), lastOf([]), firstNumber('room 42'), firstNumber('none'));
+console.log(parseSettings('{"volume": 3}'), parseSettings('not json'));
+console.log(describe('b'), describe('q'), next());
+console.log(Shape.largest([new Square(2), new Square(3)])?.name);
+console.log(Object.entries({ a: 1, b: 2 }).map(([key, value]) => `${key}=${value}`).join('&'));
+console.log(Array.from({ length: 3 }, (_, index) => index * 2));
+totals([async () => 1, async () => 2]).then((sum) => console.log(sum)).catch((error) => console.error(error));

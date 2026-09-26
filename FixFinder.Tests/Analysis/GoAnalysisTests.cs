@@ -291,4 +291,51 @@ public class GoAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Empty(read.Findings);
     }
+
+    /// <summary>
+    /// A Stack the program writes itself is its own type, whatever it is called: its Pop says when it is empty by the
+    /// error it returns, and does not fail the way a library collection's pop would.
+    /// </summary>
+    [Fact]
+    public async Task AStackTypeOfTheProgramsOwnIsNotALibraryCollection()
+    {
+        const string code = """
+            package main
+
+            import (
+            	"errors"
+            	"fmt"
+            )
+
+            type Stack struct {
+            	items []int
+            }
+
+            func (s *Stack) Push(value int) {
+            	s.items = append(s.items, value)
+            }
+
+            func (s *Stack) Pop() (int, error) {
+            	if len(s.items) == 0 {
+            		return 0, errors.New("empty stack")
+            	}
+            	last := s.items[len(s.items)-1]
+            	s.items = s.items[:len(s.items)-1]
+            	return last, nil
+            }
+
+            func main() {
+            	var stack Stack
+            	stack.Push(1)
+            	_, _ = stack.Pop()
+            	if _, err := stack.Pop(); err != nil {
+            		fmt.Println(err)
+            	}
+            }
+            """;
+
+        if (await CheckAsync(code) is not { } read) return;
+
+        Assert.Empty(read.Findings);
+    }
 }
