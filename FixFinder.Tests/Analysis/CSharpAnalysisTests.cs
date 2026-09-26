@@ -129,6 +129,7 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("a whole number kept in a double", "    static double F()\n    {\n        double d = 0;\n        return 10 / d;\n    }")]
     [InlineData("a whole number kept in a float", "    static float F()\n    {\n        float f = 0;\n        return 10 / f;\n    }")]
     [InlineData("a double that a method returns", "    static double Zero() { return 0; }\n    static double F() => 10 / Zero();")]
+    [InlineData("a number written with thousands separators", "    static double F() => double.Parse(\"1,000.5\") + int.Parse(\" 42 \");")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         var findings = await Analyse(body);

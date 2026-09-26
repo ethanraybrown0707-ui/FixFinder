@@ -63,6 +63,7 @@ public class JavaAnalysisTests : IDisposable
     [Theory]
     [InlineData("analysis-division-by-zero", "Possible", "    static int average(int[] values) {\n        int total = 0;\n        int count = 0;\n        for (int v : values) {\n            total += v;\n            count++;\n        }\n        return total / count;\n    }", "total / count")]
     [InlineData("analysis-division-by-zero", "Certain", "    static int f() {\n        int n = 0;\n        return 10 / n;\n    }", "10 / n")]
+    [InlineData("analysis-not-a-number", "Certain", "    static double f() {\n        return Double.parseDouble(\"inf\");\n    }", "Double.parseDouble")]
     [InlineData("analysis-null-used", "Possible", "    static String label(int score) {\n        String message = null;\n        if (score > 90) message = \"top\";\n        return message.toUpperCase();\n    }", "message.toUpperCase()")]
     [InlineData("analysis-index-out-of-range", "Certain", "    static int f() {\n        int[] points = {3, 5, 8};\n        return points[3];\n    }", "points[3]")]
     [InlineData("analysis-never-true", "Likely", "    static int grade(int mark) {\n        if (mark > 100 && mark < 0) return -1;\n        return 0;\n    }", "mark > 100")]
@@ -91,6 +92,7 @@ public class JavaAnalysisTests : IDisposable
     [InlineData("a guarded division by a size", "    static int f(List<String> items) {\n        if (items.size() > 0) { return 10 / items.size(); }\n        return 0;\n    }")]
     [InlineData("a whole number kept in a double", "    static double f() {\n        double d = 0;\n        return 10 / d;\n    }")]
     [InlineData("a double that a method returns", "    static double zero() { return 0; }\n    static double f() { return 10 / zero(); }")]
+    [InlineData("doubles written with a type letter and in hexadecimal", "    static double f() {\n        return Double.parseDouble(\"1.5f\") + Double.parseDouble(\"0x1p3\") + Double.parseDouble(\" -Infinity \");\n    }")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         if (await Analyse(body) is not { } findings) return;

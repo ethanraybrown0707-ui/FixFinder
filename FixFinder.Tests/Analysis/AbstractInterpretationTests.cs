@@ -47,6 +47,7 @@ public class AbstractInterpretationTests : IDisposable
     [InlineData("analysis-loop-never-runs", "Likely", "def f():\n    n = 0\n    while n > 0:\n        n -= 1\n    return n\n", "while n > 0")]
     [InlineData("analysis-assert-always-fails", "Certain", "def f():\n    n = 3\n    assert n > 5\n    return n\n", "assert n > 5")]
     [InlineData("analysis-not-a-number", "Certain", "def f():\n    return int('abc')\n", "int('abc')")]
+    [InlineData("analysis-not-a-number", "Certain", "def f():\n    return int('1.5')\n", "int('1.5')")]
     public async Task EachMistakeIsFoundOnItsLine(string check, string confidence, string code, string marker)
     {
         if (await Analyse(code) is not { } findings) return;
@@ -61,6 +62,8 @@ public class AbstractInterpretationTests : IDisposable
     [Theory]
     [InlineData("a guard on the collection", "def average(values):\n    if not values:\n        return 0\n    return sum(values) / len(values)\n")]
     [InlineData("a guard on a collection a generator walks", "def average(values):\n    if not values:\n        return 0\n    return sum(value for value in values) / len(values)\n")]
+    [InlineData("infinity written as text", "def f():\n    return float('inf'), float('-Infinity'), float('nan')\n")]
+    [InlineData("numbers written with spaces and underscores", "def f():\n    return int(' 1_000 ') + float('1_000.5')\n")]
     [InlineData("a guard on a collection a comprehension walks", "def average(values):\n    if not values:\n        return 0\n    return sum([value * 2 for value in values]) / len(values)\n")]
     [InlineData("a guard on the count", "def f(total, count):\n    if count > 0:\n        return total / count\n    return 0\n")]
     [InlineData("a strict guard on a decimal", "def f(alpha):\n    if alpha <= 0.0:\n        raise ValueError('alpha')\n    return 1.0 / alpha\n")]

@@ -603,10 +603,21 @@ public static class AbstractChecks
                     Severity.Error, Confidence.Certain);
 
             if (function is "int" or "float" && argument is Literal { Kind: LiteralKind.Text, Value: string text } &&
-                !double.TryParse(text.Trim().Replace("_", ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
-                Report("analysis-not-a-number", call.Span, $"\"{text}\" is not a number, so `{Quote(call)}` fails with ValueError",
+                NumberText.Read(SourceLanguage.Python, text, whole: function == "int") is not NumberText.Reading.Reads and var reading)
+                Report("analysis-not-a-number", call.Span, $"\"{text}\" {NotRead(reading, call)}, so `{Quote(call)}` fails with ValueError",
                     Severity.Error, Confidence.Certain);
         }
+
+        /// <summary>
+        /// Why a conversion refuses a text: it is no number at all; it has a fraction, which a whole-number conversion
+        /// cannot take - int("1.5"); or it is a whole number written in a way the conversion does not read - int.Parse("1,000").
+        /// </summary>
+        private static string NotRead(NumberText.Reading reading, Call call) => reading switch
+        {
+            NumberText.Reading.NotWhole => "is not a whole number",
+            NumberText.Reading.WrittenOtherwise => $"is not written the way `{IrText.Of(call.Callee)}` reads a whole number",
+            _ => "is not a number",
+        };
 
         /// <summary>The error taking an item from an empty collection raises, for the calls that take one.</summary>
         private string? TakesAnItem(string method) => evaluator.Language switch
@@ -628,14 +639,13 @@ public static class AbstractChecks
             var real = (type, method) is ("double" or "float" or "decimal" or "Double" or "Decimal", "Parse") or ("Double", "parseDouble" or "valueOf") or ("Float", "parseFloat");
             if (!whole && !real) return;
 
-            var trimmed = evaluator.Language == SourceLanguage.CSharp ? text.Trim() : text;
-            var parses = whole
-                ? long.TryParse(trimmed, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out _)
-                : double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
-            if (parses) return;
+            if (evaluator.Language is not (SourceLanguage.CSharp or SourceLanguage.Java)) return;
+
+            var reading = NumberText.Read(evaluator.Language, text, whole);
+            if (reading == NumberText.Reading.Reads) return;
 
             var failure = evaluator.Language == SourceLanguage.CSharp ? "a FormatException" : "a NumberFormatException";
-            Report("analysis-not-a-number", call.Span, $"\"{text}\" is not {(whole ? "a whole number" : "a number")}, so `{Quote(call)}` fails with {failure}",
+            Report("analysis-not-a-number", call.Span, $"\"{text}\" {NotRead(reading, call)}, so `{Quote(call)}` fails with {failure}",
                 Severity.Error, Confidence.Certain);
         }
 
