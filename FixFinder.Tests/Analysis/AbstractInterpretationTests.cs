@@ -60,6 +60,8 @@ public class AbstractInterpretationTests : IDisposable
 
     [Theory]
     [InlineData("a guard on the collection", "def average(values):\n    if not values:\n        return 0\n    return sum(values) / len(values)\n")]
+    [InlineData("a guard on a collection a generator walks", "def average(values):\n    if not values:\n        return 0\n    return sum(value for value in values) / len(values)\n")]
+    [InlineData("a guard on a collection a comprehension walks", "def average(values):\n    if not values:\n        return 0\n    return sum([value * 2 for value in values]) / len(values)\n")]
     [InlineData("a guard on the count", "def f(total, count):\n    if count > 0:\n        return total / count\n    return 0\n")]
     [InlineData("a strict guard on a decimal", "def f(alpha):\n    if alpha <= 0.0:\n        raise ValueError('alpha')\n    return 1.0 / alpha\n")]
     [InlineData("a list changed through its bound method", "def f(items):\n    parts = []\n    add = parts.append\n    for item in items:\n        add(item)\n    if len(parts) == 2:\n        return parts\n    return None\n")]

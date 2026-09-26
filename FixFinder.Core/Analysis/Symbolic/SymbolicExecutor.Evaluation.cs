@@ -267,9 +267,18 @@ public sealed partial class SymbolicExecutor
     {
         var name = VariableOf(source);
         var made = new SymSequence(CollectionKind.List, Length(name is null ? Subject(source) : $"`{name}`", SymbolOrigin.Length, path, InputName(name, path)));
+
+        // Tested for truth before it was measured: a collection is true exactly when it is not empty, so the flag that
+        // stood for its truth and the length it has now must agree - at least one item when true, none when false.
+        if (name is not null && path.Truths.TryGetValue(name, out var flag))
+            path.Constraints = path.Constraints.AddRange([Constraint.AtLeast(made.Length, flag), Constraint.AtMost(made.Length, flag * LongestCollection)]);
+
         if (name is not null) Changed(path, name, made);
         return made;
     }
+
+    /// <summary>More items than any collection in any of the languages can hold: Python's own limit, sys.maxsize.</summary>
+    private static readonly Rational LongestCollection = new(long.MaxValue, 1);
 
     private bool Choose(Expr at, Expr test, Path path) =>
         path.Choices.TryGetValue(at, out var chosen) ? chosen : Settle(at, Truth(test, path));

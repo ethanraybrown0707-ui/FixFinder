@@ -210,6 +210,20 @@ public sealed class MemorySafety(
                 }
             }
 
+            // A condition is code too: while (pop(&stack, &value)) hands value's address to pop as surely as a statement would.
+            switch (block.Terminator)
+            {
+                case Branch { Condition: var condition }:
+                    Visit(condition, taking: true);
+                    break;
+                case Leave { Value: { } returning }:
+                    Visit(returning, taking: true);
+                    break;
+                case Raise { Exception: { } raised }:
+                    Visit(raised, taking: true);
+                    break;
+            }
+
             if (ownership && block.Terminator is Leave { Value: { } returned } && Root(returned) is { } given) handed.Add(given);
         }
 

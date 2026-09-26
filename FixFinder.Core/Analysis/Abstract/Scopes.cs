@@ -60,6 +60,11 @@ public static class Scopes
                 case Binary or Unary or MoreItems or NextItem:
                     foreach (var child in IrWalk.Children(expression)) Visit(child, true);
                     break;
+
+                // A comprehension walks over what it is given, as a for loop does, and what it makes is a new collection.
+                case Opaque { What: "generator" or "list comprehension" or "set comprehension" or "dictionary comprehension" } comprehension:
+                    foreach (var walked in comprehension.Parts) Visit(walked, true);
+                    break;
                 case Conditional choice:
                     Visit(choice.Test, true);
                     Visit(choice.WhenTrue, safe);

@@ -452,4 +452,34 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Contains(findings, f => f.CheckId == "analysis-uninitialised-read" && f.Span.Line == 6);
     }
+
+    /// <summary>
+    /// A variable whose address a loop's condition hands to a call - while (next(&amp;value)) - is filled in by that call,
+    /// as it would be by the same call written as a statement.
+    /// </summary>
+    [Fact]
+    public async Task AVariableFilledInThroughALoopConditionIsNotUnset()
+    {
+        const string code = """
+            #include <stdio.h>
+
+            int next(int *value);
+
+            int main(void)
+            {
+                int value;
+                while (next(&value)) {
+                    printf("%d\n", value);
+                }
+                if (next(&value) && value > 0) {
+                    printf("%d\n", value);
+                }
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-uninitialised-read");
+    }
 }
