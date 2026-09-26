@@ -137,4 +137,17 @@ public class CSharpAnalysisTests : IDisposable
 
         Assert.True(findings.Count == 0, $"{shape}: {string.Join("; ", findings.Select(f => $"{f.CheckId} line {f.Span.Line}: {f.Message}"))}");
     }
+
+    /// <summary>A var takes the type of the value it is given, and new T(...) names that type outright, with or without items.</summary>
+    [Theory]
+    [InlineData("var queue = new List<int> { 1, 2 };", "List")]
+    [InlineData("var seen = new HashSet<string>();", "HashSet")]
+    [InlineData("var count = 0;", "?")]
+    public async Task AVarGivenNewTakesTheTypeNewNames(string declaration, string type)
+    {
+        var program = await Read($"    static void F()\n    {{\n        {declaration}\n    }}");
+        var function = program.AllFunctions.Single(f => f.Name == "F");
+
+        Assert.Equal(type, Assert.Single(IrWalk.Statements(function.Body).OfType<Declare>()).Type.Name);
+    }
 }

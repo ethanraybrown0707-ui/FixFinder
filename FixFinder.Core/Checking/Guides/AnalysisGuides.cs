@@ -389,6 +389,21 @@ internal static class AnalysisGuides
             worker = threading.Thread(target=work)
             worker.start()
             """),
+
+        AtEveryLevel(["analysis-list-front-in-loop"], "Taking from or adding to the front of a list in a loop",
+            "A list keeps its items one after another from the very start, with no gaps. Taking out the first item leaves a gap at the front, so every other item moves along one place to fill it; putting an item in front means every item moves along one place to make room. Inside a loop that happens on every pass, so a list of ten thousand items means ten thousand moves each time round.",
+            "pop(0) and insert(0, x) move every other item of the list one place, so doing one on every pass makes the work grow with the number of passes times the length of the list - with the square of the length when the loop empties the list from the front.",
+            "Python's documentation says a list is optimised for fast fixed-length operations and incurs O(n) memory movement costs for pop(0) and insert(0, v), so k passes over a list of n cost O(k*n), and emptying a queue of n items from the front costs O(n^2). A collections.deque appends and pops at either end in about O(1).",
+            "It gives the right answer either way, and is quick while the list is short. A queue that grows to thousands of items - a breadth-first search of a big graph, say - makes it the slowest line in the program.",
+            "Use a collections.deque for a list taken from at the front: popleft() takes the first item and appendleft(x) puts one in front, without moving the rest. A deque has no slices and prints as deque([...]), so check what else the program does with the list first. If the loop only ever adds to the front and nothing reads the list until the loop is done, add to the end instead and reverse the list once afterwards.",
+            """
+            from collections import deque
+
+            queue = deque([start])
+            while queue:
+                node = queue.popleft()
+                print(node)
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -984,6 +999,21 @@ internal static class AnalysisGuides
             }
             String text = report.toString();
             """),
+
+        AtEveryLevel(["analysis-list-front-in-loop"], "Taking from or adding to the front of a list in a loop",
+            "An ArrayList keeps its items one after another in a block of memory, with no gaps. remove(0) takes out the first item and then moves every other item along one place to fill the gap; add(0, x) moves every item along one place to make room. Inside a loop that happens on every pass, so a list of ten thousand items means ten thousand moves each time round.",
+            "ArrayList.remove(0) and add(0, x) shift every other element one place, so doing one on every pass makes the work grow with the number of passes times the length of the list - with the square of the length when the loop empties the list from the front.",
+            "ArrayList is backed by an array: its documentation says remove(int) shifts every later element to the left and add(int, E) shifts them to the right, so each costs time linear in the length, and emptying a queue of n elements with remove(0) costs O(n^2). Most ArrayDeque operations, poll() and addFirst() among them, run in amortised constant time.",
+            "It gives the right answer either way, and is quick while the list is short. A queue that grows to thousands of items - a breadth-first search of a big graph, say - makes it the slowest line in the program.",
+            "Use an ArrayDeque for a list taken from at the front: poll() takes the first item and addFirst(x) puts one in front, without moving the rest, and add(x) still adds to the end. An ArrayDeque cannot hold null and cannot be read by position with get(i), so check what else the program does with the list first.",
+            """
+            Deque<Integer> queue = new ArrayDeque<>();
+            queue.add(start);
+            while (!queue.isEmpty()) {
+                int node = queue.poll();
+                System.out.println(node);
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1327,6 +1357,22 @@ internal static class AnalysisGuides
                 report.Append(name).Append('\n');
             }
             var text = report.ToString();
+            """),
+
+        AtEveryLevel(["analysis-list-front-in-loop"], "Taking from or adding to the front of a list in a loop",
+            "A List keeps its items one after another in a block of memory, with no gaps. RemoveAt(0) takes out the first item and then moves every other item along one place to fill the gap; Insert(0, x) moves every item along one place to make room. Inside a loop that happens on every pass, so a list of ten thousand items means ten thousand moves each time round.",
+            "List.RemoveAt(0) and Insert(0, x) move every other item one place, so doing one on every pass makes the work grow with the number of passes times the length of the list - with the square of the length when the loop empties the list from the front.",
+            "List<T> is backed by an array: its documentation gives RemoveAt as O(n) where n is Count - index, and Insert as O(n) where n is Count, so at index 0 both move every element, and emptying a queue of n elements with RemoveAt(0) costs O(n^2). Queue<T>.Dequeue is O(1), as are LinkedList<T>.AddFirst and RemoveFirst.",
+            "It gives the right answer either way, and is quick while the list is short. A queue that grows to thousands of items - a breadth-first search of a big graph, say - makes it the slowest line in the program.",
+            "Use a Queue<T> for a list taken from at the front: Dequeue() takes the first item without moving the rest, and Enqueue(x) adds to the end. To put items in front, a LinkedList<T> does it with AddFirst(x). Neither can be read by position with [i], so check what else the program does with the list first.",
+            """
+            var queue = new Queue<int>();
+            queue.Enqueue(start);
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                Console.WriteLine(node);
+            }
             """),
     ];
 }

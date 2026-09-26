@@ -354,8 +354,13 @@ internal sealed class CSharpSyntaxReader(string file)
 
         foreach (var variable in declaration.Variables)
         {
-            if (type.Nullable) _nullableValues.Add(variable.Identifier.ValueText);
-            statements.Add(new Declare(Span(variable), variable.Identifier.ValueText, type, variable.Initializer is { } initial ? Initial(initial.Value, type) : null));
+            // A var takes the type of the value it is given, and new T(...) names that type outright.
+            var declared = declaration.Type is IdentifierNameSyntax { IsVar: true } && variable.Initializer?.Value is ObjectCreationExpressionSyntax created
+                ? TypeOf(created.Type)
+                : type;
+
+            if (declared.Nullable) _nullableValues.Add(variable.Identifier.ValueText);
+            statements.Add(new Declare(Span(variable), variable.Identifier.ValueText, declared, variable.Initializer is { } initial ? Initial(initial.Value, declared) : null));
         }
 
         return statements;

@@ -53,7 +53,6 @@ public class DocumentationTests
         Assert.Contains(expected, reading.Url, StringComparison.Ordinal);
     }
 
-    /// <summary>A language with no documentation search that was checked gets no link, rather than a guessed one.</summary>
     /// <summary>A loop searching a list is sped up with the language's set, so the set is what is looked up.</summary>
     [Theory]
     [InlineData(@"C:\work\thing.py", "set")]
@@ -68,6 +67,20 @@ public class DocumentationTests
         Assert.Equal(term, reading.Term);
     }
 
+    /// <summary>A list taken from at the front on every pass is better as the language's queue, so that is what is looked up.</summary>
+    [Theory]
+    [InlineData(@"C:\work\thing.py", "deque")]
+    [InlineData(@"C:\work\Thing.java", "ArrayDeque")]
+    [InlineData(@"C:\work\Thing.cs", "Queue")]
+    public void TakingFromTheFrontOfAListSendsTheReaderToTheLanguagesQueue(string file, string term)
+    {
+        var reading = Documentation.For(About(file, "analysis-list-front-in-loop"));
+
+        Assert.NotNull(reading);
+        Assert.Equal(term, reading.Term);
+    }
+
+    /// <summary>A language with no documentation search that was checked gets no link, rather than a guessed one.</summary>
     [Theory]
     [InlineData(@"C:\work\thing.rb")]
     [InlineData(@"C:\work\thing.php")]

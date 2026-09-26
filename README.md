@@ -305,6 +305,19 @@ their sum; nothing reads the text inside the loop or from a lambda written in th
 loop's `var` takes the type of the items its collection is declared to hold - `List<string>`, `String[]`. The logic
 lane's own pattern for the same `+=` is folded into this finding, so the line is reported once.
 
+Taking the first item out of a list, or putting one in front of it, inside a loop is reported as well - `queue.pop(0)`
+or `history.insert(0, line)` in Python, `remove(0)` or `add(0, x)` on a Java `ArrayList`, `RemoveAt(0)` or
+`Insert(0, x)` on a C# `List`. Each language's documentation says these move every other item one place, so doing one on
+every pass makes the work grow with the passes times the length of the list, and a queue emptied from the front costs the
+square of its length. Only a list the code shows moves its items is reported: a Java list only when every value it can
+hold is made as an `ArrayList`, since a `LinkedList` takes from its front without moving anything, and never a deque, a
+dictionary or a parameter nothing describes. A loop with a number of passes written into the code - `range(3)`, a list
+written out in full, `i < 3` - does the moving a fixed number of times and is left alone, as is a loop over the same list,
+which the check for a collection changed while looping covers. No change is offered: a `deque`, an `ArrayDeque` or a
+`Queue` does not do everything a list does - a deque has no slices, an `ArrayDeque` holds no nulls, and neither an
+`ArrayDeque` nor a `Queue` can be read by position - so the guide shows what to use, and whether it fits is left to
+whoever knows the rest of the program. JavaScript's `shift()` is left out, since how long it takes is up to the engine rather than the language.
+
 Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
 found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
 can call - found by name, so a call through any object still counts, and by following its calls through what its module

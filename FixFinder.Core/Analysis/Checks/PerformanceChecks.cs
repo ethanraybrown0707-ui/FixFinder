@@ -62,6 +62,7 @@ public static class PerformanceChecks
                 Inspect(program, function, loop, evidence, methods, source, findings);
 
             findings.AddRange(TextBuiltInALoop.In(program, function, source));
+            findings.AddRange(FrontOfAListInALoop.In(program, function, source));
         }
 
         return findings

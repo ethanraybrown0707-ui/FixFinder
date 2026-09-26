@@ -88,6 +88,9 @@ public static class Documentation
         [("analysis-repeated-search", "JavaScript")] = "Set",
         [("analysis-text-built-in-loop", "Java")] = "StringBuilder",
         [("analysis-text-built-in-loop", "C#")] = "StringBuilder",
+        [("analysis-list-front-in-loop", "Python")] = "deque",
+        [("analysis-list-front-in-loop", "Java")] = "ArrayDeque",
+        [("analysis-list-front-in-loop", "C#")] = "Queue",
     };
 
     private static readonly HashSet<string> Prefixes = new(StringComparer.OrdinalIgnoreCase)
