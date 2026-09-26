@@ -1,0 +1,99 @@
+==> main.py <==
+from accounts import CurrentAccount, InsufficientFunds, SavingsAccount
+
+
+def statement(account):
+    for entry in account.history():
+        print(entry)
+
+
+def main():
+    savings = SavingsAccount("Ada", rate=0.02)
+    current = CurrentAccount("Ada", overdraft=100)
+    savings.deposit(500)
+    current.deposit(50)
+
+    try:
+        current.withdraw(120)
+        savings.withdraw(1000)
+    except InsufficientFunds as problem:
+        print(f"refused: {problem}")
+    else:
+        print("both went through")
+    finally:
+        print(savings, current, sep="\n")
+
+    savings.add_interest()
+    statement(savings)
+    print(savings == SavingsAccount("Ada", rate=0.02))
+    print(len({savings, current}))
+
+
+main()
+==> accounts.py <==
+from abc import ABC, abstractmethod
+
+
+class InsufficientFunds(Exception):
+    pass
+
+
+class Account(ABC):
+    def __init__(self, owner):
+        self.owner = owner
+        self.balance = 0
+        self._entries = []
+
+    def deposit(self, amount):
+        if amount <= 0:
+            raise ValueError("a deposit must be more than nothing")
+        self.balance += amount
+        self._entries.append(("deposit", amount))
+
+    def withdraw(self, amount):
+        if amount > self.available():
+            raise InsufficientFunds(f"{self.owner} has {self.available()} available")
+        self.balance -= amount
+        self._entries.append(("withdrawal", amount))
+
+    @abstractmethod
+    def available(self):
+        ...
+
+    def history(self):
+        running = 0
+        for kind, amount in self._entries:
+            running += amount if kind == "deposit" else -amount
+            yield f"{kind:<10} {amount:>8.2f} {running:>8.2f}"
+
+    def __eq__(self, other):
+        return isinstance(other, Account) and (self.owner, type(self)) == (other.owner, type(other))
+
+    def __hash__(self):
+        return hash((self.owner, type(self)))
+
+    def __str__(self):
+        return f"{type(self).__name__} for {self.owner}: {self.balance:.2f}"
+
+
+class SavingsAccount(Account):
+    def __init__(self, owner, rate):
+        super().__init__(owner)
+        self.rate = rate
+
+    def available(self):
+        return self.balance
+
+    def add_interest(self):
+        interest = round(self.balance * self.rate, 2)
+        if interest > 0:
+            self.deposit(interest)
+
+
+class CurrentAccount(Account):
+    def __init__(self, owner, overdraft=0):
+        super().__init__(owner)
+        self.overdraft = overdraft
+
+    def available(self):
+        return self.balance + self.overdraft

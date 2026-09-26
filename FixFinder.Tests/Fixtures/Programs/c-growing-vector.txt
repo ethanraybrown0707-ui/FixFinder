@@ -1,0 +1,104 @@
+==> main.c <==
+#include <stdio.h>
+#include <stdlib.h>
+#include "vector.h"
+
+int main(void)
+{
+    Vector numbers;
+    if (vector_init(&numbers, 2) != 0) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        if (vector_push(&numbers, i * i) != 0) {
+            vector_free(&numbers);
+            return 1;
+        }
+    }
+
+    long total = 0;
+    for (size_t i = 0; i < numbers.length; i++) {
+        total += numbers.items[i];
+    }
+    printf("%ld\n", total);
+
+    if (numbers.length > 0) {
+        printf("%d\n", numbers.items[numbers.length - 1]);
+        printf("%ld\n", total / (long)numbers.length);
+    }
+
+    int last;
+    while (vector_pop(&numbers, &last) == 0) {
+        printf("%d ", last);
+    }
+    printf("\n");
+
+    vector_free(&numbers);
+    return 0;
+}
+==> vector.h <==
+#ifndef VECTOR_H
+#define VECTOR_H
+
+#include <stddef.h>
+
+typedef struct {
+    int *items;
+    size_t length;
+    size_t capacity;
+} Vector;
+
+int vector_init(Vector *vector, size_t capacity);
+int vector_push(Vector *vector, int value);
+int vector_pop(Vector *vector, int *value);
+void vector_free(Vector *vector);
+
+#endif
+==> vector.c <==
+#include <stdlib.h>
+#include "vector.h"
+
+int vector_init(Vector *vector, size_t capacity)
+{
+    vector->items = malloc(capacity * sizeof(int));
+    if (vector->items == NULL) {
+        return -1;
+    }
+    vector->length = 0;
+    vector->capacity = capacity;
+    return 0;
+}
+
+int vector_push(Vector *vector, int value)
+{
+    if (vector->length == vector->capacity) {
+        size_t bigger = vector->capacity * 2;
+        int *grown = realloc(vector->items, bigger * sizeof(int));
+        if (grown == NULL) {
+            return -1;
+        }
+        vector->items = grown;
+        vector->capacity = bigger;
+    }
+    vector->items[vector->length++] = value;
+    return 0;
+}
+
+int vector_pop(Vector *vector, int *value)
+{
+    if (vector->length == 0) {
+        return -1;
+    }
+    *value = vector->items[--vector->length];
+    return 0;
+}
+
+void vector_free(Vector *vector)
+{
+    free(vector->items);
+    vector->items = NULL;
+    vector->length = 0;
+    vector->capacity = 0;
+}

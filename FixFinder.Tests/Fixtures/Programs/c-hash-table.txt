@@ -1,0 +1,101 @@
+==> main.c <==
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define BUCKETS 31
+
+typedef struct Entry {
+    char *key;
+    int count;
+    struct Entry *next;
+} Entry;
+
+typedef struct {
+    Entry *buckets[BUCKETS];
+} Table;
+
+static unsigned hash(const char *text)
+{
+    unsigned value = 5381;
+    for (const char *c = text; *c != '\0'; c++) {
+        value = value * 33 + (unsigned char)*c;
+    }
+    return value % BUCKETS;
+}
+
+static void table_init(Table *table)
+{
+    for (int i = 0; i < BUCKETS; i++) {
+        table->buckets[i] = NULL;
+    }
+}
+
+static int table_add(Table *table, const char *key)
+{
+    unsigned slot = hash(key);
+    for (Entry *entry = table->buckets[slot]; entry != NULL; entry = entry->next) {
+        if (strcmp(entry->key, key) == 0) {
+            entry->count++;
+            return 0;
+        }
+    }
+
+    Entry *entry = malloc(sizeof(Entry));
+    if (entry == NULL) {
+        return -1;
+    }
+    entry->key = malloc(strlen(key) + 1);
+    if (entry->key == NULL) {
+        free(entry);
+        return -1;
+    }
+    strcpy(entry->key, key);
+    entry->count = 1;
+    entry->next = table->buckets[slot];
+    table->buckets[slot] = entry;
+    return 0;
+}
+
+static int table_count(const Table *table, const char *key)
+{
+    for (const Entry *entry = table->buckets[hash(key)]; entry != NULL; entry = entry->next) {
+        if (strcmp(entry->key, key) == 0) {
+            return entry->count;
+        }
+    }
+    return 0;
+}
+
+static void table_free(Table *table)
+{
+    for (int i = 0; i < BUCKETS; i++) {
+        Entry *entry = table->buckets[i];
+        while (entry != NULL) {
+            Entry *next = entry->next;
+            free(entry->key);
+            free(entry);
+            entry = next;
+        }
+        table->buckets[i] = NULL;
+    }
+}
+
+int main(void)
+{
+    char text[] = "the cat and the hat and the bat";
+    Table table;
+    table_init(&table);
+
+    for (char *word = strtok(text, " "); word != NULL; word = strtok(NULL, " ")) {
+        if (table_add(&table, word) != 0) {
+            table_free(&table);
+            return 1;
+        }
+    }
+
+    printf("the: %d\n", table_count(&table, "the"));
+    printf("dog: %d\n", table_count(&table, "dog"));
+    table_free(&table);
+    return 0;
+}

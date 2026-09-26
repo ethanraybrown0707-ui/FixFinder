@@ -1,0 +1,87 @@
+==> main.go <==
+package main
+
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+)
+
+type Counter struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func NewCounter() *Counter {
+	return &Counter{counts: make(map[string]int)}
+}
+
+func (c *Counter) Add(word string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.counts[word]++
+}
+
+func (c *Counter) Top(n int) ([]string, error) {
+	if n <= 0 {
+		return nil, errors.New("ask for at least one word")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	words := make([]string, 0, len(c.counts))
+	for word := range c.counts {
+		words = append(words, word)
+	}
+	sort.Slice(words, func(i, j int) bool {
+		if c.counts[words[i]] != c.counts[words[j]] {
+			return c.counts[words[i]] > c.counts[words[j]]
+		}
+		return words[i] < words[j]
+	})
+	if len(words) > n {
+		words = words[:n]
+	}
+	return words, nil
+}
+
+func average(values []int) (float64, error) {
+	if len(values) == 0 {
+		return 0, errors.New("no values")
+	}
+	total := 0
+	for _, value := range values {
+		total += value
+	}
+	return float64(total) / float64(len(values)), nil
+}
+
+func main() {
+	counter := NewCounter()
+	lines := []string{"the cat", "the hat", "a cat"}
+
+	var group sync.WaitGroup
+	for _, line := range lines {
+		group.Add(1)
+		go func(text string) {
+			defer group.Done()
+			for _, word := range strings.Fields(text) {
+				counter.Add(word)
+			}
+		}(line)
+	}
+	group.Wait()
+
+	top, err := counter.Top(2)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(top)
+
+	mean, err := average([]int{3, 4, 5})
+	if err == nil {
+		fmt.Printf("%.1f\n", mean)
+	}
+}
