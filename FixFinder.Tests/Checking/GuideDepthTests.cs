@@ -14,6 +14,8 @@ public class GuideDepthTests
         ["Java"] = JavaGuides.All,
         ["CSharp"] = CSharpGuides.All,
         ["Native"] = NativeGuides.All,
+        ["JavaScript"] = JavaScriptGuides.All,
+        ["Go"] = GoGuides.All,
     };
 
     public static TheoryData<string> Written
