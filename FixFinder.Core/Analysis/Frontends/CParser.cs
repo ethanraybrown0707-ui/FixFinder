@@ -42,6 +42,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     private readonly Dictionary<string, List<IrField>> _structs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _constants = new(StringComparer.Ordinal);
     private readonly List<Dictionary<string, CType>> _scopes = [];
+
+    /// <summary>For each scope, the name each variable declared in it has in the IR - its own, or one with a ' after it.</summary>
+    private readonly List<Dictionary<string, string>> _irNames = [];
     private readonly List<string?> _breaks = [];
     private readonly HashSet<string> _taken = new(StringComparer.Ordinal);
     private string? _owner;
@@ -54,7 +57,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     public (IReadOnlyList<IrFunction> Functions, IReadOnlyList<IrClass> Classes) Parse()
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        EnterScope();
 
         while (!AtEnd && Reading())
         {
@@ -127,18 +130,24 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         return new SourceSpan(file, start.Line, start.Column, last.EndLine, last.EndColumn);
     }
 
+    /// <summary>
+    /// Skips past the next <paramref name="text"/> that is not inside brackets opened on the way. A closing bracket that
+    /// was never opened ends the skip without being taken - unless it is what was asked for, as the ) that ends a catch's
+    /// declaration is.
+    /// </summary>
     private void SkipTo(string text)
     {
         var depth = 0;
         while (!AtEnd)
         {
-            if (Is("{") || Is("(") || Is("[")) depth++;
-            else if (Is("}") || Is(")") || Is("]")) depth--;
-            else if (depth == 0 && Is(text))
+            if (depth == 0 && Is(text))
             {
                 _at++;
                 return;
             }
+
+            if (Is("{") || Is("(") || Is("[")) depth++;
+            else if (Is("}") || Is(")") || Is("]")) depth--;
 
             if (depth < 0) return;
             _at++;
@@ -170,14 +179,38 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     /// <summary>Gives a name declared again inside a block a name of its own, so the outer one keeps its value.</summary>
     private string Declare(string name, CType type)
     {
-        if (_scopes[^1].TryGetValue(name, out _)) return name;
+        if (_scopes[^1].ContainsKey(name)) return _irNames[^1].GetValueOrDefault(name, name);
 
         var ir = name;
         while (!_taken.Add(ir)) ir += "'";
 
         _scopes[^1][name] = type;
         if (ir != name) _scopes[^1][ir] = type;
+        _irNames[^1][name] = ir;
         return ir;
+    }
+
+    /// <summary>
+    /// The variable a name used in the code stands for: the one declared in the nearest scope, under the name it was
+    /// given there - a name declared again inside a block is a different variable from the one outside it.
+    /// </summary>
+    private string Resolve(string name)
+    {
+        for (var i = _irNames.Count - 1; i >= 0; i--)
+            if (_irNames[i].TryGetValue(name, out var ir)) return ir;
+        return name;
+    }
+
+    private void EnterScope()
+    {
+        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        _irNames.Add(new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
+    private void LeaveScope()
+    {
+        _scopes.RemoveAt(_scopes.Count - 1);
+        _irNames.RemoveAt(_irNames.Count - 1);
     }
 
     private CType? Known(string name)
@@ -189,14 +222,14 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private List<Stmt> InScope(Func<List<Stmt>> read)
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        EnterScope();
         try
         {
             return read();
         }
         finally
         {
-            _scopes.RemoveAt(_scopes.Count - 1);
+            LeaveScope();
         }
     }
 
@@ -394,15 +427,20 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         }
     }
 
+    /// <summary>
+    /// A template's arguments, from the &lt; to the &gt; that closes it. Two that close together - map&lt;string,
+    /// vector&lt;int&gt;&gt; - arrive as one &gt;&gt;, and count as two. A semicolon or a brace never comes inside the
+    /// arguments, so meeting one means the &lt; was not a template's after all, and reading stops there.
+    /// </summary>
     private void SkipAngles()
     {
         var depth = 0;
-        while (!AtEnd)
+        while (!AtEnd && !Is(";") && !Is("{") && !Is("}"))
         {
             if (Is("<")) depth++;
-            else if (Is(">"))
+            else if (Is(">") || Is(">>"))
             {
-                depth--;
+                depth -= Is(">>") ? 2 : 1;
                 _at++;
                 if (depth <= 0) return;
                 continue;
@@ -711,8 +749,21 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private IrFunction ReadFunction(CToken start, string name, string? owner, CType returns, List<IrParameter> parameters, bool add = true)
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
-        foreach (var parameter in parameters) _scopes[^1][parameter.Name] = new CType(parameter.Type.Name.TrimEnd('*'), parameter.Type.Name.Count(c => c == '*'), []);
+        // Each function's variables are its own, so only a name declared again within it needs a name of its own - or
+        // one that would hide a global or a function, which its code can reach as well.
+        if (_scopes.Count == 1)
+        {
+            _taken.Clear();
+            _taken.UnionWith(_scopes[0].Keys);
+            _taken.UnionWith(_functions.Select(function => function.Name));
+        }
+
+        EnterScope();
+        foreach (var parameter in parameters)
+        {
+            _scopes[^1][parameter.Name] = new CType(parameter.Type.Name.TrimEnd('*'), parameter.Type.Name.Count(c => c == '*'), []);
+            _taken.Add(parameter.Name);
+        }
 
         var outer = _owner;
         _owner = owner;
@@ -721,7 +772,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         var body = Block();
 
         _owner = outer;
-        _scopes.RemoveAt(_scopes.Count - 1);
+        LeaveScope();
 
         var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body) { IsStatic = owner is null };
         if (add) _functions.Add(function);
@@ -938,6 +989,18 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             var mark = _at;
             var stars = Stars();
             var declared = cpp && ReadSince(mark, ReferenceMark) ? Lifetime.Borrowed : lifetime;
+
+            // auto [key, value] = entry; - one name for each part of the value, and nothing else declared with them.
+            if (cpp && Is("["))
+            {
+                var start = Current;
+                var names = BoundNames();
+                Expr whole = Eat("=") ? Assignment() : Is("{") ? Initialiser(CType.Unknown, Span(start)) : Opaque.Of(Span(start), "value");
+                foreach (var (boundToken, boundName) in names)
+                    statements.Add(new Declare(Span(boundToken), boundName, IrType.Unknown, Opaque.Of(From(start), "part of a value", whole)) { Lifetime = declared });
+                break;
+            }
+
             var holdsFunction = FunctionPointer();
             if (holdsFunction) stars++;
             if (Current.Kind is not (CTokenKind.Identifier or CTokenKind.Keyword)) break;
@@ -980,6 +1043,31 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
         Eat(";");
         return statements;
+    }
+
+    /// <summary>The names a C++ structured binding declares - [key, value] - each declared in the scope it is written in.</summary>
+    private List<(CToken Token, string Name)> BoundNames()
+    {
+        var names = new List<(CToken Token, string Name)>();
+        Expect("[");
+
+        while (!Is("]") && !AtEnd && Reading())
+        {
+            if (Current.Kind is CTokenKind.Identifier or CTokenKind.Keyword)
+            {
+                var token = Take();
+                names.Add((token, Declare(token.Text, CType.Unknown)));
+            }
+            else
+            {
+                _at++;
+            }
+
+            Eat(",");
+        }
+
+        Expect("]");
+        return names;
     }
 
     /// <summary>The words that make a local's memory outlast the call: kept for the whole run, or for the thread's.</summary>
@@ -1046,6 +1134,20 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 var items = Expression();
                 Expect(")");
                 return [new ForEach(span, new Name(Span(item), name), items, Loop(), [])];
+            }
+
+            // for (const auto &[key, value] : entries) takes each item apart as it walks them.
+            if (Is("["))
+            {
+                var start = Current;
+                var names = BoundNames();
+                if (Eat(":"))
+                {
+                    var items = Expression();
+                    Expect(")");
+                    var parts = names.Select(bound => (Expr)new Name(Span(bound.Token), bound.Name)).ToList();
+                    return [new ForEach(span, new CollectionLiteral(From(start), CollectionKind.Tuple, parts), items, Loop(), [])];
+                }
             }
 
             _at = save;
@@ -1465,7 +1567,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             case CTokenKind.Identifier:
                 _at++;
                 if (_constants.TryGetValue(start.Text, out var constant)) return new Literal(span, LiteralKind.Integer, constant);
-                return new Name(span, Known(start.Text) is not null ? start.Text : start.Text);
+                return new Name(span, Resolve(start.Text));
         }
 
         switch (start.Text)

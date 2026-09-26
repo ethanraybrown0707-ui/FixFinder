@@ -482,4 +482,190 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-uninitialised-read");
     }
+
+    /// <summary>
+    /// Freeing a field frees what the field points at, not the struct holding it: after free(vector->items) the vector is
+    /// still there to clear, and freeing an entry's key and then the entry frees each of them once.
+    /// </summary>
+    [Fact]
+    public async Task FreeingAFieldLeavesItsHolderAlone()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                int *items;
+                int length;
+            } Vector;
+
+            typedef struct Entry {
+                char *key;
+                struct Entry *next;
+            } Entry;
+
+            void vector_free(Vector *vector)
+            {
+                free(vector->items);
+                vector->items = NULL;
+                vector->length = 0;
+            }
+
+            void entry_free(Entry *entry)
+            {
+                free(entry->key);
+                free(entry);
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId is "analysis-use-after-free" or "analysis-double-free");
+    }
+
+    /// <summary>What a field pointed at is still gone when it is reached through that field again.</summary>
+    [Fact]
+    public async Task UsingWhatAFieldPointedAtAfterFreeingItIsFound()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                int *items;
+                int length;
+            } Vector;
+
+            int first(Vector *vector)
+            {
+                free(vector->items);
+                return vector->items[0];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var used = Assert.Single(findings, f => f.CheckId == "analysis-use-after-free");
+        Assert.Equal(11, used.Span.Line);
+        Assert.StartsWith("`vector->items` was freed on line 10", used.Message);
+    }
+
+    /// <summary>C stores with an expression too - heads[0] = entry; - and the memory stored is the array's to free from then on.</summary>
+    [Fact]
+    public async Task MemoryStoredInSomethingElseIsNotLost()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct Entry {
+                int key;
+                struct Entry *next;
+            } Entry;
+
+            static Entry *heads[4];
+
+            int add(int key)
+            {
+                Entry *entry = malloc(sizeof(Entry));
+                if (entry == NULL) {
+                    return -1;
+                }
+                entry->key = key;
+                entry->next = heads[0];
+                heads[0] = entry;
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-memory-leak");
+    }
+
+    /// <summary>
+    /// A name declared again - in a second loop, or after a loop that declared it - is a variable of its own. The second
+    /// loop's i starts from 0 whatever the first left in its i, and the entry made after the loop is not the loop's own
+    /// entry, which is NULL by then.
+    /// </summary>
+    [Fact]
+    public async Task ANameDeclaredAgainIsAVariableOfItsOwn()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct Entry {
+                int key;
+                struct Entry *next;
+            } Entry;
+
+            int total(void)
+            {
+                int big[5] = {1, 2, 3, 4, 5};
+                int small[3] = {1, 2, 3};
+                int sum = 0;
+                for (int i = 0; i < 5; i++) {
+                    sum += big[i];
+                }
+                for (int i = 0; i < 3; i++) {
+                    sum += small[i];
+                }
+                return sum;
+            }
+
+            Entry *push(Entry *head, int key)
+            {
+                for (Entry *entry = head; entry != NULL; entry = entry->next) {
+                    if (entry->key == key) {
+                        return head;
+                    }
+                }
+                Entry *entry = malloc(sizeof(Entry));
+                if (entry == NULL) {
+                    return head;
+                }
+                entry->key = key;
+                entry->next = head;
+                return entry;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>C++ written the modern way is read whole: structured bindings, templates closed with >>, and catch clauses.</summary>
+    [Fact]
+    public async Task ModernCppIsReadWhole()
+    {
+        const string code = """
+            #include <map>
+            #include <memory>
+            #include <stdexcept>
+            #include <string>
+            #include <utility>
+
+            int count(const std::map<std::string, std::unique_ptr<int>> &values)
+            {
+                int total = 0;
+                for (const auto &[name, value] : values) {
+                    total += *value;
+                }
+                auto [smallest, largest] = std::make_pair(1, 2);
+                try {
+                    total += largest - smallest;
+                } catch (const std::out_of_range &problem) {
+                    total = -1;
+                } catch (...) {
+                    total = -2;
+                }
+                return total;
+            }
+            """;
+
+        var (program, _) = await CheckAsync(code, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        var body = IrWalk.Statements(Assert.Single(program.Functions, f => f.Name == "count").Body).ToList();
+        Assert.Contains(body, statement => statement is Try { Handlers.Count: 2 });
+        Assert.Contains(body, statement => statement is ForEach { Target: CollectionLiteral { Items.Count: 2 } });
+    }
 }
