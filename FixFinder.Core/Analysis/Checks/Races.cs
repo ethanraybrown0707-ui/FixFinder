@@ -403,15 +403,15 @@ internal sealed class Races(IrProgram program, ProgramNames names)
             if (!_reported.Add((ReadBeforeJoinRule, reportAt.File, reportAt.Line))) continue;
 
             var what = read.Via is { } via
-                ? $"`{names.Shown(via)}` reads `{read.Shown}` (line {read.At.Line})"
+                ? $"`{names.Shown(via)}` reads `{read.Shown}` ({Places.Line(read.At, reportAt)})"
                 : $"`{read.Shown}` is read here";
 
             var wait = thread.JoinedAt is { } joined
-                ? $"it has only certainly finished after {Waiting(thread)} on line {joined.Line}, so read it after that"
+                ? $"it has only certainly finished after {Waiting(thread)} on {Places.Line(joined, reportAt)}, so read it after that"
                 : $"and nothing here waits for it to finish - {WaitAdvice}";
 
             _findings.Add(new AnalysisFinding(ReadBeforeJoinRule, reportAt,
-                $"{what} while the thread started on line {thread.StartedAt.Line} may still be changing it at line {change.At.Line} - {wait}",
+                $"{what} while the thread started on {Places.Line(thread.StartedAt, reportAt)} may still be changing it at {Places.Line(change.At, reportAt)} - {wait}",
                 Severity.Warning, Confidence.Likely, FindingKind.Logic, Concurrency.FoundBy));
         }
     }
@@ -474,7 +474,7 @@ internal sealed class Races(IrProgram program, ProgramNames names)
         var name = missing.Shown;
         var here = missing.Locks.Count == 0 ? "with no lock held" : $"holding {LocksShown(missing)}";
         var there = kept.Locks.Count == 0 ? "with no lock held" : $"while holding {LocksShown(kept)}";
-        var where = kept.At.File == missing.At.File ? $"line {kept.At.Line}" : $"line {kept.At.Line} of {Path.GetFileName(kept.At.File)}";
+        var where = Places.Line(kept.At, missing.At);
         var why = missing.Locks.Count == 0
             ? $"a lock only protects `{name}` if everything that uses it holds the lock"
             : "different locks do not keep each other out";

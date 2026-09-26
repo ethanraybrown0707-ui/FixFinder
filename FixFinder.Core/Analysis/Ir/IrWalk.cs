@@ -73,6 +73,12 @@ public static class IrWalk
     public static IEnumerable<string> Names(Expr expression) =>
         expression is Name name ? [name.Identifier] : Children(expression).SelectMany(Names);
 
+    /// <summary>Every expression inside an expression, the expression itself first.</summary>
+    public static IEnumerable<Expr> Within(Expr expression) => Children(expression).SelectMany(Within).Prepend(expression);
+
+    /// <summary>Whether assigning to a target binds the name: the target is the name, or a tuple or list that holds it.</summary>
+    public static bool Binds(Expr target, string name) => Bound(target).Contains(name, StringComparer.Ordinal);
+
     /// <summary>
     /// The names a function binds for itself: its parameters, what it declares, and - where assigning a name creates it,
     /// as in Python - everything it assigns, less what it declares as outer. In Java or C# an assigned name may be a field.

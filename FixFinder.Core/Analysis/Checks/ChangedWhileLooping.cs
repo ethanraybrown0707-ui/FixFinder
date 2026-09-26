@@ -236,6 +236,7 @@ internal sealed class ChangedWhileLooping(
     {
         Effects.Reach.Parameter => Effects.ArgumentFor(call, target, reached.Index),
         Effects.Reach.Field when effects.OnSameObject(call) => new Member(call.Span, new Name(call.Span, IsPython ? "self" : "this"), reached.Name),
+        Effects.Reach.Module when !effects.SharedWithCaller(reached, target, call.Span) => null,
         Effects.Reach.Module => reached.Name.Split('.') is [var type, var field] ? new Member(call.Span, new Name(call.Span, type), field) : new Name(call.Span, reached.Name),
         _ => null,
     };
@@ -251,7 +252,7 @@ internal sealed class ChangedWhileLooping(
 
         var what = via is null
             ? $"`{quote(call)}` {(adds ? "adds to" : "removes from")} `{collection}`{shared}"
-            : $"`{quote(call)}` {(adds ? "adds to" : "removes from")} `{collection}` at line {via.At.Line}{shared}";
+            : $"`{quote(call)}` {(adds ? "adds to" : "removes from")} `{collection}` at {Places.Line(via.At, call.Span)}{shared}";
 
         var outcome = Language switch
         {

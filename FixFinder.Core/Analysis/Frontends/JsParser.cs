@@ -20,6 +20,8 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
     private int _steps;
     private int _temporaries;
     private readonly HashSet<string> _named = new(StringComparer.Ordinal);
+    private readonly List<ModuleImport> _imports = [];
+    private readonly List<(string Key, Expr? Value)> _exported = [];
 
     public string? Problem { get; private set; }
 
@@ -31,9 +33,17 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
         var body = new List<Stmt>();
         while (!AtEnd && Reading()) body.AddRange(Statement());
 
-        _functions.Insert(0, new IrFunction(At(0) is { } first ? Span(first) : SourceSpan.None, IrFunction.ModuleBody, null, [], IrType.Unknown, body));
+        var everyFunction = _functions.Concat(_classes.SelectMany(type => type.Methods)).ToList();
+        _functions.Insert(0, new IrFunction(At(0) is { } first ? Span(first) : SourceSpan.None, IrFunction.ModuleBody, null, [], IrType.Unknown, body)
+        {
+            Imports = _imports,
+            Exports = JsModuleExports.Of(_exported, body, everyFunction),
+        });
         return (_functions, _classes);
     }
+
+    /// <summary>Code written straight into the module, outside every function and block: where imports and exports are made.</summary>
+    private bool AtTopLevel => _scopes.Count == 1 && _enclosing.Count == 1;
 
     // ---- Tokens ----
 
@@ -201,7 +211,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
             case "var" or "let" or "const" when start.Kind == JsTokenKind.Keyword || start.Text == "var":
                 if (start.Text == "let" && !(At(1) is { Kind: JsTokenKind.Identifier or JsTokenKind.Keyword } || IsAhead(1, "[") || IsAhead(1, "{"))) break;
                 _at++;
-                var declarations = Declarations(span);
+                var declarations = Declarations(span, constant: start.Text == "const");
                 EndStatement();
                 return declarations;
 
@@ -282,21 +292,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
             case "export":
                 _at++;
-                if (Eat("default"))
-                {
-                    var value = Expression();
-                    EndStatement();
-                    return [new Evaluate(span, value)];
-                }
-
-                if (Is("{") || Is("*"))
-                {
-                    while (!AtEnd && !Is(";") && !Current.NewlineBefore) _at++;
-                    EndStatement();
-                    return [];
-                }
-
-                return Statement();
+                return Export(span);
 
             case "debugger":
                 _at++;
@@ -316,24 +312,193 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
         return [new Evaluate(From(start), expression)];
     }
 
+    /// <summary>
+    /// import thing, * as all, { key as name } from "module": each name it binds is declared, and kept with the module
+    /// it comes from and what it asks that module for, so a call through it can be followed into the other file.
+    /// </summary>
     private IEnumerable<Stmt> Import(SourceSpan span)
     {
         // import(...) is a call; every other import brings names in from elsewhere.
         if (IsAhead(1, "(")) return [new Evaluate(span, Expression())];
 
-        var names = new List<Stmt>();
         _at++;
-        while (!AtEnd && !Is(";") && !(Current.NewlineBefore && Current.Kind != JsTokenKind.Text))
+        var bound = new List<(JsToken Name, string? Key)>();
+
+        // A default first, then a namespace or a list of names - each part optional, in that order.
+        if (Current.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword && !(IsWord("from") && At(1) is { Kind: JsTokenKind.Text }))
         {
-            if (Current.Kind == JsTokenKind.Identifier && !IsAhead(1, ":")) names.Add(new Declare(Span(Current), Declare(Current.Text), IrType.Unknown, Opaque.Of(Span(Current), "imported")));
-            _at++;
+            bound.Add((Take(), ModuleImport.DefaultExport));
+            Eat(",");
         }
 
+        if (Eat("*"))
+        {
+            if (IsWord("as")) _at++;
+            if (Current.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword) bound.Add((Take(), ModuleImport.Namespace));
+        }
+        else if (Eat("{"))
+        {
+            while (!Is("}") && !AtEnd && Reading())
+            {
+                var key = KeyText(Current);
+                var name = Take();
+                if (IsWord("as"))
+                {
+                    _at++;
+                    name = Take();
+                }
+
+                bound.Add((name, key));
+                if (!Eat(",")) break;
+            }
+
+            Eat("}");
+        }
+
+        if (IsWord("from")) _at++;
+        var specifier = Current.Kind == JsTokenKind.Text ? Current.Value as string : null;
+
+        // What is left - the module's name, and any `with { type: "json" }` after it - binds nothing.
+        while (!AtEnd && !Is(";") && !(Current.NewlineBefore && Current.Kind != JsTokenKind.Text)) _at++;
         EndStatement();
+
+        var names = new List<Stmt>();
+        foreach (var (name, key) in bound.Where(b => b.Name.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword))
+        {
+            var local = Declare(name.Text);
+            names.Add(new Declare(Span(name), local, IrType.Unknown, Opaque.Of(Span(name), "imported")));
+            if (specifier is not null && AtTopLevel) _imports.Add(new ModuleImport(local, specifier, key));
+        }
+
         return names;
     }
 
-    private List<Stmt> Declarations(SourceSpan span)
+    /// <summary>
+    /// export, before a declaration or a list of names, or with default before a value. The code is read as it would be
+    /// without the word; what the module gives other modules, and under which names, is kept.
+    /// </summary>
+    private IEnumerable<Stmt> Export(SourceSpan span)
+    {
+        if (Eat("default"))
+        {
+            // export default function name() {} and export default class Name {} declare the name as they would without it.
+            if (Is("function") || Is("class") || Is("async") && IsAhead(1, "function"))
+            {
+                var (declaring, declared) = Declaring();
+                foreach (var (_, local) in declared) Exported(ModuleImport.DefaultExport, new Name(span, local));
+                return declaring;
+            }
+
+            var value = Expression();
+            EndStatement();
+            Exported(ModuleImport.DefaultExport, value);
+            return [new Evaluate(span, value)];
+        }
+
+        if (Eat("{"))
+        {
+            var listed = new List<(string Key, string Local)>();
+            while (!Is("}") && !AtEnd && Reading())
+            {
+                var local = KeyText(Take());
+                var key = local;
+                if (IsWord("as"))
+                {
+                    _at++;
+                    key = KeyText(Take());
+                }
+
+                listed.Add((key, local));
+                if (!Eat(",")) break;
+            }
+
+            Eat("}");
+
+            // export { name } from "module" passes on another module's name, which is not followed.
+            var passedOn = IsWord("from");
+            foreach (var (key, local) in listed) Exported(key, passedOn ? null : new Name(span, Resolve(local)));
+        }
+        else if (Eat("*"))
+        {
+            // export * from "module" passes on names this module cannot list; export * as all from "module" gives one.
+            if (IsWord("as")) Exported(KeyText(At(1) ?? Current), null);
+        }
+        else
+        {
+            // export function, class, const, let or var: each name the declaration makes is given under that name.
+            var (declaring, declared) = Declaring();
+            foreach (var (key, local) in declared) Exported(key, new Name(span, local));
+            return declaring;
+        }
+
+        while (!AtEnd && !Is(";") && !(Current.NewlineBefore && Current.Kind != JsTokenKind.Text)) _at++;
+        EndStatement();
+        return [];
+    }
+
+    /// <summary>One statement, and the names it declares in the scope it is written in - with what each is called in the IR.</summary>
+    private (List<Stmt> Statements, List<(string Name, string Local)> Declared) Declaring()
+    {
+        var scope = _scopes[^1];
+        var before = new HashSet<string>(scope.Keys, StringComparer.Ordinal);
+        var statements = Statement().ToList();
+        return (statements, scope.Where(pair => !before.Contains(pair.Key)).Select(pair => (pair.Key, pair.Value)).ToList());
+    }
+
+    private void Exported(string key, Expr? value)
+    {
+        if (AtTopLevel) _exported.Add((key, value));
+    }
+
+    /// <summary>A word the language gives meaning only in some places - as, from - which the lexer reads as a name.</summary>
+    private bool IsWord(string word) => Current.Kind == JsTokenKind.Identifier && Current.Text == word;
+
+    /// <summary>A name in an import or export list: written as a name, or as text, as in export { x as "a-b" }.</summary>
+    private static string KeyText(JsToken token) => token.Kind == JsTokenKind.Text ? token.Value as string ?? token.Text : token.Text;
+
+    /// <summary>require("./helpers") - the whole module - or require("./helpers").total, one thing it exports.</summary>
+    private static (string Specifier, string? Key)? Required(Expr value) => value switch
+    {
+        Call { Callee: Name { Identifier: "require" }, Arguments: [{ Name: null, Value: Literal { Kind: LiteralKind.Text, Value: string specifier } }] } =>
+            (specifier, null),
+        Member { Target: Call { Callee: Name { Identifier: "require" }, Arguments: [{ Name: null, Value: Literal { Kind: LiteralKind.Text, Value: string specifier } }] }, MemberName: var key } =>
+            (specifier, key),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The keys of a plain object pattern - { total, count: n } - and the name each is given, read ahead without moving on.
+    /// Null for anything more - a pattern inside it, a default, a computed key, the rest - which is not followed.
+    /// </summary>
+    private List<(string Key, string Name)>? ObjectPatternKeys()
+    {
+        var keys = new List<(string Key, string Name)>();
+        var at = _at + 1;
+
+        bool IsPunctuator(int index, string text) => index < tokens.Count && tokens[index] is { Kind: JsTokenKind.Punctuator } token && token.Text == text;
+        bool IsName(int index) => index < tokens.Count && tokens[index].Kind is JsTokenKind.Identifier or JsTokenKind.Keyword;
+
+        while (IsName(at))
+        {
+            var key = tokens[at++].Text;
+            var name = key;
+            if (IsPunctuator(at, ":"))
+            {
+                if (!IsName(at + 1)) return null;
+                name = tokens[at + 1].Text;
+                at += 2;
+            }
+
+            keys.Add((key, name));
+            if (IsPunctuator(at, "}")) return keys;
+            if (!IsPunctuator(at, ",")) return null;
+            at++;
+        }
+
+        return IsPunctuator(at, "}") ? keys : null;
+    }
+
+    private List<Stmt> Declarations(SourceSpan span, bool constant)
     {
         var statements = new List<Stmt>();
 
@@ -344,9 +509,14 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
             if (Is("[") || Is("{"))
             {
+                var keys = Is("{") ? ObjectPatternKeys() : null;
                 var pattern = Pattern();
                 var value = Eat("=") ? Assignment() : Opaque.Of(span, "value");
                 foreach (var name in pattern) statements.Add(new Declare(From(start), name, IrType.Unknown, Opaque.Of(From(start), "part of a value", value)));
+
+                // const { total, count: n } = require("./helpers") takes those two of what the module exports.
+                if (constant && AtTopLevel && keys is not null && Required(value) is (var requiredModule, null))
+                    foreach (var (key, name) in keys) _imports.Add(new ModuleImport(Resolve(name), requiredModule, key));
                 continue;
             }
 
@@ -355,6 +525,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
             var declared = Declare(Take().Text);
             var initial = Eat("=") ? Assignment() : new Literal(From(start), LiteralKind.Null, null);
             statements.Add(new Declare(From(start), declared, IrType.Unknown, initial));
+            if (constant && AtTopLevel && Required(initial) is (var specifier, var part)) _imports.Add(new ModuleImport(declared, specifier, part));
             if (_at == mark) _at++;
         }
         while (Eat(","));
@@ -425,7 +596,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
             }
 
             _at = save;
-            setup.AddRange(declaring ? Declarations(span) : [new Evaluate(span, Expression())]);
+            setup.AddRange(declaring ? Declarations(span, constant: start.Text == "const") : [new Evaluate(span, Expression())]);
         }
 
         Expect(";");
@@ -875,32 +1046,37 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
     {
         var start = Current;
 
+        // Each span below is taken once the operand has been read, so that it covers the operand too: a finding quotes
+        // the code by its span, and one taken first would quote the operator alone.
         if (Current.Kind is JsTokenKind.Punctuator or JsTokenKind.Keyword)
         {
             switch (Current.Text)
             {
-                case "!":
-                    _at++;
-                    return new Unary(From(start), UnaryOperator.Not, Unary());
-                case "-":
-                    _at++;
-                    return new Unary(From(start), UnaryOperator.Negate, Unary());
-                case "+":
-                    _at++;
-                    return new Unary(From(start), UnaryOperator.Plus, Unary());
-                case "~":
-                    _at++;
-                    return new Unary(From(start), UnaryOperator.BitNot, Unary());
+                case "!" or "-" or "+" or "~":
+                    var prefix = Take().Text;
+                    var prefixed = Unary();
+                    var applied = prefix switch
+                    {
+                        "!" => UnaryOperator.Not,
+                        "-" => UnaryOperator.Negate,
+                        "+" => UnaryOperator.Plus,
+                        _ => UnaryOperator.BitNot,
+                    };
+                    return new Unary(From(start), applied, prefixed);
                 case "typeof" or "void" or "delete":
                     var what = Take().Text;
-                    return Opaque.Of(From(start), what, Unary());
+                    var examined = Unary();
+                    return Opaque.Of(From(start), what, examined);
                 case "await":
                     _at++;
-                    return Opaque.Of(From(start), "await", Unary());
+                    var awaited = Unary();
+                    return Opaque.Of(From(start), "await", awaited);
                 case "yield":
                     _at++;
                     Eat("*");
-                    return Is(")") || Is("]") || Is("}") || Is(";") || Current.NewlineBefore ? Opaque.Of(From(start), "yield") : Opaque.Of(From(start), "yield", Assignment());
+                    if (Is(")") || Is("]") || Is("}") || Is(";") || Current.NewlineBefore) return Opaque.Of(From(start), "yield");
+                    var yielded = Assignment();
+                    return Opaque.Of(From(start), "yield", yielded);
                 case "++" or "--":
                     var step = Take().Text;
                     var operand = Unary();
@@ -985,14 +1161,27 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
         if (Eat("?."))
         {
-            var span = From(start);
-            var (first, again) = Once(value, span);
-            var reached = Is("(") ? new Call(span, again, Arguments())
-                : Is("[") ? Element(again, start)
-                : new Member(span, again, Current.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword ? Take().Text : "?");
+            var (first, again) = Once(value, From(start));
+
+            Expr reached;
+            if (Is("("))
+            {
+                var passed = Arguments();
+                reached = new Call(From(start), again, passed);
+            }
+            else if (Is("["))
+            {
+                reached = Element(again, start);
+            }
+            else
+            {
+                var member = Current.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword ? Take().Text : "?";
+                reached = new Member(From(start), again, member);
+            }
 
             // a?.b.c is nothing when a is nothing: the whole rest of the chain is skipped, not just the next step.
             var rest = Following(reached, start);
+            var span = From(start);
             return new Conditional(span, new Binary(span, BinaryOperator.NotEqual, first, new Literal(span, LiteralKind.Null, null)), rest,
                 new Literal(span, LiteralKind.Null, null));
         }
@@ -1006,7 +1195,9 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
         if (Is("[")) return Element(value, start);
 
-        return new Call(From(start), value, Arguments());
+        // The arguments are read before the span is taken, so the call's span runs to its closing bracket.
+        var arguments = Arguments();
+        return new Call(From(start), value, arguments);
     }
 
     private Expr Element(Expr value, JsToken start)
@@ -1026,8 +1217,15 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
         {
             var mark = _at;
             var start = Current;
-            if (Eat("...")) arguments.Add(new Argument(null, Opaque.Of(From(start), "the rest of a list", Assignment())));
-            else arguments.Add(new Argument(null, Assignment()));
+            if (Eat("..."))
+            {
+                var spread = Assignment();
+                arguments.Add(new Argument(null, Opaque.Of(From(start), "the rest of a list", spread)));
+            }
+            else
+            {
+                arguments.Add(new Argument(null, Assignment()));
+            }
 
             if (_at == mark) _at++;
             if (!Eat(",")) break;

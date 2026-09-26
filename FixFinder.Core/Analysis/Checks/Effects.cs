@@ -158,14 +158,25 @@ internal sealed class Effects(IrProgram program, CallTargets targets)
     {
         Reach.Parameter => ArgumentFor(call, target, reached.Index) is { } argument ? ReachedBy(argument, caller) : null,
         Reach.Field => OnSameObject(call) ? reached : null,
+        Reach.Module when !SharedWithCaller(reached, target, call.Span) => null,
         _ => reached,
     };
 
-    /// <summary>Whether a call runs on the caller's own object: self.helper(), this.helper(), or plain helper() in Java and C#.</summary>
+    /// <summary>
+    /// Whether a module variable a callee changes is one the caller has too. Every Python module has variables of its own,
+    /// so a function in another file that changes its total changes that file's total, not the caller's.
+    /// </summary>
+    public bool SharedWithCaller(Reached reached, CallTarget target, SourceSpan call) =>
+        !(IsPython && reached.Kind == Reach.Module && !reached.Name.Contains('.') && !Places.SameFile(target.Function.Span, call));
+
+    /// <summary>
+    /// Whether a call runs on the caller's own object: self.helper(), this.helper(), or plain helper() in the languages
+    /// where a method calls another of its object's methods by name alone - Java, C# and C++.
+    /// </summary>
     public bool OnSameObject(Call call) => call.Callee switch
     {
         Member { Target: Name { Identifier: "self" or "this" } } => true,
-        Name => !IsPython,
+        Name => program.Language is SourceLanguage.Java or SourceLanguage.CSharp or SourceLanguage.Cpp,
         _ => false,
     };
 

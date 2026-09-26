@@ -32,19 +32,22 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
 
     /// <summary>
     /// Where tainted text came from: a source - what was typed, the arguments - or, while a function is summarised,
-    /// one of its own parameters.
+    /// one of its own parameters. <paramref name="SaysWhere"/> when the description goes on to name the line it is
+    /// read on, which is said relative to wherever the finding is reported - the source can be in another file.
     /// </summary>
-    private sealed record Origin(string Description, SourceSpan At, int Parameter = -1)
+    private sealed record Origin(string Description, SourceSpan At, int Parameter = -1, bool SaysWhere = false)
     {
         public bool IsParameter => Parameter >= 0;
+
+        public string DescribedFrom(SourceSpan reported) => SaysWhere ? $"{Description} at {Places.Line(At, reported)}" : Description;
     }
 
     /// <summary>
     /// A place where text becomes something that runs, reached by tainted text: the call, and - when the text gets there
-    /// through a function of the program's own - that function and the line inside it. <paramref name="Doing"/> says what
+    /// through a function of the program's own - that function and where inside it. <paramref name="Doing"/> says what
     /// the call does with the text, where that is not simply running it.
     /// </summary>
-    private sealed record Sink(string Rule, SourceSpan At, Call Call, string? Through = null, int ThroughLine = 0, string? Doing = null);
+    private sealed record Sink(string Rule, SourceSpan At, Call Call, string? Through = null, SourceSpan? ThroughAt = null, string? Doing = null);
 
     /// <summary>
     /// What calling a function does with tainted text: whether what it returns is tainted whatever it is given, which of
@@ -288,22 +291,22 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
     /// <summary>Where text the person running the program controls comes in: what they type, the arguments, the environment.</summary>
     private Origin? Source(Expr expression) => expression switch
     {
-        Call { Callee: Name { Identifier: "input" } } typed when IsPython => new Origin($"the user typed at line {typed.Span.Line}", typed.Span),
+        Call { Callee: Name { Identifier: "input" } } typed when IsPython => new Origin("the user typed", typed.Span, SaysWhere: true),
         Call { Callee: Member { Target: Member { Target: Name { Identifier: "sys" }, MemberName: "stdin" } } } read when IsPython =>
-            new Origin($"read from the keyboard at line {read.Span.Line}", read.Span),
+            new Origin("read from the keyboard", read.Span, SaysWhere: true),
         Member { Target: Name { Identifier: "sys" }, MemberName: "argv" } arguments when IsPython => new Origin("from the program's arguments", arguments.Span),
         Call { Callee: Member { Target: Name { Identifier: "os" }, MemberName: "getenv" } } environment when IsPython =>
-            new Origin($"from the environment, read at line {environment.Span.Line}", environment.Span),
+            new Origin("from the environment, read", environment.Span, SaysWhere: true),
         Member { Target: Name { Identifier: "os" }, MemberName: "environ" } environment when IsPython =>
-            new Origin($"from the environment, read at line {environment.Span.Line}", environment.Span),
+            new Origin("from the environment, read", environment.Span, SaysWhere: true),
         Call { Callee: Member { MemberName: "nextLine" or "next" or "readLine" }, Arguments.Count: 0 } read when !IsPython =>
-            new Origin($"read in at line {read.Span.Line}", read.Span),
+            new Origin("read in", read.Span, SaysWhere: true),
         Call { Callee: Member { Target: Name { Identifier: "Console" }, MemberName: "ReadLine" } } typed =>
-            new Origin($"the user typed at line {typed.Span.Line}", typed.Span),
+            new Origin("the user typed", typed.Span, SaysWhere: true),
         Call { Callee: Member { Target: Name { Identifier: "System" }, MemberName: "getenv" } } environment =>
-            new Origin($"from the environment, read at line {environment.Span.Line}", environment.Span),
+            new Origin("from the environment, read", environment.Span, SaysWhere: true),
         Call { Callee: Member { Target: Name { Identifier: "Environment" }, MemberName: "GetEnvironmentVariable" } } environment =>
-            new Origin($"from the environment, read at line {environment.Span.Line}", environment.Span),
+            new Origin("from the environment, read", environment.Span, SaysWhere: true),
         _ => null,
     };
 
@@ -329,7 +332,7 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
                     var carried = Carried(function, argument, state);
                     if (carried.Count == 0) continue;
 
-                    Reach(function, carried, new Sink(inside.Rule, call.Span, call, target.Function.Name, inside.At.Line), reporting);
+                    Reach(function, carried, new Sink(inside.Rule, call.Span, call, target.Function.Name, inside.At), reporting);
                 }
             }
         }
@@ -393,11 +396,12 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
             _ => "as SQL",
         };
 
-        var what = sink.Through is { } helper
-            ? $"`{call}` passes text {source.Description} to `{helper}`, which runs it {runs} at line {sink.ThroughLine}"
+        var text = source.DescribedFrom(sink.At);
+        var what = sink is { Through: { } helper, ThroughAt: { } inside }
+            ? $"`{call}` passes text {text} to `{helper}`, which runs it {runs} at {Places.Line(inside, sink.At)}"
             : sink.Doing is { } doing
-                ? $"`{call}` {doing} text {source.Description}"
-                : $"`{call}` runs, {runs}, text {source.Description}";
+                ? $"`{call}` {doing} text {text}"
+                : $"`{call}` runs, {runs}, text {text}";
 
         return sink.Rule switch
         {

@@ -1226,23 +1226,25 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     {
         var start = Current;
 
+        // Each span below is taken once the operand has been read, so that it covers the operand too: a finding quotes
+        // the code by its span, and one taken first would quote the operator alone.
         switch (Current.Text)
         {
-            case "!" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Not, Unary());
-            case "-" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Negate, Unary());
-            case "+" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Plus, Unary());
-            case "~" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.BitNot, Unary());
+            case "!" or "-" or "+" or "~" when Current.Kind == CTokenKind.Punctuator:
+                var prefix = Take().Text;
+                var prefixed = Unary();
+                var applied = prefix switch
+                {
+                    "!" => UnaryOperator.Not,
+                    "-" => UnaryOperator.Negate,
+                    "+" => UnaryOperator.Plus,
+                    _ => UnaryOperator.BitNot,
+                };
+                return new Unary(From(start), applied, prefixed);
             case "*" when Current.Kind == CTokenKind.Punctuator:
                 _at++;
-                return new Member(From(start), Unary(), "*");
+                var pointer = Unary();
+                return new Member(From(start), pointer, "*");
             case "&" when Current.Kind == CTokenKind.Punctuator:
                 _at++;
                 var addressed = Unary();
@@ -1296,7 +1298,8 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             case "delete" when cpp:
                 _at++;
                 if (Is("[")) { _at++; Expect("]"); }
-                return new Call(From(start), new Name(Span(start), "delete"), [new Argument(null, Unary())]);
+                var deleted = Unary();
+                return new Call(From(start), new Name(Span(start), "delete"), [new Argument(null, deleted)]);
             case "static_cast" or "dynamic_cast" or "const_cast" or "reinterpret_cast" when cpp:
                 _at++;
                 SkipAngles();
@@ -1388,7 +1391,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
             if (Is("("))
             {
-                value = new Call(From(start), value, Arguments());
+                // The arguments are read before the span is taken, so the call's span runs to its closing bracket.
+                var arguments = Arguments();
+                value = new Call(From(start), value, arguments);
                 continue;
             }
 

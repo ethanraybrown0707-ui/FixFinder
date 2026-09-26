@@ -163,7 +163,7 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
             if (SortOf(taken) == LockSort.NotReentrant)
             {
                 Reacquired(at, Confidence.Certain,
-                    $"This takes `{taken.Shown}` again while this thread already holds it from {Where(already.TakenAt, at)}, and a Lock cannot be taken " +
+                    $"This takes `{taken.Shown}` again while this thread already holds it from {Places.Line(already.TakenAt, at)}, and a Lock cannot be taken " +
                     "twice by one thread - it waits for itself for ever. Make it an RLock if it has to be taken again");
             }
 
@@ -205,7 +205,7 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
                     if (SortOf(taken) == LockSort.NotReentrant && taking.Always)
                     {
                         Reacquired(call.Span, Confidence.Likely,
-                            $"This calls `{Quote(call)}` while holding `{already.Lock.Shown}`, and that call takes `{taken.Shown}` again at {Where(taking.At, call.Span)} - " +
+                            $"This calls `{Quote(call)}` while holding `{already.Lock.Shown}`, and that call takes `{taken.Shown}` again at {Places.Line(taking.At, call.Span)} - " +
                             "a Lock cannot be taken twice by one thread, so it waits for itself for ever. Make it an RLock, or have the call run without taking it");
                     }
 
@@ -218,7 +218,7 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
                 foreach (var holding in held.Where(h => h.Lock.IsKnown))
                 {
                     Record(scope, new Edge(holding.Lock, taken, [.. held.Select(h => h.Lock), .. alsoHeld.Select(h => h.Lock)], call.Span,
-                        $"calls `{Quote(call)}` while holding `{holding.Lock.Shown}`, and that call takes `{taken.Shown}` at {Where(taking.At, call.Span)}",
+                        $"calls `{Quote(call)}` while holding `{holding.Lock.Shown}`, and that call takes `{taken.Shown}` at {Places.Line(taking.At, call.Span)}",
                         scope.Function, Started: false));
                 }
             }
@@ -236,8 +236,8 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
             var onItsOwn = launch || edge.Started;
             IReadOnlyList<SharedName> guards = [.. (onItsOwn ? [] : held).Select(h => h.Lock), .. edge.Guards.Select(g => Translate(g, call, target, scope.Function) ?? SharedName.Unnamed)];
             var how = launch
-                ? $"starts a thread running `{target.Function.Name}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Where(edge.At, call.Span)}"
-                : $"calls `{Quote(call)}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Where(edge.At, call.Span)}";
+                ? $"starts a thread running `{target.Function.Name}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Places.Line(edge.At, call.Span)}"
+                : $"calls `{Quote(call)}`, which takes `{to.Shown}` while holding `{from.Shown}` at {Places.Line(edge.At, call.Span)}";
 
             Record(scope, new Edge(from, to, guards, call.Span, how, launch ? target.Function : edge.Started ? edge.In : scope.Function, onItsOwn));
         }
@@ -520,15 +520,15 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
         {
             var other = others[0];
             _findings.Add(new AnalysisFinding("analysis-lock-order", edge.At,
-                $"This {edge.How}, but {Where(other.At, edge.At)} {other.How} - two threads doing both can wait for each other for ever",
+                $"This {edge.How}, but {Places.Line(other.At, edge.At)} {other.How} - two threads doing both can wait for each other for ever",
                 Severity.Warning, Confidence.Likely, FindingKind.Logic, Concurrency.FoundBy));
             return;
         }
 
-        var between = string.Join(", ", others.Take(others.Count - 1).Select(o => $"{Where(o.At, edge.At)} {o.How}"));
+        var between = string.Join(", ", others.Take(others.Count - 1).Select(o => $"{Places.Line(o.At, edge.At)} {o.How}"));
         var last = others[^1];
         _findings.Add(new AnalysisFinding("analysis-lock-cycle", edge.At,
-            $"This {edge.How}, {between}, and {Where(last.At, edge.At)} {last.How} - {CountOf(cycle.Count)} threads, one at each of these places, " +
+            $"This {edge.How}, {between}, and {Places.Line(last.At, edge.At)} {last.How} - {CountOf(cycle.Count)} threads, one at each of these places, " +
             "can each hold the lock the next one is waiting for, and then none of them can go on",
             Severity.Warning, Confidence.Likely, FindingKind.Logic, Concurrency.FoundBy));
     }
@@ -540,10 +540,6 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
     }
 
     private static string CountOf(int threads) => threads < CountWords.Length ? CountWords[threads] : threads.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-    /// <summary>Another place in the program, said relative to the one being reported: its line, and its file when that differs.</summary>
-    private static string Where(SourceSpan place, SourceSpan from) =>
-        place.File == from.File ? $"line {place.Line}" : $"line {place.Line} of {Path.GetFileName(place.File)}";
 
     private string Quote(Call call) => names.Shown(call);
 }

@@ -11,8 +11,9 @@ namespace FixFinder.Core.Analysis.Checks;
 /// </summary>
 /// <remarks>
 /// A function's findings are reused only when everything they depend on is exactly as it was: the function's own lines
-/// and where they are; every function it can call, found by name so that a call through any object still counts, and
-/// every function those can call in turn; every line of every file that is not inside a function - imports, typedefs,
+/// and where they are; every function it can call, found by name so that a call through any object still counts, and by
+/// following its calls through what its module imports, whatever name the function was imported under; every function
+/// those can call in turn; every line of every file that is not inside a function - imports, exports, typedefs,
 /// fields, code at the top level; and the list of every function the program has, with what each declares global. Code at
 /// the top level depends on every function in its file as well, since any of them may change its variables. Change any
 /// of that and the function is
@@ -67,7 +68,7 @@ public sealed class AnalysisCache
         var contextHash = Hash(context.ToString());
 
         var owning = new HashSet<IrFunction>(ownLines, ReferenceEqualityComparer.Instance);
-        var reachable = new Reachable(functions);
+        var reachable = new Reachable(functions, new CallTargets(program), program.Language == SourceLanguage.Python);
         var keys = new Dictionary<IrFunction, string>(ReferenceEqualityComparer.Instance);
 
         foreach (var function in functions)
@@ -161,8 +162,9 @@ public sealed class AnalysisCache
         private readonly Dictionary<string, List<IrFunction>> _byName = new(StringComparer.Ordinal);
         private readonly Dictionary<string, IrFunction> _byFullName = new(StringComparer.Ordinal);
         private readonly Dictionary<IrFunction, HashSet<string>> _named = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<IrFunction, List<IrFunction>> _called = new(ReferenceEqualityComparer.Instance);
 
-        public Reachable(IReadOnlyList<IrFunction> functions)
+        public Reachable(IReadOnlyList<IrFunction> functions, CallTargets targets, bool isPython)
         {
             foreach (var function in functions)
             {
@@ -170,7 +172,21 @@ public sealed class AnalysisCache
                 Add(function.Name, function);
                 if (function.Owner is { } owner) Add(owner[(owner.LastIndexOf('.') + 1)..], function);
                 _named[function] = NamesIn(function);
+                _called[function] = Called(function, targets, isPython);
             }
+        }
+
+        /// <summary>
+        /// The functions a function's calls are found to run. A name alone misses one imported under a name of its own -
+        /// import { total as sum } - or exported as default, whose code the analysis still depends on.
+        /// </summary>
+        private static List<IrFunction> Called(IrFunction function, CallTargets targets, bool isPython)
+        {
+            var locals = IrWalk.LocalNames(function, assigningDeclares: isPython);
+            return IrWalk.Statements(function.Body).SelectMany(IrWalk.Expressions).SelectMany(Effects.CallsIn)
+                .Select(call => targets.Resolve(call, function, locals)?.Function)
+                .OfType<IrFunction>()
+                .ToList();
         }
 
         private void Add(string name, IrFunction function)
@@ -199,6 +215,11 @@ public sealed class AnalysisCache
                     {
                         if (found.Add(named)) pending.Enqueue(named);
                     }
+                }
+
+                foreach (var called in _called.GetValueOrDefault(function) ?? [])
+                {
+                    if (found.Add(called)) pending.Enqueue(called);
                 }
             }
 

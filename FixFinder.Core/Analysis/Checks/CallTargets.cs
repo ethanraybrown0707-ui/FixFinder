@@ -17,11 +17,20 @@ public sealed record CallTarget(IrFunction Function, bool Bound)
 
 /// <summary>
 /// Which of the program's own functions a call runs, where the code says so plainly: a function called by name, a
-/// method called on self or this, a class's static method, a Python class called to make an object. Anything
-/// ambiguous - two functions with the name, overloads with the same number of parameters - is left unresolved.
+/// method called on self or this, a class's static method, a Python class called to make an object - in the caller's
+/// file or, through what its module imports, in another of the program's files. Anything ambiguous - two functions with
+/// the name, overloads with the same number of parameters, a name set again - is left unresolved.
 /// </summary>
 public sealed class CallTargets(IrProgram program)
 {
+    private JavaScriptModules? _javaScript;
+    private PythonModules? _python;
+    private readonly Dictionary<IrFunction, HashSet<string>> _localsOf = new(ReferenceEqualityComparer.Instance);
+
+    private JavaScriptModules JavaScript => _javaScript ??= new JavaScriptModules(program);
+
+    private PythonModules Python => _python ??= new PythonModules(program);
+
     private readonly ILookup<string, IrFunction> _topLevel = program.Functions
         .Where(f => f.Owner is null && f.Name != IrFunction.ModuleBody && f.EnclosedBy is null or IrFunction.ModuleBody)
         .ToLookup(f => f.Name, StringComparer.Ordinal);
@@ -93,18 +102,17 @@ public sealed class CallTargets(IrProgram program)
                 if (Single(_nested[$"{caller.FullName}/{name}"]) is { } nested) return new CallTarget(nested, false);
                 if (callerLocals.Contains(name) && caller.Name != IrFunction.ModuleBody) return null;
 
-                if (IsPython)
+                return program.Language switch
                 {
-                    if (Single(_topLevel[name]) is { } function) return new CallTarget(function, false);
-                    if (Single(_classes[name]) is { } made && Single(made.Methods.Where(m => m.Name == "__init__")) is { } init) return new CallTarget(init, true);
-                    return null;
-                }
+                    SourceLanguage.Python => Around(caller, name) is { Bound: true } around ? around.Inside : Python.Named(name, caller, call.Span),
+                    SourceLanguage.JavaScript => Around(caller, name) is { Bound: true } around ? around.Inside : JavaScript.Named(name, caller, call.Span),
 
-                // Go calls the package's own functions by name, whichever file they are written in.
-                if (program.Language == SourceLanguage.Go)
-                    return Single(_topLevel[name].Where(f => f.Parameters.Count == arguments)) is { } packaged ? new CallTarget(packaged, false) : null;
+                    // Go calls the package's own functions by name, whichever file they are written in.
+                    SourceLanguage.Go => Single(_topLevel[name].Where(f => f.Parameters.Count == arguments)) is { } packaged ? new CallTarget(packaged, false) : null,
 
-                return ClassOf(caller) is { } within ? Method(within, name, arguments, bound: false) : null;
+                    SourceLanguage.C or SourceLanguage.Cpp => Native(name, arguments, caller),
+                    _ => ClassOf(caller) is { } within ? Method(within, name, arguments, bound: false) : null,
+                };
 
             case Member { Target: Name { Identifier: "self" or "cls" or "this" }, MemberName: var method } when ClassOf(caller) is { } owner:
                 return Method(owner, method, arguments, bound: IsPython);
@@ -112,10 +120,68 @@ public sealed class CallTargets(IrProgram program)
             case Member { Target: Name { Identifier: var type }, MemberName: var method } when !callerLocals.Contains(type) && _classes[type].Any():
                 return Method(type, method, arguments, bound: false) is { Function.IsStatic: true } found ? found : null;
 
+            // helpers.total(): a function of another module, reached through the module.
+            case Member { Target: var holder, MemberName: var key } when program.Language is SourceLanguage.Python or SourceLanguage.JavaScript &&
+                                                                         !HeldLocally(holder, caller, callerLocals):
+                return IsPython ? Python.Member(holder, key, caller, call.Span) : JavaScript.Member(holder, key, caller, call.Span);
+
             default:
                 return null;
         }
     }
+
+    /// <summary>
+    /// What a name means to a function written inside others, before the module is asked: Bound when one of the
+    /// functions around it binds the name - with the function it defines under that name, when that is what it binds.
+    /// </summary>
+    private (bool Bound, CallTarget? Inside) Around(IrFunction caller, string name)
+    {
+        var current = Enclosing(caller);
+        for (var depth = 0; current is not null && current.Name != IrFunction.ModuleBody && depth < MostNesting; depth++)
+        {
+            if (Single(_nested[$"{current.FullName}/{name}"]) is { } defined) return (true, new CallTarget(defined, false));
+            if (LocalsOf(current).Contains(name)) return (true, null);
+            current = Enclosing(current);
+        }
+
+        return (false, null);
+    }
+
+    /// <summary>Whether the name an expression starts from belongs to the caller, or to a function around it, rather than to the module.</summary>
+    private bool HeldLocally(Expr holder, IrFunction caller, IReadOnlySet<string> callerLocals) => holder switch
+    {
+        Name { Identifier: var name } => callerLocals.Contains(name) && caller.Name != IrFunction.ModuleBody || Around(caller, name).Bound,
+        Member { Target: var outer } => HeldLocally(outer, caller, callerLocals),
+        _ => false,
+    };
+
+    private HashSet<string> LocalsOf(IrFunction function) =>
+        _localsOf.TryGetValue(function, out var known) ? known : _localsOf[function] = IrWalk.LocalNames(function, assigningDeclares: IsPython);
+
+    /// <summary>
+    /// A C or C++ function called by name. In a C++ method the class's own methods come first, as C++ looks there before
+    /// anywhere else. Otherwise it is the one free function with that name that takes that many arguments, among those
+    /// in the caller's own file - where a static function hides any other - or, when that file has none of the name, in
+    /// the rest of the program. Two that could both be meant are overloads or rivals, and neither is chosen.
+    /// </summary>
+    private CallTarget? Native(string name, int arguments, IrFunction caller)
+    {
+        if (ClassOf(caller) is { } within)
+        {
+            if (_classes[within].Any(type => type.Methods.Any(method => method.Name == name))) return Method(within, name, arguments, bound: false);
+
+            // A method of that name in any class may be one this class inherits, which C++ would call instead.
+            if (program.Classes.Any(type => type.Methods.Any(method => method.Name == name))) return null;
+        }
+
+        var named = _topLevel[name].ToList();
+        var ownFile = named.Where(function => Places.SameFile(function.Span, caller.Span)).ToList();
+        return Single((ownFile.Count > 0 ? ownFile : named).Where(function => Takes(function, arguments))) is { } chosen ? new CallTarget(chosen, false) : null;
+    }
+
+    /// <summary>Whether a function takes that many arguments: exactly its parameters, or at least those before a C ... .</summary>
+    private static bool Takes(IrFunction function, int arguments) =>
+        function.Parameters is [.., { Kind: ParameterKind.Rest }] ? arguments >= function.Parameters.Count - 1 : arguments == function.Parameters.Count;
 
     private CallTarget? Method(string owner, string name, int arguments, bool bound)
     {

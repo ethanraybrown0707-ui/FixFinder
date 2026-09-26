@@ -721,7 +721,7 @@ public static class AbstractChecks
                 if (callee.Assume(state, precondition.Failure, false).IsReachable) continue;
 
                 Report("analysis-contract-broken", call.Span,
-                    $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} (line {precondition.Span.Line})",
+                    $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} ({Places.Line(precondition.Span, call.Span)})",
                     Severity.Error, Confidence.Certain);
                 return;
             }

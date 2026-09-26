@@ -106,7 +106,26 @@ The checks look across functions. A call to one of the program's own functions i
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
 **contract**. What a function returns is worked out once and used at every call, which is how a function that always
 returns None is caught where its result is used. What a method returns is never assumed, because a subclass can
-replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true.
+replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true, and a number
+kept in a `double` divides into infinity rather than failing, since dividing a double by zero is no error.
+
+**Across files**, a program is checked as one. A call is matched to the function it runs wherever that is written:
+
+| Language | Followed through |
+|---|---|
+| Python | `import helpers` then `helpers.total()`; `from helpers import total as sum`; relative imports inside a package; star imports |
+| JavaScript | `require` - kept whole, destructured, or `require('./helpers').total` - and `import` of a named, default or `* as` export, found in the other file's `module.exports`, `exports.total` or `export` |
+| C, C++ | the function of that name defined in another `.c` file - one in the caller's own file first, as a `static` function there hides the rest |
+| Java, C#, Go | the classes, and the package, the files share |
+
+A call is followed only when one function is certainly meant. A name bound twice, set again after it is declared, or
+exported inside a branch or a function; a module that is not one of the program's own files; two functions that could
+both be meant - each leaves the call alone rather than guess. Top-level code runs in order, so a call written above the
+`def` or `const` it uses fails there with a NameError or ReferenceError, and is not followed either; a JavaScript
+`function` declaration is ready from the first line. What the function in the other file returns, the guards it
+starts with and the text it runs are all checked at the call, and a finding that points at a line in another file names
+the file: `when x < 0 it raises ValueError (line 2 of maths.py)`. Every Python module has variables of its own, so a
+function in another file that changes its `items` is not taken to change the caller's.
 
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
@@ -276,7 +295,8 @@ and a member `count` or `find` there belongs to a set or a map as often as to a 
 
 Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
 found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
-can call - found by name, so a call through any object still counts - and every function those can call; every line
+can call - found by name, so a call through any object still counts, and by following its calls through what its module
+imports, so a function imported under a name of its own counts too - and every function those can call; every line
 outside a function in every file; and the list of every function, with what each declares global. After an edit, a
 function is analysed again only if one of those changed, and the logic lane says how many were unchanged. The summaries
 of what each function returns, and the checks across the whole program - threads, locks, text from outside, repeated
