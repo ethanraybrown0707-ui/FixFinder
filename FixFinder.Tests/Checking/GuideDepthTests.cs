@@ -17,6 +17,7 @@ public class GuideDepthTests
         ["JavaScript"] = JavaScriptGuides.All,
         ["Go"] = GoGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
+        ["Python patterns"] = PythonPatternGuides.All,
     };
 
     public static TheoryData<string> Written
