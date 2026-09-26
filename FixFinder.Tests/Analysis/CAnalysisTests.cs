@@ -548,6 +548,36 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.StartsWith("`vector->items` was freed on line 10", used.Message);
     }
 
+    /// <summary>
+    /// Freeing a struct before the fields it points to: reaching student->name then goes through memory already gone,
+    /// and the finding names the field that is reached, not only the struct.
+    /// </summary>
+    [Fact]
+    public async Task FreeingTheFieldsOfAFreedStructIsFound()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                char *name;
+                int *marks;
+            } Student;
+
+            void free_student(Student *student)
+            {
+                free(student);
+                free(student->name);
+                free(student->marks);
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var freed = findings.Where(f => f.CheckId == "analysis-use-after-free").ToList();
+        Assert.Equal([11, 12], freed.Select(f => f.Span.Line));
+        Assert.Equal("`student` was freed on line 10, so `student->name` goes through memory that is no longer there - undefined behaviour", freed[0].Message);
+    }
+
     /// <summary>C stores with an expression too - heads[0] = entry; - and the memory stored is the array's to free from then on.</summary>
     [Fact]
     public async Task MemoryStoredInSomethingElseIsNotLost()

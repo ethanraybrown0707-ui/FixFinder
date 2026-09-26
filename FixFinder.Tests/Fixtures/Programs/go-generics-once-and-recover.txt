@@ -1,0 +1,107 @@
+==> main.go <==
+package main
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+)
+
+type Number interface {
+	~int | ~int64 | ~float64
+}
+
+func Sum[T Number](values []T) T {
+	var total T
+	for _, value := range values {
+		total += value
+	}
+	return total
+}
+
+func Map[T, U any](items []T, convert func(T) U) []U {
+	out := make([]U, 0, len(items))
+	for _, item := range items {
+		out = append(out, convert(item))
+	}
+	return out
+}
+
+type Weekday int
+
+const (
+	Monday Weekday = iota
+	Tuesday
+	Wednesday
+)
+
+func (d Weekday) String() string {
+	return [...]string{"Mon", "Tue", "Wed"}[d]
+}
+
+type byLength []string
+
+func (b byLength) Len() int           { return len(b) }
+func (b byLength) Less(i, j int) bool { return len(b[i]) < len(b[j]) }
+func (b byLength) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+
+var (
+	setup    sync.Once
+	settings map[string]string
+)
+
+func config() map[string]string {
+	setup.Do(func() {
+		settings = map[string]string{"mode": "fast"}
+	})
+	return settings
+}
+
+func safeDivide(a, b int) (result int, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("divide failed: %v", recovered)
+		}
+	}()
+	return a / b, nil
+}
+
+func slowWork(ctx context.Context) error {
+	select {
+	case <-time.After(10 * time.Millisecond):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func main() {
+	fmt.Println(Sum([]int{1, 2, 3}), Sum([]float64{0.5, 0.25}))
+	fmt.Println(Map([]string{"a", "bb"}, func(s string) int { return len(s) }))
+	fmt.Println(Tuesday, Wednesday.String())
+
+	words := byLength{"ccc", "a", "bb"}
+	sort.Sort(words)
+	fmt.Println(words)
+
+	var builder strings.Builder
+	for i := 0; i < 3; i++ {
+		fmt.Fprintf(&builder, "%d;", i)
+	}
+	fmt.Println(builder.String(), config()["mode"])
+
+	if result, err := safeDivide(6, 3); err == nil {
+		fmt.Println(result)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	fmt.Println(slowWork(ctx))
+
+	increment := func(n int) int { return n + 1 }
+	apply := increment
+	fmt.Println(apply(41))
+}

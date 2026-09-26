@@ -363,7 +363,7 @@ public sealed class MemorySafety(
                 // Freeing a field reads the pointer that holds it first: free(node->key) goes through node.
                 if (Uncast(freed) is Member { Target: var holder } freedField)
                 {
-                    Uses(state, holder, reporting);
+                    ReadingThrough(state, holder, freedField.Span, $"`{quote(freedField)}`", reporting);
                     _shown[path] = quote(freedField);
                 }
 

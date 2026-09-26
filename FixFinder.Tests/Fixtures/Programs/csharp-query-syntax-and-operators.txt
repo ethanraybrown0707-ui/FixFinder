@@ -1,0 +1,115 @@
+==> Program.cs <==
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+[Flags]
+public enum Access { None = 0, Read = 1, Write = 2, Admin = Read | Write }
+
+public readonly struct Money
+{
+    public Money(decimal amount) => Amount = amount;
+
+    public decimal Amount { get; }
+
+    public static Money operator +(Money left, Money right) => new(left.Amount + right.Amount);
+
+    public override string ToString() => $"{Amount,8:F2}";
+}
+
+public static class Extensions
+{
+    public static T Largest<T>(this IEnumerable<T> items) where T : IComparable<T>
+    {
+        using var each = items.GetEnumerator();
+        if (!each.MoveNext())
+        {
+            throw new InvalidOperationException("no items");
+        }
+
+        var best = each.Current;
+        while (each.MoveNext())
+        {
+            if (each.Current.CompareTo(best) > 0)
+            {
+                best = each.Current;
+            }
+        }
+
+        return best;
+    }
+}
+
+public class Settings
+{
+    public string Name { get; init; } = "default";
+    public int? Limit { get; init; }
+}
+
+public static class Program
+{
+    static bool TrySplit(string text, out string left, out string right)
+    {
+        var at = text.IndexOf('=');
+        if (at < 0)
+        {
+            left = right = "";
+            return false;
+        }
+
+        left = text[..at];
+        right = text[(at + 1)..];
+        return true;
+    }
+
+    static void Double(ref int value) => value *= 2;
+
+    static string Level(int code)
+    {
+        switch (code)
+        {
+            case 1:
+                return "low";
+            case 2:
+                goto case 1;
+            default:
+                return "high";
+        }
+    }
+
+    public static void Main()
+    {
+        var words = new[] { "apple", "avocado", "banana", "blueberry", "cherry" };
+        var grouped =
+            from word in words
+            where word.Length > 5
+            group word by word[0] into letters
+            orderby letters.Key
+            select new { Letter = letters.Key, Count = letters.Count() };
+
+        foreach (var group in grouped)
+        {
+            Console.WriteLine($"{group.Letter}: {group.Count}");
+        }
+
+        Console.WriteLine(new[] { 3, 9, 4 }.Largest());
+        Console.WriteLine(new Money(1.5m) + new Money(2.25m));
+
+        var access = Access.Read | Access.Write;
+        Console.WriteLine(access.HasFlag(Access.Write) && access == Access.Admin);
+
+        var settings = new Settings { Name = "strict", Limit = null };
+        Console.WriteLine(settings.Limit.HasValue ? settings.Limit.Value : -1);
+        Console.WriteLine(settings.Limit ?? 10);
+
+        if (TrySplit("key=value", out var key, out var value))
+        {
+            Console.WriteLine($"{key} -> {value}");
+        }
+
+        var count = 21;
+        Double(ref count);
+        Console.WriteLine(checked(count + 1));
+        Console.WriteLine(Level(2) + Level(5));
+    }
+}
