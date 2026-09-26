@@ -1,0 +1,103 @@
+==> Program.cs <==
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+public sealed class Journal : IDisposable
+{
+    private readonly StringWriter _writer = new();
+    private bool _disposed;
+
+    public void Write(string line)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _writer.WriteLine(line);
+    }
+
+    public string Text => _writer.ToString();
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _writer.Dispose();
+        _disposed = true;
+    }
+}
+
+public sealed class Counter
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<string, int> _counts = new();
+    private int _total;
+
+    public void Add(string key)
+    {
+        lock (_gate)
+        {
+            _counts[key] = _counts.TryGetValue(key, out var count) ? count + 1 : 1;
+        }
+
+        Interlocked.Increment(ref _total);
+    }
+
+    public int Total => Volatile.Read(ref _total);
+
+    public int CountOf(string key)
+    {
+        lock (_gate)
+        {
+            return _counts.GetValueOrDefault(key);
+        }
+    }
+}
+
+public static class Program
+{
+    public static event Action<string>? Logged;
+
+    static async Task<int> CountLinesAsync(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return 0;
+        }
+
+        var text = await File.ReadAllTextAsync(path);
+        return text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    public static async Task Main()
+    {
+        Logged += message => Console.WriteLine($"log: {message}");
+
+        using (var journal = new Journal())
+        {
+            journal.Write("start");
+            journal.Write("end");
+            Console.WriteLine(journal.Text.Length);
+        }
+
+        var counter = new Counter();
+        Parallel.For(0, 100, i => counter.Add(i % 2 == 0 ? "even" : "odd"));
+        Console.WriteLine($"{counter.Total} {counter.CountOf("even")}");
+
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "a\nb\n");
+            Console.WriteLine(await CountLinesAsync(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+
+        Logged?.Invoke("done");
+    }
+}

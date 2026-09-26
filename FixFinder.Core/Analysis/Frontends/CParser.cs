@@ -49,6 +49,12 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     private readonly HashSet<string> _taken = new(StringComparer.Ordinal);
     private string? _owner;
     private bool _hasGoto;
+
+    /// <summary>The function being read, which a lambda written inside it is enclosed by.</summary>
+    private string? _function;
+
+    /// <summary>The names given to lambdas so far: two written on one line are told apart.</summary>
+    private readonly HashSet<string> _named = new(StringComparer.Ordinal);
     private int _at;
     private int _depth;
     private int _steps;
@@ -552,7 +558,71 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         if (_typedefs.Contains(Current.Text)) return true;
 
         // A name followed by another name, a star or a reference is a type: MyType value, MyType *p.
-        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier;
+        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier || cpp && StartsCppType();
+    }
+
+    /// <summary>
+    /// A C++ type written with its namespace, its template's arguments or as a reference, and the name it declares:
+    /// std::vector&lt;int&gt; numbers, map&lt;string, int&gt;::iterator found, Item &amp;item. Read as an expression
+    /// instead, std::vector &lt; int &gt; numbers is two comparisons. Only a name followed by what can follow a declared
+    /// name - a semicolon, =, braces, brackets, a comma or a colon - is taken for one.
+    /// </summary>
+    private bool StartsCppType()
+    {
+        var at = _at + 1;
+        while (true)
+        {
+            if (TextAt(at) == "<" && PastAngles(at) is var after && after > at) at = after;
+            if (TextAt(at) == "::" && TokenAt(at + 1) is { Kind: CTokenKind.Identifier })
+            {
+                at += 2;
+                continue;
+            }
+
+            break;
+        }
+
+        var qualified = at > _at + 1;
+        while (TextAt(at) is "*" or "&" or "&&" || TokenAt(at) is { Kind: CTokenKind.Keyword, Text: "const" }) at++;
+
+        // A plain name followed by another name was already a type; here something must have been added to it.
+        if (!qualified && TextAt(at - 1) is not ("&" or "&&")) return false;
+        return TokenAt(at) is { Kind: CTokenKind.Identifier } && TextAt(at + 1) is ";" or "=" or "{" or "(" or "," or "[" or ":";
+    }
+
+    private CToken? TokenAt(int index) => index >= 0 && index < tokens.Count ? tokens[index] : null;
+
+    private string? TextAt(int index) => TokenAt(index) is { Kind: CTokenKind.Punctuator or CTokenKind.Keyword or CTokenKind.Identifier } token ? token.Text : null;
+
+    /// <summary>
+    /// The position just past the template arguments that open at <paramref name="open"/>, looking ahead without moving.
+    /// Two closing together arrive as one &gt;&gt;. Where they cannot be template arguments - a semicolon or a brace
+    /// comes first - the position given back is <paramref name="open"/> itself.
+    /// </summary>
+    private int PastAngles(int open)
+    {
+        var depth = 0;
+        for (var at = open; at < tokens.Count; at++)
+        {
+            switch (TextAt(at))
+            {
+                case "<":
+                    depth++;
+                    break;
+                case ">":
+                    depth--;
+                    break;
+                case ">>":
+                    depth -= 2;
+                    break;
+                case ";" or "{" or "}":
+                    return open;
+            }
+
+            if (depth <= 0) return at + 1;
+        }
+
+        return open;
     }
 
     /// <summary>The name of a type, gathering the words that make it up; the tag of a struct written inline comes back separately.</summary>
@@ -597,13 +667,27 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             if (Current.Kind == CTokenKind.Identifier && words.Count == 0)
             {
                 words.Add(Take().Text);
-                if (cpp && Is("::"))
+
+                // A name reached through namespaces and templates - std::map<std::string, int>::size_type - is known by
+                // its last part.
+                while (cpp)
                 {
-                    _at++;
-                    if (Current.Kind == CTokenKind.Identifier) words[^1] = Take().Text;
+                    if (Is("<"))
+                    {
+                        SkipAngles();
+                        continue;
+                    }
+
+                    if (Is("::") && At(1) is { Kind: CTokenKind.Identifier or CTokenKind.Keyword })
+                    {
+                        _at++;
+                        words[^1] = Take().Text;
+                        continue;
+                    }
+
+                    break;
                 }
 
-                if (cpp && Is("<")) SkipAngles();
                 continue;
             }
 
@@ -747,7 +831,8 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         }
     }
 
-    private IrFunction ReadFunction(CToken start, string name, string? owner, CType returns, List<IrParameter> parameters, bool add = true)
+    private IrFunction ReadFunction(CToken start, string name, string? owner, CType returns, List<IrParameter> parameters, bool add = true,
+        string? enclosedBy = null)
     {
         // Each function's variables are its own, so only a name declared again within it needs a name of its own - or
         // one that would hide a global or a function, which its code can reach as well.
@@ -762,21 +847,89 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         foreach (var parameter in parameters)
         {
             _scopes[^1][parameter.Name] = new CType(parameter.Type.Name.TrimEnd('*'), parameter.Type.Name.Count(c => c == '*'), []);
+            _irNames[^1][parameter.Name] = parameter.Name;
             _taken.Add(parameter.Name);
         }
 
-        var outer = _owner;
+        var (outerOwner, outerFunction, outerGoto) = (_owner, _function, _hasGoto);
         _owner = owner;
+        _function = owner is null ? name : $"{owner}.{name}";
         _hasGoto = ContainsGoto();
 
         var body = Block();
 
-        _owner = outer;
+        (_owner, _function, _hasGoto) = (outerOwner, outerFunction, outerGoto);
         LeaveScope();
 
-        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body) { IsStatic = owner is null };
+        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body) { IsStatic = owner is null, EnclosedBy = enclosedBy };
         if (add) _functions.Add(function);
         return function;
+    }
+
+    /// <summary>
+    /// An if's condition. C++ lets it declare what it tests - if (auto found = find(key)) - or run a declaration first
+    /// and test after it - if (auto found = find(key); found != end). The declaration comes back to run before the test,
+    /// and the test is then of the variable, or of what is written after the semicolon.
+    /// </summary>
+    private (List<Stmt> Setup, Expr Condition) Condition()
+    {
+        if (!cpp || !StartsType() || !DeclaresBeforeTheEnd()) return ([], Expression());
+
+        var start = Current;
+        var setup = LocalDeclaration(Span(start));
+        var ranStatementFirst = TokenAt(_at - 1) is { Text: ";" };
+
+        if (ranStatementFirst) return (setup, Expression());
+        return setup.LastOrDefault() is Declare { Variable: var tested } ? (setup, new Name(Span(start), tested)) : (setup, Opaque.Of(Span(start), "value"));
+    }
+
+    /// <summary>
+    /// Whether what follows sets a variable up before the condition ends: an = or a brace at the top level. Without one,
+    /// if (a * b) multiplies - it does not declare b.
+    /// </summary>
+    private bool DeclaresBeforeTheEnd()
+    {
+        var depth = 0;
+        for (var at = _at; at < tokens.Count; at++)
+        {
+            var text = TextAt(at);
+            if (text is "(" or "[") depth++;
+            else if (text is ")" or "]" && --depth < 0) return false;
+            else if (depth == 0 && text is ";") return false;
+            else if (depth == 0 && text is "=" or "{") return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A C++ lambda - [captures](parameters) { body } - which is a function of its own, written inside the one around it.
+    /// That one's variables it captures by reference it can change, so the analysis of the outer function forgets them
+    /// wherever the lambda may have run.
+    /// </summary>
+    private Expr Lambda(CToken start)
+    {
+        // The captures say how the outer variables are reached, not which: the body's own names say that.
+        var depth = 0;
+        do
+        {
+            if (Is("[")) depth++;
+            else if (Is("]")) depth--;
+            _at++;
+        }
+        while (depth > 0 && !AtEnd);
+
+        var parameters = Is("(") ? Parameters() : [];
+
+        // mutable, noexcept, an -> and the type it returns: nothing the body's code depends on.
+        while (!Is("{") && !Is(";") && !Is(")") && !AtEnd) _at++;
+        if (!Is("{")) return Opaque.Of(From(start), "lambda expression");
+
+        var name = $"lambda at line {start.Line}";
+        for (var again = 2; !_named.Add(name); again++) name = $"lambda at line {start.Line} ({again})";
+
+        var function = ReadFunction(start, name, owner: null, CType.Unknown, parameters, enclosedBy: _function);
+        return Opaque.Of(function.Span, "lambda expression");
     }
 
     /// <summary>Whether the body that starts here jumps with goto, which is read the way C# reads it: the path ends and the label forgets.</summary>
@@ -848,12 +1001,15 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         {
             case "if":
                 _at++;
-                Expect("(");
-                var condition = Expression();
-                Expect(")");
-                var then = Block();
-                var otherwise = Eat("else") ? Block() : [];
-                return [new If(span, condition, then, otherwise)];
+                return InScope(() =>
+                {
+                    Expect("(");
+                    var (setup, condition) = Condition();
+                    Expect(")");
+                    var then = Block();
+                    var otherwise = Eat("else") ? Block() : [];
+                    return [.. setup, new If(span, condition, then, otherwise)];
+                });
 
             case "while":
                 _at++;
@@ -1028,6 +1184,12 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             {
                 var arguments = Arguments();
                 initial = new NewObject(From(nameToken), IrType.Named(variable.Name), arguments);
+            }
+            else if (Is("{") && cpp)
+            {
+                // C++ sets a variable up with braces too - vector<Item> items{{"pen", 3}, {"pad", 5}} - which are its
+                // value, not a block of code.
+                initial = Initialiser(variable, Span(nameToken));
             }
             else if (dimensions.Count > 0)
             {
@@ -1577,6 +1739,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 var inner = Expression();
                 Expect(")");
                 return inner;
+
+            case "[" when cpp:
+                return Lambda(start);
 
             case "{":
                 return Initialiser(CType.Unknown with { Dimensions = [null] }, span);

@@ -1,0 +1,104 @@
+==> main.py <==
+import json
+import os
+import queue
+import tempfile
+import threading
+from contextlib import contextmanager
+
+
+class Timer:
+    def __init__(self, label):
+        self.label = label
+        self.entered = False
+
+    def __enter__(self):
+        self.entered = True
+        return self
+
+    def __exit__(self, kind, value, trace):
+        self.entered = False
+        return False
+
+
+@contextmanager
+def opened(path, mode):
+    handle = open(path, mode)
+    try:
+        yield handle
+    finally:
+        handle.close()
+
+
+def save(path, data):
+    with open(path, "w") as handle:
+        json.dump(data, handle)
+
+
+def load(path, default):
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path) as handle:
+            return json.load(handle)
+    except json.JSONDecodeError:
+        return default
+
+
+def count_lines(path):
+    handle = open(path)
+    try:
+        return sum(1 for _ in handle)
+    finally:
+        handle.close()
+
+
+class Tally:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.total = 0
+
+    def add(self, amount):
+        with self.lock:
+            self.total += amount
+
+
+def worker(jobs, tally):
+    while True:
+        job = jobs.get()
+        if job is None:
+            jobs.task_done()
+            break
+        tally.add(job)
+        jobs.task_done()
+
+
+def main():
+    folder = tempfile.mkdtemp()
+    path = os.path.join(folder, "scores.json")
+    save(path, {"ada": 3})
+    print(load(path, {}), load(os.path.join(folder, "missing.json"), {}))
+
+    with opened(path, "a") as handle:
+        handle.write("\n")
+    print(count_lines(path))
+
+    with Timer("work") as timer:
+        print(timer.entered)
+
+    tally = Tally()
+    jobs = queue.Queue()
+    threads = [threading.Thread(target=worker, args=(jobs, tally)) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    for amount in range(10):
+        jobs.put(amount)
+    for _ in threads:
+        jobs.put(None)
+    jobs.join()
+    for thread in threads:
+        thread.join()
+    print(tally.total)
+
+
+main()

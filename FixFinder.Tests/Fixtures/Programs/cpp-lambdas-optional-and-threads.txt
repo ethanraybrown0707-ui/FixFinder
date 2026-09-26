@@ -1,0 +1,91 @@
+==> main.cpp <==
+#include <algorithm>
+#include <array>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <numeric>
+#include <optional>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+struct Item {
+    std::string name;
+    int price;
+};
+
+std::optional<int> find_price(const std::vector<Item> &items, const std::string &name)
+{
+    auto found = std::find_if(items.begin(), items.end(), [&name](const Item &item) { return item.name == name; });
+    if (found == items.end()) {
+        return std::nullopt;
+    }
+    return found->price;
+}
+
+class Buffer {
+public:
+    explicit Buffer(std::size_t size) : data_(std::make_unique<int[]>(size)), size_(size) {}
+
+    Buffer(Buffer &&other) noexcept : data_(std::move(other.data_)), size_(other.size_) { other.size_ = 0; }
+
+    int &at(std::size_t index)
+    {
+        if (index >= size_) {
+            throw std::out_of_range("index past the end of the buffer");
+        }
+        return data_[index];
+    }
+
+    std::size_t size() const { return size_; }
+
+private:
+    std::unique_ptr<int[]> data_;
+    std::size_t size_;
+};
+
+int main()
+{
+    std::vector<Item> items{{"pen", 3}, {"pad", 5}, {"ink", 2}};
+    std::sort(items.begin(), items.end(), [](const Item &left, const Item &right) { return left.price < right.price; });
+
+    if (auto price = find_price(items, "pad")) {
+        std::cout << *price << '\n';
+    }
+    std::cout << find_price(items, "cup").value_or(-1) << '\n';
+
+    std::vector<int> numbers{1, 2, 3, 4, 5, 6};
+    numbers.erase(std::remove_if(numbers.begin(), numbers.end(), [](int n) { return n % 2 == 0; }), numbers.end());
+    int total = std::accumulate(numbers.begin(), numbers.end(), 0);
+    std::cout << total << '\n';
+
+    std::array<int, 3> fixed{7, 8, 9};
+    for (std::size_t i = 0; i < fixed.size(); ++i) {
+        std::cout << fixed[i] << ' ';
+    }
+    std::cout << '\n';
+
+    Buffer first(4);
+    first.at(0) = 42;
+    Buffer second(std::move(first));
+    std::cout << second.at(0) << ' ' << first.size() << '\n';
+
+    int shared = 0;
+    std::mutex guard;
+    std::vector<std::thread> workers;
+    for (int t = 0; t < 4; ++t) {
+        workers.emplace_back([&shared, &guard]() {
+            for (int i = 0; i < 1000; ++i) {
+                std::lock_guard<std::mutex> hold(guard);
+                ++shared;
+            }
+        });
+    }
+    for (auto &worker : workers) {
+        worker.join();
+    }
+    std::cout << shared << '\n';
+    return 0;
+}

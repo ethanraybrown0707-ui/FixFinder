@@ -668,4 +668,60 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.Contains(body, statement => statement is Try { Handlers.Count: 2 });
         Assert.Contains(body, statement => statement is ForEach { Target: CollectionLiteral { Items.Count: 2 } });
     }
+
+    /// <summary>
+    /// Declarations C++ writes with a namespace, a template, a reference, braces or inside an if are declarations - not
+    /// comparisons like std::vector &lt; Item &gt; items - and a lambda is a function of its own inside the one around it.
+    /// </summary>
+    [Fact]
+    public async Task ModernCppDeclarationsAndLambdasAreRead()
+    {
+        const string code = """
+            #include <algorithm>
+            #include <map>
+            #include <optional>
+            #include <string>
+            #include <vector>
+
+            struct Item {
+                std::string name;
+                int price;
+            };
+
+            std::optional<int> price_of(const std::vector<Item> &items, const std::string &name)
+            {
+                auto found = std::find_if(items.begin(), items.end(), [&name](const Item &item) { return item.name == name; });
+                if (found == items.end()) {
+                    return std::nullopt;
+                }
+                return found->price;
+            }
+
+            int total()
+            {
+                std::vector<Item> items{{"pen", 3}, {"pad", 5}};
+                std::map<std::string, int>::size_type kinds = 2;
+                Item &first = items[0];
+                int sum = first.price;
+                if (auto price = price_of(items, "pad")) {
+                    sum += *price;
+                }
+                if (auto price = price_of(items, "pen"); price.has_value()) {
+                    sum += *price;
+                }
+                std::sort(items.begin(), items.end(), [](const Item &left, const Item &right) { return left.price < right.price; });
+                return sum + static_cast<int>(kinds);
+            }
+            """;
+
+        var (program, _) = await CheckAsync(code, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        var declared = IrWalk.Statements(Assert.Single(program.Functions, f => f.Name == "total").Body).OfType<Declare>().Select(d => d.Variable).ToList();
+        Assert.Equal(["items", "kinds", "first", "sum", "price", "price'"], declared);
+
+        var lambdas = program.Functions.Where(f => f.Name.StartsWith("lambda at line", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["price_of", "total"], lambdas.Select(lambda => lambda.EnclosedBy));
+        Assert.Equal(["item"], lambdas[0].Parameters.Select(p => p.Name));
+    }
 }

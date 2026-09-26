@@ -1,0 +1,110 @@
+==> Main.java <==
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class Main {
+    static class Ledger implements AutoCloseable {
+        private final List<String> entries = new ArrayList<>();
+        private boolean closed;
+
+        void record(String entry) {
+            if (closed) {
+                throw new IllegalStateException("ledger closed");
+            }
+            entries.add(entry);
+        }
+
+        int size() {
+            return entries.size();
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+    }
+
+    static class Account {
+        private final ReentrantLock lock = new ReentrantLock();
+        private int balance;
+
+        void deposit(int amount) {
+            lock.lock();
+            try {
+                balance += amount;
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        boolean withdraw(int amount) {
+            lock.lock();
+            try {
+                if (amount > balance) {
+                    return false;
+                }
+                balance -= amount;
+                return true;
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        synchronized int balance() {
+            return balance;
+        }
+    }
+
+    static int countWords(String text) throws IOException {
+        int words = 0;
+        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.isBlank()) {
+                    words += line.trim().split("\\s+").length;
+                }
+            }
+        }
+        return words;
+    }
+
+    public static void main(String[] args) throws Exception {
+        try (Ledger ledger = new Ledger()) {
+            ledger.record("opened");
+            ledger.record("deposit");
+            System.out.println(ledger.size());
+        }
+
+        Account account = new Account();
+        AtomicInteger attempts = new AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            List<Future<Boolean>> results = new ArrayList<>();
+            for (int i = 0; i < 8; i++) {
+                results.add(pool.submit(() -> {
+                    attempts.incrementAndGet();
+                    account.deposit(10);
+                    return account.withdraw(5);
+                }));
+            }
+            for (Future<Boolean> result : results) {
+                result.get();
+            }
+        } catch (ExecutionException problem) {
+            System.out.println("a task failed: " + problem.getCause());
+        } finally {
+            pool.shutdown();
+        }
+        System.out.println(account.balance() + " after " + attempts.get());
+        System.out.println(countWords("one two\n\nthree"));
+    }
+}
