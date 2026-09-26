@@ -365,6 +365,32 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.Contains("undefined behaviour", division.Message);
     }
 
+    /// <summary>
+    /// A number takes the type of the variable it is kept in: 0 in a double divides into infinity, which is no crash,
+    /// while 0.5 in an int is 0, which is.
+    /// </summary>
+    [Fact]
+    public async Task ANumberTakesTheTypeOfTheVariableItIsKeptIn()
+    {
+        const string code = """
+            #include <stdio.h>
+
+            int main(void)
+            {
+                double share = 0;
+                printf("%f\n", 10 / share);
+                int whole = 0.5;
+                printf("%d\n", 10 / whole);
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var division = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero");
+        Assert.Equal(8, division.Span.Line);
+    }
+
     [Fact]
     public async Task CppClassesAndNewAreRead()
     {

@@ -146,6 +146,7 @@ public static class AbstractChecks
 
         if (joined is not { IsImpossible: false, IsUnknown: false }) return null;
 
+        joined = evaluator.AsDeclared(joined, graph.Function.ReturnType);
         return joined.IsNull ? joined : joined.WithoutNull() with { NullnessKnown = false };
     }
 

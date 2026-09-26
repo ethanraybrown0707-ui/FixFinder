@@ -89,6 +89,8 @@ public class JavaAnalysisTests : IDisposable
     [InlineData("a guard that only throws", "    static int f(List<String> list) {\n        int size = list.size();\n        if (size < 0) { throw new IllegalStateException(\"size\"); }\n        return size;\n    }")]
     [InlineData("the last case of a switch", "    static int f(int kind) {\n        if (kind < 1 || kind > 2) return 0;\n        switch (kind) {\n            case 1: return 10;\n            case 2: return 20;\n        }\n        return 0;\n    }")]
     [InlineData("a guarded division by a size", "    static int f(List<String> items) {\n        if (items.size() > 0) { return 10 / items.size(); }\n        return 0;\n    }")]
+    [InlineData("a whole number kept in a double", "    static double f() {\n        double d = 0;\n        return 10 / d;\n    }")]
+    [InlineData("a double that a method returns", "    static double zero() { return 0; }\n    static double f() { return 10 / zero(); }")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         if (await Analyse(body) is not { } findings) return;

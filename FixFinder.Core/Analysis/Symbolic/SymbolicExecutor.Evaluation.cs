@@ -1134,6 +1134,10 @@ public sealed partial class SymbolicExecutor
                 if (!IsPython && value is SymUnknown && _declared.TryGetValue(name.Identifier, out var type))
                     value = FromType(type, source is null ? $"`{name.Identifier}`" : Subject(source), SymbolOrigin.Outside, path);
 
+                // A whole number kept in a double is a fraction from then on, and dividing by a fraction that is 0 does not fail.
+                if (!IsPython && value is SymNumber { Whole: true } whole && _declared.TryGetValue(name.Identifier, out var holding) && holding.IsFloatingPoint)
+                    value = whole with { Whole = false };
+
                 // items += more extends a Python list in place, where items = items + more makes a new one - and once
                 // lowered the two look alike. For a list other names share, neither is guessed: their lengths are forgotten.
                 if (IsPython && source is Binary { Left: Name { Identifier: var extended } } && extended == name.Identifier &&

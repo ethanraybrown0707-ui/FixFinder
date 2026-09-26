@@ -478,6 +478,20 @@ public sealed class Evaluator(SourceLanguage language)
         return type.Nullable ? value.Join(AbstractValue.Null) : value;
     }
 
+    /// <summary>
+    /// A number as the variable or function holding it declares it. A whole number kept in a double is a fraction from
+    /// then on - 10 / d gives infinity rather than failing when d is 0 - and a fraction kept in a C int loses what is
+    /// after the point. Python's hints convert nothing, so there a number stays as it was written.
+    /// </summary>
+    public AbstractValue AsDeclared(AbstractValue value, IrType declared)
+    {
+        if (IsPython || !value.IsNumber) return value;
+        if (declared.IsFloatingPoint) return AbstractValue.Real(value.Number);
+
+        var truncates = language is SourceLanguage.C or SourceLanguage.Cpp && value.IsOnly(ValueKind.Real) && FromType(declared).IsOnly(ValueKind.Integer);
+        return truncates ? AbstractValue.Integer(value.Number.Truncate()) : value;
+    }
+
     /// <summary>Java and C# value types, which can never hold null.</summary>
     private static bool IsPrimitive(string name) => name is "int" or "long" or "short" or "byte" or "double" or "float" or "boolean" or "bool"
         or "char" or "decimal" or "uint" or "ulong" or "sbyte" or "ushort";
@@ -520,8 +534,8 @@ public sealed class Evaluator(SourceLanguage language)
         switch (target)
         {
             case Name name:
-                if (!IsPython && value.IsUnknown && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
-                    value = FromType(declared);
+                if (!IsPython && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
+                    value = value.IsUnknown ? FromType(declared) : AsDeclared(value, declared);
 
                 // b = a: both names now hold the one object, so a change made through either is a change to both.
                 if (valueExpression is Name { Identifier: var source } && source != name.Identifier && Tracked(source) && Tracked(name.Identifier))

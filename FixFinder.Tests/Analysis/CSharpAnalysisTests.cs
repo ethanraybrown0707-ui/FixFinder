@@ -75,6 +75,7 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("analysis-division-by-zero", "Possible", "    static int Average(int[] values)\n    {\n        int total = 0;\n        int count = 0;\n        foreach (var v in values)\n        {\n            total += v;\n            count++;\n        }\n        return total / count;\n    }", "total / count")]
     [InlineData("analysis-division-by-zero", "Certain", "    static int F()\n    {\n        int n = 0;\n        return 10 / n;\n    }", "10 / n")]
     [InlineData("analysis-division-by-zero", "Possible", "    static int Mean(List<int> scores)\n    {\n        int total = 0;\n        foreach (var s in scores) total += s;\n        return total / scores.Count;\n    }", "total / scores.Count")]
+    [InlineData("analysis-division-by-zero", "Certain", "    static decimal F()\n    {\n        decimal price = 0;\n        return 10 / price;\n    }", "10 / price")]
     [InlineData("analysis-null-used", "Possible", "    static string Label(int score)\n    {\n        string message = null;\n        if (score > 90) message = \"top\";\n        return message.ToUpper();\n    }", "message.ToUpper()")]
     [InlineData("analysis-null-used", "Possible", "    static int NameLength(App person)\n    {\n        var name = person?.ToString();\n        return name.Length;\n    }", "name.Length")]
     [InlineData("analysis-index-out-of-range", "Certain", "    static int F()\n    {\n        int[] points = { 3, 5, 8 };\n        return points[3];\n    }", "points[3]")]
@@ -125,6 +126,9 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("the last case of a switch", "    static int F(int kind)\n    {\n        if (kind < 1 || kind > 2) return 0;\n        switch (kind)\n        {\n            case 1: return 10;\n            case 2: return 20;\n        }\n        return 0;\n    }")]
     [InlineData("a dictionary initializer", "    static int F()\n    {\n        var ages = new Dictionary<string, int> { [\"a\"] = 1, { \"b\", 2 } };\n        return ages[\"a\"];\n    }")]
     [InlineData("a deconstructed tuple", "    static int F((int, int) pair)\n    {\n        var (a, b) = pair;\n        if (b == 0) return 0;\n        return a / b;\n    }")]
+    [InlineData("a whole number kept in a double", "    static double F()\n    {\n        double d = 0;\n        return 10 / d;\n    }")]
+    [InlineData("a whole number kept in a float", "    static float F()\n    {\n        float f = 0;\n        return 10 / f;\n    }")]
+    [InlineData("a double that a method returns", "    static double Zero() { return 0; }\n    static double F() => 10 / Zero();")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         var findings = await Analyse(body);

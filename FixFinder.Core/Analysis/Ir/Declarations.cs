@@ -16,6 +16,12 @@ public sealed record IrType(string Name, IReadOnlyList<IrType> Arguments, bool N
 
     public bool IsUnknown => Name == "?";
 
+    /// <summary>
+    /// A binary floating-point type - float or double, whatever the language calls it. Dividing one by zero gives
+    /// infinity or NaN rather than an error. C#'s decimal is not one: dividing a decimal by zero does fail.
+    /// </summary>
+    public bool IsFloatingPoint => Name is "float" or "double" or "Float" or "Double" or "Single" or "float32" or "float64";
+
     public override string ToString() =>
         (Arguments.Count == 0 ? Name : $"{Name}[{string.Join(", ", Arguments)}]") + (Nullable ? "?" : "");
 }
