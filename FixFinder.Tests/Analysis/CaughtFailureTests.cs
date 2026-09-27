@@ -129,4 +129,120 @@ public class CaughtFailureTests : IDisposable
 
         Assert.True(found.Any(f => f.CheckId == check), $"{shape}: expected {check}, found {Shown(found)}");
     }
+
+    /// <summary>
+    /// A test hands its framework's assertion a lambda it expects to raise. Only the calls the assertion does not expect
+    /// are reported: one expecting another exception, and one expecting exactly a type above the one raised.
+    /// </summary>
+    [Fact]
+    public async Task JUnitAssertThrowsExpectsItsLambdaToRaise()
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        var path = await WriteAsync("PercentTest.java", """
+            import static org.junit.jupiter.api.Assertions.assertThrows;
+            import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+
+            class PercentTest {
+                static int percent(int value) {
+                    if (value < 0 || value > 100) {
+                        throw new IllegalArgumentException(value + " is not a percentage");
+                    }
+                    return value;
+                }
+
+                void refusesMoreThanAHundred() {
+                    assertThrows(IllegalArgumentException.class, () -> percent(120));
+                }
+
+                void refusesNegativesAsRuntimeExceptions() {
+                    assertThrows(RuntimeException.class, () -> {
+                        percent(-1);
+                    });
+                }
+
+                void expectsAnotherException() {
+                    assertThrows(NullPointerException.class, () -> percent(150));
+                }
+
+                void expectsExactlyTheTypeAbove() {
+                    assertThrowsExactly(RuntimeException.class, () -> percent(160));
+                }
+            }
+            """);
+        var found = Mistakes(AbstractChecks.Run(await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java), new SourceText()));
+
+        Assert.Equal([23, 27], found.Select(f => f.Span.Line).Order());
+    }
+
+    [Fact]
+    public async Task CSharpAssertThrowsExpectsItsLambdaToRaise()
+    {
+        var path = await WriteAsync("PercentTests.cs", """
+            using System;
+            using Xunit;
+
+            public static class Percents
+            {
+                public static int Percent(int value)
+                {
+                    if (value < 0 || value > 100) throw new ArgumentOutOfRangeException(nameof(value));
+                    return value;
+                }
+            }
+
+            public class PercentTests
+            {
+                public void RefusesMoreThanAHundred() => Assert.Throws<ArgumentOutOfRangeException>(() => Percents.Percent(120));
+
+                public void RefusesNegativesAsArgumentExceptions() => Assert.ThrowsAny<ArgumentException>(() => Percents.Percent(-1));
+
+                public void RefusesTextThatIsNotANumber() => Assert.Throws<FormatException>(() => int.Parse("twelve"));
+
+                public void ExpectsAnotherException() => Assert.Throws<NullReferenceException>(() => Percents.Percent(150));
+
+                public void ExpectsExactlyTheTypeAbove() => Assert.ThrowsException<ArgumentException>(() => Percents.Percent(160));
+            }
+            """);
+        var found = Mistakes(AbstractChecks.Run(await CSharpFrontend.ReadAsync([path]), new SourceText()));
+
+        Assert.Equal([21, 23], found.Select(f => f.Span.Line).Order());
+    }
+
+    /// <summary>Jest's toThrow expects any error, one with the message it is given, or an instance of the class; .not.toThrow expects none.</summary>
+    [Fact]
+    public async Task JestToThrowExpectsItsArrowToRaise()
+    {
+        var path = await WriteAsync("percent.test.js", """
+            function percent(value) {
+              if (value < 0 || value > 100) {
+                throw new RangeError(`${value} is not a percentage`);
+              }
+              return value;
+            }
+
+            test('refuses more than a hundred', () => {
+              expect(() => percent(120)).toThrow(RangeError);
+            });
+
+            test('refuses negatives', () => {
+              expect(() => percent(-1)).toThrow('not a percentage');
+            });
+
+            test('refuses with an Error', () => {
+              expect(() => percent(150)).toThrow(Error);
+            });
+
+            test('expects another error', () => {
+              expect(() => percent(200)).toThrow(TypeError);
+            });
+
+            test('expects no error', () => {
+              expect(() => percent(300)).not.toThrow();
+            });
+            """);
+        var found = Mistakes(AbstractChecks.Run(await JavaScriptFrontend.ReadAsync([path]), new SourceText()));
+
+        Assert.Equal([21, 25], found.Select(f => f.Span.Line).Order());
+    }
 }

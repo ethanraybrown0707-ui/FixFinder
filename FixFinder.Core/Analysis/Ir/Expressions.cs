@@ -41,6 +41,9 @@ public sealed record Argument(string? Name, Expr Value);
 
 public sealed record Call(SourceSpan Span, Expr Callee, IReadOnlyList<Argument> Arguments) : Expr(Span)
 {
+    /// <summary>The types written with a call to a generic method: FormatException in Assert.Throws&lt;FormatException&gt;(...).</summary>
+    public IReadOnlyList<IrType> TypeArguments { get; init; } = [];
+
     public string? CalleeName => Callee switch
     {
         Name name => name.Identifier,

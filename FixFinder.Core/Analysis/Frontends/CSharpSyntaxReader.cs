@@ -539,7 +539,15 @@ internal sealed class CSharpSyntaxReader(string file)
             case InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.ValueText: "nameof" }, ArgumentList.Arguments: [var named] }:
                 return new Literal(span, LiteralKind.Text, named.Expression.ToString().Split('.')[^1]);
             case InvocationExpressionSyntax call:
-                return new Call(span, Expression(call.Expression), Arguments(call.ArgumentList));
+                return new Call(span, Expression(call.Expression), Arguments(call.ArgumentList))
+                {
+                    TypeArguments = call.Expression switch
+                    {
+                        GenericNameSyntax generic => generic.TypeArgumentList.Arguments.Select(TypeOf).ToList(),
+                        MemberAccessExpressionSyntax { Name: GenericNameSyntax generic } => generic.TypeArgumentList.Arguments.Select(TypeOf).ToList(),
+                        _ => [],
+                    },
+                };
             case ElementAccessExpressionSyntax element:
                 return Element(Expression(element.Expression), element.ArgumentList, span);
 
