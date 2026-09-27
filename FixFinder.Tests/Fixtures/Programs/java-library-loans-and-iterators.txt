@@ -1,0 +1,138 @@
+==> Library.java <==
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Optional;
+
+public class Library {
+    interface Priced {
+        int pence();
+
+        default String shown() {
+            return String.format("£%d.%02d", pence() / 100, pence() % 100);
+        }
+    }
+
+    record Book(String title, String author, int year) {}
+
+    record Fine(int pence) implements Priced {}
+
+    static final class Shelf implements Iterable<Book> {
+        private final List<Book> books = new ArrayList<>();
+
+        void add(Book book) {
+            books.add(book);
+        }
+
+        @Override
+        public Iterator<Book> iterator() {
+            return new Iterator<>() {
+                private int next = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return next < books.size();
+                }
+
+                @Override
+                public Book next() {
+                    if (!hasNext()) {
+                        throw new NoSuchElementException("no more books");
+                    }
+                    return books.get(next++);
+                }
+            };
+        }
+
+        List<Book> view() {
+            return Collections.unmodifiableList(books);
+        }
+    }
+
+    private final Map<String, List<String>> loans = new HashMap<>();
+
+    Optional<String> firstLoan(String reader) {
+        List<String> taken = loans.get(reader);
+        return taken == null || taken.isEmpty() ? Optional.empty() : Optional.of(taken.get(0));
+    }
+
+    void lend(String reader, String title) {
+        loans.computeIfAbsent(reader, name -> new ArrayList<>()).add(title);
+    }
+
+    static Fine fineFor(int daysLate) {
+        int pence = switch (daysLate) {
+            case 0 -> 0;
+            case 1, 2, 3 -> 20 * daysLate;
+            default -> Math.min(60 + 50 * (daysLate - 3), 500);
+        };
+        return new Fine(pence);
+    }
+
+    static int findYear(List<Book> sorted, int year) {
+        int low = 0;
+        int high = sorted.size() - 1;
+        while (low <= high) {
+            int middle = (low + high) >>> 1;
+            int found = sorted.get(middle).year();
+            if (found == year) {
+                return middle;
+            }
+            if (found < year) {
+                low = middle + 1;
+            } else {
+                high = middle - 1;
+            }
+        }
+        return -1;
+    }
+
+    static List<Book> read(String catalogue) throws IOException {
+        List<Book> books = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new StringReader(catalogue))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(";");
+                if (parts.length != 3) {
+                    continue;
+                }
+                books.add(new Book(parts[0].trim(), parts[1].trim(), Integer.parseInt(parts[2].trim())));
+            }
+        }
+        return books;
+    }
+
+    public static void main(String[] args) throws IOException {
+        String catalogue = """
+            Dune; Herbert; 1965
+            Emma; Austen; 1815
+            broken line
+            Ubik; Dick; 1969
+            """;
+        Shelf shelf = new Shelf();
+        List<Book> books = read(catalogue);
+        books.sort((left, right) -> Integer.compare(left.year(), right.year()));
+        for (Book book : books) {
+            shelf.add(book);
+        }
+        for (Book book : shelf) {
+            System.out.println(book.year() + " " + book.title());
+        }
+        System.out.println(findYear(shelf.view(), 1965) + " " + findYear(shelf.view(), 2000));
+
+        Library library = new Library();
+        library.lend("ada", "Dune");
+        library.lend("ada", "Emma");
+        System.out.println(library.firstLoan("ada").orElse("nothing") + " " + library.firstLoan("alan").map(String::toUpperCase).orElse("nothing"));
+        for (int days : new int[] {0, 2, 5, 40}) {
+            System.out.println(days + " days: " + fineFor(days).shown());
+        }
+    }
+}

@@ -1,0 +1,87 @@
+==> orders.js <==
+'use strict';
+
+class Order {
+  #items = new Map();
+
+  constructor(customer) {
+    this.customer = customer;
+  }
+
+  add(name, price, quantity = 1) {
+    const current = this.#items.get(name) ?? { price, quantity: 0 };
+    this.#items.set(name, { price: current.price, quantity: current.quantity + quantity });
+    return this;
+  }
+
+  get total() {
+    let sum = 0;
+    for (const [, { price, quantity }] of this.#items) sum += price * quantity;
+    return sum;
+  }
+
+  get lines() {
+    return [...this.#items.entries()].map(([name, { quantity }]) => `${quantity} x ${name}`);
+  }
+}
+
+class RushOrder extends Order {
+  constructor(customer, surcharge) {
+    super(customer);
+    this.surcharge = surcharge;
+  }
+
+  get total() {
+    return super.total + this.surcharge;
+  }
+}
+
+function fetchStock(name) {
+  const stock = { tea: 10, cake: 2, soup: 0 };
+  return new Promise((resolve, reject) => {
+    if (!(name in stock)) {
+      reject(new Error(`no such item: ${name}`));
+      return;
+    }
+    setTimeout(() => resolve(stock[name]), 5);
+  });
+}
+
+function checkOrder(order, wanted) {
+  return Promise.all(Object.entries(wanted).map(([name, quantity]) =>
+    fetchStock(name)
+      .then((inStock) => ({ name, ok: inStock >= quantity }))
+      .catch((error) => ({ name, ok: false, why: error.message }))));
+}
+
+function parseQuantity(text) {
+  try {
+    const value = JSON.parse(text);
+    return Number.isInteger(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function main() {
+  const order = new Order('ada').add('tea', 250, 2).add('cake', 395).add('tea', 250);
+  const rush = new RushOrder('alan', 500).add('soup', 450);
+  console.log(order.customer, order.total, order.lines.join(', '));
+  console.log(rush.customer, rush.total);
+
+  const results = await checkOrder(order, { tea: 3, cake: 3, pie: 1 });
+  for (const { name, ok, why } of results) console.log(name, ok ? 'in stock' : `short${why ? ` (${why})` : ''}`);
+
+  const handlers = [];
+  for (let i = 0; i < 3; i++) handlers.push(() => i * 10);
+  console.log(handlers.map((handler) => handler()).join(' '));
+
+  const quantities = ['2', 'x', '-1', '7'].map(parseQuantity);
+  console.log(quantities.flatMap((quantity) => (quantity === null ? [] : [quantity, quantity])).join(' '));
+  console.log(JSON.stringify({ customer: order.customer, total: order.total, secret: 'hidden' }, (key, value) => (key === 'secret' ? undefined : value)));
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

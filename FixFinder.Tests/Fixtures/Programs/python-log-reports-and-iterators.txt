@@ -1,0 +1,103 @@
+==> reports.py <==
+import csv
+import io
+from collections import Counter, defaultdict
+from functools import lru_cache
+from itertools import groupby
+
+LOG = """time,level,user,millis
+09:00,INFO,ada,120
+09:01,ERROR,alan,
+09:02,INFO,ada,80
+09:05,WARN,grace,300
+09:07,INFO,alan,45
+09:09,ERROR,ada,999
+"""
+
+
+class Countdown:
+    """An iterator written by hand: it stops by raising StopIteration, as the protocol says."""
+
+    def __init__(self, start):
+        self.remaining = start
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.remaining <= 0:
+            raise StopIteration
+        self.remaining -= 1
+        return self.remaining + 1
+
+
+@lru_cache(maxsize=None)
+def ways_to_climb(steps):
+    if steps <= 1:
+        return 1
+    return ways_to_climb(steps - 1) + ways_to_climb(steps - 2)
+
+
+def read_rows(text):
+    reader = csv.DictReader(io.StringIO(text))
+    rows = []
+    for number, row in enumerate(reader, start=2):
+        millis = row["millis"].strip()
+        row["millis"] = int(millis) if millis.isdigit() else None
+        row["line"] = number
+        rows.append(row)
+    return rows
+
+
+def slowest_by_user(rows):
+    slowest = {}
+    for row in rows:
+        if row["millis"] is None:
+            continue
+        best = slowest.get(row["user"])
+        if best is None or row["millis"] > best["millis"]:
+            slowest[row["user"]] = row
+    return slowest
+
+
+def first_error(rows):
+    return next((row for row in rows if row["level"] == "ERROR"), None)
+
+
+def average_millis(rows):
+    timed = [row["millis"] for row in rows if row["millis"] is not None]
+    if not timed:
+        return 0.0
+    return sum(timed) / len(timed)
+
+
+def levels_in_order(rows):
+    ordered = sorted(rows, key=lambda row: row["level"])
+    return {level: len(list(group)) for level, group in groupby(ordered, key=lambda row: row["level"])}
+
+
+def lines_until_blank(text):
+    stream = io.StringIO(text)
+    kept = []
+    while (line := stream.readline()) and line.strip():
+        kept.append(line.strip())
+    return kept
+
+
+def main():
+    rows = read_rows(LOG)
+    by_user = defaultdict(list)
+    for row in rows:
+        by_user[row["user"]].append(row["level"])
+
+    error = first_error(rows)
+    print("first error:", error["user"] if error is not None else "none", "on line", error["line"] if error else "-")
+    print("slowest:", {user: row["millis"] for user, row in sorted(slowest_by_user(rows).items())})
+    print("average:", round(average_millis(rows), 1), "levels:", levels_in_order(rows))
+    print("busiest:", Counter(row["user"] for row in rows).most_common(1)[0][0], dict(by_user))
+    print("countdown:", list(Countdown(3)), "ways:", ways_to_climb(10))
+    print("header:", lines_until_blank("a\nb\n\nc\n"))
+
+
+if __name__ == "__main__":
+    main()
