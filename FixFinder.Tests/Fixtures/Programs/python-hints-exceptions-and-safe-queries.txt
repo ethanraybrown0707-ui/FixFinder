@@ -1,0 +1,93 @@
+==> main.py <==
+from __future__ import annotations
+
+import sqlite3
+import subprocess
+import threading
+from typing import Callable, Iterator, Optional, TypeVar
+
+T = TypeVar("T")
+
+
+class Node:
+    def __init__(self, value: int, next: Optional[Node] = None) -> None:
+        self.value = value
+        self.next = next
+
+    def append(self, value: int) -> "Node":
+        self.next = Node(value)
+        return self.next
+
+
+def mean(values: list[float]) -> float:
+    if not values:
+        return 0
+    return sum(values) / len(values)
+
+
+def first(items: list[T]) -> T | None:
+    return items[0] if items else None
+
+
+def countdown(start: int) -> Iterator[int]:
+    while start > 0:
+        yield start
+        start -= 1
+
+
+def adder(amount: int) -> Callable[[int], int]:
+    return lambda value: value + amount
+
+
+def parse(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise SystemExit(f"not a number: {text}")
+    return value
+
+
+def read_name(path: str) -> str:
+    with open(path, "w") as handle:
+        handle.write("x")
+    return handle.name
+
+
+def guarded(lock: threading.Lock, work: Callable[[], None]) -> bool:
+    if not lock.acquire(timeout=1):
+        return False
+    try:
+        work()
+    finally:
+        lock.release()
+    return True
+
+
+def lookup(database: sqlite3.Connection, name: str) -> list:
+    cursor = database.execute("SELECT id FROM people WHERE name = ?", (name,))
+    return cursor.fetchall()
+
+
+def list_folder(folder: str) -> str:
+    return subprocess.run(["ls", "-l", folder], capture_output=True, text=True).stdout
+
+
+def page(number_text: str) -> str:
+    number = int(number_text)
+    return f"SELECT * FROM pages LIMIT 10 OFFSET {number * 10}"
+
+
+def main() -> None:
+    database = sqlite3.connect(":memory:")
+    database.execute("CREATE TABLE people (id INTEGER, name TEXT)")
+    typed = input("name: ")
+    print(lookup(database, typed), list_folder(typed))
+    print(database.execute(page(input("page: "))).fetchall())
+    print(mean([1.5, 2.5]), mean([]), first([3]), list(countdown(3)), adder(2)(3), parse("7"))
+    head = Node(1)
+    head.append(2).append(3)
+    print(head.next.value if head.next else None, guarded(threading.Lock(), lambda: None))
+
+
+if __name__ == "__main__":
+    main()

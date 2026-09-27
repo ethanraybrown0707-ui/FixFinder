@@ -31,7 +31,7 @@ public static class Contracts
     private static Precondition? Guard(Stmt statement, HashSet<string> parameters) => statement switch
     {
         If { Else.Count: 0, Then: [.., Throw thrown] then } guard
-            when then.Take(then.Count - 1).All(s => s is Evaluate { Value: Call }) && ReadsOnly(guard.Condition, parameters) =>
+            when then.Take(then.Count - 1).All(s => s is Evaluate { Value: Call }) && ReadsOnly(guard.Condition, parameters) && !StopsTheProgram(thrown) =>
             new Precondition(guard.Condition, Raised(thrown), guard.Span),
 
         AssertThat check when ReadsOnly(check.Condition, parameters) =>
@@ -78,6 +78,13 @@ public static class Contracts
         Call call => call.Arguments.SelectMany(a => Variables(a.Value)).Concat(call.Callee is Member { Target: var owner } ? Variables(owner) : []),
         _ => IrWalk.Children(expression).SelectMany(Variables),
     };
+
+    /// <summary>
+    /// C's exit and abort, which the C reader ends a path with: C raises nothing, so a guard that stops the program is not
+    /// a contract whose breaking can be described as raising something.
+    /// </summary>
+    private static bool StopsTheProgram(Throw thrown) =>
+        thrown.Exception is NewObject { Type.Name: "exit" or "_Exit" or "quick_exit" or "abort" or "terminate" };
 
     private static string Raised(Throw thrown) => thrown.Exception switch
     {

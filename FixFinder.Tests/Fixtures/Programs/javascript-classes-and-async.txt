@@ -1,0 +1,114 @@
+==> main.js <==
+const { TaskList } = require('./tasks');
+const { summarise, byPriority } = require('./report');
+
+async function main() {
+  const list = new TaskList();
+  list.add('write report', 2);
+  list.add('email tutor', 1, ['uni']);
+  list.add('buy milk', 3);
+
+  const done = list.complete('email tutor');
+  console.log(done ? 'ticked off' : 'no such task');
+
+  const next = list.next();
+  console.log(next?.title ?? 'nothing left');
+
+  const { open, closed } = summarise(list.all());
+  console.log(`${open} open, ${closed} done`);
+
+  for (const [priority, titles] of byPriority(list.all())) {
+    console.log(priority, titles.join(', '));
+  }
+
+  const saved = await list.save(async (json) => json.length);
+  console.log(`saved ${saved} characters`);
+
+  const tagged = list.all().filter((task) => task.tags.includes('uni'));
+  console.log(tagged.length);
+}
+
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
+==> tasks.js <==
+class Task {
+  constructor(title, priority, tags = []) {
+    if (!title) {
+      throw new Error('a task needs a title');
+    }
+    this.title = title;
+    this.priority = priority;
+    this.tags = [...tags];
+    this.done = false;
+  }
+
+  get label() {
+    return `${this.done ? '[x]' : '[ ]'} ${this.title}`;
+  }
+}
+
+class TaskList {
+  #tasks = new Map();
+
+  add(title, priority = 3, tags = []) {
+    const task = new Task(title, priority, tags);
+    this.#tasks.set(title, task);
+    return task;
+  }
+
+  complete(title) {
+    const task = this.#tasks.get(title);
+    if (!task) {
+      return false;
+    }
+    task.done = true;
+    return true;
+  }
+
+  next() {
+    const open = this.all().filter((task) => !task.done);
+    if (open.length === 0) {
+      return undefined;
+    }
+    return open.reduce((best, task) => (task.priority < best.priority ? task : best));
+  }
+
+  all() {
+    return [...this.#tasks.values()];
+  }
+
+  async save(write) {
+    const json = JSON.stringify(this.all().map(({ title, priority, done }) => ({ title, priority, done })));
+    return write(json);
+  }
+}
+
+module.exports = { Task, TaskList };
+==> report.js <==
+function summarise(tasks) {
+  let open = 0;
+  let closed = 0;
+  for (const task of tasks) {
+    if (task.done) {
+      closed += 1;
+    } else {
+      open += 1;
+    }
+  }
+  return { open, closed };
+}
+
+function byPriority(tasks) {
+  const groups = new Map();
+  for (const task of tasks) {
+    if (!groups.has(task.priority)) {
+      groups.set(task.priority, []);
+    }
+    groups.get(task.priority).push(task.title);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a - b);
+}
+
+module.exports = { summarise, byPriority };

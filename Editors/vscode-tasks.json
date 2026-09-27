@@ -1,0 +1,59 @@
+{
+    // Copy into your project's .vscode/tasks.json, and change the path to fixfinder.dll to where
+    // FixFinder is on your machine. Then Terminal > Run Task > "FixFinder: check this file" checks
+    // whichever file is open, and each finding appears in the Problems panel with a click to its line.
+    //
+    // FixFinder prints the same line format MSBuild does, which VS Code's built-in $msCompile matcher
+    // reads. The paths it prints are full paths, so fileLocation is set to absolute here rather than
+    // left to the matcher's default.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "FixFinder: check this file",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "C:/path/to/FixFinder/FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll",
+                "${file}"
+            ],
+            "problemMatcher": {
+                "base": "$msCompile",
+                "fileLocation": "absolute"
+            },
+            "presentation": {
+                "reveal": "always",
+                "clear": true
+            },
+            "group": "test"
+        },
+        {
+            // The same check, told what the program should print, so a program that runs but gives the
+            // wrong answer is caught too. VS Code asks for the expected output each time.
+            "label": "FixFinder: check this file against its expected output",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "C:/path/to/FixFinder/FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll",
+                "${file}",
+                "--expect",
+                "${input:expectedOutput}"
+            ],
+            "problemMatcher": {
+                "base": "$msCompile",
+                "fileLocation": "absolute"
+            },
+            "presentation": {
+                "reveal": "always",
+                "clear": true
+            },
+            "group": "test"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "expectedOutput",
+            "type": "promptString",
+            "description": "What should the program print?"
+        }
+    ]
+}

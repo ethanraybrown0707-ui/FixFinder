@@ -1,0 +1,100 @@
+==> main.cpp <==
+#include <iostream>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+template <typename T>
+T largest(const std::vector<T> &values)
+{
+    if (values.empty()) {
+        throw std::invalid_argument("no values to choose from");
+    }
+    T best = values[0];
+    for (const T &value : values) {
+        if (value > best) {
+            best = value;
+        }
+    }
+    return best;
+}
+
+class Student {
+public:
+    explicit Student(std::string name) : name_(std::move(name)) {}
+
+    void add_mark(int mark)
+    {
+        if (mark < 0 || mark > 100) {
+            throw std::out_of_range("a mark is between 0 and 100");
+        }
+        marks_.push_back(mark);
+    }
+
+    double average() const
+    {
+        if (marks_.empty()) {
+            return 0.0;
+        }
+        int total = 0;
+        for (int mark : marks_) {
+            total += mark;
+        }
+        return static_cast<double>(total) / marks_.size();
+    }
+
+    const std::string &name() const { return name_; }
+    const std::vector<int> &marks() const { return marks_; }
+
+private:
+    std::string name_;
+    std::vector<int> marks_;
+};
+
+class Gradebook {
+public:
+    Student &enrol(const std::string &name)
+    {
+        auto found = students_.find(name);
+        if (found != students_.end()) {
+            return *found->second;
+        }
+        auto made = std::make_unique<Student>(name);
+        Student &student = *made;
+        students_[name] = std::move(made);
+        return student;
+    }
+
+    void report(std::ostream &out) const
+    {
+        for (const auto &[name, student] : students_) {
+            out << name << ": " << student->average();
+            if (!student->marks().empty()) {
+                out << " (best " << largest(student->marks()) << ")";
+            }
+            out << '\n';
+        }
+    }
+
+private:
+    std::map<std::string, std::unique_ptr<Student>> students_;
+};
+
+int main()
+{
+    Gradebook book;
+    book.enrol("Ada").add_mark(92);
+    book.enrol("Ada").add_mark(81);
+    book.enrol("Alan");
+
+    try {
+        book.enrol("Alan").add_mark(120);
+    } catch (const std::out_of_range &problem) {
+        std::cout << "refused: " << problem.what() << '\n';
+    }
+
+    book.report(std::cout);
+    return 0;
+}

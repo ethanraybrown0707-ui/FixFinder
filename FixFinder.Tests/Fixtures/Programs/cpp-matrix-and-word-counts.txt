@@ -1,0 +1,118 @@
+==> main.cpp <==
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstddef>
+#include <iostream>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+class Matrix {
+public:
+    Matrix(std::size_t rows, std::size_t columns) : rows_(rows), columns_(columns), cells_(rows * columns, 0.0) {
+        if (rows == 0 || columns == 0) throw std::invalid_argument("a matrix needs at least one row and one column");
+    }
+
+    static Matrix identity(std::size_t size) {
+        Matrix result(size, size);
+        for (std::size_t i = 0; i < size; ++i) result.at(i, i) = 1.0;
+        return result;
+    }
+
+    double& at(std::size_t row, std::size_t column) {
+        if (row >= rows_ || column >= columns_) throw std::out_of_range("no such cell");
+        return cells_[row * columns_ + column];
+    }
+
+    double at(std::size_t row, std::size_t column) const {
+        if (row >= rows_ || column >= columns_) throw std::out_of_range("no such cell");
+        return cells_[row * columns_ + column];
+    }
+
+    Matrix operator*(const Matrix& other) const {
+        if (columns_ != other.rows_) throw std::invalid_argument("the sizes do not match");
+        Matrix product(rows_, other.columns_);
+        for (std::size_t i = 0; i < rows_; ++i)
+            for (std::size_t j = 0; j < other.columns_; ++j) {
+                double sum = 0.0;
+                for (std::size_t k = 0; k < columns_; ++k) sum += at(i, k) * other.at(k, j);
+                product.at(i, j) = sum;
+            }
+        return product;
+    }
+
+    std::size_t rows() const { return rows_; }
+    std::size_t columns() const { return columns_; }
+
+private:
+    std::size_t rows_;
+    std::size_t columns_;
+    std::vector<double> cells_;
+};
+
+std::ostream& operator<<(std::ostream& out, const Matrix& matrix) {
+    for (std::size_t i = 0; i < matrix.rows(); ++i) {
+        for (std::size_t j = 0; j < matrix.columns(); ++j) out << (j == 0 ? "" : " ") << matrix.at(i, j);
+        out << '\n';
+    }
+    return out;
+}
+
+std::unordered_map<std::string, int> countWords(std::string_view text) {
+    std::unordered_map<std::string, int> counts;
+    std::istringstream words{std::string(text)};
+    std::string word;
+    while (words >> word) {
+        word.erase(std::remove_if(word.begin(), word.end(), [](unsigned char c) { return !std::isalpha(c); }), word.end());
+        if (word.empty()) continue;
+        std::transform(word.begin(), word.end(), word.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        ++counts[word];
+    }
+    return counts;
+}
+
+std::optional<std::pair<std::string, int>> mostCommon(const std::unordered_map<std::string, int>& counts) {
+    if (counts.empty()) return std::nullopt;
+    auto best = std::max_element(counts.begin(), counts.end(), [](const auto& left, const auto& right) {
+        return left.second < right.second || (left.second == right.second && left.first > right.first);
+    });
+    return *best;
+}
+
+int main() {
+    Matrix rotation(2, 2);
+    rotation.at(0, 1) = -1.0;
+    rotation.at(1, 0) = 1.0;
+    Matrix twice = rotation * rotation;
+    std::cout << twice << (Matrix::identity(2) * rotation).at(1, 0) << '\n';
+
+    try {
+        Matrix wide(2, 3);
+        Matrix tall(2, 3);
+        std::cout << (wide * tall).rows() << '\n';
+    } catch (const std::invalid_argument& problem) {
+        std::cout << "cannot multiply: " << problem.what() << '\n';
+    }
+
+    const auto counts = countWords("The cat saw the other cat. The END!");
+    std::vector<std::pair<std::string, int>> sorted(counts.begin(), counts.end());
+    std::sort(sorted.begin(), sorted.end(), [](const auto& left, const auto& right) {
+        return left.second != right.second ? left.second > right.second : left.first < right.first;
+    });
+    for (const auto& [word, count] : sorted) std::cout << word << '=' << count << ' ';
+    std::cout << '\n';
+
+    if (auto top = mostCommon(counts)) std::cout << "most common: " << top->first << '\n';
+    std::cout << (mostCommon({}).has_value() ? "something" : "nothing") << '\n';
+
+    std::array<int, 5> squares{};
+    for (std::size_t i = 0; i < squares.size(); ++i) squares[i] = static_cast<int>(i * i);
+    std::cout << squares.back() << '\n';
+    return 0;
+}

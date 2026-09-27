@@ -1,0 +1,106 @@
+==> Main.java <==
+import java.util.List;
+import java.util.Optional;
+
+public class Main {
+    public static void main(String[] args) {
+        Library library = new Library();
+        library.add(new Book("Dune", "Herbert", 1965, Genre.FICTION));
+        library.add(new Book("Cosmos", "Sagan", 1980, Genre.SCIENCE));
+        library.add(new Book("Emma", "Austen", 1815, Genre.FICTION));
+
+        Optional<Book> found = library.find("Cosmos");
+        found.ifPresent(book -> System.out.println(book.describe()));
+        System.out.println(library.find("Ulysses").map(Book::title).orElse("not held"));
+
+        List<Book> fiction = library.byGenre(Genre.FICTION);
+        for (Book book : fiction) {
+            System.out.println(book.title() + " " + book.genre().shelf());
+        }
+
+        System.out.println(library.averageYear());
+        System.out.println(library.oldest().map(Book::title).orElse("none"));
+        System.out.println(library.titles());
+    }
+}
+==> Genre.java <==
+public enum Genre {
+    FICTION, SCIENCE, HISTORY;
+
+    public String shelf() {
+        switch (this) {
+            case FICTION:
+                return "F";
+            case SCIENCE:
+                return "S";
+            default:
+                return "H";
+        }
+    }
+}
+==> Book.java <==
+public record Book(String title, String author, int year, Genre genre) implements Comparable<Book> {
+    public Book {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("a book needs a title");
+        }
+    }
+
+    public String describe() {
+        return String.format("%s by %s (%d)", title, author, year);
+    }
+
+    @Override
+    public int compareTo(Book other) {
+        return Integer.compare(year, other.year);
+    }
+}
+==> Library.java <==
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+public class Library {
+    private final List<Book> books = new ArrayList<>();
+
+    public void add(Book book) {
+        books.add(book);
+    }
+
+    public Optional<Book> find(String title) {
+        return books.stream().filter(book -> book.title().equals(title)).findFirst();
+    }
+
+    public List<Book> byGenre(Genre genre) {
+        List<Book> matching = new ArrayList<>();
+        for (Book book : books) {
+            if (book.genre() == genre) {
+                matching.add(book);
+            }
+        }
+        matching.sort(Comparator.comparing(Book::title));
+        return Collections.unmodifiableList(matching);
+    }
+
+    public double averageYear() {
+        if (books.isEmpty()) {
+            return 0;
+        }
+        int total = 0;
+        for (Book book : books) {
+            total += book.year();
+        }
+        return (double) total / books.size();
+    }
+
+    public Optional<Book> oldest() {
+        return books.stream().min(Comparator.naturalOrder());
+    }
+
+    public String titles() {
+        return books.stream().map(Book::title).sorted().collect(Collectors.joining(", "));
+    }
+}

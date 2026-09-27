@@ -15,44 +15,22 @@ public static class Scopes
     /// Variables of <paramref name="function"/> that a function written inside it uses - or, for the module, that any function uses.
     /// Those can change during any call, so they are never treated as known.
     /// </summary>
-    public static HashSet<string> Volatile(IrProgram program, IrFunction function)
-    {
-        var shared = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var other in program.AllFunctions.Where(f => !ReferenceEquals(f, function) && IsInside(program, f, function)))
-            shared.UnionWith(IrWalk.FreeNames(other));
-
-        // A variable whose address was taken can be changed through that pointer by any call it was handed to.
-        shared.UnionWith(function.AddressTaken);
-        shared.IntersectWith(IrWalk.LocalNames(function));
-        return shared;
-    }
-
-    private static bool IsInside(IrProgram program, IrFunction inner, IrFunction outer)
-    {
-        if (outer.Name == IrFunction.ModuleBody) return inner.Name != IrFunction.ModuleBody && SameFile(inner, outer);
-
-        var byName = program.AllFunctions.GroupBy(f => f.FullName).ToDictionary(g => g.Key, g => g.First());
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        for (var parent = inner.EnclosedBy; parent is not null && parent != IrFunction.ModuleBody; parent = byName.GetValueOrDefault(parent)?.EnclosedBy)
-        {
-            if (parent == outer.FullName) return true;
-            if (!seen.Add(parent)) break;
-        }
-
-        return false;
-    }
+    public static HashSet<string> Volatile(IrProgram program, IrFunction function) => new Nesting(program).Volatile(function);
 
     private static bool SameFile(IrFunction a, IrFunction b) => string.Equals(a.Span.File, b.Span.File, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Collections that are aliased, stored, returned or handed to code FixFinder cannot see - after which their length
-    /// can change without this function saying so.
+    /// Collections that are stored, returned or handed to code FixFinder cannot see - after which their length can change
+    /// without this function saying so.
     /// </summary>
+    /// <remarks>
+    /// b = a between two of the function's own variables is not a way out: the evaluator follows both names as one
+    /// object. But it is one object, so if either name escapes, both do.
+    /// </remarks>
     public static HashSet<string> Escaping(IrFunction function)
     {
         var escaping = new HashSet<string>(StringComparer.Ordinal);
+        var sharing = new List<(string Name, string Of)>();
 
         void Visit(Expr expression, bool safe)
         {
@@ -82,6 +60,11 @@ public static class Scopes
                 case Binary or Unary or MoreItems or NextItem:
                     foreach (var child in IrWalk.Children(expression)) Visit(child, true);
                     break;
+
+                // A comprehension walks over what it is given, as a for loop does, and what it makes is a new collection.
+                case Opaque { What: "generator" or "list comprehension" or "set comprehension" or "dictionary comprehension" } comprehension:
+                    foreach (var walked in comprehension.Parts) Visit(walked, true);
+                    break;
                 case Conditional choice:
                     Visit(choice.Test, true);
                     Visit(choice.WhenTrue, safe);
@@ -103,6 +86,12 @@ public static class Scopes
                 case If or While or AssertThat or For:
                     foreach (var expression in IrWalk.Expressions(statement)) Visit(expression, true);
                     break;
+                case Assign { Target: Name { Identifier: var name }, Value: Name { Identifier: var of } }:
+                    sharing.Add((name, of));
+                    break;
+                case Declare { Variable: var name, Initial: Name { Identifier: var of } }:
+                    sharing.Add((name, of));
+                    break;
                 case Assign { Target: Name } assign:
                     Visit(assign.Value, false);
                     break;
@@ -113,6 +102,19 @@ public static class Scopes
                 default:
                     foreach (var expression in IrWalk.Expressions(statement)) Visit(expression, false);
                     break;
+            }
+        }
+
+        // An object escapes through any of its names.
+        for (var spreading = true; spreading;)
+        {
+            spreading = false;
+            foreach (var (name, of) in sharing)
+            {
+                if (escaping.Contains(name) == escaping.Contains(of)) continue;
+                escaping.Add(name);
+                escaping.Add(of);
+                spreading = true;
             }
         }
 

@@ -1,0 +1,78 @@
+==> main.mjs <==
+import { EventEmitter } from 'node:events';
+import { readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+class Downloader extends EventEmitter {
+  #done = new WeakMap();
+
+  async fetchAll(urls, load) {
+    const results = [];
+    for (const url of urls) {
+      try {
+        const body = await load(url);
+        results.push(body);
+        this.#done.set(results, true);
+        this.emit('loaded', url);
+      } catch (error) {
+        this.emit('failed', url, error.message);
+      } finally {
+        await sleep(1);
+      }
+    }
+    return results;
+  }
+}
+
+function* chunks(items, size) {
+  for (let start = 0; start < items.length; start += size) {
+    yield items.slice(start, start + size);
+  }
+}
+
+class Range {
+  constructor(from, to) {
+    this.from = from;
+    this.to = to;
+  }
+
+  *[Symbol.iterator]() {
+    for (let value = this.from; value <= this.to; value++) {
+      yield value;
+    }
+  }
+}
+
+async function roundTrip(text) {
+  const path = join(tmpdir(), `note-${process.pid}.txt`);
+  try {
+    await writeFile(path, text, 'utf8');
+    return await readFile(path, 'utf8');
+  } finally {
+    await rm(path, { force: true });
+  }
+}
+
+const downloader = new Downloader();
+downloader.on('loaded', (url) => console.log('loaded', url));
+downloader.on('failed', (url, message) => console.log('failed', url, message));
+
+const load = async (url) => {
+  if (url.endsWith('.bad')) {
+    throw new Error(`cannot load ${url}`);
+  }
+  return url.toUpperCase();
+};
+
+const bodies = await downloader.fetchAll(['a.txt', 'b.bad', 'c.txt'], load);
+console.log(bodies.length, [...chunks([1, 2, 3, 4, 5], 2)], [...new Range(1, 4)]);
+
+const handlers = [];
+for (let i = 0; i < 3; i++) {
+  handlers.push(() => i);
+}
+console.log(handlers.map((handler) => handler()));
+console.log(await roundTrip('kept'));

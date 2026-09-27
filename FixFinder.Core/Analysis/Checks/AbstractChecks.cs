@@ -18,23 +18,36 @@ public static class AbstractChecks
     /// <summary>How many times the functions' summaries are worked out again from each other's; enough for a chain of calls.</summary>
     private const int SummaryRounds = 3;
 
-    public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source)
+    /// <param name="cache">
+    /// What earlier checks found in each function. A function whose code, and the code it depends on, is unchanged keeps
+    /// what was found in it before; the rest are analysed afresh, and the checks across the whole program always run.
+    /// </param>
+    public static IReadOnlyList<AnalysisFinding> Run(IrProgram program, SourceText source, AnalysisCache? cache = null)
     {
         var findings = new List<AnalysisFinding>();
+        var keys = cache is null ? null : AnalysisCache.KeysFor(program, source);
         var symbolic = System.Diagnostics.Stopwatch.StartNew();
         var targets = new CallTargets(program);
+        var effects = new Effects(program, targets);
+        var ownTypes = program.Classes.Select(type => type.Name).ToHashSet(StringComparer.Ordinal);
         var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
         var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
+
+        // Built once for the program: which functions are written inside which is a fact about the whole program, and
+        // working it out for each function separately reads the whole program once per function.
+        var nesting = new Nesting(program);
 
         var functions = program.AllFunctions.Select(function =>
         {
             var locals = IrWalk.LocalNames(function, assigningDeclares: program.Language == SourceLanguage.Python);
             var evaluator = new Evaluator(program.Language)
             {
-                Volatile = Scopes.Volatile(program, function),
+                Volatile = nesting.Volatile(function),
+                Addresses = HandedAddresses.Of(function, program),
                 Escaping = Scopes.Escaping(function),
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
+                OwnTypes = ownTypes,
                 CallReturns = call => targets.Resolve(call, function, locals) is { Overridable: false } target && summaries.TryGetValue(target.Function, out var returned)
                     ? returned
                     : null,
@@ -42,7 +55,11 @@ public static class AbstractChecks
             return (Function: function, Evaluator: evaluator, Graph: CfgBuilder.Build(function));
         }).ToList();
 
-        for (var round = 0; round < SummaryRounds; round++)
+        // Summaries are only needed to analyse a function afresh; when every function was analysed before with the same
+        // code, there is nothing to work them out for.
+        var allKnown = keys is not null && functions.All(f => cache!.TryGet(keys[f.Function], canRefine: true, out _));
+
+        for (var round = 0; round < SummaryRounds && !allKnown; round++)
         {
             var changed = false;
             foreach (var (function, evaluator, graph) in functions.Where(f => Summarised(f.Function)))
@@ -56,17 +73,39 @@ public static class AbstractChecks
             if (!changed) break;
         }
 
+        var (reused, analysed) = (0, 0);
+
         foreach (var (function, evaluator, graph) in functions)
         {
+            var canRefine = symbolic.Elapsed < SymbolicBudget;
+            if (keys is not null && cache!.TryGet(keys[function], canRefine, out var before))
+            {
+                findings.AddRange(before);
+                reused++;
+                continue;
+            }
+
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
+
             var local = new List<AnalysisFinding>();
-            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
+            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, effects, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
                 .Run();
-            var refined = symbolic.Elapsed < SymbolicBudget ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
-            findings.AddRange(WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }));
+
+            var refined = canRefine ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
+            var uncaught = CaughtFailures.Uncaught(refined, function, program, evaluator.DeclaredTypes).ToList();
+
+            var found = WithSlices(graph, uncaught).Select(finding => finding with { Function = function.FullName }).ToList();
+            findings.AddRange(found);
+            analysed++;
+
+            if (keys is not null) cache!.Store(keys[function], found, refined: canRefine);
         }
 
+        cache?.Finished(reused, analysed);
+
         findings.AddRange(new Concurrency(program, source).Check());
+        findings.AddRange(new Taint(program, targets).Check());
+        findings.AddRange(PerformanceChecks.Run(program, source));
 
         return findings
             .GroupBy(f => (f.CheckId, f.Span.File, f.Span.Line))
@@ -111,6 +150,7 @@ public static class AbstractChecks
 
         if (joined is not { IsImpossible: false, IsUnknown: false }) return null;
 
+        joined = evaluator.AsDeclared(joined, graph.Function.ReturnType);
         return joined.IsNull ? joined : joined.WithoutNull() with { NullnessKnown = false };
     }
 
@@ -206,15 +246,26 @@ public static class AbstractChecks
     }
 
     private sealed class FunctionChecks(
-        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets,
+        ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets, Effects effects,
         Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
         private readonly Dictionary<SourceSpan, (bool CanBeTrue, bool CanBeFalse, BasicBlock Block, Branch Branch)> _conditions = [];
 
         private bool IsPython => evaluator.Language == SourceLanguage.Python;
 
+        /// <summary>The program's own classes that are threads - class Worker extends Thread - whose objects start and join like one.</summary>
+        private HashSet<string> ThreadClasses => _threadClasses ??= effects.Program.Classes
+            .Where(c => c.Bases.Any(b => b is "Thread" or "threading.Thread"))
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        private HashSet<string>? _threadClasses;
+
         public void Run()
         {
+            // What held before each step, for the checks that need a statement's state after the walk: which names share an object.
+            var before = new Dictionary<SourceSpan, AbstractState>();
+
             foreach (var block in graph.Blocks)
             {
                 var state = fixpoint.EntryOf(block.Id);
@@ -222,6 +273,7 @@ public static class AbstractChecks
 
                 foreach (var instruction in block.Instructions)
                 {
+                    before.TryAdd(instruction.Span, state);
                     foreach (var expression in ExpressionsOf(instruction)) Inspect(expression, state);
                     state = evaluator.Apply(state, instruction);
                     if (!state.IsReachable) break;
@@ -247,7 +299,11 @@ public static class AbstractChecks
 
             ReportConditions();
             ReportEndlessLoops();
-            new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic)).Check();
+            new ChangedWhileLooping(graph, evaluator, before, targets, effects, Quote, findings.Add).Check();
+            new Protocols(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence, FindingKind.Logic),
+                ThreadClasses).Check();
+            new ExceptionFlow(graph.Function, evaluator.Language, findings.Add).Check();
+            new LoopReasoning(graph.Function, evaluator.Language, findings.Add).Check();
             new MemorySafety(graph, evaluator.Language, Quote, (id, span, message, severity, confidence) => Report(id, span, message, severity, confidence)).Check();
         }
 
@@ -310,8 +366,11 @@ public static class AbstractChecks
             _ => [],
         };
 
-        private void Report(string id, SourceSpan span, string message, Severity severity, Confidence confidence, FindingKind kind = FindingKind.Runtime) =>
-            findings.Add(new AnalysisFinding(id, span, message, severity, confidence, kind, FoundBy));
+        /// <param name="raises">The exception the failure raises, where the failing line alone does not show it.</param>
+        private void Report(
+            string id, SourceSpan span, string message, Severity severity, Confidence confidence, FindingKind kind = FindingKind.Runtime,
+            IReadOnlyList<string>? raises = null) =>
+            findings.Add(new AnalysisFinding(id, span, message, severity, confidence, kind, FoundBy) { Raises = raises });
 
         private string Quote(Expr expression) => source.Of(expression.Span) is { Length: > 0 } text ? text : IrText.Of(expression);
 
@@ -341,9 +400,11 @@ public static class AbstractChecks
                     CheckOperandTypes(binary, state);
                     break;
 
+                // C and C++ read through a pointer with * and ->, which the code itself shows better than a member name can.
                 case Member member when member.Target is not Literal && !IsSpecialName(member.MemberName):
                     if (!asCallee || !Failures.NothingCanRunMethods(evaluator.Language))
-                        CheckNotNull(member.Target, member, state, $"reading `.{member.MemberName}`");
+                        CheckNotNull(member.Target, member, state,
+                            evaluator.Language is SourceLanguage.C or SourceLanguage.Cpp ? $"reading `{Quote(member)}`" : $"reading `.{member.MemberName}`");
                     break;
 
                 case ElementAccess element:
@@ -493,8 +554,26 @@ public static class AbstractChecks
 
             var size = length.IsExact ? $"has {length.Low} item{(length.Low == 1 ? "" : "s")}" : $"has at most {length.High} items";
             Report("analysis-index-out-of-range", element.Span,
-                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {Failures.OutsideTheList(evaluator.Language)}",
+                $"`{Quote(element.Target)}` {size} here, so `{Quote(element)}` asks for a position that does not exist - {Failures.OutsideTheList(evaluator.Language)}" +
+                SharedWith(element.Target, state),
                 Severity.Error, Confidence.Certain);
+        }
+
+        /// <summary>
+        /// When other names hold the same list - b after b = a - a change made through one of them may be why this one is
+        /// empty, and saying so turns a puzzling finding into an obvious one. The loop's own hidden copies are not named.
+        /// </summary>
+        private string SharedWith(Expr collection, AbstractState state)
+        {
+            if (collection is not Name { Identifier: var name }) return "";
+
+            var others = state.AliasesOf(name).Where(other => !other.StartsWith('$')).Order(StringComparer.Ordinal).ToList();
+            if (others.Count == 0) return "";
+
+            var named = string.Join(" and ", others.Select(other => $"`{other}`"));
+            return others.Count == 1
+                ? $". {named} is the same list as `{name}`, so a change made through {named} is made to `{name}` too"
+                : $". {named} are the same list as `{name}`, so a change made through any of them is made to `{name}` too";
         }
 
         private void CheckCall(Call call, AbstractState state)
@@ -513,7 +592,7 @@ public static class AbstractChecks
             if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
                 evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
             {
-                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}",
+                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
                     Severity.Error, Confidence.Certain);
             }
 
@@ -533,10 +612,21 @@ public static class AbstractChecks
                     Severity.Error, Confidence.Certain);
 
             if (function is "int" or "float" && argument is Literal { Kind: LiteralKind.Text, Value: string text } &&
-                !double.TryParse(text.Trim().Replace("_", ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
-                Report("analysis-not-a-number", call.Span, $"\"{text}\" is not a number, so `{Quote(call)}` fails with ValueError",
+                NumberText.Read(SourceLanguage.Python, text, whole: function == "int") is not NumberText.Reading.Reads and var reading)
+                Report("analysis-not-a-number", call.Span, $"\"{text}\" {NotRead(reading, call)}, so `{Quote(call)}` fails with ValueError",
                     Severity.Error, Confidence.Certain);
         }
+
+        /// <summary>
+        /// Why a conversion refuses a text: it is no number at all; it has a fraction, which a whole-number conversion
+        /// cannot take - int("1.5"); or it is a whole number written in a way the conversion does not read - int.Parse("1,000").
+        /// </summary>
+        private static string NotRead(NumberText.Reading reading, Call call) => reading switch
+        {
+            NumberText.Reading.NotWhole => "is not a whole number",
+            NumberText.Reading.WrittenOtherwise => $"is not written the way `{IrText.Of(call.Callee)}` reads a whole number",
+            _ => "is not a number",
+        };
 
         /// <summary>The error taking an item from an empty collection raises, for the calls that take one.</summary>
         private string? TakesAnItem(string method) => evaluator.Language switch
@@ -558,14 +648,13 @@ public static class AbstractChecks
             var real = (type, method) is ("double" or "float" or "decimal" or "Double" or "Decimal", "Parse") or ("Double", "parseDouble" or "valueOf") or ("Float", "parseFloat");
             if (!whole && !real) return;
 
-            var trimmed = evaluator.Language == SourceLanguage.CSharp ? text.Trim() : text;
-            var parses = whole
-                ? long.TryParse(trimmed, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out _)
-                : double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _);
-            if (parses) return;
+            if (evaluator.Language is not (SourceLanguage.CSharp or SourceLanguage.Java)) return;
+
+            var reading = NumberText.Read(evaluator.Language, text, whole);
+            if (reading == NumberText.Reading.Reads) return;
 
             var failure = evaluator.Language == SourceLanguage.CSharp ? "a FormatException" : "a NumberFormatException";
-            Report("analysis-not-a-number", call.Span, $"\"{text}\" is not {(whole ? "a whole number" : "a number")}, so `{Quote(call)}` fails with {failure}",
+            Report("analysis-not-a-number", call.Span, $"\"{text}\" {NotRead(reading, call)}, so `{Quote(call)}` fails with {failure}",
                 Severity.Error, Confidence.Certain);
         }
 
@@ -643,7 +732,11 @@ public static class AbstractChecks
             var preconditions = contractsOf(target.Function);
             if (preconditions.Count == 0) return;
 
-            var callee = new Evaluator(evaluator.Language) { Locals = target.Function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal) };
+            var callee = new Evaluator(evaluator.Language)
+            {
+                Locals = target.Function.Parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal),
+                OwnTypes = evaluator.OwnTypes,
+            };
             var state = bound.Aggregate(AbstractState.Start, (s, pair) => callee.Store(s, pair.Key, pair.Value));
 
             foreach (var precondition in preconditions)
@@ -651,8 +744,8 @@ public static class AbstractChecks
                 if (callee.Assume(state, precondition.Failure, false).IsReachable) continue;
 
                 Report("analysis-contract-broken", call.Span,
-                    $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} (line {precondition.Span.Line})",
-                    Severity.Error, Confidence.Certain);
+                    $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} ({Places.Line(precondition.Span, call.Span)})",
+                    Severity.Error, Confidence.Certain, raises: [precondition.Raises]);
                 return;
             }
         }

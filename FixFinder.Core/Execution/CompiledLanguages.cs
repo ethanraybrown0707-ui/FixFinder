@@ -91,7 +91,7 @@ public static partial class CompiledLanguages
 
     private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp)
     {
-        var flags = cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3";
+        var flags = MsvcFlags(cpp, debugInfo: true);
 
         var batch = Path.Combine(output, "build.cmd");
 
@@ -112,9 +112,17 @@ public static partial class CompiledLanguages
         return batch;
     }
 
-    internal static string GnuWarnings(bool cpp) => cpp
-        ? "-std=c++17 -Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
-        : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ";
+    /// <summary>
+    /// The standard the program is held to, then the warnings. Used both to build the program and to check every fix,
+    /// so a fix that needs a later standard than the one chosen fails its check and is never offered.
+    /// </summary>
+    internal static string GnuWarnings(bool cpp) => LanguageStandards.Current.Gnu(cpp) + (cpp
+        ? "-Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
+        : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ");
+
+    /// <summary>MSVC's flags, with the standard the program is held to where MSVC has a flag for it.</summary>
+    internal static string MsvcFlags(bool cpp, bool debugInfo) =>
+        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Current.Msvc(cpp);
 
     internal const string JavaLint = "-Xlint:cast,divzero,empty,fallthrough,finally,overrides,rawtypes,static,unchecked,deprecation";
 
@@ -131,7 +139,7 @@ public static partial class CompiledLanguages
         Directory.CreateDirectory(output);
 
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
-        var flags = cpp ? "/nologo /Zi /W3 /EHsc /std:c++17" : "/nologo /Zi /W3";
+        var flags = MsvcFlags(cpp, debugInfo: true);
         var batch = Path.Combine(output, "build.cmd");
 
         var sources = Quoted(ProgramLayout.NativeSources(source));
@@ -253,7 +261,7 @@ public static partial class CompiledLanguages
 
         var compile = Spec(
             javac.Program,
-            $"-g {JavaLint} -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
+            $"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
             Path.GetDirectoryName(source)!,
             timeout);
 

@@ -29,6 +29,19 @@ public static partial class FindingFactory
         };
     }
 
+    /// <summary>
+    /// The pattern check that reports the same mistake at the same line, so the two become one finding. A collection
+    /// changed while a loop walks it is found by a pattern where the code says so plainly and by analysis where it does not.
+    /// </summary>
+    private static string? SameMistakeAs(string checkId, string file) => (checkId, Path.GetExtension(file).ToLowerInvariant()) switch
+    {
+        ("analysis-changed-while-looping", ".py" or ".pyw") => "logic-python-modified-while-looping",
+        ("analysis-changed-while-looping", ".java" or ".cs") => "logic-modified-while-looping",
+        ("analysis-resource-not-closed", ".py" or ".pyw") => "logic-python-file-not-closed",
+        ("analysis-text-built-in-loop", ".java" or ".cs") => "logic-string-built-in-loop",
+        _ => null,
+    };
+
     private static readonly Dictionary<string, string> CrashExplainedBy = new(StringComparer.Ordinal)
     {
         ["KeyNotFoundException"] = "logic-count-from-missing-key",
@@ -74,6 +87,7 @@ public static partial class FindingFactory
             Line = finding.Line,
             Title = guide.Title ?? Sentence(finding.Message),
             Explanation = Sentence(finding.Message),
+            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = example,
@@ -81,13 +95,22 @@ public static partial class FindingFactory
             FixCheckedBy = fix is not null ? fixCheckedBy : null,
             RuleId = finding.PatternId,
             Fix = fix,
+            Change = fix is not null ? CodeChange.From(fix, source) : null,
+            CameFrom = FixOrigin.OwnRule(fix?.RuleId),
             Family = finding.PatternId,
         };
     }
 
-    public static Finding FromAnalysis(AnalysisFinding finding)
+    /// <param name="source">The file the finding is in, needed to show a change to it side by side.</param>
+    /// <param name="fixCheckedBy">What checking the change showed, when it was checked.</param>
+    /// <param name="fixCompiles">False when a copy of the file with the change did not compile, so it is not offered.</param>
+    public static Finding FromAnalysis(AnalysisFinding finding, SourceFile? source = null, string? fixCheckedBy = null, bool fixCompiles = false)
     {
         var guide = Guidebook.For(finding.Span.File, finding.Kind, finding.CheckId);
+
+        // A change worked out for this very code shows what it would be, in place of the guide's general example - but
+        // only once a copy of the file with it has been checked, and never when that copy did not compile.
+        var fix = source is not null && fixCompiles ? finding.Fix : null;
 
         return new Finding
         {
@@ -98,15 +121,22 @@ public static partial class FindingFactory
             Line = finding.Span.Line,
             Title = guide.Title ?? Sentence(finding.Message),
             Explanation = Sentence(finding.Message),
+            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
             WhyItMatters = guide.WhyItMatters,
-            SuggestedFix = guide.SuggestedFix,
-            CorrectedExample = guide.Example,
+            SuggestedFix = fix is not null ? TitleThen(fix.Title, fix.Explanation) : guide.SuggestedFix,
+            CorrectedExample = fix is not null ? CorrectedCode.From(fix, source!) : guide.Example,
+            ExampleIsFromYourCode = fix is not null,
+            FixCheckedBy = fix is not null ? fixCheckedBy : null,
+            Fix = fix,
+            Change = fix is not null ? CodeChange.From(fix, source) : null,
+            CameFrom = fix is not null ? FixOrigin.OwnRule(fix.RuleId) : null,
             RuleId = finding.CheckId,
-            Family = finding.CheckId,
+            Family = SameMistakeAs(finding.CheckId, finding.Span.File) ?? finding.CheckId,
             FoundBy = finding.FoundBy,
             Witness = finding.Witness,
             Slice = finding.Slice,
             Confirmation = finding.Confirmation,
+            State = finding.State,
         };
     }
 
@@ -135,6 +165,10 @@ public static partial class FindingFactory
             Line = line,
             Title = $"{run} printed the wrong output",
             Explanation = $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
+            Explanations = Explained.Of(
+                $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
+                FollowedBy(guide.ForBeginners, Sentence(result.Mismatch.Describe())),
+                FollowedBy(guide.ForTechnical, Sentence(result.Mismatch.Describe()))),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = result.Fix is { } found ? CorrectedCode.From(found, source) : "",
@@ -142,15 +176,33 @@ public static partial class FindingFactory
             FixCheckedBy = result.Fix is not null ? LogicRepair.Describe(result) : null,
             RuleId = "wrong-output",
             Fix = result.Fix,
+            Change = result.Fix is { } repaired ? CodeChange.From(repaired, source) : null,
+            CameFrom = result.Fix is null ? null : FixOrigin.OwnRule("wrong-output"),
             Family = "wrong-output",
         };
     }
+
+    /// <summary>
+    /// What a finding says at each depth. The student's is what was found in this program; the beginner's and the
+    /// technical reader's say the same and then add the guide's account of this kind of mistake at their depth, so
+    /// moving the slider never hides what is particular to this program.
+    /// </summary>
+    private static Explained AtEveryDepth(string found, MistakeGuide guide) =>
+        Explained.Of(found, FollowedBy(found, guide.ForBeginners), FollowedBy(found, guide.ForTechnical));
+
+    /// <summary>The two joined, or nothing when the second - or the first - was never written.</summary>
+    private static string? FollowedBy(string? first, string? then) =>
+        string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(then) ? null : $"{first} {then}";
 
     private static Finding Build(
         FindingKind kind, Severity severity, Confidence confidence, string file, int? line, string title, string explanation,
         MistakeGuide guide, FixCandidate? fix)
     {
         var example = fix is not null ? CorrectedCode.From(fix) : null;
+
+        // A candidate from a source other than a local rule carries no structural edit, and without one there is
+        // nothing to lay side by side: the example is shown on its own rather than as a change to the user's code.
+        var edit = fix?.LocalFix;
 
         return new Finding
         {
@@ -161,13 +213,30 @@ public static partial class FindingFactory
             Line = line,
             Title = title,
             Explanation = explanation,
+            Explanations = Explained.Of(explanation, guide.ForBeginners, guide.ForTechnical),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = fix is null ? guide.SuggestedFix : FixText(fix),
             CorrectedExample = example ?? guide.Example,
             ExampleIsFromYourCode = example is not null,
             FixCheckedBy = example is not null ? fix?.CheckedBy : null,
-            Fix = fix?.LocalFix,
+            Fix = edit,
+            Change = edit is not null ? CodeChange.From(edit, SourceFile.Read(edit.File)) : null,
+            CameFrom = Origin(fix, edit),
         };
+    }
+
+    /// <summary>
+    /// Where a fix came from: the page, when it was taken from one, and otherwise the rule of FixFinder's own that
+    /// worked it out. A candidate with neither is left unattributed rather than credited to something plausible.
+    /// </summary>
+    private static FixOrigin? Origin(FixCandidate? candidate, LocalFix? edit)
+    {
+        if (candidate is { Url.Length: > 0 } page)
+        {
+            return new FixOrigin { SourceName = page.SourceName, Title = page.Title, Url = page.Url };
+        }
+
+        return FixOrigin.OwnRule(edit?.RuleId);
     }
 
     private static string FixText(FixCandidate fix) => fix.LocalFix is { } local

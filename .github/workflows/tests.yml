@@ -50,6 +50,11 @@ jobs:
       - name: Build
         run: dotnet build FixFinder.Tests/FixFinder.Tests.csproj -c Release --no-restore --nologo
 
+      # The command line's behaviour is all in Core and tested there, but nothing else builds its own few lines -
+      # and a command that no longer compiles is a broken editor integration nobody would notice until they used it.
+      - name: Build the command line
+        run: dotnet build FixFinder.Cli/FixFinder.Cli.csproj -c Release --nologo
+
       # No network access is needed or wanted: searches run against recorded responses through a
       # handler that throws on anything unrecorded, so a test cannot quietly reach the internet.
       - name: Test

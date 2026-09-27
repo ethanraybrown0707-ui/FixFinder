@@ -35,17 +35,35 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
     private const int MostWarningsFixed = 20;
     private const int MostFixesCompared = 5;
 
+    /// <summary>How many fixes are actually run to see whether they work; each one runs the program again.</summary>
+    private const int MostFixesVerified = 3;
+
     private readonly object _gate = new();
     private readonly List<Finding> _findings = [];
     private readonly List<string> _notes = [];
     private readonly Dictionary<string, Task> _comparing = [];
     private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
+    private readonly Dictionary<string, Task> _verifying = [];
+    private readonly Dictionary<string, Verification> _verified = [];
+
+    /// <summary>Set for a check of the code alone, which compiles and runs nothing.</summary>
+    private bool _codeOnly;
+
+    /// <summary>How many functions the analyses took unchanged from the last check, and how many they looked at afresh.</summary>
+    private int _reusedFunctions;
+    private int _analysedFunctions;
     private LaunchPlan? _launch;
     private CancellationToken _cancellation;
 
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
     public ExpectedBehaviour? Expected { get; init; }
+
+    /// <summary>
+    /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
+    /// could have changed. Null analyses everything every time.
+    /// </summary>
+    public AnalysisCache? Cache { get; init; }
 
     public event Action<IReadOnlyList<Finding>>? FindingsChanged;
     public event Action<CheckLane, string>? Progress;
@@ -76,9 +94,11 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         var (syntaxSummary, run) = syntax.Result;
 
-        Task[] comparing;
-        lock (_gate) comparing = [.. _comparing.Values];
-        await Task.WhenAll(comparing);
+        // Both of these run in the background while the report fills in; the report waits for them so that what it
+        // finally says about a fix is what was actually established, not what had been established so far.
+        Task[] finishing;
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        await Task.WhenAll(finishing);
 
         lock (_gate)
         {
@@ -86,6 +106,9 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
             if (logicSummary.EndsWith("in the code", StringComparison.Ordinal))
                 logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
+
+            if (_reusedFunctions > 0)
+                logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
             return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, run);
         }
@@ -298,20 +321,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         {
             Progress?.Invoke(CheckLane.Logic, "Reading the code for logic mistakes...");
 
-            var found = 0;
-            var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
-            var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
-
-            var analysed = AnalyseAsync(launch, files, cancellationToken);
-
-            await ForEachAsync(patterns, async item =>
-            {
-                var (checkedBy, compiles) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
-                Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles));
-                Interlocked.Increment(ref found);
-            }, cancellationToken);
-
-            found += await analysed;
+            var found = await CodeFindingsAsync(launch, files, cancellationToken);
 
             if (Expected is not { IsEmpty: false } expected || launch.ChosenFile is not { } chosen)
                 return found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
@@ -344,6 +354,66 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    /// <summary>
+    /// Reads the code for mistakes - its patterns, and what following every value through it shows - without compiling
+    /// or running the program: a check that can follow every save without costing the program's time or its side effects.
+    /// </summary>
+    /// <remarks>
+    /// What it skips is said rather than left out quietly: the report says the program was not compiled or run, and code
+    /// that does not read as its language at all is noted, since otherwise the report would find no mistakes in it.
+    /// </remarks>
+    public async Task<CheckReport> CheckCodeAsync(LaunchPlan launch, CancellationToken cancellationToken = default)
+    {
+        if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
+
+        var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
+        _launch = launch;
+        _cancellation = cancellationToken;
+        _codeOnly = true;
+
+        int found;
+        try
+        {
+            found = await CodeFindingsAsync(launch, files, cancellationToken);
+        }
+        finally
+        {
+            LaneFinished?.Invoke(CheckLane.Logic, "done");
+        }
+
+        Task[] finishing;
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        await Task.WhenAll(finishing);
+
+        lock (_gate)
+        {
+            var logicSummary = found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
+            if (_reusedFunctions > 0)
+                logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
+
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null);
+        }
+    }
+
+    /// <summary>The logic patterns and the analyses, together: everything a check finds from the code alone.</summary>
+    private async Task<int> CodeFindingsAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        var found = 0;
+        var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
+        var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
+
+        var analysed = AnalyseAsync(launch, files, cancellationToken);
+
+        await ForEachAsync(patterns, async item =>
+        {
+            var (checkedBy, compiles, verified) = await CheckPatternFixAsync(item.Source, item.Finding.Fix, cancellationToken);
+            Add(FindingFactory.FromPattern(item.Finding, item.Source, checkedBy, compiles) with { Verified = verified });
+            Interlocked.Increment(ref found);
+        }, cancellationToken);
+
+        return found + await analysed;
+    }
+
     /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>
     private async Task<int> AnalyseAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
@@ -358,15 +428,44 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             var program = await reading;
             foreach (var problem in program.Problems) Log?.Invoke($"Following the values skipped {problem}");
 
-            var findings = AbstractChecks.Run(program, new SourceText());
+            // A full check compiles or runs the program and reports such a problem with its fix; reading the code alone
+            // would otherwise just find nothing in the part it could not read.
+            if (_codeOnly && program.Problems.Count > 0)
+            {
+                Note($"Part of the code could not be read, so it was not checked: {program.Problems[0]}. " +
+                     "Check it with its language to compile or run it, which reports the mistake with a fix.");
+            }
 
-            if (program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
+            var findings = AbstractChecks.Run(program, new SourceText(), Cache);
+            if (Cache is { LastRun: { Reused: > 0 } run })
+            {
+                Log?.Invoke($"{Count(run.Reused, "function")} had not changed since the last check, so what was found in them then was used again; " +
+                            $"{Count(run.Analysed, "function")} analysed afresh.");
+                _reusedFunctions = run.Reused;
+                _analysedFunctions = run.Analysed;
+            }
+
+            // Confirming runs the program's own functions, which a check of the code alone never does.
+            if (!_codeOnly && program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
             {
                 Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
                 findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);
             }
 
-            foreach (var finding in findings) Add(FindingFactory.FromAnalysis(finding));
+            foreach (var finding in findings)
+            {
+                // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.
+                if (finding.Fix is { } fix && SourceFile.Read(fix.File) is { } source)
+                {
+                    var (checkedBy, compiles, verified) = await CheckPatternFixAsync(source, fix, cancellationToken);
+                    Add(FindingFactory.FromAnalysis(finding, source, checkedBy, compiles) with { Verified = verified });
+                }
+                else
+                {
+                    Add(FindingFactory.FromAnalysis(finding));
+                }
+            }
+
             return findings.Count;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -405,24 +504,56 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         return null;
     }
 
-    private async Task<(string? CheckedBy, bool Compiles)> CheckPatternFixAsync(SourceFile source, LocalFix? fix, CancellationToken cancellationToken)
+    /// <summary>
+    /// Compiles a copy of the file with the change in it, and says what that showed.
+    /// </summary>
+    /// <remarks>
+    /// The copy is the point: the person's own file is never written to in order to find out whether a fix is any
+    /// good. What comes back is deliberately modest - compiling shows the change is valid code, not that it works -
+    /// so the stage recorded is Compiled and nothing further is claimed from it.
+    /// </remarks>
+    private async Task<(string? CheckedBy, bool Compiles, Verification Verified)> CheckPatternFixAsync(
+        SourceFile source, LocalFix? fix, CancellationToken cancellationToken)
     {
-        if (fix is null || fix.ApplyTo(source) is not { } changed) return (null, false);
-        if (!CompileCheck.CanCheck(source.Path)) return (null, true);
+        if (fix is null || fix.ApplyTo(source) is not { } changed) return (null, false, Verification.NotTested);
+
+        if (!CompileCheck.CanCheck(source.Path))
+        {
+            return (null, true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Skipped, "This language is not compiled before it runs."));
+        }
 
         var after = await CompileCheck.RunAsync(source, changed, null, cancellationToken);
-        if (!after.Ran) return ("Not checked - there was nothing to compile it with.", true);
+
+        if (!after.Ran)
+        {
+            return ("Not checked - there was nothing to compile it with.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Skipped, "There was nothing on this machine to compile it with."));
+        }
 
         var name = Path.GetFileName(source.Path);
-        if (after.Clean) return ($"A copy of {name} with this change compiles.", true);
+
+        if (after.Clean)
+        {
+            return ($"A copy of {name} with this change compiles.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Passed, $"A copy of {name} with this change compiles."));
+        }
 
         var before = await CompileCheck.RunAsync(source, source.Lines, null, cancellationToken);
         var editedTo = fix.StartLine + Math.Max(fix.NewLines.Count, 1) - 1;
         var inEdit = after.Errors.Any(e => LocalFixContext.OwnFrame(e)?.Line is { } line && line >= fix.StartLine - 1 && line <= editedTo + 1);
 
-        return before.Ran && after.Errors.Count <= before.Errors.Count && !inEdit
-            ? ($"A copy of {name} with this change adds no new errors.", true)
-            : (null, false);
+        if (before.Ran && after.Errors.Count <= before.Errors.Count && !inEdit)
+        {
+            // The file did not compile before the change either, and the change did not make that worse or add an
+            // error of its own - which is as much as compiling can show about a file that was already broken.
+            return ($"A copy of {name} with this change adds no new errors.", true, Verification.NotTested.With(
+                VerificationStage.Compiled, StageResult.Inconclusive,
+                $"A copy of {name} with this change adds no new errors, but the file did not compile before it either."));
+        }
+
+        return (null, false, Verification.NotTested.With(
+            VerificationStage.Compiled, StageResult.Failed, $"A copy of {name} with this change does not compile."));
     }
 
     private void Add(Finding finding)
@@ -443,6 +574,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             }
 
             if (finding.Fix is { } fix && _fixChanges.TryGetValue(FixKey(fix), out var changes)) finding = finding with { FixChanges = changes };
+            if (finding.Fix is { } tried && _verified.TryGetValue(FixKey(tried), out var already)) finding = finding with { Verified = already };
 
             _findings.Add(finding);
             snapshot = Sorted(_findings);
@@ -450,6 +582,62 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         FindingsChanged?.Invoke(snapshot);
         CompareFix(finding);
+        VerifyFix(finding);
+    }
+
+    /// <summary>
+    /// Starts running a copy of the program with the fix in it, to find out whether the failure stops happening.
+    /// </summary>
+    /// <remarks>
+    /// Only worth the run when there is something for it to settle: a failure that might stop, or output the person
+    /// said the program should print. Bounded the same way the fix comparison is, because each one of these runs the
+    /// program again and a report full of fixes would otherwise run it a dozen times.
+    /// </remarks>
+    private void VerifyFix(Finding finding)
+    {
+        if (finding.Fix is not { } fix || finding.Verified.ResultOf(VerificationStage.Compiled) == StageResult.Failed) return;
+        if (finding.Error is null && Expected is not { IsEmpty: false }) return;
+        if (SourceFile.Read(fix.File) is not { } source) return;
+
+        var key = FixKey(fix);
+
+        lock (_gate)
+        {
+            if (_verifying.ContainsKey(key) || _verifying.Count >= MostFixesVerified) return;
+            _verifying[key] = Task.Run(() => VerifyFixAsync(finding, source, fix, key), CancellationToken.None);
+        }
+    }
+
+    private async Task VerifyFixAsync(Finding finding, SourceFile source, LocalFix fix, string key)
+    {
+        Verification verified;
+
+        try
+        {
+            verified = await FixRun.CheckAsync(finding.Verified, source, fix, finding.Error, Expected, _cancellation);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Trying a fix out stopped early: {ex.Message}");
+            return;
+        }
+
+        if (!verified.WasTested) return;
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            _verified[key] = verified;
+            for (var i = 0; i < _findings.Count; i++)
+            {
+                if (_findings[i].Fix is { } other && FixKey(other) == key) _findings[i] = _findings[i] with { Verified = verified };
+            }
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
     }
 
     /// <summary>Starts working out what a finding's fix changes in what the program does - semantic diffing of the fix.</summary>
@@ -517,12 +705,15 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    /// <summary>
+    /// The report's order: worst first, then by where it is - and then the findings that follow from another are put
+    /// behind the one they follow from, so a reader meets the cause before the four reports of its consequences.
+    /// </summary>
     private static List<Finding> Sorted(IEnumerable<Finding> findings) =>
-        findings
+        [.. RootCauses.Link([.. findings
             .OrderBy(f => f.Severity)
             .ThenBy(f => f.File, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(f => f.Line ?? 0)
-            .ToList();
+            .ThenBy(f => f.Line ?? 0)])];
 
     private static async Task ForEachAsync<T>(IEnumerable<T> items, Func<T, Task> body, CancellationToken cancellationToken)
     {

@@ -1,0 +1,61 @@
+==> main.py <==
+from matrix import Matrix
+
+a = Matrix([[1, 2], [3, 4]])
+b = Matrix.identity(2)
+print(a + b)
+print(a * b)
+print(a.transposed())
+print(a[1][0], a.shape)
+print(Matrix([[2, 0], [0, 2]]).determinant())
+==> matrix.py <==
+class Matrix:
+    def __init__(self, rows):
+        if not rows or not rows[0]:
+            raise ValueError("a matrix needs at least one row and one column")
+        width = len(rows[0])
+        if any(len(row) != width for row in rows):
+            raise ValueError("every row must be the same length")
+        self.rows = [list(row) for row in rows]
+
+    @classmethod
+    def identity(cls, size):
+        return cls([[1 if row == column else 0 for column in range(size)] for row in range(size)])
+
+    @property
+    def shape(self):
+        return len(self.rows), len(self.rows[0])
+
+    def __getitem__(self, index):
+        return self.rows[index]
+
+    def __add__(self, other):
+        if self.shape != other.shape:
+            raise ValueError("only matrices of one shape can be added")
+        return Matrix([[x + y for x, y in zip(mine, theirs)] for mine, theirs in zip(self.rows, other.rows)])
+
+    def __mul__(self, other):
+        if self.shape[1] != other.shape[0]:
+            raise ValueError("the columns of the first must match the rows of the second")
+        columns = list(zip(*other.rows))
+        return Matrix([[sum(x * y for x, y in zip(row, column)) for column in columns] for row in self.rows])
+
+    def transposed(self):
+        return Matrix([list(column) for column in zip(*self.rows)])
+
+    def determinant(self):
+        rows, columns = self.shape
+        if rows != columns:
+            raise ValueError("only a square matrix has a determinant")
+        if rows == 1:
+            return self.rows[0][0]
+        if rows == 2:
+            return self.rows[0][0] * self.rows[1][1] - self.rows[0][1] * self.rows[1][0]
+        total = 0
+        for column in range(columns):
+            minor = Matrix([row[:column] + row[column + 1:] for row in self.rows[1:]])
+            total += (-1) ** column * self.rows[0][column] * minor.determinant()
+        return total
+
+    def __str__(self):
+        return "\n".join(" ".join(f"{value:>4}" for value in row) for row in self.rows)

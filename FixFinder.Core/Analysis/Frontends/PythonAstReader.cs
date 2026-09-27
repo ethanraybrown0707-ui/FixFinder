@@ -137,10 +137,18 @@ internal sealed class PythonAstReader(string file)
                 break;
 
             case "ImportFrom":
-                foreach (var alias in Items(node, "names").Where(a => Text(a, "name") != "*"))
+                // The module as written, with a dot for each package level a relative import climbs: from .helpers import total.
+                var imported = new string('.', Number(node, "level")) + Text(node, "module");
+                foreach (var alias in Items(node, "names"))
                 {
+                    if (Text(alias, "name") == "*")
+                    {
+                        yield return new OpaqueStmt(span, $"from {imported} import *", [], []);
+                        continue;
+                    }
+
                     var bound = Text(alias, "asname") is { Length: > 0 } asName ? asName : Text(alias, "name");
-                    yield return new Assign(span, new Name(span, bound), Opaque.Of(span, $"{Text(node, "module")}.{Text(alias, "name")}"));
+                    yield return new Assign(span, new Name(span, bound), Opaque.Of(span, $"from {imported} import {Text(alias, "name")}"));
                 }
                 break;
 

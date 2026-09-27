@@ -63,6 +63,7 @@ public class JavaAnalysisTests : IDisposable
     [Theory]
     [InlineData("analysis-division-by-zero", "Possible", "    static int average(int[] values) {\n        int total = 0;\n        int count = 0;\n        for (int v : values) {\n            total += v;\n            count++;\n        }\n        return total / count;\n    }", "total / count")]
     [InlineData("analysis-division-by-zero", "Certain", "    static int f() {\n        int n = 0;\n        return 10 / n;\n    }", "10 / n")]
+    [InlineData("analysis-not-a-number", "Certain", "    static double f() {\n        return Double.parseDouble(\"inf\");\n    }", "Double.parseDouble")]
     [InlineData("analysis-null-used", "Possible", "    static String label(int score) {\n        String message = null;\n        if (score > 90) message = \"top\";\n        return message.toUpperCase();\n    }", "message.toUpperCase()")]
     [InlineData("analysis-index-out-of-range", "Certain", "    static int f() {\n        int[] points = {3, 5, 8};\n        return points[3];\n    }", "points[3]")]
     [InlineData("analysis-never-true", "Likely", "    static int grade(int mark) {\n        if (mark > 100 && mark < 0) return -1;\n        return 0;\n    }", "mark > 100")]
@@ -89,6 +90,10 @@ public class JavaAnalysisTests : IDisposable
     [InlineData("a guard that only throws", "    static int f(List<String> list) {\n        int size = list.size();\n        if (size < 0) { throw new IllegalStateException(\"size\"); }\n        return size;\n    }")]
     [InlineData("the last case of a switch", "    static int f(int kind) {\n        if (kind < 1 || kind > 2) return 0;\n        switch (kind) {\n            case 1: return 10;\n            case 2: return 20;\n        }\n        return 0;\n    }")]
     [InlineData("a guarded division by a size", "    static int f(List<String> items) {\n        if (items.size() > 0) { return 10 / items.size(); }\n        return 0;\n    }")]
+    [InlineData("a whole number kept in a double", "    static double f() {\n        double d = 0;\n        return 10 / d;\n    }")]
+    [InlineData("a double that a method returns", "    static double zero() { return 0; }\n    static double f() { return 10 / zero(); }")]
+    [InlineData("doubles written with a type letter and in hexadecimal", "    static double f() {\n        return Double.parseDouble(\"1.5f\") + Double.parseDouble(\"0x1p3\") + Double.parseDouble(\" -Infinity \");\n    }")]
+    [InlineData("a Stack class of the program's own", "    static class Stack {\n        private final int[] items = new int[10];\n        private int size;\n        void push(int value) { items[size++] = value; }\n        int pop() { return size == 0 ? -1 : items[--size]; }\n    }\n    static int f() {\n        Stack stack = new Stack();\n        stack.push(1);\n        stack.pop();\n        return stack.pop();\n    }")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         if (await Analyse(body) is not { } findings) return;

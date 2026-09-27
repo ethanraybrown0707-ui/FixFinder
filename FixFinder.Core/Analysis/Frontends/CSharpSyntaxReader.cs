@@ -284,7 +284,7 @@ internal sealed class CSharpSyntaxReader(string file)
         foreach (var variable in declaration.Variables.Reverse())
         {
             var resource = variable.Initializer is { } initial ? Initial(initial.Value, type) : Opaque.Of(Span(variable), "resource");
-            body = [new Using(span, resource, new Name(Span(variable.Identifier.GetLocation()), variable.Identifier.ValueText), body)];
+            body = [new Using(span, resource, new Name(Span(variable.Identifier.GetLocation()), variable.Identifier.ValueText), body) { Purpose = UsingPurpose.Resource }];
         }
 
         foreach (var variable in declaration.Variables)
@@ -323,8 +323,9 @@ internal sealed class CSharpSyntaxReader(string file)
             ],
             SwitchStatementSyntax choice => [new Switch(span, Expression(choice.Expression), choice.Sections.Select(Section).ToList())],
             UsingStatementSyntax { Declaration: { } resources } used => Used(resources, span, Body(used.Statement)),
-            UsingStatementSyntax used => [new Using(span, used.Expression is { } resource ? Expression(resource) : Opaque.Of(span, "resource"), null, Body(used.Statement))],
-            LockStatementSyntax locked => [new Using(span, Expression(locked.Expression), null, Body(locked.Statement))],
+            UsingStatementSyntax used => [new Using(span, used.Expression is { } resource ? Expression(resource) : Opaque.Of(span, "resource"), null, Body(used.Statement))
+                { Purpose = UsingPurpose.Resource }],
+            LockStatementSyntax locked => [new Using(span, Expression(locked.Expression), null, Body(locked.Statement)) { Purpose = UsingPurpose.Lock }],
             CheckedStatementSyntax checkedBlock => Block(checkedBlock.Block.Statements),
             UnsafeStatementSyntax unsafeBlock => Block(unsafeBlock.Block.Statements),
             FixedStatementSyntax pinned => [.. Declared(pinned.Declaration), .. Body(pinned.Statement)],
@@ -353,8 +354,13 @@ internal sealed class CSharpSyntaxReader(string file)
 
         foreach (var variable in declaration.Variables)
         {
-            if (type.Nullable) _nullableValues.Add(variable.Identifier.ValueText);
-            statements.Add(new Declare(Span(variable), variable.Identifier.ValueText, type, variable.Initializer is { } initial ? Initial(initial.Value, type) : null));
+            // A var takes the type of the value it is given, and new T(...) names that type outright.
+            var declared = declaration.Type is IdentifierNameSyntax { IsVar: true } && variable.Initializer?.Value is ObjectCreationExpressionSyntax created
+                ? TypeOf(created.Type)
+                : type;
+
+            if (declared.Nullable) _nullableValues.Add(variable.Identifier.ValueText);
+            statements.Add(new Declare(Span(variable), variable.Identifier.ValueText, declared, variable.Initializer is { } initial ? Initial(initial.Value, declared) : null));
         }
 
         return statements;
@@ -371,7 +377,8 @@ internal sealed class CSharpSyntaxReader(string file)
 
     private Handler Catch(CatchClauseSyntax clause) =>
         new(Span(clause), clause.Declaration is { } caught ? [TypeOf(caught.Type).Name] : [],
-            clause.Declaration?.Identifier.ValueText is { Length: > 0 } variable ? variable : null, Block(clause.Block.Statements));
+            clause.Declaration?.Identifier.ValueText is { Length: > 0 } variable ? variable : null, Block(clause.Block.Statements),
+            Filtered: clause.Filter is not null);
 
     private SwitchCase Section(SwitchSectionSyntax section)
     {
@@ -532,7 +539,15 @@ internal sealed class CSharpSyntaxReader(string file)
             case InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.ValueText: "nameof" }, ArgumentList.Arguments: [var named] }:
                 return new Literal(span, LiteralKind.Text, named.Expression.ToString().Split('.')[^1]);
             case InvocationExpressionSyntax call:
-                return new Call(span, Expression(call.Expression), Arguments(call.ArgumentList));
+                return new Call(span, Expression(call.Expression), Arguments(call.ArgumentList))
+                {
+                    TypeArguments = call.Expression switch
+                    {
+                        GenericNameSyntax generic => generic.TypeArgumentList.Arguments.Select(TypeOf).ToList(),
+                        MemberAccessExpressionSyntax { Name: GenericNameSyntax generic } => generic.TypeArgumentList.Arguments.Select(TypeOf).ToList(),
+                        _ => [],
+                    },
+                };
             case ElementAccessExpressionSyntax element:
                 return Element(Expression(element.Expression), element.ArgumentList, span);
 

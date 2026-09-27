@@ -19,9 +19,17 @@ until the program prints what it should. FixFinder never changes your files.
 3. **Optionally, say what it should print.** Arguments, the input to type and the expected output go in the boxes under
    the program, and **+ Add another run** adds more. With them, a program that runs but prints the wrong thing is caught
    too, and the change that makes it right is searched for.
-4. **Read the report.** The filters show every finding, or only the errors, warnings or suggestions. Each finding has
-   **Copy corrected code**, **Search online** for the error on GitHub and Stack Overflow, and **Show in folder**.
-   **Copy report** copies every finding as plain text.
+4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
+   every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
+   as its data grows - none of them is a mistake. The **Explanations** slider sets how in depth each finding is
+   explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
+   taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
+   and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
+   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
+5. **Optionally, tick Check on save.** FixFinder then reads the code again every time the program is saved - the logic
+   patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
+   press the language to do that. Code that does not read as its language at all is noted rather than reported as having
+   no mistakes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
@@ -34,7 +42,7 @@ headers beside them.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
 | **Line** | The file and line it is on. |
-| **Explanation** | What is wrong, in the program's own names. |
+| **Explanation** | What is wrong, in the program's own names - explained at the depth the **Explanations** slider is set to. Every kind of mistake FixFinder knows is written three ways: for a beginner, with the idea behind it spelled out in plain words; as it is usually taught; and in the language's own terms, saying which version of the language changed the rule where one did. Whatever the depth, the finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a general example. |
@@ -98,10 +106,84 @@ The checks look across functions. A call to one of the program's own functions i
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
 **contract**. What a function returns is worked out once and used at every call, which is how a function that always
 returns None is caught where its result is used. What a method returns is never assumed, because a subclass can
-replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true.
+replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true, and a number
+kept in a `double` divides into infinity rather than failing, since dividing a double by zero is no error.
+
+**Across files**, a program is checked as one. A call is matched to the function it runs wherever that is written:
+
+| Language | Followed through |
+|---|---|
+| Python | `import helpers` then `helpers.total()`; `from helpers import total as sum`; relative imports inside a package; star imports |
+| JavaScript | `require` - kept whole, destructured, or `require('./helpers').total` - and `import` of a named, default or `* as` export, found in the other file's `module.exports`, `exports.total` or `export` |
+| C, C++ | the function of that name defined in another `.c` file - one in the caller's own file first, as a `static` function there hides the rest |
+| Java, C#, Go | the classes, and the package, the files share |
+
+A call is followed only when one function is certainly meant. A name bound twice, set again after it is declared, or
+exported inside a branch or a function; a module that is not one of the program's own files; two functions that could
+both be meant - each leaves the call alone rather than guess. Top-level code runs in order, so a call written above the
+`def` or `const` it uses fails there with a NameError or ReferenceError, and is not followed either; a JavaScript
+`function` declaration is ready from the first line. What the function in the other file returns, the guards it
+starts with and the text it runs are all checked at the call, and a finding that points at a line in another file names
+the file: `when x < 0 it raises ValueError (line 2 of maths.py)`. Every Python module has variables of its own, so a
+function in another file that changes its `items` is not taken to change the caller's.
 
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
+
+Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed;
+a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a thread a
+second time, or joining one never started, is found - including a thread made before a loop and started inside it.
+
+**Exception flow**: a `return`, `break` or `continue` in a `finally` block replaces what the `try` block returned and
+throws its error away, so it is reported in Java and Python (C# refuses to compile one). In Python, a variable given its
+value only inside a `try` has none if the `try` failed before that line, so reading it in the `finally` block, or after an
+`except` block that carries on without giving it one, raises `UnboundLocalError` - and a read behind a condition, which a
+flag set by the `try` may guard, is not claimed.
+
+A failure the code **catches on purpose** is not reported: trying first and handling what goes wrong - `int(text)` inside
+a `try` with `except ValueError` - or a test checking that bad input is refused, in `with pytest.raises(ValueError):` or
+`with self.assertRaises(ValueError):`, in a JUnit 4 test marked `@Test(expected = X.class)`, or in a lambda handed to
+JUnit's `assertThrows(X.class, ...)`, to `Assert.Throws<X>(...)`, or to Jest's `expect(...).toThrow()`. An assertion
+that wants exactly one type - `assertThrowsExactly`, MSTest's `ThrowsException` - is held to it, and a test that expects
+another exception, or none with `.not.toThrow()`, is still reported. Only a handler in the same function counts, and
+only one that certainly catches:
+it names the exception the failure raises, or a type the language's own documentation puts above it - `except
+ArithmeticError` catches a `ZeroDivisionError`, `catch (IllegalArgumentException e)` a `NumberFormatException` - or one
+of the program's own classes the exception extends; it has no `when` test that could let the exception past; and it does
+not raise it again. Where the code does not show which exception a failure raises, every one it could be has to be
+caught: an index outside a C# array raises an `IndexOutOfRangeException`, and outside a `List` an
+`ArgumentOutOfRangeException`. A caller's `try` around a call is not enough, since another caller need not have one.
+
+**Loops** are reasoned about with **relations between variables**, settled by the constraint solver. A counted loop's
+counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 1` - so `a[i + 1]` is found past the end
+on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from
+`a.length`, or `a[i - 1]` on a Java loop's first time round. A while loop's **candidate invariants** - its condition's
+relation, such as `lo <= hi`, and the bounds its starting values give - are kept only when the solver shows them
+**inductive**: true on entry, and kept by every way through the body. Within them, a state that one time round leaves
+unchanged is a loop that never ends - the binary search that sets `lo = mid` gets stuck when `hi` is `lo + 1`, and the
+finding shows that state and the invariants that make it reachable.
+
+**Taint**: text the person running the program controls - what they type, the program's arguments, its environment -
+is followed through assignments, joining and formatting text, and the program's own functions in both directions, to
+where it becomes something that runs: `eval` and `exec`, a shell command, SQL. Turning it into a number ends it, and a
+query given its values separately (`execute("... WHERE name = ?", (name,))`) is safe, since only a query's own text
+is checked. What code FixFinder cannot see returns is never assumed to carry taint.
+
+**Resource ownership**: a file or stream a function opens is its own until it is closed or handed on - returned, stored,
+passed to a call, or wrapped in another stream, which owns it from then on (**escape analysis**). One still its own and
+still open on a way out of the function is never closed, and for a writer that can mean the file is left empty. Python's
+top-level code is left out: the interpreter closes its files when the program ends.
+
+**Aliasing** is followed: after `b = a`, both names hold the one list until either is given another value, so `b.clear()`
+empties `a` too - and a finding about `a` says that `b` is the same list. Where two ways through the code meet, two names
+share a list only if they do on both.
+
+Each function has an **effect summary**: which of its parameters' lists, dictionaries and sets it adds to or removes
+from, which fields of its object, which module variables - with the line that does it, followed through the functions it
+calls. With aliasing, that makes changing a collection while a loop walks over it a matter of meaning, not spelling:
+`passed.remove(mark)` inside `for mark in marks:` when `passed = marks`, or `drop(marks, mark)` when `drop` removes from
+the list it is given. A list then skips items, a Python dictionary or set raises `RuntimeError`, Java can throw
+`ConcurrentModificationException` and C# throws `InvalidOperationException`.
 
 **Threads** are followed from where the program starts them - `new Thread(...)`, `Task.Run`, `Parallel.For`,
 `threading.Thread(target=...)`, an executor - to the code they run, and whether more than one copy of it runs at once:
@@ -111,8 +193,37 @@ used, and a lock that is taken must be released on every way out of the function
 | An update two threads can lose | `count++` in a `Runnable` given to two threads, `total += x` in a `Parallel.For` body |
 | A flag a thread may never see change (the memory model) | `while (running)` on a field that is not `volatile` |
 | Locks taken in opposite orders | `synchronized (a) { synchronized (b) ... }` in one place, `b` then `a` in another |
+| Locks taken round a circle, of any length | `first` then `second`, `second` then `third`, `third` then `first` - three threads, one at each |
+| A Python `Lock` taken again by the thread holding it | `with self.lock:` around a call to a method that takes `self.lock` too |
+| A result read before the threads changing it have finished | `print(total)` between `worker.start()` and `worker.join()` |
+| Shared data used without the lock that guards it elsewhere | a `synchronized` `deposit()` and a `getBalance()` that is not, called on another thread |
 | `wait` or `notify` without its lock, or `wait` outside a loop | `wait()` in a method that is not `synchronized` |
 | `run()` called instead of `start()` | `worker.run()`, which runs the work on the calling thread |
+
+Deadlocks are found in a **lock-order graph**: an edge from one lock to another wherever the second is taken while the
+first is held, including inside a function called while it is held - with that function's parameters replaced by what
+the call passes, so `transfer(a, b)` on one thread and `transfer(b, a)` on another are seen to take the same two locks
+in opposite orders. Any cycle in the graph is a possible deadlock, however many locks it goes through, but only when
+threads could be at all its places at once: a lock held around all of them lets one thread in at a time, and the main
+thread cannot be at two places together, so neither is reported. Java's and C#'s locks can be taken again by the thread
+holding them; a Python `threading.Lock` cannot, which is why taking one twice is a deadlock with no second thread.
+
+Races come from two relations. **Happens-before** orders the code that starts threads against the threads: what comes
+before `start()` happens before everything the thread does, and everything the thread does happens before the `join()`
+that waits for it - so code between the two runs at the same time as the thread. A thread handed to other code, which
+could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it -
+by `synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the
+function it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock
+is held at both. A field of an object is only shared by threads using that same object.
+
+Each finding that is an instance of a weakness in MITRE's **Common Weakness Enumeration** says which - CWE-89 for SQL
+injection, CWE-833 for a deadlock, CWE-835 for a loop that never ends, and so on - with a link to the entry, an
+authoritative description independent of FixFinder's own. Every entry was fetched and its title copied from it; CWE
+numbers are permanent, so the links do not move. A rule is classified only where the entry's own description fits
+everything the rule reports, in that language: CWE-584 is a `return` in a `finally` block, and FixFinder's rule also
+reports `break` and `continue`; CWE-129 is an index that comes in from outside unchecked, and FixFinder's index rule
+also reports one worked out a step too far inside the function; CWE-476 is a NULL *pointer*, which Java's `null` and
+Go's `nil` are and Python's `None` is not. The command line's JSON carries the CWE too.
 
 Each language keeps its own rules, and a finding says what that language actually does:
 
@@ -120,7 +231,7 @@ Each language keeps its own rules, and a finding says what that language actuall
 |---|---|
 | **Go** | A nil slice has no items and a nil map reads as missing, so `len`, indexing and `range` on them are all fine, while reading a field through a nil pointer is a panic - and a method with a nil receiver is ordinary Go, so `if c == nil` at the top of one is not a test that can never be true. Both sides of a division have the same type, so a whole-number divisor means whole-number division. `panic` is what a guard raises; a deferred call runs on every way out, so a lock released by `defer` is never reported as left locked, and one taken by `defer` is taken for the caller. A slice is a value, so handing it to other code cannot change how long it is. Goroutines started with `go` are followed like any other thread. |
 | **JavaScript** | Dividing by zero gives Infinity rather than failing, and a position past the end gives `undefined`, so neither is reported. Every object and array is true however empty, only `0`, `""`, `null` and `undefined` are false, and `a?.b.c` gives nothing when `a` is nothing - the whole chain is skipped, not just the next step. `typeof x === "number"` says x is something. A variable declared with no value is `undefined`, so reading a field of it is a TypeError. |
-| **C and C++** | Dividing by zero, going through a null pointer and reading past the end of an array are undefined behaviour, which usually stops the program. `malloc` and its like can come back with nothing, so what they return is checked before it is used. |
+| **C and C++** | Dividing by zero, going through a null pointer and reading past the end of an array are undefined behaviour, which usually stops the program. `malloc` and its like can come back with nothing, so what they return is checked before it is used. `exit` and `abort` never return, so nothing after one runs. In C++ an overloaded operator is read as a function of its own - `operator*`, `operator<<` - and `<<` and `>>` on a stream are the stream's writes and reads, not shifts: `std::cin >> count` gives `count` the number typed. A variable whose address is handed out - `&end` to `strtoll`, `&count` to a function of the program's own - is changed by the calls given the address and by writes through a pointer that holds it, when the address only goes to C's own functions that keep none of it (`scanf`, `strtol`, `printf` and the like) or to the program's functions that only read and write through it; once it may be kept anywhere, any call at all can change it. A tie two variables keep through a call is not followed - that a function adds to `count` only when it gives `items` memory - so `if (count > 0)` after the loop that fills them does not show `items` has memory, and a read of it there can be reported as possibly NULL. |
 | **Python** | Dividing by zero is ZeroDivisionError whatever the numbers are; an empty list is false; text and numbers cannot be added. |
 | **Java and C#** | Whole-number division by zero fails while real division gives infinity; a declared type sets what a variable can hold and how large it can be. |
 
@@ -131,8 +242,8 @@ For **C and C++** the same walk through the graph also checks what happens to me
 | Memory used after it is freed | `free(node); printf("%d", node->value);` - including `n = n->next` after `free(n)` in a loop |
 | Memory freed twice | `free(buffer);` on a way through the function that already freed it |
 | Memory nobody frees | `malloc` into a local that is never freed, never returned and never handed on |
-| The address of something that is about to go | `return &count;`, where `count` belongs to the function that is returning |
-| A value read before it is given one | `int total; printf("%d", total);` - unless its address was taken first, as `scanf("%d", &total)` does |
+| The address of something that is about to go | `return &count;` or `return &scores[0];`, where `count` or the array `scores` belongs to the function that is returning - not a global, a `static` or a C++ reference, whose memory outlasts the call |
+| A value read before it is given one | `int total; printf("%d", total);` - unless its address was taken first, as `scanf("%d", &total)` does. A `static` starts at zero, and on later calls holds what the last one left |
 
 These findings say **Found by abstract interpretation**. Anything the analysis cannot follow - a variable a lambda or
 local function can change, a field another method can change, the result of an unknown call - is treated as unknown, so
@@ -180,6 +291,57 @@ cannot follow - an unknown call, a value it had to approximate - means the findi
 instead. The same operation on the same inputs counts as the same value in both versions, so `total / people` in both
 agrees without being worked out.
 
+The **Efficiency** tab lists work a program repeats as its data grows. FixFinder reports a list, an array or a string
+searched from the start on every pass of a loop that does not change it - `if word in stop_words:` inside
+`for word in text.split():` - and only where the code shows what is searched: a set, a dictionary or a range goes
+straight to the item, so searching one is never reported, and a parameter with no type is reported as *possible*, with
+the finding saying that FixFinder cannot see which kind of collection it is.
+
+Where FixFinder can show that a change gives exactly the same answers, the finding shows it on your own lines - a set
+made once before the loop and searched instead - and says why it is quicker. That takes all of these: the list is the
+function's own, made from a literal or a copy, and is never handed to other code or seen by a nested function; the loop
+only reads it; it has its value on every way to the loop; its items compare the same way in a set (plain values in
+Python, `String`, `Integer` and the like in Java, `string`, `int` and the like in C#, anything in JavaScript, whose
+`Set.has` compares exactly as `includes` does); and the new line cannot land inside anything else, such as an `if`
+written without braces. A Java or C# change also has to compile before it is shown. Searching text for a piece of text
+is never changed this way. C and C++ are not checked for this: FixFinder's reader does not follow C++'s template types,
+and a member `count` or `find` there belongs to a set or a map as often as to a string.
+
+Text built a piece at a time in a Java or C# loop - `text += name` - is reported too (CWE-1046): a string there never
+changes once made, so each `+=` makes a new one and copies all the text built so far into it, and the work grows with
+the square of the number of pieces. Python and JavaScript are left out, since CPython usually grows the string in place
+and JavaScript engines join strings lazily. The change offered builds the text in a `StringBuilder` - made from it before
+the loop, added to inside, and turned back into the text after - and only where it gives the same text: the text is the
+function's own and starts as written text, so it is never null; each piece is text, a character, a number or a truth
+value, which a `StringBuilder` writes exactly as `+` does, and `text = text + a + b` adds `a` and then `b` rather than
+their sum; nothing reads the text inside the loop or from a lambda written in the function; and the loop is not inside a
+`try`, where a `catch` could read the text half built. A `var` counts as a string when it is given written text, and a
+loop's `var` takes the type of the items its collection is declared to hold - `List<string>`, `String[]`. The logic
+lane's own pattern for the same `+=` is folded into this finding, so the line is reported once.
+
+Taking the first item out of a list, or putting one in front of it, inside a loop is reported as well - `queue.pop(0)`
+or `history.insert(0, line)` in Python, `remove(0)` or `add(0, x)` on a Java `ArrayList`, `RemoveAt(0)` or
+`Insert(0, x)` on a C# `List`. Each language's documentation says these move every other item one place, so doing one on
+every pass makes the work grow with the passes times the length of the list, and a queue emptied from the front costs the
+square of its length. Only a list the code shows moves its items is reported: a Java list only when every value it can
+hold is made as an `ArrayList`, since a `LinkedList` takes from its front without moving anything, and never a deque, a
+dictionary or a parameter nothing describes. A loop with a number of passes written into the code - `range(3)`, a list
+written out in full, `i < 3` - does the moving a fixed number of times and is left alone, as is a loop over the same list,
+which the check for a collection changed while looping covers. No change is offered: a `deque`, an `ArrayDeque` or a
+`Queue` does not do everything a list does - a deque has no slices, an `ArrayDeque` holds no nulls, and neither an
+`ArrayDeque` nor a `Queue` can be read by position - so the guide shows what to use, and whether it fits is left to
+whoever knows the rest of the program. JavaScript's `shift()` is left out, since how long it takes is up to the engine rather than the language.
+
+Within a session, **only what an edit could change is analysed again**. FixFinder keeps what each function's analysis
+found, filed under everything that analysis depends on: the function's own lines and where they are; every function it
+can call - found by name, so a call through any object still counts, and by following its calls through what its module
+imports, so a function imported under a name of its own counts too - and every function those can call; every line
+outside a function in every file; and the list of every function, with what each declares global. After an edit, a
+function is analysed again only if one of those changed, and the logic lane says how many were unchanged. The summaries
+of what each function returns, and the checks across the whole program - threads, locks, text from outside, repeated
+work - are always worked out afresh. The tests compare every result taken from the cache with a fresh analysis of the
+same code.
+
 The two checks run side by side. The only wait is that the expected output can be checked once the program builds.
 
 ## How much is checked
@@ -204,7 +366,13 @@ Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a ge
 
 Each check is written to stay quiet when it is not sure, because a check that fires on correct code teaches people to
 ignore it. The newest checks were run over large bodies of working code - Python's standard library, part of the JDK's
-own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test.
+own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test. So are
+fifty-two correct programs written the way each language is really written - Python dataclasses, match statements
+and threads; Java records, streams and executors; C# LINQ and pattern matching; JavaScript classes, prototypes and
+async functions; C that manages its own memory; C++ templates, lambdas, RAII and overloaded operators; Go generics and
+goroutines - and correct code written to look like the mistakes the patterns look for. Each must be read whole and draw
+no error or warning, beside programs split into modules whose mistakes cross from one file to another and must be found
+where the call is made.
 
 ## Searching online
 
@@ -221,12 +389,43 @@ permissions selected** raises those limits; FixFinder only reads public data, so
 encrypted with Windows DPAPI under your account, and responses are cached as plain JSON under
 `%LOCALAPPDATA%\FixFinder\cache`. Settings shows what is stored where, and which languages this computer can run.
 
+## From your editor
+
+`fixfinder` runs the same check from a terminal or from any editor's task, and prints each finding as one line in the
+format compilers use - so the findings land in the editor's own list of problems, and a click goes to the line. Nothing
+has to be installed into the editor.
+
+```
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll marks.py
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68" --level beginner
+```
+
+| | |
+|---|---|
+| `--format msbuild` | The default. The format Visual Studio and Rider use, and the one VS Code's built-in `$msCompile` reads - checked against that matcher's pattern, copied from VS Code's source, in `CommandLineTests`. |
+| `--format gcc` | `file:line:column: error: message`, for tools that expect gcc's form, Eclipse among them. A suggestion is a `note`, since gcc's form has no word for it. |
+| `--format json` | Everything each finding says, for another program to use. |
+| `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
+| `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
+
+It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
+findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a
+problem. It exits with 0 when nothing is wrong, 1 when there is at least one error - so a build step can stop on it - and
+2 when the program could not be checked at all. The language versions chosen in Settings apply here too.
+
+**VS Code:** copy `Editors/vscode-tasks.json` into your project's `.vscode/tasks.json` and change the path to
+`fixfinder.dll`. *Terminal → Run Task → FixFinder: check this file* checks whatever file is open.
+
+**Eclipse, Visual Studio, and anything else with external tools:** add `dotnet` as an external tool with the path to
+`fixfinder.dll` and the current file as its arguments, choosing `--format gcc` where the tool reads gcc's form.
+
 ## Layout
 
 | Project | |
 |---|---|
 | `FixFinder.Core` | Everything but the window. `net8.0`, so the tests run without a desktop. |
 | `FixFinder.Gui` | The WPF window. |
+| `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |
 

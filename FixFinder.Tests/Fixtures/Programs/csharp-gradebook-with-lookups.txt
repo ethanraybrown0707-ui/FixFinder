@@ -1,0 +1,86 @@
+==> Gradebook.cs <==
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public record Student(string Name, int Year);
+
+public sealed class Gradebook
+{
+    private readonly Dictionary<string, List<int>> _marks = new();
+    private readonly List<Student> _students = new();
+
+    public void Enrol(Student student)
+    {
+        ArgumentNullException.ThrowIfNull(student);
+        if (_students.Any(s => s.Name == student.Name)) throw new InvalidOperationException($"{student.Name} is already enrolled");
+        _students.Add(student);
+    }
+
+    public bool Record(string name, string text)
+    {
+        if (!int.TryParse(text, out var mark) || mark is < 0 or > 100) return false;
+        if (!_marks.TryGetValue(name, out var marks))
+        {
+            marks = new List<int>();
+            _marks[name] = marks;
+        }
+        marks.Add(mark);
+        return true;
+    }
+
+    public double? Average(string name)
+    {
+        var marks = _marks.GetValueOrDefault(name);
+        return marks is { Count: > 0 } ? marks.Average() : null;
+    }
+
+    public string Grade(string name) => Average(name) switch
+    {
+        null => "no marks",
+        >= 70 => "first",
+        >= 60 => "upper second",
+        >= 50 => "lower second",
+        >= 40 => "third",
+        _ => "fail",
+    };
+
+    public Student? Oldest() => _students.OrderBy(s => s.Year).FirstOrDefault();
+
+    public IEnumerable<string> Ranked()
+    {
+        foreach (var student in _students.OrderByDescending(s => Average(s.Name) ?? -1).ThenBy(s => s.Name))
+        {
+            yield return $"{student.Name,-6} {Grade(student.Name)}";
+        }
+    }
+}
+
+public static class Program
+{
+    public static void Main()
+    {
+        var book = new Gradebook();
+        foreach (var (name, year) in new[] { ("ada", 2021), ("alan", 2019), ("grace", 2022) }) book.Enrol(new Student(name, year));
+
+        var entries = new[] { ("ada", "72"), ("ada", "68"), ("alan", "55"), ("alan", "abc"), ("grace", "101"), ("grace", "39") };
+        var rejected = entries.Count(entry => !book.Record(entry.Item1, entry.Item2));
+        Console.WriteLine($"rejected {rejected}");
+
+        var oldest = book.Oldest();
+        Console.WriteLine(oldest is null ? "nobody" : $"{oldest.Name} started in {oldest.Year}");
+        foreach (var line in book.Ranked()) Console.WriteLine(line);
+
+        var renamed = oldest! with { Name = "alan t." };
+        Console.WriteLine($"{renamed.Name} {book.Average("nobody")?.ToString() ?? "-"}");
+
+        try
+        {
+            book.Enrol(new Student("ada", 2023));
+        }
+        catch (InvalidOperationException problem)
+        {
+            Console.WriteLine(problem.Message);
+        }
+    }
+}

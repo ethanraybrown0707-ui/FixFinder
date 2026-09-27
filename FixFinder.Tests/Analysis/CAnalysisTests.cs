@@ -236,6 +236,75 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task AnElementOfALocalArrayIsNotHandedBack()
+    {
+        const string code = """
+            int *first_score(void)
+            {
+                int scores[3] = {90, 75, 60};
+                return &scores[0];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.Contains(findings, f => f.CheckId == "analysis-dangling-pointer" && f.Span.Line == 4);
+    }
+
+    [Fact]
+    public async Task TheAddressOfSomethingThatOutlivesTheFunctionIsSafeToHandBack()
+    {
+        const string code = """
+            int total = 0;
+
+            int *running_total(void)
+            {
+                return &total;
+            }
+
+            int *call_count(void)
+            {
+                static int calls;
+                calls++;
+                return &calls;
+            }
+
+            int *second_slot(void)
+            {
+                int *slots = malloc(4 * sizeof(int));
+                return &slots[1];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-dangling-pointer");
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-uninitialised-read");
+    }
+
+    [Fact]
+    public async Task AStaticLocalIsSetOnceAndKeepsItsValueBetweenCalls()
+    {
+        const string code = """
+            int share_of_calls(void)
+            {
+                static int calls = 0;
+                int share = 0;
+                if (calls > 0)
+                {
+                    share = 100 / calls;
+                }
+                calls++;
+                return share;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId is "analysis-never-true" or "analysis-always-true");
+    }
+
+    [Fact]
     public async Task MemoryThatMayNotHaveBeenGivenIsCheckedBeforeItIsUsed()
     {
         const string code = """
@@ -294,6 +363,32 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
 
         var division = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero");
         Assert.Contains("undefined behaviour", division.Message);
+    }
+
+    /// <summary>
+    /// A number takes the type of the variable it is kept in: 0 in a double divides into infinity, which is no crash,
+    /// while 0.5 in an int is 0, which is.
+    /// </summary>
+    [Fact]
+    public async Task ANumberTakesTheTypeOfTheVariableItIsKeptIn()
+    {
+        const string code = """
+            #include <stdio.h>
+
+            int main(void)
+            {
+                double share = 0;
+                printf("%f\n", 10 / share);
+                int whole = 0.5;
+                printf("%d\n", 10 / whole);
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var division = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero");
+        Assert.Equal(8, division.Span.Line);
     }
 
     [Fact]
@@ -356,5 +451,524 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         var (_, findings) = await CheckAsync(code);
 
         Assert.Contains(findings, f => f.CheckId == "analysis-uninitialised-read" && f.Span.Line == 6);
+    }
+
+    /// <summary>
+    /// A variable whose address a loop's condition hands to a call - while (next(&amp;value)) - is filled in by that call,
+    /// as it would be by the same call written as a statement.
+    /// </summary>
+    [Fact]
+    public async Task AVariableFilledInThroughALoopConditionIsNotUnset()
+    {
+        const string code = """
+            #include <stdio.h>
+
+            int next(int *value);
+
+            int main(void)
+            {
+                int value;
+                while (next(&value)) {
+                    printf("%d\n", value);
+                }
+                if (next(&value) && value > 0) {
+                    printf("%d\n", value);
+                }
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-uninitialised-read");
+    }
+
+    /// <summary>
+    /// Freeing a field frees what the field points at, not the struct holding it: after free(vector->items) the vector is
+    /// still there to clear, and freeing an entry's key and then the entry frees each of them once.
+    /// </summary>
+    [Fact]
+    public async Task FreeingAFieldLeavesItsHolderAlone()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                int *items;
+                int length;
+            } Vector;
+
+            typedef struct Entry {
+                char *key;
+                struct Entry *next;
+            } Entry;
+
+            void vector_free(Vector *vector)
+            {
+                free(vector->items);
+                vector->items = NULL;
+                vector->length = 0;
+            }
+
+            void entry_free(Entry *entry)
+            {
+                free(entry->key);
+                free(entry);
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId is "analysis-use-after-free" or "analysis-double-free");
+    }
+
+    /// <summary>What a field pointed at is still gone when it is reached through that field again.</summary>
+    [Fact]
+    public async Task UsingWhatAFieldPointedAtAfterFreeingItIsFound()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                int *items;
+                int length;
+            } Vector;
+
+            int first(Vector *vector)
+            {
+                free(vector->items);
+                return vector->items[0];
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var used = Assert.Single(findings, f => f.CheckId == "analysis-use-after-free");
+        Assert.Equal(11, used.Span.Line);
+        Assert.StartsWith("`vector->items` was freed on line 10", used.Message);
+    }
+
+    /// <summary>
+    /// Freeing a struct before the fields it points to: reaching student->name then goes through memory already gone,
+    /// and the finding names the field that is reached, not only the struct.
+    /// </summary>
+    [Fact]
+    public async Task FreeingTheFieldsOfAFreedStructIsFound()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct {
+                char *name;
+                int *marks;
+            } Student;
+
+            void free_student(Student *student)
+            {
+                free(student);
+                free(student->name);
+                free(student->marks);
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        var freed = findings.Where(f => f.CheckId == "analysis-use-after-free").ToList();
+        Assert.Equal([11, 12], freed.Select(f => f.Span.Line));
+        Assert.Equal("`student` was freed on line 10, so `student->name` goes through memory that is no longer there - undefined behaviour", freed[0].Message);
+    }
+
+    /// <summary>C stores with an expression too - heads[0] = entry; - and the memory stored is the array's to free from then on.</summary>
+    [Fact]
+    public async Task MemoryStoredInSomethingElseIsNotLost()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct Entry {
+                int key;
+                struct Entry *next;
+            } Entry;
+
+            static Entry *heads[4];
+
+            int add(int key)
+            {
+                Entry *entry = malloc(sizeof(Entry));
+                if (entry == NULL) {
+                    return -1;
+                }
+                entry->key = key;
+                entry->next = heads[0];
+                heads[0] = entry;
+                return 0;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-memory-leak");
+    }
+
+    /// <summary>
+    /// A name declared again - in a second loop, or after a loop that declared it - is a variable of its own. The second
+    /// loop's i starts from 0 whatever the first left in its i, and the entry made after the loop is not the loop's own
+    /// entry, which is NULL by then.
+    /// </summary>
+    [Fact]
+    public async Task ANameDeclaredAgainIsAVariableOfItsOwn()
+    {
+        const string code = """
+            #include <stdlib.h>
+
+            typedef struct Entry {
+                int key;
+                struct Entry *next;
+            } Entry;
+
+            int total(void)
+            {
+                int big[5] = {1, 2, 3, 4, 5};
+                int small[3] = {1, 2, 3};
+                int sum = 0;
+                for (int i = 0; i < 5; i++) {
+                    sum += big[i];
+                }
+                for (int i = 0; i < 3; i++) {
+                    sum += small[i];
+                }
+                return sum;
+            }
+
+            Entry *push(Entry *head, int key)
+            {
+                for (Entry *entry = head; entry != NULL; entry = entry->next) {
+                    if (entry->key == key) {
+                        return head;
+                    }
+                }
+                Entry *entry = malloc(sizeof(Entry));
+                if (entry == NULL) {
+                    return head;
+                }
+                entry->key = key;
+                entry->next = head;
+                return entry;
+            }
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>C++ written the modern way is read whole: structured bindings, templates closed with >>, and catch clauses.</summary>
+    [Fact]
+    public async Task ModernCppIsReadWhole()
+    {
+        const string code = """
+            #include <map>
+            #include <memory>
+            #include <stdexcept>
+            #include <string>
+            #include <utility>
+
+            int count(const std::map<std::string, std::unique_ptr<int>> &values)
+            {
+                int total = 0;
+                for (const auto &[name, value] : values) {
+                    total += *value;
+                }
+                auto [smallest, largest] = std::make_pair(1, 2);
+                try {
+                    total += largest - smallest;
+                } catch (const std::out_of_range &problem) {
+                    total = -1;
+                } catch (...) {
+                    total = -2;
+                }
+                return total;
+            }
+            """;
+
+        var (program, _) = await CheckAsync(code, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        var body = IrWalk.Statements(Assert.Single(program.Functions, f => f.Name == "count").Body).ToList();
+        Assert.Contains(body, statement => statement is Try { Handlers.Count: 2 });
+        Assert.Contains(body, statement => statement is ForEach { Target: CollectionLiteral { Items.Count: 2 } });
+    }
+
+    /// <summary>
+    /// Declarations C++ writes with a namespace, a template, a reference, braces or inside an if are declarations - not
+    /// comparisons like std::vector &lt; Item &gt; items - and a lambda is a function of its own inside the one around it.
+    /// </summary>
+    [Fact]
+    public async Task ModernCppDeclarationsAndLambdasAreRead()
+    {
+        const string code = """
+            #include <algorithm>
+            #include <map>
+            #include <optional>
+            #include <string>
+            #include <vector>
+
+            struct Item {
+                std::string name;
+                int price;
+            };
+
+            std::optional<int> price_of(const std::vector<Item> &items, const std::string &name)
+            {
+                auto found = std::find_if(items.begin(), items.end(), [&name](const Item &item) { return item.name == name; });
+                if (found == items.end()) {
+                    return std::nullopt;
+                }
+                return found->price;
+            }
+
+            int total()
+            {
+                std::vector<Item> items{{"pen", 3}, {"pad", 5}};
+                std::map<std::string, int>::size_type kinds = 2;
+                Item &first = items[0];
+                int sum = first.price;
+                if (auto price = price_of(items, "pad")) {
+                    sum += *price;
+                }
+                if (auto price = price_of(items, "pen"); price.has_value()) {
+                    sum += *price;
+                }
+                std::sort(items.begin(), items.end(), [](const Item &left, const Item &right) { return left.price < right.price; });
+                return sum + static_cast<int>(kinds);
+            }
+            """;
+
+        var (program, _) = await CheckAsync(code, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        var declared = IrWalk.Statements(Assert.Single(program.Functions, f => f.Name == "total").Body).OfType<Declare>().Select(d => d.Variable).ToList();
+        Assert.Equal(["items", "kinds", "first", "sum", "price", "price'"], declared);
+
+        var lambdas = program.Functions.Where(f => f.Name.StartsWith("lambda at line", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["price_of", "total"], lambdas.Select(lambda => lambda.EnclosedBy));
+        Assert.Equal(["item"], lambdas[0].Parameters.Select(p => p.Name));
+    }
+
+    /// <summary>
+    /// strtoll(text, &amp;end, 10) sets end through the address it is given, so end is no longer the NULL it started as -
+    /// which is how every C program reads a number and checks what follows it.
+    /// </summary>
+    [Fact]
+    public async Task AVariableWhoseAddressIsHandedToACallIsNoLongerKnown()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <stdlib.h>
+
+            int read_whole(const char *text, long long *value) {
+                char *end = NULL;
+                *value = strtoll(text, &end, 10);
+                return end != text && *end == '\0';
+            }
+            """);
+
+        Assert.Equal(["end"], Assert.Single(program.Functions).AddressTaken);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-null-used");
+    }
+
+    /// <summary>
+    /// An address handed to a function that only reads and writes through it is not kept, so only that call changes the
+    /// variable: after count = 0 and an unrelated call, count is still 0 where it divides, which is reported.
+    /// </summary>
+    [Fact]
+    public async Task AnAddressKeptByNothingIsChangedOnlyByTheCallGivenIt()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <stdio.h>
+
+            static void bump(int *count) {
+                (*count)++;
+            }
+
+            int divide_after_counting(void) {
+                int count = 0;
+                bump(&count);
+                count = 0;
+                printf("counted again from zero\n");
+                return 100 / count;
+            }
+            """);
+
+        var dividing = program.AllFunctions.Single(f => f.Name == "divide_after_counting");
+        Assert.Empty(FixFinder.Core.Analysis.Abstract.HandedAddresses.Of(dividing, program).Kept);
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 12);
+    }
+
+    /// <summary>An address that may be kept - here in a global another function writes through - can be changed by any later call.</summary>
+    [Fact]
+    public async Task AnAddressThatMayBeKeptIsChangedByAnyLaterCall()
+    {
+        var (program, findings) = await CheckAsync("""
+            static int *remembered;
+
+            static void remember(int *count) {
+                remembered = count;
+            }
+
+            static void bump_remembered(void) {
+                (*remembered)++;
+            }
+
+            int divide_after_remembering(void) {
+                int count = 0;
+                remember(&count);
+                count = 0;
+                bump_remembered();
+                return 100 / count;
+            }
+            """);
+
+        var dividing = program.AllFunctions.Single(f => f.Name == "divide_after_remembering");
+        Assert.Equal(["count"], FixFinder.Core.Analysis.Abstract.HandedAddresses.Of(dividing, program).Kept);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
+    /// <summary>
+    /// What changes a variable through its address - sscanf in a condition, *where = 5, (*where)++ - is followed, and a
+    /// division made before anything could change it is still reported.
+    /// </summary>
+    [Theory]
+    [InlineData("read by sscanf in the condition", false, "int f(const char *text) {\n    int x = 0;\n    if (sscanf(text, \"%d\", &x) == 1) {\n        return 100 / x;\n    }\n    return 0;\n}")]
+    [InlineData("written through a pointer", false, "int f(void) {\n    int count = 0;\n    int *where = &count;\n    *where = 5;\n    return 100 / count;\n}")]
+    [InlineData("incremented through a pointer", false, "int f(void) {\n    int count = 0;\n    int *where = &count;\n    (*where)++;\n    return 100 / count;\n}")]
+    [InlineData("divided before the call that changes it", true, "int f(void) {\n    int count = 0;\n    int result = 100 / count;\n    scanf(\"%d\", &count);\n    return result;\n}")]
+    public async Task WhatChangesAVariableThroughItsAddressIsFollowed(string shape, bool reported, string function)
+    {
+        var (_, findings) = await CheckAsync("#include <stdio.h>\n\n" + function + "\n");
+
+        Assert.True(findings.Any(f => f.CheckId == "analysis-division-by-zero") == reported, $"{shape}: {string.Join("; ", findings.Select(f => f.Message))}");
+    }
+
+    /// <summary>
+    /// An overloaded operator is read as a function of its own - operator* and operator() in a class, operator&lt;&lt;
+    /// outside one - so what is inside it is checked like any other function, and what follows it is read as written.
+    /// </summary>
+    [Fact]
+    public async Task OverloadedOperatorsAreReadAsFunctions()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <ostream>
+
+            class Ratio {
+            public:
+                Ratio(int top, int bottom) : top_(top), bottom_(bottom) {}
+
+                Ratio operator*(const Ratio& other) const {
+                    Ratio product(top_ * other.top_, bottom_ * other.bottom_);
+                    return product;
+                }
+
+                int operator()(int scale) const {
+                    int nothing = 0;
+                    return scale * top_ / nothing;
+                }
+
+                int top_;
+                int bottom_;
+            };
+
+            std::ostream& operator<<(std::ostream& out, const Ratio& ratio) {
+                return out << ratio.top_ << '/' << ratio.bottom_;
+            }
+
+            int after_the_operators(void) {
+                int zero = 0;
+                return 10 / zero;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator*" && f.Owner == "Ratio");
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator()" && f.Owner == "Ratio");
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator<<");
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 14);
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 27);
+    }
+
+    /// <summary>
+    /// In C++, &lt;&lt; and &gt;&gt; on a stream are the stream's own operators: std::cin &gt;&gt; count gives count the
+    /// number typed, and a loop reading words until the stream runs out ends when it does. A shift of a whole number is
+    /// still a shift.
+    /// </summary>
+    [Fact]
+    public async Task CppStreamOperatorsReadAndWriteRatherThanShift()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <iostream>
+            #include <sstream>
+            #include <string>
+
+            int average_of_typed(int total) {
+                int count = 0;
+                std::cin >> count;
+                return total / count;
+            }
+
+            int words_in(const std::string &text) {
+                std::istringstream words(text);
+                std::string word;
+                int seen = 0;
+                while (words >> word) {
+                    ++seen;
+                }
+                std::cout << "words: " << seen << '\n';
+                return seen;
+            }
+
+            int shifted(int value) {
+                int nothing = 0;
+                return (value << 2) / nothing;
+            }
+            """, "main.cpp");
+
+        var typed = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 8);
+        Assert.Contains("the number typed at line 7", typed.Message);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-loop-never-ends");
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 24);
+    }
+
+    /// <summary>exit never returns, so the division after a guard that exits on 0 cannot be reached with 0.</summary>
+    [Fact]
+    public async Task ExitEndsTheWayThroughTheFunction()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <stdio.h>
+            #include <stdlib.h>
+
+            int ratio(int total, int parts) {
+                if (parts == 0) {
+                    fprintf(stderr, "no parts\n");
+                    exit(1);
+                }
+                return total / parts;
+            }
+            """);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
+    /// <summary>With no address handed out, end is still NULL where it is read, and the finding quotes the read as C writes it.</summary>
+    [Fact]
+    public async Task ReadingThroughANullPointerIsQuotedAsTheCodeWritesIt()
+    {
+        var (_, findings) = await CheckAsync("""
+            int first_letter(void) {
+                char *end = NULL;
+                return *end == 'x';
+            }
+            """);
+
+        var finding = Assert.Single(findings, f => f.CheckId == "analysis-null-used");
+        Assert.StartsWith("`end` is NULL here, so reading `*end` fails", finding.Message);
     }
 }

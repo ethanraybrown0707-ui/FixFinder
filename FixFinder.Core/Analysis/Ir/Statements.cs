@@ -7,7 +7,27 @@ public sealed record Evaluate(SourceSpan Span, Expr Value) : Stmt(Span);
 
 public sealed record Assign(SourceSpan Span, Expr Target, Expr Value, BinaryOperator? Compound = null) : Stmt(Span);
 
-public sealed record Declare(SourceSpan Span, string Variable, IrType Type, Expr? Initial) : Stmt(Span);
+public sealed record Declare(SourceSpan Span, string Variable, IrType Type, Expr? Initial) : Stmt(Span)
+{
+    /// <summary>How long the variable's memory lasts. Only C and C++ declare anything but an ordinary local.</summary>
+    public Lifetime Lifetime { get; init; }
+}
+
+/// <summary>How long a local variable's memory lasts, which decides whether its address is still good once the function returns.</summary>
+public enum Lifetime
+{
+    /// <summary>Made each time the declaration runs and gone when the function returns: an ordinary local.</summary>
+    Call,
+
+    /// <summary>
+    /// Made once and kept beyond the call - static and extern for the whole run, thread_local for the thread's - so it is
+    /// set up once, not each time the declaration runs, and holds whatever the last call left in it.
+    /// </summary>
+    Program,
+
+    /// <summary>Memory that belongs to something else, which the variable is only another name for: a C++ reference.</summary>
+    Borrowed,
+}
 
 public sealed record If(SourceSpan Span, Expr Condition, IReadOnlyList<Stmt> Then, IReadOnlyList<Stmt> Else) : Stmt(Span);
 
@@ -30,7 +50,8 @@ public sealed record Labeled(SourceSpan Span, string Label, IReadOnlyList<Stmt> 
 
 public sealed record Throw(SourceSpan Span, Expr? Exception) : Stmt(Span);
 
-public sealed record Handler(SourceSpan Span, IReadOnlyList<string> ExceptionTypes, string? Variable, IReadOnlyList<Stmt> Body);
+/// <param name="Filtered">Whether the handler only catches when a test passes - C#'s catch (X e) when (...) - so it may not catch at all.</param>
+public sealed record Handler(SourceSpan Span, IReadOnlyList<string> ExceptionTypes, string? Variable, IReadOnlyList<Stmt> Body, bool Filtered = false);
 
 public sealed record Try(
     SourceSpan Span, IReadOnlyList<Stmt> Body, IReadOnlyList<Handler> Handlers, IReadOnlyList<Stmt> Else, IReadOnlyList<Stmt> Finally)
@@ -42,8 +63,18 @@ public sealed record SwitchCase(IReadOnlyList<Expr> Labels, IReadOnlyList<Stmt> 
 
 public sealed record Switch(SourceSpan Span, Expr Subject, IReadOnlyList<SwitchCase> Cases) : Stmt(Span);
 
-/// <summary>A resource used for a block and closed after it: Python's <c>with</c>, C#'s <c>using</c>, Java's try-with-resources.</summary>
-public sealed record Using(SourceSpan Span, Expr Resource, Expr? Variable, IReadOnlyList<Stmt> Body) : Stmt(Span);
+/// <summary>What a <see cref="Using"/> block is for: a lock held while it runs, a resource closed after it, or - Python's with - either.</summary>
+public enum UsingPurpose { Either, Lock, Resource }
+
+/// <summary>
+/// A resource used for a block and closed after it - Python's <c>with</c>, C#'s <c>using</c>, Java's try-with-resources -
+/// or a lock held for one: Java's <c>synchronized</c>, C#'s <c>lock</c>.
+/// </summary>
+public sealed record Using(SourceSpan Span, Expr Resource, Expr? Variable, IReadOnlyList<Stmt> Body) : Stmt(Span)
+{
+    /// <summary>Whether the language says which it is. A C# using is never a lock, however much it looks like one.</summary>
+    public UsingPurpose Purpose { get; init; }
+}
 
 /// <summary>A statement the front end could not represent; the names it may change are forgotten.</summary>
 public sealed record OpaqueStmt(SourceSpan Span, string What, IReadOnlyList<string> MayAssign, IReadOnlyList<Expr> Parts) : Stmt(Span);

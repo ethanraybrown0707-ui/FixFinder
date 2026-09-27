@@ -273,25 +273,81 @@ internal sealed class JsLexer(string source)
                 _line++;
                 _lineStart = _at;
                 break;
-            case 'x' when _at + 1 < source.Length:
-                value.Append((char)Convert.ToInt32(source.Substring(_at, 2), 16));
-                _at += 2;
+            // The digits after \x, \u and \u{ are read only when they really are hexadecimal. JavaScript itself rejects
+            // "\xzz" or "\u{}" as a syntax error, so that is what is reported - the same way an unclosed string is -
+            // rather than letting the conversion throw on a program somebody is half way through typing.
+            case 'x':
+                if (Hex(2) is { } code) value.Append((char)code);
+                else Malformed(@"\x has to be followed by two hexadecimal digits");
                 break;
             case 'u' when At() == '{':
                 var close = source.IndexOf('}', _at);
-                if (close < 0) break;
-                value.Append(char.ConvertFromUtf32(Convert.ToInt32(source[(_at + 1)..close], 16)));
-                _at = close + 1;
+                if (close > _at && CodePoint(source.AsSpan(_at + 1, close - _at - 1)) is { } point)
+                {
+                    // A lone surrogate is allowed in a JavaScript string, which is a sequence of UTF-16 code units, so a
+                    // point that fits in one is written as one rather than refused.
+                    if (point <= 0xFFFF) value.Append((char)point);
+                    else value.Append(char.ConvertFromUtf32(point));
+                    _at = close + 1;
+                }
+                else Malformed(@"\u{...} has to hold a code point of up to 10FFFF in hexadecimal");
                 break;
-            case 'u' when _at + 3 < source.Length:
-                value.Append((char)Convert.ToInt32(source.Substring(_at, 4), 16));
-                _at += 4;
+            case 'u':
+                if (Hex(4) is { } unit) value.Append((char)unit);
+                else Malformed(@"\u has to be followed by four hexadecimal digits, or by a code point in braces");
                 break;
             default:
                 value.Append(c);
                 break;
         }
     }
+
+    /// <summary>The next few characters as a hexadecimal number, taken off the input only when that is what they are.</summary>
+    private int? Hex(int digits)
+    {
+        if (_at + digits > source.Length) return null;
+
+        var number = 0;
+        for (var i = 0; i < digits; i++)
+        {
+            if (Digit(source[_at + i]) is not { } value) return null;
+            number = number * 16 + value;
+        }
+
+        _at += digits;
+        return number;
+    }
+
+    /// <summary>
+    /// The inside of \u{...} as a code point, or null when it is not one: empty, not hexadecimal, or beyond the last
+    /// code point there is. Leading zeros are allowed, as JavaScript allows them, so the length alone decides nothing.
+    /// </summary>
+    private static int? CodePoint(ReadOnlySpan<char> digits)
+    {
+        if (digits.IsEmpty) return null;
+
+        var point = 0;
+        foreach (var character in digits)
+        {
+            if (Digit(character) is not { } value) return null;
+
+            point = point * 16 + value;
+            if (point > 0x10FFFF) return null;
+        }
+
+        return point;
+    }
+
+    private static int? Digit(char character) => character switch
+    {
+        >= '0' and <= '9' => character - '0',
+        >= 'a' and <= 'f' => character - 'a' + 10,
+        >= 'A' and <= 'F' => character - 'A' + 10,
+        _ => null,
+    };
+
+    /// <summary>An escape JavaScript would refuse: reported like any other problem, keeping the first one found.</summary>
+    private void Malformed(string what) => Problem ??= $"line {_line}: {what}";
 
     /// <summary>A template literal, with the code inside ${...} kept as text for the parser to read on its own.</summary>
     private JsToken Template(int line, int column, bool newline)

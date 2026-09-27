@@ -4,6 +4,10 @@ using System.Windows;
 using FixFinder.Core.Http;
 using FixFinder.Core.Security;
 
+using System.Windows.Controls;
+using FixFinder.Core.Engine;
+using FixFinder.Core.Execution;
+
 namespace FixFinder.Gui;
 
 /// <summary>Holds the two optional API credentials and shows what is stored on disk.</summary>
@@ -24,6 +28,13 @@ public partial class SettingsWindow : Window
         CredentialPathText.Text = TokenStore.FilePath;
         ToolchainsText.Text = string.Join(Environment.NewLine, Core.Execution.Toolchains.Describe());
 
+        AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
+
+        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "Compiler's default" : choice.ToUpperInvariant());
+        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Replace("c++", "C++"));
+        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The installed JDK" : $"Java {choice}");
+        _standardsReady = true;
+
         RefreshCredentialState();
         RefreshCacheState();
 
@@ -34,6 +45,58 @@ public partial class SettingsWindow : Window
             StackExchangeKeyBox.IsEnabled = false;
             SaveSettingsButton.IsEnabled = false;
         }
+    }
+
+    /// <summary>What the person chose last time, read once so changing it here can be written straight back.</summary>
+    private readonly Preferences _preferences = Preferences.Load();
+
+    /// <summary>
+    /// Repaints the whole application at once, and writes the choice down.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is checked again and no finding moves: the colours are the only thing this touches. Failing to write
+    /// the preference is not worth interrupting anybody over - it holds for this session either way.
+    /// </remarks>
+    private void Appearance_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (AppearanceBox.SelectedIndex < 0) return;
+
+        var chosen = (AppearanceChoice)AppearanceBox.SelectedIndex;
+        if (chosen == _preferences.Appearance) return;
+
+        _preferences.Appearance = chosen;
+        Theme.Apply(chosen);
+        _preferences.Save();
+    }
+
+    /// <summary>Set once the boxes are filled, so filling them is not mistaken for somebody choosing.</summary>
+    private bool _standardsReady;
+
+    /// <summary>One version box: every listed choice, named for a reader, with the saved one selected.</summary>
+    private static void Fill(ComboBox box, string[] choices, string saved, Func<string, string> named)
+    {
+        foreach (var choice in choices) box.Items.Add(new ComboBoxItem { Content = named(choice), Tag = choice });
+
+        var index = Array.IndexOf(choices, saved);
+        box.SelectedIndex = index >= 0 ? index : 0;
+    }
+
+    private static string Chosen(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+
+    /// <summary>
+    /// Takes effect for the next build and the next fix checked, and is written down. A program already checked is not
+    /// checked again: the report on screen was made under the version that was set when it was made.
+    /// </summary>
+    private void Standard_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_standardsReady) return;
+
+        _preferences.CStandard = Chosen(CStandardBox);
+        _preferences.CppStandard = Chosen(CppStandardBox);
+        _preferences.JavaRelease = Chosen(JavaReleaseBox);
+
+        LanguageStandards.Current = _preferences.Standards;
+        _preferences.Save();
     }
 
     private void RefreshCredentialState()

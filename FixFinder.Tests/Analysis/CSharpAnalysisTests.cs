@@ -75,6 +75,7 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("analysis-division-by-zero", "Possible", "    static int Average(int[] values)\n    {\n        int total = 0;\n        int count = 0;\n        foreach (var v in values)\n        {\n            total += v;\n            count++;\n        }\n        return total / count;\n    }", "total / count")]
     [InlineData("analysis-division-by-zero", "Certain", "    static int F()\n    {\n        int n = 0;\n        return 10 / n;\n    }", "10 / n")]
     [InlineData("analysis-division-by-zero", "Possible", "    static int Mean(List<int> scores)\n    {\n        int total = 0;\n        foreach (var s in scores) total += s;\n        return total / scores.Count;\n    }", "total / scores.Count")]
+    [InlineData("analysis-division-by-zero", "Certain", "    static decimal F()\n    {\n        decimal price = 0;\n        return 10 / price;\n    }", "10 / price")]
     [InlineData("analysis-null-used", "Possible", "    static string Label(int score)\n    {\n        string message = null;\n        if (score > 90) message = \"top\";\n        return message.ToUpper();\n    }", "message.ToUpper()")]
     [InlineData("analysis-null-used", "Possible", "    static int NameLength(App person)\n    {\n        var name = person?.ToString();\n        return name.Length;\n    }", "name.Length")]
     [InlineData("analysis-index-out-of-range", "Certain", "    static int F()\n    {\n        int[] points = { 3, 5, 8 };\n        return points[3];\n    }", "points[3]")]
@@ -125,10 +126,28 @@ public class CSharpAnalysisTests : IDisposable
     [InlineData("the last case of a switch", "    static int F(int kind)\n    {\n        if (kind < 1 || kind > 2) return 0;\n        switch (kind)\n        {\n            case 1: return 10;\n            case 2: return 20;\n        }\n        return 0;\n    }")]
     [InlineData("a dictionary initializer", "    static int F()\n    {\n        var ages = new Dictionary<string, int> { [\"a\"] = 1, { \"b\", 2 } };\n        return ages[\"a\"];\n    }")]
     [InlineData("a deconstructed tuple", "    static int F((int, int) pair)\n    {\n        var (a, b) = pair;\n        if (b == 0) return 0;\n        return a / b;\n    }")]
+    [InlineData("a whole number kept in a double", "    static double F()\n    {\n        double d = 0;\n        return 10 / d;\n    }")]
+    [InlineData("a whole number kept in a float", "    static float F()\n    {\n        float f = 0;\n        return 10 / f;\n    }")]
+    [InlineData("a double that a method returns", "    static double Zero() { return 0; }\n    static double F() => 10 / Zero();")]
+    [InlineData("a number written with thousands separators", "    static double F() => double.Parse(\"1,000.5\") + int.Parse(\" 42 \");")]
+    [InlineData("a Stack class of the program's own", "    class Stack\n    {\n        private readonly int[] _items = new int[10];\n        private int _size;\n        public void Push(int value) => _items[_size++] = value;\n        public int Pop() => _size == 0 ? -1 : _items[--_size];\n    }\n\n    static int F()\n    {\n        var stack = new Stack();\n        stack.Push(1);\n        stack.Pop();\n        return stack.Pop();\n    }")]
     public async Task CorrectCodeIsLeftAlone(string shape, string body)
     {
         var findings = await Analyse(body);
 
         Assert.True(findings.Count == 0, $"{shape}: {string.Join("; ", findings.Select(f => $"{f.CheckId} line {f.Span.Line}: {f.Message}"))}");
+    }
+
+    /// <summary>A var takes the type of the value it is given, and new T(...) names that type outright, with or without items.</summary>
+    [Theory]
+    [InlineData("var queue = new List<int> { 1, 2 };", "List")]
+    [InlineData("var seen = new HashSet<string>();", "HashSet")]
+    [InlineData("var count = 0;", "?")]
+    public async Task AVarGivenNewTakesTheTypeNewNames(string declaration, string type)
+    {
+        var program = await Read($"    static void F()\n    {{\n        {declaration}\n    }}");
+        var function = program.AllFunctions.Single(f => f.Name == "F");
+
+        Assert.Equal(type, Assert.Single(IrWalk.Statements(function.Body).OfType<Declare>()).Type.Name);
     }
 }

@@ -1,0 +1,112 @@
+==> Main.java <==
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class Main {
+    static List<Shape> read(String text) throws IOException {
+        List<Shape> shapes = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.trim().split("\\s+");
+                if (parts.length < 2) {
+                    continue;
+                }
+                double size = Double.parseDouble(parts[1]);
+                switch (parts[0]) {
+                    case "circle":
+                        shapes.add(new Circle(size));
+                        break;
+                    case "square":
+                        shapes.add(new Square(size));
+                        break;
+                    default:
+                        System.out.println("skipping " + parts[0]);
+                }
+            }
+        }
+        return shapes;
+    }
+
+    public static void main(String[] args) throws IOException {
+        List<Shape> shapes = read("circle 1.5\nsquare 2\ntriangle 3\n\n");
+        Map<String, Integer> counts = new HashMap<>();
+        double total = 0;
+        for (Shape shape : shapes) {
+            counts.merge(shape.name(), 1, Integer::sum);
+            total += shape.area();
+        }
+        System.out.println(counts);
+        System.out.printf("%.2f%n", total);
+
+        Shape largest = null;
+        for (Shape shape : shapes) {
+            if (largest == null || shape.area() > largest.area()) {
+                largest = shape;
+            }
+        }
+        if (largest != null) {
+            System.out.println(largest.name());
+        }
+
+        int[] sizes = new int[shapes.size()];
+        for (int i = 0; i < sizes.length; i++) {
+            sizes[i] = (int) Math.round(shapes.get(i).area());
+        }
+        System.out.println(sizes.length > 0 ? sizes[sizes.length - 1] : -1);
+    }
+}
+==> Shape.java <==
+public interface Shape {
+    double area();
+
+    String name();
+
+    default boolean biggerThan(Shape other) {
+        return area() > other.area();
+    }
+}
+==> Circle.java <==
+public class Circle implements Shape {
+    private final double radius;
+
+    public Circle(double radius) {
+        if (radius < 0) {
+            throw new IllegalArgumentException("a radius cannot be negative");
+        }
+        this.radius = radius;
+    }
+
+    @Override
+    public double area() {
+        return Math.PI * radius * radius;
+    }
+
+    @Override
+    public String name() {
+        return "circle";
+    }
+}
+==> Square.java <==
+public class Square implements Shape {
+    private final double side;
+
+    public Square(double side) {
+        this.side = side;
+    }
+
+    @Override
+    public double area() {
+        return side * side;
+    }
+
+    @Override
+    public String name() {
+        return "square";
+    }
+}

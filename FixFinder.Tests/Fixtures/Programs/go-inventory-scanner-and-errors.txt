@@ -1,0 +1,129 @@
+==> main.go <==
+package main
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+type ParseError struct {
+	Line int
+	Text string
+}
+
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("line %d: cannot read %q", e.Line, e.Text)
+}
+
+type Stock struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func (s *Stock) Add(name string, count int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.counts == nil {
+		s.counts = make(map[string]int)
+	}
+	s.counts[name] += count
+}
+
+func (s *Stock) Names() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	names := make([]string, 0, len(s.counts))
+	for name := range s.counts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func load(text string, stock *Stock) []error {
+	var problems []error
+	scanner := bufio.NewScanner(strings.NewReader(text))
+	for number := 1; scanner.Scan(); number++ {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) != 2 {
+			problems = append(problems, &ParseError{Line: number, Text: scanner.Text()})
+			continue
+		}
+		count, err := strconv.Atoi(fields[1])
+		if err != nil {
+			problems = append(problems, fmt.Errorf("line %d: %w", number, err))
+			continue
+		}
+		stock.Add(fields[0], count)
+	}
+	return problems
+}
+
+func describe(value any) string {
+	switch v := value.(type) {
+	case int:
+		return "a count of " + strconv.Itoa(v)
+	case string:
+		return "the name " + v
+	case fmt.Stringer:
+		return v.String()
+	default:
+		return fmt.Sprintf("something else (%T)", v)
+	}
+}
+
+func safeDivide(total, parts int) (result int, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("could not divide: %v", recovered)
+		}
+	}()
+	return total / parts, nil
+}
+
+func waitFor(done <-chan string, limit time.Duration) string {
+	select {
+	case message := <-done:
+		return message
+	case <-time.After(limit):
+		return "timed out"
+	}
+}
+
+func main() {
+	stock := &Stock{}
+	problems := load("tea 10\ncake x\npie\nsoup 4\ntea 5\n", stock)
+	for _, name := range stock.Names() {
+		fmt.Println(name, stock.counts[name])
+	}
+	for _, problem := range problems {
+		var parseError *ParseError
+		if errors.As(problem, &parseError) {
+			fmt.Println("unreadable line", parseError.Line)
+		} else {
+			fmt.Println(problem)
+		}
+	}
+
+	if number, ok := any(42).(int); ok {
+		fmt.Println(describe(number), describe("tea"), describe(3.5))
+	}
+	if result, err := safeDivide(10, 0); err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(result)
+	}
+
+	done := make(chan string, 1)
+	var once sync.Once
+	for i := 0; i < 3; i++ {
+		once.Do(func() { done <- "finished" })
+	}
+	fmt.Println(waitFor(done, time.Second))
+}

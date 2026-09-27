@@ -124,6 +124,26 @@ public class SymbolicExecutionTests : IDisposable
         Assert.True(report.Outcomes.Values.Single().Forced);
     }
 
+    /// <summary>
+    /// A list tested for truth before it is measured. True means it has items, so dividing by its length cannot fail on
+    /// that path; the one symbol for its truth and the one for its length must never say "true, and empty".
+    /// </summary>
+    [Fact]
+    public async Task AListThatIsTrueIsNeverEmpty()
+    {
+        if (PythonFrontend.FindInterpreter() is not { } python) return;
+
+        var path = Path.Combine(_temp.Path, "sample.py");
+        await File.WriteAllTextAsync(path, "def share(items):\n    if items:\n        return 10 // len(items)\n    return 0\n");
+        var function = (await PythonFrontend.ReadAsync([path], python)).Functions.Single(f => f.Name == "share");
+
+        var report = new SymbolicExecutor(CfgBuilder.Build(function), SourceLanguage.Python, IrWalk.LocalNames(function), new HashSet<string>(),
+            new Dictionary<string, IrType>()).Explore();
+
+        var division = Assert.Single(report.Outcomes, outcome => outcome.Key.Item1 == "analysis-division-by-zero");
+        Assert.False(division.Value.CanFail);
+    }
+
     [Fact]
     public async Task ALoopWithNoBoundLeavesTheReportIncompleteSoNothingIsDropped()
     {

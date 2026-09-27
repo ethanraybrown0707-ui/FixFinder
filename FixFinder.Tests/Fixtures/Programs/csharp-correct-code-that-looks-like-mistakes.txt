@@ -1,0 +1,49 @@
+==> Program.cs <==
+using System;
+using System.Collections.Generic;
+
+public static class Program
+{
+    static void RemoveEmpty(List<string> lines)
+    {
+        for (var i = lines.Count - 1; i >= 0; i--)
+        {
+            if (string.IsNullOrWhiteSpace(lines[i]))
+            {
+                lines.RemoveAt(i);
+            }
+        }
+    }
+
+    static int Middle(int low, int high) => low + (high - low) / 2;
+
+    static int ReadDigits()
+    {
+        var total = 0;
+        int key;
+        while ((key = Console.Read()) != -1 && char.IsDigit((char)key))
+        {
+            total = total * 10 + (key - '0');
+        }
+
+        return total;
+    }
+
+    static string Grade(int mark) => mark switch
+    {
+        >= 70 => "first",
+        >= 60 => "upper second",
+        >= 50 => "lower second",
+        _ => "below",
+    };
+
+    public static void Main()
+    {
+        var lines = new List<string> { "a", " ", "b", "" };
+        RemoveEmpty(lines);
+        Console.WriteLine($"{lines.Count} {Middle(4, 10)} {Grade(65)}");
+        var average = 7 / 2;
+        Console.WriteLine(average);
+        Console.WriteLine(ReadDigits());
+    }
+}

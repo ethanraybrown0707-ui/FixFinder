@@ -1,0 +1,103 @@
+==> main.py <==
+import csv
+from collections import defaultdict
+
+from inventory import Inventory, Item, OutOfStock
+
+
+def load(path):
+    inventory = Inventory()
+    with open(path, newline="") as handle:
+        for row in csv.DictReader(handle):
+            inventory.add(Item(row["sku"], row["name"], float(row["price"]), int(row["quantity"])))
+    return inventory
+
+
+def report(inventory):
+    by_letter = defaultdict(list)
+    for item in inventory.items():
+        by_letter[item.name[0].upper()].append(item)
+    for letter in sorted(by_letter):
+        names = ", ".join(item.name for item in sorted(by_letter[letter], key=lambda item: item.price))
+        print(f"{letter}: {names}")
+
+
+def main():
+    inventory = Inventory()
+    inventory.add(Item("A1", "apple", 0.5, 10))
+    inventory.add(Item("B2", "bread", 1.2, 0))
+    try:
+        inventory.take("B2", 1)
+    except OutOfStock as problem:
+        print(f"could not take: {problem}")
+    print(f"stock value: {inventory.value:.2f}")
+    cheapest = inventory.cheapest()
+    if cheapest is not None:
+        print(cheapest.name)
+    report(inventory)
+
+
+if __name__ == "__main__":
+    main()
+==> inventory.py <==
+from dataclasses import dataclass, field
+
+
+class OutOfStock(Exception):
+    def __init__(self, sku, wanted, held):
+        super().__init__(f"{sku}: wanted {wanted}, only {held} left")
+        self.sku = sku
+
+
+@dataclass
+class Item:
+    sku: str
+    name: str
+    price: float
+    quantity: int = 0
+    tags: list = field(default_factory=list)
+
+    @property
+    def value(self):
+        return self.price * self.quantity
+
+    def in_stock(self):
+        return self.quantity > 0
+
+
+class Inventory:
+    def __init__(self):
+        self._items = {}
+
+    def add(self, item):
+        if item.sku in self._items:
+            self._items[item.sku].quantity += item.quantity
+        else:
+            self._items[item.sku] = item
+
+    def take(self, sku, count):
+        item = self._items[sku]
+        if count > item.quantity:
+            raise OutOfStock(sku, count, item.quantity)
+        item.quantity -= count
+        return item
+
+    def items(self):
+        return list(self._items.values())
+
+    @property
+    def value(self):
+        return sum(item.value for item in self._items.values())
+
+    def cheapest(self):
+        stocked = [item for item in self._items.values() if item.in_stock()]
+        if not stocked:
+            return None
+        return min(stocked, key=lambda item: item.price)
+
+    @classmethod
+    def from_items(cls, items):
+        inventory = cls()
+        for item in items:
+            inventory.add(item)
+        return inventory

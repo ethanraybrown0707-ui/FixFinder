@@ -264,9 +264,10 @@ public static partial class PythonReviewPatterns
             var at = loop.Groups["collection"].Index;
 
             yield return new LogicFinding(id, changing + 1,
+                // Only the name is known here, not whether it is a list, a dictionary or a set - and they go wrong differently.
                 growing
-                    ? $"the loop adds to `{collection}` while it is looping over it, so it keeps finding new items and may never finish"
-                    : $"the loop removes from `{collection}` while it is looping over it, so the item after each one removed is skipped",
+                    ? $"the loop adds to `{collection}` while it is looping over it - a list keeps giving the loop new items, so it may never finish, and a dictionary or set stops it with RuntimeError"
+                    : $"the loop removes from `{collection}` while it is looping over it - a list then skips the item after each one removed, and a dictionary or set stops the loop with RuntimeError",
                 Replace(id, $"Loop over a copy: for ... in list({collection}):",
                     $"A for loop walks through `{collection}` by position. Removing an item moves every later item back one place, so the loop " +
                     $"steps over the one that moved into the gap; adding items gives it more to walk through. Looping over `list({collection})`, " +

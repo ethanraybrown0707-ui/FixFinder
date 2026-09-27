@@ -42,10 +42,19 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     private readonly Dictionary<string, List<IrField>> _structs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _constants = new(StringComparer.Ordinal);
     private readonly List<Dictionary<string, CType>> _scopes = [];
+
+    /// <summary>For each scope, the name each variable declared in it has in the IR - its own, or one with a ' after it.</summary>
+    private readonly List<Dictionary<string, string>> _irNames = [];
     private readonly List<string?> _breaks = [];
     private readonly HashSet<string> _taken = new(StringComparer.Ordinal);
     private string? _owner;
     private bool _hasGoto;
+
+    /// <summary>The function being read, which a lambda written inside it is enclosed by.</summary>
+    private string? _function;
+
+    /// <summary>The names given to lambdas so far: two written on one line are told apart.</summary>
+    private readonly HashSet<string> _named = new(StringComparer.Ordinal);
     private int _at;
     private int _depth;
     private int _steps;
@@ -54,7 +63,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     public (IReadOnlyList<IrFunction> Functions, IReadOnlyList<IrClass> Classes) Parse()
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        EnterScope();
 
         while (!AtEnd && Reading())
         {
@@ -115,20 +124,36 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private SourceSpan Span(CToken token) => new(file, token.Line, token.Column, token.EndLine, token.EndColumn);
 
-    private SourceSpan From(CToken start) => new(file, start.Line, start.Column, tokens[Math.Max(0, _at - 1)].EndLine, tokens[Math.Max(0, _at - 1)].EndColumn);
+    /// <summary>From a token to the last one read.</summary>
+    /// <remarks>
+    /// Clamped at both ends, the way <see cref="Current"/> and <see cref="Take"/> are. Take lets the position run past
+    /// the end of the tokens on purpose, so a program that stops half way through a declaration is read to its end
+    /// rather than refused - and this was the one read that forgot it, which made exactly those programs throw.
+    /// </remarks>
+    private SourceSpan From(CToken start)
+    {
+        var last = tokens[Math.Clamp(_at - 1, 0, tokens.Count - 1)];
+        return new SourceSpan(file, start.Line, start.Column, last.EndLine, last.EndColumn);
+    }
 
+    /// <summary>
+    /// Skips past the next <paramref name="text"/> that is not inside brackets opened on the way. A closing bracket that
+    /// was never opened ends the skip without being taken - unless it is what was asked for, as the ) that ends a catch's
+    /// declaration is.
+    /// </summary>
     private void SkipTo(string text)
     {
         var depth = 0;
         while (!AtEnd)
         {
-            if (Is("{") || Is("(") || Is("[")) depth++;
-            else if (Is("}") || Is(")") || Is("]")) depth--;
-            else if (depth == 0 && Is(text))
+            if (depth == 0 && Is(text))
             {
                 _at++;
                 return;
             }
+
+            if (Is("{") || Is("(") || Is("[")) depth++;
+            else if (Is("}") || Is(")") || Is("]")) depth--;
 
             if (depth < 0) return;
             _at++;
@@ -160,14 +185,38 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     /// <summary>Gives a name declared again inside a block a name of its own, so the outer one keeps its value.</summary>
     private string Declare(string name, CType type)
     {
-        if (_scopes[^1].TryGetValue(name, out _)) return name;
+        if (_scopes[^1].ContainsKey(name)) return _irNames[^1].GetValueOrDefault(name, name);
 
         var ir = name;
         while (!_taken.Add(ir)) ir += "'";
 
         _scopes[^1][name] = type;
         if (ir != name) _scopes[^1][ir] = type;
+        _irNames[^1][name] = ir;
         return ir;
+    }
+
+    /// <summary>
+    /// The variable a name used in the code stands for: the one declared in the nearest scope, under the name it was
+    /// given there - a name declared again inside a block is a different variable from the one outside it.
+    /// </summary>
+    private string Resolve(string name)
+    {
+        for (var i = _irNames.Count - 1; i >= 0; i--)
+            if (_irNames[i].TryGetValue(name, out var ir)) return ir;
+        return name;
+    }
+
+    private void EnterScope()
+    {
+        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        _irNames.Add(new Dictionary<string, string>(StringComparer.Ordinal));
+    }
+
+    private void LeaveScope()
+    {
+        _scopes.RemoveAt(_scopes.Count - 1);
+        _irNames.RemoveAt(_irNames.Count - 1);
     }
 
     private CType? Known(string name)
@@ -179,14 +228,14 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private List<Stmt> InScope(Func<List<Stmt>> read)
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
+        EnterScope();
         try
         {
             return read();
         }
         finally
         {
-            _scopes.RemoveAt(_scopes.Count - 1);
+            LeaveScope();
         }
     }
 
@@ -347,6 +396,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             }
 
             var name = Take().Text;
+            if (cpp && name == "operator") name = OperatorName();
 
             // C++ writes a method outside its class as void Counter::add(int n).
             while (cpp && Is("::"))
@@ -354,6 +404,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 _at++;
                 memberOf = name;
                 name = Current.Kind is CTokenKind.Identifier or CTokenKind.Keyword ? Take().Text : name;
+                if (name == "operator") name = OperatorName();
             }
 
             if (Is("("))
@@ -384,15 +435,46 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         }
     }
 
+    /// <summary>
+    /// The rest of an overloaded operator's name, once the keyword operator has been read: operator*, operator&lt;&lt;,
+    /// operator==, operator() and operator[], or a conversion such as operator bool.
+    /// </summary>
+    private string OperatorName()
+    {
+        // operator() and operator[] are named by a pair of brackets, and the parameter list follows them.
+        if (Is("(") && IsAhead(1, ")") && IsAhead(2, "("))
+        {
+            _at += 2;
+            return "operator()";
+        }
+
+        if (Is("[") && IsAhead(1, "]"))
+        {
+            _at += 2;
+            return "operator[]";
+        }
+
+        var written = new List<string>();
+        while (!Is("(") && !Is(";") && !Is("{") && !AtEnd && Reading()) written.Add(Take().Text);
+
+        var symbols = written.All(piece => piece.Length > 0 && !char.IsLetterOrDigit(piece[0]) && piece[0] != '_');
+        return "operator" + (symbols ? string.Concat(written) : " " + string.Join(" ", written));
+    }
+
+    /// <summary>
+    /// A template's arguments, from the &lt; to the &gt; that closes it. Two that close together - map&lt;string,
+    /// vector&lt;int&gt;&gt; - arrive as one &gt;&gt;, and count as two. A semicolon or a brace never comes inside the
+    /// arguments, so meeting one means the &lt; was not a template's after all, and reading stops there.
+    /// </summary>
     private void SkipAngles()
     {
         var depth = 0;
-        while (!AtEnd)
+        while (!AtEnd && !Is(";") && !Is("{") && !Is("}"))
         {
             if (Is("<")) depth++;
-            else if (Is(">"))
+            else if (Is(">") || Is(">>"))
             {
-                depth--;
+                depth -= Is(">>") ? 2 : 1;
                 _at++;
                 if (depth <= 0) return;
                 continue;
@@ -458,6 +540,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
                 var memberToken = Current;
                 var memberName = Take().Text;
+                if (cpp && memberName == "operator") memberName = OperatorName();
 
                 if (Is("("))
                 {
@@ -503,8 +586,76 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         if (Current.Kind != CTokenKind.Identifier) return false;
         if (_typedefs.Contains(Current.Text)) return true;
 
-        // A name followed by another name, a star or a reference is a type: MyType value, MyType *p.
-        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier;
+        // A name followed by another name, a star or a reference is a type: MyType value, MyType *p - and in C++, one
+        // followed by an operator it overloads: Ratio operator*(const Ratio &a, const Ratio &b).
+        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier ||
+               cpp && (At(1) is { Kind: CTokenKind.Keyword, Text: "operator" } || StartsCppType());
+    }
+
+    /// <summary>
+    /// A C++ type written with its namespace, its template's arguments or as a reference, and the name it declares:
+    /// std::vector&lt;int&gt; numbers, map&lt;string, int&gt;::iterator found, Item &amp;item. Read as an expression
+    /// instead, std::vector &lt; int &gt; numbers is two comparisons. Only a name followed by what can follow a declared
+    /// name - a semicolon, =, braces, brackets, a comma or a colon - is taken for one.
+    /// </summary>
+    private bool StartsCppType()
+    {
+        var at = _at + 1;
+        while (true)
+        {
+            if (TextAt(at) == "<" && PastAngles(at) is var after && after > at) at = after;
+            if (TextAt(at) == "::" && TokenAt(at + 1) is { Kind: CTokenKind.Identifier })
+            {
+                at += 2;
+                continue;
+            }
+
+            break;
+        }
+
+        var qualified = at > _at + 1;
+        while (TextAt(at) is "*" or "&" or "&&" || TokenAt(at) is { Kind: CTokenKind.Keyword, Text: "const" }) at++;
+
+        // A plain name followed by another name was already a type; here something must have been added to it. What it
+        // declares is a name, or an operator it overloads: std::ostream &operator<<(std::ostream &out, ...).
+        if (!qualified && TextAt(at - 1) is not ("&" or "&&")) return false;
+        return TokenAt(at) is { Kind: CTokenKind.Identifier } && TextAt(at + 1) is ";" or "=" or "{" or "(" or "," or "[" or ":" ||
+               TokenAt(at) is { Kind: CTokenKind.Keyword, Text: "operator" };
+    }
+
+    private CToken? TokenAt(int index) => index >= 0 && index < tokens.Count ? tokens[index] : null;
+
+    private string? TextAt(int index) => TokenAt(index) is { Kind: CTokenKind.Punctuator or CTokenKind.Keyword or CTokenKind.Identifier } token ? token.Text : null;
+
+    /// <summary>
+    /// The position just past the template arguments that open at <paramref name="open"/>, looking ahead without moving.
+    /// Two closing together arrive as one &gt;&gt;. Where they cannot be template arguments - a semicolon or a brace
+    /// comes first - the position given back is <paramref name="open"/> itself.
+    /// </summary>
+    private int PastAngles(int open)
+    {
+        var depth = 0;
+        for (var at = open; at < tokens.Count; at++)
+        {
+            switch (TextAt(at))
+            {
+                case "<":
+                    depth++;
+                    break;
+                case ">":
+                    depth--;
+                    break;
+                case ">>":
+                    depth -= 2;
+                    break;
+                case ";" or "{" or "}":
+                    return open;
+            }
+
+            if (depth <= 0) return at + 1;
+        }
+
+        return open;
     }
 
     /// <summary>The name of a type, gathering the words that make it up; the tag of a struct written inline comes back separately.</summary>
@@ -549,13 +700,27 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             if (Current.Kind == CTokenKind.Identifier && words.Count == 0)
             {
                 words.Add(Take().Text);
-                if (cpp && Is("::"))
+
+                // A name reached through namespaces and templates - std::map<std::string, int>::size_type - is known by
+                // its last part.
+                while (cpp)
                 {
-                    _at++;
-                    if (Current.Kind == CTokenKind.Identifier) words[^1] = Take().Text;
+                    if (Is("<"))
+                    {
+                        SkipAngles();
+                        continue;
+                    }
+
+                    if (Is("::") && At(1) is { Kind: CTokenKind.Identifier or CTokenKind.Keyword })
+                    {
+                        _at++;
+                        words[^1] = Take().Text;
+                        continue;
+                    }
+
+                    break;
                 }
 
-                if (cpp && Is("<")) SkipAngles();
                 continue;
             }
 
@@ -699,23 +864,127 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         }
     }
 
-    private IrFunction ReadFunction(CToken start, string name, string? owner, CType returns, List<IrParameter> parameters, bool add = true)
+    private IrFunction ReadFunction(CToken start, string name, string? owner, CType returns, List<IrParameter> parameters, bool add = true,
+        string? enclosedBy = null)
     {
-        _scopes.Add(new Dictionary<string, CType>(StringComparer.Ordinal));
-        foreach (var parameter in parameters) _scopes[^1][parameter.Name] = new CType(parameter.Type.Name.TrimEnd('*'), parameter.Type.Name.Count(c => c == '*'), []);
+        // Each function's variables are its own, so only a name declared again within it needs a name of its own - or
+        // one that would hide a global or a function, which its code can reach as well.
+        if (_scopes.Count == 1)
+        {
+            _taken.Clear();
+            _taken.UnionWith(_scopes[0].Keys);
+            _taken.UnionWith(_functions.Select(function => function.Name));
+        }
 
-        var outer = _owner;
+        EnterScope();
+        foreach (var parameter in parameters)
+        {
+            _scopes[^1][parameter.Name] = new CType(parameter.Type.Name.TrimEnd('*'), parameter.Type.Name.Count(c => c == '*'), []);
+            _irNames[^1][parameter.Name] = parameter.Name;
+            _taken.Add(parameter.Name);
+        }
+
+        var (outerOwner, outerFunction, outerGoto) = (_owner, _function, _hasGoto);
         _owner = owner;
+        _function = owner is null ? name : $"{owner}.{name}";
         _hasGoto = ContainsGoto();
 
         var body = Block();
 
-        _owner = outer;
-        _scopes.RemoveAt(_scopes.Count - 1);
+        (_owner, _function, _hasGoto) = (outerOwner, outerFunction, outerGoto);
+        LeaveScope();
 
-        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body) { IsStatic = owner is null };
+        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body)
+        {
+            IsStatic = owner is null, EnclosedBy = enclosedBy, AddressTaken = AddressesTaken(body),
+        };
         if (add) _functions.Add(function);
         return function;
+    }
+
+    /// <summary>
+    /// The variables whose address the function hands out - &end to strtol, &value to scanf - which whatever is given the
+    /// address can change, so their values are never taken as known.
+    /// </summary>
+    private static List<string> AddressesTaken(IReadOnlyList<Stmt> body) =>
+        IrWalk.Statements(body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within)
+            .OfType<Opaque>().Where(taken => taken.What == "address of" && taken.Parts.Count == 1)
+            .Select(taken => AddressedVariable(taken.Parts[0])).OfType<string>()
+            .Distinct(StringComparer.Ordinal).ToList();
+
+    /// <summary>The variable an address points into: x for &x, &x.count and &x[i].</summary>
+    private static string? AddressedVariable(Expr addressed) => addressed switch
+    {
+        Name name => name.Identifier,
+        Member member => AddressedVariable(member.Target),
+        ElementAccess element => AddressedVariable(element.Target),
+        _ => null,
+    };
+
+    /// <summary>
+    /// An if's condition. C++ lets it declare what it tests - if (auto found = find(key)) - or run a declaration first
+    /// and test after it - if (auto found = find(key); found != end). The declaration comes back to run before the test,
+    /// and the test is then of the variable, or of what is written after the semicolon.
+    /// </summary>
+    private (List<Stmt> Setup, Expr Condition) Condition()
+    {
+        if (!cpp || !StartsType() || !DeclaresBeforeTheEnd()) return ([], Expression());
+
+        var start = Current;
+        var setup = LocalDeclaration(Span(start));
+        var ranStatementFirst = TokenAt(_at - 1) is { Text: ";" };
+
+        if (ranStatementFirst) return (setup, Expression());
+        return setup.LastOrDefault() is Declare { Variable: var tested } ? (setup, new Name(Span(start), tested)) : (setup, Opaque.Of(Span(start), "value"));
+    }
+
+    /// <summary>
+    /// Whether what follows sets a variable up before the condition ends: an = or a brace at the top level. Without one,
+    /// if (a * b) multiplies - it does not declare b.
+    /// </summary>
+    private bool DeclaresBeforeTheEnd()
+    {
+        var depth = 0;
+        for (var at = _at; at < tokens.Count; at++)
+        {
+            var text = TextAt(at);
+            if (text is "(" or "[") depth++;
+            else if (text is ")" or "]" && --depth < 0) return false;
+            else if (depth == 0 && text is ";") return false;
+            else if (depth == 0 && text is "=" or "{") return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A C++ lambda - [captures](parameters) { body } - which is a function of its own, written inside the one around it.
+    /// That one's variables it captures by reference it can change, so the analysis of the outer function forgets them
+    /// wherever the lambda may have run.
+    /// </summary>
+    private Expr Lambda(CToken start)
+    {
+        // The captures say how the outer variables are reached, not which: the body's own names say that.
+        var depth = 0;
+        do
+        {
+            if (Is("[")) depth++;
+            else if (Is("]")) depth--;
+            _at++;
+        }
+        while (depth > 0 && !AtEnd);
+
+        var parameters = Is("(") ? Parameters() : [];
+
+        // mutable, noexcept, an -> and the type it returns: nothing the body's code depends on.
+        while (!Is("{") && !Is(";") && !Is(")") && !AtEnd) _at++;
+        if (!Is("{")) return Opaque.Of(From(start), "lambda expression");
+
+        var name = $"lambda at line {start.Line}";
+        for (var again = 2; !_named.Add(name); again++) name = $"lambda at line {start.Line} ({again})";
+
+        var function = ReadFunction(start, name, owner: null, CType.Unknown, parameters, enclosedBy: _function);
+        return Opaque.Of(function.Span, "lambda expression");
     }
 
     /// <summary>Whether the body that starts here jumps with goto, which is read the way C# reads it: the path ends and the label forgets.</summary>
@@ -787,12 +1056,15 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         {
             case "if":
                 _at++;
-                Expect("(");
-                var condition = Expression();
-                Expect(")");
-                var then = Block();
-                var otherwise = Eat("else") ? Block() : [];
-                return [new If(span, condition, then, otherwise)];
+                return InScope(() =>
+                {
+                    Expect("(");
+                    var (setup, condition) = Condition();
+                    Expect(")");
+                    var then = Block();
+                    var otherwise = Eat("else") ? Block() : [];
+                    return [.. setup, new If(span, condition, then, otherwise)];
+                });
 
             case "while":
                 _at++;
@@ -898,6 +1170,15 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
         var expression = Expression();
         Eat(";");
+
+        // exit, _Exit, quick_exit and abort never return to the code that calls them, so nothing after one runs.
+        if (expression is Call
+            {
+                Callee: Name { Identifier: "exit" or "_Exit" or "quick_exit" or "abort" } or
+                        Member { Target: Name { Identifier: "std" }, MemberName: "exit" or "_Exit" or "quick_exit" or "abort" or "terminate" },
+            } stopping)
+            return [new Throw(From(start), new NewObject(stopping.Span, IrType.Named(stopping.CalleeName!), stopping.Arguments))];
+
         return [new Evaluate(From(start), expression)];
     }
 
@@ -916,7 +1197,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
     private List<Stmt> LocalDeclaration(SourceSpan span)
     {
+        var typeStart = _at;
         var type = TypeName(out var tag);
+        var lifetime = ReadSince(typeStart, OutlastingStorage) ? Lifetime.Program : Lifetime.Call;
         if (tag is not null) ReadStructBody(tag);
 
         var statements = new List<Stmt>();
@@ -925,6 +1208,19 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         {
             var mark = _at;
             var stars = Stars();
+            var declared = cpp && ReadSince(mark, ReferenceMark) ? Lifetime.Borrowed : lifetime;
+
+            // auto [key, value] = entry; - one name for each part of the value, and nothing else declared with them.
+            if (cpp && Is("["))
+            {
+                var start = Current;
+                var names = BoundNames();
+                Expr whole = Eat("=") ? Assignment() : Is("{") ? Initialiser(CType.Unknown, Span(start)) : Opaque.Of(Span(start), "value");
+                foreach (var (boundToken, boundName) in names)
+                    statements.Add(new Declare(Span(boundToken), boundName, IrType.Unknown, Opaque.Of(From(start), "part of a value", whole)) { Lifetime = declared });
+                break;
+            }
+
             var holdsFunction = FunctionPointer();
             if (holdsFunction) stars++;
             if (Current.Kind is not (CTokenKind.Identifier or CTokenKind.Keyword)) break;
@@ -935,7 +1231,10 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             {
                 // The rest of a function pointer's shape - ) (int, char *) - says nothing about the variable itself.
                 while (!Is(";") && !Is(",") && !AtEnd && Reading()) _at++;
-                statements.Add(new Declare(From(nameToken), Declare(nameToken.Text, type with { Pointers = stars }), IrType.Named("func"), null));
+                statements.Add(new Declare(From(nameToken), Declare(nameToken.Text, type with { Pointers = stars }), IrType.Named("func"), null)
+                {
+                    Lifetime = declared,
+                });
                 if (!Eat(",")) break;
                 continue;
             }
@@ -950,18 +1249,67 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 var arguments = Arguments();
                 initial = new NewObject(From(nameToken), IrType.Named(variable.Name), arguments);
             }
+            else if (Is("{") && cpp)
+            {
+                // C++ sets a variable up with braces too - vector<Item> items{{"pen", 3}, {"pad", 5}} - which are its
+                // value, not a block of code.
+                initial = Initialiser(variable, Span(nameToken));
+            }
             else if (dimensions.Count > 0)
             {
                 initial = new NewObject(From(nameToken), IrType.Named("array"), dimensions[0] is { } size ? [new Argument(null, size)] : []);
             }
 
-            statements.Add(new Declare(From(nameToken), name, variable.Ir, initial));
+            // A static is set up the first time only; on every later call it holds what the last one left, so its value
+            // on the way in is not known.
+            statements.Add(new Declare(From(nameToken), name, variable.Ir, declared == Lifetime.Program ? null : initial) { Lifetime = declared });
             if (_at == mark) _at++;
             if (!Eat(",")) break;
         }
 
         Eat(";");
         return statements;
+    }
+
+    /// <summary>The names a C++ structured binding declares - [key, value] - each declared in the scope it is written in.</summary>
+    private List<(CToken Token, string Name)> BoundNames()
+    {
+        var names = new List<(CToken Token, string Name)>();
+        Expect("[");
+
+        while (!Is("]") && !AtEnd && Reading())
+        {
+            if (Current.Kind is CTokenKind.Identifier or CTokenKind.Keyword)
+            {
+                var token = Take();
+                names.Add((token, Declare(token.Text, CType.Unknown)));
+            }
+            else
+            {
+                _at++;
+            }
+
+            Eat(",");
+        }
+
+        Expect("]");
+        return names;
+    }
+
+    /// <summary>The words that make a local's memory outlast the call: kept for the whole run, or for the thread's.</summary>
+    private static readonly HashSet<string> OutlastingStorage = new(StringComparer.Ordinal) { "static", "extern", "_Thread_local", "thread_local" };
+
+    private static readonly HashSet<string> ReferenceMark = new(StringComparer.Ordinal) { "&" };
+
+    /// <summary>Whether any token read since <paramref name="from"/> is one of <paramref name="words"/>.</summary>
+    private bool ReadSince(int from, HashSet<string> words)
+    {
+        for (var index = from; index < _at && index < tokens.Count; index++)
+        {
+            if (words.Contains(tokens[index].Text)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>What a variable starts with: a value, or a list of values in braces.</summary>
@@ -1012,6 +1360,20 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 var items = Expression();
                 Expect(")");
                 return [new ForEach(span, new Name(Span(item), name), items, Loop(), [])];
+            }
+
+            // for (const auto &[key, value] : entries) takes each item apart as it walks them.
+            if (Is("["))
+            {
+                var start = Current;
+                var names = BoundNames();
+                if (Eat(":"))
+                {
+                    var items = Expression();
+                    Expect(")");
+                    var parts = names.Select(bound => (Expr)new Name(Span(bound.Token), bound.Name)).ToList();
+                    return [new ForEach(span, new CollectionLiteral(From(start), CollectionKind.Tuple, parts), items, Loop(), [])];
+                }
             }
 
             _at = save;
@@ -1182,33 +1544,98 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 _ => BinaryOperator.Modulo,
             };
 
+            // In C++ << and >> on anything but a whole number are the operators a class overloads - std::cout << x
+            // writes, words >> word reads - not shifts of bits.
+            if (cpp && op is "<<" or ">>" && !ShiftsBits(left))
+            {
+                left = op == ">>" ? ReadFromStream(left, right, span) : Opaque.Of(span, "written to a stream", left, right);
+                continue;
+            }
+
             left = new Binary(span, known, left, right);
         }
 
         return left;
     }
 
+    /// <summary>
+    /// Whether a C++ &lt;&lt; or &gt;&gt; shifts bits: its left side is plainly a whole number - written as one, a variable
+    /// declared as one, or arithmetic. Anything else - std::cout, a string stream, a value whose type is not known here -
+    /// is taken to be the operator a class overloads, which at worst loses the arithmetic, never invents a value.
+    /// </summary>
+    private bool ShiftsBits(Expr left) => left switch
+    {
+        Literal { Kind: LiteralKind.Integer or LiteralKind.Character } => true,
+        Name { Identifier: var name } => Known(name) is { Pointers: 0, Dimensions.Count: 0 } type && IsWholeNumber(type.Name),
+        Binary or Ir.Unary or Cast => true,
+        _ => false,
+    };
+
+    private static bool IsWholeNumber(string type)
+    {
+        var words = type.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length > 0 && !words.Any(word => word is "float" or "double") && words.All(word => WholeNumberWords.Contains(word));
+    }
+
+    private static readonly HashSet<string> WholeNumberWords = new(StringComparer.Ordinal)
+    {
+        "char", "short", "int", "long", "signed", "unsigned", "bool", "_Bool", "const", "volatile", "size_t", "ssize_t", "ptrdiff_t",
+        "int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t", "uint64_t", "intptr_t", "uintptr_t",
+        "wchar_t", "char8_t", "char16_t", "char32_t",
+    };
+
+    /// <summary>
+    /// stream &gt;&gt; value: the value is given what is read - a number or text typed at the keyboard when the stream is
+    /// std::cin, of the kind the variable is declared as - and the stream is what the whole gives back, so reads chain:
+    /// std::cin &gt;&gt; width &gt;&gt; height.
+    /// </summary>
+    private Expr ReadFromStream(Expr stream, Expr target, SourceSpan span)
+    {
+        var typed = ReadsTheKeyboard(stream) && target is Name { Identifier: var name } && Known(name) is { Pointers: 0, Dimensions.Count: 0 } type
+            ? TypedKind(type.Name)
+            : null;
+
+        return Opaque.Of(span, "read from a stream", stream, new AssignValue(target.Span, target, Opaque.Of(target.Span, typed ?? "value read")));
+    }
+
+    /// <summary>std::cin itself, cin after using namespace std, or an earlier read from either in the same chain.</summary>
+    private bool ReadsTheKeyboard(Expr stream) => stream switch
+    {
+        Member { Target: Name { Identifier: "std" }, MemberName: "cin" } => true,
+        Name { Identifier: "cin" } => Known("cin") is null,
+        Opaque { What: "read from a stream", Parts: [var earlier, ..] } => ReadsTheKeyboard(earlier),
+        _ => false,
+    };
+
+    private static string? TypedKind(string type) =>
+        IsWholeNumber(type) ? "typed whole number"
+        : type.Split(' ').Any(word => word is "float" or "double") ? "typed number"
+        : type is "string" or "std::string" ? "typed text"
+        : null;
+
     private Expr Unary()
     {
         var start = Current;
 
+        // Each span below is taken once the operand has been read, so that it covers the operand too: a finding quotes
+        // the code by its span, and one taken first would quote the operator alone.
         switch (Current.Text)
         {
-            case "!" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Not, Unary());
-            case "-" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Negate, Unary());
-            case "+" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.Plus, Unary());
-            case "~" when Current.Kind == CTokenKind.Punctuator:
-                _at++;
-                return new Unary(From(start), UnaryOperator.BitNot, Unary());
+            case "!" or "-" or "+" or "~" when Current.Kind == CTokenKind.Punctuator:
+                var prefix = Take().Text;
+                var prefixed = Unary();
+                var applied = prefix switch
+                {
+                    "!" => UnaryOperator.Not,
+                    "-" => UnaryOperator.Negate,
+                    "+" => UnaryOperator.Plus,
+                    _ => UnaryOperator.BitNot,
+                };
+                return new Unary(From(start), applied, prefixed);
             case "*" when Current.Kind == CTokenKind.Punctuator:
                 _at++;
-                return new Member(From(start), Unary(), "*");
+                var pointer = Unary();
+                return new Member(From(start), pointer, "*");
             case "&" when Current.Kind == CTokenKind.Punctuator:
                 _at++;
                 var addressed = Unary();
@@ -1262,7 +1689,8 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             case "delete" when cpp:
                 _at++;
                 if (Is("[")) { _at++; Expect("]"); }
-                return new Call(From(start), new Name(Span(start), "delete"), [new Argument(null, Unary())]);
+                var deleted = Unary();
+                return new Call(From(start), new Name(Span(start), "delete"), [new Argument(null, deleted)]);
             case "static_cast" or "dynamic_cast" or "const_cast" or "reinterpret_cast" when cpp:
                 _at++;
                 SkipAngles();
@@ -1354,7 +1782,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
             if (Is("("))
             {
-                value = new Call(From(start), value, Arguments());
+                // The arguments are read before the span is taken, so the call's span runs to its closing bracket.
+                var arguments = Arguments();
+                value = new Call(From(start), value, arguments);
                 continue;
             }
 
@@ -1426,7 +1856,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             case CTokenKind.Identifier:
                 _at++;
                 if (_constants.TryGetValue(start.Text, out var constant)) return new Literal(span, LiteralKind.Integer, constant);
-                return new Name(span, Known(start.Text) is not null ? start.Text : start.Text);
+                return new Name(span, Resolve(start.Text));
         }
 
         switch (start.Text)
@@ -1436,6 +1866,9 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 var inner = Expression();
                 Expect(")");
                 return inner;
+
+            case "[" when cpp:
+                return Lambda(start);
 
             case "{":
                 return Initialiser(CType.Unknown with { Dimensions = [null] }, span);

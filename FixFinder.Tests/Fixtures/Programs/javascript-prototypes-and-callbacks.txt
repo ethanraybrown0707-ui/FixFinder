@@ -1,0 +1,89 @@
+==> main.js <==
+var Counter = (function () {
+  var created = 0;
+
+  function Counter(start) {
+    if (!(this instanceof Counter)) {
+      return new Counter(start);
+    }
+    this.value = start || 0;
+    created += 1;
+  }
+
+  Counter.prototype.increment = function (by) {
+    this.value += by === undefined ? 1 : by;
+    return this;
+  };
+
+  Counter.prototype.toString = function () {
+    return 'Counter(' + this.value + ')';
+  };
+
+  Counter.created = function () {
+    return created;
+  };
+
+  return Counter;
+})();
+
+function readConfig(text, callback) {
+  var parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    callback(error, null);
+    return;
+  }
+  callback(null, parsed);
+}
+
+function sum() {
+  var total = 0;
+  for (var i = 0; i < arguments.length; i++) {
+    total += arguments[i];
+  }
+  return total;
+}
+
+var person = {
+  name: 'Ada',
+  greet: function (greeting) {
+    return greeting + ', ' + this.name;
+  },
+};
+
+var greetAda = person.greet.bind(person);
+
+var scores = { ada: 91, alan: 78 };
+var names = [];
+for (var key in scores) {
+  if (Object.prototype.hasOwnProperty.call(scores, key)) {
+    names.push(key);
+  }
+}
+
+var numbers = [10, 9, 100, 1];
+numbers.sort(function (a, b) {
+  return a - b;
+});
+
+outer: for (var row = 0; row < 3; row++) {
+  for (var column = 0; column < 3; column++) {
+    if (row * column === 2) {
+      break outer;
+    }
+  }
+}
+
+readConfig('{"debug": true}', function (error, config) {
+  if (error) {
+    console.error('bad config', error.message);
+    return;
+  }
+  console.log(config.debug);
+});
+
+var counter = new Counter(5).increment().increment(3);
+console.log(String(counter), Counter.created(), Counter(1).value);
+console.log(sum(1, 2, 3), greetAda('Hello'), names.join(','), numbers, row, column);
+console.log(new Map(Object.entries(scores)).get('ada'));

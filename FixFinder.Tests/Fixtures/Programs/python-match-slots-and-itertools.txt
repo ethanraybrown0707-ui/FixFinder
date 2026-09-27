@@ -1,0 +1,89 @@
+==> main.py <==
+from dataclasses import dataclass
+from enum import Enum
+from functools import reduce, lru_cache
+from itertools import chain, groupby, product
+from operator import itemgetter
+from typing import NamedTuple, Optional
+
+
+class Suit(Enum):
+    HEARTS = "H"
+    SPADES = "S"
+
+
+class Card(NamedTuple):
+    rank: int
+    suit: Suit
+
+
+@dataclass(frozen=True)
+class Point:
+    x: float
+    y: float
+
+    def moved(self, dx, dy):
+        return Point(self.x + dx, self.y + dy)
+
+
+class Temperature:
+    __slots__ = ("_celsius",)
+
+    def __init__(self, celsius):
+        self.celsius = celsius
+
+    @property
+    def celsius(self):
+        return self._celsius
+
+    @celsius.setter
+    def celsius(self, value):
+        if value < -273.15:
+            raise ValueError("colder than absolute zero")
+        self._celsius = value
+
+
+def describe(command):
+    match command.split():
+        case ["go", direction]:
+            return f"going {direction}"
+        case ["take", *items] if items:
+            return f"taking {', '.join(items)}"
+        case ["quit"] | ["exit"]:
+            return "leaving"
+        case _:
+            return "unknown"
+
+
+@lru_cache(maxsize=None)
+def paths(rows, columns):
+    if rows == 1 or columns == 1:
+        return 1
+    return paths(rows - 1, columns) + paths(rows, columns - 1)
+
+
+def best(cards: list[Card]) -> Optional[Card]:
+    if not cards:
+        return None
+    return max(cards, key=itemgetter(0))
+
+
+def grouped(words):
+    ordered = sorted(words, key=len)
+    return {length: list(group) for length, group in groupby(ordered, key=len)}
+
+
+total_visits = 0
+
+
+def visit():
+    global total_visits
+    total_visits += 1
+    return total_visits
+
+
+print(describe("go north"), describe("take map key"), describe("take"), describe("exit"))
+print(paths(3, 3), best([Card(3, Suit.HEARTS), Card(9, Suit.SPADES)]), best([]))
+print(grouped(["a", "bb", "cc", "d"]), list(chain([1], [2, 3])), list(product("ab", repeat=2)))
+print(reduce(lambda acc, value: acc * value, [1, 2, 3, 4], 1), Point(1, 2).moved(3, 4))
+print(Temperature(20).celsius, visit(), visit(), "%s has %d" % ("Ada", 3))

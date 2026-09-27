@@ -31,11 +31,20 @@ public static partial class Confirmation
             .Where(item => item.Finding.WitnessValues is { Count: > 0 } && Expected(item.Finding.CheckId).Length > 0 && item.Finding.Function is not null &&
                            Path.GetExtension(item.Finding.Span.File).Equals(".py", StringComparison.OrdinalIgnoreCase))
             .Take(MostRuns)
-            .Select(async item => (item.Index, Evidence: await TryAsync(item.Finding, interpreter, cancellationToken)));
+            .Select(async item => (item.Index, Shown: await TryAsync(item.Finding, interpreter, cancellationToken)));
 
         var confirmed = findings.ToList();
-        foreach (var (index, evidence) in await Task.WhenAll(runs))
-            if (evidence is not null) confirmed[index] = confirmed[index] with { Confidence = Confidence.Certain, Confirmation = evidence };
+        foreach (var (index, shown) in await Task.WhenAll(runs))
+        {
+            if (shown is not { } seen) continue;
+
+            confirmed[index] = confirmed[index] with
+            {
+                Confidence = Confidence.Certain,
+                Confirmation = seen.Evidence,
+                State = seen.State,
+            };
+        }
 
         return confirmed;
     }
@@ -48,7 +57,7 @@ public static partial class Confirmation
         _ => [],
     };
 
-    private static async Task<string?> TryAsync(AnalysisFinding finding, string interpreter, CancellationToken cancellationToken)
+    private static async Task<(string Evidence, StateTrace? State)?> TryAsync(AnalysisFinding finding, string interpreter, CancellationToken cancellationToken)
     {
         var values = finding.WitnessValues!;
         var file = finding.Span.File;
@@ -62,7 +71,7 @@ public static partial class Confirmation
         {
             if (typed.Count != values.Count) return null;
 
-            trace = await PythonProbe.RunAsync(interpreter, file, input, RunTimeout, cancellationToken);
+            trace = await PythonProbe.RunAsync(interpreter, file, input, RunTimeout, cancellationToken, finding.Span.Line);
             ran = "the program, typing " + string.Join(" then ", typed.Select(v => $"`{Typed(v)}`"));
         }
         else
@@ -71,15 +80,36 @@ public static partial class Confirmation
             if (finding.Function!.Contains('.') || arguments.Any(v => Literal(v) is null)) return null;
 
             var literal = "{" + string.Join(", ", arguments.Select(v => $"'{v.Parameter}': {Literal(v)}")) + "}";
-            trace = await PythonProbe.CallAsync(interpreter, file, finding.Function, literal, input, RunTimeout, cancellationToken);
+            trace = await PythonProbe.CallAsync(interpreter, file, finding.Function, literal, input, RunTimeout, cancellationToken, finding.Span.Line);
             ran = $"`{finding.Function}({string.Join(", ", arguments.Select(v => $"{v.Parameter}={Literal(v)}"))})`";
         }
 
         if (trace is not { Error: { } error } || trace.ErrorLine != finding.Span.Line || !Expected(finding.CheckId).Contains(error)) return null;
 
         var said = trace.Message is { Length: > 0 } message ? $"{error}: {message}" : error;
-        return $"Running {ran} stopped with {said} on line {trace.ErrorLine}{At(trace, file)}. Lines it ran: {TraceCompression.Compress(trace.Lines)}" +
-               (trace.Cut ? " …" : "") + ".";
+
+        var evidence = $"Running {ran} stopped with {said} on line {trace.ErrorLine}{At(trace, file)}. Lines it ran: {TraceCompression.Compress(trace.Lines)}" +
+                       (trace.Cut ? " …" : "") + ".";
+
+        // The same run recorded what the variables held each time it reached the line, so the table costs nothing
+        // extra and every value in it is one the program really held.
+        var state = StateTrace.From(finding.Span.Line, trace.Watched, Mentioned(file, finding.Span.Line), failedOnLastPass: true, trace.WatchedCut);
+
+        return (evidence, state);
+    }
+
+    /// <summary>The names written on one line of the file, which are the variables that line's behaviour turns on.</summary>
+    private static IReadOnlyCollection<string> Mentioned(string file, int number)
+    {
+        try
+        {
+            var line = File.ReadLines(file).Skip(number - 1).FirstOrDefault() ?? "";
+            return [.. Identifier().Matches(line).Select(m => m.Value).Distinct(StringComparer.Ordinal)];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 
     /// <summary>The values, at the moment it failed, of the variables the failing line uses.</summary>

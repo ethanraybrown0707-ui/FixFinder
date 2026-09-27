@@ -1,0 +1,66 @@
+==> main.py <==
+import re
+from collections import Counter
+
+WORD = re.compile(r"[a-z']+")
+
+
+def words(text):
+    return WORD.findall(text.lower())
+
+
+def most_common(text, count=3):
+    return Counter(words(text)).most_common(count)
+
+
+def average_length(text):
+    found = words(text)
+    if len(found) == 0:
+        return 0.0
+    return sum(len(word) for word in found) / len(found)
+
+
+def longest_line(lines):
+    best = None
+    for number, line in enumerate(lines, start=1):
+        if best is None or len(line) > len(best[1]):
+            best = (number, line)
+    return best
+
+
+def first_repeat(text):
+    seen = set()
+    for word in words(text):
+        if word in seen:
+            return word
+        seen.add(word)
+    return None
+
+
+def initials(names):
+    return {name: "".join(part[0] for part in name.split() if part) for name in names if name.strip()}
+
+
+def pairs(first, second):
+    return [f"{a}-{b}" for a, b in zip(first, second)]
+
+
+def read_until_blank(lines):
+    kept = []
+    position = 0
+    while position < len(lines):
+        if not (line := lines[position].strip()):
+            break
+        kept.append(line)
+        position += 1
+    return kept
+
+
+text = "the cat sat on the mat and the dog sat too"
+print(most_common(text))
+print(round(average_length(text), 2))
+print(longest_line(["short", "a longer line", "mid"]))
+print(first_repeat(text))
+print(initials(["Ada Lovelace", "Alan Turing", "  "]))
+print(pairs("abc", [1, 2, 3]))
+print(read_until_blank(["one", "two", "", "three"]))

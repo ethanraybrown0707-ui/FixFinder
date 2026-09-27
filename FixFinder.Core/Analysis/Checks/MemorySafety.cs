@@ -56,6 +56,15 @@ public sealed class MemorySafety(
     /// <summary>Variables whose address was taken, which whatever was given the pointer may have filled in.</summary>
     private readonly HashSet<string> _filledIn = HandedOn(graph, ownership: false);
 
+    /// <summary>
+    /// The locals whose memory is this call's own and goes when it returns, with their types. A global, a static and a
+    /// C++ reference are not among them: their memory outlasts the call or belongs to something else.
+    /// </summary>
+    private readonly Dictionary<string, IrType> _callsOwn = IrWalk.Statements(graph.Function.Body).OfType<Declare>()
+        .Where(declare => declare.Lifetime == Lifetime.Call)
+        .GroupBy(declare => declare.Variable, StringComparer.Ordinal)
+        .ToDictionary(declared => declared.Key, declared => declared.First().Type, StringComparer.Ordinal);
+
     public void Check()
     {
         if (language is not (SourceLanguage.C or SourceLanguage.Cpp)) return;
@@ -70,6 +79,7 @@ public sealed class MemorySafety(
             var state = entry[block.Id].Copy();
 
             foreach (var instruction in block.Instructions) Step(state, instruction, reporting: false);
+            Ends(state, block, reporting: false);
 
             foreach (var next in graph.Successors(block.Id))
             {
@@ -92,8 +102,26 @@ public sealed class MemorySafety(
 
             var state = known.Copy();
             foreach (var instruction in block.Instructions) Step(state, instruction, reporting: true);
+            Ends(state, block, reporting: true);
             Ending(state, block);
         }
+    }
+
+    /// <summary>
+    /// What the end of a block reads - the condition it branches on, the value it returns, what it throws - which is
+    /// code like any other: return node->key after free(node) reads freed memory as surely as a statement would.
+    /// </summary>
+    private void Ends(State state, BasicBlock block, bool reporting)
+    {
+        var read = block.Terminator switch
+        {
+            Branch branch => branch.Condition,
+            Leave { Value: { } returned } => returned,
+            Raise { Exception: { } raised } => raised,
+            _ => null,
+        };
+
+        if (read is not null) Uses(state, read, reporting);
     }
 
     /// <summary>The state as it reaches one successor, with anything that edge proves holds nothing dropped.</summary>
@@ -144,7 +172,7 @@ public sealed class MemorySafety(
 
         foreach (var declare in IrWalk.Statements(graph.Function.Body).OfType<Declare>())
         {
-            if (declare.Initial is not null || !Plain(declare.Type) || _filledIn.Contains(declare.Variable)) continue;
+            if (declare.Initial is not null || declare.Lifetime != Lifetime.Call || !Plain(declare.Type) || _filledIn.Contains(declare.Variable)) continue;
             state[declare.Variable] = [new Mark(Phase.Unset, declare.Span.Line, declare.Span)];
         }
 
@@ -177,6 +205,11 @@ public sealed class MemorySafety(
                 case Opaque { What: "address of", Parts: [var addressed] } when Root(addressed) is { } pointed:
                     handed.Add(pointed);
                     break;
+
+                // C writes a store as an expression too: node->next = made, list[0] = made.
+                case AssignValue { Target: not Name, Value: Name { Identifier: var stored } } when ownership:
+                    handed.Add(stored);
+                    break;
             }
 
             foreach (var child in IrWalk.Children(expression)) Visit(child, taking);
@@ -201,6 +234,20 @@ public sealed class MemorySafety(
                 }
             }
 
+            // A condition is code too: while (pop(&stack, &value)) hands value's address to pop as surely as a statement would.
+            switch (block.Terminator)
+            {
+                case Branch { Condition: var condition }:
+                    Visit(condition, taking: true);
+                    break;
+                case Leave { Value: { } returning }:
+                    Visit(returning, taking: true);
+                    break;
+                case Raise { Exception: { } raised }:
+                    Visit(raised, taking: true);
+                    break;
+            }
+
             if (ownership && block.Terminator is Leave { Value: { } returned } && Root(returned) is { } given) handed.Add(given);
         }
 
@@ -216,6 +263,48 @@ public sealed class MemorySafety(
         _ => null,
     };
 
+    /// <summary>
+    /// The memory an expression names, as far as it can be told apart: a variable, or a field reached through one - node,
+    /// node->next, node->next->key. A field is memory of its own: free(node->key) frees the key and leaves the node alone.
+    /// </summary>
+    private static string? PathOf(Expr expression) => expression switch
+    {
+        Name name => name.Identifier,
+        Member { MemberName: var field } member when PathOf(member.Target) is { } holder => $"{holder}.{field}",
+        Cast cast => PathOf(cast.Value),
+        _ => null,
+    };
+
+    private static Expr Uncast(Expr expression) => expression is Cast cast ? Uncast(cast.Value) : expression;
+
+    /// <summary>How a field that was freed is written in the code, for the findings about it: vector->items, not vector.items.</summary>
+    private readonly Dictionary<string, string> _shown = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A variable or field as the code writes it. A variable declared again inside a block has a ' after its name in the
+    /// IR, which no C name can contain, so taking it off gives back the name the code uses.
+    /// </summary>
+    private string Shown(string path) => _shown.GetValueOrDefault(path) ?? path.TrimEnd('\'');
+
+    /// <summary>A pointer given a new value: whatever was freed through its old value no longer has anything to do with it.</summary>
+    private static void Rewritten(State state, string path)
+    {
+        foreach (var inner in state.Keys.Where(key => key.StartsWith(path + ".", StringComparison.Ordinal)).ToList()) state.Remove(inner);
+    }
+
+    /// <summary>A read through a pointer: every pointer on the way to what is read must still point at memory - node, then node->next.</summary>
+    private void ReadingThrough(State state, Expr pointer, SourceSpan span, string what, bool reporting)
+    {
+        if (PathOf(pointer) is not { } path)
+        {
+            if (Root(pointer) is { } root) Reading(state, root, span, what, reporting);
+            return;
+        }
+
+        var steps = path.Split('.');
+        for (var taken = 1; taken <= steps.Length; taken++) Reading(state, string.Join('.', steps.Take(taken)), span, what, reporting);
+    }
+
     private void Step(State state, Instruction instruction, bool reporting)
     {
         switch (instruction)
@@ -229,6 +318,12 @@ public sealed class MemorySafety(
                     state[name] = Allocated(assign.Value)
                         ? [new Mark(Phase.Held, assign.Span.Line, assign.Span)]
                         : [new Mark(Phase.Gone, assign.Span.Line, assign.Span)];
+                    Rewritten(state, name);
+                }
+                else if (PathOf(assign.Target) is { } field)
+                {
+                    state[field] = [new Mark(Phase.Gone, assign.Span.Line, assign.Span)];
+                    Rewritten(state, field);
                 }
 
                 break;
@@ -238,9 +333,11 @@ public sealed class MemorySafety(
                 break;
 
             case DeclareInstruction declare:
-                state[declare.Variable] = _filledIn.Contains(declare.Variable) || !Plain(declare.Type)
+                // A static starts at zero, or holds what the last call left in it; a reference is bound to what it names.
+                state[declare.Variable] = declare.Lifetime != Lifetime.Call || _filledIn.Contains(declare.Variable) || !Plain(declare.Type)
                     ? [new Mark(Phase.Gone, declare.Span.Line, declare.Span)]
                     : [new Mark(Phase.Unset, declare.Span.Line, declare.Span)];
+                Rewritten(state, declare.Variable);
                 break;
 
             case ForgetInstruction forget:
@@ -262,8 +359,15 @@ public sealed class MemorySafety(
     {
         switch (expression)
         {
-            case Call { Callee: Name { Identifier: "free" or "delete" }, Arguments: [{ Value: var freed }, ..] } call when Root(freed) is { } name:
-                Freeing(state, name, call.Span, reporting);
+            case Call { Callee: Name { Identifier: "free" or "delete" }, Arguments: [{ Value: var freed }, ..] } call when PathOf(freed) is { } path:
+                // Freeing a field reads the pointer that holds it first: free(node->key) goes through node.
+                if (Uncast(freed) is Member { Target: var holder } freedField)
+                {
+                    ReadingThrough(state, holder, freedField.Span, $"`{quote(freedField)}`", reporting);
+                    _shown[path] = quote(freedField);
+                }
+
+                Freeing(state, path, call.Span, reporting);
                 return;
 
             // C writes assignment inside expressions; what is written into is not read, unless it is reached through a pointer.
@@ -272,23 +376,30 @@ public sealed class MemorySafety(
                 state[written.Identifier] = Allocated(assigned.Value)
                     ? [new Mark(Phase.Held, assigned.Span.Line, assigned.Span)]
                     : [new Mark(Phase.Gone, assigned.Span.Line, assigned.Span)];
+                Rewritten(state, written.Identifier);
                 return;
 
             case AssignValue assigned:
                 Uses(state, assigned.Value, reporting);
                 Uses(state, assigned.Target, reporting);
+                if (PathOf(assigned.Target) is { } field)
+                {
+                    state[field] = [new Mark(Phase.Gone, assigned.Span.Line, assigned.Span)];
+                    Rewritten(state, field);
+                }
+
                 return;
 
-            case Member { MemberName: "*" } through when Root(through.Target) is { } read:
-                Reading(state, read, through.Span, $"`{quote(through)}`", reporting);
+            case Member { MemberName: "*" } through:
+                ReadingThrough(state, through.Target, through.Span, $"`{quote(through)}`", reporting);
                 break;
 
-            case Member member when Root(member.Target) is { } owner:
-                Reading(state, owner, member.Span, $"`{quote(member)}`", reporting);
+            case Member member:
+                ReadingThrough(state, member.Target, member.Span, $"`{quote(member)}`", reporting);
                 break;
 
-            case ElementAccess element when Root(element.Target) is { } held:
-                Reading(state, held, element.Span, $"`{quote(element)}`", reporting);
+            case ElementAccess element:
+                ReadingThrough(state, element.Target, element.Span, $"`{quote(element)}`", reporting);
                 break;
 
             case Name name:
@@ -305,7 +416,7 @@ public sealed class MemorySafety(
         {
             var lines = marks.Select(m => m.Line).Distinct().Order().ToList();
             report("analysis-double-free", span,
-                $"`{name}` was already freed on line {string.Join(" or ", lines)}, so freeing it again is undefined behaviour - it usually stops the program",
+                $"`{Shown(name)}` was already freed on line {string.Join(" or ", lines)}, so freeing it again is undefined behaviour - it usually stops the program",
                 Severity.Error, Confidence.Certain);
         }
 
@@ -322,7 +433,7 @@ public sealed class MemorySafety(
             if (!_reported.Add(span)) return;
             var freedAt = marks.Select(m => m.Line).Distinct().Order().ToList();
             report("analysis-use-after-free", span,
-                $"`{name}` was freed on line {string.Join(" or ", freedAt)}, so {what} goes through memory that is no longer there - undefined behaviour",
+                $"`{Shown(name)}` was freed on line {string.Join(" or ", freedAt)}, so {what} goes through memory that is no longer there - undefined behaviour",
                 Severity.Error, Confidence.Certain);
             return;
         }
@@ -331,20 +442,32 @@ public sealed class MemorySafety(
         if (!_reported.Add(span)) return;
 
         report("analysis-uninitialised-read", span,
-            $"`{name}` has not been given a value yet, so {what} reads whatever happened to be in that memory",
+            $"`{Shown(name)}` has not been given a value yet, so {what} reads whatever happened to be in that memory",
             Severity.Error, Confidence.Certain);
     }
+
+    /// <summary>
+    /// The local whose own memory an address is in - the variable itself, or an element of an array declared in it - or
+    /// null when it may be anywhere else. An element or field reached through a pointer is wherever the pointer points,
+    /// and a struct's field is left out too: a typedef can hide the pointer that p-&gt;next goes through.
+    /// </summary>
+    private string? CallsOwn(Expr addressed) => addressed switch
+    {
+        Name name when _callsOwn.ContainsKey(name.Identifier) => name.Identifier,
+        ElementAccess { Target: Name array } when _callsOwn.TryGetValue(array.Identifier, out var type) && type.Name == "array" => array.Identifier,
+        Cast cast => CallsOwn(cast.Value),
+        _ => null,
+    };
 
     /// <summary>What is left when a function returns: memory nobody freed, and the address of something that is about to go.</summary>
     private void Ending(State state, BasicBlock block)
     {
         if (block.Terminator is Leave leave)
         {
-            if (leave.Value is Opaque { What: "address of", Parts: [var addressed] } && Root(addressed) is { } local &&
-                graph.Function.Parameters.All(p => p.Name != local) && _reported.Add(leave.Span))
+            if (leave.Value is Opaque { What: "address of", Parts: [var addressed] } && CallsOwn(addressed) is { } local && _reported.Add(leave.Span))
             {
                 report("analysis-dangling-pointer", leave.Span,
-                    $"`{local}` belongs to this function and is gone once it returns, so the address given back points at memory that is no longer there",
+                    $"`{Shown(local)}` belongs to this function and is gone once it returns, so the address given back points at memory that is no longer there",
                     Severity.Error, Confidence.Certain);
             }
 
@@ -354,7 +477,7 @@ public sealed class MemorySafety(
                 if (!_reported.Add(marks.First().At)) continue;
 
                 report("analysis-memory-leak", marks.First().At,
-                    $"the memory `{name}` points at is never freed, so it is lost when the function returns",
+                    $"the memory `{Shown(name)}` points at is never freed, so it is lost when the function returns",
                     Severity.Warning, Confidence.Likely);
             }
         }

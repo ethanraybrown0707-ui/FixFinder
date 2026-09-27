@@ -35,6 +35,12 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>Variables other code can change at any call; they are never treated as known.</summary>
     public IReadOnlySet<string> Volatile { get; init; } = new HashSet<string>();
 
+    /// <summary>
+    /// The variables whose address a C or C++ function hands out - &amp;end to strtoll - and what can change them: what is
+    /// known of one holds until a call given its address runs, or something is written through a pointer that holds it.
+    /// </summary>
+    public HandedAddresses Addresses { get; init; } = HandedAddresses.None;
+
     /// <summary>Collections that are aliased or handed on, so their length can change out of sight.</summary>
     public IReadOnlySet<string> Escaping { get; init; } = new HashSet<string>();
 
@@ -48,6 +54,12 @@ public sealed class Evaluator(SourceLanguage language)
     public IReadOnlyDictionary<string, IrType> DeclaredTypes { get; init; } = new Dictionary<string, IrType>();
 
     /// <summary>
+    /// The classes and structs the program defines itself. A Stack the program writes is its own object, whatever it
+    /// is called: its push and pop do what its code says, not what java.util.Stack's do.
+    /// </summary>
+    public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
+
+    /// <summary>
     /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
     /// of that name hides it, so both are followed under the one name.
     /// </summary>
@@ -56,7 +68,23 @@ public sealed class Evaluator(SourceLanguage language)
             ? field
             : null;
 
+    /// <summary>
+    /// What is now known about the object a name holds - after a change to it, or a test of it - which is as true of every
+    /// other name holding the same object. Giving a name a new object is <see cref="Rebind"/>.
+    /// </summary>
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
+    {
+        var sharing = state.AliasesOf(name).ToList();
+
+        state = StoreOne(state, name, value);
+        foreach (var alias in sharing) state = StoreOne(state, alias, value);
+        return state;
+    }
+
+    /// <summary>A name given a new value: whatever object it shared before, it shares no longer.</summary>
+    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name), name, value);
+
+    private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
         if (Volatile.Contains(name)) return state.Without(name);
         if (Escaping.Contains(name) && value.MayBe(Shared)) value = value with { Length = value.Length.Join(Interval.NonNegative) };
@@ -170,7 +198,7 @@ public sealed class Evaluator(SourceLanguage language)
         if (name == "array")
             return AbstractValue.Sized(ValueKind.List, arguments is [{ IsNumber: true } size] ? size.Number.Meet(Interval.NonNegative) : Interval.NonNegative);
 
-        var kind = name switch
+        var kind = OwnTypes.Contains(name) ? ValueKind.Nothing : name switch
         {
             "ArrayList" or "LinkedList" or "List" or "Vector" or "Stack" or "ArrayDeque" or "Queue" or "LinkedHashSet" => ValueKind.List,
             "HashMap" or "TreeMap" or "LinkedHashMap" or "Dictionary" or "SortedDictionary" or "Hashtable" => ValueKind.Dictionary,
@@ -435,7 +463,7 @@ public sealed class Evaluator(SourceLanguage language)
 
     public AbstractValue FromType(IrType type)
     {
-        var value = type.Name switch
+        var value = OwnTypes.Contains(type.Name) ? AbstractValue.Of(ValueKind.Object) : type.Name switch
         {
             "byte" when language is SourceLanguage.CSharp or SourceLanguage.Go or SourceLanguage.C or SourceLanguage.Cpp =>
                 AbstractValue.Integer(new Interval(0, 255)),
@@ -462,6 +490,20 @@ public sealed class Evaluator(SourceLanguage language)
         return type.Nullable ? value.Join(AbstractValue.Null) : value;
     }
 
+    /// <summary>
+    /// A number as the variable or function holding it declares it. A whole number kept in a double is a fraction from
+    /// then on - 10 / d gives infinity rather than failing when d is 0 - and a fraction kept in a C int loses what is
+    /// after the point. Python's hints convert nothing, so there a number stays as it was written.
+    /// </summary>
+    public AbstractValue AsDeclared(AbstractValue value, IrType declared)
+    {
+        if (IsPython || !value.IsNumber) return value;
+        if (declared.IsFloatingPoint) return AbstractValue.Real(value.Number);
+
+        var truncates = language is SourceLanguage.C or SourceLanguage.Cpp && value.IsOnly(ValueKind.Real) && FromType(declared).IsOnly(ValueKind.Integer);
+        return truncates ? AbstractValue.Integer(value.Number.Truncate()) : value;
+    }
+
     /// <summary>Java and C# value types, which can never hold null.</summary>
     private static bool IsPrimitive(string name) => name is "int" or "long" or "short" or "byte" or "double" or "float" or "boolean" or "bool"
         or "char" or "decimal" or "uint" or "ulong" or "sbyte" or "ushort";
@@ -476,7 +518,8 @@ public sealed class Evaluator(SourceLanguage language)
                 state = Embedded(state, assign.Value);
                 if (assign.Target is not Name) state = Embedded(state, assign.Target);
                 var assigned = Evaluate(Settled(assign.Value), state);
-                return AssignTo(ForgetOthersAfterCalls(state, assign.Value), assign.Target, assigned, assign.Value);
+                var written = AssignTo(ForgetOthersAfterCalls(state, assign.Value), assign.Target, assigned, assign.Value);
+                return WritesThroughPointer(assign.Target) ? Forget(written, Addresses.ChangedByWriteTo(assign.Target)) : written;
 
             case EvaluateInstruction { Value: Name or Member }:
                 return ForgetOthers(state);
@@ -489,7 +532,7 @@ public sealed class Evaluator(SourceLanguage language)
                 return ForgetOthers(state);
 
             case DeclareInstruction declare:
-                return Store(state, declare.Variable, FromType(declare.Type));
+                return Rebind(state, declare.Variable, FromType(declare.Type));
 
             case ForgetInstruction forget:
                 return forget.Names.Aggregate(state, (s, name) => s.Without(name));
@@ -504,14 +547,22 @@ public sealed class Evaluator(SourceLanguage language)
         switch (target)
         {
             case Name name:
-                if (!IsPython && value.IsUnknown && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
-                    value = FromType(declared);
-                if (valueExpression is Name source && value.IsOnly(ValueKind.List | ValueKind.Dictionary | ValueKind.Set))
+                if (!IsPython && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
+                    value = value.IsUnknown ? FromType(declared) : AsDeclared(value, declared);
+
+                // b = a: both names now hold the one object, so a change made through either is a change to both.
+                if (valueExpression is Name { Identifier: var source } && source != name.Identifier && Tracked(source) && Tracked(name.Identifier))
+                    return Rebind(state, name.Identifier, value).Aliasing(name.Identifier, source);
+
+                // items += more extends a Python list in place, where items = items + more makes a new one - and once
+                // lowered the two look alike. For a list that other names share, neither is guessed: their lengths are forgotten.
+                if (IsPython && valueExpression is Binary { Left: Name { Identifier: var extended } } && extended == name.Identifier &&
+                    state.AliasesOf(name.Identifier).Any() && state[name.Identifier].MayBe(ValueKind.List))
                 {
-                    var shared = value with { Length = Interval.NonNegative };
-                    return Store(Store(state, source.Identifier, shared), name.Identifier, shared);
+                    state = Store(state, name.Identifier, state[name.Identifier] with { Length = Interval.NonNegative });
                 }
-                return Store(state, name.Identifier, value);
+
+                return Rebind(state, name.Identifier, value);
 
             case CollectionLiteral { Kind: CollectionKind.Tuple or CollectionKind.List } unpacked:
                 if (valueExpression is CollectionLiteral { Items.Count: var count } packed && count == unpacked.Items.Count)
@@ -523,7 +574,7 @@ public sealed class Evaluator(SourceLanguage language)
                 return unpacked.Items.Aggregate(state, (s, item) => AssignTo(s, item, AbstractValue.Unknown, null));
 
             case Member field when FieldName(field) is { } named:
-                return Store(state, named, value);
+                return Rebind(state, named, value);
 
             case ElementAccess { Target: Name owner } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
                 var dictionary = state[owner.Identifier];
@@ -534,13 +585,47 @@ public sealed class Evaluator(SourceLanguage language)
         }
     }
 
-    /// <summary>What was learned about variables that are not the function's own is lost once other code has run.</summary>
-    private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
-        CallsOtherCode(expression) ? ForgetOthers(state) : state;
+    /// <summary>Whether a name can be followed as sharing an object: not one that other code can change at any call.</summary>
+    private bool Tracked(string name) => !Volatile.Contains(name);
 
-    /// <summary>Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in.</summary>
-    private AbstractState ForgetOthers(AbstractState state) =>
-        Locals is null ? state : state.Names.Where(name => !Locals.Contains(name)).ToList().Aggregate(state, (s, name) => s.Without(name));
+    /// <summary>
+    /// What was learned about variables that are not the function's own is lost once other code has run - and so is what
+    /// was known of a variable whose address one of the calls was given.
+    /// </summary>
+    private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
+        CallsOtherCode(expression) ? Forget(ForgetOthers(state), Addresses.ChangedByCallsIn(expression)) : state;
+
+    /// <summary>
+    /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
+    /// hidden copies the code itself makes - the collection a loop walks - are the function's own and no other code can
+    /// change them, unless they share their object with something that is forgotten.
+    /// </summary>
+    private AbstractState ForgetOthers(AbstractState state)
+    {
+        state = Forget(state, Addresses.Kept);
+        if (Locals is null) return state;
+
+        foreach (var name in state.Names.Where(name => !Locals.Contains(name) && !IsHidden(name)).ToList())
+        {
+            var hiddenCopies = state.AliasesOf(name).Where(IsHidden).ToList();
+            state = hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy));
+        }
+
+        return state;
+    }
+
+    /// <summary>The control-flow graph's own temporaries - $items0, $result2 - which the program never names.</summary>
+    private static bool IsHidden(string name) => name.StartsWith('$');
+
+    /// <summary>What is known of these variables is lost: code that holds their address may have changed them.</summary>
+    private static AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
+        changed.Aggregate(state, (forgetting, name) => forgetting.Without(name));
+
+    /// <summary>
+    /// A write that goes through a pointer or into something a name holds - *p = 5, p->next = q, values[i] = v - which
+    /// can change a variable whose address was handed out. A field of this object, written by name, is not one.
+    /// </summary>
+    private bool WritesThroughPointer(Expr target) => target is ElementAccess || target is Member && FieldName(target) is null;
 
     private bool CallsOtherCode(Expr expression) =>
         expression is Call { Callee: var callee } && !(IsPython && callee is Name { Identifier: var builtin } && Builtins.Contains(builtin))
@@ -586,7 +671,11 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState Embedded(AbstractState state, Expr expression)
     {
         foreach (var assigned in Assignments(expression))
+        {
             state = AssignTo(Embedded(state, assigned.Value), assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
+            if (WritesThroughPointer(assigned.Target)) state = Forget(state, Addresses.ChangedByWriteTo(assigned.Target));
+        }
+
         return state;
     }
 
@@ -609,7 +698,19 @@ public sealed class Evaluator(SourceLanguage language)
     };
 
     /// <summary>What must be true of the variables for <paramref name="condition"/> to come out as <paramref name="holds"/>.</summary>
+    /// <remarks>
+    /// A condition that runs other code - sscanf(line, "%d", &amp;count) == 1 - may change a variable whose address the
+    /// call is given, so what was known of it is forgotten before the test is read and again after it.
+    /// </remarks>
     public AbstractState Assume(AbstractState state, Expr condition, bool holds)
+    {
+        if (Addresses.Variables.Count == 0 || !CallsOtherCode(condition)) return Assumed(state, condition, holds);
+
+        var changed = Addresses.ChangedByCallsIn(condition).ToList();
+        return Forget(Assumed(Forget(state, changed), condition, holds), changed);
+    }
+
+    private AbstractState Assumed(AbstractState state, Expr condition, bool holds)
     {
         if (!state.IsReachable) return state;
         state = Embedded(state, condition);

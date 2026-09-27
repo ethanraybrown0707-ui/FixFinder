@@ -1,0 +1,112 @@
+==> Program.cs <==
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Shop;
+
+public static class Program
+{
+    public static void Main()
+    {
+        var orders = new OrderBook();
+        orders.Place(new Order(1, "Ada", new List<Line> { new("pen", 1.5m, 4), new("pad", 3m, 1) }));
+        orders.Place(new Order(2, "Alan", new List<Line> { new("ink", 7.25m, 2) }));
+
+        Order? found = orders.Find(2);
+        Console.WriteLine(found?.Customer ?? "no such order");
+        Console.WriteLine(orders.Find(9)?.Total() ?? 0m);
+
+        foreach (var (customer, spent) in orders.SpendByCustomer())
+        {
+            Console.WriteLine($"{customer}: {spent:F2}");
+        }
+
+        var biggest = orders.All.OrderByDescending(order => order.Total()).FirstOrDefault();
+        if (biggest is not null)
+        {
+            Console.WriteLine(biggest.Id);
+        }
+
+        Console.WriteLine(orders.AverageLines());
+        Console.WriteLine(Describe(orders.Find(1)));
+    }
+
+    static string Describe(Order? order) => order switch
+    {
+        null => "missing",
+        { Lines.Count: 0 } => "empty",
+        { Lines.Count: 1 } single => $"one line: {single.Lines[0].Product}",
+        _ => $"{order.Lines.Count} lines",
+    };
+}
+==> Order.cs <==
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Shop;
+
+public record Line(string Product, decimal Price, int Quantity)
+{
+    public decimal Cost => Price * Quantity;
+}
+
+public class Order
+{
+    public Order(int id, string customer, List<Line> lines)
+    {
+        if (string.IsNullOrWhiteSpace(customer))
+        {
+            throw new ArgumentException("an order needs a customer", nameof(customer));
+        }
+
+        Id = id;
+        Customer = customer;
+        Lines = lines;
+    }
+
+    public int Id { get; }
+    public string Customer { get; }
+    public List<Line> Lines { get; }
+
+    public decimal Total() => Lines.Sum(line => line.Cost);
+}
+==> OrderBook.cs <==
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Shop;
+
+public class OrderBook
+{
+    private readonly Dictionary<int, Order> _orders = new();
+
+    public IEnumerable<Order> All => _orders.Values;
+
+    public void Place(Order order)
+    {
+        if (!_orders.TryAdd(order.Id, order))
+        {
+            throw new InvalidOperationException($"order {order.Id} was already placed");
+        }
+    }
+
+    public Order? Find(int id) => _orders.TryGetValue(id, out var order) ? order : null;
+
+    public IEnumerable<(string Customer, decimal Spent)> SpendByCustomer() =>
+        _orders.Values
+            .GroupBy(order => order.Customer)
+            .Select(group => (group.Key, group.Sum(order => order.Total())))
+            .OrderBy(pair => pair.Key);
+
+    public double AverageLines()
+    {
+        if (_orders.Count == 0)
+        {
+            return 0;
+        }
+
+        return _orders.Values.Average(order => order.Lines.Count);
+    }
+}

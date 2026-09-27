@@ -1,0 +1,149 @@
+==> main.c <==
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node {
+    int value;
+    struct Node *next;
+} Node;
+
+static int push(Node **head, int value)
+{
+    Node *made = malloc(sizeof *made);
+    if (made == NULL) {
+        return -1;
+    }
+    made->value = value;
+    made->next = *head;
+    *head = made;
+    return 0;
+}
+
+static int remove_value(Node **head, int value)
+{
+    for (Node **link = head; *link != NULL; link = &(*link)->next) {
+        if ((*link)->value == value) {
+            Node *gone = *link;
+            *link = gone->next;
+            free(gone);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void free_list(Node *head)
+{
+    while (head != NULL) {
+        Node *next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
+static int compare_ints(const void *left, const void *right)
+{
+    int a = *(const int *)left;
+    int b = *(const int *)right;
+    return (a > b) - (a < b);
+}
+
+static int **make_grid(int rows, int columns)
+{
+    int **grid = malloc(rows * sizeof *grid);
+    if (grid == NULL) {
+        return NULL;
+    }
+    for (int row = 0; row < rows; row++) {
+        grid[row] = calloc(columns, sizeof **grid);
+        if (grid[row] == NULL) {
+            for (int made = 0; made < row; made++) {
+                free(grid[made]);
+            }
+            free(grid);
+            return NULL;
+        }
+    }
+    return grid;
+}
+
+static void free_grid(int **grid, int rows)
+{
+    for (int row = 0; row < rows; row++) {
+        free(grid[row]);
+    }
+    free(grid);
+}
+
+static char *join(const char *first, const char *second)
+{
+    size_t length = strlen(first) + strlen(second) + 2;
+    char *joined = malloc(length);
+    if (joined == NULL) {
+        return NULL;
+    }
+    snprintf(joined, length, "%s %s", first, second);
+    return joined;
+}
+
+static const char *grade(int mark)
+{
+    switch (mark / 10) {
+    case 10:
+    case 9:
+        return "A";
+    case 8:
+        return "B";
+    case 7:
+        return "C";
+    default:
+        return "F";
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc > 1) {
+        printf("%d\n", atoi(argv[1]));
+    }
+
+    Node *list = NULL;
+    for (int i = 0; i < 4; i++) {
+        if (push(&list, i) != 0) {
+            free_list(list);
+            return 1;
+        }
+    }
+    printf("%d\n", remove_value(&list, 2));
+    free_list(list);
+
+    int values[] = {5, 2, 9, 1};
+    size_t count = sizeof values / sizeof values[0];
+    qsort(values, count, sizeof values[0], compare_ints);
+    printf("%d %d\n", values[0], values[count - 1]);
+
+    int **grid = make_grid(3, 4);
+    if (grid != NULL) {
+        grid[2][3] = 7;
+        printf("%d\n", grid[2][3]);
+        free_grid(grid, 3);
+    }
+
+    char *both = join("hello", "world");
+    if (both != NULL) {
+        puts(both);
+        free(both);
+    }
+
+    unsigned flags = 0;
+    flags |= 1u << 3;
+    flags &= ~(1u << 1);
+    printf("%s %u\n", grade(93), flags);
+
+    int number;
+    do {
+        printf("number? ");
+    } while (scanf("%d", &number) != 1 && getchar() != EOF);
+    return 0;
+}

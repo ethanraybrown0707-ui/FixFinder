@@ -34,7 +34,7 @@ public class MultiFileProgramTests
 
     private static async Task<SessionOutcome> Run(string chosen)
     {
-        var plan = TargetFactory.FromFile(chosen, TimeSpan.FromMinutes(5));
+        var plan = TargetFactory.FromFile(chosen, LiveAllowance.For(chosen, TimeSpan.FromMinutes(5)));
         Assert.True(plan.Ok, plan.Problem);
 
         using var http = new FixFinderHttpClient();

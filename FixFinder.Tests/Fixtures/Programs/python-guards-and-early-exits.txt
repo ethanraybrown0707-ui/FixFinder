@@ -1,0 +1,107 @@
+==> main.py <==
+import sys
+from bisect import insort
+from collections import OrderedDict
+
+
+def safe_mean(values):
+    return sum(values) / (len(values) or 1)
+
+
+def last_word(text):
+    words = text.split()
+    if not words:
+        return ""
+    return words[-1]
+
+
+def first_two(items):
+    if len(items) >= 2:
+        return items[0], items[1]
+    return None
+
+
+def find_index(items, wanted):
+    for index, item in enumerate(items):
+        if item == wanted:
+            break
+    else:
+        return -1
+    return index
+
+
+def read_numbers(lines):
+    numbers = []
+    position = 0
+    while True:
+        if position >= len(lines):
+            break
+        line = lines[position].strip()
+        position += 1
+        if line == "end":
+            break
+        if not line:
+            continue
+        try:
+            numbers.append(int(line))
+        except ValueError:
+            print(f"skipping {line!r}")
+    return numbers
+
+
+def counter():
+    count = 0
+
+    def bump():
+        nonlocal count
+        count += 1
+        return count
+
+    return bump
+
+
+def evens(limit):
+    yield from (number for number in range(limit) if number % 2 == 0)
+
+
+def ratio(done, total):
+    assert total > 0, "total must be positive"
+    return done / total
+
+
+def cache_lookup(cache, key, compute):
+    if key not in cache:
+        cache[key] = compute(key)
+        if len(cache) > 3:
+            cache.popitem(last=False)
+    return cache[key]
+
+
+def median(values):
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("no values")
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def main(argv):
+    if len(argv) > 1:
+        print(argv[1])
+    print(safe_mean([]), last_word("a b c"), first_two([1, 2, 3]), find_index([4, 5], 5))
+    print(read_numbers(["1", "", "x", "2", "end", "3"]))
+    bump = counter()
+    bump()
+    print(bump(), list(evens(7)), ratio(1, 4))
+    cache = OrderedDict()
+    print(cache_lookup(cache, 4, lambda key: key * key))
+    scores = []
+    for score in [30, 10, 20]:
+        insort(scores, score)
+    print(scores, median(scores))
+    print(next(evens(0), None))
+
+
+main(sys.argv)

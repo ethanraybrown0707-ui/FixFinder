@@ -37,6 +37,12 @@ public sealed class Outcome
 
     /// <summary>The value that goes wrong: the divisor, the index, the null value, the empty collection.</summary>
     public Expr? Culprit { get; internal set; }
+
+    /// <summary>The collection an index or a pop is taken from, when it is a variable.</summary>
+    public string? Collection { get; internal set; }
+
+    /// <summary>Other variables holding that same collection on a failing path - b after b = a - whose changes are its changes.</summary>
+    public IReadOnlyList<string> SharedWith { get; internal set; } = [];
 }
 
 /// <summary>How one path through a function ended: what it returned or the error it stopped with, and what it printed.</summary>

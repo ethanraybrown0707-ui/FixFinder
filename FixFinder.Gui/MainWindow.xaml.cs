@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using FixFinder.Core;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
@@ -43,7 +44,19 @@ public partial class MainWindow : Window
     private readonly FixSourceRegistry _sources = new();
 
     private List<FindingRow> _findings = [];
+
+    /// <summary>What the person chose last time they used FixFinder, read once when the window opens.</summary>
+    private readonly Preferences _preferences = Preferences.Load();
+
+    /// <summary>What was found the last few times, so a report can say whether things are getting better.</summary>
+    private readonly CheckHistory _history = CheckHistory.Load();
     private Severity? _filter;
+
+    /// <summary>
+    /// Set while the Efficiency tab is open. It lists only what would make the program quicker, none of which is a
+    /// problem, so the severity filters do not apply to it.
+    /// </summary>
+    private bool _showingEfficiency;
 
     private string? _chosenPath;
     private LaunchPlan? _launch;
@@ -51,6 +64,27 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
+
+    /// <summary>
+    /// What the analyses found in each function during this session, so checking again after an edit only analyses the
+    /// functions the edit could have changed.
+    /// </summary>
+    private readonly AnalysisCache _analysisCache = new();
+
+    /// <summary>Watches the program's folder while Check on save is on, so the code is read again after every save.</summary>
+    private FileSystemWatcher? _saveWatcher;
+
+    /// <summary>The program's own files, which are the only ones whose saving means anything here.</summary>
+    private HashSet<string> _watchedFiles = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Waits for a burst of writes to settle before the code is read again: an editor often saves in several steps, and
+    /// reading half a file would report mistakes that are not there.
+    /// </summary>
+    private readonly System.Windows.Threading.DispatcherTimer _saveSettling = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+    /// <summary>The code check running after a save, if one is; a newer save replaces it.</summary>
+    private CancellationTokenSource? _codeCheck;
 
     public MainWindow(string? initialFile = null)
     {
@@ -63,6 +97,10 @@ public partial class MainWindow : Window
 
         AddLanguageTiles();
         UpdateFilterCounts();
+        _saveSettling.Tick += SaveSettled_Tick;
+
+        ExplanationDepthSlider.Value = (int)_preferences.Explanations;
+        ExplanationDepthText.Text = DepthName(_preferences.Explanations);
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -83,12 +121,159 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StopWatchingForSaves();
+        _codeCheck?.Cancel();
         _cancellation?.Cancel();
         _logger?.Dispose();
         _http.Dispose();
 
         base.OnClosed(e);
     }
+
+
+    private readonly ObservableCollection<ProgramRow> _programs = [];
+    private CancellationTokenSource? _folderCheck;
+
+    private void ChooseFolderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog { Title = "Choose the folder to check" };
+        if (dialog.ShowDialog(this) != true) return;
+
+        _ = CheckFolderAsync(dialog.FolderName);
+    }
+
+    /// <summary>
+    /// Checks every program a folder holds, one at a time, filling in the list as each finishes.
+    /// </summary>
+    /// <remarks>
+    /// One at a time on purpose: checking a program compiles it and runs it, and a folder's worth of that at once
+    /// would fight itself for the machine and make each one slower. The scan itself and every check happen away from
+    /// the window, so the list stays usable and a finished program can be read while the rest are still going.
+    /// </remarks>
+    private async Task CheckFolderAsync(string folder)
+    {
+        _folderCheck?.Cancel();
+        _folderCheck = new CancellationTokenSource();
+        var cancellation = _folderCheck.Token;
+
+        _programs.Clear();
+        FolderList.ItemsSource = _programs;
+
+        NothingChosenPanel.Visibility = Visibility.Collapsed;
+        ChosenPanel.Visibility = Visibility.Collapsed;
+        FolderPanel.Visibility = Visibility.Visible;
+        EmptyState.Visibility = Visibility.Collapsed;
+
+        FolderSummaryText.Text = Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar));
+        FolderProgressText.Text = "Looking through the folder…";
+
+        SetBusy(true);
+        ShowActivity(true, "Looking through the folder…");
+
+        var plan = await Task.Run(() => ProjectScan.Of(folder), cancellation);
+
+        if (cancellation.IsCancellationRequested)
+        {
+            SetBusy(false);
+            ShowActivity(false, "Stopped");
+            return;
+        }
+
+        foreach (var program in plan.Programs) _programs.Add(new ProgramRow(program));
+
+        FolderSummaryText.Text = plan.Summary;
+
+        if (_programs.Count == 0)
+        {
+            FolderProgressText.Text = "Nothing in this folder is a program FixFinder can check.";
+            SetBusy(false);
+            ShowActivity(false, "Nothing to check");
+            return;
+        }
+
+        var checkedSoFar = 0;
+
+        foreach (var row in _programs)
+        {
+            if (cancellation.IsCancellationRequested)
+            {
+                SetBusy(false);
+                ShowActivity(false, "Stopped");
+                return;
+            }
+
+            row.Starting();
+            FolderProgressText.Text = $"Checking {row.Program.Name} - {checkedSoFar} of {_programs.Count} done";
+            ShowActivity(true, $"Checking {checkedSoFar + 1} of {_programs.Count}…");
+
+            try
+            {
+                var report = await CheckOneAsync(row.Program.Entry, cancellation);
+                row.Finished(report?.Findings ?? []);
+
+                // A program checked as part of a folder was still checked, so it counts: the next look at that file on
+                // its own has something to be compared with.
+                if (report is not null) _history.Record(CheckRecord.Of(row.Program.Entry, report.Findings));
+            }
+            catch (OperationCanceledException)
+            {
+                SetBusy(false);
+                ShowActivity(false, "Stopped");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Write($"Checking {row.Program.Entry} stopped early: {ex.Message}");
+                row.CouldNotCheck();
+            }
+
+            checkedSoFar++;
+
+            // Show the first program that has something wrong with it, so the report is not empty while the rest run.
+            if (FolderList.SelectedItem is null && row.State == ProgramState.HasProblems) FolderList.SelectedItem = row;
+        }
+
+        SetBusy(false);
+        ShowActivity(false, "Finished");
+
+        var withProblems = _programs.Count(r => r.State == ProgramState.HasProblems);
+        var problems = _programs.Where(r => r.Findings is not null).Sum(r => r.Findings!.Count(f => f.Severity != Severity.Suggestion));
+
+        FolderProgressText.Text = problems == 0
+            ? $"Nothing wrong found in {Many(_programs.Count, "program")}."
+            : $"{Many(problems, "problem")} in {Many(withProblems, "file")}.";
+    }
+
+    /// <summary>Checks one program of a folder, away from the window, and gives back what it found.</summary>
+    private async Task<CheckReport?> CheckOneAsync(string file, CancellationToken cancellation)
+    {
+        var launch = TargetFactory.FromFile(file);
+        if (!launch.Ok) return null;
+
+        var checker = new ProgramChecker(_http, _sources) { Language = CodeLanguage.Of(file) ?? CodeLanguage.Any, Cache = _analysisCache };
+
+        return await Task.Run(() => checker.CheckAsync(launch, cancellation), cancellation);
+    }
+
+    private void FolderList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (FolderList.SelectedItem is not ProgramRow row) return;
+
+        ShowChosen(row.Program.Entry);
+        _chosenPath = row.Program.Entry;
+
+        // Check on save follows one program; a folder's programs were each checked once, as they were.
+        CheckOnSaveBox.IsChecked = false;
+        CheckOnSaveBox.IsEnabled = false;
+
+        ShowFindings(row.Findings ?? []);
+
+        // With findings, the open tab has already said whether it has any of them to show.
+        if (row.Findings is not { Count: > 0 }) EmptyState.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>"3 problems", and "1 problem" rather than "1 problems".</summary>
+    private static string Many(int count, string thing) => count == 1 ? $"1 {thing}" : $"{count} {thing}s";
 
     private void ChooseFileButton_Click(object sender, RoutedEventArgs e) => PickFile();
 
@@ -123,6 +308,14 @@ public partial class MainWindow : Window
     {
         _chosenPath = path;
         _launch = TargetFactory.FromFile(path);
+
+        // Watching follows the file: saves to the one chosen before mean nothing now.
+        CheckOnSaveBox.IsEnabled = _launch.Ok;
+        if (CheckOnSaveBox.IsChecked == true)
+        {
+            if (_launch.Ok) WatchForSaves();
+            else CheckOnSaveBox.IsChecked = false;
+        }
 
         NothingChosenPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Visible;
@@ -246,6 +439,8 @@ public partial class MainWindow : Window
 
     private async Task CheckAsync()
     {
+        // A full check reads the code as well, and does more besides.
+        _codeCheck?.Cancel();
         _launch = TargetFactory.FromFile(_chosenPath!);
 
         if (!_launch.Ok || _launch.Spec is null)
@@ -276,7 +471,12 @@ public partial class MainWindow : Window
 
         _cancellation = new CancellationTokenSource();
 
-        var checker = new ProgramChecker(_http, _sources) { Language = _language, Expected = expected.IsEmpty ? null : expected };
+        var checker = new ProgramChecker(_http, _sources)
+        {
+            Language = _language,
+            Expected = expected.IsEmpty ? null : expected,
+            Cache = _analysisCache,
+        };
         checker.FindingsChanged += OnFindingsChanged;
         checker.Progress += OnProgress;
         checker.LaneFinished += OnLaneFinished;
@@ -323,6 +523,8 @@ public partial class MainWindow : Window
         UpdateFilterCounts();
 
         FilterPanel.Visibility = Visibility.Collapsed;
+        ViewTabs.Visibility = Visibility.Collapsed;
+        EfficiencyIntro.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
         CopyReportButton.IsEnabled = false;
 
@@ -340,6 +542,7 @@ public partial class MainWindow : Window
         foreach (var note in report.Notes) _notes.Add(note);
 
         ShowFindings(report.Findings);
+        RememberThisCheck(report);
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
             report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime && f.FoundBy is null) ? LaneState.Failed : LaneState.Passed);
@@ -370,6 +573,76 @@ public partial class MainWindow : Window
 
     private void OnFindingsChanged(IReadOnlyList<Finding> findings) => Dispatcher.BeginInvoke(() => ShowFindings(findings));
 
+    /// <summary>
+    /// Writes this check down and says how it compares with the last one of the same program.
+    /// </summary>
+    /// <remarks>
+    /// The comparison is the point of keeping any of it. Five problems is good news or bad news depending on what
+    /// there were before, and only the history knows which. Counts and times are kept, never code.
+    /// </remarks>
+    private void RememberThisCheck(CheckReport report)
+    {
+        if (_chosenPath is not { Length: > 0 } file) return;
+
+        var now = CheckRecord.Of(file, report.Findings);
+        var said = CheckHistory.Since(_history.LastTime(file), now);
+
+        SinceLastText.Text = said ?? "";
+        SinceLastText.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
+
+        // Recorded after the comparison, so this check is not compared with itself.
+        _history.Record(now);
+    }
+
+    /// <summary>
+    /// Opens the page a fix was taken from, so the reader can judge it themselves.
+    /// </summary>
+    /// <remarks>
+    /// Only http and https are opened. The address comes from a page somebody else wrote, so handing it to the
+    /// shell without looking would be handing a stranger the choice of what runs.
+    /// </remarks>
+    private void OpenFurtherReading_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.FurtherReading is { } reading) Open(reading.Url);
+    }
+
+    private void OpenWeakness_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.Weakness is { } weakness) Open(weakness.Url);
+    }
+
+    private void OpenOrigin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: FindingRow row } && row.Finding.CameFrom is { HasLink: true } came) Open(came.Url!);
+    }
+
+    /// <summary>
+    /// Opens a web address, and only a web address.
+    /// </summary>
+    /// <remarks>
+    /// Some of these come from pages other people wrote, so the scheme is checked here rather than trusted: handing an
+    /// arbitrary address to the shell is handing somebody else the choice of what runs.
+    /// </remarks>
+    private void Open(string address)
+    {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            MessageBox.Show(this, $"That link is not an ordinary web address, so it was not opened:\n\n{address}",
+                "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UriFormatException)
+        {
+            MessageBox.Show(this, $"Could not open that link:\n\n{ex.Message}", "FixFinder",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void ShowFindings(IReadOnlyList<Finding> findings)
     {
         // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.
@@ -378,12 +651,23 @@ public partial class MainWindow : Window
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
 
+        // Which findings follow from which is worked out in Core; the window only has to look up the lines, which it
+        // can do because it is the one place that can see the whole report at once.
+        var byId = findings.ToDictionary(f => f.Id, f => f, StringComparer.Ordinal);
+        var followers = findings.Where(f => f.CausedBy is not null)
+            .GroupBy(f => f.CausedBy!.RootId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)[.. g.Select(f => f.Line ?? 0).Where(line => line > 0).Order()], StringComparer.Ordinal);
+
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
+            Level = _preferences.Explanations,
+            FollowsLine = f.CausedBy is { } cause && byId.TryGetValue(cause.RootId, out var root) ? root.Line : null,
+            ExplainsLines = followers.GetValueOrDefault(f.Id, []),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ViewTabs.Visibility = FilterPanel.Visibility;
         if (_findings.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
 
         UpdateFilterCounts();
@@ -394,19 +678,85 @@ public partial class MainWindow : Window
     {
         _visibleFindings.Clear();
 
-        foreach (var row in _findings.Where(r => _filter is null || r.Finding.Severity == _filter))
-            _visibleFindings.Add(row);
+        var shown = _showingEfficiency
+            ? _findings.Where(IsEfficiency)
+            : _findings.Where(r => !IsEfficiency(r) && (_filter is null || r.Finding.Severity == _filter));
+
+        foreach (var row in shown) _visibleFindings.Add(row);
+
+        // The pills are checked while the window is still being built, before these exist.
+        if (!IsInitialized) return;
+
+        EfficiencyIntro.Visibility = _showingEfficiency && _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowEmptyTab();
+    }
+
+    /// <summary>A way to make the program quicker, which belongs on the Efficiency tab rather than among the problems.</summary>
+    private static bool IsEfficiency(FindingRow row) => row.Finding.Kind == FindingKind.Performance;
+
+    /// <summary>What a tab with nothing on it says, so an empty tab is not mistaken for one still waiting for results.</summary>
+    private void ShowEmptyTab()
+    {
+        if (_findings.Count == 0) return;
+
+        var empty = _visibleFindings.Count == 0 && (_showingEfficiency || _filter is null);
+        EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        if (!empty) return;
+
+        (EmptyTitleText.Text, EmptyBodyText.Text) = _showingEfficiency
+            ? ("Nothing to speed up was found",
+               "FixFinder looks for work that grows with the data - a list searched from the start on every pass of a loop, for " +
+               "example - and found none here. That is not a promise the program is quick: it is only what FixFinder can show.")
+            : ("No problems found",
+               "Nothing in the code looks like a mistake. The Efficiency tab lists ways the program could do less work.");
     }
 
     private void UpdateFilterCounts()
     {
-        int Count(Severity severity) => _findings.Count(r => r.Finding.Severity == severity);
+        var problems = _findings.Where(r => !IsEfficiency(r)).ToList();
+        int Count(Severity severity) => problems.Count(r => r.Finding.Severity == severity);
 
-        FilterAll.Content = $"All  {_findings.Count}";
+        ProblemsTab.Content = $"Problems  {problems.Count}";
+        EfficiencyTab.Content = $"Efficiency  {_findings.Count - problems.Count}";
+
+        FilterAll.Content = $"All  {problems.Count}";
         FilterErrors.Content = $"Errors  {Count(Severity.Error)}";
         FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
         FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
     }
+
+    /// <summary>
+    /// Changes how in depth the findings on screen are explained, and nothing else about them.
+    /// </summary>
+    /// <remarks>
+    /// Every wording a finding has was worked out when the program was checked, so this hands each row the new level
+    /// and the rows read a different string. Nothing is compiled again, nothing is run again, and no finding appears
+    /// or disappears - which is the whole point of the setting.
+    /// </remarks>
+    private void ExplanationDepth_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        // The slider is given its range while the window is still being built, before the label beside it exists.
+        if (ExplanationDepthText is null) return;
+
+        var chosen = (ExplanationLevel)(int)Math.Round(ExplanationDepthSlider.Value);
+        ExplanationDepthText.Text = DepthName(chosen);
+        if (chosen == _preferences.Explanations) return;
+
+        _preferences.Explanations = chosen;
+        foreach (var row in _findings) row.Level = chosen;
+
+        // Failing to write a preference is not worth interrupting anybody over; it is remembered for this session
+        // either way.
+        _preferences.Save();
+    }
+
+    /// <summary>What each stop on the slider is called: who the explanation is written for.</summary>
+    private static string DepthName(ExplanationLevel level) => level switch
+    {
+        ExplanationLevel.Beginner => "Beginner",
+        ExplanationLevel.Technical => "Technical",
+        _ => "Student",
+    };
 
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {
@@ -416,6 +766,136 @@ public partial class MainWindow : Window
             : null;
 
         if (_findings is not null) ApplyFilter();
+    }
+
+    /// <summary>
+    /// Moves between what is wrong with the program and how it could do less work. Both tabs show their findings the
+    /// same way; the severity filters only make sense among problems, so they are hidden on the Efficiency tab.
+    /// </summary>
+    private void View_Checked(object sender, RoutedEventArgs e)
+    {
+        _showingEfficiency = sender == EfficiencyTab;
+        if (!IsInitialized) return;
+
+        SeverityFilters.Visibility = _showingEfficiency ? Visibility.Collapsed : Visibility.Visible;
+        ApplyFilter();
+    }
+
+    private async void CheckOnSave_Changed(object sender, RoutedEventArgs e)
+    {
+        if (CheckOnSaveBox.IsChecked != true)
+        {
+            StopWatchingForSaves();
+            return;
+        }
+
+        WatchForSaves();
+        await CheckCodeAgainAsync();
+    }
+
+    private void WatchForSaves()
+    {
+        StopWatchingForSaves();
+        if (_chosenPath is not { } file || Path.GetDirectoryName(file) is not { } folder || !Directory.Exists(folder)) return;
+
+        _watchedFiles = new HashSet<string>(ProgramFiles.Of(file).Append(file).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        _saveWatcher = new FileSystemWatcher(folder)
+        {
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size,
+        };
+        _saveWatcher.Changed += OnFileSaved;
+        _saveWatcher.Created += OnFileSaved;
+        _saveWatcher.Renamed += OnFileSaved;
+        _saveWatcher.EnableRaisingEvents = true;
+    }
+
+    private void StopWatchingForSaves()
+    {
+        _saveSettling.Stop();
+        if (_saveWatcher is null) return;
+
+        _saveWatcher.EnableRaisingEvents = false;
+        _saveWatcher.Dispose();
+        _saveWatcher = null;
+    }
+
+    /// <summary>Raised on a background thread for every file in the folder; only the program's own files count.</summary>
+    private void OnFileSaved(object sender, FileSystemEventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        if (!_watchedFiles.Contains(Path.GetFullPath(e.FullPath))) return;
+
+        _saveSettling.Stop();
+        _saveSettling.Start();
+    });
+
+    private async void SaveSettled_Tick(object? sender, EventArgs e)
+    {
+        _saveSettling.Stop();
+        await CheckCodeAgainAsync();
+    }
+
+    /// <summary>
+    /// Reads the saved code again and replaces the report with what it finds. The program is not compiled or run, and
+    /// the report says so; functions that have not changed since the last check keep what was found in them then.
+    /// </summary>
+    private async Task CheckCodeAgainAsync()
+    {
+        // A full check is already reading the code, and more besides.
+        if (_cancellation is not null || _launch is not { Ok: true } launch) return;
+
+        _codeCheck?.Cancel();
+        var reading = new CancellationTokenSource();
+        _codeCheck = reading;
+
+        var checker = new ProgramChecker(_http, _sources) { Language = _language, Cache = _analysisCache };
+        checker.Log += OnLog;
+
+        try
+        {
+            SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the saved code again...", LaneState.Running);
+            var report = await checker.CheckCodeAsync(launch, reading.Token);
+            if (!reading.IsCancellationRequested) ShowCodeReport(report);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            SetLane(LogicStatusText, LogicIcon, LogicProgress, "The saved code could not be read", LaneState.Failed);
+            _logger?.Write($"Reading the saved code failed: {ex}");
+        }
+        finally
+        {
+            checker.Log -= OnLog;
+            if (ReferenceEquals(_codeCheck, reading)) _codeCheck = null;
+            reading.Dispose();
+        }
+    }
+
+    private void ShowCodeReport(CheckReport report)
+    {
+        _notes.Clear();
+        foreach (var note in report.Notes) _notes.Add(note);
+
+        ShowFindings(report.Findings);
+
+        if (report.Findings.Count == 0)
+        {
+            EmptyState.Visibility = Visibility.Visible;
+            EmptyTitleText.Text = "No mistakes found in the code";
+            EmptyBodyText.Text = "It was read again as it was saved, but not compiled or run. Press its language to check what it does when it runs.";
+        }
+
+        SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary, LaneState.Stopped);
+        SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
+            report.Findings.Any(f => f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
+
+        ReportSubtitleText.Text = $"{Path.GetFileName(_chosenPath ?? "")}  ·  read again as saved at {DateTime.Now:HH:mm:ss}  ·  not compiled or run";
+        CopyReportButton.IsEnabled = report.Findings.Count > 0;
+
+        _logger?.WriteSection("Checked on save");
+        foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
     }
 
     private void OnProgress(CheckLane lane, string message) => Dispatcher.BeginInvoke(() =>
@@ -442,14 +922,37 @@ public partial class MainWindow : Window
         _cancellation?.Cancel();
     }
 
+    /// <summary>
+    /// Says whether FixFinder is working, in one place that is always on screen.
+    /// </summary>
+    /// <remarks>
+    /// The two lane cards show how far each check has got, but only while a single file is being checked, and a
+    /// check of a folder can run for minutes with the lanes idle between programs. This says the plain thing - it is
+    /// running, or it is not - so nobody has to work that out from what a status line last said.
+    /// </remarks>
+    private void ShowActivity(bool running, string doing)
+    {
+        ActivityText.Text = doing;
+        ActivityPill.ToolTip = doing;
+        ActivityProgress.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+
+        ActivityIcon.Text = running ? "" : "";
+        ActivityIcon.Foreground = (Brush)FindResource(running ? "AccentBrush" : "HintBrush");
+        ActivityPill.Background = (Brush)FindResource(running ? "AccentSoftBrush" : "SubtleBrush");
+    }
+
     private void SetBusy(bool busy)
     {
+        ShowActivity(busy, busy ? "Checking…" : "Not running");
+
         StopButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         StopButton.IsEnabled = busy;
 
         LanguagePanel.IsEnabled = !busy;
         ChooseFileButton.IsEnabled = !busy;
         ChooseAnotherButton.IsEnabled = !busy;
+        ChooseFolderButton.IsEnabled = !busy;
+        ChooseAnotherFolderButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
         UseDetectedLanguageButton.IsEnabled = !busy;
         AllowDrop = !busy;
@@ -485,6 +988,8 @@ public partial class MainWindow : Window
         _findings = [];
         _visibleFindings.Clear();
         FilterPanel.Visibility = Visibility.Collapsed;
+        ViewTabs.Visibility = Visibility.Collapsed;
+        EfficiencyIntro.Visibility = Visibility.Collapsed;
 
         EmptyState.Visibility = Visibility.Visible;
         EmptyTitleText.Text = title;

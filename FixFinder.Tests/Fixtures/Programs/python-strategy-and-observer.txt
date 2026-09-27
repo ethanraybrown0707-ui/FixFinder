@@ -1,0 +1,104 @@
+==> shop.py <==
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
+from functools import total_ordering
+
+
+class Tier(Enum):
+    STANDARD = 1
+    SILVER = 2
+    GOLD = 3
+
+
+@total_ordering
+@dataclass(frozen=True)
+class Money:
+    pence: int
+
+    def __add__(self, other):
+        return Money(self.pence + other.pence)
+
+    def __lt__(self, other):
+        return self.pence < other.pence
+
+    def times(self, count):
+        return Money(self.pence * count)
+
+    def share(self, parts):
+        if parts <= 0:
+            raise ValueError("cannot share between no one")
+        return Money(self.pence // parts)
+
+    def __str__(self):
+        return f"£{self.pence // 100}.{self.pence % 100:02d}"
+
+
+class Discount(ABC):
+    @abstractmethod
+    def apply(self, total: Money) -> Money: ...
+
+
+class NoDiscount(Discount):
+    def apply(self, total):
+        return total
+
+
+class PercentOff(Discount):
+    def __init__(self, percent):
+        if not 0 <= percent <= 100:
+            raise ValueError(f"{percent}% is not a percentage")
+        self.percent = percent
+
+    def apply(self, total):
+        return Money(total.pence * (100 - self.percent) // 100)
+
+
+DISCOUNTS = {Tier.STANDARD: NoDiscount(), Tier.SILVER: PercentOff(5), Tier.GOLD: PercentOff(12)}
+
+
+@dataclass
+class Basket:
+    tier: Tier
+    lines: dict = field(default_factory=dict)
+    watchers: list = field(default_factory=list)
+
+    def add(self, name, price, count=1):
+        if count < 1:
+            raise ValueError("count must be at least 1")
+        old_price, old_count = self.lines.get(name, (price, 0))
+        self.lines[name] = (old_price, old_count + count)
+        self._tell(f"added {count} {name}")
+
+    def remove(self, name):
+        if self.lines.pop(name, None) is not None:
+            self._tell(f"removed {name}")
+
+    def total(self):
+        subtotal = sum((price.times(count) for price, count in self.lines.values()), Money(0))
+        return DISCOUNTS[self.tier].apply(subtotal)
+
+    def _tell(self, event):
+        for watcher in self.watchers:
+            watcher(event)
+
+
+def main():
+    events = []
+    basket = Basket(Tier.GOLD)
+    basket.watchers.append(events.append)
+    basket.add("tea", Money(250), 2)
+    basket.add("cake", Money(395))
+    basket.add("tea", Money(250))
+    basket.remove("scone")
+    basket.remove("cake")
+    print(basket.total(), basket.total().share(3), max(Money(5), Money(3)))
+    print("; ".join(events))
+    try:
+        PercentOff(120)
+    except ValueError as problem:
+        print(problem)
+
+
+if __name__ == "__main__":
+    main()
