@@ -280,7 +280,22 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         IReadOnlyList<CapturedLine>? buildOutput = null,
         Func<CancellationToken, Task<TargetRunResult?>>? rerunWithSanitizer = null)
     {
-        if (run.Error is null)
+        if (WindowsRefused(run) is { } refusal)
+        {
+            return new SessionOutcome
+            {
+                Result = SessionResult.CouldNotRun,
+                Headline = "Windows would not start the program.",
+                Detail = $"It was built, but when it was started Windows refused it: \"{refusal}\" Smart App Control, or another " +
+                         "Application Control policy, does that to a program it has not seen before however correct the program is, " +
+                         "so this run says nothing about the code. The findings from reading the code do not depend on running it.",
+                Spec = spec, Run = run, Warnings = warnings ?? [],
+            };
+        }
+
+        var error = ReportedFailure(run);
+
+        if (error is null)
         {
             var wentWrong = run.Outcome is RunOutcome.Crashed or RunOutcome.ExitedNonZero;
             var abortedSilently = run.Outcome == RunOutcome.ExitedNonZero && run.ExitCode == WindowsAbortExitCode;
@@ -376,23 +391,50 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
-        if (run.Error.LanguageId == "generic" && run.ExitCode == 0 && buildOutput is { Count: > 0 } && SilentBugWarning(buildOutput) is { } warnedInstead)
-        {
-            (warnings ??= []).Add(
-                "It exited normally, but the compiler warned about a mistake that does not always show when the program runs, so " +
-                "that warning is treated as the error rather than the output it printed.");
-
-            return await SearchForAsync(
-                run, warnedInstead, spec, budget, sourceFolder, failedToCompile: false,
-                warnings: warnings, cancellationToken: cancellationToken, buildOutput: buildOutput, ranWithoutFailing: true);
-        }
-
-        if (AskedForInput(run.Error)) return NeedsInput(run, run.Error, spec, sourceFolder);
+        if (AskedForInput(error)) return NeedsInput(run, error, spec, sourceFolder);
 
         return await SearchForAsync(
-            run, run.Error, spec, budget, sourceFolder, failedToCompile,
-            warnings: warnings, cancellationToken: cancellationToken);
+            run, error, spec, budget, sourceFolder, failedToCompile,
+            warnings: warnings, cancellationToken: cancellationToken, ranWithoutFailing: run.ExitCode == 0);
     }
+
+    /// <summary>
+    /// The failure the run reported, or null when it reported none. A program that finished and told Windows it
+    /// succeeded did not crash, whatever it printed: text only the last-resort reading picked out - "error at 4:
+    /// expected a name", from an interpreter reporting a mistake in the script it was given, or "Error: choose 1 to 4"
+    /// from a menu - is the program's own output, not a runtime's report of it failing.
+    /// </summary>
+    /// <remarks>
+    /// The same holds of a program in one of the languages FixFinder checks that ended with an ordinary failing code:
+    /// each of those runtimes has a parser for the way it reports a failure, so "Error: the file of marks is empty"
+    /// printed before sys.exit(1) is the program's message on its way out. An abort, or a code only a crash gives, is
+    /// still the runtime's - a C assert prints "Assertion failed" and aborts.
+    /// </remarks>
+    private ParsedError? ReportedFailure(TargetRunResult run)
+    {
+        if (run is not { Error.LanguageId: GenericParserId, ExitCode: { } code }) return run.Error;
+        if (code == 0) return null;
+
+        var checkedLanguage = _chosen is { } chosen && CodeLanguage.Of(chosen) is not null;
+        return checkedLanguage && code != WindowsAbortExitCode && !RunClassifier.IsKnownCrash(code) ? null : run.Error;
+    }
+
+    private const string GenericParserId = "generic";
+
+    /// <summary>
+    /// The words Windows gives when it will not start a program - the messages for errors 4551 and 1260 - which a
+    /// launcher such as go run or dotnet run prints and then fails with, having built the program and been refused it.
+    /// </summary>
+    private static readonly string[] RefusalMessages =
+    [
+        "An Application Control policy has blocked this file.",
+        "This program is blocked by group policy.",
+    ];
+
+    /// <summary>Windows' own sentence refusing to start the program, when a failed run printed one.</summary>
+    private static string? WindowsRefused(TargetRunResult run) =>
+        run.ExitCode is 0 ? null : RefusalMessages.FirstOrDefault(message =>
+            run.Lines.Any(line => line.Text.Contains(message, StringComparison.Ordinal)));
 
     private static bool AskedForInput(ParsedError error) => error.LanguageId switch
     {
@@ -746,11 +788,16 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         RunOutcome.ExitedClean => "It ran without a problem.",
         RunOutcome.TimedOut => "It was still running, so it was stopped.",
         RunOutcome.Cancelled => "Stopped before it finished.",
-        _ => "It finished unhappily, but printed no error.",
+        _ => $"It stopped with exit code {run.ExitCode}, which says it did not succeed.",
     };
 
     private static string NoErrorDetail(TargetRunResult run) => run.Outcome switch
     {
+        RunOutcome.ExitedClean when run.Error is not null =>
+            "The program finished and told Windows it succeeded. Something it printed mentions an error, but no " +
+            "runtime reported one: that is the program's own output - a message about input it refused, say - " +
+            "not a crash.",
+
         RunOutcome.ExitedClean =>
             "The program finished and printed nothing that looks like an error, so there is " +
             "nothing to look up.",
@@ -769,10 +816,19 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             "there is genuinely no text to look up. Running it under a debugger is the next step.",
 
         _ =>
-            $"It exited with code {run.ExitCode}, but nothing in its output parsed as an error, " +
-            "so there is no reliable text to search with. Whatever went wrong, the program did " +
-            "not say so in a form anything could look up.",
+            $"Nothing it printed is a runtime's report of a crash. A program ends with a code like {run.ExitCode} when it " +
+            "stops itself - with System.exit(1) or sys.exit(1), or by returning it from main - usually because " +
+            $"something it needs is missing or wrong: an argument, some input, a file.{LastPrinted(run)}",
     };
+
+    /// <summary>The last line the program printed, which is usually why it stopped, quoted as it was.</summary>
+    private static string LastPrinted(TargetRunResult run)
+    {
+        if (run.Lines.LastOrDefault(line => line.Text.Trim().Length > 0) is not { } last) return " It printed nothing before it stopped.";
+
+        var text = last.Text.Trim();
+        return $" The last thing it printed was: \"{(text.Length <= 160 ? text : text[..157] + "...")}\"";
+    }
 
     private static readonly string[] EnvironmentalTypes =
     [

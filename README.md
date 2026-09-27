@@ -71,6 +71,14 @@ it stops with:
 | JavaScript | `node --check` on every file |
 | Go | `go build`, then `go vet` |
 
+What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
+it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
+only a crash gives. A program that ends itself with a failing exit code - `System.exit(1)` after printing how to run
+it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
+without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
+program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
+start a program that has just been built, and says so, a note says that too rather than blaming the code.
+
 For an error whose message pins the answer down - a missing import, a misspelt name, a semicolon, a loop one step too
 long - a **fix rule** works out the change from the code. Every fix is made in a copy and checked by the compiler or
 interpreter, and only offered if that passes.
@@ -85,6 +93,9 @@ list. When an expected output was given, it also runs changed copies of the prog
    wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
+
+A run that stops with an error, or is still going when the time runs out, is compared as far as it got and said to have
+stopped - never to have run to the end - and an edit only counts if the program then finishes.
 
 In every language it can read, the logic check also **follows every value through the code** (abstract interpretation).
 Each language is read by a parser that agrees with its own compiler where there is one to ask - Python's `ast`, javac's

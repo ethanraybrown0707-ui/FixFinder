@@ -39,6 +39,10 @@ public static class Evidence
         {
             parts.Add("the program ran to the end and printed something other than what you said it should");
         }
+        else if (finding.RuleId == "stopped-before-expected-output")
+        {
+            parts.Add("the program was run with what you gave it, and stopped before it printed what you said it should");
+        }
         else if (finding.FoundBy is { Length: > 0 } technique)
         {
             parts.Add($"following the values through the code - {technique} - showed it");

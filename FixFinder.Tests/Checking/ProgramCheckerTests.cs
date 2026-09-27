@@ -319,4 +319,27 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
         var wrong = Assert.Single(report.Findings, f => f.RuleId == "wrong-output");
         Assert.NotNull(wrong.Fix);
     }
+
+    [Fact]
+    public async Task AProgramThatCrashesBeforePrintingWhatWasExpectedIsNeverSaidToHaveRunToTheEnd()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var file = Write("average.py", """
+            marks = [72, 85, 64]
+            total = 0
+            for i in range(len(marks) + 1):
+                total += marks[i]
+            print("Average:", total // len(marks))
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Python, ExpectedBehaviour.From([new ExpectedRun(null, "Average: 73")], ""));
+
+        Assert.DoesNotContain(report.Findings, finding => finding.RuleId == "wrong-output");
+        Assert.DoesNotContain(report.Findings, finding => finding.Explanation.Contains("(Exited", StringComparison.Ordinal));
+        Assert.DoesNotContain(report.Notes, note => note.Contains("(Exited", StringComparison.Ordinal));
+        Assert.All(
+            report.Findings.Where(finding => finding.RuleId == "stopped-before-expected-output"),
+            finding => Assert.Contains("stopped with an error", finding.Explanation, StringComparison.Ordinal));
+    }
 }

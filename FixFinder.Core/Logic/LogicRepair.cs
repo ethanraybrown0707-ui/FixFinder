@@ -222,9 +222,7 @@ public sealed class LogicRepair
                 result = await runner.RunAsync(spec, cancellationToken);
             }
 
-            var mismatch = result.Outcome is RunOutcome.ExitedClean or RunOutcome.ExitedNonZero
-                ? OutputComparison.Compare(OutputComparison.Printed(result), run.ExpectedOutput)
-                : new OutputMismatch(1, null, $"({result.Explanation})", 0, 0);
+            var mismatch = OutputComparison.Compare(OutputComparison.Printed(result), run.ExpectedOutput, OutputComparison.EndingOf(result.Outcome));
 
             results[i] = new RunVerdict(mismatch, result.Duration, result.Outcome);
             if (mismatch is not null && stopAtFirstWrong) return new Evaluation(plan.Spec, results.Where(r => r is not null).ToList()!);

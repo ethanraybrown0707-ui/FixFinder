@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
@@ -9,6 +10,7 @@ using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
+using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Sources;
 
 namespace FixFinder.Core.Checking;
@@ -29,7 +31,7 @@ public sealed record CheckReport(
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
 /// to fix it.</summary>
-public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry sources)
+public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry sources)
 {
     private const int MostErrorsFixed = 12;
     private const int MostWarningsFixed = 20;
@@ -208,6 +210,54 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         }
     }
 
+    [GeneratedRegex(@"\bvoid\s+main\s*\(")]
+    private static partial Regex DeclaresMain();
+
+    /// <summary>
+    /// What to say instead of a finding when the file chosen has nothing to run: a Java class that declares no main method
+    /// at all - one the program's other classes use, or a class of tests - which is all the launcher's "Main method not
+    /// found" means for it. A main of the wrong shape is a mistake, and is still reported with its fix.
+    /// </summary>
+    private static string? NothingToRun(ParsedError error, string chosen)
+    {
+        if (error.ExceptionType != JavaStackTraceParser.LauncherError ||
+            !(error.Message ?? "").StartsWith("Main method not found", StringComparison.Ordinal) ||
+            SourceFile.Read(chosen) is not { } source)
+        {
+            return null;
+        }
+
+        string? open = null;
+        foreach (var line in source.Lines)
+        {
+            if (DeclaresMain().IsMatch(CodeText.Mask(line, Syntax.CLike, ref open))) return null;
+        }
+
+        return $"{Path.GetFileName(chosen)} has no main method, so there is nothing in it to run: Java starts a program at " +
+               "public static void main(String[] args). Choose the file of the program that has one. The code in this file was " +
+               "still read for mistakes.";
+    }
+
+    /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
+    private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
+        string.Equals(run.Input ?? "", launch.Spec?.StandardInput ?? "", StringComparison.Ordinal);
+
+    /// <summary>
+    /// What happened to the run, in words that are true of it. A run that finished and reported success, having printed
+    /// an exception on the way - one caught and printed with printStackTrace, or one that ended a thread other than
+    /// the main one - did not crash; nor did a program that printed an error of its own and ended with a failing code.
+    /// </summary>
+    private static string RunTitle(ParsedError error, TargetRunResult? run)
+    {
+        var what = FindingFactory.TitleOf(error);
+
+        if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
+        if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
+
+        var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);
+        return error.LanguageId == "generic" && !crashCode ? $"It stopped with an error: {what}" : $"It crashed: {what}";
+    }
+
     private void RecordRun(SessionOutcome outcome, LaunchPlan launch)
     {
         var chosen = launch.ChosenFile ?? launch.Spec!.ExecutablePath;
@@ -228,12 +278,20 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 return;
             }
 
+            if (NothingToRun(error, chosen) is { } nothing)
+            {
+                Note(nothing);
+                return;
+            }
+
             var kind = LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error) ? FindingKind.Syntax : FindingKind.Runtime;
             var local = outcome.Best is { } best && (best.LocalFix is not null || best.Id.EndsWith(":did-you-mean", StringComparison.Ordinal)) ? best : null;
 
-            Add(FindingFactory.FromError(error, kind, Severity.Error, Confidence.Certain, chosen, local) with
+            var finishedNormally = kind == FindingKind.Runtime && outcome.Run is { ExitCode: 0 };
+
+            Add(FindingFactory.FromError(error, kind, finishedNormally ? Severity.Warning : Severity.Error, Confidence.Certain, chosen, local) with
             {
-                Title = kind == FindingKind.Runtime ? $"It crashed: {FindingFactory.TitleOf(error)}" : FindingFactory.TitleOf(error),
+                Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
             });
 
             return;
@@ -241,6 +299,24 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         switch (outcome.Result)
         {
+            case SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed:
+                Add(new Finding
+                {
+                    Kind = FindingKind.Runtime,
+                    Severity = Severity.Warning,
+                    Confidence = Confidence.Possible,
+                    File = chosen,
+                    Title = outcome.Headline,
+                    Explanation = outcome.Detail,
+                    WhyItMatters = "A program that ends with a failing code is saying it did not finish its job. That is right when something " +
+                                   "it needs is missing, and a mistake when nothing is.",
+                    SuggestedFix = "If it needs arguments, input or a file, give them under the program and check it again. If it should have " +
+                                   "finished, find the line that ends it - a System.exit, sys.exit or return from main - and the test that leads there.",
+                    CorrectedExample = "",
+                    RuleId = "ended-with-failure-code",
+                });
+                break;
+
             case SessionResult.FailedSilently:
                 Add(new Finding
                 {
@@ -284,7 +360,9 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         return outcome.Result switch
         {
             SessionResult.CouldNotRun => "It could not be started",
+            _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
             _ when outcome.Error is not null => $"{reads}{warnings}, but it stops with an error when run",
+            SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed => $"{reads}{warnings}, but it stops with a failing exit code",
             SessionResult.FailedSilently => $"{reads}{warnings}, but it crashes when run",
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
             _ => $"{reads}{warnings}, and it runs to the end",
@@ -344,9 +422,25 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             foreach (var note in result.Notes) Note(note);
 
+            var stopped = result.Mismatch.Ending != RunEnding.Finished;
+
+            if (stopped && result.Fix is null && SameRunAsTheCheck(expected.Runs[result.FailingRun - 1], launch))
+            {
+                // The run that stopped is the one the syntax check made too, which reports what stopped it; a finding that
+                // only says it did not get as far as the expected output would be the same failure twice.
+                Note($"What it prints could not be compared with what you expected: {result.Mismatch.Describe()}.");
+                return "It stopped before printing what you expected";
+            }
+
             Add(FindingFactory.FromWrongOutput(result, expected.Runs.Count, chosen, SourceFile.Read(chosen)));
 
-            return result.Fix is not null ? "Wrong output - FixFinder found the change that fixes it" : "Wrong output";
+            return (stopped, result.Fix is not null) switch
+            {
+                (true, true) => "It stopped before printing what you expected - FixFinder found the change that fixes it",
+                (true, false) => "It stopped before printing what you expected",
+                (false, true) => "Wrong output - FixFinder found the change that fixes it",
+                _ => "Wrong output",
+            };
         }
         finally
         {

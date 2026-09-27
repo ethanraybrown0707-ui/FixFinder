@@ -27,6 +27,16 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
     [GeneratedRegex(@"^\s+(?<key>symbol|location):\s*(?<value>.+?)\s*$")]
     private static partial Regex JavacDetailPattern();
 
+    /// <summary>
+    /// What the java launcher itself says when it cannot start the program - no main method of the right shape, a class
+    /// it cannot find, load or set up - before any of the program runs, so no stack trace of the program follows it.
+    /// </summary>
+    [GeneratedRegex(@"^Error: (?<msg>(?:Main method (?:not found|is not static)|Could not find or load main class|LinkageError occurred while loading main class|Unable to initialize main class|A JNI error has occurred)\b.*)$")]
+    private static partial Regex LauncherPattern();
+
+    /// <summary>The exception type given to what the java launcher reports, which is not an exception the program threw.</summary>
+    public const string LauncherError = "launcher error";
+
     public int Detect(IReadOnlyList<string> lines)
     {
         var score = 0;
@@ -40,6 +50,7 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
             if (line.Contains("java.lang.", StringComparison.Ordinal)) score += 12;
 
             if (JavacPattern().IsMatch(line)) score += 60;
+            if (LauncherPattern().IsMatch(line)) score += 70;
         }
 
         return Math.Min(score, 100);
@@ -49,7 +60,7 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
     {
         if (ParseJavacDiagnostic(lines) is { } diagnostic) return diagnostic;
 
-        return ParseStackTrace(lines);
+        return ParseStackTrace(lines) ?? ParseLauncherError(lines);
     }
 
     public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines)
@@ -57,7 +68,41 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
         var diagnostics = ParseJavacDiagnostics(lines);
         if (diagnostics.Count > 0) return diagnostics;
 
-        return ParseStackTrace(lines) is { } thrown ? [thrown] : [];
+        return (ParseStackTrace(lines) ?? ParseLauncherError(lines)) is { } thrown ? [thrown] : [];
+    }
+
+    /// <summary>
+    /// The java launcher's own complaint, with the lines under it that finish it - the main method it looked for, or the
+    /// Caused by: that says which class could not be loaded.
+    /// </summary>
+    private ParsedError? ParseLauncherError(IReadOnlyList<CapturedLine> lines)
+    {
+        for (var start = 0; start < lines.Count; start++)
+        {
+            if (LauncherPattern().Match(lines[start].Text) is not { Success: true } launcher) continue;
+
+            var end = start + 1;
+            while (end < lines.Count && end < start + 4 && lines[end].Text.Trim().Length > 0 && !LauncherPattern().IsMatch(lines[end].Text)) end++;
+
+            var cause = Enumerable.Range(start + 1, end - start - 1)
+                .Select(index => CausedByPattern().Match(lines[index].Text))
+                .FirstOrDefault(match => match.Success);
+
+            return new ParsedError
+            {
+                LanguageId = LanguageId,
+                Confidence = 85,
+                RawText = ParserHelpers.RawTextOf(lines, start, end),
+                FirstLineSequence = lines[start].Sequence,
+                ExceptionType = LauncherError,
+                Message = cause is null
+                    ? launcher.Groups["msg"].Value.Trim()
+                    : $"{launcher.Groups["msg"].Value.Trim()} - {cause.Groups["type"].Value}: {Trim(cause.Groups["msg"])}",
+                Frames = [],
+            };
+        }
+
+        return null;
     }
 
     private static ParsedError? ParseJavacDiagnostic(IReadOnlyList<CapturedLine> lines) =>
