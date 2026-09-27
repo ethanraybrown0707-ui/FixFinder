@@ -849,6 +849,52 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.True(findings.Any(f => f.CheckId == "analysis-division-by-zero") == reported, $"{shape}: {string.Join("; ", findings.Select(f => f.Message))}");
     }
 
+    /// <summary>
+    /// An overloaded operator is read as a function of its own - operator* and operator() in a class, operator&lt;&lt;
+    /// outside one - so what is inside it is checked like any other function, and what follows it is read as written.
+    /// </summary>
+    [Fact]
+    public async Task OverloadedOperatorsAreReadAsFunctions()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <ostream>
+
+            class Ratio {
+            public:
+                Ratio(int top, int bottom) : top_(top), bottom_(bottom) {}
+
+                Ratio operator*(const Ratio& other) const {
+                    Ratio product(top_ * other.top_, bottom_ * other.bottom_);
+                    return product;
+                }
+
+                int operator()(int scale) const {
+                    int nothing = 0;
+                    return scale * top_ / nothing;
+                }
+
+                int top_;
+                int bottom_;
+            };
+
+            std::ostream& operator<<(std::ostream& out, const Ratio& ratio) {
+                return out << ratio.top_ << '/' << ratio.bottom_;
+            }
+
+            int after_the_operators(void) {
+                int zero = 0;
+                return 10 / zero;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(program.Problems);
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator*" && f.Owner == "Ratio");
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator()" && f.Owner == "Ratio");
+        Assert.Contains(program.AllFunctions, f => f.Name == "operator<<");
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 14);
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 27);
+    }
+
     /// <summary>exit never returns, so the division after a guard that exits on 0 cannot be reached with 0.</summary>
     [Fact]
     public async Task ExitEndsTheWayThroughTheFunction()

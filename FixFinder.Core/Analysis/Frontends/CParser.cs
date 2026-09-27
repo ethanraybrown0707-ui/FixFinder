@@ -396,6 +396,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             }
 
             var name = Take().Text;
+            if (cpp && name == "operator") name = OperatorName();
 
             // C++ writes a method outside its class as void Counter::add(int n).
             while (cpp && Is("::"))
@@ -403,6 +404,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 _at++;
                 memberOf = name;
                 name = Current.Kind is CTokenKind.Identifier or CTokenKind.Keyword ? Take().Text : name;
+                if (name == "operator") name = OperatorName();
             }
 
             if (Is("("))
@@ -431,6 +433,32 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             SkipTo(";");
             return;
         }
+    }
+
+    /// <summary>
+    /// The rest of an overloaded operator's name, once the keyword operator has been read: operator*, operator&lt;&lt;,
+    /// operator==, operator() and operator[], or a conversion such as operator bool.
+    /// </summary>
+    private string OperatorName()
+    {
+        // operator() and operator[] are named by a pair of brackets, and the parameter list follows them.
+        if (Is("(") && IsAhead(1, ")") && IsAhead(2, "("))
+        {
+            _at += 2;
+            return "operator()";
+        }
+
+        if (Is("[") && IsAhead(1, "]"))
+        {
+            _at += 2;
+            return "operator[]";
+        }
+
+        var written = new List<string>();
+        while (!Is("(") && !Is(";") && !Is("{") && !AtEnd && Reading()) written.Add(Take().Text);
+
+        var symbols = written.All(piece => piece.Length > 0 && !char.IsLetterOrDigit(piece[0]) && piece[0] != '_');
+        return "operator" + (symbols ? string.Concat(written) : " " + string.Join(" ", written));
     }
 
     /// <summary>
@@ -512,6 +540,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
                 var memberToken = Current;
                 var memberName = Take().Text;
+                if (cpp && memberName == "operator") memberName = OperatorName();
 
                 if (Is("("))
                 {
@@ -557,8 +586,10 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         if (Current.Kind != CTokenKind.Identifier) return false;
         if (_typedefs.Contains(Current.Text)) return true;
 
-        // A name followed by another name, a star or a reference is a type: MyType value, MyType *p.
-        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier || cpp && StartsCppType();
+        // A name followed by another name, a star or a reference is a type: MyType value, MyType *p - and in C++, one
+        // followed by an operator it overloads: Ratio operator*(const Ratio &a, const Ratio &b).
+        return At(1) is { Kind: CTokenKind.Identifier } || IsAhead(1, "*") && At(2)?.Kind == CTokenKind.Identifier ||
+               cpp && (At(1) is { Kind: CTokenKind.Keyword, Text: "operator" } || StartsCppType());
     }
 
     /// <summary>
@@ -585,9 +616,11 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         var qualified = at > _at + 1;
         while (TextAt(at) is "*" or "&" or "&&" || TokenAt(at) is { Kind: CTokenKind.Keyword, Text: "const" }) at++;
 
-        // A plain name followed by another name was already a type; here something must have been added to it.
+        // A plain name followed by another name was already a type; here something must have been added to it. What it
+        // declares is a name, or an operator it overloads: std::ostream &operator<<(std::ostream &out, ...).
         if (!qualified && TextAt(at - 1) is not ("&" or "&&")) return false;
-        return TokenAt(at) is { Kind: CTokenKind.Identifier } && TextAt(at + 1) is ";" or "=" or "{" or "(" or "," or "[" or ":";
+        return TokenAt(at) is { Kind: CTokenKind.Identifier } && TextAt(at + 1) is ";" or "=" or "{" or "(" or "," or "[" or ":" ||
+               TokenAt(at) is { Kind: CTokenKind.Keyword, Text: "operator" };
     }
 
     private CToken? TokenAt(int index) => index >= 0 && index < tokens.Count ? tokens[index] : null;
