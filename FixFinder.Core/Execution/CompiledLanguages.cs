@@ -53,6 +53,7 @@ public static partial class CompiledLanguages
     {
         var language = cpp ? "C++" : "C";
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
+        var start = WorkingFolder.For(source);
 
         var sources = ProgramLayout.NativeSources(source);
 
@@ -66,8 +67,8 @@ public static partial class CompiledLanguages
                 Path.GetDirectoryName(source)!,
                 timeout);
 
-            return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it{Along(sources)} with {gnu.Name}, then running the result."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
+                $"Building it{Along(sources)} with {gnu.Name}, then running the result{StartsFrom(start, source)}."), null);
         }
 
         if (Toolchains.FindMsvc() is { SetupScript: { } script } msvc)
@@ -76,8 +77,8 @@ public static partial class CompiledLanguages
 
             var compile = Spec("cmd.exe", $"/c \"{batch}\"", output, timeout);
 
-            return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it{Along(sources)} with {msvc.Name}, then running the result."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
+                $"Building it{Along(sources)} with {msvc.Name}, then running the result{StartsFrom(start, source)}."), null);
         }
 
         return (null,
@@ -265,14 +266,27 @@ public static partial class CompiledLanguages
             Path.GetDirectoryName(source)!,
             timeout);
 
+        var start = WorkingFolder.For(source);
+
         var run = Spec(
             java.Program,
             $"-cp \"{output}\" {MainClass(source)}",
-            output,
+            start.Folder,
             timeout);
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}, then running it with java."), null);
+            $"Building it with {javac.Name}, then running it with java{StartsFrom(start, source)}."), null);
+    }
+
+    /// <summary>Which folder the program starts from, said only when it is not simply the one the file is in.</summary>
+    private static string StartsFrom(WorkingFolder.Choice start, string source)
+    {
+        if (string.Equals(start.Folder, Path.GetDirectoryName(Path.GetFullPath(source)), StringComparison.OrdinalIgnoreCase)) return "";
+
+        var folder = Path.GetFileName(start.Folder);
+        if (start.FileFound is { } file) return $" from {folder}, where {file} is";
+
+        return start.IsProjectFolder ? $" from {folder}, the folder that holds src, as an IDE runs it" : $" from {folder}";
     }
 
     private static string MainClass(string source)

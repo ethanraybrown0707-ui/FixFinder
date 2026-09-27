@@ -33,22 +33,13 @@ public static class FixRun
         if (fix.ApplyTo(source) is not { } changed) return sofar;
 
         var folder = Path.Combine(Root, Guid.NewGuid().ToString("N")[..12]);
+        string? copy = null;
 
         try
         {
             Directory.CreateDirectory(folder);
 
-            // The rest of the program comes too: a fix to one file of a program that will not run without the others
-            // cannot be tried on its own.
-            foreach (var beside in ProgramFiles.Of(source.Path))
-            {
-                if (string.Equals(beside, source.Path, StringComparison.OrdinalIgnoreCase)) continue;
-
-                try { File.Copy(beside, Path.Combine(folder, Path.GetFileName(beside)), overwrite: true); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            }
-
-            var copy = Path.Combine(folder, Path.GetFileName(source.Path));
+            copy = CopyProgram(source.Path, folder);
             await File.WriteAllBytesAsync(copy, source.Render(changed), cancellationToken);
 
             var plan = TargetFactory.FromFile(copy);
@@ -65,9 +56,40 @@ public static class FixRun
         }
         finally
         {
-            try { Directory.Delete(folder, recursive: true); }
+            try
+            {
+                if (copy is not null && CompiledLanguages.Handles(Path.GetExtension(copy)))
+                {
+                    var build = CompiledLanguages.OutputDirectory(copy);
+                    if (Directory.Exists(build)) Directory.Delete(build, recursive: true);
+                }
+
+                Directory.Delete(folder, recursive: true);
+            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// Copies the program into <paramref name="folder"/> and says where the chosen file is in the copy. The whole
+    /// program comes, laid out as it is and with the files it reads, since a fix to one file of a program that will not
+    /// run without the others - or without its scores.txt - cannot be tried on its own. When the program's folder holds
+    /// more than a program's worth of files, its source files alone are copied, side by side.
+    /// </summary>
+    private static string CopyProgram(string chosen, string folder)
+    {
+        var root = ProgramCopy.RootOf(chosen);
+        if (ProgramCopy.TryCopyWhole(root, folder)) return Path.Combine(folder, Path.GetRelativePath(root, chosen));
+
+        foreach (var beside in ProgramFiles.Of(chosen))
+        {
+            if (string.Equals(beside, chosen, StringComparison.OrdinalIgnoreCase)) continue;
+
+            try { File.Copy(beside, Path.Combine(folder, Path.GetFileName(beside)), overwrite: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+
+        return Path.Combine(folder, Path.GetFileName(chosen));
     }
 
     private static async Task<Verification> JudgeAsync(

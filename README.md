@@ -35,6 +35,13 @@ A program in more than one file is checked as the whole program: Python imports 
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
 headers beside them.
 
+A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
+the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
+beside their source, as a program built at a command line does; the rest start where the program is. When a file the
+program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
+The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
+a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
+
 ## What each finding tells you
 
 | | |
