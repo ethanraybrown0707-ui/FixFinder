@@ -70,7 +70,7 @@ public static class PythonFrontend
             problems.AddRange(reader.Problems);
         }
 
-        return new IrProgram(SourceLanguage.Python, files, classes, functions, problems);
+        return ProgramStops.Lower(new IrProgram(SourceLanguage.Python, files, classes, functions, problems));
     }
 
     private static IrProgram Unread(IReadOnlyList<string> files, string problem) =>

@@ -353,8 +353,8 @@ internal sealed class GoAstReader(string file, GoTypes types)
             if (Json.Kind(fun) == "Ident" && Json.Text(fun, "Name") == "panic" && !Shadowed("panic"))
                 return [new Throw(span, new NewObject(Span(expression), IrType.Named("panic"), arguments.Select(a => new Argument(null, Expression(a))).ToList()))];
 
-            if (Selector(fun) is ("os", "Exit") or ("log", "Fatal" or "Fatalf" or "Fatalln" or "Panic" or "Panicf" or "Panicln"))
-                return [new Throw(span, new NewObject(Span(expression), IrType.Named(Json.Text(Json.Prop(fun, "Sel"), "Name") ?? "exit"),
+            if (Selector(fun) is { } selected && selected is ("os", "Exit") or ("log", "Fatal" or "Fatalf" or "Fatalln" or "Panic" or "Panicf" or "Panicln"))
+                return [new Throw(span, new NewObject(Span(expression), IrType.Named($"{selected.Package}.{selected.Name}"),
                     arguments.Select(a => new Argument(null, Expression(a))).ToList()))];
 
             if (Scanned(expression) is { } scanned) return scanned;

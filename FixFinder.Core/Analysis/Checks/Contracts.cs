@@ -1,3 +1,4 @@
+using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
 
 namespace FixFinder.Core.Analysis.Checks;
@@ -80,11 +81,11 @@ public static class Contracts
     };
 
     /// <summary>
-    /// C's exit and abort, which the C reader ends a path with: C raises nothing, so a guard that stops the program is not
-    /// a contract whose breaking can be described as raising something.
+    /// A call that ends the whole program - C's exit and abort, sys.exit, System.exit and the like - which the readers end
+    /// a path with: a guard that stops the program raises nothing a caller could be said to trigger, so it is not a
+    /// contract whose breaking can be described as raising something.
     /// </summary>
-    private static bool StopsTheProgram(Throw thrown) =>
-        thrown.Exception is NewObject { Type.Name: "exit" or "_Exit" or "quick_exit" or "abort" or "terminate" };
+    private static bool StopsTheProgram(Throw thrown) => ProgramStops.Stops(thrown);
 
     private static string Raised(Throw thrown) => thrown.Exception switch
     {

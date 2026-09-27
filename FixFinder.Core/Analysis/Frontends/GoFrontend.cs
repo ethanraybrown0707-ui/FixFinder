@@ -112,7 +112,7 @@ public static class GoFrontend
         }
 
         var classes = types.Classes(methods);
-        return new IrProgram(SourceLanguage.Go, files, classes, functions, problems);
+        return ProgramStops.Lower(new IrProgram(SourceLanguage.Go, files, classes, functions, problems));
     }
 
     private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Go, files, [], [], [problem]);
