@@ -91,8 +91,9 @@ public static class AbstractChecks
                 .Run();
 
             var refined = canRefine ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
+            var uncaught = CaughtFailures.Uncaught(refined, function, program, evaluator.DeclaredTypes).ToList();
 
-            var found = WithSlices(graph, refined).Select(finding => finding with { Function = function.FullName }).ToList();
+            var found = WithSlices(graph, uncaught).Select(finding => finding with { Function = function.FullName }).ToList();
             findings.AddRange(found);
             analysed++;
 
@@ -364,8 +365,11 @@ public static class AbstractChecks
             _ => [],
         };
 
-        private void Report(string id, SourceSpan span, string message, Severity severity, Confidence confidence, FindingKind kind = FindingKind.Runtime) =>
-            findings.Add(new AnalysisFinding(id, span, message, severity, confidence, kind, FoundBy));
+        /// <param name="raises">The exception the failure raises, where the failing line alone does not show it.</param>
+        private void Report(
+            string id, SourceSpan span, string message, Severity severity, Confidence confidence, FindingKind kind = FindingKind.Runtime,
+            IReadOnlyList<string>? raises = null) =>
+            findings.Add(new AnalysisFinding(id, span, message, severity, confidence, kind, FoundBy) { Raises = raises });
 
         private string Quote(Expr expression) => source.Of(expression.Span) is { Length: > 0 } text ? text : IrText.Of(expression);
 
@@ -740,7 +744,7 @@ public static class AbstractChecks
 
                 Report("analysis-contract-broken", call.Span,
                     $"`{Quote(call)}` gives `{CalledName(target)}` what it refuses: when `{Quote(precondition.Failure)}` it raises {precondition.Raises} ({Places.Line(precondition.Span, call.Span)})",
-                    Severity.Error, Confidence.Certain);
+                    Severity.Error, Confidence.Certain, raises: [precondition.Raises]);
                 return;
             }
         }

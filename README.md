@@ -140,6 +140,18 @@ value only inside a `try` has none if the `try` failed before that line, so read
 `except` block that carries on without giving it one, raises `UnboundLocalError` - and a read behind a condition, which a
 flag set by the `try` may guard, is not claimed.
 
+A failure the code **catches on purpose** is not reported: trying first and handling what goes wrong - `int(text)` inside
+a `try` with `except ValueError` - or a test checking that bad input is refused, in `with pytest.raises(ValueError):` or
+`with self.assertRaises(ValueError):`. Only a handler in the same function counts, and only one that certainly catches:
+it names the exception the failure raises, or a type the language's own documentation puts above it - `except
+ArithmeticError` catches a `ZeroDivisionError`, `catch (IllegalArgumentException e)` a `NumberFormatException` - or one
+of the program's own classes the exception extends; it has no `when` test that could let the exception past; and it does
+not raise it again. Where the code does not show which exception a failure raises, every one it could be has to be
+caught: an index outside a C# array raises an `IndexOutOfRangeException`, and outside a `List` an
+`ArgumentOutOfRangeException`. A caller's `try` around a call is not enough, since another caller need not have one. In
+C, a variable whose address the function hands out - `&end` to `strtoll` - can be changed by whatever it was handed to,
+so, as in Go, its value is never taken as known.
+
 **Loops** are reasoned about with **relations between variables**, settled by the constraint solver. A counted loop's
 counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 1` - so `a[i + 1]` is found past the end
 on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from

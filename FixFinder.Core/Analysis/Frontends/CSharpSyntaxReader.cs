@@ -377,7 +377,8 @@ internal sealed class CSharpSyntaxReader(string file)
 
     private Handler Catch(CatchClauseSyntax clause) =>
         new(Span(clause), clause.Declaration is { } caught ? [TypeOf(caught.Type).Name] : [],
-            clause.Declaration?.Identifier.ValueText is { Length: > 0 } variable ? variable : null, Block(clause.Block.Statements));
+            clause.Declaration?.Identifier.ValueText is { Length: > 0 } variable ? variable : null, Block(clause.Block.Statements),
+            Filtered: clause.Filter is not null);
 
     private SwitchCase Section(SwitchSectionSyntax section)
     {

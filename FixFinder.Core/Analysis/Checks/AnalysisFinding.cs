@@ -28,6 +28,12 @@ public sealed record AnalysisFinding(
 
     /// <summary>A change to the program that removes what was found, when one can be written that changes nothing else.</summary>
     public LocalFixes.LocalFix? Fix { get; init; }
+
+    /// <summary>
+    /// The exception the failure raises, when the check that found it knows it better than the failing line shows - a
+    /// call that breaks a contract raises whatever the called function's own guard raises.
+    /// </summary>
+    public IReadOnlyList<string>? Raises { get; init; }
 }
 
 /// <summary>The program's own lines, for quoting the exact code a finding is about.</summary>

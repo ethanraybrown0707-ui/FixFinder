@@ -50,7 +50,8 @@ public sealed record Labeled(SourceSpan Span, string Label, IReadOnlyList<Stmt> 
 
 public sealed record Throw(SourceSpan Span, Expr? Exception) : Stmt(Span);
 
-public sealed record Handler(SourceSpan Span, IReadOnlyList<string> ExceptionTypes, string? Variable, IReadOnlyList<Stmt> Body);
+/// <param name="Filtered">Whether the handler only catches when a test passes - C#'s catch (X e) when (...) - so it may not catch at all.</param>
+public sealed record Handler(SourceSpan Span, IReadOnlyList<string> ExceptionTypes, string? Variable, IReadOnlyList<Stmt> Body, bool Filtered = false);
 
 public sealed record Try(
     SourceSpan Span, IReadOnlyList<Stmt> Body, IReadOnlyList<Handler> Handlers, IReadOnlyList<Stmt> Else, IReadOnlyList<Stmt> Finally)

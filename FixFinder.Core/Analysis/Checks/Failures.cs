@@ -55,6 +55,76 @@ public static class Failures
     };
 
     /// <summary>
+    /// The exceptions a failure raises, by the names a handler catches them by - except ZeroDivisionError, catch
+    /// (ArithmeticException e) - so a failure the code catches on purpose can be told from one that stops the program.
+    /// More than one where the code does not show which it will be, and then a handler has to catch them all. Null where
+    /// the language raises nothing a handler catches - undefined behaviour in C and C++, a panic in Go - or the check is
+    /// not about something failing.
+    /// </summary>
+    /// <param name="failing">The expression that fails, when it can be found: what it is decides the exception in places.</param>
+    /// <param name="declared">The types the function's names are declared with.</param>
+    public static IReadOnlyList<string>? Raised(string check, SourceLanguage language, Expr? failing, IReadOnlyDictionary<string, IrType> declared) =>
+        (check, language) switch
+        {
+            ("analysis-division-by-zero", SourceLanguage.Python) => ["ZeroDivisionError"],
+            ("analysis-division-by-zero", SourceLanguage.Java) => ["ArithmeticException"],
+            ("analysis-division-by-zero", SourceLanguage.CSharp) => ["DivideByZeroException"],
+
+            ("analysis-not-a-number", SourceLanguage.Python) => ["ValueError"],
+            ("analysis-not-a-number", SourceLanguage.Java) => ["NumberFormatException"],
+            ("analysis-not-a-number", SourceLanguage.CSharp) => ["FormatException"],
+
+            // Python reads an attribute of None as an AttributeError, and takes an item from it or walks it as a TypeError.
+            ("analysis-null-used", SourceLanguage.Python) => failing switch
+            {
+                Member => ["AttributeError"],
+                null => ["AttributeError", "TypeError"],
+                _ => ["TypeError"],
+            },
+            ("analysis-null-used", SourceLanguage.Java) => ["NullPointerException"],
+            ("analysis-null-used", SourceLanguage.CSharp) => ["NullReferenceException"],
+            ("analysis-null-used", SourceLanguage.JavaScript) => ["TypeError"],
+
+            ("analysis-index-out-of-range", SourceLanguage.Python) => ["IndexError"],
+            ("analysis-index-out-of-range", SourceLanguage.Java) => failing is ElementAccess ? ["ArrayIndexOutOfBoundsException"] : ["IndexOutOfBoundsException"],
+            ("analysis-index-out-of-range", SourceLanguage.CSharp) => CSharpIndexRaises(failing, declared),
+
+            ("analysis-empty-collection", SourceLanguage.Python) => failing is Call { Callee: Member { MemberName: "pop" or "popleft" } } ? ["IndexError"] : null,
+            ("analysis-empty-collection", SourceLanguage.Java) => JavaTakingRaises(failing, declared),
+            ("analysis-empty-collection", SourceLanguage.CSharp) => ["InvalidOperationException"],
+
+            ("analysis-type-mismatch" or "analysis-wrong-arguments", SourceLanguage.Python) => ["TypeError"],
+            ("analysis-assert-always-fails", SourceLanguage.Python or SourceLanguage.Java) => ["AssertionError"],
+            _ => null,
+        };
+
+    /// <summary>
+    /// An index outside a C# array or string raises an IndexOutOfRangeException; outside a List, an
+    /// ArgumentOutOfRangeException. Where the declared type does not say which it is, it may be either.
+    /// </summary>
+    private static IReadOnlyList<string> CSharpIndexRaises(Expr? failing, IReadOnlyDictionary<string, IrType> declared) =>
+        failing is ElementAccess { Target: Name { Identifier: var indexed } } && declared.TryGetValue(indexed, out var type)
+            ? type.Name switch
+            {
+                "array" or "string" or "String" => ["IndexOutOfRangeException"],
+                "List" => ["ArgumentOutOfRangeException"],
+                _ => ["IndexOutOfRangeException", "ArgumentOutOfRangeException"],
+            }
+            : ["IndexOutOfRangeException", "ArgumentOutOfRangeException"];
+
+    /// <summary>
+    /// Java's Stack raises an EmptyStackException from pop; its deques and lists raise a NoSuchElementException. Where the
+    /// declared type does not say which a pop is taken from, it may be either.
+    /// </summary>
+    private static IReadOnlyList<string> JavaTakingRaises(Expr? failing, IReadOnlyDictionary<string, IrType> declared) => failing switch
+    {
+        Call { Callee: Member { MemberName: "pop", Target: Name { Identifier: var owner } } } when declared.TryGetValue(owner, out var type) =>
+            type.Name == "Stack" ? ["EmptyStackException"] : type.Name is "Deque" or "ArrayDeque" or "LinkedList" ? ["NoSuchElementException"] : ["EmptyStackException", "NoSuchElementException"],
+        Call { Callee: Member { MemberName: "pop" } } or null => ["EmptyStackException", "NoSuchElementException"],
+        _ => ["NoSuchElementException"],
+    };
+
+    /// <summary>
     /// Whether dividing can fail at all, and whether these two values divide as whole numbers. Go gives both sides of a
     /// division the same type, so one side being a whole number settles it; JavaScript has one number type and gives
     /// Infinity rather than failing.
