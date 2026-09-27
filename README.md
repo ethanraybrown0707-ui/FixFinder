@@ -120,6 +120,9 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
+A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
+what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
+
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
 **contract**. A guard that ends the whole program instead of raising - `sys.exit`, `System.exit`, C's `exit` - is where the

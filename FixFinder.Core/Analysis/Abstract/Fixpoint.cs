@@ -1,4 +1,5 @@
 using FixFinder.Core.Analysis.Flow;
+using FixFinder.Core.Analysis.Ir;
 
 namespace FixFinder.Core.Analysis.Abstract;
 
@@ -14,6 +15,9 @@ public sealed class Fixpoint
     private readonly List<int> _order;
     private readonly HashSet<int> _widenAt;
 
+    /// <summary>For each loop's test, the blocks that come to it from before the loop rather than round it again.</summary>
+    private readonly Dictionary<int, HashSet<int>> _waysIntoLoops;
+
     private Fixpoint(ControlFlowGraph graph, Evaluator evaluator)
     {
         _graph = graph;
@@ -21,6 +25,7 @@ public sealed class Fixpoint
         _entry = graph.Blocks.Select(_ => AbstractState.Unreachable).ToArray();
         _order = ReversePostOrder(graph);
         _widenAt = LoopHeads(graph, _order);
+        _waysIntoLoops = WaysIntoLoops(graph, _order);
     }
 
     public static Fixpoint Run(ControlFlowGraph graph, Evaluator evaluator, AbstractState start)
@@ -39,6 +44,42 @@ public sealed class Fixpoint
 
     /// <summary>What flows along one edge: the branch's condition is assumed true or false on its way.</summary>
     public AbstractState Along(int from, int to)
+    {
+        var block = _graph.Blocks[from];
+
+        if (block.Terminator is Branch test && test.WhenFalse == to && test.WhenTrue != to && _waysIntoLoops.TryGetValue(from, out var ways))
+            return LeavingTheLoop(block, test, ways);
+
+        return AlongWithoutLeaving(from, to);
+    }
+
+    /// <summary>
+    /// What leaves a loop because its test failed, worked out for each way into the test on its own and only then joined.
+    /// A loop whose test holds the first time it is made - i = 0 against i &lt; 4, a range(4) about to be walked - cannot
+    /// be left without going round at least once, so what the body certainly did is certain after it: a list it added to
+    /// is not empty. Joined first, the state from before the loop, when the list was still empty, leaked past the loop.
+    /// </summary>
+    private AbstractState LeavingTheLoop(BasicBlock head, Branch test, HashSet<int> waysIn)
+    {
+        var leaving = AbstractState.Unreachable;
+
+        foreach (var from in _graph.Predecessors(head.Id))
+        {
+            var arriving = head.Instructions.Aggregate(AlongWithoutLeaving(from, head.Id), _evaluator.Apply);
+            if (!arriving.IsReachable) continue;
+
+            // Whether there is another item can only be told from the collection before the first one is taken: then it is
+            // exactly whether the collection is empty.
+            if (waysIn.Contains(from) && test.Condition is MoreItems { Items: var items } && _evaluator.Evaluate(items, arriving).Length.Low >= 1)
+                continue;
+
+            leaving = leaving.Join(_evaluator.Assume(arriving, test.Condition, false));
+        }
+
+        return leaving;
+    }
+
+    private AbstractState AlongWithoutLeaving(int from, int to)
     {
         var block = _graph.Blocks[from];
         var exit = ExitOf(from);
@@ -119,6 +160,21 @@ public sealed class Fixpoint
         foreach (var block in graph.Blocks) Visit(block.Id);
         order.Reverse();
         return order;
+    }
+
+    /// <summary>
+    /// The blocks each loop test is reached from without going round the loop: those that come before it in the order the
+    /// graph is walked, where going round again comes back from after it.
+    /// </summary>
+    private static Dictionary<int, HashSet<int>> WaysIntoLoops(ControlFlowGraph graph, List<int> order)
+    {
+        var position = order.Select((block, index) => (block, index)).ToDictionary(p => p.block, p => p.index);
+
+        return graph.Blocks
+            .Where(block => block.IsLoopHead && block.Terminator is Branch)
+            .ToDictionary(
+                head => head.Id,
+                head => graph.Predecessors(head.Id).Where(from => position.TryGetValue(from, out var at) && at < position[head.Id]).ToHashSet());
     }
 
     private static HashSet<int> LoopHeads(ControlFlowGraph graph, List<int> order)
