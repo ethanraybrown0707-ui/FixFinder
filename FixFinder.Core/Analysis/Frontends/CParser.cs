@@ -1137,6 +1137,15 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
         var expression = Expression();
         Eat(";");
+
+        // exit, _Exit, quick_exit and abort never return to the code that calls them, so nothing after one runs.
+        if (expression is Call
+            {
+                Callee: Name { Identifier: "exit" or "_Exit" or "quick_exit" or "abort" } or
+                        Member { Target: Name { Identifier: "std" }, MemberName: "exit" or "_Exit" or "quick_exit" or "abort" or "terminate" },
+            } stopping)
+            return [new Throw(From(start), new NewObject(stopping.Span, IrType.Named(stopping.CalleeName!), stopping.Arguments))];
+
         return [new Evaluate(From(start), expression)];
     }
 

@@ -776,6 +776,26 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-null-used");
     }
 
+    /// <summary>exit never returns, so the division after a guard that exits on 0 cannot be reached with 0.</summary>
+    [Fact]
+    public async Task ExitEndsTheWayThroughTheFunction()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <stdio.h>
+            #include <stdlib.h>
+
+            int ratio(int total, int parts) {
+                if (parts == 0) {
+                    fprintf(stderr, "no parts\n");
+                    exit(1);
+                }
+                return total / parts;
+            }
+            """);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
     /// <summary>With no address handed out, end is still NULL where it is read, and the finding quotes the read as C writes it.</summary>
     [Fact]
     public async Task ReadingThroughANullPointerIsQuotedAsTheCodeWritesIt()
