@@ -1,0 +1,83 @@
+==> Program.cs <==
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public enum DoorState { Closed, Open, Locked }
+
+public enum DoorAction { Open, Close, Lock, Unlock }
+
+public sealed class DoorChangedEventArgs(DoorState from, DoorState to) : EventArgs
+{
+    public DoorState From { get; } = from;
+    public DoorState To { get; } = to;
+}
+
+public sealed class Door
+{
+    private readonly string _code;
+    private int _wrongCodes;
+
+    public Door(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("A door needs a code.", nameof(code));
+        _code = code;
+    }
+
+    public DoorState State { get; private set; } = DoorState.Closed;
+
+    public int WrongCodes => _wrongCodes;
+
+    public event EventHandler<DoorChangedEventArgs>? Changed;
+
+    public bool Apply(DoorAction action, string? code = null)
+    {
+        var next = (State, action) switch
+        {
+            (DoorState.Closed, DoorAction.Open) => DoorState.Open,
+            (DoorState.Open, DoorAction.Close) => DoorState.Closed,
+            (DoorState.Closed, DoorAction.Lock) => DoorState.Locked,
+            (DoorState.Locked, DoorAction.Unlock) when code == _code => DoorState.Closed,
+            _ => State,
+        };
+
+        if (action == DoorAction.Unlock && State == DoorState.Locked && next == State) _wrongCodes++;
+        if (next == State) return false;
+
+        var previous = State;
+        State = next;
+        Changed?.Invoke(this, new DoorChangedEventArgs(previous, next));
+        return true;
+    }
+}
+
+public static class Program
+{
+    public static void Main()
+    {
+        var door = new Door("2468");
+        var history = new List<string>();
+        door.Changed += (_, change) => history.Add($"{change.From} -> {change.To}");
+
+        var steps = new (DoorAction Action, string? Code)[]
+        {
+            (DoorAction.Open, null), (DoorAction.Lock, null), (DoorAction.Close, null), (DoorAction.Lock, null),
+            (DoorAction.Unlock, "1111"), (DoorAction.Unlock, "2468"), (DoorAction.Open, null),
+        };
+
+        foreach (var (action, code) in steps)
+        {
+            var changed = door.Apply(action, code);
+            Console.WriteLine($"{action,-6} {(changed ? "changed" : "ignored"),-7} now {door.State}");
+        }
+
+        Console.WriteLine(string.Join("; ", history));
+        Console.WriteLine($"Wrong codes: {door.WrongCodes}, opened {history.Count(line => line.EndsWith("Open"))} time(s)");
+
+        var counts = Enum.GetValues<DoorState>().ToDictionary(state => state, state => history.Count(line => line.EndsWith(state.ToString())));
+        foreach (var (state, count) in counts.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key))
+        {
+            Console.WriteLine($"{state}: {count}");
+        }
+    }
+}

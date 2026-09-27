@@ -1,0 +1,105 @@
+==> main.js <==
+'use strict';
+
+class LruCache {
+  #capacity;
+  #entries = new Map();
+  #hits = 0;
+  #misses = 0;
+
+  constructor(capacity) {
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new RangeError(`capacity must be a positive whole number, not ${capacity}`);
+    }
+    this.#capacity = capacity;
+  }
+
+  get(key) {
+    if (!this.#entries.has(key)) {
+      this.#misses += 1;
+      return undefined;
+    }
+    const value = this.#entries.get(key);
+    this.#entries.delete(key);
+    this.#entries.set(key, value);
+    this.#hits += 1;
+    return value;
+  }
+
+  set(key, value) {
+    if (this.#entries.has(key)) {
+      this.#entries.delete(key);
+    } else if (this.#entries.size === this.#capacity) {
+      const oldest = this.#entries.keys().next().value;
+      this.#entries.delete(oldest);
+    }
+    this.#entries.set(key, value);
+    return this;
+  }
+
+  get stats() {
+    const lookups = this.#hits + this.#misses;
+    return { hits: this.#hits, misses: this.#misses, hitRate: lookups === 0 ? 0 : this.#hits / lookups };
+  }
+
+  keys() {
+    return [...this.#entries.keys()];
+  }
+}
+
+function parseSettings(text) {
+  let settings;
+  try {
+    settings = JSON.parse(text);
+  } catch (error) {
+    return { ok: false, problems: [`not JSON: ${error.message}`] };
+  }
+  if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) {
+    return { ok: false, problems: ['settings must be an object'] };
+  }
+  const problems = [];
+  const size = settings.cacheSize ?? 2;
+  if (!Number.isInteger(size) || size < 1) problems.push(`cacheSize ${size} is not a positive whole number`);
+  const name = settings.owner?.name?.trim() ?? '';
+  if (name === '') problems.push('owner.name is missing');
+  return problems.length === 0 ? { ok: true, size, name } : { ok: false, problems };
+}
+
+function* fibonacci(limit) {
+  let [previous, current] = [0, 1];
+  while (previous <= limit) {
+    yield previous;
+    [previous, current] = [current, previous + current];
+  }
+}
+
+async function main() {
+  for (const text of ['{"cacheSize": 3, "owner": {"name": " Ada "}}', '{"cacheSize": 0}', '[1, 2]', '{oops']) {
+    const parsed = parseSettings(text);
+    console.log(parsed.ok ? `ok: ${parsed.name} wants ${parsed.size}` : `rejected: ${parsed.problems.join('; ')}`);
+  }
+
+  const cache = new LruCache(3);
+  const slowSquare = async (n) => {
+    const known = cache.get(n);
+    if (known !== undefined) return known;
+    const value = await Promise.resolve(n * n);
+    cache.set(n, value);
+    return value;
+  };
+
+  const inputs = [...fibonacci(8), 2, 3, 13, 1];
+  const squares = [];
+  for (const n of inputs) {
+    squares.push(await slowSquare(n));
+  }
+  console.log(squares.join(' '), cache.keys().join(','));
+  const { hits, misses, hitRate } = cache.stats;
+  console.log(`hits ${hits}, misses ${misses}, rate ${(hitRate * 100).toFixed(0)}%`);
+  console.log(await Promise.all(inputs.slice(0, 3).map(slowSquare)));
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

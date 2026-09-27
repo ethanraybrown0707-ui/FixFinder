@@ -1,0 +1,120 @@
+==> main.go <==
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+)
+
+var errEmpty = errors.New("empty order")
+
+type order struct {
+	id    int
+	items []string
+}
+
+type result struct {
+	id    int
+	total int
+	err   error
+}
+
+func price(item string) (int, error) {
+	prices := map[string]int{"tea": 3, "cake": 4, "soup": 6}
+	cost, ok := prices[item]
+	if !ok {
+		return 0, fmt.Errorf("no price for %q", item)
+	}
+	return cost, nil
+}
+
+func total(ctx context.Context, o order) (int, error) {
+	if len(o.items) == 0 {
+		return 0, fmt.Errorf("order %d: %w", o.id, errEmpty)
+	}
+	sum := 0
+	for _, item := range o.items {
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		default:
+		}
+		cost, err := price(item)
+		if err != nil {
+			return 0, fmt.Errorf("order %d: %w", o.id, err)
+		}
+		sum += cost
+	}
+	return sum, nil
+}
+
+func process(ctx context.Context, orders []order, workers int) []result {
+	jobs := make(chan order)
+	results := make(chan result, len(orders))
+	var wg sync.WaitGroup
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for o := range jobs {
+				sum, err := total(ctx, o)
+				results <- result{id: o.id, total: sum, err: err}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(jobs)
+		for _, o := range orders {
+			select {
+			case jobs <- o:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(results)
+
+	collected := make([]result, 0, len(orders))
+	for r := range results {
+		collected = append(collected, r)
+	}
+	sort.Slice(collected, func(i, j int) bool { return collected[i].id < collected[j].id })
+	return collected
+}
+
+func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	orders := []order{
+		{id: 1, items: []string{"tea", "cake"}},
+		{id: 2, items: nil},
+		{id: 3, items: []string{"soup", "tea", "tea"}},
+		{id: 4, items: []string{"pie"}},
+	}
+
+	var failed []string
+	grand := 0
+	for _, r := range process(ctx, orders, 3) {
+		switch {
+		case errors.Is(r.err, errEmpty):
+			fmt.Printf("order %d is empty\n", r.id)
+		case r.err != nil:
+			failed = append(failed, r.err.Error())
+		default:
+			grand += r.total
+			fmt.Printf("order %d costs %d\n", r.id, r.total)
+		}
+	}
+	fmt.Println("total", grand)
+	fmt.Println("failed:", strings.Join(failed, "; "))
+}

@@ -1,0 +1,242 @@
+==> Main.java <==
+import java.util.List;
+
+public class Main {
+    public static void main(String[] args) {
+        Graph roads = new Graph();
+        roads.connect("depot", "mill", 7);
+        roads.connect("depot", "farm", 9);
+        roads.connect("depot", "port", 14);
+        roads.connect("mill", "farm", 10);
+        roads.connect("mill", "quarry", 15);
+        roads.connect("farm", "quarry", 11);
+        roads.connect("farm", "port", 2);
+        roads.connect("quarry", "town", 6);
+        roads.connect("port", "town", 9);
+
+        Graph.Route route = roads.shortest("depot", "town").orElseThrow();
+        System.out.println(route.distance() + " via " + String.join(" -> ", route.stops()));
+        System.out.println(roads.shortest("depot", "nowhere").isPresent());
+
+        SearchTree<String> names = new SearchTree<>();
+        for (String name : List.of("mill", "depot", "town", "farm", "quarry", "port", "farm")) {
+            names.add(name);
+        }
+        System.out.println(names.size() + " " + names.inOrder() + " height " + names.height());
+        System.out.println(names.contains("port") + " " + names.contains("harbour"));
+        names.remove("mill");
+        names.remove("harbour");
+        System.out.println(names.inOrder() + " " + names.smallest().orElse("none"));
+    }
+}
+==> Graph.java <==
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.PriorityQueue;
+
+public class Graph {
+    public record Route(int distance, List<String> stops) {}
+
+    private record Edge(String to, int miles) {}
+
+    private record Visit(String town, int distance) {}
+
+    private final Map<String, List<Edge>> edges = new HashMap<>();
+
+    public void connect(String from, String to, int miles) {
+        if (miles < 0) {
+            throw new IllegalArgumentException("a road cannot be " + miles + " miles long");
+        }
+        edges.computeIfAbsent(from, town -> new ArrayList<>()).add(new Edge(to, miles));
+        edges.computeIfAbsent(to, town -> new ArrayList<>()).add(new Edge(from, miles));
+    }
+
+    public Optional<Route> shortest(String from, String to) {
+        Map<String, Integer> best = new HashMap<>();
+        Map<String, String> cameFrom = new HashMap<>();
+        PriorityQueue<Visit> waiting = new PriorityQueue<>(Comparator.comparingInt(Visit::distance));
+        best.put(from, 0);
+        waiting.add(new Visit(from, 0));
+
+        while (!waiting.isEmpty()) {
+            Visit visit = waiting.poll();
+            if (visit.distance() > best.getOrDefault(visit.town(), Integer.MAX_VALUE)) {
+                continue;
+            }
+            if (visit.town().equals(to)) {
+                return Optional.of(new Route(visit.distance(), path(cameFrom, from, to)));
+            }
+            for (Edge edge : edges.getOrDefault(visit.town(), List.of())) {
+                int distance = visit.distance() + edge.miles();
+                if (distance < best.getOrDefault(edge.to(), Integer.MAX_VALUE)) {
+                    best.put(edge.to(), distance);
+                    cameFrom.put(edge.to(), visit.town());
+                    waiting.add(new Visit(edge.to(), distance));
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static List<String> path(Map<String, String> cameFrom, String from, String to) {
+        Deque<String> stops = new ArrayDeque<>();
+        for (String town = to; town != null; town = cameFrom.get(town)) {
+            stops.push(town);
+            if (town.equals(from)) {
+                break;
+            }
+        }
+        return new ArrayList<>(stops);
+    }
+}
+==> SearchTree.java <==
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+public class SearchTree<T extends Comparable<T>> {
+    private static final class Node<T> {
+        private final T value;
+        private Node<T> left;
+        private Node<T> right;
+
+        private Node(T value) {
+            this.value = value;
+        }
+    }
+
+    private Node<T> root;
+    private int size;
+
+    public boolean add(T value) {
+        Objects.requireNonNull(value, "value");
+        if (root == null) {
+            root = new Node<>(value);
+            size++;
+            return true;
+        }
+        Node<T> current = root;
+        while (true) {
+            int order = value.compareTo(current.value);
+            if (order == 0) {
+                return false;
+            }
+            if (order < 0) {
+                if (current.left == null) {
+                    current.left = new Node<>(value);
+                    size++;
+                    return true;
+                }
+                current = current.left;
+            } else {
+                if (current.right == null) {
+                    current.right = new Node<>(value);
+                    size++;
+                    return true;
+                }
+                current = current.right;
+            }
+        }
+    }
+
+    public boolean contains(T value) {
+        Node<T> current = root;
+        while (current != null) {
+            int order = value.compareTo(current.value);
+            if (order == 0) {
+                return true;
+            }
+            current = order < 0 ? current.left : current.right;
+        }
+        return false;
+    }
+
+    public void remove(T value) {
+        root = remove(root, value);
+    }
+
+    private Node<T> remove(Node<T> node, T value) {
+        if (node == null) {
+            return null;
+        }
+        int order = value.compareTo(node.value);
+        if (order < 0) {
+            node.left = remove(node.left, value);
+        } else if (order > 0) {
+            node.right = remove(node.right, value);
+        } else {
+            size--;
+            if (node.left == null) {
+                return node.right;
+            }
+            if (node.right == null) {
+                return node.left;
+            }
+            Node<T> successor = node.right;
+            while (successor.left != null) {
+                successor = successor.left;
+            }
+            Node<T> replacement = new Node<>(successor.value);
+            replacement.left = node.left;
+            replacement.right = removeSmallest(node.right);
+            return replacement;
+        }
+        return node;
+    }
+
+    private Node<T> removeSmallest(Node<T> node) {
+        if (node.left == null) {
+            return node.right;
+        }
+        node.left = removeSmallest(node.left);
+        return node;
+    }
+
+    public Optional<T> smallest() {
+        if (root == null) {
+            return Optional.empty();
+        }
+        Node<T> current = root;
+        while (current.left != null) {
+            current = current.left;
+        }
+        return Optional.of(current.value);
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public int height() {
+        return height(root);
+    }
+
+    private int height(Node<T> node) {
+        return node == null ? 0 : 1 + Math.max(height(node.left), height(node.right));
+    }
+
+    public List<T> inOrder() {
+        List<T> values = new ArrayList<>();
+        Deque<Node<T>> pending = new ArrayDeque<>();
+        Node<T> current = root;
+        while (current != null || !pending.isEmpty()) {
+            while (current != null) {
+                pending.push(current);
+                current = current.left;
+            }
+            current = pending.pop();
+            values.add(current.value);
+            current = current.right;
+        }
+        return values;
+    }
+}

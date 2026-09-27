@@ -1,0 +1,192 @@
+==> calculator.py <==
+from evaluator import EvaluationError, evaluate
+from expressions import ParseError, parse
+
+
+def main():
+    variables = {"x": 3.0, "rate": 0.2}
+    for text in ["1 + 2 * 3", "(1 + 2) * 3", "-x + 2", "10 / (x - 1)", "rate * 100 + x", "2 ^ 3 ^ 2", "4 / (x - 3)", "1 +", "y * 2", "2 $ 3"]:
+        try:
+            print(f"{text} = {evaluate(parse(text), variables):g}")
+        except (ParseError, EvaluationError) as problem:
+            print(f"{text}: {problem}")
+
+
+if __name__ == "__main__":
+    main()
+==> expressions.py <==
+from dataclasses import dataclass
+
+
+class ParseError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Number:
+    value: float
+
+
+@dataclass(frozen=True)
+class Variable:
+    name: str
+
+
+@dataclass(frozen=True)
+class Negate:
+    operand: object
+
+
+@dataclass(frozen=True)
+class BinaryOp:
+    operator: str
+    left: object
+    right: object
+
+
+def tokenize(text):
+    tokens = []
+    position = 0
+    while position < len(text):
+        character = text[position]
+        if character.isspace():
+            position += 1
+        elif character.isdigit() or character == ".":
+            start = position
+            while position < len(text) and (text[position].isdigit() or text[position] == "."):
+                position += 1
+            tokens.append(("number", text[start:position]))
+        elif character.isalpha():
+            start = position
+            while position < len(text) and text[position].isalnum():
+                position += 1
+            tokens.append(("name", text[start:position]))
+        elif character in "+-*/^()":
+            tokens.append(("symbol", character))
+            position += 1
+        else:
+            raise ParseError(f"unexpected {character!r} at {position}")
+    return tokens
+
+
+class Parser:
+    """Recursive descent over expression := term (+|- term)*, term := power (*|/ power)*,
+    power := unary (^ power)?, unary := - unary | primary, primary := number | name | ( expression )."""
+
+    def __init__(self, tokens):
+        self._tokens = tokens
+        self._next = 0
+
+    def _peek(self):
+        return self._tokens[self._next] if self._next < len(self._tokens) else ("end", "")
+
+    def _take(self):
+        token = self._peek()
+        if token[0] == "end":
+            raise ParseError("the expression ends too soon")
+        self._next += 1
+        return token
+
+    def _accept(self, symbol):
+        if self._peek() == ("symbol", symbol):
+            self._next += 1
+            return True
+        return False
+
+    def expression(self):
+        node = self.term()
+        while True:
+            if self._accept("+"):
+                node = BinaryOp("+", node, self.term())
+            elif self._accept("-"):
+                node = BinaryOp("-", node, self.term())
+            else:
+                return node
+
+    def term(self):
+        node = self.power()
+        while True:
+            if self._accept("*"):
+                node = BinaryOp("*", node, self.power())
+            elif self._accept("/"):
+                node = BinaryOp("/", node, self.power())
+            else:
+                return node
+
+    def power(self):
+        base = self.unary()
+        if self._accept("^"):
+            return BinaryOp("^", base, self.power())
+        return base
+
+    def unary(self):
+        if self._accept("-"):
+            return Negate(self.unary())
+        return self.primary()
+
+    def primary(self):
+        kind, text = self._take()
+        if kind == "number":
+            try:
+                return Number(float(text))
+            except ValueError:
+                raise ParseError(f"{text!r} is not a number") from None
+        if kind == "name":
+            return Variable(text)
+        if (kind, text) == ("symbol", "("):
+            inside = self.expression()
+            if not self._accept(")"):
+                raise ParseError("a bracket is never closed")
+            return inside
+        raise ParseError(f"unexpected {text!r}")
+
+    def finish(self):
+        tree = self.expression()
+        kind, text = self._peek()
+        if kind != "end":
+            raise ParseError(f"unexpected {text!r} after the expression")
+        return tree
+
+
+def parse(text):
+    return Parser(tokenize(text)).finish()
+==> evaluator.py <==
+from expressions import BinaryOp, Negate, Number, Variable
+
+
+class EvaluationError(Exception):
+    pass
+
+
+def evaluate(node, variables):
+    match node:
+        case Number(value=value):
+            return value
+        case Variable(name=name):
+            if name not in variables:
+                raise EvaluationError(f"{name} has no value")
+            return variables[name]
+        case Negate(operand=operand):
+            return -evaluate(operand, variables)
+        case BinaryOp(operator=operator, left=left, right=right):
+            return combine(operator, evaluate(left, variables), evaluate(right, variables))
+    raise EvaluationError(f"cannot evaluate {node!r}")
+
+
+def combine(operator, left, right):
+    if operator == "+":
+        return left + right
+    if operator == "-":
+        return left - right
+    if operator == "*":
+        return left * right
+    if operator == "/":
+        if right == 0:
+            raise EvaluationError("division by zero")
+        return left / right
+    if operator == "^":
+        try:
+            return left ** right
+        except (OverflowError, ZeroDivisionError):
+            raise EvaluationError(f"{left:g} ^ {right:g} has no answer here") from None
+    raise EvaluationError(f"unknown operator {operator}")

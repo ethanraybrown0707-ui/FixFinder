@@ -1,0 +1,109 @@
+==> main.cpp <==
+#include <algorithm>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <numeric>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+class Product {
+public:
+    Product(std::string name, double price, int stock) : name_(std::move(name)), price_(price), stock_(stock) {
+        if (price_ < 0) throw std::invalid_argument("price cannot be negative: " + name_);
+    }
+    virtual ~Product() = default;
+
+    const std::string& name() const { return name_; }
+    int stock() const { return stock_; }
+    virtual double priceFor(int quantity) const { return price_ * quantity; }
+
+    void take(int quantity) {
+        if (quantity > stock_) throw std::runtime_error("only " + std::to_string(stock_) + " " + name_ + " left");
+        stock_ -= quantity;
+    }
+
+private:
+    std::string name_;
+    double price_;
+    int stock_;
+};
+
+class BulkProduct : public Product {
+public:
+    BulkProduct(std::string name, double price, int stock, int bulkFrom, double discount)
+        : Product(std::move(name), price, stock), bulkFrom_(bulkFrom), discount_(discount) {}
+
+    double priceFor(int quantity) const override {
+        double full = Product::priceFor(quantity);
+        return quantity >= bulkFrom_ ? full * (1.0 - discount_) : full;
+    }
+
+private:
+    int bulkFrom_;
+    double discount_;
+};
+
+class Inventory {
+public:
+    void add(std::unique_ptr<Product> product) {
+        const std::string key = product->name();
+        products_[key] = std::move(product);
+    }
+
+    std::optional<double> sell(std::string_view name, int quantity) {
+        auto found = products_.find(std::string(name));
+        if (found == products_.end()) return std::nullopt;
+        Product& product = *found->second;
+        double cost = product.priceFor(quantity);
+        product.take(quantity);
+        return cost;
+    }
+
+    std::vector<std::string> lowStock(int below) const {
+        std::vector<std::string> names;
+        for (const auto& [name, product] : products_) {
+            if (product->stock() < below) names.push_back(name);
+        }
+        std::sort(names.begin(), names.end());
+        return names;
+    }
+
+    int totalStock() const {
+        return std::accumulate(products_.begin(), products_.end(), 0,
+                               [](int sum, const auto& entry) { return sum + entry.second->stock(); });
+    }
+
+private:
+    std::map<std::string, std::unique_ptr<Product>> products_;
+};
+
+int main() {
+    Inventory shop;
+    shop.add(std::make_unique<Product>("kettle", 24.5, 3));
+    shop.add(std::make_unique<BulkProduct>("mug", 4.0, 40, 10, 0.25));
+    shop.add(std::make_unique<Product>("teapot", 18.0, 1));
+
+    std::cout << std::fixed << std::setprecision(2);
+    const std::vector<std::pair<std::string, int>> orders{{"mug", 12}, {"kettle", 1}, {"spoon", 2}, {"teapot", 2}, {"mug", 3}};
+    for (const auto& [name, quantity] : orders) {
+        try {
+            if (auto cost = shop.sell(name, quantity)) {
+                std::cout << quantity << " x " << name << " = " << *cost << '\n';
+            } else {
+                std::cout << "no " << name << " for sale\n";
+            }
+        } catch (const std::runtime_error& problem) {
+            std::cout << "cannot sell " << name << ": " << problem.what() << '\n';
+        }
+    }
+
+    for (const auto& name : shop.lowStock(5)) std::cout << "low: " << name << '\n';
+    std::cout << "in stock: " << shop.totalStock() << '\n';
+    return 0;
+}
