@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
@@ -22,6 +23,9 @@ public sealed partial class SymbolicExecutor
     private readonly SourceLanguage _language;
     private readonly IReadOnlySet<string> _locals;
     private readonly IReadOnlySet<string> _volatile;
+
+    /// <summary>The variables whose address a C or C++ function hands out, and what can change them.</summary>
+    public HandedAddresses Addresses { get; init; } = HandedAddresses.None;
     private readonly IReadOnlyDictionary<string, IrType> _declared;
     private readonly Dictionary<Expr, CountedLoop> _counted;
     private readonly HashSet<string> _numeric;

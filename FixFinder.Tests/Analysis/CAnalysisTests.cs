@@ -776,6 +776,79 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-null-used");
     }
 
+    /// <summary>
+    /// An address handed to a function that only reads and writes through it is not kept, so only that call changes the
+    /// variable: after count = 0 and an unrelated call, count is still 0 where it divides, which is reported.
+    /// </summary>
+    [Fact]
+    public async Task AnAddressKeptByNothingIsChangedOnlyByTheCallGivenIt()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <stdio.h>
+
+            static void bump(int *count) {
+                (*count)++;
+            }
+
+            int divide_after_counting(void) {
+                int count = 0;
+                bump(&count);
+                count = 0;
+                printf("counted again from zero\n");
+                return 100 / count;
+            }
+            """);
+
+        var dividing = program.AllFunctions.Single(f => f.Name == "divide_after_counting");
+        Assert.Empty(FixFinder.Core.Analysis.Abstract.HandedAddresses.Of(dividing, program).Kept);
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 12);
+    }
+
+    /// <summary>An address that may be kept - here in a global another function writes through - can be changed by any later call.</summary>
+    [Fact]
+    public async Task AnAddressThatMayBeKeptIsChangedByAnyLaterCall()
+    {
+        var (program, findings) = await CheckAsync("""
+            static int *remembered;
+
+            static void remember(int *count) {
+                remembered = count;
+            }
+
+            static void bump_remembered(void) {
+                (*remembered)++;
+            }
+
+            int divide_after_remembering(void) {
+                int count = 0;
+                remember(&count);
+                count = 0;
+                bump_remembered();
+                return 100 / count;
+            }
+            """);
+
+        var dividing = program.AllFunctions.Single(f => f.Name == "divide_after_remembering");
+        Assert.Equal(["count"], FixFinder.Core.Analysis.Abstract.HandedAddresses.Of(dividing, program).Kept);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
+    /// <summary>
+    /// What changes a variable through its address - sscanf in a condition, *where = 5, (*where)++ - is followed, and a
+    /// division made before anything could change it is still reported.
+    /// </summary>
+    [Theory]
+    [InlineData("read by sscanf in the condition", false, "int f(const char *text) {\n    int x = 0;\n    if (sscanf(text, \"%d\", &x) == 1) {\n        return 100 / x;\n    }\n    return 0;\n}")]
+    [InlineData("written through a pointer", false, "int f(void) {\n    int count = 0;\n    int *where = &count;\n    *where = 5;\n    return 100 / count;\n}")]
+    [InlineData("incremented through a pointer", false, "int f(void) {\n    int count = 0;\n    int *where = &count;\n    (*where)++;\n    return 100 / count;\n}")]
+    [InlineData("divided before the call that changes it", true, "int f(void) {\n    int count = 0;\n    int result = 100 / count;\n    scanf(\"%d\", &count);\n    return result;\n}")]
+    public async Task WhatChangesAVariableThroughItsAddressIsFollowed(string shape, bool reported, string function)
+    {
+        var (_, findings) = await CheckAsync("#include <stdio.h>\n\n" + function + "\n");
+
+        Assert.True(findings.Any(f => f.CheckId == "analysis-division-by-zero") == reported, $"{shape}: {string.Join("; ", findings.Select(f => f.Message))}");
+    }
+
     /// <summary>exit never returns, so the division after a guard that exits on 0 cannot be reached with 0.</summary>
     [Fact]
     public async Task ExitEndsTheWayThroughTheFunction()

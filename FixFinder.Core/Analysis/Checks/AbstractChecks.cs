@@ -43,6 +43,7 @@ public static class AbstractChecks
             var evaluator = new Evaluator(program.Language)
             {
                 Volatile = nesting.Volatile(function),
+                Addresses = HandedAddresses.Of(function, program),
                 Escaping = Scopes.Escaping(function),
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),

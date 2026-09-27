@@ -35,6 +35,12 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>Variables other code can change at any call; they are never treated as known.</summary>
     public IReadOnlySet<string> Volatile { get; init; } = new HashSet<string>();
 
+    /// <summary>
+    /// The variables whose address a C or C++ function hands out - &amp;end to strtoll - and what can change them: what is
+    /// known of one holds until a call given its address runs, or something is written through a pointer that holds it.
+    /// </summary>
+    public HandedAddresses Addresses { get; init; } = HandedAddresses.None;
+
     /// <summary>Collections that are aliased or handed on, so their length can change out of sight.</summary>
     public IReadOnlySet<string> Escaping { get; init; } = new HashSet<string>();
 
@@ -512,7 +518,8 @@ public sealed class Evaluator(SourceLanguage language)
                 state = Embedded(state, assign.Value);
                 if (assign.Target is not Name) state = Embedded(state, assign.Target);
                 var assigned = Evaluate(Settled(assign.Value), state);
-                return AssignTo(ForgetOthersAfterCalls(state, assign.Value), assign.Target, assigned, assign.Value);
+                var written = AssignTo(ForgetOthersAfterCalls(state, assign.Value), assign.Target, assigned, assign.Value);
+                return WritesThroughPointer(assign.Target) ? Forget(written, Addresses.ChangedByWriteTo(assign.Target)) : written;
 
             case EvaluateInstruction { Value: Name or Member }:
                 return ForgetOthers(state);
@@ -581,9 +588,12 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>Whether a name can be followed as sharing an object: not one that other code can change at any call.</summary>
     private bool Tracked(string name) => !Volatile.Contains(name);
 
-    /// <summary>What was learned about variables that are not the function's own is lost once other code has run.</summary>
+    /// <summary>
+    /// What was learned about variables that are not the function's own is lost once other code has run - and so is what
+    /// was known of a variable whose address one of the calls was given.
+    /// </summary>
     private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
-        CallsOtherCode(expression) ? ForgetOthers(state) : state;
+        CallsOtherCode(expression) ? Forget(ForgetOthers(state), Addresses.ChangedByCallsIn(expression)) : state;
 
     /// <summary>
     /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
@@ -592,6 +602,7 @@ public sealed class Evaluator(SourceLanguage language)
     /// </summary>
     private AbstractState ForgetOthers(AbstractState state)
     {
+        state = Forget(state, Addresses.Kept);
         if (Locals is null) return state;
 
         foreach (var name in state.Names.Where(name => !Locals.Contains(name) && !IsHidden(name)).ToList())
@@ -605,6 +616,16 @@ public sealed class Evaluator(SourceLanguage language)
 
     /// <summary>The control-flow graph's own temporaries - $items0, $result2 - which the program never names.</summary>
     private static bool IsHidden(string name) => name.StartsWith('$');
+
+    /// <summary>What is known of these variables is lost: code that holds their address may have changed them.</summary>
+    private static AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
+        changed.Aggregate(state, (forgetting, name) => forgetting.Without(name));
+
+    /// <summary>
+    /// A write that goes through a pointer or into something a name holds - *p = 5, p->next = q, values[i] = v - which
+    /// can change a variable whose address was handed out. A field of this object, written by name, is not one.
+    /// </summary>
+    private bool WritesThroughPointer(Expr target) => target is ElementAccess || target is Member && FieldName(target) is null;
 
     private bool CallsOtherCode(Expr expression) =>
         expression is Call { Callee: var callee } && !(IsPython && callee is Name { Identifier: var builtin } && Builtins.Contains(builtin))
@@ -650,7 +671,11 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState Embedded(AbstractState state, Expr expression)
     {
         foreach (var assigned in Assignments(expression))
+        {
             state = AssignTo(Embedded(state, assigned.Value), assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
+            if (WritesThroughPointer(assigned.Target)) state = Forget(state, Addresses.ChangedByWriteTo(assigned.Target));
+        }
+
         return state;
     }
 
@@ -673,7 +698,19 @@ public sealed class Evaluator(SourceLanguage language)
     };
 
     /// <summary>What must be true of the variables for <paramref name="condition"/> to come out as <paramref name="holds"/>.</summary>
+    /// <remarks>
+    /// A condition that runs other code - sscanf(line, "%d", &amp;count) == 1 - may change a variable whose address the
+    /// call is given, so what was known of it is forgotten before the test is read and again after it.
+    /// </remarks>
     public AbstractState Assume(AbstractState state, Expr condition, bool holds)
+    {
+        if (Addresses.Variables.Count == 0 || !CallsOtherCode(condition)) return Assumed(state, condition, holds);
+
+        var changed = Addresses.ChangedByCallsIn(condition).ToList();
+        return Forget(Assumed(Forget(state, changed), condition, holds), changed);
+    }
+
+    private AbstractState Assumed(AbstractState state, Expr condition, bool holds)
     {
         if (!state.IsReachable) return state;
         state = Embedded(state, condition);

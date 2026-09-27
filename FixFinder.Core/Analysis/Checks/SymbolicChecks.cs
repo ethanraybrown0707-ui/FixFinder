@@ -28,6 +28,7 @@ public static class SymbolicChecks
         {
             MayReturnNull = call => evaluator.CallReturns?.Invoke(call) is { MayBeNull: true },
             OwnTypes = evaluator.OwnTypes,
+            Addresses = evaluator.Addresses,
         }.Explore();
         var refined = new List<AnalysisFinding>();
 

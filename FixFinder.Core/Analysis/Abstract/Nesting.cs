@@ -40,8 +40,9 @@ public sealed class Nesting
             shared.UnionWith(FreeNamesOf(other));
         }
 
-        // A variable whose address was taken can be changed through that pointer by any call it was handed to.
-        shared.UnionWith(function.AddressTaken);
+        // A Go variable whose address was taken can be changed through that pointer by any code at all - a goroutine included.
+        // C and C++ follow what can change such a variable more closely: see HandedAddresses.
+        if (_program.Language == SourceLanguage.Go) shared.UnionWith(function.AddressTaken);
         shared.IntersectWith(IrWalk.LocalNames(function));
         return shared;
     }

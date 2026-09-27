@@ -148,8 +148,19 @@ public sealed partial class SymbolicExecutor
         path.Reassigned = path.Reassigned.Union(dropped);
     }
 
-    /// <summary>Other code has run: whatever this function does not own may have changed.</summary>
-    private void ForgetOutside(Path path) => Drop(path, path.Store.Keys.Concat(path.Truths.Keys).Where(name => !IsOwn(name)).ToList());
+    /// <summary>
+    /// Other code has run: whatever this function does not own may have changed, and so may any variable whose address
+    /// may have been kept somewhere.
+    /// </summary>
+    private void ForgetOutside(Path path) =>
+        Drop(path, path.Store.Keys.Concat(path.Truths.Keys).Where(name => !IsOwn(name) || Addresses.Kept.Contains(name)).Distinct(StringComparer.Ordinal).ToList());
+
+    /// <summary>A call or a write through a pointer has changed these variables, or may have.</summary>
+    private void Forget(Path path, IEnumerable<string> changed)
+    {
+        var known = changed.Where(name => path.Store.ContainsKey(name) || path.Truths.ContainsKey(name)).Distinct(StringComparer.Ordinal).ToList();
+        if (known.Count > 0) Drop(path, known);
+    }
 
     private SymNumber Approximate(bool whole) => new(_symbols.New("an approximation", SymbolOrigin.Approximation, whole), whole);
 
@@ -630,6 +641,7 @@ public sealed partial class SymbolicExecutor
     private void AfterUnknownCall(Call call, IReadOnlyList<SymbolicValue> arguments, Path path)
     {
         ForgetOutside(path);
+        Forget(path, Addresses.ChangedByCall(call));
 
         for (var i = 0; i < call.Arguments.Count && i < arguments.Count; i++)
             if (call.Arguments[i].Value is Name { Identifier: var passed } && arguments[i] is SymSequence sequence)
@@ -1178,9 +1190,11 @@ public sealed partial class SymbolicExecutor
 
             case Member member:
                 Receiver(member, path);
+                Forget(path, Addresses.ChangedByWriteTo(member));
                 break;
 
             case ElementAccess element:
+                Forget(path, Addresses.ChangedByWriteTo(element));
                 var container = Evaluate(element.Target, path);
                 Dereferenced(element.Span, path, element.Target, container);
                 var key = Evaluate(element.Key, path);
