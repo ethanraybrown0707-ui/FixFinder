@@ -96,8 +96,32 @@ internal sealed class JavaAstReader(string file)
             IsStatic = HasModifier(node, "STATIC"),
             IsSynchronized = HasModifier(node, "SYNCHRONIZED"),
             IsConstructor = constructor,
+            ExpectedToRaise = TestExpects(node),
         };
     }
+
+    /// <summary>The exception JUnit 4's @Test(expected = IndexOutOfBoundsException.class) says the test method raises to pass.</summary>
+    private static List<string> TestExpects(JsonElement method) =>
+        Field(method, "modifiers") is not { } modifiers
+            ? []
+            : Items(modifiers, "annotations")
+                .Where(annotation => Field(annotation, "annotationType") is { } type && ClassNamed(type) == "Test")
+                .SelectMany(annotation => Items(annotation, "arguments"))
+                .Where(argument => Kind(argument) == "ASSIGNMENT" && Field(argument, "variable") is { } named && Text(named, "name") == "expected")
+                .Select(argument => Field(argument, "expression"))
+                .OfType<JsonElement>()
+                .Where(literal => Kind(literal) == "MEMBER_SELECT" && Text(literal, "identifier") == "class" && Field(literal, "expression") is not null)
+                .Select(literal => ClassNamed(Field(literal, "expression")!.Value))
+                .OfType<string>()
+                .ToList();
+
+    /// <summary>The class a name or a dotted name ends with: Test for org.junit.Test.</summary>
+    private static string? ClassNamed(JsonElement name) => Kind(name) switch
+    {
+        "IDENTIFIER" => Text(name, "name"),
+        "MEMBER_SELECT" => Text(name, "identifier"),
+        _ => null,
+    };
 
     private List<IrParameter> Parameters(JsonElement node) =>
         Items(node, "parameters").Select(p => new IrParameter(Span(p), Text(p, "name"), TypeOf(Field(p, "type")))).ToList();

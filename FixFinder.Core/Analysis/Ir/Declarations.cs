@@ -68,6 +68,12 @@ public sealed record IrFunction(
     public IReadOnlyList<string> AddressTaken { get; init; } = [];
 
     /// <summary>
+    /// Exceptions a test framework expects the whole function to raise - JUnit 4's
+    /// @Test(expected = IndexOutOfBoundsException.class) - so that raising one is the test passing.
+    /// </summary>
+    public IReadOnlyList<string> ExpectedToRaise { get; init; } = [];
+
+    /// <summary>
     /// For a JavaScript module's top level: the names it takes from other modules, by import or require. Empty for
     /// every other function, and for every other language, whose readers say what is imported in the code itself.
     /// </summary>

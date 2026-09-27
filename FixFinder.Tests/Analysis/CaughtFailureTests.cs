@@ -175,6 +175,54 @@ public class CaughtFailureTests : IDisposable
         Assert.Equal([23, 27], found.Select(f => f.Span.Line).Order());
     }
 
+    /// <summary>JUnit 4's @Test(expected = ...) expects the whole test method to raise, and the test passes when it does.</summary>
+    [Fact]
+    public async Task JUnit4ExpectedExceptionIsTheTestPassing()
+    {
+        if (JavaFrontend.FindTools() is not { } tools) return;
+
+        var path = await WriteAsync("ListTest.java", """
+            import java.util.ArrayList;
+            import java.util.List;
+            import org.junit.Test;
+
+            public class ListTest {
+                static int percent(int value) {
+                    if (value > 100) {
+                        throw new IllegalArgumentException("too big");
+                    }
+                    return value;
+                }
+
+                @Test(expected = IndexOutOfBoundsException.class)
+                public void outOfBounds() {
+                    List<Object> items = new ArrayList<>();
+                    items.get(1);
+                }
+
+                @Test(expected = RuntimeException.class)
+                public void refusesMoreThanAHundred() {
+                    percent(120);
+                }
+
+                @Test(expected = NullPointerException.class)
+                public void expectsAnotherException() {
+                    percent(150);
+                }
+
+                @Test
+                public void expectsNothing() {
+                    percent(160);
+                }
+            }
+            """);
+        var program = await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java);
+        Assert.Equal(["IndexOutOfBoundsException"], program.AllFunctions.Single(f => f.Name == "outOfBounds").ExpectedToRaise);
+
+        var found = Mistakes(AbstractChecks.Run(program, new SourceText()));
+        Assert.Equal([26, 31], found.Select(f => f.Span.Line).Order());
+    }
+
     [Fact]
     public async Task CSharpAssertThrowsExpectsItsLambdaToRaise()
     {

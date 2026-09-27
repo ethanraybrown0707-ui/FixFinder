@@ -149,7 +149,7 @@ public sealed class AnalysisCache
         $"{function.FullName}({string.Join(", ", function.Parameters.Select(p => $"{p.Name}: {p.Type} {p.Kind}"))}) -> {function.ReturnType} " +
         $"static={function.IsStatic} constructor={function.IsConstructor} async={function.IsAsync} generator={function.IsGenerator} " +
         $"synchronized={function.IsSynchronized} decorated={function.IsDecorated} in={function.EnclosedBy} " +
-        $"outer={string.Join(",", function.OuterNames)} address={string.Join(",", function.AddressTaken)}";
+        $"outer={string.Join(",", function.OuterNames)} address={string.Join(",", function.AddressTaken)} expects={string.Join(",", function.ExpectedToRaise)}";
 
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 

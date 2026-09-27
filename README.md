@@ -142,10 +142,11 @@ flag set by the `try` may guard, is not claimed.
 
 A failure the code **catches on purpose** is not reported: trying first and handling what goes wrong - `int(text)` inside
 a `try` with `except ValueError` - or a test checking that bad input is refused, in `with pytest.raises(ValueError):` or
-`with self.assertRaises(ValueError):`, or in a lambda handed to JUnit's `assertThrows(X.class, ...)`, to
-`Assert.Throws<X>(...)`, or to Jest's `expect(...).toThrow()`. An assertion that wants exactly one type -
-`assertThrowsExactly`, MSTest's `ThrowsException` - is held to it, and a test that expects another exception, or none
-with `.not.toThrow()`, is still reported. Only a handler in the same function counts, and only one that certainly catches:
+`with self.assertRaises(ValueError):`, in a JUnit 4 test marked `@Test(expected = X.class)`, or in a lambda handed to
+JUnit's `assertThrows(X.class, ...)`, to `Assert.Throws<X>(...)`, or to Jest's `expect(...).toThrow()`. An assertion
+that wants exactly one type - `assertThrowsExactly`, MSTest's `ThrowsException` - is held to it, and a test that expects
+another exception, or none with `.not.toThrow()`, is still reported. Only a handler in the same function counts, and
+only one that certainly catches:
 it names the exception the failure raises, or a type the language's own documentation puts above it - `except
 ArithmeticError` catches a `ZeroDivisionError`, `catch (IllegalArgumentException e)` a `NumberFormatException` - or one
 of the program's own classes the exception extends; it has no `when` test that could let the exception past; and it does

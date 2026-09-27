@@ -87,6 +87,10 @@ internal static class CaughtFailures
     /// </summary>
     private static bool Caught(IrFunction function, SourceSpan span, IReadOnlyList<string> raised, IrProgram program)
     {
+        // A test method the framework expects to raise - JUnit 4's @Test(expected = ...) - passes when it does.
+        if (function.ExpectedToRaise.Count > 0 && raised.All(exception => function.ExpectedToRaise.Any(expected => Catches(expected, exception, program))))
+            return true;
+
         if (function.EnclosedBy is not null && ExpectedOf(function, program) is { } expectation &&
             raised.All(exception => expectation.Types is null ||
                                     expectation.Types.Any(type => expectation.Exactly ? Simple(type) == Simple(exception) : Catches(type, exception, program))))
