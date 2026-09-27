@@ -861,10 +861,32 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         (_owner, _function, _hasGoto) = (outerOwner, outerFunction, outerGoto);
         LeaveScope();
 
-        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body) { IsStatic = owner is null, EnclosedBy = enclosedBy };
+        var function = new IrFunction(From(start), name, owner, parameters, returns.Ir, body)
+        {
+            IsStatic = owner is null, EnclosedBy = enclosedBy, AddressTaken = AddressesTaken(body),
+        };
         if (add) _functions.Add(function);
         return function;
     }
+
+    /// <summary>
+    /// The variables whose address the function hands out - &end to strtol, &value to scanf - which whatever is given the
+    /// address can change, so their values are never taken as known.
+    /// </summary>
+    private static List<string> AddressesTaken(IReadOnlyList<Stmt> body) =>
+        IrWalk.Statements(body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within)
+            .OfType<Opaque>().Where(taken => taken.What == "address of" && taken.Parts.Count == 1)
+            .Select(taken => AddressedVariable(taken.Parts[0])).OfType<string>()
+            .Distinct(StringComparer.Ordinal).ToList();
+
+    /// <summary>The variable an address points into: x for &x, &x.count and &x[i].</summary>
+    private static string? AddressedVariable(Expr addressed) => addressed switch
+    {
+        Name name => name.Identifier,
+        Member member => AddressedVariable(member.Target),
+        ElementAccess element => AddressedVariable(element.Target),
+        _ => null,
+    };
 
     /// <summary>
     /// An if's condition. C++ lets it declare what it tests - if (auto found = find(key)) - or run a declaration first

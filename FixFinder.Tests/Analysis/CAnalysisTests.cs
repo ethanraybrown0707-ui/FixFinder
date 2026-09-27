@@ -754,4 +754,40 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(["price_of", "total"], lambdas.Select(lambda => lambda.EnclosedBy));
         Assert.Equal(["item"], lambdas[0].Parameters.Select(p => p.Name));
     }
+
+    /// <summary>
+    /// strtoll(text, &amp;end, 10) sets end through the address it is given, so end is no longer the NULL it started as -
+    /// which is how every C program reads a number and checks what follows it.
+    /// </summary>
+    [Fact]
+    public async Task AVariableWhoseAddressIsHandedToACallIsNoLongerKnown()
+    {
+        var (program, findings) = await CheckAsync("""
+            #include <stdlib.h>
+
+            int read_whole(const char *text, long long *value) {
+                char *end = NULL;
+                *value = strtoll(text, &end, 10);
+                return end != text && *end == '\0';
+            }
+            """);
+
+        Assert.Equal(["end"], Assert.Single(program.Functions).AddressTaken);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-null-used");
+    }
+
+    /// <summary>With no address handed out, end is still NULL where it is read, and the finding quotes the read as C writes it.</summary>
+    [Fact]
+    public async Task ReadingThroughANullPointerIsQuotedAsTheCodeWritesIt()
+    {
+        var (_, findings) = await CheckAsync("""
+            int first_letter(void) {
+                char *end = NULL;
+                return *end == 'x';
+            }
+            """);
+
+        var finding = Assert.Single(findings, f => f.CheckId == "analysis-null-used");
+        Assert.StartsWith("`end` is NULL here, so reading `*end` fails", finding.Message);
+    }
 }

@@ -395,9 +395,11 @@ public static class AbstractChecks
                     CheckOperandTypes(binary, state);
                     break;
 
+                // C and C++ read through a pointer with * and ->, which the code itself shows better than a member name can.
                 case Member member when member.Target is not Literal && !IsSpecialName(member.MemberName):
                     if (!asCallee || !Failures.NothingCanRunMethods(evaluator.Language))
-                        CheckNotNull(member.Target, member, state, $"reading `.{member.MemberName}`");
+                        CheckNotNull(member.Target, member, state,
+                            evaluator.Language is SourceLanguage.C or SourceLanguage.Cpp ? $"reading `{Quote(member)}`" : $"reading `.{member.MemberName}`");
                     break;
 
                 case ElementAccess element:

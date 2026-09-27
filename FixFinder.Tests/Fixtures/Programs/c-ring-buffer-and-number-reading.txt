@@ -1,0 +1,108 @@
+==> main.c <==
+#include <errno.h>
+#include <limits.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define CAPACITY 4
+
+typedef struct {
+    int items[CAPACITY];
+    size_t head;
+    size_t count;
+} RingBuffer;
+
+static void ring_init(RingBuffer *ring) {
+    memset(ring, 0, sizeof *ring);
+}
+
+static bool ring_push(RingBuffer *ring, int value) {
+    if (ring->count == CAPACITY) {
+        return false;
+    }
+    ring->items[(ring->head + ring->count) % CAPACITY] = value;
+    ring->count++;
+    return true;
+}
+
+static bool ring_pop(RingBuffer *ring, int *value) {
+    if (ring->count == 0) {
+        return false;
+    }
+    *value = ring->items[ring->head];
+    ring->head = (ring->head + 1) % CAPACITY;
+    ring->count--;
+    return true;
+}
+
+typedef enum { READ_OK, READ_EMPTY, READ_NOT_A_NUMBER, READ_OUT_OF_RANGE } ReadResult;
+
+static ReadResult read_int(const char *text, int *value) {
+    while (*text == ' ' || *text == '\t') {
+        text++;
+    }
+    if (*text == '\0') {
+        return READ_EMPTY;
+    }
+    char *end = NULL;
+    errno = 0;
+    long long parsed = strtoll(text, &end, 10);
+    if (end == text || (*end != '\0' && *end != '\n')) {
+        return READ_NOT_A_NUMBER;
+    }
+    if (errno == ERANGE || parsed < INT_MIN || parsed > INT_MAX) {
+        return READ_OUT_OF_RANGE;
+    }
+    *value = (int)parsed;
+    return READ_OK;
+}
+
+static const char *describe(ReadResult result) {
+    switch (result) {
+    case READ_OK:
+        return "ok";
+    case READ_EMPTY:
+        return "empty";
+    case READ_NOT_A_NUMBER:
+        return "not a number";
+    case READ_OUT_OF_RANGE:
+        return "out of range";
+    }
+    return "unknown";
+}
+
+int main(void) {
+    const char *inputs[] = {"12", "  7", "", "3x", "99999999999", "-4", "5\n", "8", "21"};
+    RingBuffer ring;
+    ring_init(&ring);
+
+    for (size_t i = 0; i < sizeof inputs / sizeof inputs[0]; i++) {
+        int value = 0;
+        ReadResult result = read_int(inputs[i], &value);
+        if (result != READ_OK) {
+            printf("skipped \"%s\": %s\n", inputs[i], describe(result));
+            continue;
+        }
+        if (!ring_push(&ring, value)) {
+            int oldest = 0;
+            if (ring_pop(&ring, &oldest)) {
+                printf("full, dropped %d\n", oldest);
+            }
+            ring_push(&ring, value);
+        }
+    }
+
+    long long total = 0;
+    int value = 0;
+    size_t taken = 0;
+    while (ring_pop(&ring, &value)) {
+        total += value;
+        taken++;
+    }
+    if (taken > 0) {
+        printf("%d values, total %lld, average %.2f\n", (int)taken, total, (double)total / (double)taken);
+    }
+    return 0;
+}
