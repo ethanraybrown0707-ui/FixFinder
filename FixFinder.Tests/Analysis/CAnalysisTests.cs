@@ -895,6 +895,48 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 27);
     }
 
+    /// <summary>
+    /// In C++, &lt;&lt; and &gt;&gt; on a stream are the stream's own operators: std::cin &gt;&gt; count gives count the
+    /// number typed, and a loop reading words until the stream runs out ends when it does. A shift of a whole number is
+    /// still a shift.
+    /// </summary>
+    [Fact]
+    public async Task CppStreamOperatorsReadAndWriteRatherThanShift()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <iostream>
+            #include <sstream>
+            #include <string>
+
+            int average_of_typed(int total) {
+                int count = 0;
+                std::cin >> count;
+                return total / count;
+            }
+
+            int words_in(const std::string &text) {
+                std::istringstream words(text);
+                std::string word;
+                int seen = 0;
+                while (words >> word) {
+                    ++seen;
+                }
+                std::cout << "words: " << seen << '\n';
+                return seen;
+            }
+
+            int shifted(int value) {
+                int nothing = 0;
+                return (value << 2) / nothing;
+            }
+            """, "main.cpp");
+
+        var typed = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 8);
+        Assert.Contains("the number typed at line 7", typed.Message);
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-loop-never-ends");
+        Assert.Contains(findings, f => f.CheckId == "analysis-division-by-zero" && f.Span.Line == 24);
+    }
+
     /// <summary>exit never returns, so the division after a guard that exits on 0 cannot be reached with 0.</summary>
     [Fact]
     public async Task ExitEndsTheWayThroughTheFunction()

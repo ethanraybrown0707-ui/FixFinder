@@ -1544,11 +1544,74 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
                 _ => BinaryOperator.Modulo,
             };
 
+            // In C++ << and >> on anything but a whole number are the operators a class overloads - std::cout << x
+            // writes, words >> word reads - not shifts of bits.
+            if (cpp && op is "<<" or ">>" && !ShiftsBits(left))
+            {
+                left = op == ">>" ? ReadFromStream(left, right, span) : Opaque.Of(span, "written to a stream", left, right);
+                continue;
+            }
+
             left = new Binary(span, known, left, right);
         }
 
         return left;
     }
+
+    /// <summary>
+    /// Whether a C++ &lt;&lt; or &gt;&gt; shifts bits: its left side is plainly a whole number - written as one, a variable
+    /// declared as one, or arithmetic. Anything else - std::cout, a string stream, a value whose type is not known here -
+    /// is taken to be the operator a class overloads, which at worst loses the arithmetic, never invents a value.
+    /// </summary>
+    private bool ShiftsBits(Expr left) => left switch
+    {
+        Literal { Kind: LiteralKind.Integer or LiteralKind.Character } => true,
+        Name { Identifier: var name } => Known(name) is { Pointers: 0, Dimensions.Count: 0 } type && IsWholeNumber(type.Name),
+        Binary or Ir.Unary or Cast => true,
+        _ => false,
+    };
+
+    private static bool IsWholeNumber(string type)
+    {
+        var words = type.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length > 0 && !words.Any(word => word is "float" or "double") && words.All(word => WholeNumberWords.Contains(word));
+    }
+
+    private static readonly HashSet<string> WholeNumberWords = new(StringComparer.Ordinal)
+    {
+        "char", "short", "int", "long", "signed", "unsigned", "bool", "_Bool", "const", "volatile", "size_t", "ssize_t", "ptrdiff_t",
+        "int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t", "uint64_t", "intptr_t", "uintptr_t",
+        "wchar_t", "char8_t", "char16_t", "char32_t",
+    };
+
+    /// <summary>
+    /// stream &gt;&gt; value: the value is given what is read - a number or text typed at the keyboard when the stream is
+    /// std::cin, of the kind the variable is declared as - and the stream is what the whole gives back, so reads chain:
+    /// std::cin &gt;&gt; width &gt;&gt; height.
+    /// </summary>
+    private Expr ReadFromStream(Expr stream, Expr target, SourceSpan span)
+    {
+        var typed = ReadsTheKeyboard(stream) && target is Name { Identifier: var name } && Known(name) is { Pointers: 0, Dimensions.Count: 0 } type
+            ? TypedKind(type.Name)
+            : null;
+
+        return Opaque.Of(span, "read from a stream", stream, new AssignValue(target.Span, target, Opaque.Of(target.Span, typed ?? "value read")));
+    }
+
+    /// <summary>std::cin itself, cin after using namespace std, or an earlier read from either in the same chain.</summary>
+    private bool ReadsTheKeyboard(Expr stream) => stream switch
+    {
+        Member { Target: Name { Identifier: "std" }, MemberName: "cin" } => true,
+        Name { Identifier: "cin" } => Known("cin") is null,
+        Opaque { What: "read from a stream", Parts: [var earlier, ..] } => ReadsTheKeyboard(earlier),
+        _ => false,
+    };
+
+    private static string? TypedKind(string type) =>
+        IsWholeNumber(type) ? "typed whole number"
+        : type.Split(' ').Any(word => word is "float" or "double") ? "typed number"
+        : type is "string" or "std::string" ? "typed text"
+        : null;
 
     private Expr Unary()
     {
