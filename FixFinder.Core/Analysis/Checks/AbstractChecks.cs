@@ -32,6 +32,7 @@ public static class AbstractChecks
         var ownTypes = program.Classes.Select(type => type.Name).ToHashSet(StringComparer.Ordinal);
         var summaries = new Dictionary<IrFunction, AbstractValue>(ReferenceEqualityComparer.Instance);
         var contracts = new Dictionary<IrFunction, IReadOnlyList<Precondition>>(ReferenceEqualityComparer.Instance);
+        IReadOnlyList<Precondition> ContractsOf(IrFunction callee) => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee);
 
         // Built once for the program: which functions are written inside which is a fact about the whole program, and
         // working it out for each function separately reads the whole program once per function.
@@ -88,8 +89,7 @@ public static class AbstractChecks
             var fixpoint = Fixpoint.Run(graph, evaluator, StartOf(function, evaluator));
 
             var local = new List<AnalysisFinding>();
-            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, effects, callee => contracts.TryGetValue(callee, out var known) ? known : contracts[callee] = Contracts.Of(callee))
-                .Run();
+            new FunctionChecks(graph, fixpoint, evaluator, source, local, targets, effects, ContractsOf).Run();
 
             var refined = canRefine ? SymbolicChecks.Refine(graph, evaluator, local, source) : local;
             var uncaught = CaughtFailures.Uncaught(refined, function, program, evaluator.DeclaredTypes).ToList();
@@ -103,6 +103,8 @@ public static class AbstractChecks
 
         cache?.Finished(reused, analysed);
 
+        findings = WithDivisionsNoCallMakesToldAsSuch(findings, program, functions, source, targets, effects, ContractsOf);
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));
@@ -112,6 +114,136 @@ public static class AbstractChecks
             .Select(g => g.OrderBy(f => f.Confidence).First())
             .OrderBy(f => f.Span.File).ThenBy(f => f.Span.Line)
             .ToList();
+    }
+
+    /// <summary>How many calls to one function are followed into it before its division is left as found; more is not a course program's.</summary>
+    private const int MostCallsFollowed = 20;
+
+    /// <summary>
+    /// A division a function makes by what its callers give it - sum(values) / len(values) - fails the program only when
+    /// some call in it gives what makes the divisor zero. Each call the program makes to the function is followed into it
+    /// with that call's own arguments; when none of them can make it zero, the finding stays - the function still does not
+    /// check what it is given - but as a warning that says the program never gives it that, rather than as an error the
+    /// program has. A function nothing calls, or one handed around as a value, keeps what was found as it was.
+    /// </summary>
+    private static List<AnalysisFinding> WithDivisionsNoCallMakesToldAsSuch(
+        List<AnalysisFinding> findings, IrProgram program, List<(IrFunction Function, Evaluator Evaluator, ControlFlowGraph Graph)> functions,
+        SourceText source, CallTargets targets, Effects effects, Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
+    {
+        const string division = "analysis-division-by-zero";
+
+        var byName = functions.GroupBy(f => f.Function.FullName, StringComparer.Ordinal).ToDictionary(named => named.Key, named => named.First(), StringComparer.Ordinal);
+        var dividing = findings.Where(f => f.CheckId == division && f.Function is { } name && byName.TryGetValue(name, out var found) &&
+                                           found.Function.Name != IrFunction.ModuleBody && found.Function.Parameters.Count > 0)
+            .Select(f => f.Function!).ToHashSet(StringComparer.Ordinal);
+        if (dividing.Count == 0) return findings;
+
+        var dividingNames = dividing.Select(name => byName[name].Function.Name).ToHashSet(StringComparer.Ordinal);
+
+        bool CallsOneOfThem(IrFunction function) => IrWalk.Statements(function.Body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within).OfType<Call>()
+            .Any(call => call.Callee is Name { Identifier: var called } && dividingNames.Contains(called) ||
+                         call.Callee is Member { MemberName: var method } && dividingNames.Contains(method));
+
+        // A list handed to a function is taken to be changed by it, and its length forgotten from the start; but one handed
+        // only to those of these functions that change nothing they are given keeps its length up to each call.
+        var changingNothing = dividing.Select(name => byName[name].Function)
+            .Where(function => !effects.Of(function).Keys.Any(reached => reached.Kind == Effects.Reach.Parameter))
+            .Select(function => function.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // What every call the program makes to those functions gives them, found by checking each function that calls one.
+        var callsTo = dividing.ToDictionary(name => name, _ => new List<Dictionary<string, AbstractValue>?>(), StringComparer.Ordinal);
+        foreach (var (function, evaluator, graph) in functions.Where(f => CallsOneOfThem(f.Function)))
+        {
+            var following = new Evaluator(evaluator.Language)
+            {
+                Volatile = evaluator.Volatile,
+                Addresses = evaluator.Addresses,
+                Escaping = Scopes.Escaping(function, changingNothing),
+                Locals = evaluator.Locals,
+                CallReturns = evaluator.CallReturns,
+                DeclaredTypes = evaluator.DeclaredTypes,
+                OwnTypes = evaluator.OwnTypes,
+            };
+
+            new FunctionChecks(graph, Fixpoint.Run(graph, following, StartOf(function, following)), following, source, [], targets, effects, contractsOf)
+            {
+                CallMade = (target, bound) =>
+                {
+                    if (callsTo.TryGetValue(target.Function.FullName, out var made)) made.Add(bound);
+                },
+            }.Run();
+        }
+
+        var handedAround = HandedAroundAsValues(program, dividingNames);
+
+        bool NoCallMakesItZero(AnalysisFinding finding)
+        {
+            var callee = byName[finding.Function!];
+            if (handedAround.Contains(callee.Function.Name) || callsTo[finding.Function!] is not { Count: > 0 and <= MostCallsFollowed } calls) return false;
+
+            return calls.All(bound => bound is not null && NeverZero(callee, bound, finding.Span));
+        }
+
+        // The function run as one call runs it: a list it empties itself before dividing is still seen to be empty.
+        bool NeverZero((IrFunction Function, Evaluator Evaluator, ControlFlowGraph Graph) callee, Dictionary<string, AbstractValue> bound, SourceSpan at)
+        {
+            var start = bound.Aggregate(StartOf(callee.Function, callee.Evaluator), (state, given) => callee.Evaluator.Store(state, given.Key, given.Value));
+            var divisors = new List<Interval?>();
+
+            new FunctionChecks(callee.Graph, Fixpoint.Run(callee.Graph, callee.Evaluator, start), callee.Evaluator, source, [], targets, effects, contractsOf)
+            {
+                DivisionMade = (binary, divisor) =>
+                {
+                    if (binary.Span == at) divisors.Add(divisor);
+                },
+            }.Run();
+
+            // A division these arguments never reach is never by zero; one whose divisor cannot be bounded may be.
+            return divisors.All(divisor => divisor is { } range && !range.IsTop && !range.Contains(0));
+        }
+
+        return findings.Select(finding => finding.CheckId == division && finding.Function is { } name && dividing.Contains(name) && NoCallMakesItZero(finding)
+                ? finding with
+                {
+                    Severity = Severity.Warning,
+                    Message = $"`{byName[name].Function.Name}` does not check what it is given: {finding.Message.TrimEnd('.')}. Every call this program " +
+                              "makes to it gives it what keeps this from happening, so the program does not fail here",
+                }
+                : finding)
+            .ToList();
+    }
+
+    /// <summary>The names of these functions the program uses as values - handed to sorted, stored, passed on - rather than calling.</summary>
+    private static HashSet<string> HandedAroundAsValues(IrProgram program, IReadOnlySet<string> names)
+    {
+        // What a statement reads: the name an assignment or a loop gives a value to - a def, among them - is not a use of it.
+        static IEnumerable<Expr> Read(Stmt statement) => statement switch
+        {
+            Assign assign => assign.Target is Name ? [assign.Value] : [assign.Value, .. IrWalk.Children(assign.Target)],
+            ForEach loop => [loop.Items],
+            _ => IrWalk.Expressions(statement),
+        };
+
+        var expressions = program.AllFunctions
+            .SelectMany(function => IrWalk.Statements(function.Body))
+            .SelectMany(Read)
+            .SelectMany(IrWalk.Within)
+            .ToList();
+
+        var called = expressions.OfType<Call>().Select(call => call.Callee).ToHashSet(ReferenceEqualityComparer.Instance);
+
+        return expressions
+            .Where(expression => !called.Contains(expression))
+            .Select(expression => expression switch
+            {
+                Name name => name.Identifier,
+                Member member => member.MemberName,
+                _ => null,
+            })
+            .OfType<string>()
+            .Where(names.Contains)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>Functions whose results a summary can stand for: not constructors, generators, async functions or top-level code.</summary>
@@ -250,6 +382,12 @@ public static class AbstractChecks
         Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
         private readonly Dictionary<SourceSpan, (bool CanBeTrue, bool CanBeFalse, BasicBlock Block, Branch Branch)> _conditions = [];
+
+        /// <summary>Told of each call to one of the program's own functions, with what its parameters get from here - null when that cannot be told.</summary>
+        public Action<CallTarget, Dictionary<string, AbstractValue>?>? CallMade { get; init; }
+
+        /// <summary>Told of each division, with the values its divisor can have here - null when it is not known to be a number.</summary>
+        public Action<Binary, Interval?>? DivisionMade { get; init; }
 
         private bool IsPython => evaluator.Language == SourceLanguage.Python;
 
@@ -451,6 +589,7 @@ public static class AbstractChecks
 
             var dividend = evaluator.Evaluate(binary.Left, state);
             var divisor = evaluator.Evaluate(binary.Right, state);
+            DivisionMade?.Invoke(binary, divisor.IsNumber ? divisor.Number : null);
             if (!divisor.IsNumber) return;
             if (binary.Operator == BinaryOperator.Modulo && !dividend.IsNumber) return;
 
@@ -582,7 +721,11 @@ public static class AbstractChecks
                 !(target.Function.Name.StartsWith("__", StringComparison.Ordinal) && target.Function.Name != "__init__"))
             {
                 if (IsPython) CheckArguments(call, target);
-                if (Bind(call, target, state) is { } bound)
+
+                var bound = Bind(call, target, state);
+                CallMade?.Invoke(target, bound);
+
+                if (bound is not null)
                 {
                     CheckContract(call, target, bound);
                     if (IsPython) CheckArgumentHints(call, target, bound);

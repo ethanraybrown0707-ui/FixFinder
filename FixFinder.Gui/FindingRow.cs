@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 
 namespace FixFinder.Gui;
 
@@ -44,11 +45,16 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         _ => "Style",
     };
 
-    public string FileName => Path.GetFileName(Finding.File);
+    /// <summary>The file the finding is in: for a notebook's code, the notebook, not the script FixFinder checked it as.</summary>
+    public string FileName => Path.GetFileName(Finding.InNotebook?.Notebook ?? Finding.File);
 
-    public string LineText => Finding.Line is { } line ? $"Line {line}" : "";
+    public string LineText => Finding.InNotebook is { } place ? $"Cell {place.Cell}, line {place.Line}"
+        : Finding.Line is { } line ? $"Line {line}"
+        : "";
 
-    public string LocationText => Finding.Line is { } line ? $"{FileName}  ·  line {line}" : FileName;
+    public string LocationText => Finding.InNotebook is { } place ? $"{FileName}  ·  cell {place.Cell}, line {place.Line}"
+        : Finding.Line is { } line ? $"{FileName}  ·  line {line}"
+        : FileName;
 
     public string Title => Finding.Title;
 
@@ -120,6 +126,45 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     {
         if (finding.Slice is not { Count: > 1 } lines) return "";
 
+        var shown = LinesOf(finding, lines);
+        if (shown.Count < 2) return "";
+
+        var indent = shown.Where(s => s.Text.Length > 0).Select(s => s.Text.Length - s.Text.TrimStart().Length).DefaultIfEmpty(0).Min();
+        var width = shown.Max(s => s.Number).ToString().Length;
+
+        // In a notebook the lines are numbered in their cells, so a cell is named wherever the lines leave the finding's own.
+        var namesCells = shown.Any(s => s.Cell != finding.InNotebook?.Cell);
+        var rendered = new List<string>();
+        int? cellNamed = null;
+
+        foreach (var (cell, number, text) in shown)
+        {
+            if (namesCells && cell is { } current && current != cellNamed)
+            {
+                rendered.Add($"cell {current}");
+                cellNamed = current;
+            }
+
+            rendered.Add($"{number.ToString().PadLeft(width)}  {(text.Length >= indent ? text[indent..] : text.TrimStart())}");
+        }
+
+        return string.Join("\n", rendered);
+    }
+
+    /// <summary>
+    /// The slice's lines as the reader has them: numbered in the file - or, for a notebook's code, numbered in their cells
+    /// and written as the notebook has them, without any line FixFinder put in itself to run the notebook.
+    /// </summary>
+    private static List<(int? Cell, int Number, string Text)> LinesOf(Finding finding, IReadOnlyList<int> lines)
+    {
+        if (finding.InNotebook is not null && NotebookScript.Of(finding.File) is { } notebook)
+        {
+            return [.. lines
+                .Select(line => (Place: notebook.PlaceOf(line), Code: notebook.CodeOf(line)))
+                .Where(line => line.Place is not null && line.Code is not null)
+                .Select(line => ((int?)line.Place!.Cell, line.Place.Line, line.Code!.TrimEnd()))];
+        }
+
         string[] source;
         try
         {
@@ -127,15 +172,10 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            return "";
+            return [];
         }
 
-        var shown = lines.Where(line => line >= 1 && line <= source.Length).Select(line => (Line: line, Text: source[line - 1].TrimEnd())).ToList();
-        if (shown.Count < 2) return "";
-
-        var indent = shown.Where(s => s.Text.Length > 0).Select(s => s.Text.Length - s.Text.TrimStart().Length).DefaultIfEmpty(0).Min();
-        var width = shown[^1].Line.ToString().Length;
-        return string.Join("\n", shown.Select(s => $"{s.Line.ToString().PadLeft(width)}  {(s.Text.Length >= indent ? s.Text[indent..] : s.Text.TrimStart())}"));
+        return [.. lines.Where(line => line >= 1 && line <= source.Length).Select(line => ((int?)null, line, source[line - 1].TrimEnd()))];
     }
 
     public string CheckedText => Finding.FixCheckedBy is { Length: > 0 } how ? how : "";
@@ -145,31 +185,41 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>One tested stage, as a mark and a sentence the reader can hold the claim against.</summary>
     public sealed record VerificationLine(string Mark, string Text, bool Passed, bool Failed);
 
-    /// <summary>The line of the finding this one follows from, filled in by the window, which can see them all.</summary>
-    public int? FollowsLine { get; init; }
+    /// <summary>The finding this one follows from, filled in by the window, which can see them all.</summary>
+    public Finding? FollowsFrom { get; init; }
 
-    /// <summary>The lines of the findings that follow from this one.</summary>
-    public IReadOnlyList<int> ExplainsLines { get; init; } = [];
+    /// <summary>The findings that follow from this one, in the order of their lines.</summary>
+    public IReadOnlyList<Finding> LeadsTo { get; init; } = [];
 
-    public bool Follows => FollowsLine is not null;
+    public bool Follows => FollowsFrom is not null;
 
-    public string FollowsText => FollowsLine is { } line
-        ? $"Follows from the problem on line {line} - fixing that one should remove this."
+    public string FollowsText => FollowsFrom is { } cause
+        ? $"Follows from the problem {Where(cause)} - fixing that one should remove this."
         : "";
 
-    public bool Explains => ExplainsLines.Count > 0;
+    public bool Explains => LeadsTo.Count > 0;
 
-    public string ExplainsText => ExplainsLines.Count switch
+    public string ExplainsText => LeadsTo.Count switch
     {
         0 => "",
-        1 => $"The problem on line {ExplainsLines[0]} looks like a consequence of this one, so fixing this may remove it too.",
-        _ => $"The problems on lines {string.Join(", ", ExplainsLines.Take(ExplainsLines.Count - 1))} and {ExplainsLines[^1]} " +
+        1 => $"The problem {Where(LeadsTo[0])} looks like a consequence of this one, so fixing this may remove it too.",
+        _ when LeadsTo.All(consequence => consequence.InNotebook is null) =>
+            $"The problems on lines {string.Join(", ", LeadsTo.SkipLast(1).Select(consequence => consequence.Line))} and {LeadsTo[^1].Line} " +
+            "look like consequences of this one, so fixing this may remove them too.",
+        _ => $"The problems {string.Join(", ", LeadsTo.SkipLast(1).Select(Where))} and {Where(LeadsTo[^1])} " +
              "look like consequences of this one, so fixing this may remove them too.",
     };
 
+    /// <summary>Where a finding is, as the reader would look for it: a line of the file, or a line of a notebook's cell.</summary>
+    private static string Where(Finding finding) => finding.InNotebook is { } place
+        ? $"in cell {place.Cell} on line {place.Line}"
+        : $"on line {finding.Line}";
+
     public bool HasState => Finding.State is { Rows.Count: > 0 };
 
-    public string StateHeading => Finding.State is { } state ? $"WHAT LINE {state.Line} DID, EACH TIME IT RAN" : "";
+    public string StateHeading => Finding.State is not { } state ? ""
+        : Finding.InNotebook is { } place ? $"WHAT LINE {state.Line} OF CELL {place.Cell} DID, EACH TIME IT RAN"
+        : $"WHAT LINE {state.Line} DID, EACH TIME IT RAN";
 
     public IReadOnlyList<string> StateColumns => Finding.State?.Columns ?? [];
 

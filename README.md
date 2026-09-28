@@ -36,11 +36,14 @@ Java is compiled from its source root, C# from its project, Go as its package, a
 headers beside them. A Java folder of exercises, each with its own `main`, holds several programs: one the chosen file's
 code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
 
-A program with a window - one written with JavaFX or Swing, in the file chosen or one it names - runs until its window is
-closed, and a server - on a `ServerSocket` or Java's `HttpServer`, or a Spring Boot application with a web server such as
-Tomcat among its libraries - runs until it is stopped, so either still running when its
-time runs out is said in a note, not reported as a program that never finishes; what it does when someone uses the window,
-or something connects, is not checked.
+A program with a window - one written with JavaFX or Swing, in the file chosen or one it names, or in Python with tkinter,
+turtle, pygame, PyQt or PySide, wxPython, Kivy, or matplotlib's `show()` - runs until its window is closed, and a server -
+on a `ServerSocket` or Java's `HttpServer`, a Spring Boot application with a web server such as Tomcat among its libraries,
+or in Python with `http.server`, `socketserver`, a socket that listens, Flask's or uvicorn's `run`, aiohttp's `run_app` or
+asyncio's `start_server` - runs until it is stopped, so either still running when its time runs out is said in a note, not
+reported as a program that never finishes; what it does when someone uses the window, or something connects, is not
+checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
+that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
@@ -48,6 +51,15 @@ beside their source, as a program built at a command line does; the rest start w
 program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
 The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
+
+A Python program runs with **its project's own Python** when it has one, as its IDE runs it, so a package installed only
+there is found: the interpreter the project's VS Code settings name (`python.defaultInterpreterPath`, or the older
+`python.pythonPath`), or a virtual environment - `.venv`, `venv`, `env`, `.env` or `virtualenv`, holding its `pyvenv.cfg` - in
+the program's folder or one above it, up to the folder that marks the project: one with a `.git`, `.idea`, `.vscode`,
+`pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt` or `Pipfile`. An environment whose Python has since been
+uninstalled is passed over. How the program is run says which Python it is, and the copies changes are tried in run with
+the same one. An environment kept outside the project, as conda and Poetry keep theirs, is not found, and the Python on
+PATH is used instead.
 
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
@@ -81,13 +93,38 @@ from what Maven or Gradle has downloaded, when it is there. A test that fails is
 failed on, in JUnit's own words, and names the line of the program's code the failure was thrown from when it came from
 there. When JUnit cannot run the tests, a note says what it is missing.
 
+A Python file of **unittest** tests - one that imports unittest and has a class deriving `TestCase` - is run with unittest
+itself, test by test, through a small launcher of FixFinder's, whether or not the file calls `unittest.main()`. A test that
+fails is an error on the line of the test it failed on, in unittest's own words; a subtest that fails is named with what it
+was run with, such as `test_shares (people=4)`, and an error raised in the program's own code names the function, line and
+file it was raised in. The summary says how many of the tests failed. Tests written for **pytest** - in a file that imports
+pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions - are not run, since pytest is not part of
+Python, and a note says so.
+
+A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
+notebook's folder - so its own modules and data files are found - and with its project's own Python when it has one.
+IPython's commands are made plain Python where that can be done without touching anything outside the run: `%cd` changes
+the folder, `%env` sets a variable, `%run helpers.py` runs the script and keeps what it defines, and `%time`, `%timeit`,
+`%%time` and `%%timeit` keep the code they time, running it once. Those that only show something or install a package do
+nothing: `%matplotlib inline`, and `!pip install` or `pip install`, which install nothing. The rest - a shell command such
+as `!wget`, a cell in another language such as `%%bash`, the file `%%writefile` would write - are not carried out, and a
+note names each one and where it is, since the cells after it run without what it would have done. matplotlib's plots are
+made without opening a window, as Jupyter makes them, so the cells after a `show()` run;
+`display()` prints what it is given when IPython is not installed. Everything found is said as the notebook is read: the
+cell, counted from the notebook's top with Markdown cells included, and the line within it. That is not the number Jupyter
+shows beside a cell that has run - the order the cells were run in - and a note says so. A line an explanation names in
+another cell is named with its cell, and an expression that ends a cell is not reported as a value thrown away, since
+Jupyter shows it under the cell. What the program printed is shown as it was printed, so a traceback in it counts the
+lines of the one script the cells were run as. A notebook of another language, such as R, is said to be one and is not
+run. The script and the copies changes are tried in are made in the temp folder; the notebook itself is never changed.
+
 ## What each finding tells you
 
 | | |
 |---|---|
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
-| **Line** | The file and line it is on. |
+| **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Explanation** | What is wrong, in the program's own names - explained at the depth the **Explanations** slider is set to. Every kind of mistake FixFinder knows is written three ways: for a beginner, with the idea behind it spelled out in plain words; as it is usually taught; and in the language's own terms, saying which version of the language changed the rule where one did. Whatever the depth, the finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
@@ -167,7 +204,11 @@ checked against the arguments the function takes, the type hints it gives and th
 **contract**. A guard that ends the whole program instead of raising - `sys.exit`, `System.exit`, C's `exit` - is where the
 program stops rather than a contract, so a call that reaches it is not reported as breaking one. What a function returns
 is worked out once and used at every call, which is how a function that always returns None is caught where its result
-is used. What a method returns is never assumed, because a subclass can
+is used. A function that divides by what it is given - `sum(values) / len(values)` - is followed from every call the program
+makes to it, with that call's own arguments: when none of them can make the divisor zero, the finding stays, since the
+function still does not check what it is given, but as a warning that says every call gives it what keeps this from
+happening. When one call can, nothing calls the function, the function is handed around as a value, or it is called from
+more than twenty places, the finding is reported as it was found. What a method returns is never assumed, because a subclass can
 replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true, and a number
 kept in a `double` divides into infinity rather than failing, since dividing a double by zero is no error.
 
@@ -335,8 +376,8 @@ For Python, a finding with inputs that break it is then **tried for real**: the 
 inputs - or, for top-level code, the program is run with them typed in - under a line tracer. Only if it stops with the
 predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
 `average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
-ran are compressed, so a loop that went round three times shows as `(5-7)×3`. A method, which needs its object, is left
-as it was.
+ran are compressed, so a loop that went round three times shows as `(5-7)×3`; in a notebook they are given cell by cell,
+`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was.
 
 Every fix for Python, Java or C# code is also checked for **what it changes** (semantic diffing). The fix is made in a
 copy, both versions are read, and each function it touches is followed path by path in both - the same parameter, list

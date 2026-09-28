@@ -138,13 +138,13 @@ public class JavaTestRunTests(ITestOutputHelper output) : IDisposable
             "FIXFINDER-TESTS-FOUND\t3",
         ];
 
-        var results = JavaTests.ResultsIn(lines);
+        var results = TestReport.ResultsIn(lines);
 
         Assert.Equal(["SUCCESSFUL", "FAILED", "FAILED"], results.Select(result => result.Status).ToArray());
         Assert.Equal("/ by zero", results[1].Message);
         Assert.Equal(("Calculator", "divide", "Calculator.java", 7), results[1].Frames[0]);
         Assert.Equal("expected: <5> but was: <4>\nand a tab\there", results[2].Message);
-        Assert.Equal(3, JavaTests.TestsFound(lines));
+        Assert.Equal(3, TestReport.TestsFound(lines));
     }
 
     [Fact]

@@ -54,14 +54,19 @@ public static class DiagnosticLines
     {
         var title = finding.Title.TrimEnd();
         var joined = title.Length > 0 && title[^1] is '.' or '!' or '?' or ':' ? $"{title} " : $"{title}. ";
-        var message = OneLine(joined + finding.Explanations.At(level));
         var rule = finding.RuleId.Length > 0 ? $" [{finding.RuleId}]" : "";
-        var line = finding.Line ?? 1;
+
+        // An editor goes to a line of the file it is given; a notebook's is a line of its JSON, not of its code, so the
+        // notebook's cell and line are said in the message, and the editor is sent to the notebook's top.
+        var (file, line, cell) = finding.InNotebook is { } place
+            ? (place.Notebook, 1, $"Cell {place.Cell}, line {place.Line}: ")
+            : (finding.File, finding.Line ?? 1, "");
+        var message = OneLine(cell + joined + finding.Explanations.At(level));
 
         return format switch
         {
-            DiagnosticFormat.Gcc => $"{finding.File}:{line}:1: {GccSeverity(finding.Severity)}: {message}{rule}",
-            _ => $"{finding.File}({line}): {MsBuildSeverity(finding.Severity)} {Code(finding.RuleId)}: {message}{rule}",
+            DiagnosticFormat.Gcc => $"{file}:{line}:1: {GccSeverity(finding.Severity)}: {message}{rule}",
+            _ => $"{file}({line}): {MsBuildSeverity(finding.Severity)} {Code(finding.RuleId)}: {message}{rule}",
         };
     }
 
@@ -69,8 +74,9 @@ public static class DiagnosticLines
     public static string Json(IEnumerable<Finding> findings, ExplanationLevel level = ExplanationLevel.Student) =>
         JsonSerializer.Serialize(findings.Select(finding => new
         {
-            file = finding.File,
-            line = finding.Line,
+            file = finding.InNotebook?.Notebook ?? finding.File,
+            line = finding.InNotebook?.Line ?? finding.Line,
+            cell = finding.InNotebook?.Cell,
             severity = finding.Severity.ToString().ToLowerInvariant(),
             confidence = finding.Confidence.ToString().ToLowerInvariant(),
             kind = finding.Kind.ToString().ToLowerInvariant(),

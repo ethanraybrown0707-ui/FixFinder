@@ -9,6 +9,15 @@ public sealed record LaunchPlan(TargetSpec? Spec, string? Problem, string Explan
 
     public string? SourceFolder { get; init; }
 
+    /// <summary>
+    /// The file as the person picked it, where that is not <see cref="ChosenFile"/>: a Jupyter notebook, whose code is
+    /// checked as the script FixFinder writes it out to.
+    /// </summary>
+    public string? PickedFile { get; init; }
+
+    /// <summary>The file to name to the person: the one they picked, rather than a script made from it.</summary>
+    public string? ShownFile => PickedFile ?? ChosenFile;
+
     public bool NeedsCompiling => Compile is not null;
 
     public bool Ok => Spec is not null;
@@ -82,7 +91,7 @@ public static class TargetFactory
         get
         {
             var all = ByExtension.Keys
-                .Concat([".c", ".cpp", ".cc", ".cxx", ".java"])
+                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb"])
                 .OrderBy(e => e, StringComparer.Ordinal);
 
             var extensions = string.Join(";", all.Select(e => "*" + e));
@@ -105,6 +114,11 @@ public static class TargetFactory
 
         var workingDirectory = Path.GetDirectoryName(full)!;
         var extension = Path.GetExtension(full);
+
+        if (extension.Equals(".ipynb", StringComparison.OrdinalIgnoreCase)) return Notebook(full, timeout);
+
+        // A notebook's code - the script FixFinder wrote it to, or a copy of that with a change in it - runs as the notebook does.
+        if (NotebookScript.IsCodeOfANotebook(full)) return NotebookCode(full, timeout);
 
         if (CompiledLanguages.Handles(extension))
         {
@@ -138,7 +152,12 @@ public static class TargetFactory
             { ChosenFile = full };
         }
 
-        var found = Resolve(runner);
+        // A Python project with an environment of its own runs in it, with what is installed there, as its IDE runs it - and
+        // so does a copy of the project made to try a change in, which leaves the environment behind.
+        var environment = extension.ToLowerInvariant() is ".py" or ".pyw"
+            ? PythonEnvironment.For(ProgramCopy.OriginalOf(full), windowed: extension.Equals(".pyw", StringComparison.OrdinalIgnoreCase))
+            : null;
+        var found = environment?.Interpreter ?? Resolve(runner);
 
         if (found is null)
         {
@@ -159,9 +178,21 @@ public static class TargetFactory
             : $"\"{full}\"";
 
         var together = "";
+        var testsRunBy = (string?)null;
 
         switch (extension.ToLowerInvariant())
         {
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Unittest:
+            {
+                // Its tests are run with unittest, one by one, from where running the file - or its package - would start.
+                var package = ProgramLayout.PythonModule(full);
+                var testModule = package?.Module ?? Path.GetFileNameWithoutExtension(full);
+                workingDirectory = package?.Folder ?? workingDirectory;
+                arguments = $"-X utf8 \"{PythonTests.WriteLauncher()}\" {testModule} \"{workingDirectory}\" \"{full}\"";
+                testsRunBy = "unittest";
+                break;
+            }
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."
@@ -193,9 +224,76 @@ public static class TargetFactory
             Timeout = timeout ?? TimeoutFor(extension),
         };
 
-        var how = $"Running it{together} with {Path.GetFileNameWithoutExtension(found)}.";
+        var interpreterNamed = environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        var how = testsRunBy is not null
+            ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
+            : $"Running it{together} with {interpreterNamed}.";
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
+    }
+
+    /// <summary>The warning filter, in Python's own form, for the warning matplotlib gives when a plot is made with no window.</summary>
+    private const string PlotNotShown = "ignore:FigureCanvasAgg is non-interactive:UserWarning";
+
+    /// <summary>A Jupyter notebook, checked as the script its code cells are written out to.</summary>
+    private static LaunchPlan Notebook(string notebook, TimeSpan? timeout)
+    {
+        var (written, problem) = NotebookScript.Write(notebook);
+        if (written is null) return LaunchPlan.Failed(problem!);
+
+        var plan = NotebookCode(written.Script, timeout);
+        return plan.Ok ? plan with { PickedFile = notebook } : plan;
+    }
+
+    /// <summary>
+    /// A notebook's code cells, run in order as a script, as Run All runs them: from the notebook's own folder - where
+    /// Jupyter starts its kernel - with that folder among the places Python looks for modules, so the notebook's own
+    /// modules and data files are found, and with the project's own Python when it has one. A copy of the script, put
+    /// beside a copy of the notebook's files to try a change in, runs from that copy in the same way.
+    /// </summary>
+    private static LaunchPlan NotebookCode(string script, TimeSpan? timeout)
+    {
+        var notebookName = Path.GetFileNameWithoutExtension(script);
+        var folder = NotebookScript.FolderOfCode(script);
+        var environment = PythonEnvironment.For(NotebookScript.Of(script)?.Notebook ?? ProgramCopy.OriginalOf(script));
+        var python = environment?.Interpreter ?? Resolve(ByExtension[".py"]);
+
+        if (python is null)
+        {
+            return LaunchPlan.Failed(
+                $"{notebookName} is a notebook of Python, which needs python to run it, and that is not installed - " +
+                "or at least not on this account's PATH.");
+        }
+
+        var modulePath = Environment.GetEnvironmentVariable("PYTHONPATH") is { Length: > 0 } modulesAlready
+            ? folder + Path.PathSeparator + modulesAlready
+            : folder;
+
+        // Plots are made as Jupyter makes them, with no window, so show() carries on to the next cell rather than waiting
+        // for a window to be closed. matplotlib warns that such a plot cannot be shown; that is FixFinder's doing, not the
+        // notebook's, so that one warning is left out.
+        var warnings = Environment.GetEnvironmentVariable("PYTHONWARNINGS") is { Length: > 0 } warningsAlready
+            ? warningsAlready + "," + PlotNotShown
+            : PlotNotShown;
+
+        var spec = new TargetSpec
+        {
+            ExecutablePath = python,
+            Arguments = $"\"{script}\"",
+            WorkingDirectory = folder,
+            ExtraEnvironment = new Dictionary<string, string>
+            {
+                ["PYTHONPATH"] = modulePath,
+                ["MPLBACKEND"] = "Agg",
+                ["PYTHONWARNINGS"] = warnings,
+            },
+            Timeout = timeout ?? DefaultTimeout,
+        };
+
+        var how = $"Running the code cells of {notebookName} in order, as Jupyter's Run All does, with " +
+                  $"{environment?.Described ?? Path.GetFileNameWithoutExtension(python)}. Plots are made without opening a window.";
+
+        return new LaunchPlan(spec, null, how) { ChosenFile = script, SourceFolder = folder };
     }
 
     private static TargetSpec Build(

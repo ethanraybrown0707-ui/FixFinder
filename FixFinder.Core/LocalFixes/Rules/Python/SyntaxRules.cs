@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -968,7 +969,7 @@ public sealed partial class PythonRelativeImportInScript : ILocalFixRule
 
         var module = match.Groups["module"].Value;
 
-        if (!File.Exists(Path.Combine(Path.GetDirectoryName(source.Path)!, module + ".py"))) return null;
+        if (!File.Exists(Path.Combine(NotebookScript.FolderOfCode(source.Path), module + ".py"))) return null;
 
         return LocalFix.ReplaceLine(
             Id, $"Import {module} without the dot",
