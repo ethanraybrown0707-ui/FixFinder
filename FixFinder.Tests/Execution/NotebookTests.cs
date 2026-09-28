@@ -178,6 +178,9 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
         Assert.Empty(report.Findings);
         Assert.Equal("It printed what you expected", report.LogicSummary);
         Assert.DoesNotContain(report.Notes, note => note.Contains("window", StringComparison.Ordinal) || note.Contains("Warning", StringComparison.Ordinal));
+
+        // matplotlib's warning that the plot cannot be shown is FixFinder's doing, so it is not among what the notebook printed.
+        Assert.DoesNotContain(report.Run!.Run!.Lines, line => line.Text.Contains("FigureCanvasAgg", StringComparison.Ordinal));
     }
 
     [Fact]
