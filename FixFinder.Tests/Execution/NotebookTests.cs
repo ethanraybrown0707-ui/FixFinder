@@ -207,6 +207,28 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task ADivisionTriedForRealSaysTheLinesItRanCellByCell()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"tried\tried.ipynb",
+            ("markdown", "# Averages"),
+            ("code", "import statistics"),
+            ("code", "def average(values):\n    total = sum(values)\n    return total / len(values)"),
+            ("code", "print(average([3, 4]))"));
+
+        var report = await CheckAsync(notebook);
+
+        // Run with the empty list that breaks it; the lines it went through are the def and the two lines of the third cell.
+        var division = Assert.Single(report.Findings, finding => finding.RuleId == "analysis-division-by-zero");
+        Assert.Equal("tried.ipynb, cell 3, line 3", division.Location);
+        Assert.Equal(
+            "Running `average(values=[])` stopped with ZeroDivisionError: division by zero on line 3, where `total` was 0 and `values` was []. " +
+            "Lines it ran: cell 3: 1-3.",
+            division.Confirmation);
+    }
+
+    [Fact]
     public async Task AnExpressionEndingACellIsShownByJupyterSoItsValueIsNotSaidToBeThrownAway()
     {
         if (!LocalFixLiveTests.Available("python")) return;
