@@ -29,9 +29,10 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
 
     /// <summary>
     /// What the java launcher itself says when it cannot start the program - no main method of the right shape, a class
-    /// it cannot find, load or set up - before any of the program runs, so no stack trace of the program follows it.
+    /// it cannot find, load or set up, a JavaFX application with no JavaFX modules to start it - before any of the
+    /// program runs, so no stack trace of the program follows it.
     /// </summary>
-    [GeneratedRegex(@"^Error: (?<msg>(?:Main method (?:not found|is not static)|Could not find or load main class|LinkageError occurred while loading main class|Unable to initialize main class|A JNI error has occurred)\b.*)$")]
+    [GeneratedRegex(@"^Error: (?<msg>(?:Main method (?:not found|is not static)|Could not find or load main class|LinkageError occurred while loading main class|Unable to initialize main class|A JNI error has occurred|JavaFX runtime components are missing)\b.*)$")]
     private static partial Regex LauncherPattern();
 
     /// <summary>The exception type given to what the java launcher reports, which is not an exception the program threw.</summary>

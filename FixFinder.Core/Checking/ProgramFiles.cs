@@ -125,12 +125,50 @@ public static partial class ProgramFiles
         }
     }
 
+    /// <summary>
+    /// A Java program's files: the one chosen, and the others under its source root - except another program's. A folder of
+    /// exercises holds several programs, each with a main of its own; a file with a main that the chosen file's code does not
+    /// reach is another program, and so is a file only such a one reaches. Other files stay, since a framework can use a
+    /// class nothing names.
+    /// </summary>
     private static IReadOnlyList<string> JavaFiles(string chosen)
     {
         var root = ProgramLayout.JavaSourceRoot(chosen);
-        var files = SourcesUnder(root, ".java");
+        var others = SourcesUnder(root, ".java").Where(file => !file.Equals(chosen, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        return [chosen, .. files.Where(f => !f.Equals(chosen, StringComparison.OrdinalIgnoreCase))];
+        var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [chosen] = Read(chosen) ?? "" };
+        foreach (var file in others) texts[file] = Read(file) ?? "";
+
+        var reached = Reached([chosen], texts, excluded: new HashSet<string>());
+        var otherPrograms = others.Where(file => !reached.Contains(file) && JavaMain().IsMatch(texts[file])).ToList();
+        var theirs = Reached(otherPrograms, texts, excluded: reached);
+
+        return [chosen, .. others.Where(file => !theirs.Contains(file))];
+    }
+
+    [GeneratedRegex(@"\bvoid\s+main\s*\(")]
+    private static partial Regex JavaMain();
+
+    /// <summary>The files these start from, and every file whose class their code names, and so on, leaving out those excluded.</summary>
+    private static HashSet<string> Reached(IEnumerable<string> starts, IReadOnlyDictionary<string, string> texts, IReadOnlySet<string> excluded)
+    {
+        var reached = new HashSet<string>(starts, StringComparer.OrdinalIgnoreCase);
+        var pending = new Queue<string>(reached);
+
+        while (pending.Count > 0)
+        {
+            var text = texts[pending.Dequeue()];
+
+            foreach (var file in texts.Keys.Where(file => !reached.Contains(file) && !excluded.Contains(file)).ToList())
+            {
+                if (!Regex.IsMatch(text, $@"\b{Regex.Escape(Path.GetFileNameWithoutExtension(file))}\b")) continue;
+
+                reached.Add(file);
+                pending.Enqueue(file);
+            }
+        }
+
+        return reached;
     }
 
     private static IReadOnlyList<string> CSharpFiles(string chosen)

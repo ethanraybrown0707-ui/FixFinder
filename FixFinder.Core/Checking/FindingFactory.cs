@@ -39,6 +39,8 @@ public static partial class FindingFactory
         ("analysis-changed-while-looping", ".java" or ".cs") => "logic-modified-while-looping",
         ("analysis-resource-not-closed", ".py" or ".pyw") => "logic-python-file-not-closed",
         ("analysis-text-built-in-loop", ".java" or ".cs") => "logic-string-built-in-loop",
+        ("analysis-loop-never-ends", ".py" or ".pyw") => "logic-python-loop-never-advances",
+        ("analysis-loop-never-ends", ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" or ".cs" or ".js" or ".mjs" or ".cjs") => "logic-loop-never-advances",
         _ => null,
     };
 

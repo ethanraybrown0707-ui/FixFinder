@@ -274,25 +274,34 @@ public static partial class CompiledLanguages
         var libraryPath = classPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, classPath)}\"" : "";
         var launcherSource = launcher is null ? "" : $" \"{launcher}\"";
         var processorPath = libraries.ProcessorPath.Count > 0 ? $" -processorpath \"{string.Join(Path.PathSeparator, libraries.ProcessorPath)}\"" : " -proc:none";
+        var namedSources = string.Concat(libraries.SourcesToName(source).Select(file => $" \"{file}\""));
 
         var compile = Spec(
             javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath}{processorPath} -sourcepath \"{sourcePath}\" \"{source}\"{launcherSource}", output, "javac"),
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath}{processorPath} -sourcepath \"{sourcePath}\" \"{source}\"{namedSources}{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
+        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java will not start a class that
+        // extends javafx.application.Application from JavaFX on the class path.
+        var javaFx = libraries.JavaFxModules;
+        var modulePath = javaFx.Count > 0 ? $"--module-path \"{string.Join(Path.PathSeparator, javaFx)}\" --add-modules ALL-MODULE-PATH " : "";
+
         var start = WorkingFolder.For(source);
-        var runPath = string.Join(Path.PathSeparator, [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath]);
+        var runPath = string.Join(Path.PathSeparator,
+            [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath.Except(javaFx, StringComparer.OrdinalIgnoreCase)]);
         var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherClass} {MainClass(source)}";
 
         var run = Spec(
             java.Program,
-            ShortEnough($"-cp \"{runPath}\" {entry}", output, "java"),
+            ShortEnough($"{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
             start.Folder,
             timeout);
 
         var with = libraries.Described is { } described ? $" and {described}" : "";
-        var then = launcher is null ? "running it with java" : $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}";
+        var then = launcher is not null ? $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}"
+            : javaFx.Count > 0 ? "running it with java, with JavaFX's modules on the module path"
+            : "running it with java";
 
         return (new BuildAndRun(compile, run,
             $"Building it with {javac.Name}{with}, then {then}{StartsFrom(start, source)}."), null);
@@ -313,7 +322,7 @@ public static partial class CompiledLanguages
     /// The arguments as they are, or - when a project's libraries make them longer than Windows lets a command line be -
     /// an @file holding them, which javac and java both read.
     /// </summary>
-    private static string ShortEnough(string arguments, string output, string tool)
+    internal static string ShortEnough(string arguments, string output, string tool)
     {
         if (arguments.Length < 24_000) return arguments;
 

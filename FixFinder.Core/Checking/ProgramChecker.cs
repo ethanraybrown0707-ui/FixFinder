@@ -255,6 +255,89 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex DeclaresMain();
 
+    [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.)")]
+    private static partial Regex RunsUntilStoppedImport();
+
+    /// <summary>
+    /// A program that runs until it is stopped rather than until it is done - one with a window, or a server: what it is,
+    /// until when it runs, and what of it a run that FixFinder ended cannot have checked.
+    /// </summary>
+    private sealed record RunsUntilStopped(string Is, string Like, string Until, string Unchecked)
+    {
+        public static RunsUntilStopped Window(string toolkit) =>
+            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window");
+
+        public static RunsUntilStopped Server(string how) =>
+            new($"a server - it waits for connections with {how}", "a server", "it is stopped", "what it does when something connects");
+    }
+
+    /// <summary>
+    /// What a Java program is when it runs until it is stopped - a window program written with JavaFX or Swing, or a server
+    /// on a ServerSocket or Java's HttpServer - from what the file it starts from imports, or a file whose class that file
+    /// names; or null for a program meant to finish. Only those files count: a folder of exercises can hold a window
+    /// program beside one that never ends for want of a loop that stops.
+    /// </summary>
+    private static RunsUntilStopped? RunsUntilStoppedOf(string chosen)
+    {
+        if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || ReadOrNull(chosen) is not { } starting) return null;
+
+        var named = ProgramFiles.Of(chosen)
+            .Where(file => !string.Equals(file, Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase))
+            .Where(file => Regex.IsMatch(starting, $@"\b{Regex.Escape(Path.GetFileNameWithoutExtension(file))}\b"));
+
+        foreach (var text in new[] { starting }.Concat(named.Select(ReadOrNull).OfType<string>()))
+        {
+            foreach (Match import in RunsUntilStoppedImport().Matches(text))
+            {
+                switch (import.Groups["name"].Value)
+                {
+                    case "javafx.":
+                        return RunsUntilStopped.Window("JavaFX");
+                    case "javax.swing.":
+                        return RunsUntilStopped.Window("Swing");
+                    case "com.sun.net.httpserver.":
+                        return RunsUntilStopped.Server("Java's HttpServer");
+                    case "java.net.ServerSocket":
+                    case "java.net.*" when text.Contains("new ServerSocket(", StringComparison.Ordinal):
+                        return RunsUntilStopped.Server("a ServerSocket");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadOrNull(string file)
+    {
+        try
+        {
+            return File.ReadAllText(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// What to say instead of a finding when java would not start a JavaFX application because it had none of JavaFX's
+    /// modules to start it with, and none are among the program's libraries: that is what this computer has, not a mistake
+    /// in the code.
+    /// </summary>
+    private static string? NoJavaFxToStartIt(ParsedError error, string chosen)
+    {
+        if (error.ExceptionType != JavaStackTraceParser.LauncherError ||
+            !(error.Message ?? "").StartsWith("JavaFX runtime components are missing", StringComparison.Ordinal) ||
+            JavaLibraries.For(chosen).JavaFxModules.Count > 0)
+        {
+            return null;
+        }
+
+        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which java starts only with " +
+               "JavaFX's modules, and none are among the program's libraries - FixFinder looks in its pom.xml or build.gradle, its IDE's " +
+               "library settings and its lib folder. Naming JavaFX in one of those lets it run. The code was still read for mistakes.";
+    }
+
     /// <summary>
     /// What to say instead of a finding when the file chosen has nothing to run: a Java class that declares no main method
     /// at all - one the program's other classes use, or a class of tests - which is all the launcher's "Main method not
@@ -401,6 +484,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return;
             }
 
+            if (NoJavaFxToStartIt(error, chosen) is { } noJavaFx)
+            {
+                Note(noJavaFx);
+                return;
+            }
+
             var kind = LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error) ? FindingKind.Syntax : FindingKind.Runtime;
 
             if (kind == FindingKind.Runtime && RanWithoutItsLibraries(error, chosen) is { } withoutLibraries)
@@ -465,6 +554,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 });
                 break;
 
+            case SessionResult.RanFine when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn:
+                Note($"{Path.GetFileName(chosen)} is {runsOn.Is} - and such a program keeps running until {runsOn.Until}, so it was still " +
+                     $"running when its time ran out, which is not by itself a sign of a mistake. What it did before then was checked; " +
+                     $"{runsOn.Unchecked} was not.");
+                break;
+
             case SessionResult.RanFine when outcome.Run?.Outcome == RunOutcome.TimedOut:
                 Add(new Finding
                 {
@@ -473,7 +568,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     Confidence = Confidence.Possible,
                     File = chosen,
                     Title = "It was still running when the time ran out",
-                    Explanation = outcome.Detail,
+                    Explanation = outcome.Spec is { } spec
+                        ? $"It was still running after {spec.Timeout.TotalSeconds:0.#} seconds, when FixFinder stopped it, and had printed no error."
+                        : "It was still running when FixFinder stopped it, and had printed no error.",
                     WhyItMatters = "A program that is meant to finish but never does has a loop that cannot end, or is waiting for input nobody gave it.",
                     SuggestedFix = "If it asks questions, type the answers into the input box. Otherwise look for a loop whose condition never changes.",
                     CorrectedExample = "",
@@ -505,9 +602,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         {
             SessionResult.CouldNotRun => "It could not be started",
             _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
+            _ when outcome.Error is { } error && NoJavaFxToStartIt(error, chosen) is not null => $"{reads}{warnings}; Java would not start it without JavaFX",
             _ when outcome.Error is not null => $"{reads}{warnings}, but it stops with an error when run",
             SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed => $"{reads}{warnings}, but it stops with a failing exit code",
             SessionResult.FailedSilently => $"{reads}{warnings}, but it crashes when run",
+            _ when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn =>
+                $"{reads}{warnings}, and it was still running when its time ran out, as {runsOn.Like} does",
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
             _ => $"{reads}{warnings}, and it runs to the end",
         };

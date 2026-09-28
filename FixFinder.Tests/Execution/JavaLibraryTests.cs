@@ -195,6 +195,33 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task AProcessorSeesAClassInAnotherFileOfTheProgramNotJustTheOneStartedFrom()
+    {
+        if (ProcessorJars() is not { } jars) return;
+
+        // javac runs processors only on the files it is given by name - not on those it finds on the source path - so a
+        // class marked in another file, as a Lombok @Data class usually is, needs its file named too.
+        Directory.CreateDirectory(Folder(@"elsewhere\lib"));
+        File.Copy(jars.Processor, Path.Combine(Folder(@"elsewhere\lib"), "greeting-processor.jar"));
+        Write(@"elsewhere\src\app\Marked.java", "package app;\n\n@gen.MakeGreeting\npublic class Marked {\n}\n");
+        var app = Write(@"elsewhere\src\app\App.java", """
+            package app;
+
+            public class App {
+                public static void main(String[] args) {
+                    System.out.println(new Marked() != null ? gen.Greeting.hello() : "");
+                }
+            }
+            """);
+
+        var report = await CheckAsync(app, "Hello from a processor");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("Marked.java", FixFinder.Core.LocalFixes.CompileCheck.JavacArguments(app, app, Folder("fix-check")).Last(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ALibraryWithoutAProcessorLeavesProcessingOff()
     {
         Directory.CreateDirectory(Folder(@"plain\lib"));
@@ -230,6 +257,9 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
             </plugin></plugins></build>
             """));
         var app = Write(@"named\src\main\java\app\App.java", UsesAGeneratedGreeting);
+
+        // The tests are not the program: a build compiles the program without them, however broken they are.
+        Write(@"named\src\test\java\app\AppTest.java", "package app;\n\nclass AppTest {\n    NotAType unfinished;\n}\n");
 
         using var stores = JavaLibraries.UsingStores(new LibraryStores([new MavenRepository(repository)]));
 
@@ -336,10 +366,11 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         }
         """;
 
-    private async Task<CheckReport> CheckAsync(string file, string? expected = null)
+    private async Task<CheckReport> CheckAsync(string file, string? expected = null, TimeSpan? timeLimit = null)
     {
         var launch = TargetFactory.FromFile(file);
         Assert.True(launch.Ok, launch.Problem);
+        if (timeLimit is { } limit) launch = launch with { Spec = launch.Spec!.WithTimeout(limit) };
         output.WriteLine($"how: {launch.Explanation}");
 
         using var http = new FixFinderHttpClient();
@@ -786,6 +817,301 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         Assert.Equal("It needs a library its pom.xml does not name.", outcome.Headline);
         Assert.Contains("the block to add to pom.xml", outcome.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("terminal", outcome.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AProfileThisComputerSwitchesOnSetsWhatTheBuildUses()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        // As JavaFX's pom.xml picks the jar for each computer: a classifier that a profile, switched on by the computer's
+        // operating system and by a property not being set, fills in.
+        var repository = Folder("repository");
+        Publish(repository, "gui", "toolkit-parent", "1.0", withJar: false);
+        File.WriteAllText(Path.Combine(repository, "gui", "toolkit-parent", "1.0", "toolkit-parent-1.0.pom"), """
+            <project>
+              <groupId>gui</groupId><artifactId>toolkit-parent</artifactId><version>1.0</version><packaging>pom</packaging>
+              <profiles>
+                <profile><id>windows</id>
+                  <activation><os><family>windows</family></os><property><name>toolkit.monocle</name><value>!true</value></property></activation>
+                  <properties><toolkit.platform>win</toolkit.platform></properties>
+                </profile>
+                <profile><id>windows-monocle</id>
+                  <activation><os><family>windows</family></os><property><name>toolkit.monocle</name><value>true</value></property></activation>
+                  <properties><toolkit.platform>win-monocle</toolkit.platform></properties>
+                </profile>
+                <profile><id>linux</id>
+                  <activation><os><family>unix</family></os></activation>
+                  <properties><toolkit.platform>linux</toolkit.platform></properties>
+                </profile>
+                <profile><id>custom</id>
+                  <activation><property><name>toolkit.platform</name></property></activation>
+                  <properties><toolkit.platform>custom</toolkit.platform></properties>
+                </profile>
+                <profile><id>fallback</id>
+                  <activation><activeByDefault>true</activeByDefault></activation>
+                  <properties><toolkit.platform>fallback</toolkit.platform></properties>
+                </profile>
+              </profiles>
+            </project>
+            """);
+
+        var placeholder = Publish(repository, "gui", "toolkit", "1.0");
+        File.WriteAllText(Path.Combine(repository, "gui", "toolkit", "1.0", "toolkit-1.0.pom"), """
+            <project>
+              <parent><groupId>gui</groupId><artifactId>toolkit-parent</artifactId><version>1.0</version></parent>
+              <artifactId>toolkit</artifactId>
+              <dependencies>
+                <dependency><groupId>gui</groupId><artifactId>toolkit</artifactId><version>1.0</version><classifier>${toolkit.platform}</classifier></dependency>
+              </dependencies>
+            </project>
+            """);
+        foreach (var platform in new[] { "win", "win-monocle", "linux", "custom", "fallback" })
+            File.WriteAllBytes(Path.Combine(repository, "gui", "toolkit", "1.0", $"toolkit-1.0-{platform}.jar"), []);
+
+        // A profile that is on only when no other in its pom.xml is.
+        var extra = Publish(repository, "gui", "extra", "2.0");
+        var pom = Write(@"profiled\pom.xml", Pom("uni", "coursework", "1.0", Dependency("gui", "toolkit", "1.0") + Dependency("gui", "extra", "${extra.version}"), extra: """
+            <profiles>
+              <profile><id>by-default</id><activation><activeByDefault>true</activeByDefault></activation><properties><extra.version>2.0</extra.version></properties></profile>
+              <profile><id>on-a-jdk</id><activation><jdk>[1.4,)</jdk></activation><properties><extra.version>9.9</extra.version></properties></profile>
+            </profiles>
+            """));
+
+        var resolved = new MavenResolver(new LibraryStores([new MavenRepository(repository)])).Resolve(pom);
+
+        var chosen = resolved.Main.Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray();
+        string[] expected = [Path.GetFileName(extra), Path.GetFileName(placeholder), "toolkit-1.0-win.jar"];
+        Assert.Equal(expected.Order(StringComparer.Ordinal).ToArray(), chosen);
+        Assert.Empty(resolved.Missing);
+    }
+
+    /// <summary>
+    /// A jar standing in for JavaFX's javafx.graphics, with what the java launcher looks for to start an application: the
+    /// module itself, javafx.application.Application, and the launcher class it hands the application to - which here starts
+    /// it straight away. Built as a module, as JavaFX's jars are, or as a plain jar.
+    /// </summary>
+    private string? JavaFxGraphicsStandIn(bool asAModule)
+    {
+        if (Toolchains.FindJavac() is not { } javac) return null;
+
+        var jarTool = Path.Combine(Path.GetDirectoryName(javac.Program)!, "jar.exe");
+        if (!File.Exists(jarTool)) return null;
+
+        var kind = asAModule ? "module" : "plain";
+        List<string> sources =
+        [
+            Write($@"javafx-{kind}\javafx\application\Application.java", """
+                package javafx.application;
+
+                public abstract class Application {
+                    public abstract void start(Object stage) throws Exception;
+
+                    public static void launch(String... args) {
+                    }
+                }
+                """),
+            Write($@"javafx-{kind}\com\sun\javafx\application\LauncherImpl.java", """
+                package com.sun.javafx.application;
+
+                public final class LauncherImpl {
+                    private LauncherImpl() {
+                    }
+
+                    public static void launchApplication(String launchName, String launchMode, String[] args) throws Exception {
+                        Class<?> application = Class.forName(launchName, true, ClassLoader.getSystemClassLoader());
+                        ((javafx.application.Application) application.getDeclaredConstructor().newInstance()).start(null);
+                    }
+                }
+                """),
+        ];
+        if (asAModule)
+            sources.Add(Write($@"javafx-{kind}\module-info.java", "module javafx.graphics {\n    exports javafx.application;\n    exports com.sun.javafx.application;\n}\n"));
+
+        var classes = Folder($"javafx-{kind}-classes");
+        var jar = Path.Combine(_temp.Path, $"javafx-{kind}", "javafx.graphics.jar");
+        Run(javac.Program, $"-d \"{classes}\" {string.Join(" ", sources.Select(source => $"\"{source}\""))}");
+        Run(jarTool, $"cf \"{jar}\" -C \"{classes}\" .");
+
+        return File.Exists(jar) ? jar : null;
+    }
+
+    private const string JavaFxApplication = """
+        package app;
+
+        import javafx.application.Application;
+
+        public class HelloApp extends Application {
+            @Override
+            public void start(Object stage) {
+                System.out.println("started");
+            }
+
+            public static void main(String[] args) {
+                launch(args);
+            }
+        }
+        """;
+
+    [Fact]
+    public async Task AJavaFxApplicationIsStartedWithJavaFxOnTheModulePath()
+    {
+        if (JavaFxGraphicsStandIn(asAModule: true) is not { } javaFx) return;
+
+        Directory.CreateDirectory(Folder(@"fx-app\lib"));
+        File.Copy(javaFx, Path.Combine(Folder(@"fx-app\lib"), "javafx.graphics.jar"));
+        var app = Write(@"fx-app\src\app\HelloApp.java", JavaFxApplication);
+
+        var report = await CheckAsync(app, "started");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("with JavaFX's modules on the module path", TargetFactory.FromFile(app).Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AJavaFxApplicationWithNoJavaFxModulesToStartItIsANoteNotAMistake()
+    {
+        if (JavaFxGraphicsStandIn(asAModule: false) is not { } plainJar) return;
+
+        Directory.CreateDirectory(Folder(@"fx-plain\lib"));
+        File.Copy(plainJar, Path.Combine(Folder(@"fx-plain\lib"), "javafx.graphics.jar"));
+        var app = Write(@"fx-plain\src\app\HelloApp.java", JavaFxApplication);
+
+        var report = await CheckAsync(app);
+
+        Assert.Empty(report.Findings);
+        Assert.Contains(report.Notes, note => note.StartsWith("Java would not start HelloApp.java: its class extends javafx.application.Application", StringComparison.Ordinal));
+        Assert.Equal("It builds; Java would not start it without JavaFX", report.SyntaxSummary);
+    }
+
+    /// <summary>
+    /// A folder of exercises, as a student keeps them: a Swing window class, a program that opens it - which, like any
+    /// program with a window, waits until the window is closed - and a console program beside them whose loop never ends.
+    /// The window class holds a JFrame it never makes, so no window opens while the tests run.
+    /// </summary>
+    private (string WindowProgram, string EndlessProgram) Exercises()
+    {
+        // A Swing helper nothing uses yet: with no main, it could be anyone's, so it stays in every program's files.
+        Write(@"exercises\Dialogs.java", """
+            import javax.swing.JOptionPane;
+
+            public class Dialogs {
+                public static void tell(String message) {
+                    JOptionPane.showMessageDialog(null, message);
+                }
+            }
+            """);
+        Write(@"exercises\Window.java", """
+            import javax.swing.JFrame;
+
+            public class Window {
+                private JFrame frame;
+
+                public void open() throws InterruptedException {
+                    Thread.sleep(Long.MAX_VALUE);
+                }
+            }
+            """);
+        var windowProgram = Write(@"exercises\Main.java", """
+            public class Main {
+                public static void main(String[] args) throws InterruptedException {
+                    new Window().open();
+                }
+            }
+            """);
+        var endlessProgram = Write(@"exercises\Counter.java", """
+            public class Counter {
+                public static void main(String[] args) {
+                    int count = 0;
+                    int total = 0;
+                    while (count < 10) {
+                        total += count;
+                    }
+                    System.out.println(total);
+                }
+            }
+            """);
+
+        return (windowProgram, endlessProgram);
+    }
+
+    [Fact]
+    public async Task AWindowProgramStillRunningWhenItsTimeRunsOutIsANoteNotAMistake()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        var report = await CheckAsync(Exercises().WindowProgram, timeLimit: TimeSpan.FromSeconds(5));
+
+        Assert.DoesNotContain(report.Findings, finding => finding.RuleId == "timed-out");
+        Assert.Contains(report.Notes, note => note.StartsWith("Main.java is a program with a window - it uses Swing", StringComparison.Ordinal));
+        Assert.Equal("It builds, and it was still running when its time ran out, as a program with a window does", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task AServerStillWaitingForConnectionsWhenItsTimeRunsOutIsANoteNotAMistake()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        // On this computer's loopback address and a port the system picks, so nothing outside it can connect or be asked to allow it.
+        var server = Write(@"server\EchoServer.java", """
+            import java.io.IOException;
+            import java.net.InetAddress;
+            import java.net.ServerSocket;
+            import java.net.Socket;
+
+            public class EchoServer {
+                public static void main(String[] args) throws IOException {
+                    try (ServerSocket listening = new ServerSocket(0, 50, InetAddress.getLoopbackAddress())) {
+                        System.out.println("listening");
+                        while (true) {
+                            try (Socket client = listening.accept()) {
+                                client.getOutputStream().write(client.getInputStream().readAllBytes());
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+
+        var report = await CheckAsync(server, timeLimit: TimeSpan.FromSeconds(5));
+
+        Assert.Empty(report.Findings);
+        Assert.Contains(report.Notes, note => note.StartsWith("EchoServer.java is a server - it waits for connections with a ServerSocket", StringComparison.Ordinal));
+        Assert.Equal("It builds, and it was still running when its time ran out, as a server does", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task AConsoleProgramBesideAWindowProgramThatNeverFinishesIsStillWarnedAbout()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        var report = await CheckAsync(Exercises().EndlessProgram, timeLimit: TimeSpan.FromSeconds(5));
+
+        Assert.Contains(report.Findings, finding => finding.RuleId == "timed-out");
+        Assert.DoesNotContain(report.Notes, note => note.Contains("is a program with a window", StringComparison.Ordinal));
+
+        // Found by the analysis and by the pattern that looks for it, and said once.
+        Assert.Single(report.Findings, finding => finding.Title == "A loop that never ends");
+    }
+
+    [Fact]
+    public async Task AnotherProgramInTheSameFolderIsNotReadAsPartOfTheOneChecked()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        var (windowProgram, _) = Exercises();
+        var hello = Write(@"exercises\Hello.java", "public class Hello {\n    public static void main(String[] args) {\n        System.out.println(\"hello\");\n    }\n}\n");
+
+        // Each program is its own file, what it uses, and what nothing's main uses: Main uses Window, Counter and Hello use
+        // nothing, and Dialogs is used by nobody.
+        Assert.Equal(["Dialogs.java", "Hello.java"], ProgramFiles.Of(hello).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(["Dialogs.java", "Main.java", "Window.java"], ProgramFiles.Of(windowProgram).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray());
+
+        var report = await CheckAsync(hello, "hello");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
     }
 
     /// <summary>Lombok itself, which CI fetches from Maven Central; null elsewhere, where the test that needs it returns early.</summary>

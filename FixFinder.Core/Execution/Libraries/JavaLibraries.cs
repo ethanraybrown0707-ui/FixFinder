@@ -68,6 +68,54 @@ public sealed partial record JavaLibraries(
     /// </summary>
     public IReadOnlyList<string> ProcessorPath { get; init; } = [];
 
+    /// <summary>
+    /// JavaFX's own modules among the libraries - javafx.base, javafx.controls and the rest - which the program is run with on
+    /// the module path, as JavaFX's documentation runs one: java will not start a class that extends
+    /// javafx.application.Application with JavaFX on the class path, and says its "runtime components are missing".
+    /// </summary>
+    public IReadOnlyList<string> JavaFxModules { get; init; } = [];
+
+    /// <summary>
+    /// The program's source files to give javac by name besides the one it starts from: every one under its source roots
+    /// when an annotation processor runs, since javac runs processors only on the files it is given, never on those it finds
+    /// on the source path - a Lombok class in another file would get none of its getters; none when no processor runs.
+    /// The tests' sources are left out unless the file is one of them, as a build compiles the program before its tests.
+    /// </summary>
+    public IReadOnlyList<string> SourcesToName(string javaFile)
+    {
+        if (ProcessorPath.Count == 0) return [];
+
+        var own = ProgramLayout.JavaSourceRoot(javaFile);
+        var roots = new[] { own }.Concat(OtherSourceRoots(javaFile)).Where(root => IsTestRoot(own) || !IsTestRoot(root));
+
+        return roots.SelectMany(JavaFilesUnder)
+            .Where(file => !string.Equals(Path.GetFullPath(file), Path.GetFullPath(javaFile), StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>Whether a source root holds tests: Maven's and Gradle's src\test\java, or a folder an IDE's project calls test.</summary>
+    private static bool IsTestRoot(string root)
+    {
+        var folder = new DirectoryInfo(root);
+        bool Named(DirectoryInfo? directory, string name) => string.Equals(directory?.Name, name, StringComparison.OrdinalIgnoreCase);
+
+        return Named(folder, "test") || Named(folder, "tests") || (Named(folder, "java") && Named(folder.Parent, "test"));
+    }
+
+    /// <summary>The .java files under a source root - the first 2000, which is more than any course project has.</summary>
+    private static IReadOnlyList<string> JavaFilesUnder(string root)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(root, "*.java", SearchOption.AllDirectories).Take(2000).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
     /// <summary>The source roots besides the one a file is in, where in a copy of the program they are in that copy.</summary>
     public IReadOnlyList<string> OtherSourceRoots(string file)
     {
@@ -193,16 +241,29 @@ public sealed partial record JavaLibraries(
             : libraries.ClassPath.Any(HoldsAProcessor) ? libraries.ClassPath
             : [];
 
-        return libraries with { ProcessorPath = processorPath };
+        return libraries with
+        {
+            ProcessorPath = processorPath,
+            JavaFxModules = libraries.ClassPath.Where(IsJavaFxModule).ToList(),
+        };
     }
 
     /// <summary>Whether a jar says it holds an annotation processor, as javac finds one: by the service file naming it.</summary>
-    private static bool HoldsAProcessor(string jar)
+    private static bool HoldsAProcessor(string jar) => Holds(jar, "META-INF/services/javax.annotation.processing.Processor");
+
+    /// <summary>
+    /// Whether a jar is one of JavaFX's modules: named for JavaFX, with a module-info.class - which the empty jars Maven
+    /// Central keeps beside JavaFX's jars for each computer do not have.
+    /// </summary>
+    private static bool IsJavaFxModule(string jar) =>
+        Path.GetFileName(jar).StartsWith("javafx", StringComparison.OrdinalIgnoreCase) && Holds(jar, "module-info.class");
+
+    private static bool Holds(string jar, string entry)
     {
         try
         {
             using var archive = ZipFile.OpenRead(jar);
-            return archive.GetEntry("META-INF/services/javax.annotation.processing.Processor") is not null;
+            return archive.GetEntry(entry) is not null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
         {

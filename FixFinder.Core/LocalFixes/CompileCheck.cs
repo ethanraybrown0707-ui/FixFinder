@@ -194,11 +194,14 @@ public static class CompileCheck
         // with it run; with none, processing stays off, as the program's own build has it.
         IEnumerable<string> processing = libraries.ProcessorPath.Count > 0 ? ["-processorpath", string.Join(Path.PathSeparator, libraries.ProcessorPath)] : ["-proc:none"];
 
+        // A processor runs only on the files javac is given by name, so with one, the rest of the program is named too - all
+        // but the file the copy stands in for.
         return
         [
             .. JavaRelease(),
             .. processing, CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. classPath,
             "-sourcepath", string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(originalFile), .. libraries.OtherSourceRoots(originalFile)]), copy,
+            .. libraries.SourcesToName(originalFile),
         ];
     }
 
@@ -315,7 +318,7 @@ public static class CompileCheck
 
                 return Spec(
                     javac.Program,
-                    string.Join(" ", JavacArguments(copy, original, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
+                    CompiledLanguages.ShortEnough(string.Join(" ", JavacArguments(copy, original, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")), folder, "javac"),
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":

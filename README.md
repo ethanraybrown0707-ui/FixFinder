@@ -33,7 +33,13 @@ until the program prints what it should. FixFinder never changes your files.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
-headers beside them.
+headers beside them. A Java folder of exercises, each with its own `main`, holds several programs: one the chosen file's
+code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
+
+A program with a window - one written with JavaFX or Swing, in the file chosen or one it names - runs until its window is
+closed, and a server on a `ServerSocket` or Java's `HttpServer` runs until it is stopped, so either still running when its
+time runs out is said in a note, not reported as a program that never finishes; what it does when someone uses the window,
+or something connects, is not checked.
 
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
@@ -58,7 +64,12 @@ a typing mistake, and still is one; so is a one-word package that nothing import
 
 **Annotation processors**, such as Lombok's and MapStruct's, are run as the build runs them: those a `pom.xml` gives
 maven-compiler-plugin in `annotationProcessorPaths`, or a Gradle build gives `annotationProcessor`, and only those; and when
-the build names none, any that the program's libraries hold, as javac did by default until JDK 23. A program that stops
+the build names none, any that the program's libraries hold, as javac did by default until JDK 23. As javac runs a
+processor only on the files it is given by name, every file of the program is then named, as a build names them - its
+tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
+path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
+to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
+computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A program that stops
 for want of a class, or of a database driver, while libraries its build names are not on this computer, is reported as
 possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
 to add to `pom.xml`, or the line to add to `build.gradle`.
