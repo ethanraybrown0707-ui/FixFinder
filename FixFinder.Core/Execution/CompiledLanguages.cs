@@ -262,28 +262,50 @@ public static partial class CompiledLanguages
         }
 
         var libraries = JavaLibraries.For(source);
+
+        // A class of JUnit tests is run with JUnit, through a launcher of FixFinder's compiled beside it - but only when
+        // everything JUnit needs is here; otherwise it is left to say it has no main, and why its tests could not be run.
+        var framework = JavaTests.FrameworkOf(source);
+        var runner = framework == JavaTests.Framework.None ? null : JavaTests.RunnerFor(framework, libraries.ClassPath, JavaLibraries.CurrentStores);
+        var launcher = runner is { CannotRun: null } ? WriteTestLauncher(output, framework) : null;
+
+        IReadOnlyList<string> classPath = [.. libraries.ClassPath, .. launcher is null ? [] : runner!.ExtraJars];
         var sourcePath = string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(source), .. libraries.OtherSourceRoots(source)]);
-        var libraryPath = libraries.ClassPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, libraries.ClassPath)}\"" : "";
+        var libraryPath = classPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, classPath)}\"" : "";
+        var launcherSource = launcher is null ? "" : $" \"{launcher}\"";
 
         var compile = Spec(
             javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath} -sourcepath \"{sourcePath}\" \"{source}\"", output, "javac"),
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath} -sourcepath \"{sourcePath}\" \"{source}\"{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
         var start = WorkingFolder.For(source);
-        var runPath = string.Join(Path.PathSeparator, [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. libraries.ClassPath]);
+        var runPath = string.Join(Path.PathSeparator, [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath]);
+        var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherClass} {MainClass(source)}";
 
         var run = Spec(
             java.Program,
-            ShortEnough($"-cp \"{runPath}\" {MainClass(source)}", output, "java"),
+            ShortEnough($"-cp \"{runPath}\" {entry}", output, "java"),
             start.Folder,
             timeout);
 
         var with = libraries.Described is { } described ? $" and {described}" : "";
+        var then = launcher is null ? "running it with java" : $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}";
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}{with}, then running it with java{StartsFrom(start, source)}."), null);
+            $"Building it with {javac.Name}{with}, then {then}{StartsFrom(start, source)}."), null);
+    }
+
+    /// <summary>Writes FixFinder's JUnit launcher into the build folder, in a folder of its own, and says where.</summary>
+    private static string WriteTestLauncher(string output, JavaTests.Framework framework)
+    {
+        var folder = Path.Combine(output, "fixfinder-tests");
+        Directory.CreateDirectory(folder);
+
+        var launcher = Path.Combine(folder, JavaTests.LauncherClass + ".java");
+        File.WriteAllText(launcher, JavaTests.LauncherSource(framework), new UTF8Encoding(false));
+        return launcher;
     }
 
     /// <summary>

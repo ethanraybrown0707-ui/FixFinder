@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Analysis.Checks;
@@ -133,8 +134,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             var root = launch.SourceFolder ?? Path.GetDirectoryName(chosen);
 
+            // What javac says of FixFinder's own JUnit launcher is FixFinder's to answer for, never a mistake in the code.
+            var fromLauncher = report.Errors.Concat(report.Warnings).Where(FromTestLauncher).ToList();
+            if (fromLauncher.Count > 0)
+                Note($"FixFinder's launcher for JUnit could not be built with the JUnit here, so the tests were not run: {fromLauncher[0].Summary}.");
+
             // Errors that only say a library is not here are said once, as that, rather than as mistakes in the code.
-            var sorted = LibraryErrors.Sort(report.Errors, chosen);
+            var sorted = LibraryErrors.Sort(report.Errors.Where(error => !FromTestLauncher(error)).ToList(), chosen);
             if (sorted.Note is { } missingLibrary) Note(missingLibrary);
             var codeErrors = sorted.CodeErrors;
 
@@ -153,7 +159,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     Add(FindingFactory.FromError(error, FindingKind.Syntax, Severity.Error, Confidence.Certain, chosen));
             }
 
-            await ForEachAsync(report.Warnings.Take(MostWarningsFixed), async warning =>
+            await ForEachAsync(report.Warnings.Where(warning => !FromTestLauncher(warning)).Take(MostWarningsFixed), async warning =>
             {
                 var fix = await FixAsync(warning, [], report.Output, root, fromBuild: false, cancellationToken);
                 Add(FindingFactory.FromWarning(warning, WarningRatings.For(warning), chosen, fix));
@@ -205,6 +211,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 : await session.RunAsync(launch, null, cancellationToken);
 
             RecordRun(outcome, launch);
+            RecordTests(outcome, launch);
             return outcome;
         }
         finally
@@ -238,10 +245,85 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (DeclaresMain().IsMatch(CodeText.Mask(line, Syntax.CLike, ref open))) return null;
         }
 
+        if (JavaTests.FrameworkOf(chosen) is var framework and not JavaTests.Framework.None)
+        {
+            var runner = JavaTests.RunnerFor(framework, JavaLibraries.For(chosen).ClassPath, JavaLibraries.CurrentStores);
+            return $"{Path.GetFileName(chosen)} is a class of JUnit {(framework == JavaTests.Framework.JUnit4 ? "4" : "5")} tests, which FixFinder runs with " +
+                   $"JUnit itself - and could not run here: {runner.CannotRun ?? "JUnit did not start"}. The code in this file was still read for mistakes.";
+        }
+
         return $"{Path.GetFileName(chosen)} has no main method, so there is nothing in it to run: Java starts a program at " +
                "public static void main(String[] args). Choose the file of the program that has one. The code in this file was " +
                "still read for mistakes.";
     }
+
+    /// <summary>
+    /// What JUnit said of each test, when the run was a class of tests run through FixFinder's launcher: a failed test is
+    /// an error, found for certain by running it, placed on the test's own line the failure went through.
+    /// </summary>
+    private void RecordTests(SessionOutcome outcome, LaunchPlan launch)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = JavaTests.ResultsIn(lines);
+
+        foreach (var failed in results.Where(result => result.Status == "FAILED")) Add(TestFinding(failed, chosen));
+
+        if (results.Count == 0 && JavaTests.TestsFound(lines) == 0)
+            Note($"JUnit found no tests to run in {Path.GetFileName(chosen)}. JUnit 5 runs methods marked @Test that are not private and " +
+                 "return nothing; JUnit 4 needs them public.");
+
+        var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
+        if (skipped > 0) Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped, or stopped by an assumption that did not hold, so JUnit did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
+    }
+
+    /// <summary>A failed test as a finding: which test, what JUnit said, and the lines the failure came through.</summary>
+    private static Finding TestFinding(JavaTests.TestResult test, string chosen)
+    {
+        var own = test.Frames.FirstOrDefault(frame => test.ClassName.Length > 0 &&
+            (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
+            string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase) && frame.Line > 0);
+
+        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && !frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
+            !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
+            !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal));
+
+        var exception = test.Exception ?? "";
+        var assertion = exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
+                        exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
+        var message = test.Message is { Length: > 0 } said && said != "null" ? said.ReplaceLineEndings(" ") : null;
+        var shown = message is null ? "" : $": {(message.Length <= 120 ? message : message[..117] + "...")}";
+        var name = test.Method.Length > 0 ? test.Method : test.Name;
+        var line = own is { Line: > 0 } ? $" on line {own.Line}" : "";
+
+        var explanation = assertion
+            ? $"JUnit ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
+            : $"JUnit ran the test {test.Name}, and it stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+              (thrownAt is { } at && at != own ? $", thrown in {at.Class}.{at.Method} on line {at.Line} of {at.File}." : $"{line}.");
+
+        return new Finding
+        {
+            Kind = FindingKind.Runtime,
+            Severity = Severity.Error,
+            Confidence = Confidence.Certain,
+            File = chosen,
+            Line = own is { Line: > 0 } ? own.Line : null,
+            Title = assertion ? $"Test {name} failed{shown}" : $"Test {name} stopped with {exception.Split('.')[^1]}{shown}",
+            Explanation = explanation,
+            WhyItMatters = "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
+                           "or the test expects the wrong thing.",
+            SuggestedFix = assertion
+                ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
+                : "Go to the line the exception was thrown on - in the code the test calls, if it came from there - and put right what failed there.",
+            CorrectedExample = "",
+            RuleId = "test-failed",
+        };
+    }
+
+    private static bool FromTestLauncher(ParsedError error) =>
+        (error.CulpritFrame?.File ?? error.Frames.FirstOrDefault()?.File) is { } file &&
+        Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
@@ -361,6 +443,19 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         var warnings = report.Warnings.Count > 0 ? $", with {Count(report.Warnings.Count, "warning")}" : "";
         var reads = Path.GetExtension(chosen).ToLowerInvariant() is ".py" or ".pyw" or ".js" or ".mjs" or ".cjs" ? "No syntax errors" : "It builds";
+
+        var lines = outcome.Run?.Lines.Select(line => line.Text).ToList() ?? [];
+        var tests = JavaTests.ResultsIn(lines);
+
+        if (tests.Count > 0 || JavaTests.TestsFound(lines) is 0)
+        {
+            var failed = tests.Count(test => test.Status == "FAILED");
+            var ran = tests.Count(test => test.Status is "SUCCESSFUL" or "FAILED");
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed"
+                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}"
+                : $"{reads}{warnings}, but JUnit ran none of its tests";
+        }
 
         return outcome.Result switch
         {

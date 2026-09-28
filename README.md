@@ -53,6 +53,12 @@ named but not here, or not named anywhere, is said once in a note, saying which 
 errors javac gives because of it are not reported as mistakes in the code. A package a letter or two from Java's own or
 the program's, such as `java.utils`, is a typing mistake, and still is one.
 
+A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
+when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
+from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it
+failed on, in JUnit's own words, and names the line of the program's code the failure was thrown from when it came from
+there. When JUnit cannot run the tests, a note says what it is missing.
+
 ## What each finding tells you
 
 | | |
@@ -471,7 +477,7 @@ Inside `FixFinder.Core`:
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
 | `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`), including what each language does when a program goes wrong (`Checks/Failures.cs`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
-| `Execution` | Finding toolchains, building and running programs - and, in `Execution/Libraries`, the libraries a Java program is built with. |
+| `Execution` | Finding toolchains, building and running programs - and, in `Execution/Libraries`, the libraries a Java program is built with and the running of its JUnit tests. |
 | `Parsing` | The stack-trace parsers. |
 | `Fingerprinting`, `Sources`, `Ranking`, `Http`, `Security` | Online search: the query, GitHub and Stack Overflow, ranking, caching and token storage. |
 | `Patching` | Reading diffs from search results and working out where they would land in your code. |
