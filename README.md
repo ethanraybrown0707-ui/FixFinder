@@ -97,7 +97,8 @@ A Python file of **unittest** tests - one that imports unittest and has a class 
 itself, test by test, through a small launcher of FixFinder's, whether or not the file calls `unittest.main()`. A test that
 fails is an error on the line of the test it failed on, in unittest's own words; a subtest that fails is named with what it
 was run with, such as `test_shares (people=4)`, and an error raised in the program's own code names the function, line and
-file it was raised in. The summary says how many of the tests failed. Tests written for **pytest** - in a file that imports
+file it was raised in. When setting up for a class's or a module's tests fails - in `setUpClass`, say - that is reported as
+what it is, and the summary says those tests did not run. The summary says how many of the tests failed. Tests written for **pytest** - in a file that imports
 pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions - are not run, since pytest is not part of
 Python, and a note says so.
 

@@ -290,6 +290,123 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task ATestFileThatCallsUnittestMainWithoutTheNameTestStillHasEachTestRun()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        // unittest.main() at the file's top, not under if __name__ == "__main__": - which runs the tests while the file is
+        // being imported, and then ends the program.
+        Write(@"unguarded\bank.py", Bank);
+        var tests = Write(@"unguarded\test_bank.py", BankTests + "\n\n\nunittest.main()\n");
+
+        var report = await CheckAsync(tests);
+
+        Assert.Equal(3, report.Findings.Count(finding => finding.RuleId == "test-failed"));
+        Assert.Equal("No syntax errors; 3 of 4 tests failed", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task ATestFileInAFolderWhoseNameHasAHashInItIsStillPlacedOnItsLines()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        // A folder's name can hold what the launcher writes between the parts of a place, a # or a ;.
+        Write(@"C# course\week #3; banking\bank.py", Bank);
+        var tests = Write(@"C# course\week #3; banking\test_bank.py", BankTests);
+        int LineOf(string text) => Array.FindIndex(BankTests.ReplaceLineEndings("\n").Split('\n'), line => line.Contains(text, StringComparison.Ordinal)) + 1;
+
+        var report = await CheckAsync(tests);
+
+        var byZero = Assert.Single(report.Findings, finding => finding.Title.StartsWith("Test test_share_between_nobody stopped with ZeroDivisionError", StringComparison.Ordinal));
+        Assert.Equal(LineOf("self.assertEqual(self.account.share_of(0), 0)"), byZero.Line);
+        Assert.Contains("raised in bank.share_of on line 16 of bank.py", byZero.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFailureInsideUnittestItselfIsPlacedOnTheTestsLineAsUnittestPlacesIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        // assertAlmostEqual refuses places and delta together, and says so from inside unittest's own code.
+        var tests = Write(@"misused\test_rounding.py", """
+            import unittest
+
+
+            class RoundingTests(unittest.TestCase):
+                def test_close_enough(self):
+                    self.assertAlmostEqual(0.1 + 0.2, 0.3, places=2, delta=0.1)
+            """);
+
+        var report = await CheckAsync(tests);
+
+        var misused = Assert.Single(report.Findings, finding => finding.RuleId == "test-failed");
+        Assert.Equal(6, misused.Line);
+        Assert.Equal("unittest ran the test test_close_enough, and it stopped with TypeError (specify delta or places not both) on line 6.", misused.Explanation);
+    }
+
+    [Fact]
+    public async Task ATestClassWhoseSettingUpFailsIsSaidToHaveRunNoneOfItsTests()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        Write(@"setup\bank.py", Bank);
+        var tests = Write(@"setup\test_bank.py", """
+            import unittest
+
+            from bank import BankAccount
+
+
+            class SharedAccountTests(unittest.TestCase):
+                @classmethod
+                def setUpClass(cls):
+                    cls.account = BankAccount("Ada", 100)
+                    cls.share = cls.account.share_of(0)
+
+                def test_share(self):
+                    self.assertEqual(self.share, 0)
+
+                def test_balance(self):
+                    self.assertEqual(self.account.balance, 100)
+            """);
+
+        var report = await CheckAsync(tests);
+
+        // Setting the class up fails, so neither of its tests runs: that is one failure, and not a test that failed.
+        var settingUp = Assert.Single(report.Findings, finding => finding.RuleId == "test-failed");
+        Assert.Equal(10, settingUp.Line);
+        Assert.Equal("setUpClass (test_bank.SharedAccountTests) stopped with ZeroDivisionError: division by zero", settingUp.Title);
+        Assert.EndsWith("raised in bank.share_of on line 16 of bank.py, so the tests it sets up for did not run.", settingUp.Explanation, StringComparison.Ordinal);
+        Assert.Equal("No syntax errors, but setting up for its tests failed, so unittest ran none of them", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task ATestFileThatEndsTheProgramAsItIsImportedIsSaidNotToHaveHadItsTestsRun()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var tests = Write(@"ended\test_totals.py", """
+            import sys
+            import unittest
+
+
+            class TotalTests(unittest.TestCase):
+                def test_total(self):
+                    self.assertEqual(sum([1, 2]), 3)
+
+
+            sys.exit(1)
+            """);
+
+        var report = await CheckAsync(tests);
+
+        // Nothing is reported as a mistake in FixFinder's own launcher; a note says why the tests were not run.
+        Assert.DoesNotContain(report.Findings, finding => Path.GetFileName(finding.File).StartsWith(PythonTests.LauncherPrefix, StringComparison.Ordinal));
+        Assert.Contains(report.Notes, note => note.Contains(
+            "could not finish, so whether the tests pass is not known: RuntimeError: test_totals.py ended the program with sys.exit(1) while it was " +
+            "being imported, so its tests could not be run", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task AUnittestFileWhoseTestsAllPassSaysSo()
     {
         if (!LocalFixLiveTests.Available("python")) return;

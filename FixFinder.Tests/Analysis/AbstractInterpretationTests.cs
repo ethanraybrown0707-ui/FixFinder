@@ -41,6 +41,8 @@ public class AbstractInterpretationTests : IDisposable
     [InlineData(true, "def average_without_top(values):\n    values.remove(max(values))\n    return sum(values) / len(values)\n\n\nprint(average_without_top([5]))\n")]
     // Handed to sorted to call, with lists that cannot be seen from here.
     [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n\n\ngroups = [[1, 2], [3]]\nprint(average([4]))\nprint(sorted(groups, key=average))\n")]
+    // Kept in a dictionary and called from there, where the call made through it cannot be followed.
+    [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n\n\noperations = {\"mean\": average}\nprint(average([4]))\nprint(operations[\"mean\"]([]))\n")]
     // Nothing in the program calls it, so what it will be given is not known.
     [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n")]
     public async Task ADivisionByWhatAFunctionIsGivenIsAnErrorOnlyWhenACallCanMakeItZero(bool anError, string code)

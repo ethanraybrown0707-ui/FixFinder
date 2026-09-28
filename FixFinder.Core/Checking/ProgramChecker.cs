@@ -487,7 +487,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var lines = run.Lines.Select(line => line.Text).ToList();
         var results = TestReport.ResultsIn(lines);
 
-        foreach (var failed in results.Where(result => result.Status == "FAILED")) Add(TestFinding(failed, chosen, framework));
+        foreach (var failed in results.Where(result => result.Status is "FAILED" or "SETUP-FAILED")) Add(TestFinding(failed, chosen, framework));
 
         if (results.Count == 0 && TestReport.TestsFound(lines) == 0)
         {
@@ -539,11 +539,19 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var name = python && test.Name.Length > 0 ? test.Name : test.Method.Length > 0 ? test.Method : test.Name;
         var line = own is { Line: > 0 } ? $" on line {own.Line}" : "";
         var thrown = python ? "raised" : "thrown";
+        var stoppedWith = $"{(exception.Length > 0 ? exception : "a failure")}{(message is null ? "" : $" ({message})")}" +
+                          (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}" : line);
 
-        var explanation = assertion
-            ? $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
-            : $"{framework} ran the test {test.Name}, and it stopped with {(exception.Length > 0 ? exception : "a failure")}{(message is null ? "" : $" ({message})")}" +
-              (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}." : $"{line}.");
+        // Setting up for a class's or a module's tests is not a test: when it fails, those tests do not run at all.
+        var settingUp = test.Status == "SETUP-FAILED";
+
+        var explanation = settingUp
+            ? $"{framework} could not set up for the tests: {test.Name} stopped with {stoppedWith}, so the tests it sets up for did not run."
+            : assertion
+                ? $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
+                : $"{framework} ran the test {test.Name}, and it stopped with {stoppedWith}.";
+
+        var what = settingUp ? name : $"Test {name}";
 
         return new Finding
         {
@@ -552,7 +560,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Confidence = Confidence.Certain,
             File = chosen,
             Line = own is { Line: > 0 } ? own.Line : null,
-            Title = assertion ? $"Test {name} failed{shown}" : exception.Length > 0 ? $"Test {name} stopped with {exception.Split('.')[^1]}{shown}" : $"Test {name} failed{shown}",
+            Title = assertion && !settingUp ? $"{what} failed{shown}" : exception.Length > 0 ? $"{what} stopped with {exception.Split('.')[^1]}{shown}" : $"{what} failed{shown}",
             Explanation = explanation,
             WhyItMatters = "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
                            "or the test expects the wrong thing.",
@@ -564,11 +572,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         };
     }
 
-    /// <summary>Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's for Python - rather than from the program.</summary>
+    /// <summary>
+    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's for Python - rather than from
+    /// the program: the launcher is where it was raised, or the nearest place to that of the program's own.
+    /// </summary>
+    /// <remarks>
+    /// Both are looked at because Python shows an error raised while another was being handled with that other one's
+    /// places too, and the nearest of the program's own can then be the test file, where the first one began.
+    /// </remarks>
     private static bool FromTestLauncher(ParsedError error) =>
-        (error.CulpritFrame?.File ?? error.Frames.FirstOrDefault()?.File) is { } file &&
-        (Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
-         Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase));
+        new[] { error.CulpritFrame?.File, error.Frames.FirstOrDefault()?.File }.OfType<string>().Any(file =>
+            Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
@@ -618,7 +633,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             if (FromTestLauncher(error))
             {
-                Note($"FixFinder's launcher for {TestFrameworkOf(chosen)} stopped with an error of its own, so whether the tests pass is not known: {error.Summary}.");
+                // Said in full: what stopped it is the part that explains it, and where in FixFinder's launcher is no help to anyone.
+                var said = error.Message is { Length: > 0 } message ? $"{error.ShortExceptionType ?? error.ExceptionType}: {message}" : error.Summary;
+                Note($"FixFinder's launcher for {TestFrameworkOf(chosen)} could not finish, so whether the tests pass is not known: {said}.");
                 return;
             }
 
@@ -741,8 +758,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             var failed = tests.Where(test => test.Status == "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
             var ran = tests.Where(test => test.Status is "SUCCESSFUL" or "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
 
-            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed"
+            // Tests whose setting up failed never ran, so they are neither passes nor failures.
+            var notSetUp = tests.Any(test => test.Status == "SETUP-FAILED");
+            var othersNotRun = notSetUp ? ", and setting up for others failed, so those did not run" : "";
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}"
+                : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}"
                 : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}"
+                : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {TestFrameworkOf(chosen)} ran none of them"
                 : $"{reads}{warnings}, but {TestFrameworkOf(chosen)} ran none of its tests";
         }
 

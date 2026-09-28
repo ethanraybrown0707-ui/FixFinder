@@ -74,13 +74,15 @@ public static partial class PythonTests
 
     /// <summary>
     /// The launcher: python launcher.py module root file. It puts root where Python looks for modules, as running the file
-    /// would, imports the module - a module that calls unittest.main() at its top without the __name__ guard ends there,
-    /// and its tests are still run - and runs each test, printing one line for it in the form TestReport reads.
+    /// would, imports the module - with unittest.main() made to do nothing, so a file that calls it at its top without the
+    /// __name__ test does not run its tests and end the program there - and runs each test, printing one line for it in
+    /// the form TestReport reads. When setting up for a class's or a module's tests fails, that is said as what it is.
     /// </summary>
     private const string LauncherSource = """
         # Written by FixFinder: runs one file's unittest tests and prints what each test did, one line each.
 
         import importlib
+        import os
         import sys
         import unittest
 
@@ -92,6 +94,11 @@ public static partial class PythonTests
             return str(text).replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n")
 
 
+        def part(text):
+            # The parts of a place are joined with # and ;, which a folder's name can hold, so those - and % - are written %23, %3B and %25.
+            return str(text).replace("%", "%25").replace("#", "%23").replace(";", "%3B")
+
+
         def frames_of(error):
             frames = []
             trace = error[2] if error else None
@@ -99,7 +106,7 @@ public static partial class PythonTests
                 if "__unittest" not in trace.tb_frame.f_globals:
                     code = trace.tb_frame.f_code
                     module = trace.tb_frame.f_globals.get("__name__", "")
-                    frames.append("%s#%s#%s#%d" % (module, code.co_name, code.co_filename, trace.tb_lineno))
+                    frames.append("%s#%s#%s#%d" % (part(module), part(code.co_name), part(code.co_filename), trace.tb_lineno))
                 trace = trace.tb_next
             frames.reverse()
             return ";".join(frames)
@@ -107,9 +114,15 @@ public static partial class PythonTests
 
         def report(status, test, error=None, reason=None):
             case = getattr(test, "test_case", test)
-            method = getattr(case, "_testMethodName", case.id().split(".")[-1])
-            owner = type(case).__module__ + "." + type(case).__qualname__ if hasattr(case, "_testMethodName") else case.id()
-            name = method + " " + test._subDescription() if case is not test and hasattr(test, "_subDescription") else method
+            if hasattr(case, "_testMethodName"):
+                method = case._testMethodName
+                owner = type(case).__module__ + "." + type(case).__qualname__
+            else:
+                # What unittest gives when setting up for a class's or a module's tests failed: no test, only what was being set up.
+                status = "SETUP-FAILED" if status == "FAILED" else status
+                method = ""
+                owner = case.id()
+            name = method + " " + test._subDescription() if case is not test and hasattr(test, "_subDescription") else (method or owner)
             exception = error[0].__name__ if error else ""
             message = str(error[1]) if error else (reason or "")
             fields = [RESULT, status, name, owner, method, exception, message, frames_of(error)]
@@ -151,10 +164,17 @@ public static partial class PythonTests
             module_name, root, program = sys.argv[1], sys.argv[2], sys.argv[3]
             sys.path.insert(0, root)
             sys.argv = [program]
+
+            # A file that calls unittest.main() at its top, not under if __name__ == "__main__":, would run its tests as it
+            # was imported and then end the program; the launcher runs them itself, so that call does nothing here.
+            unittest.main = lambda *arguments, **options: None
+
             try:
                 module = importlib.import_module(module_name)
-            except SystemExit:
-                module = sys.modules[module_name]
+            except SystemExit as ended:
+                raise RuntimeError("%s ended the program with sys.exit(%r) while it was being imported, so its tests could not be run"
+                                   % (os.path.basename(program), ended.code)) from None
+
             suite = unittest.defaultTestLoader.loadTestsFromModule(module)
             print("%s\t%d" % (FOUND, suite.countTestCases()), flush=True)
             suite.run(Reporter())

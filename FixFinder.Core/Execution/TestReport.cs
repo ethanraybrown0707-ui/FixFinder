@@ -10,7 +10,10 @@ namespace FixFinder.Core.Execution;
 public static class TestReport
 {
     /// <summary>What one test did, as its framework reported it.</summary>
-    /// <param name="Status">SUCCESSFUL, FAILED, ABORTED or SKIPPED.</param>
+    /// <param name="Status">
+    /// SUCCESSFUL, FAILED, ABORTED or SKIPPED - or, from unittest, SETUP-FAILED: setting up for a class's or a module's
+    /// tests failed, which is not a test of its own, and those tests did not run.
+    /// </param>
     /// <param name="Frames">Where the failure was raised, innermost first: class or module, method, file and line.</param>
     public sealed record TestResult(
         string Status, string Name, string ClassName, string Method, string? Exception, string? Message,
@@ -35,7 +38,7 @@ public static class TestReport
             if (fields.Length < 8) continue;
 
             var frames = fields[7].Split(';', StringSplitOptions.RemoveEmptyEntries)
-                .Select(frame => frame.Split('#'))
+                .Select(frame => frame.Split('#').Select(Decoded).ToArray())
                 .Where(parts => parts.Length == 4)
                 .Select(parts => (parts[0], parts[1], parts[2].Length > 0 && parts[2] != "null" ? parts[2] : null,
                     int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : -1))
@@ -53,6 +56,17 @@ public static class TestReport
         int.TryParse(found[(CountMarker.Length + 1)..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
             ? count
             : null;
+
+    /// <summary>
+    /// A part of a place back as it was. A path can hold the # and ; that separate the parts, so the unittest launcher
+    /// writes them as %23 and %3B, and % itself as %25; the JUnit launcher's class, method and file names never hold a %.
+    /// </summary>
+    private static string Decoded(string part) => Regex.Replace(part, "%(?:23|3B|25)", encoded => encoded.Value switch
+    {
+        "%23" => "#",
+        "%3B" => ";",
+        _ => "%",
+    });
 
     /// <summary>A launcher's field back as it was: \t, \n, \r and \\ undone.</summary>
     private static string Unescaped(string field) => Regex.Replace(field, @"\\(.)", match => match.Groups[1].Value switch
