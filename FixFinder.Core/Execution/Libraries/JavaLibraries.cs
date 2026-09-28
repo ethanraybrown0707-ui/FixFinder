@@ -136,7 +136,7 @@ public sealed partial record JavaLibraries(
             return Built(resolved, declared.NotRead, Path.GetFileName(gradleFile), project, StandardRoots(project));
         }
 
-        return Built(IdeLibraries.Read(project, mavenRepository), [], "the project's library settings", project, IdeRoots(project));
+        return Built(IdeLibraries.Read(project, mavenRepository), [], IdeLibraries.Describe(project), project, IdeRoots(project));
     }
 
     private static JavaLibraries Built(ResolvedLibraries resolved, IReadOnlyList<string> notRead, string declaredIn, string project, (IReadOnlyList<string> Sources, IReadOnlyList<string> Resources) roots) =>

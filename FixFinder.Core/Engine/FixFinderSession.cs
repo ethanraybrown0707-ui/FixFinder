@@ -587,6 +587,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             {
                 Result = SessionResult.NothingFound,
                 Headline = failedToCompile ? $"It did not compile: {error.Summary}"
+                    : error.ExceptionType == JavaStackTraceParser.LauncherError ? $"Java could not start it: {error.Message}"
                     : ranWithoutFailing ? $"It ran, but: {error.Summary}"
                     : $"It crashed: {error.Summary}",
                 Detail = searchWeb

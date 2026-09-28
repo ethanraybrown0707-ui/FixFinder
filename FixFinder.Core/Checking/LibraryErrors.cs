@@ -113,11 +113,11 @@ public static partial class LibraryErrors
         var where = libraries switch
         {
             { Missing.Count: > 0, DeclaredIn: { } declared } =>
-                $"{declared} names {And(libraries.Missing.Select(missing => missing.Name).Distinct(StringComparer.Ordinal).Take(6).ToList())}, which " +
-                $"{(libraries.Missing.Count == 1 ? "is" : "are")} not on this computer: {libraries.Missing[0].Reason}. Opening the project in its IDE, " +
-                "or building it once with its build tool, downloads what it needs - FixFinder never downloads anything itself.",
+                $"{And(libraries.Missing.Select(missing => missing.Name).Distinct(StringComparer.Ordinal).Take(6).ToList())} " +
+                $"{(libraries.Missing.Count == 1 ? "is" : "are")} named in {declared} but not on this computer: {libraries.Missing[0].Reason}. Opening the " +
+                "project in its IDE, or building it once with its build tool, downloads what it needs - FixFinder never downloads anything itself.",
             { DeclaredIn: { } declared } =>
-                $"None of the libraries {declared} names has {(one ? "it" : "them")}, so {declared} does not name the library {(one ? "it comes" : "they come")} from.",
+                $"None of the libraries from {declared} has {(one ? "it" : "them")}, so the library {(one ? "it comes" : "they come")} from is not named there.",
             _ =>
                 "Nothing says where that library is: FixFinder looks for a pom.xml or a build.gradle, jars in a lib, libs or jars folder, and the " +
                 "libraries IntelliJ, Eclipse and VS Code record for the project, and found none of them.",

@@ -23,6 +23,17 @@ public static partial class IdeLibraries
         File.Exists(Path.Combine(project, ".vscode", "settings.json")) || JarFolders.Any(folder => Directory.Exists(Path.Combine(project, folder))) ||
         SafeFiles(project, "*.iml").Any();
 
+    /// <summary>
+    /// What a sentence calls where the libraries came from: the tool whose settings the project keeps - IntelliJ's, then
+    /// Eclipse's, then VS Code's, as that is the order they are looked in - or the folder of jars it keeps by hand.
+    /// </summary>
+    public static string Describe(string project) =>
+        Directory.Exists(Path.Combine(project, ".idea")) || SafeFiles(project, "*.iml").Any() ? "IntelliJ's project files"
+        : File.Exists(Path.Combine(project, ".classpath")) ? "Eclipse's .classpath"
+        : File.Exists(Path.Combine(project, ".vscode", "settings.json")) ? "VS Code's settings"
+        : JarFolders.FirstOrDefault(folder => Directory.Exists(Path.Combine(project, folder))) is { } jars ? $"its {jars} folder"
+        : "the project's settings";
+
     public static ResolvedLibraries Read(string project, MavenRepository mavenRepository)
     {
         var main = new List<string>();

@@ -85,7 +85,7 @@ public class JavaTestRunTests(ITestOutputHelper output) : IDisposable
 
             @Test
             void addsANegativeNumber() {
-                assertEquals(1, calculator.add(3, -1));
+                assertEquals(2, calculator.add(3, -1));
             }
 
             @Test
@@ -184,7 +184,7 @@ public class JavaTestRunTests(ITestOutputHelper output) : IDisposable
 
         var wrongSum = Assert.Single(report.Findings, finding => finding.Title.StartsWith("Test addsANegativeNumber failed", StringComparison.Ordinal));
         Assert.Equal(15, wrongSum.Line);
-        Assert.Contains("expected: <1> but was: <2>", wrongSum.Explanation, StringComparison.Ordinal);
+        Assert.Contains("expected: <2> but was: <3>", wrongSum.Explanation, StringComparison.Ordinal);
 
         var division = Assert.Single(report.Findings, finding => finding.Title.StartsWith("Test dividesByTwo stopped with ArithmeticException", StringComparison.Ordinal));
         Assert.Contains("thrown in Calculator.divide on line 7 of Calculator.java", division.Explanation, StringComparison.Ordinal);
