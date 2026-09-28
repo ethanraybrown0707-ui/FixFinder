@@ -181,7 +181,7 @@ public class FasterCheckTests : IDisposable
             var spec = new TargetSpec
             {
                 ExecutablePath = javac.Program,
-                Arguments = string.Join(" ", CompileCheck.JavacArguments(copy, original, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
+                Arguments = string.Join(" ", CompileCheck.JavacArguments(copy, Path.Combine(original, "App.java"), folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
                 WorkingDirectory = folder,
                 Timeout = TimeSpan.FromMinutes(2),
             };
@@ -199,7 +199,7 @@ public class FasterCheckTests : IDisposable
             var copy = Path.Combine(folder, "App.java");
             File.Copy(Path.Combine(original, "App.java"), copy);
 
-            if (await server.CompileAsync(CompileCheck.JavacArguments(copy, original, folder), TimeSpan.FromMinutes(2), CancellationToken.None) is not { } reply)
+            if (await server.CompileAsync(CompileCheck.JavacArguments(copy, Path.Combine(original, "App.java"), folder), TimeSpan.FromMinutes(2), CancellationToken.None) is not { } reply)
                 return (null, folder);
 
             var lines = JavaCompileServer.Lines(reply.Output, System.Text.Encoding.UTF8);

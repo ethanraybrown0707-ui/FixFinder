@@ -133,18 +133,23 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             var root = launch.SourceFolder ?? Path.GetDirectoryName(chosen);
 
+            // Errors that only say a library is not here are said once, as that, rather than as mistakes in the code.
+            var sorted = LibraryErrors.Sort(report.Errors, chosen);
+            if (sorted.Note is { } missingLibrary) Note(missingLibrary);
+            var codeErrors = sorted.CodeErrors;
+
             if (report.Errors.Count > 0)
             {
                 builds.TrySetResult(false);
-                Progress?.Invoke(CheckLane.Syntax, $"Found {Count(report.Errors.Count, "error")} - working out fixes...");
+                if (codeErrors.Count > 0) Progress?.Invoke(CheckLane.Syntax, $"Found {Count(codeErrors.Count, "error")} - working out fixes...");
 
-                await ForEachAsync(report.Errors.Take(MostErrorsFixed), async error =>
+                await ForEachAsync(codeErrors.Take(MostErrorsFixed), async error =>
                 {
                     var fix = await FixAsync(error, report.Errors, report.Output, root, fromBuild: true, cancellationToken);
                     Add(FindingFactory.FromError(error, FindingKind.Syntax, Severity.Error, Confidence.Certain, chosen, fix));
                 }, cancellationToken);
 
-                foreach (var error in report.Errors.Skip(MostErrorsFixed))
+                foreach (var error in codeErrors.Skip(MostErrorsFixed))
                     Add(FindingFactory.FromError(error, FindingKind.Syntax, Severity.Error, Confidence.Certain, chosen));
             }
 
@@ -158,8 +163,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             {
                 builds.TrySetResult(false);
 
-                return (report.Errors.Count > 0
-                    ? $"{Count(report.Errors.Count, "error")} {(report.Errors.Count == 1 ? "stops" : "stop")} it building"
+                return (codeErrors.Count > 0 ? $"{Count(codeErrors.Count, "error")} {(codeErrors.Count == 1 ? "stops" : "stop")} it building"
+                    : sorted.FromLibraries > 0 ? "It needs a library that is not on this computer, so it was not built"
                     : "It did not build", null);
             }
 

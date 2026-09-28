@@ -262,6 +262,8 @@ public sealed class LogicRepair
 
         public void Dispose()
         {
+            ProgramCopy.Forget(Folder);
+
             try
             {
                 var build = CompiledLanguages.Handles(Path.GetExtension(File)) ? CompiledLanguages.OutputDirectory(File) : null;

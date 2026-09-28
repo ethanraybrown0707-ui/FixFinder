@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes;
@@ -132,7 +133,7 @@ public static class CompileCheck
             token => CompileAsync(javac, direct: false, token),
             async (target, targetFolder, token) =>
             {
-                if (await server.CompileAsync(JavacArguments(target, ProgramLayout.JavaSourceRoot(original), targetFolder), Timeout, token) is not { } reply)
+                if (await server.CompileAsync(JavacArguments(target, original, targetFolder), Timeout, token) is not { } reply)
                     return null;
 
                 var lines = JavaCompileServer.Lines(reply.Output, javac.OutputEncoding);
@@ -180,11 +181,22 @@ public static class CompileCheck
             copy, folder, everyLine: true, cancellationToken);
     }
 
-    internal static IReadOnlyList<string> JavacArguments(string copy, string sourceRoot, string folder) =>
-    [
-        .. JavaRelease(),
-        "-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), "-sourcepath", sourceRoot, copy,
-    ];
+    /// <summary>
+    /// What javac is given to check a copy of one file: the original's source roots, so the rest of the program is there,
+    /// and the libraries its project names, so a program built with them is checked with them.
+    /// </summary>
+    internal static IReadOnlyList<string> JavacArguments(string copy, string originalFile, string folder)
+    {
+        var libraries = JavaLibraries.For(originalFile);
+        IEnumerable<string> classPath = libraries.ClassPath.Count > 0 ? ["-cp", string.Join(Path.PathSeparator, libraries.ClassPath)] : [];
+
+        return
+        [
+            .. JavaRelease(),
+            "-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. classPath,
+            "-sourcepath", string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(originalFile), .. libraries.OtherSourceRoots(originalFile)]), copy,
+        ];
+    }
 
     /// <summary>The Java release a fix is checked against, as the two arguments javac takes it in, or nothing at all.</summary>
     private static IEnumerable<string> JavaRelease() =>
@@ -299,7 +311,7 @@ public static class CompileCheck
 
                 return Spec(
                     javac.Program,
-                    string.Join(" ", JavacArguments(copy, ProgramLayout.JavaSourceRoot(original), folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
+                    string.Join(" ", JavacArguments(copy, original, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")),
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":

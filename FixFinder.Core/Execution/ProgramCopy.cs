@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace FixFinder.Core.Execution;
 
 /// <summary>
@@ -44,6 +46,44 @@ public static class ProgramCopy
     /// Copies everything under <paramref name="root"/> into <paramref name="destination"/>, laid out the same way - or
     /// nothing at all, returning false, when it holds more than a program's worth of files.
     /// </summary>
+    /// <summary>The copies being run just now, and the folder each was copied from.</summary>
+    private static readonly ConcurrentDictionary<string, string> Originals = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Records that a folder is a copy of the program's folder, so what is read from the program rather than run - the
+    /// libraries its pom.xml or its IDE settings name, which the copy leaves out - is read from the original.
+    /// </summary>
+    public static void Remember(string copy, string original) => Originals[Path.GetFullPath(copy)] = Path.GetFullPath(original);
+
+    public static void Forget(string copy) => Originals.TryRemove(Path.GetFullPath(copy), out _);
+
+    /// <summary>Where a file in a copy of a program was copied from, or the file itself when it is in no copy.</summary>
+    public static string OriginalOf(string path)
+    {
+        foreach (var (copy, original) in Originals)
+        {
+            if (path.StartsWith(copy + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                return Path.Combine(original, Path.GetRelativePath(copy, path));
+        }
+
+        return path;
+    }
+
+    /// <summary>Where a path of the original program is in the copy a file is in, or the path itself when the file is in no copy.</summary>
+    public static string InCopyOf(string file, string originalPath)
+    {
+        foreach (var (copy, original) in Originals)
+        {
+            if (file.StartsWith(copy + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                (originalPath + Path.DirectorySeparatorChar).StartsWith(original + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.Combine(copy, Path.GetRelativePath(original, originalPath));
+            }
+        }
+
+        return originalPath;
+    }
+
     public static bool TryCopyWhole(string root, string destination)
     {
         var files = new List<string>();
@@ -72,6 +112,7 @@ public static class ProgramCopy
             File.Copy(file, target, overwrite: true);
         }
 
+        Remember(destination, root);
         return true;
     }
 }

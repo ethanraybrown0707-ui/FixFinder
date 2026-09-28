@@ -42,6 +42,17 @@ program names in quotes is not there but is in another folder it could have been
 The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
 
+A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
+project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
+each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and
+`testImplementation` lines, its `platform()` BOMs and version catalog, the highest version winning as in Gradle; the
+libraries IntelliJ's `.idea` and `.iml` files, Eclipse's `.classpath` and VS Code's `java.project.referencedLibraries`
+record; and jars kept in a `lib`, `libs` or `jars` folder. Each is looked for among what Maven and Gradle have already
+downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
+named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
+errors javac gives because of it are not reported as mistakes in the code. A package a letter or two from Java's own or
+the program's, such as `java.utils`, is a typing mistake, and still is one.
+
 ## What each finding tells you
 
 | | |
@@ -460,7 +471,7 @@ Inside `FixFinder.Core`:
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
 | `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`), including what each language does when a program goes wrong (`Checks/Failures.cs`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
-| `Execution` | Finding toolchains, building and running programs. |
+| `Execution` | Finding toolchains, building and running programs - and, in `Execution/Libraries`, the libraries a Java program is built with. |
 | `Parsing` | The stack-trace parsers. |
 | `Fingerprinting`, `Sources`, `Ranking`, `Http`, `Security` | Online search: the query, GitHub and Stack Overflow, ranking, caching and token storage. |
 | `Patching` | Reading diffs from search results and working out where they would land in your code. |

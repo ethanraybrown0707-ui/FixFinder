@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution.Libraries;
 
 namespace FixFinder.Core.Execution;
 
@@ -260,22 +261,42 @@ public static partial class CompiledLanguages
                 "need to be on PATH.");
         }
 
+        var libraries = JavaLibraries.For(source);
+        var sourcePath = string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(source), .. libraries.OtherSourceRoots(source)]);
+        var libraryPath = libraries.ClassPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, libraries.ClassPath)}\"" : "";
+
         var compile = Spec(
             javac.Program,
-            $"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath} -sourcepath \"{sourcePath}\" \"{source}\"", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
         var start = WorkingFolder.For(source);
+        var runPath = string.Join(Path.PathSeparator, [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. libraries.ClassPath]);
 
         var run = Spec(
             java.Program,
-            $"-cp \"{output}\" {MainClass(source)}",
+            ShortEnough($"-cp \"{runPath}\" {MainClass(source)}", output, "java"),
             start.Folder,
             timeout);
 
+        var with = libraries.Described is { } described ? $" and {described}" : "";
+
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}, then running it with java{StartsFrom(start, source)}."), null);
+            $"Building it with {javac.Name}{with}, then running it with java{StartsFrom(start, source)}."), null);
+    }
+
+    /// <summary>
+    /// The arguments as they are, or - when a project's libraries make them longer than Windows lets a command line be -
+    /// an @file holding them, which javac and java both read.
+    /// </summary>
+    private static string ShortEnough(string arguments, string output, string tool)
+    {
+        if (arguments.Length < 24_000) return arguments;
+
+        var file = Path.Combine(output, $"{tool}-arguments.txt");
+        File.WriteAllText(file, arguments.Replace("\\", "\\\\", StringComparison.Ordinal), new UTF8Encoding(false));
+        return $"\"@{file}\"";
     }
 
     /// <summary>Which folder the program starts from, said only when it is not simply the one the file is in.</summary>

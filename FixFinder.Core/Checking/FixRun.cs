@@ -67,6 +67,10 @@ public static class FixRun
                 Directory.Delete(folder, recursive: true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            finally
+            {
+                ProgramCopy.Forget(folder);
+            }
         }
     }
 
@@ -89,6 +93,7 @@ public static class FixRun
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
 
+        ProgramCopy.Remember(folder, Path.GetDirectoryName(chosen)!);
         return Path.Combine(folder, Path.GetFileName(chosen));
     }
 
