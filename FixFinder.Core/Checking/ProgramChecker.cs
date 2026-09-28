@@ -222,6 +222,36 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
     }
 
+    /// <summary>
+    /// What to say of a Java program that stopped for want of a class - or of a database driver - when libraries its build
+    /// names are not on this computer: it ran without them, so what it could not find may be theirs rather than missing
+    /// from the code, and which cannot be told until they are here. Null for any other failure, or when nothing is missing.
+    /// </summary>
+    private static string? RanWithoutItsLibraries(ParsedError error, string chosen)
+    {
+        if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var notFound = ChainOf(error).FirstOrDefault(link =>
+            link.ExceptionType is "java.lang.ClassNotFoundException" or "java.lang.NoClassDefFoundError" ||
+            link.ExceptionType == "java.sql.SQLException" && (link.Message ?? "").StartsWith("No suitable driver", StringComparison.Ordinal));
+
+        if (notFound is null || JavaLibraries.For(chosen) is not { Missing.Count: > 0, DeclaredIn: { } declared } libraries) return null;
+
+        var missing = libraries.Missing.Select(library => library.Name).Distinct(StringComparer.Ordinal).ToList();
+        var one = missing.Count == 1;
+        var named = missing.Count <= 6 ? string.Join(", ", missing) : $"{string.Join(", ", missing.Take(6))} and {missing.Count - 6} more";
+        var theLibraries = one ? "that library" : "one of those libraries";
+
+        var stopped = notFound.ExceptionType == "java.sql.SQLException"
+            ? $"It stopped because no database driver it has could take the address it gave - {notFound.Message}. The driver may be in {theLibraries}"
+            : $"It stopped because a class it needed could not be found - {notFound.Message}. That class may be in {theLibraries}";
+
+        return $"{named} {(one ? "is" : "are")} named in {declared} but not on this computer, so the program ran without {(one ? "it" : "them")}. " +
+               $"{stopped}, and whether it is cannot be told until {(one ? "it is" : "they are")} on this computer.";
+    }
+
+    private static IEnumerable<ParsedError> ChainOf(ParsedError error) => new[] { error }.Concat(error.Causes.SelectMany(ChainOf));
+
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex DeclaresMain();
 
@@ -372,6 +402,20 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             }
 
             var kind = LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error) ? FindingKind.Syntax : FindingKind.Runtime;
+
+            if (kind == FindingKind.Runtime && RanWithoutItsLibraries(error, chosen) is { } withoutLibraries)
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Warning, Confidence.Possible, chosen) with
+                {
+                    Title = RunTitle(error, outcome.Run),
+                    Explanation = withoutLibraries,
+                    SuggestedFix = "Open the project in its IDE, or build it once with its build tool, so that what it names is downloaded, then check " +
+                                   "it again - FixFinder never downloads anything itself.",
+                    CorrectedExample = "",
+                });
+                return;
+            }
+
             var local = outcome.Best is { } best && (best.LocalFix is not null || best.Id.EndsWith(":did-you-mean", StringComparison.Ordinal)) ? best : null;
 
             var finishedNormally = kind == FindingKind.Runtime && outcome.Run is { ExitCode: 0 };

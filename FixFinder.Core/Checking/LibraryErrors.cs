@@ -7,12 +7,15 @@ namespace FixFinder.Core.Checking;
 
 /// <summary>
 /// Compile errors that come from a library the program uses not being there - "package org.junit.jupiter.api does not
-/// exist", and the "cannot find symbol" errors for what the program imports from it - told apart from mistakes in the code,
-/// and said once for what they are: the library, named, and where FixFinder looked for it.
+/// exist", the "cannot find symbol" errors for what the program imports from it, and uses of what such a library would
+/// write into the program's own classes, such as the getters Lombok adds - told apart from mistakes in the code, and said
+/// once for what they are: the library, named, and where FixFinder looked for it.
 /// </summary>
 /// <remarks>
 /// A package is taken to come from a library only when it is not Java's and not the program's own, and is not a letter
-/// or two from one of those - java.utils and uni.dss are typing mistakes, and stay errors in the code.
+/// or two from one of those - java.utils and uni.dss are typing mistakes, and stay errors in the code. Nor is a one-word
+/// package that nothing imports: javac takes Sytem.out and system.out for a class "out" in packages called Sytem and
+/// system, and both are mistypings of System.
 /// </remarks>
 public static partial class LibraryErrors
 {
@@ -22,11 +25,25 @@ public static partial class LibraryErrors
     [GeneratedRegex(@"^package (?<package>[\w.]+) does not exist")]
     private static partial Regex PackageDoesNotExist();
 
-    [GeneratedRegex(@"^cannot find symbol \(symbol:\s*(?:class|interface|method|variable|static)\s+(?<name>[\w$]+)")]
+    [GeneratedRegex(@"^cannot find symbol \(symbol:\s*(?<kind>class|interface|method|variable|static)\s+(?<name>[\w$]+)")]
     private static partial Regex CannotFindSymbol();
+
+    /// <summary>Where javac looked for a symbol: inside a type - "location: class Person" - or on a variable of one.</summary>
+    [GeneratedRegex(@"location:\s*(?:(?<inside>class|interface|enum|record)\s+|variable\s+[\w$]+\s+of\s+type\s+)(?<type>[\w$.]+)")]
+    private static partial Regex SymbolLocation();
+
+    [GeneratedRegex(@"^(?:constructor [\w$]+ in (?:class|enum|record) (?<type>[\w$.]+) cannot be applied to given types|no suitable constructor found for (?<type>[\w$.]+)\()")]
+    private static partial Regex ConstructorNotFound();
 
     [GeneratedRegex(@"^\s*import\s+(?<static>static\s+)?(?<path>[\w.]+(?:\.\*)?)\s*;")]
     private static partial Regex Import();
+
+    /// <summary>An annotation where it is used: @Data, or @lombok.Data - never a Javadoc tag, which starts with a small letter.</summary>
+    [GeneratedRegex(@"(?<![\w$@.])@(?<name>(?:[a-z_$][\w$]*\.)*[A-Z][\w$]*)")]
+    private static partial Regex AnnotationUse();
+
+    [GeneratedRegex(@"\b(?:class|interface|enum|record)\s+(?<name>[A-Z_$][\w$]*)")]
+    private static partial Regex TypeDeclaration();
 
     /// <summary>The packages under javax that are Java's own; javax.servlet, javax.persistence and javax.xml.bind are libraries.</summary>
     private static readonly string[] JavaxInTheJdk =
@@ -37,6 +54,9 @@ public static partial class LibraryErrors
         "javax.lang.model", "javax.annotation.processing", "javax.tools", "javax.security", "javax.accessibility",
         "javax.transaction.xa", "javax.rmi.ssl", "javax.smartcardio",
     ];
+
+    /// <summary>Java's own annotations, which need no import: an annotation with no import is not taken from a library for these.</summary>
+    private static readonly HashSet<string> JavaLangAnnotations = new(StringComparer.Ordinal) { "Override", "Deprecated", "SuppressWarnings", "FunctionalInterface", "SafeVarargs" };
 
     /// <summary>Libraries by the packages they are known for, to name the library a missing package comes from.</summary>
     private static readonly (string Package, string Library)[] KnownLibraries =
@@ -52,45 +72,70 @@ public static partial class LibraryErrors
         ("javax.xml.bind", "JAXB"), ("jakarta.xml.bind", "Jakarta XML Binding"),
     ];
 
+    /// <summary>
+    /// Fields a library is known to add to a class marked with its annotations, by the package the annotation is from:
+    /// Lombok's @Slf4j, @Log and their like add a logger named log.
+    /// </summary>
+    private static readonly (string Package, string Field)[] KnownAddedFields = [("lombok", "log")];
+
     public static Sorted Sort(IReadOnlyList<ParsedError> errors, string chosen)
     {
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || errors.Count == 0) return new Sorted(errors, null, 0);
 
         var libraries = JavaLibraries.For(chosen);
         var ownPackages = OwnPackages(chosen, libraries);
+        var importsByFile = new Dictionary<string, IReadOnlyList<(string Path, bool Static)>>(StringComparer.OrdinalIgnoreCase);
 
-        var absent = errors.Select(error => PackageDoesNotExist().Match(error.Message ?? "")).Where(match => match.Success)
-            .Select(match => match.Groups["package"].Value).Distinct(StringComparer.Ordinal)
-            .Where(package => FromALibrary(package, ownPackages)).ToList();
+        IReadOnlyList<(string Path, bool Static)> ImportsFor(ParsedError error) =>
+            FileOf(error, chosen) is not { } file ? [] : importsByFile.TryGetValue(file, out var known) ? known : importsByFile[file] = ImportsIn(file);
+
+        var absent = errors
+            .Select(error => (Error: error, Named: PackageDoesNotExist().Match(error.Message ?? "")))
+            .Where(missing => missing.Named.Success)
+            .GroupBy(missing => missing.Named.Groups["package"].Value, missing => missing.Error, StringComparer.Ordinal)
+            .Where(package => FromALibrary(package.Key, ownPackages, imported: package.Any(error => ImportsFor(error).Any(import => Within(import.Path, package.Key)))))
+            .Select(package => package.Key)
+            .ToList();
 
         if (absent.Count == 0) return new Sorted(errors, null, 0);
 
+        var marked = new Lazy<MarkedClasses>(() => MarkedBy(absent, chosen, libraries));
         var fromLibraries = new List<ParsedError>();
         var inTheCode = new List<ParsedError>();
-        var imports = new Dictionary<string, IReadOnlyList<(string Path, bool Static)>>(StringComparer.OrdinalIgnoreCase);
+        var addedTo = new List<string>();
 
         foreach (var error in errors)
         {
-            var (file, line) = (error.CulpritFrame?.File ?? error.Frames.FirstOrDefault()?.File, error.CulpritFrame?.Line ?? error.Frames.FirstOrDefault()?.Line);
-            var imported = file is null ? [] : imports.TryGetValue(file, out var known) ? known : imports[file] = ImportsIn(file, chosen);
-
-            (CausedBy(error, line, file, imported, absent) ? fromLibraries : inTheCode).Add(error);
+            if (CausedBy(error, ImportsFor(error), absent, chosen))
+            {
+                fromLibraries.Add(error);
+            }
+            else if (WouldBeAddedTo(error, marked) is { } type)
+            {
+                fromLibraries.Add(error);
+                addedTo.Add(type);
+            }
+            else
+            {
+                inTheCode.Add(error);
+            }
         }
 
-        return new Sorted(inTheCode, Note(absent, libraries, fromLibraries.Count), fromLibraries.Count);
+        return new Sorted(inTheCode, Note(absent, libraries, fromLibraries.Count, addedTo), fromLibraries.Count);
     }
 
     /// <summary>Whether an error is about a missing library: its package, an import of it, or a name imported from it.</summary>
-    private static bool CausedBy(ParsedError error, int? line, string? file, IReadOnlyList<(string Path, bool Static)> imported, IReadOnlyList<string> absent)
+    private static bool CausedBy(ParsedError error, IReadOnlyList<(string Path, bool Static)> imported, IReadOnlyList<string> absent, string chosen)
     {
         var message = error.Message ?? "";
 
         if (PackageDoesNotExist().Match(message) is { Success: true } package) return absent.Contains(package.Groups["package"].Value, StringComparer.Ordinal);
 
-        bool FromAbsent(string path) => absent.Any(missing => path == missing || path.StartsWith(missing + ".", StringComparison.Ordinal));
+        bool FromAbsent(string path) => absent.Any(missing => Within(path, missing));
 
-        if (message.StartsWith("static import only from classes and interfaces", StringComparison.Ordinal) && file is not null && line is { } number)
-            return LineOf(file, number) is { } text && Import().Match(text) is { Success: true } import && FromAbsent(import.Groups["path"].Value);
+        if (message.StartsWith("static import only from classes and interfaces", StringComparison.Ordinal))
+            return FileOf(error, chosen) is { } file && FrameOf(error)?.Line is { } number &&
+                   LineOf(file, number) is { } text && Import().Match(text) is { Success: true } import && FromAbsent(import.Groups["path"].Value);
 
         if (CannotFindSymbol().Match(message) is not { Success: true } symbol) return false;
 
@@ -99,12 +144,108 @@ public static partial class LibraryErrors
             (import.Path.EndsWith("." + name, StringComparison.Ordinal) || import.Path.EndsWith(".*", StringComparison.Ordinal)));
     }
 
+    /// <summary>
+    /// The class an error is about when it uses what a missing library would write into that class - a getter or builder()
+    /// Lombok adds to a class marked @Data or @Builder, the constructor @AllArgsConstructor writes, the logger @Slf4j adds,
+    /// a class written beside it such as Person.PersonBuilder - or null when it is about anything else. Only a class
+    /// declared in a file that uses the missing library's annotations counts, and only for what such a library can add: a
+    /// mistyped variable, or a class named nothing like the marked one, stays a mistake in the code.
+    /// </summary>
+    private static string? WouldBeAddedTo(ParsedError error, Lazy<MarkedClasses> marked)
+    {
+        var message = error.Message ?? "";
+
+        string? IfMarked(string written) => marked.Value.Types.Contains(SimpleName(written)) ? SimpleName(written) : null;
+
+        if (ConstructorNotFound().Match(message) is { Success: true } constructor) return IfMarked(constructor.Groups["type"].Value);
+
+        if (CannotFindSymbol().Match(message) is not { Success: true } symbol || SymbolLocation().Match(message) is not { Success: true } location) return null;
+
+        var name = symbol.Groups["name"].Value;
+        var type = SimpleName(location.Groups["type"].Value);
+
+        var couldBeAdded = symbol.Groups["kind"].Value switch
+        {
+            "method" => true,
+            "class" or "interface" => name.Contains(type, StringComparison.Ordinal),
+            "variable" => location.Groups["inside"].Success && marked.Value.AddedFields.Contains($"{type}.{name}"),
+            _ => false,
+        };
+
+        return couldBeAdded ? IfMarked(type) : null;
+    }
+
+    /// <summary>
+    /// The program's classes declared in files that use an annotation from a missing package, and the fields such a
+    /// library is known to add to them, as "Type.field".
+    /// </summary>
+    private sealed record MarkedClasses(IReadOnlySet<string> Types, IReadOnlySet<string> AddedFields);
+
+    private static MarkedClasses MarkedBy(IReadOnlyList<string> absent, string chosen, JavaLibraries libraries)
+    {
+        var types = new HashSet<string>(StringComparer.Ordinal);
+        var addedFields = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var file in SourceRoots(chosen, libraries).SelectMany(JavaFilesIn))
+        {
+            var text = ReadOrEmpty(file);
+            var annotationPackages = MissingAnnotationPackagesIn(text, absent);
+            if (annotationPackages.Count == 0) continue;
+
+            var declared = TypeDeclaration().Matches(text).Select(declaration => declaration.Groups["name"].Value).ToList();
+            types.UnionWith(declared);
+
+            foreach (var (package, field) in KnownAddedFields.Where(known => annotationPackages.Any(used => Within(used, known.Package))))
+                addedFields.UnionWith(declared.Select(type => $"{type}.{field}"));
+        }
+
+        return new MarkedClasses(types, addedFields);
+    }
+
+    /// <summary>
+    /// The missing packages a file's annotations come from: an annotation imported from one by name, one written with its
+    /// package as @lombok.Data, or - under an import of a whole missing package - one imported from nowhere else and not
+    /// one of Java's own.
+    /// </summary>
+    private static HashSet<string> MissingAnnotationPackagesIn(string text, IReadOnlyList<string> absent)
+    {
+        bool Missing(string package) => absent.Any(missing => Within(package, missing));
+
+        var imports = text.Split('\n').Select(line => Import().Match(line))
+            .Where(import => import.Success && !import.Groups["static"].Success)
+            .Select(import => import.Groups["path"].Value)
+            .ToList();
+
+        var packageOfImportedName = imports.Where(path => !path.EndsWith(".*", StringComparison.Ordinal) && path.Contains('.'))
+            .GroupBy(path => path[(path.LastIndexOf('.') + 1)..], StringComparer.Ordinal)
+            .ToDictionary(named => named.Key, named => named.Last()[..named.Last().LastIndexOf('.')], StringComparer.Ordinal);
+
+        var wholeMissingPackage = imports.Where(path => path.EndsWith(".*", StringComparison.Ordinal)).Select(path => path[..^2]).FirstOrDefault(Missing);
+
+        var used = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var name in AnnotationUse().Matches(text).Select(annotation => annotation.Groups["name"].Value))
+        {
+            var package = name.Contains('.') ? name[..name.LastIndexOf('.')]
+                : packageOfImportedName.TryGetValue(name, out var imported) ? imported
+                : JavaLangAnnotations.Contains(name) ? null
+                : wholeMissingPackage;
+
+            if (package is not null && Missing(package)) used.Add(package);
+        }
+
+        return used;
+    }
+
     /// <summary>The note that stands for the errors a missing library caused, naming it and saying where it was looked for.</summary>
-    private static string Note(IReadOnlyList<string> absent, JavaLibraries libraries, int errors)
+    /// <param name="addedTo">For each error that uses what the library would add to a class of the program, that class.</param>
+    private static string Note(IReadOnlyList<string> absent, JavaLibraries libraries, int errors, IReadOnlyList<string> addedTo)
     {
         var packages = And(absent);
-        var named = And(absent.Select(LibraryOf).OfType<string>().Distinct(StringComparer.Ordinal).ToList());
+        var libraryNames = absent.Select(LibraryOf).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+        var named = And(libraryNames);
         var one = absent.Count == 1;
+        var oneLibrary = absent.Select(package => LibraryOf(package) ?? package).Distinct(StringComparer.Ordinal).Count() == 1;
 
         var comesFrom = named.Length > 0
             ? $"{(one ? "it comes" : "they come")} from a library - {named}"
@@ -127,66 +268,117 @@ public static partial class LibraryErrors
             ? $" FixFinder could not read {Count(libraries.NotRead.Count, "line")} of {file}, which may be where {(one ? "it is" : "they are")} named: {first}."
             : "";
 
+        var theErrors = $"the {errors} error{(errors == 1 ? "" : "s")} javac gave because of it {(errors == 1 ? "is" : "are")}";
+
+        if (addedTo.Count == 0)
+        {
+            return $"{packages} {(one ? "is" : "are")} not part of Java or of this program: {comesFrom}. {where}{unread} So the program could not be built, and " +
+                   $"{theErrors} not mistakes in the code and {(errors == 1 ? "is" : "are")} not shown as such. The code was still read for mistakes.";
+        }
+
+        var classes = addedTo.Distinct(StringComparer.Ordinal).ToList();
+        var oneClass = classes.Count == 1;
+        var uses = addedTo.Count == 1 ? "1 of them uses" : $"{addedTo.Count} of them use";
+
+        var added = $"{uses} what {(oneLibrary ? "that library" : "those libraries")} would add to {And(classes)}, which {(oneClass ? "is" : "are")} " +
+                    $"declared in {(oneClass ? "a file" : "files")} that use{(oneClass ? "s" : "")} {(oneLibrary ? "its" : "their")} annotations - a getter, " +
+                    $"say, or a constructor. Javac cannot see what {(oneLibrary ? "it adds" : "they add")} without {(oneLibrary ? "it" : "them")}, so whether " +
+                    $"{(addedTo.Count == 1 ? "that use is" : "those uses are")} right cannot be told until {(oneLibrary ? "it is" : "they are")} on this computer.";
+
         return $"{packages} {(one ? "is" : "are")} not part of Java or of this program: {comesFrom}. {where}{unread} So the program could not be built, and " +
-               $"the {errors} error{(errors == 1 ? "" : "s")} javac gave because of it {(errors == 1 ? "is" : "are")} not mistakes in the code and " +
-               $"{(errors == 1 ? "is" : "are")} not shown as such. The code was still read for mistakes.";
+               $"{theErrors} not shown as mistakes in the code. {added} The code was still read for mistakes.";
     }
 
     private static string? LibraryOf(string package) =>
-        KnownLibraries.FirstOrDefault(known => package == known.Package || package.StartsWith(known.Package + ".", StringComparison.Ordinal)).Library;
+        KnownLibraries.FirstOrDefault(known => Within(package, known.Package)).Library;
 
     /// <summary>
     /// Whether a package that javac says does not exist comes from a library: not Java's own, not the program's own, and
-    /// not a letter or two away from either, which would make it a typing mistake.
+    /// not a letter or two away from either, which would make it a typing mistake. One that nothing imports, written in
+    /// the code as one word or as a word with a capital - Sytem.out, system.out - is a mistyped name, not a package at all.
     /// </summary>
-    private static bool FromALibrary(string package, IReadOnlySet<string> own)
+    private static bool FromALibrary(string package, IReadOnlySet<string> own, bool imported)
     {
         if (LibraryOf(package) is not null) return true;
+        if (!imported && (!package.Contains('.') || package.Split('.').Any(segment => char.IsUpper(segment[0])))) return false;
         if (package.StartsWith("java.", StringComparison.Ordinal) || package.StartsWith("jdk.", StringComparison.Ordinal) || package.StartsWith("sun.", StringComparison.Ordinal))
             return false;
 
         var nearby = own.Concat(JavaxInTheJdk);
-        if (JavaxInTheJdk.Any(jdk => package == jdk || package.StartsWith(jdk + ".", StringComparison.Ordinal))) return false;
+        if (JavaxInTheJdk.Any(jdk => Within(package, jdk))) return false;
 
         return !nearby.Any(known => Distance(package, known) <= 2 || known.StartsWith(package + ".", StringComparison.Ordinal) || package.StartsWith(known + ".", StringComparison.Ordinal));
     }
+
+    /// <summary>Whether a name is this package, or something in it: lombok.Data is within lombok.</summary>
+    private static bool Within(string name, string package) =>
+        name == package || name.StartsWith(package + ".", StringComparison.Ordinal);
+
+    private static string SimpleName(string written) => written[(written.LastIndexOf('.') + 1)..];
 
     /// <summary>The packages the program's own source is in, from the folders its .java files are in under each source root.</summary>
     private static HashSet<string> OwnPackages(string chosen, JavaLibraries libraries)
     {
         var packages = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var root in new[] { ProgramLayout.JavaSourceRoot(chosen) }.Concat(libraries.OtherSourceRoots(chosen)))
+        foreach (var root in SourceRoots(chosen, libraries))
         {
-            try
+            foreach (var file in JavaFilesIn(root))
             {
-                foreach (var file in Directory.EnumerateFiles(root, "*.java", SearchOption.AllDirectories).Take(2000))
-                {
-                    var folder = Path.GetRelativePath(root, Path.GetDirectoryName(file)!);
-                    if (folder != ".") packages.Add(folder.Replace(Path.DirectorySeparatorChar, '.'));
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
+                var folder = Path.GetRelativePath(root, Path.GetDirectoryName(file)!);
+                if (folder != ".") packages.Add(folder.Replace(Path.DirectorySeparatorChar, '.'));
             }
         }
 
         return packages;
     }
 
-    private static IReadOnlyList<(string Path, bool Static)> ImportsIn(string file, string chosen)
-    {
-        var path = Path.IsPathRooted(file) ? file : Path.Combine(Path.GetDirectoryName(chosen)!, file);
+    private static IEnumerable<string> SourceRoots(string chosen, JavaLibraries libraries) =>
+        new[] { ProgramLayout.JavaSourceRoot(chosen) }.Concat(libraries.OtherSourceRoots(chosen));
 
+    /// <summary>The .java files under a source root - the first 2000, which is more than any course project has.</summary>
+    private static IReadOnlyList<string> JavaFilesIn(string root)
+    {
         try
         {
-            return File.ReadLines(path).Take(400)
+            return Directory.EnumerateFiles(root, "*.java", SearchOption.AllDirectories).Take(2000).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private static ErrorFrame? FrameOf(ParsedError error) => error.CulpritFrame ?? error.Frames.FirstOrDefault();
+
+    /// <summary>The file an error is in, as a full path - javac names a file as it was given, which may be from where it ran.</summary>
+    private static string? FileOf(ParsedError error, string chosen) => FrameOf(error)?.File is { } file
+        ? Path.IsPathRooted(file) ? file : Path.Combine(Path.GetDirectoryName(chosen)!, file)
+        : null;
+
+    private static IReadOnlyList<(string Path, bool Static)> ImportsIn(string file)
+    {
+        try
+        {
+            return File.ReadLines(file).Take(400)
                 .Select(line => Import().Match(line)).Where(match => match.Success)
                 .Select(match => (match.Groups["path"].Value, match.Groups["static"].Success)).ToList();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
             return [];
+        }
+    }
+
+    private static string ReadOrEmpty(string file)
+    {
+        try
+        {
+            return File.ReadAllText(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return "";
         }
     }
 

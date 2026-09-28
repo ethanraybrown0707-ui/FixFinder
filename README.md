@@ -50,8 +50,18 @@ libraries IntelliJ's `.idea` and `.iml` files, Eclipse's `.classpath` and VS Cod
 record; and jars kept in a `lib`, `libs` or `jars` folder. Each is looked for among what Maven and Gradle have already
 downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
 named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
-errors javac gives because of it are not reported as mistakes in the code. A package a letter or two from Java's own or
-the program's, such as `java.utils`, is a typing mistake, and still is one.
+errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would
+have written into the program's own classes, such as the getters Lombok adds to a class marked `@Data`, which cannot be
+judged until the library is there. A package a letter or two from Java's own or the program's, such as `java.utils`, is
+a typing mistake, and still is one; so is a one-word package that nothing imports, such as the `Sytem` javac reports for
+`Sytem.out.println`.
+
+**Annotation processors**, such as Lombok's and MapStruct's, are run as the build runs them: those a `pom.xml` gives
+maven-compiler-plugin in `annotationProcessorPaths`, or a Gradle build gives `annotationProcessor`, and only those; and when
+the build names none, any that the program's libraries hold, as javac did by default until JDK 23. A program that stops
+for want of a class, or of a database driver, while libraries its build names are not on this computer, is reported as
+possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
+to add to `pom.xml`, or the line to add to `build.gradle`.
 
 A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken

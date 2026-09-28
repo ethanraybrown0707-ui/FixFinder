@@ -114,6 +114,19 @@ public partial class FixFoundWindow : Window
             ? $"Result {examined.Position} of {examined.Total}."
             : "";
 
+        if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } addition, CommandGoesIn: { } buildFile })
+        {
+            ContentHeaderText.Text = $"WHAT TO ADD TO {buildFile.ToUpperInvariant()}";
+
+            _rows.Add(Note($"The code needs a library its {buildFile} does not name."));
+            _rows.Add(Note(""));
+            foreach (var line in addition.Split('\n')) _rows.Add(new DiffRow { Kind = DiffRowKind.Added, Text = $"  {line}" });
+            _rows.Add(Note(""));
+            _rows.Add(Note($"Copy it into {buildFile}. FixFinder does not change your files."));
+
+            return;
+        }
+
         if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } command })
         {
             ContentHeaderText.Text = "WHAT IT RUNS";

@@ -57,11 +57,13 @@ public static class ProgramCopy
 
     public static void Forget(string copy) => Originals.TryRemove(Path.GetFullPath(copy), out _);
 
-    /// <summary>Where a file in a copy of a program was copied from, or the file itself when it is in no copy.</summary>
+    /// <summary>Where a file or folder in a copy of a program was copied from, or the path itself when it is in no copy.</summary>
     public static string OriginalOf(string path)
     {
         foreach (var (copy, original) in Originals)
         {
+            if (string.Equals(path, copy, StringComparison.OrdinalIgnoreCase)) return original;
+
             if (path.StartsWith(copy + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 return Path.Combine(original, Path.GetRelativePath(copy, path));
         }

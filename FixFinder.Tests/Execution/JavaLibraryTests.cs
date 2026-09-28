@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using FixFinder.Core;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
@@ -97,6 +98,222 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         Run(jarTool, $"cf \"{jar}\" -C \"{classes}\" .");
 
         return File.Exists(jar) ? jar : null;
+    }
+
+    /// <summary>
+    /// Two real jars built with the JDK: one holding an annotation processor that, for a class marked @MakeGreeting, writes
+    /// gen.Greeting; and one holding only the annotation, as a library's annotations and its processor are often kept apart.
+    /// </summary>
+    private (string Processor, string Annotations)? ProcessorJars()
+    {
+        if (Toolchains.FindJavac() is not { } javac) return null;
+
+        var jarTool = Path.Combine(Path.GetDirectoryName(javac.Program)!, "jar.exe");
+        if (!File.Exists(jarTool)) return null;
+
+        var annotation = Write(@"processor-src\gen\MakeGreeting.java", "package gen;\n\npublic @interface MakeGreeting {\n}\n");
+        var processor = Write(@"processor-src\gen\GreetingProcessor.java", """
+            package gen;
+
+            import java.io.IOException;
+            import java.io.Writer;
+            import java.util.Set;
+            import javax.annotation.processing.AbstractProcessor;
+            import javax.annotation.processing.RoundEnvironment;
+            import javax.annotation.processing.SupportedAnnotationTypes;
+            import javax.lang.model.SourceVersion;
+            import javax.lang.model.element.TypeElement;
+
+            @SupportedAnnotationTypes("gen.MakeGreeting")
+            public class GreetingProcessor extends AbstractProcessor {
+                private boolean written;
+
+                @Override
+                public SourceVersion getSupportedSourceVersion() {
+                    return SourceVersion.latestSupported();
+                }
+
+                @Override
+                public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
+                    if (written || annotations.isEmpty()) {
+                        return false;
+                    }
+                    written = true;
+                    try (Writer out = processingEnv.getFiler().createSourceFile("gen.Greeting").openWriter()) {
+                        out.write("package gen;\n\npublic final class Greeting {\n    public static String hello() {\n        return \"Hello from a processor\";\n    }\n}\n");
+                    } catch (IOException problem) {
+                        throw new IllegalStateException(problem);
+                    }
+                    return true;
+                }
+            }
+            """);
+
+        var classes = Folder("processor-classes");
+        Run(javac.Program, $"-d \"{classes}\" \"{annotation}\" \"{processor}\"");
+        Directory.CreateDirectory(Path.Combine(classes, "META-INF", "services"));
+        File.WriteAllText(Path.Combine(classes, "META-INF", "services", "javax.annotation.processing.Processor"), "gen.GreetingProcessor\n");
+
+        var processorJar = Path.Combine(_temp.Path, "greeting-processor.jar");
+        var annotationsJar = Path.Combine(_temp.Path, "greeting-annotations.jar");
+        Run(jarTool, $"cf \"{processorJar}\" -C \"{classes}\" .");
+        Run(jarTool, $"cf \"{annotationsJar}\" -C \"{classes}\" gen/MakeGreeting.class");
+
+        return File.Exists(processorJar) && File.Exists(annotationsJar) ? (processorJar, annotationsJar) : null;
+    }
+
+    private const string UsesAGeneratedGreeting = """
+        package app;
+
+        import gen.MakeGreeting;
+
+        @MakeGreeting
+        public class App {
+            public static void main(String[] args) {
+                System.out.println(gen.Greeting.hello());
+            }
+        }
+        """;
+
+    [Fact]
+    public async Task AnAnnotationProcessorAmongTheLibrariesWritesItsCodeWhenTheProgramIsBuilt()
+    {
+        if (ProcessorJars() is not { } jars) return;
+
+        Directory.CreateDirectory(Folder(@"generated\lib"));
+        File.Copy(jars.Processor, Path.Combine(Folder(@"generated\lib"), "greeting-processor.jar"));
+        var app = Write(@"generated\app\App.java", UsesAGeneratedGreeting);
+
+        var launch = TargetFactory.FromFile(app);
+        Assert.Contains("-processorpath", launch.Compile!.Arguments, StringComparison.Ordinal);
+        Assert.Contains("-processorpath", FixFinder.Core.LocalFixes.CompileCheck.JavacArguments(app, app, Folder("fix-check")));
+
+        var report = await CheckAsync(app, "Hello from a processor");
+
+        Assert.DoesNotContain(report.Findings, finding => finding.Severity == Severity.Error);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+    }
+
+    [Fact]
+    public void ALibraryWithoutAProcessorLeavesProcessingOff()
+    {
+        Directory.CreateDirectory(Folder(@"plain\lib"));
+        File.WriteAllBytes(Path.Combine(Folder(@"plain\lib"), "empty.jar"), []);
+        var app = Write(@"plain\app\App.java", "package app;\n\npublic class App {\n    public static void main(String[] args) {\n    }\n}\n");
+
+        var arguments = FixFinder.Core.LocalFixes.CompileCheck.JavacArguments(app, app, Folder("fix-check"));
+
+        Assert.Contains("-proc:none", arguments);
+        Assert.DoesNotContain("-processorpath", arguments);
+    }
+
+    [Fact]
+    public async Task AProcessorAPomNamesInAnnotationProcessorPathsIsRunAndNoneFromTheLibraries()
+    {
+        if (ProcessorJars() is not { } jars) return;
+
+        var repository = Folder("repository");
+        Publish(repository, "gen", "greeting-annotations", "1.0", jar: jars.Annotations);
+        var named = Publish(repository, "gen", "greeting-processor", "1.0", jar: jars.Processor);
+        var unnamed = Publish(repository, "gen", "other-processor", "1.0", jar: jars.Processor);
+
+        // The path gives no version of its own: maven-compiler-plugin takes the one dependencyManagement sets.
+        Write(@"named\pom.xml", Pom("uni", "coursework", "1.0", Dependency("gen", "greeting-annotations", "1.0") + Dependency("gen", "other-processor", "1.0"), extra: """
+            <dependencyManagement><dependencies>
+              <dependency><groupId>gen</groupId><artifactId>greeting-processor</artifactId><version>1.0</version></dependency>
+            </dependencies></dependencyManagement>
+            <build><plugins><plugin>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <configuration><annotationProcessorPaths>
+                <path><groupId>gen</groupId><artifactId>greeting-processor</artifactId></path>
+              </annotationProcessorPaths></configuration>
+            </plugin></plugins></build>
+            """));
+        var app = Write(@"named\src\main\java\app\App.java", UsesAGeneratedGreeting);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new MavenRepository(repository)]));
+
+        var libraries = JavaLibraries.For(app);
+        Assert.Equal([Path.GetFullPath(named)], libraries.ProcessorPath.Select(Path.GetFullPath).ToArray(), StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(Path.GetFullPath(unnamed), libraries.ClassPath.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+
+        var report = await CheckAsync(app, "Hello from a processor");
+
+        Assert.DoesNotContain(report.Findings, finding => finding.Severity == Severity.Error);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+    }
+
+    [Fact]
+    public void ProcessorPathsAreInheritedFromAParentPomAndAddedToOnlyWhenTheChildSaysSo()
+    {
+        var repository = Folder("repository");
+        var fromParent = Publish(repository, "gen", "parent-processor", "2.0");
+        var fromChild = Publish(repository, "gen", "child-processor", "1.0", Dependency("gen", "processor-helper", "1.0"));
+        var helper = Publish(repository, "gen", "processor-helper", "1.0");
+
+        Write(@"family\pom.xml", """
+            <project>
+              <groupId>uni</groupId><artifactId>family</artifactId><version>1</version><packaging>pom</packaging>
+              <build><pluginManagement><plugins><plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration><annotationProcessorPaths>
+                  <path><groupId>gen</groupId><artifactId>parent-processor</artifactId><version>${processor.version}</version></path>
+                </annotationProcessorPaths></configuration>
+              </plugin></plugins></pluginManagement></build>
+            </project>
+            """);
+
+        string Child(string name, string paths) => Write($@"family\{name}\pom.xml", $"""
+            <project>
+              <parent><groupId>uni</groupId><artifactId>family</artifactId><version>1</version></parent>
+              <artifactId>{name}</artifactId>
+              <properties><processor.version>2.0</processor.version></properties>
+              <build><plugins><plugin><artifactId>maven-compiler-plugin</artifactId><configuration>{paths}</configuration></plugin></plugins></build>
+            </project>
+            """);
+
+        const string childPath = "<path><groupId>gen</groupId><artifactId>child-processor</artifactId><version>1.0</version></path>";
+        var inherits = Child("inherits", "");
+        var adds = Child("adds", $"""<annotationProcessorPaths combine.children="append">{childPath}</annotationProcessorPaths>""");
+        var replaces = Child("replaces", $"<annotationProcessorPaths>{childPath}</annotationProcessorPaths>");
+        var namesNone = Write(@"alone\pom.xml", Pom("uni", "alone", "1.0"));
+
+        var resolver = new MavenResolver(new LibraryStores([new MavenRepository(repository)]));
+        string[] Jars(string pom) => resolver.ProcessorsOf(pom)!.Main.Select(Path.GetFullPath).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        string[] Expected(params string[] jars) => jars.Select(Path.GetFullPath).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        Assert.Equal(Expected(fromParent), Jars(inherits), StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(Expected(fromParent, fromChild, helper), Jars(adds), StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(Expected(fromChild, helper), Jars(replaces), StringComparer.OrdinalIgnoreCase);
+        Assert.Null(resolver.ProcessorsOf(namesNone));
+    }
+
+    [Fact]
+    public async Task AProcessorAGradleBuildGivesAnnotationProcessorIsRun()
+    {
+        if (ProcessorJars() is not { } jars) return;
+
+        var cache = Folder("gradle-cache");
+        foreach (var (artifact, jar) in new[] { ("greeting-annotations", jars.Annotations), ("greeting-processor", jars.Processor) })
+        {
+            var folder = Path.Combine(cache, "gen", artifact, "1.0", "0123abcd");
+            Directory.CreateDirectory(folder);
+            File.Copy(jar, Path.Combine(folder, $"{artifact}-1.0.jar"));
+        }
+
+        Write(@"gradle\build.gradle", "plugins { id 'application' }\n\ndependencies {\n    compileOnly 'gen:greeting-annotations:1.0'\n    annotationProcessor 'gen:greeting-processor:1.0'\n}\n");
+        var app = Write(@"gradle\src\main\java\app\App.java", UsesAGeneratedGreeting);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new GradleCache(cache)]));
+
+        var libraries = JavaLibraries.For(app);
+        Assert.Equal(["greeting-processor-1.0.jar"], libraries.ProcessorPath.Select(Path.GetFileName).ToArray());
+        Assert.DoesNotContain(libraries.ClassPath, jar => Path.GetFileName(jar) == "greeting-processor-1.0.jar");
+
+        var report = await CheckAsync(app, "Hello from a processor");
+
+        Assert.DoesNotContain(report.Findings, finding => finding.Severity == Severity.Error);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
     }
 
     private static void Run(string program, string arguments)
@@ -493,5 +710,202 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
 
         Assert.DoesNotContain(report.Notes, note => note.Contains("not part of Java or of this program", StringComparison.Ordinal));
         Assert.Contains(report.Findings, finding => finding.Kind == FindingKind.Syntax && finding.Title.Contains("uni.dss", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AMistypedSystemIsAMistakeNotAMissingLibrary()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        // javac takes Sytem.out and system.out for a class "out" in packages named Sytem and system.
+        var app = Write(@"typos\Typos.java", """
+            public class Typos {
+                public static void main(String[] args) {
+                    Sytem.out.println("a");
+                    system.out.println("b");
+                }
+            }
+            """);
+
+        var report = await CheckAsync(app);
+
+        Assert.DoesNotContain(report.Notes, note => note.Contains("not part of Java or of this program", StringComparison.Ordinal));
+        Assert.Equal(2, report.Findings.Count(finding => finding.Kind == FindingKind.Syntax && finding.Severity == Severity.Error));
+    }
+
+    [Theory]
+    [InlineData("Class.forName(\"com.mysql.cj.jdbc.Driver\");", "a class it needed could not be found - com.mysql.cj.jdbc.Driver")]
+    [InlineData("java.sql.DriverManager.getConnection(\"jdbc:mysql://localhost:3306/shop\");", "No suitable driver found for jdbc:mysql://localhost:3306/shop")]
+    public async Task WhatARunCouldNotFindWhileTheBuildsLibrariesAreMissingIsOnlyPossiblyAMistake(string statement, string stoppedBecause)
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        Write(@"undownloaded\pom.xml", Pom("uni", "coursework", "1.0", Dependency("com.mysql", "mysql-connector-j", "8.3.0", scope: "runtime")));
+        var app = Write(@"undownloaded\src\main\java\app\App.java", $$"""
+            package app;
+
+            public class App {
+                public static void main(String[] args) throws Exception {
+                    {{statement}}
+                    System.out.println("connected");
+                }
+            }
+            """);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new MavenRepository(Folder("empty-repository"))]));
+        var report = await CheckAsync(app);
+
+        var finding = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal(Severity.Warning, finding.Severity);
+        Assert.Equal(Confidence.Possible, finding.Confidence);
+        Assert.StartsWith("com.mysql:mysql-connector-j:8.3.0 is named in pom.xml but not on this computer, so the program ran without it.", finding.Explanation, StringComparison.Ordinal);
+        Assert.Contains(stoppedBecause, finding.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AClassFromALibraryTheBuildDoesNotNameIsOfferedAsAnAdditionToItsPom()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        Write(@"unnamed\pom.xml", Pom("uni", "coursework", "1.0"));
+        var app = Write(@"unnamed\src\main\java\app\App.java", """
+            package app;
+
+            public class App {
+                public static void main(String[] args) throws Exception {
+                    Class.forName("org.apache.commons.lang3.StringUtils");
+                }
+            }
+            """);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new MavenRepository(Folder("empty-repository"))]));
+        using var http = new FixFinderHttpClient();
+        var outcome = await new FixFinderSession(http, new FixSourceRegistry()) { SearchOnline = false }
+            .RunAsync(TargetFactory.FromFile(app), new SearchBudget(Cache: CacheMode.CacheOnly));
+
+        Assert.Equal("It needs a library its pom.xml does not name.", outcome.Headline);
+        Assert.Contains("the block to add to pom.xml", outcome.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("terminal", outcome.Detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>Lombok itself, which CI fetches from Maven Central; null elsewhere, where the test that needs it returns early.</summary>
+    private static string? LombokJar() =>
+        Environment.GetEnvironmentVariable("FIXFINDER_LOMBOK_JAR") is { Length: > 0 } jar && File.Exists(jar) ? jar : null;
+
+    [Fact]
+    public async Task AProgramUsingLombokIsBuiltWithItAndWhatItAddsIsNotTakenForMistakes()
+    {
+        if (Toolchains.FindJavac() is null || LombokJar() is not { } lombok) return;
+
+        Directory.CreateDirectory(Folder(@"lombok-project\lib"));
+        File.Copy(lombok, Path.Combine(Folder(@"lombok-project\lib"), Path.GetFileName(lombok)));
+
+        Write(@"lombok-project\src\app\Person.java", """
+            package app;
+
+            import lombok.AllArgsConstructor;
+            import lombok.Builder;
+            import lombok.Data;
+
+            @Data
+            @Builder
+            @AllArgsConstructor
+            public class Person {
+                private String name;
+                private int age;
+            }
+            """);
+        var app = Write(@"lombok-project\src\app\App.java", """
+            package app;
+
+            import java.util.ArrayList;
+            import java.util.List;
+
+            public class App {
+                public static void main(String[] args) {
+                    List<Person> people = new ArrayList<>();
+                    people.add(new Person("Sam", 20));
+                    people.add(Person.builder().name("Alex").age(31).build());
+
+                    int total = 0;
+                    for (Person person : people) {
+                        person.setAge(person.getAge() + 1);
+                        total += person.getAge();
+                        System.out.println(person.getName() + " " + person.getAge());
+                    }
+
+                    System.out.println("total " + total);
+                    System.out.println(people.get(0).equals(new Person("Sam", 21)));
+                }
+            }
+            """);
+
+        var report = await CheckAsync(app, "Sam 21\nAlex 32\ntotal 53\ntrue");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+    }
+
+    [Fact]
+    public async Task UsesOfWhatAMissingLombokWouldAddAreNotMistakesButMistakesBesideThemStillAre()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        Write(@"annotated\src\app\Person.java", """
+            package app;
+
+            import lombok.AllArgsConstructor;
+            import lombok.Builder;
+            import lombok.Data;
+
+            @Data
+            @Builder
+            @AllArgsConstructor
+            public class Person {
+                private String name;
+                private int age;
+                private Strng nickname;
+            }
+            """);
+        Write(@"annotated\src\app\Helper.java", """
+            package app;
+
+            public class Helper {
+                public static int twice(int value) {
+                    return value * 2;
+                }
+            }
+            """);
+        var app = Write(@"annotated\src\app\App.java", """
+            package app;
+
+            import lombok.extern.slf4j.Slf4j;
+
+            @Slf4j
+            public class App {
+                public static void main(String[] args) {
+                    Person person = new Person("Sam", 20);
+                    System.out.println(person.getName() + " " + person.getAge());
+                    Person.PersonBuilder builder = Person.builder();
+                    log.info("done");
+                    System.out.println(Helper.twise(2));
+                    System.out.println(total);
+                }
+            }
+            """);
+
+        var report = await CheckAsync(app);
+
+        var note = Assert.Single(report.Notes, note => note.Contains("not part of Java or of this program", StringComparison.Ordinal));
+        Assert.Contains("they come from a library - Lombok", note, StringComparison.Ordinal);
+        Assert.Contains("6 of them use what that library would add to Person and App", note, StringComparison.Ordinal);
+
+        // A mistyped method on a class nothing marks, a variable no library adds, and a mistyped class inside a marked one
+        // are still mistakes in the code.
+        var mistakes = report.Findings.Where(finding => finding.Kind == FindingKind.Syntax && finding.Severity == Severity.Error).ToList();
+        Assert.Equal(3, mistakes.Count);
+        Assert.Contains(mistakes, finding => $"{finding.Title} {finding.Explanation}".Contains("twise", StringComparison.Ordinal));
+        Assert.Contains(mistakes, finding => $"{finding.Title} {finding.Explanation}".Contains("total", StringComparison.Ordinal));
+        Assert.Contains(mistakes, finding => $"{finding.Title} {finding.Explanation}".Contains("Strng", StringComparison.Ordinal));
     }
 }

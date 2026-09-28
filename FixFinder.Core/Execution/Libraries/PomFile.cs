@@ -33,6 +33,15 @@ public sealed record PomFile(
     IReadOnlyList<DeclaredDependency> Managed,
     IReadOnlyList<string> Modules)
 {
+    /// <summary>
+    /// The annotationProcessorPaths this pom.xml gives maven-compiler-plugin - the only place javac then looks for
+    /// annotation processors - or null when it gives none, and javac looks among the project's libraries instead.
+    /// </summary>
+    public IReadOnlyList<DeclaredDependency>? ProcessorPaths { get; init; }
+
+    /// <summary>Whether those paths are added to the ones a parent gives, as combine.children="append" asks, not put in their place.</summary>
+    public bool ProcessorPathsAdded { get; init; }
+
     /// <summary>The pom.xml at this path, or null when it cannot be read as one.</summary>
     public static PomFile? Read(string path)
     {
@@ -59,6 +68,8 @@ public sealed record PomFile(
             .GroupBy(property => property.Name.LocalName, StringComparer.Ordinal)
             .ToDictionary(named => named.Key, named => named.Last().Value.Trim(), StringComparer.Ordinal) ?? [];
 
+        var (processorPaths, processorPathsAdded) = ProcessorPathsIn(Child(project, "build"));
+
         return new PomFile(
             Text(project, "groupId"),
             Text(project, "artifactId"),
@@ -67,15 +78,42 @@ public sealed record PomFile(
             properties,
             DependenciesIn(Child(project, "dependencies")),
             DependenciesIn(Child(Child(project, "dependencyManagement"), "dependencies")),
-            Child(project, "modules")?.Elements().Where(module => module.Name.LocalName == "module").Select(module => module.Value.Trim()).ToList() ?? []);
+            Child(project, "modules")?.Elements().Where(module => module.Name.LocalName == "module").Select(module => module.Value.Trim()).ToList() ?? [])
+        {
+            ProcessorPaths = processorPaths,
+            ProcessorPathsAdded = processorPathsAdded,
+        };
     }
 
-    private static List<DeclaredDependency> DependenciesIn(XElement? dependencies)
+    /// <summary>
+    /// The annotationProcessorPaths maven-compiler-plugin is set up with - on the plugin as the build uses it, else as
+    /// pluginManagement sets it up, else on one of its executions - and whether they add to a parent's.
+    /// </summary>
+    private static (IReadOnlyList<DeclaredDependency>? Paths, bool Added) ProcessorPathsIn(XElement? build)
+    {
+        var compilerPlugins = new[] { Child(build, "plugins"), Child(Child(build, "pluginManagement"), "plugins") }
+            .SelectMany(plugins => plugins?.Elements() ?? [])
+            .Where(plugin => plugin.Name.LocalName == "plugin" && Text(plugin, "artifactId") == "maven-compiler-plugin");
+
+        foreach (var plugin in compilerPlugins)
+        {
+            var settings = new[] { Child(plugin, "configuration") }
+                .Concat(Child(plugin, "executions")?.Elements().Select(execution => Child(execution, "configuration")) ?? []);
+
+            if (settings.Select(setting => Child(setting, "annotationProcessorPaths")).FirstOrDefault(paths => paths is not null) is { } named)
+                return (DependenciesIn(named, "path"), named.Attribute("combine.children")?.Value == "append");
+        }
+
+        return (null, false);
+    }
+
+    /// <summary>Each library listed in this element, one to a child named <paramref name="entry"/> - a dependency, or a processor's path.</summary>
+    private static List<DeclaredDependency> DependenciesIn(XElement? dependencies, string entry = "dependency")
     {
         var declared = new List<DeclaredDependency>();
         if (dependencies is null) return declared;
 
-        foreach (var dependency in dependencies.Elements().Where(element => element.Name.LocalName == "dependency"))
+        foreach (var dependency in dependencies.Elements().Where(element => element.Name.LocalName == entry))
         {
             if (Text(dependency, "groupId") is not { } group || Text(dependency, "artifactId") is not { } artifact) continue;
 

@@ -6,8 +6,8 @@ namespace FixFinder.Core.Execution.Libraries;
 /// <summary>
 /// What a Gradle build file declares that the program needs, read from the forms a course project's build file is written
 /// in: implementation 'group:artifact:version' and testImplementation("..."), the group:/name:/version: form, a platform()
-/// BOM, a version catalog's libs.name, and files() or fileTree() of jars beside it. Anything written another way is named
-/// as not read, rather than guessed at.
+/// BOM, a version catalog's libs.name, and files() or fileTree() of jars beside it - for the code, for its tests, and for
+/// annotationProcessor. Anything written another way is named as not read, rather than guessed at.
 /// </summary>
 /// <remarks>
 /// Gradle itself is not run: it downloads what it needs and takes time to start, and FixFinder neither downloads nor
@@ -16,11 +16,17 @@ namespace FixFinder.Core.Execution.Libraries;
 public static partial class GradleBuild
 {
     /// <summary>What a build file declares: libraries, the BOMs that set their versions, jar files, and lines not read.</summary>
+    /// <param name="Processors">What it gives annotationProcessor - the only place Gradle looks for annotation processors.</param>
+    /// <param name="ProcessorFiles">Jar files it gives annotationProcessor with files() or fileTree().</param>
+    /// <param name="NamesProcessors">Whether it gives annotationProcessor anything at all, read or not.</param>
     public sealed record Declared(
         IReadOnlyList<DeclaredDependency> Dependencies,
         IReadOnlyList<LibraryName> Platforms,
         IReadOnlyList<(string Jar, bool Test)> Files,
-        IReadOnlyList<string> NotRead);
+        IReadOnlyList<string> NotRead,
+        IReadOnlyList<DeclaredDependency> Processors,
+        IReadOnlyList<string> ProcessorFiles,
+        bool NamesProcessors);
 
     /// <summary>The configurations a program's own code and its tests are built and run with; others belong to the build.</summary>
     private static readonly Dictionary<string, bool> ConfigurationIsTest = new(StringComparer.Ordinal)
@@ -29,6 +35,9 @@ public static partial class GradleBuild
         ["compile"] = false, ["runtime"] = false, ["testImplementation"] = true, ["testCompileOnly"] = true,
         ["testRuntimeOnly"] = true, ["testCompile"] = true, ["testRuntime"] = true,
     };
+
+    /// <summary>The configurations that give javac its annotation processors - Lombok's, MapStruct's - for the code and its tests.</summary>
+    private static readonly HashSet<string> ProcessorConfigurations = new(StringComparer.Ordinal) { "annotationProcessor", "testAnnotationProcessor" };
 
     [GeneratedRegex(@"(?m)^\s*(?<configuration>[a-zA-Z]+)\s*(?:\(\s*)?(?<rest>.+?)\s*$")]
     private static partial Regex DeclarationLine();
@@ -71,6 +80,9 @@ public static partial class GradleBuild
         var platforms = new List<LibraryName>();
         var files = new List<(string, bool)>();
         var notRead = new List<string>();
+        var processors = new List<DeclaredDependency>();
+        var processorFiles = new List<string>();
+        var namesProcessors = false;
 
         if (SpringBootPlugin().Match(text) is { Success: true } boot)
             platforms.Add(new LibraryName("org.springframework.boot", "spring-boot-dependencies", boot.Groups["version"].Value));
@@ -79,8 +91,13 @@ public static partial class GradleBuild
         {
             foreach (Match line in DeclarationLine().Matches(block))
             {
-                if (!ConfigurationIsTest.TryGetValue(line.Groups["configuration"].Value, out var test)) continue;
+                var configuration = line.Groups["configuration"].Value;
+                var givesProcessors = ProcessorConfigurations.Contains(configuration);
+                var test = false;
+                if (!givesProcessors && !ConfigurationIsTest.TryGetValue(configuration, out test)) continue;
 
+                namesProcessors |= givesProcessors;
+                var libraries = givesProcessors ? processors : dependencies;
                 var rest = Fill(line.Groups["rest"].Value.Trim(), variables);
 
                 if (Platform().Match(rest) is { Success: true } platform)
@@ -91,17 +108,19 @@ public static partial class GradleBuild
                 }
                 else if (FileDependency().Match(rest) is { Success: true } local)
                 {
-                    files.AddRange(Jars(local.Groups["kind"].Value, local.Groups["arguments"].Value, folder).Select(jar => (jar, test)));
+                    var jars = Jars(local.Groups["kind"].Value, local.Groups["arguments"].Value, folder);
+                    if (givesProcessors) processorFiles.AddRange(jars);
+                    else files.AddRange(jars.Select(jar => (jar, test)));
                 }
                 else if (CatalogAlias().Match(rest) is { Success: true } alias && alias.Groups["alias"].Value.StartsWith("bundles.", StringComparison.Ordinal))
                 {
                     var bundle = catalog.Bundle(alias.Groups["alias"].Value["bundles.".Length..]);
                     if (bundle is null) notRead.Add(line.Value.Trim());
-                    else dependencies.AddRange(bundle.Select(library => library with { Scope = test ? "test" : null }));
+                    else libraries.AddRange(bundle.Select(library => library with { Scope = test ? "test" : null }));
                 }
                 else if (Library(rest, catalog) is { } library)
                 {
-                    dependencies.Add(library with { Scope = test ? "test" : null });
+                    libraries.Add(library with { Scope = test ? "test" : null });
                 }
                 else
                 {
@@ -110,7 +129,7 @@ public static partial class GradleBuild
             }
         }
 
-        return new Declared(dependencies, platforms, files, notRead);
+        return new Declared(dependencies, platforms, files, notRead, processors, processorFiles, namesProcessors);
     }
 
     /// <summary>One library, written as "group:artifact:version", as group:/name:/version:, or as a version catalog alias.</summary>

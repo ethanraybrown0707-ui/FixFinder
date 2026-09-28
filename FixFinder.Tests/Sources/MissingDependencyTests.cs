@@ -154,6 +154,30 @@ public class MissingDependencyTests
         Assert.Contains("<groupId>org.apache.commons</groupId>", fix!.Command!, StringComparison.Ordinal);
         Assert.Contains("<artifactId>commons-lang3</artifactId>", fix.Command!, StringComparison.Ordinal);
         Assert.Contains("pom.xml", fix.CommandDescription, StringComparison.Ordinal);
+
+        // It is text to put in the project's build, not a command to run.
+        Assert.Equal("pom.xml", fix.CommandGoesIn);
+        Assert.Equal("Add org.apache.commons:commons-lang3 to pom.xml, which provides org.apache.commons.lang3.StringUtils", fix.Title);
+    }
+
+    [Fact]
+    public void AJavaLibraryTheBuildAlreadyNamesIsNotOfferedAgain()
+    {
+        using var temp = new TempFolder();
+        File.WriteAllText(Path.Combine(temp.Path, "pom.xml"), """
+            <project>
+              <groupId>uni</groupId><artifactId>coursework</artifactId><version>1.0</version>
+              <dependencies>
+                <dependency><groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId><version>3.14.0</version></dependency>
+              </dependencies>
+            </project>
+            """);
+
+        // Named, but not downloaded: adding it again would change nothing.
+        using var stores = FixFinder.Core.Execution.Libraries.JavaLibraries.UsingStores(
+            new FixFinder.Core.Execution.Libraries.LibraryStores([new FixFinder.Core.Execution.Libraries.MavenRepository(Path.Combine(temp.Path, "empty-repository"))]));
+
+        Assert.Null(MissingDependency.For(Error("java", "org.apache.commons.lang3.StringUtils", "java.lang.ClassNotFoundException"), Spec(temp.Path)));
     }
 
     [Fact]

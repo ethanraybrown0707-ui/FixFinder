@@ -43,6 +43,24 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
         return Resolve(project.Dependencies, project.Managed);
     }
 
+    /// <summary>
+    /// The annotation processors the project's pom.xml, or a parent of it, gives maven-compiler-plugin in
+    /// annotationProcessorPaths, with what each needs, as files on this computer - or null when none are given, and javac
+    /// looks for processors among the project's own libraries. A path takes its own version, or the one the project manages
+    /// for it; what a processor needs besides is settled from the processor's own pom.xml alone, as the plugin settles it
+    /// unless it is told to use the project's.
+    /// </summary>
+    public ResolvedLibraries? ProcessorsOf(string pomPath)
+    {
+        if (PomFile.Read(pomPath) is not { } pom || Load(pom, pomPath, 0) is not { RawProcessorPaths: { Count: > 0 } paths } project) return null;
+
+        var versioned = paths.Select(path => Filled(path, project.Properties))
+            .Select(path => path with { Version = path.Version ?? project.Managed.GetValueOrDefault(path.Key)?.Version, Scope = "compile" })
+            .ToList();
+
+        return Walk(versioned, new Dictionary<string, DeclaredDependency>(StringComparer.Ordinal), forced: null).Libraries;
+    }
+
     /// <summary>The versions each of these BOMs sets, as one table - what a Gradle platform() brings in.</summary>
     public IReadOnlyDictionary<string, DeclaredDependency> ManagedBy(IEnumerable<LibraryName> boms)
     {
@@ -221,6 +239,9 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
             Dependencies = Merged(parent?.RawDependencies, pom.Dependencies).Select(dependency => Filled(dependency, properties)).ToList(),
             RawDependencies = Merged(parent?.RawDependencies, pom.Dependencies),
             RawManaged = Merged(parent?.RawManaged, pom.Managed),
+            RawProcessorPaths = pom.ProcessorPaths is not { } ownPaths ? parent?.RawProcessorPaths
+                : pom.ProcessorPathsAdded ? [.. parent?.RawProcessorPaths ?? [], .. ownPaths]
+                : ownPaths,
         };
 
         var filledManaged = effective.RawManaged.Select(entry => Filled(entry, properties)).ToList();
@@ -316,6 +337,9 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
         public required IReadOnlyList<DeclaredDependency> RawDependencies { get; init; }
 
         public required IReadOnlyList<DeclaredDependency> RawManaged { get; init; }
+
+        /// <summary>The annotationProcessorPaths it gives maven-compiler-plugin, its own or its parents', or null for none.</summary>
+        public IReadOnlyList<DeclaredDependency>? RawProcessorPaths { get; init; }
 
         public Dictionary<string, DeclaredDependency> Managed { get; } = new(StringComparer.Ordinal);
     }

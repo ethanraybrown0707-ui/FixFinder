@@ -190,10 +190,14 @@ public static class CompileCheck
         var libraries = JavaLibraries.For(originalFile);
         IEnumerable<string> classPath = libraries.ClassPath.Count > 0 ? ["-cp", string.Join(Path.PathSeparator, libraries.ClassPath)] : [];
 
+        // A processor the program's build names, or its libraries hold, writes code the program calls, so a copy is checked
+        // with it run; with none, processing stays off, as the program's own build has it.
+        IEnumerable<string> processing = libraries.ProcessorPath.Count > 0 ? ["-processorpath", string.Join(Path.PathSeparator, libraries.ProcessorPath)] : ["-proc:none"];
+
         return
         [
             .. JavaRelease(),
-            "-proc:none", CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. classPath,
+            .. processing, CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. classPath,
             "-sourcepath", string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(originalFile), .. libraries.OtherSourceRoots(originalFile)]), copy,
         ];
     }

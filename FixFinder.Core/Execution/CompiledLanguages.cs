@@ -273,10 +273,11 @@ public static partial class CompiledLanguages
         var sourcePath = string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(source), .. libraries.OtherSourceRoots(source)]);
         var libraryPath = classPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, classPath)}\"" : "";
         var launcherSource = launcher is null ? "" : $" \"{launcher}\"";
+        var processorPath = libraries.ProcessorPath.Count > 0 ? $" -processorpath \"{string.Join(Path.PathSeparator, libraries.ProcessorPath)}\"" : " -proc:none";
 
         var compile = Spec(
             javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath} -sourcepath \"{sourcePath}\" \"{source}\"{launcherSource}", output, "javac"),
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath}{processorPath} -sourcepath \"{sourcePath}\" \"{source}\"{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 

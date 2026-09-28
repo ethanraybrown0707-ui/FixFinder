@@ -678,11 +678,16 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             return new SessionOutcome
             {
                 Result = SessionResult.FoundFix,
-                Headline = "A package is missing, and FixFinder can install it.",
-                Detail =
-                    $"Nothing in your code is wrong - the interpreter that ran it does not have this " +
-                    $"package. Installing it changes no files:\n\n    {command}\n\n" +
-                    "Copy it and run it in a terminal - FixFinder does not run anything for you.",
+                Headline = best.CommandGoesIn is { } buildFile
+                    ? $"It needs a library its {buildFile} does not name."
+                    : "A package is missing, and FixFinder can install it.",
+                Detail = best.CommandGoesIn is not null
+                    ? $"The code needs a library the program does not have. This is {best.CommandDescription}:\n\n" +
+                      $"    {command.Replace("\n", "\n    ")}\n\n" +
+                      $"{(command.Contains("VERSION", StringComparison.Ordinal) ? "Put the current version in place of VERSION, and copy" : "Copy")} it in - FixFinder does not change your files."
+                    : $"Nothing in your code is wrong - the interpreter that ran it does not have this " +
+                      $"package. Installing it changes no files:\n\n    {command}\n\n" +
+                      "Copy it and run it in a terminal - FixFinder does not run anything for you.",
                 Spec = spec, Run = common.Run, Error = common.Error, Fingerprint = common.Fingerprint,
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest,

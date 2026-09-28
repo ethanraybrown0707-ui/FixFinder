@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -59,6 +60,14 @@ public sealed partial record JavaLibraries(
     /// <summary>Everything the program is compiled and run with: its own libraries and its tests' together.</summary>
     public IReadOnlyList<string> ClassPath => [.. Jars, .. TestJars];
 
+    /// <summary>
+    /// Where javac is to look for annotation processors - Lombok's, MapStruct's - which write code the program uses, such
+    /// as the getters Lombok makes: the processors the build names, with what they need, or, when it names none, the
+    /// program's libraries if one of them holds a processor. From JDK 23 javac runs no processor it is not told where to
+    /// find, so without this a program that calls a Lombok getter would not build.
+    /// </summary>
+    public IReadOnlyList<string> ProcessorPath { get; init; } = [];
+
     /// <summary>The source roots besides the one a file is in, where in a copy of the program they are in that copy.</summary>
     public IReadOnlyList<string> OtherSourceRoots(string file)
     {
@@ -71,12 +80,33 @@ public sealed partial record JavaLibraries(
     /// <summary>A few words for how a run explanation names the libraries: "3 libraries from pom.xml".</summary>
     public string? Described => ClassPath.Count == 0 || DeclaredIn is null ? null : $"{ClassPath.Count} librar{(ClassPath.Count == 1 ? "y" : "ies")} from {DeclaredIn}";
 
+    /// <summary>Whether the project names this library, whether or not it is on this computer.</summary>
+    public bool Names(string group, string artifact)
+    {
+        var coordinate = $"{group}:{artifact}";
+        if (Missing.Any(missing => missing.Name == coordinate || missing.Name.StartsWith(coordinate + ":", StringComparison.Ordinal))) return true;
+
+        return ClassPath.Select(Path.GetFileNameWithoutExtension).Any(jar =>
+            string.Equals(jar, artifact, StringComparison.OrdinalIgnoreCase) || jar!.StartsWith(artifact + "-", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>The libraries the program this Java file belongs to is built with; nothing at all for a file with no project.</summary>
     public static JavaLibraries For(string javaFile)
     {
         var original = ProgramCopy.OriginalOf(Path.GetFullPath(javaFile));
-        if (ProjectOf(ProgramLayout.JavaSourceRoot(original)) is not { } project) return None;
+        return ProjectOf(ProgramLayout.JavaSourceRoot(original)) is { } project ? OfProject(project) : None;
+    }
 
+    /// <summary>The libraries of the project a Java program ran in, from the folder it started in; nothing for a folder in no project.</summary>
+    public static JavaLibraries ForFolder(string folder)
+    {
+        var original = ProgramCopy.OriginalOf(Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar));
+        return ProjectOf(original) is { } project ? OfProject(project) : None;
+    }
+
+    /// <summary>The libraries of the project in this folder, read once and again only when its build or settings change.</summary>
+    private static JavaLibraries OfProject(string project)
+    {
         var stamp = StampOf(project);
         if (Found.TryGetValue(project, out var known) && known.Stamp == stamp) return known.Libraries;
 
@@ -117,15 +147,16 @@ public sealed partial record JavaLibraries(
         var pom = Path.Combine(project, "pom.xml");
         if (File.Exists(pom))
         {
-            var resolved = new MavenResolver(stores).Resolve(pom);
-            return Built(resolved, [], "pom.xml", project, StandardRoots(project));
+            var resolver = new MavenResolver(stores);
+            return Built(resolver.Resolve(pom), resolver.ProcessorsOf(pom), [], "pom.xml", project, StandardRoots(project));
         }
 
         if (BuildFiles.Skip(1).Select(name => Path.Combine(project, name)).FirstOrDefault(File.Exists) is { } gradleFile)
         {
             var declared = GradleBuild.Read(gradleFile);
             var resolver = new MavenResolver(stores, highestVersionWins: true);
-            var resolved = resolver.Resolve(declared.Dependencies, resolver.ManagedBy(declared.Platforms));
+            var managed = resolver.ManagedBy(declared.Platforms);
+            var resolved = resolver.Resolve(declared.Dependencies, managed);
 
             resolved = resolved with
             {
@@ -133,15 +164,51 @@ public sealed partial record JavaLibraries(
                 Test = [.. resolved.Test, .. declared.Files.Where(file => file.Test).Select(file => file.Jar)],
             };
 
-            return Built(resolved, declared.NotRead, Path.GetFileName(gradleFile), project, StandardRoots(project));
+            ResolvedLibraries? processors = null;
+            if (declared.NamesProcessors)
+            {
+                var named = resolver.Resolve(declared.Processors, managed);
+                processors = named with { Main = [.. named.Main, .. named.Test, .. declared.ProcessorFiles] };
+            }
+
+            return Built(resolved, processors, declared.NotRead, Path.GetFileName(gradleFile), project, StandardRoots(project));
         }
 
-        return Built(IdeLibraries.Read(project, mavenRepository), [], IdeLibraries.Describe(project), project, IdeRoots(project));
+        return Built(IdeLibraries.Read(project, mavenRepository), null, [], IdeLibraries.Describe(project), project, IdeRoots(project));
     }
 
-    private static JavaLibraries Built(ResolvedLibraries resolved, IReadOnlyList<string> notRead, string declaredIn, string project, (IReadOnlyList<string> Sources, IReadOnlyList<string> Resources) roots) =>
-        new(resolved.Main, resolved.Test.Where(jar => !resolved.Main.Contains(jar, StringComparer.OrdinalIgnoreCase)).ToList(),
-            roots.Sources, roots.Resources, resolved.Missing, notRead, declaredIn, project);
+    /// <param name="namedProcessors">The annotation processors the build names, or null when it names none.</param>
+    private static JavaLibraries Built(
+        ResolvedLibraries resolved, ResolvedLibraries? namedProcessors, IReadOnlyList<string> notRead, string declaredIn, string project,
+        (IReadOnlyList<string> Sources, IReadOnlyList<string> Resources) roots)
+    {
+        var missingProcessors = namedProcessors?.Missing.Where(processor => !resolved.Missing.Any(library => library.Name == processor.Name)) ?? [];
+
+        var libraries = new JavaLibraries(resolved.Main, resolved.Test.Where(jar => !resolved.Main.Contains(jar, StringComparer.OrdinalIgnoreCase)).ToList(),
+            roots.Sources, roots.Resources, [.. resolved.Missing, .. missingProcessors], notRead, declaredIn, project);
+
+        // A build that names its processors has javac look for them there and nowhere else. One that names none has javac
+        // look among its libraries, as javac did by default until JDK 23 - which is only worth doing when one holds a processor.
+        var processorPath = namedProcessors is not null ? namedProcessors.Main
+            : libraries.ClassPath.Any(HoldsAProcessor) ? libraries.ClassPath
+            : [];
+
+        return libraries with { ProcessorPath = processorPath };
+    }
+
+    /// <summary>Whether a jar says it holds an annotation processor, as javac finds one: by the service file naming it.</summary>
+    private static bool HoldsAProcessor(string jar)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(jar);
+            return archive.GetEntry("META-INF/services/javax.annotation.processing.Processor") is not null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Maven's and Gradle's layout: src\main\java and src\test\java, with their resources beside them.</summary>
     private static (IReadOnlyList<string>, IReadOnlyList<string>) StandardRoots(string project)
