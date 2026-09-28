@@ -255,8 +255,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex DeclaresMain();
 
-    [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.)")]
+    [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.|org\.springframework\.boot\.)")]
     private static partial Regex RunsUntilStoppedImport();
+
+    /// <summary>
+    /// The web server among a Java program's libraries - Tomcat, Jetty, Undertow or Netty, by the jar Spring Boot's web
+    /// starters bring - or null when there is none, and a Spring Boot application is one meant to finish.
+    /// </summary>
+    private static string? WebServerOf(string chosen) =>
+        JavaLibraries.For(chosen).ClassPath.Select(jar => Path.GetFileName(jar)).Select(jar => jar switch
+        {
+            _ when jar.StartsWith("tomcat-embed-core-", StringComparison.OrdinalIgnoreCase) => "Tomcat",
+            _ when jar.StartsWith("jetty-server-", StringComparison.OrdinalIgnoreCase) => "Jetty",
+            _ when jar.StartsWith("undertow-core-", StringComparison.OrdinalIgnoreCase) => "Undertow",
+            _ when jar.StartsWith("reactor-netty-http-", StringComparison.OrdinalIgnoreCase) => "Netty",
+            _ => null,
+        }).FirstOrDefault(server => server is not null);
 
     /// <summary>
     /// A program that runs until it is stopped rather than until it is done - one with a window, or a server: what it is,
@@ -273,13 +287,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     /// <summary>
     /// What a Java program is when it runs until it is stopped - a window program written with JavaFX or Swing, or a server
-    /// on a ServerSocket or Java's HttpServer - from what the file it starts from imports, or a file whose class that file
-    /// names; or null for a program meant to finish. Only those files count: a folder of exercises can hold a window
-    /// program beside one that never ends for want of a loop that stops.
+    /// on a ServerSocket, Java's HttpServer or Spring Boot with a web server - from what the file it starts from imports,
+    /// or a file whose class that file names; or null for a program meant to finish. Only those files count: a folder of
+    /// exercises can hold a window program beside one that never ends for want of a loop that stops.
     /// </summary>
     private static RunsUntilStopped? RunsUntilStoppedOf(string chosen)
     {
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || ReadOrNull(chosen) is not { } starting) return null;
+
+        var webServer = new Lazy<string?>(() => WebServerOf(chosen));
 
         var named = ProgramFiles.Of(chosen)
             .Where(file => !string.Equals(file, Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase))
@@ -300,6 +316,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     case "java.net.ServerSocket":
                     case "java.net.*" when text.Contains("new ServerSocket(", StringComparison.Ordinal):
                         return RunsUntilStopped.Server("a ServerSocket");
+                    case "org.springframework.boot." when webServer.Value is { } server:
+                        return RunsUntilStopped.Server($"Spring Boot and {server}");
                 }
             }
         }

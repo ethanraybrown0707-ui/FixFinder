@@ -1081,6 +1081,75 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         Assert.Equal("It builds, and it was still running when its time ran out, as a server does", report.SyntaxSummary);
     }
 
+    /// <summary>A jar built with the JDK from these sources, or null when there is no JDK here.</summary>
+    private string? JarFrom(string jar, params string[] sources)
+    {
+        if (Toolchains.FindJavac() is not { } javac) return null;
+
+        var jarTool = Path.Combine(Path.GetDirectoryName(javac.Program)!, "jar.exe");
+        if (!File.Exists(jarTool)) return null;
+
+        var classes = Folder(Path.GetFileNameWithoutExtension(jar) + "-classes");
+        Run(javac.Program, $"-d \"{classes}\" {string.Join(" ", sources.Select(source => $"\"{source}\""))}");
+        Directory.CreateDirectory(Path.GetDirectoryName(jar)!);
+        Run(jarTool, $"cf \"{jar}\" -C \"{classes}\" .");
+
+        return File.Exists(jar) ? jar : null;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ASpringBootApplicationIsAServerOnlyWithAWebServerAmongItsLibraries(bool withWebServer)
+    {
+        var project = withWebServer ? "boot-web" : "boot-plain";
+
+        // Stand-ins, by the names of the jars Spring Boot and its Tomcat starter bring: a SpringApplication.run that, like a
+        // started server, prints and then waits.
+        var springBoot = JarFrom(Path.Combine(Folder(project), "lib", "spring-boot-3.2.0.jar"), Write($@"{project}-stand-ins\org\springframework\boot\SpringApplication.java", """
+            package org.springframework.boot;
+
+            public final class SpringApplication {
+                private SpringApplication() {
+                }
+
+                public static Object run(Class<?> source, String... args) throws InterruptedException {
+                    System.out.println("Started " + source.getSimpleName());
+                    Thread.sleep(Long.MAX_VALUE);
+                    return null;
+                }
+            }
+            """));
+        if (springBoot is null) return;
+
+        if (withWebServer)
+            JarFrom(Path.Combine(Folder(project), "lib", "tomcat-embed-core-10.1.16.jar"), Write($@"{project}-stand-ins\tomcat\Marker.java", "package tomcat;\n\npublic class Marker {\n}\n"));
+
+        var app = Write($@"{project}\src\app\App.java", """
+            package app;
+
+            import org.springframework.boot.SpringApplication;
+
+            public class App {
+                public static void main(String[] args) throws Exception {
+                    SpringApplication.run(App.class, args);
+                }
+            }
+            """);
+
+        var report = await CheckAsync(app, timeLimit: TimeSpan.FromSeconds(5));
+
+        if (withWebServer)
+        {
+            Assert.Empty(report.Findings);
+            Assert.Contains(report.Notes, note => note.StartsWith("App.java is a server - it waits for connections with Spring Boot and Tomcat", StringComparison.Ordinal));
+        }
+        else
+        {
+            Assert.Contains(report.Findings, finding => finding.RuleId == "timed-out");
+        }
+    }
+
     [Fact]
     public async Task AConsoleProgramBesideAWindowProgramThatNeverFinishesIsStillWarnedAbout()
     {

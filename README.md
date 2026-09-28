@@ -37,7 +37,8 @@ headers beside them. A Java folder of exercises, each with its own `main`, holds
 code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
 
 A program with a window - one written with JavaFX or Swing, in the file chosen or one it names - runs until its window is
-closed, and a server on a `ServerSocket` or Java's `HttpServer` runs until it is stopped, so either still running when its
+closed, and a server - on a `ServerSocket` or Java's `HttpServer`, or a Spring Boot application with a web server such as
+Tomcat among its libraries - runs until it is stopped, so either still running when its
 time runs out is said in a note, not reported as a program that never finishes; what it does when someone uses the window,
 or something connects, is not checked.
 
