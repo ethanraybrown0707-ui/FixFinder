@@ -33,7 +33,7 @@ public sealed class LogicRepair
 
         Progress?.Invoke("Checking every run against the output you expected...");
 
-        var root = ProgramRoot(chosenFile);
+        var root = ProgramCopy.RootOf(chosenFile);
         var baseline = await EvaluateAsync(chosenFile, expected, runTimeout, stopAtFirstWrong: false, cancellationToken);
         if (baseline is null) return null;
 
@@ -222,9 +222,7 @@ public sealed class LogicRepair
                 result = await runner.RunAsync(spec, cancellationToken);
             }
 
-            var mismatch = result.Outcome is RunOutcome.ExitedClean or RunOutcome.ExitedNonZero
-                ? OutputComparison.Compare(OutputComparison.Printed(result), run.ExpectedOutput)
-                : new OutputMismatch(1, null, $"({result.Explanation})", 0, 0);
+            var mismatch = OutputComparison.Compare(OutputComparison.Printed(result), run.ExpectedOutput, OutputComparison.EndingOf(result.Outcome));
 
             results[i] = new RunVerdict(mismatch, result.Duration, result.Outcome);
             if (mismatch is not null && stopAtFirstWrong) return new Evaluation(plan.Spec, results.Where(r => r is not null).ToList()!);
@@ -253,68 +251,19 @@ public sealed class LogicRepair
         }
     }
 
-    private static string ProgramRoot(string file)
-    {
-        var extension = Path.GetExtension(file).ToLowerInvariant();
-
-        return extension switch
-        {
-            ".java" => ProgramLayout.JavaSourceRoot(file),
-            ".cs" when ProgramLayout.CSharpProject(file) is { } project => Path.GetDirectoryName(project)!,
-            ".go" when ProgramLayout.GoPackageOf(file).Module is { } module => module,
-            ".py" when ProgramLayout.PythonModule(file) is { } module => module.Folder,
-            _ => Path.GetDirectoryName(file)!,
-        };
-    }
-
     /// <summary>A private copy of the program, where one change at a time is made, built and run.</summary>
     private sealed class Workspace(string root, string chosen) : IDisposable
     {
-        private static readonly HashSet<string> NotCopied = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "bin", "obj", ".git", ".vs", ".idea", "node_modules", "__pycache__", ".venv", "venv", "target", "build", "out",
-        };
-
-        private const int MostFiles = 300;
-        private const long MostBytes = 50 * 1024 * 1024;
-
         public string Folder { get; } = Path.Combine(Path.GetTempPath(), "FixFinder-logic", Guid.NewGuid().ToString("N")[..12]);
 
         public string File => Path.Combine(Folder, Path.GetRelativePath(root, chosen));
 
-        public bool Create()
-        {
-            var files = new List<string>();
-            var pending = new Stack<string>([root]);
-            long bytes = 0;
-
-            while (pending.Count > 0)
-            {
-                var directory = pending.Pop();
-
-                foreach (var sub in Directory.EnumerateDirectories(directory))
-                    if (!NotCopied.Contains(Path.GetFileName(sub))) pending.Push(sub);
-
-                foreach (var file in Directory.EnumerateFiles(directory))
-                {
-                    files.Add(file);
-                    bytes += new FileInfo(file).Length;
-                    if (files.Count > MostFiles || bytes > MostBytes) return false;
-                }
-            }
-
-            foreach (var file in files)
-            {
-                var target = Path.Combine(Folder, Path.GetRelativePath(root, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                System.IO.File.Copy(file, target, overwrite: true);
-            }
-
-            return true;
-        }
+        public bool Create() => ProgramCopy.TryCopyWhole(root, Folder);
 
         public void Dispose()
         {
+            ProgramCopy.Forget(Folder);
+
             try
             {
                 var build = CompiledLanguages.Handles(Path.GetExtension(File)) ? CompiledLanguages.OutputDirectory(File) : null;

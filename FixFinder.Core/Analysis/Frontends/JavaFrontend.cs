@@ -103,7 +103,7 @@ public static class JavaFrontend
             classes.AddRange(unitClasses);
         }
 
-        return new IrProgram(SourceLanguage.Java, files, classes, functions, problems);
+        return ProgramStops.Lower(new IrProgram(SourceLanguage.Java, files, classes, functions, problems));
     }
 
     private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Java, files, [], [], [problem]);

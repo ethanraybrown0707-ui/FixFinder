@@ -45,6 +45,6 @@ public static class JavaScriptFrontend
             classes.AddRange(types);
         }
 
-        return new IrProgram(SourceLanguage.JavaScript, files, classes, functions, problems);
+        return ProgramStops.Lower(new IrProgram(SourceLanguage.JavaScript, files, classes, functions, problems));
     }
 }

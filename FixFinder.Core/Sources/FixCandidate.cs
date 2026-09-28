@@ -73,6 +73,9 @@ public sealed class FixCandidate
 
     public string CommandDescription { get; init; } = "the command that installs it";
 
+    /// <summary>The file the command's text is added to - pom.xml, build.gradle - when it changes the project's build rather than being run.</summary>
+    public string? CommandGoesIn { get; init; }
+
     public LocalFixes.LocalFix? LocalFix { get; init; }
 
     public string? CheckedBy { get; init; }

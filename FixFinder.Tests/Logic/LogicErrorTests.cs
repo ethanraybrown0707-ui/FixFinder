@@ -39,6 +39,20 @@ public class LogicErrorTests : IDisposable
         Assert.Equal(difference, mismatch?.Describe());
     }
 
+    [Theory]
+    [InlineData("", "Highest: 91\n", RunEnding.StoppedWithAnError, "it stopped with an error after printing 0 lines, where line 1 should have been \"Highest: 91\"")]
+    [InlineData("1\n2\n", "1\n2\n", RunEnding.StoppedWithAnError, "it printed everything expected, but it stopped with an error")]
+    [InlineData("1\nx\n", "1\n2\n", RunEnding.StoppedWithAnError, "line 2 was \"x\" where \"2\" was expected, and then it stopped with an error")]
+    [InlineData("1\n", "1\n2\n", RunEnding.StillRunningWhenTimeRanOut, "it had printed 1 line when the time ran out, where line 2 should have been \"2\"")]
+    [InlineData("", "1\n", RunEnding.NotStarted, "it could not be started")]
+    public void ARunThatDidNotFinishIsComparedAsFarAsItGotAndSaysHowItEnded(string printed, string expected, RunEnding ending, string difference)
+    {
+        var mismatch = OutputComparison.Compare(OutputComparison.Normalise(printed), expected, ending);
+
+        Assert.NotNull(mismatch);
+        Assert.Equal(difference, mismatch.Describe());
+    }
+
     [Fact]
     public void AnExpectedRunWithNothingInItIsNotAClaim()
     {

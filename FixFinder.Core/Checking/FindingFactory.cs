@@ -39,6 +39,8 @@ public static partial class FindingFactory
         ("analysis-changed-while-looping", ".java" or ".cs") => "logic-modified-while-looping",
         ("analysis-resource-not-closed", ".py" or ".pyw") => "logic-python-file-not-closed",
         ("analysis-text-built-in-loop", ".java" or ".cs") => "logic-string-built-in-loop",
+        ("analysis-loop-never-ends", ".py" or ".pyw") => "logic-python-loop-never-advances",
+        ("analysis-loop-never-ends", ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" or ".cs" or ".js" or ".mjs" or ".cjs") => "logic-loop-never-advances",
         _ => null,
     };
 
@@ -142,7 +144,9 @@ public static partial class FindingFactory
 
     public static Finding FromWrongOutput(LogicRepairResult result, int runs, string file, SourceFile? source)
     {
-        var guide = Guidebook.For(file, FindingKind.Logic, "wrong-output");
+        var stopped = result.Mismatch.Ending != RunEnding.Finished;
+        var rule = stopped ? "stopped-before-expected-output" : "wrong-output";
+        var guide = Guidebook.For(file, FindingKind.Logic, rule);
         var run = runs == 1 ? "The program" : $"Run {result.FailingRun} of {runs}";
         var line = result.Fix?.StartLine ?? result.Suspicious.FirstOrDefault()?.Line;
 
@@ -163,7 +167,7 @@ public static partial class FindingFactory
             Confidence = result.Fix is null ? Confidence.Certain : result.Runs > 1 ? Confidence.Likely : Confidence.Possible,
             File = file,
             Line = line,
-            Title = $"{run} printed the wrong output",
+            Title = stopped ? $"{run} stopped before printing what you expected" : $"{run} printed the wrong output",
             Explanation = $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
             Explanations = Explained.Of(
                 $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
@@ -174,11 +178,11 @@ public static partial class FindingFactory
             CorrectedExample = result.Fix is { } found ? CorrectedCode.From(found, source) : "",
             ExampleIsFromYourCode = result.Fix is not null,
             FixCheckedBy = result.Fix is not null ? LogicRepair.Describe(result) : null,
-            RuleId = "wrong-output",
+            RuleId = rule,
             Fix = result.Fix,
             Change = result.Fix is { } repaired ? CodeChange.From(repaired, source) : null,
-            CameFrom = result.Fix is null ? null : FixOrigin.OwnRule("wrong-output"),
-            Family = "wrong-output",
+            CameFrom = result.Fix is null ? null : FixOrigin.OwnRule(rule),
+            Family = rule,
         };
     }
 

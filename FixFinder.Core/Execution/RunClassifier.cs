@@ -22,6 +22,9 @@ public static class RunClassifier
         [101] = "Rust panic (101)",
     };
 
+    /// <summary>Whether the exit code is one Windows or a runtime gives a program that was stopped by a crash.</summary>
+    public static bool IsKnownCrash(int exitCode) => KnownCrashExitCodes.ContainsKey(exitCode);
+
     public static (RunOutcome Outcome, string Explanation) Classify(int exitCode, bool hasParsedError)
     {
         if (exitCode == 0)

@@ -53,6 +53,19 @@ internal static class LogicGuides
             "Change the line FixFinder points to; the lines the wrong runs passed through most are the likeliest place.",
             ""),
 
+        AtEveryLevel(["stopped-before-expected-output"], "Stopped before printing what was expected",
+            "You said what the program should print, but it never got that far: it stopped with an error, or was still going " +
+            "when the time ran out, before it had printed all of it. Whatever stopped it has to be put right first - only a " +
+            "program that runs to the end can print everything it should.",
+            "The program did not get as far as printing what you said it should: it stopped with an error, or ran out of time, first.",
+            "Standard output is compared line by line with the expected text as far as the run got - up to an uncaught " +
+            "exception, a crashing exit code or the time limit - and the first missing or different line is reported with how " +
+            "the run ended. The search for a small change that makes every run print the expected output still runs, and a " +
+            "change only counts if the program then finishes.",
+            "Until it runs to the end, the program cannot print everything it should, however right the rest of it is.",
+            "Put right what stops it first - the error shown for the run - and then check what it prints again.",
+            ""),
+
         AtEveryLevel(["logic-python-is-literal"], "Comparing values with is",
             "`is` asks whether two names point at the very same thing in memory; == asks whether two values are equal. Python " +
             "sometimes keeps one copy of a small number or a short piece of text and shares it, so `is` can work while testing " +

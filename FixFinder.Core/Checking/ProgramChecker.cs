@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Analysis.Checks;
@@ -9,6 +11,7 @@ using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Parsing;
+using FixFinder.Core.Parsing.Parsers;
 using FixFinder.Core.Sources;
 
 namespace FixFinder.Core.Checking;
@@ -29,7 +32,7 @@ public sealed record CheckReport(
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
 /// to fix it.</summary>
-public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry sources)
+public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry sources)
 {
     private const int MostErrorsFixed = 12;
     private const int MostWarningsFixed = 20;
@@ -131,22 +134,32 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             var root = launch.SourceFolder ?? Path.GetDirectoryName(chosen);
 
+            // What javac says of FixFinder's own JUnit launcher is FixFinder's to answer for, never a mistake in the code.
+            var fromLauncher = report.Errors.Concat(report.Warnings).Where(FromTestLauncher).ToList();
+            if (fromLauncher.Count > 0)
+                Note($"FixFinder's launcher for JUnit could not be built with the JUnit here, so the tests were not run: {fromLauncher[0].Summary}.");
+
+            // Errors that only say a library is not here are said once, as that, rather than as mistakes in the code.
+            var sorted = LibraryErrors.Sort(report.Errors.Where(error => !FromTestLauncher(error)).ToList(), chosen);
+            if (sorted.Note is { } missingLibrary) Note(missingLibrary);
+            var codeErrors = sorted.CodeErrors;
+
             if (report.Errors.Count > 0)
             {
                 builds.TrySetResult(false);
-                Progress?.Invoke(CheckLane.Syntax, $"Found {Count(report.Errors.Count, "error")} - working out fixes...");
+                if (codeErrors.Count > 0) Progress?.Invoke(CheckLane.Syntax, $"Found {Count(codeErrors.Count, "error")} - working out fixes...");
 
-                await ForEachAsync(report.Errors.Take(MostErrorsFixed), async error =>
+                await ForEachAsync(codeErrors.Take(MostErrorsFixed), async error =>
                 {
                     var fix = await FixAsync(error, report.Errors, report.Output, root, fromBuild: true, cancellationToken);
                     Add(FindingFactory.FromError(error, FindingKind.Syntax, Severity.Error, Confidence.Certain, chosen, fix));
                 }, cancellationToken);
 
-                foreach (var error in report.Errors.Skip(MostErrorsFixed))
+                foreach (var error in codeErrors.Skip(MostErrorsFixed))
                     Add(FindingFactory.FromError(error, FindingKind.Syntax, Severity.Error, Confidence.Certain, chosen));
             }
 
-            await ForEachAsync(report.Warnings.Take(MostWarningsFixed), async warning =>
+            await ForEachAsync(report.Warnings.Where(warning => !FromTestLauncher(warning)).Take(MostWarningsFixed), async warning =>
             {
                 var fix = await FixAsync(warning, [], report.Output, root, fromBuild: false, cancellationToken);
                 Add(FindingFactory.FromWarning(warning, WarningRatings.For(warning), chosen, fix));
@@ -156,8 +169,8 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             {
                 builds.TrySetResult(false);
 
-                return (report.Errors.Count > 0
-                    ? $"{Count(report.Errors.Count, "error")} {(report.Errors.Count == 1 ? "stops" : "stop")} it building"
+                return (codeErrors.Count > 0 ? $"{Count(codeErrors.Count, "error")} {(codeErrors.Count == 1 ? "stops" : "stop")} it building"
+                    : sorted.FromLibraries > 0 ? "It needs a library that is not on this computer, so it was not built"
                     : "It did not build", null);
             }
 
@@ -198,6 +211,7 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 : await session.RunAsync(launch, null, cancellationToken);
 
             RecordRun(outcome, launch);
+            RecordTests(outcome, launch);
             return outcome;
         }
         finally
@@ -206,6 +220,260 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
             session.LineCaptured -= Forward;
             session.Progress -= Status;
         }
+    }
+
+    /// <summary>
+    /// What to say of a Java program that stopped for want of a class - or of a database driver - when libraries its build
+    /// names are not on this computer: it ran without them, so what it could not find may be theirs rather than missing
+    /// from the code, and which cannot be told until they are here. Null for any other failure, or when nothing is missing.
+    /// </summary>
+    private static string? RanWithoutItsLibraries(ParsedError error, string chosen)
+    {
+        if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase)) return null;
+
+        var notFound = ChainOf(error).FirstOrDefault(link =>
+            link.ExceptionType is "java.lang.ClassNotFoundException" or "java.lang.NoClassDefFoundError" ||
+            link.ExceptionType == "java.sql.SQLException" && (link.Message ?? "").StartsWith("No suitable driver", StringComparison.Ordinal));
+
+        if (notFound is null || JavaLibraries.For(chosen) is not { Missing.Count: > 0, DeclaredIn: { } declared } libraries) return null;
+
+        var missing = libraries.Missing.Select(library => library.Name).Distinct(StringComparer.Ordinal).ToList();
+        var one = missing.Count == 1;
+        var named = missing.Count <= 6 ? string.Join(", ", missing) : $"{string.Join(", ", missing.Take(6))} and {missing.Count - 6} more";
+        var theLibraries = one ? "that library" : "one of those libraries";
+
+        var stopped = notFound.ExceptionType == "java.sql.SQLException"
+            ? $"It stopped because no database driver it has could take the address it gave - {notFound.Message}. The driver may be in {theLibraries}"
+            : $"It stopped because a class it needed could not be found - {notFound.Message}. That class may be in {theLibraries}";
+
+        return $"{named} {(one ? "is" : "are")} named in {declared} but not on this computer, so the program ran without {(one ? "it" : "them")}. " +
+               $"{stopped}, and whether it is cannot be told until {(one ? "it is" : "they are")} on this computer.";
+    }
+
+    private static IEnumerable<ParsedError> ChainOf(ParsedError error) => new[] { error }.Concat(error.Causes.SelectMany(ChainOf));
+
+    [GeneratedRegex(@"\bvoid\s+main\s*\(")]
+    private static partial Regex DeclaresMain();
+
+    [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.|org\.springframework\.boot\.)")]
+    private static partial Regex RunsUntilStoppedImport();
+
+    /// <summary>
+    /// The web server among a Java program's libraries - Tomcat, Jetty, Undertow or Netty, by the jar Spring Boot's web
+    /// starters bring - or null when there is none, and a Spring Boot application is one meant to finish.
+    /// </summary>
+    private static string? WebServerOf(string chosen) =>
+        JavaLibraries.For(chosen).ClassPath.Select(jar => Path.GetFileName(jar)).Select(jar => jar switch
+        {
+            _ when jar.StartsWith("tomcat-embed-core-", StringComparison.OrdinalIgnoreCase) => "Tomcat",
+            _ when jar.StartsWith("jetty-server-", StringComparison.OrdinalIgnoreCase) => "Jetty",
+            _ when jar.StartsWith("undertow-core-", StringComparison.OrdinalIgnoreCase) => "Undertow",
+            _ when jar.StartsWith("reactor-netty-http-", StringComparison.OrdinalIgnoreCase) => "Netty",
+            _ => null,
+        }).FirstOrDefault(server => server is not null);
+
+    /// <summary>
+    /// A program that runs until it is stopped rather than until it is done - one with a window, or a server: what it is,
+    /// until when it runs, and what of it a run that FixFinder ended cannot have checked.
+    /// </summary>
+    private sealed record RunsUntilStopped(string Is, string Like, string Until, string Unchecked)
+    {
+        public static RunsUntilStopped Window(string toolkit) =>
+            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window");
+
+        public static RunsUntilStopped Server(string how) =>
+            new($"a server - it waits for connections with {how}", "a server", "it is stopped", "what it does when something connects");
+    }
+
+    /// <summary>
+    /// What a Java program is when it runs until it is stopped - a window program written with JavaFX or Swing, or a server
+    /// on a ServerSocket, Java's HttpServer or Spring Boot with a web server - from what the file it starts from imports,
+    /// or a file whose class that file names; or null for a program meant to finish. Only those files count: a folder of
+    /// exercises can hold a window program beside one that never ends for want of a loop that stops.
+    /// </summary>
+    private static RunsUntilStopped? RunsUntilStoppedOf(string chosen)
+    {
+        if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || ReadOrNull(chosen) is not { } starting) return null;
+
+        var webServer = new Lazy<string?>(() => WebServerOf(chosen));
+
+        var named = ProgramFiles.Of(chosen)
+            .Where(file => !string.Equals(file, Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase))
+            .Where(file => Regex.IsMatch(starting, $@"\b{Regex.Escape(Path.GetFileNameWithoutExtension(file))}\b"));
+
+        foreach (var text in new[] { starting }.Concat(named.Select(ReadOrNull).OfType<string>()))
+        {
+            foreach (Match import in RunsUntilStoppedImport().Matches(text))
+            {
+                switch (import.Groups["name"].Value)
+                {
+                    case "javafx.":
+                        return RunsUntilStopped.Window("JavaFX");
+                    case "javax.swing.":
+                        return RunsUntilStopped.Window("Swing");
+                    case "com.sun.net.httpserver.":
+                        return RunsUntilStopped.Server("Java's HttpServer");
+                    case "java.net.ServerSocket":
+                    case "java.net.*" when text.Contains("new ServerSocket(", StringComparison.Ordinal):
+                        return RunsUntilStopped.Server("a ServerSocket");
+                    case "org.springframework.boot." when webServer.Value is { } server:
+                        return RunsUntilStopped.Server($"Spring Boot and {server}");
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadOrNull(string file)
+    {
+        try
+        {
+            return File.ReadAllText(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// What to say instead of a finding when java would not start a JavaFX application because it had none of JavaFX's
+    /// modules to start it with, and none are among the program's libraries: that is what this computer has, not a mistake
+    /// in the code.
+    /// </summary>
+    private static string? NoJavaFxToStartIt(ParsedError error, string chosen)
+    {
+        if (error.ExceptionType != JavaStackTraceParser.LauncherError ||
+            !(error.Message ?? "").StartsWith("JavaFX runtime components are missing", StringComparison.Ordinal) ||
+            JavaLibraries.For(chosen).JavaFxModules.Count > 0)
+        {
+            return null;
+        }
+
+        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which java starts only with " +
+               "JavaFX's modules, and none are among the program's libraries - FixFinder looks in its pom.xml or build.gradle, its IDE's " +
+               "library settings and its lib folder. Naming JavaFX in one of those lets it run. The code was still read for mistakes.";
+    }
+
+    /// <summary>
+    /// What to say instead of a finding when the file chosen has nothing to run: a Java class that declares no main method
+    /// at all - one the program's other classes use, or a class of tests - which is all the launcher's "Main method not
+    /// found" means for it. A main of the wrong shape is a mistake, and is still reported with its fix.
+    /// </summary>
+    private static string? NothingToRun(ParsedError error, string chosen)
+    {
+        if (error.ExceptionType != JavaStackTraceParser.LauncherError ||
+            !(error.Message ?? "").StartsWith("Main method not found", StringComparison.Ordinal) ||
+            SourceFile.Read(chosen) is not { } source)
+        {
+            return null;
+        }
+
+        string? open = null;
+        foreach (var line in source.Lines)
+        {
+            if (DeclaresMain().IsMatch(CodeText.Mask(line, Syntax.CLike, ref open))) return null;
+        }
+
+        if (JavaTests.FrameworkOf(chosen) is var framework and not JavaTests.Framework.None)
+        {
+            var runner = JavaTests.RunnerFor(framework, JavaLibraries.For(chosen).ClassPath, JavaLibraries.CurrentStores);
+            return $"{Path.GetFileName(chosen)} is a class of JUnit {(framework == JavaTests.Framework.JUnit4 ? "4" : "5")} tests, which FixFinder runs with " +
+                   $"JUnit itself - and could not run here: {runner.CannotRun ?? "JUnit did not start"}. The code in this file was still read for mistakes.";
+        }
+
+        return $"{Path.GetFileName(chosen)} has no main method, so there is nothing in it to run: Java starts a program at " +
+               "public static void main(String[] args). Choose the file of the program that has one. The code in this file was " +
+               "still read for mistakes.";
+    }
+
+    /// <summary>
+    /// What JUnit said of each test, when the run was a class of tests run through FixFinder's launcher: a failed test is
+    /// an error, found for certain by running it, placed on the test's own line the failure went through.
+    /// </summary>
+    private void RecordTests(SessionOutcome outcome, LaunchPlan launch)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = JavaTests.ResultsIn(lines);
+
+        foreach (var failed in results.Where(result => result.Status == "FAILED")) Add(TestFinding(failed, chosen));
+
+        if (results.Count == 0 && JavaTests.TestsFound(lines) == 0)
+            Note($"JUnit found no tests to run in {Path.GetFileName(chosen)}. JUnit 5 runs methods marked @Test that are not private and " +
+                 "return nothing; JUnit 4 needs them public.");
+
+        var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
+        if (skipped > 0) Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped, or stopped by an assumption that did not hold, so JUnit did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
+    }
+
+    /// <summary>A failed test as a finding: which test, what JUnit said, and the lines the failure came through.</summary>
+    private static Finding TestFinding(JavaTests.TestResult test, string chosen)
+    {
+        var own = test.Frames.FirstOrDefault(frame => test.ClassName.Length > 0 &&
+            (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
+            string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase) && frame.Line > 0);
+
+        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && !frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
+            !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
+            !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal));
+
+        var exception = test.Exception ?? "";
+        var assertion = exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
+                        exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
+        var message = test.Message is { Length: > 0 } said && said != "null" ? said.ReplaceLineEndings(" ") : null;
+        var shown = message is null ? "" : $": {(message.Length <= 120 ? message : message[..117] + "...")}";
+        var name = test.Method.Length > 0 ? test.Method : test.Name;
+        var line = own is { Line: > 0 } ? $" on line {own.Line}" : "";
+
+        var explanation = assertion
+            ? $"JUnit ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
+            : $"JUnit ran the test {test.Name}, and it stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+              (thrownAt is { } at && at != own ? $", thrown in {at.Class}.{at.Method} on line {at.Line} of {at.File}." : $"{line}.");
+
+        return new Finding
+        {
+            Kind = FindingKind.Runtime,
+            Severity = Severity.Error,
+            Confidence = Confidence.Certain,
+            File = chosen,
+            Line = own is { Line: > 0 } ? own.Line : null,
+            Title = assertion ? $"Test {name} failed{shown}" : $"Test {name} stopped with {exception.Split('.')[^1]}{shown}",
+            Explanation = explanation,
+            WhyItMatters = "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
+                           "or the test expects the wrong thing.",
+            SuggestedFix = assertion
+                ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
+                : "Go to the line the exception was thrown on - in the code the test calls, if it came from there - and put right what failed there.",
+            CorrectedExample = "",
+            RuleId = "test-failed",
+        };
+    }
+
+    private static bool FromTestLauncher(ParsedError error) =>
+        (error.CulpritFrame?.File ?? error.Frames.FirstOrDefault()?.File) is { } file &&
+        Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
+    private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
+        string.Equals(run.Input ?? "", launch.Spec?.StandardInput ?? "", StringComparison.Ordinal);
+
+    /// <summary>
+    /// What happened to the run, in words that are true of it. A run that finished and reported success, having printed
+    /// an exception on the way - one caught and printed with printStackTrace, or one that ended a thread other than
+    /// the main one - did not crash; nor did a program that printed an error of its own and ended with a failing code.
+    /// </summary>
+    private static string RunTitle(ParsedError error, TargetRunResult? run)
+    {
+        var what = FindingFactory.TitleOf(error);
+
+        if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
+        if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
+
+        var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);
+        return error.LanguageId == "generic" && !crashCode ? $"It stopped with an error: {what}" : $"It crashed: {what}";
     }
 
     private void RecordRun(SessionOutcome outcome, LaunchPlan launch)
@@ -228,12 +496,40 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 return;
             }
 
+            if (NothingToRun(error, chosen) is { } nothing)
+            {
+                Note(nothing);
+                return;
+            }
+
+            if (NoJavaFxToStartIt(error, chosen) is { } noJavaFx)
+            {
+                Note(noJavaFx);
+                return;
+            }
+
             var kind = LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error) ? FindingKind.Syntax : FindingKind.Runtime;
+
+            if (kind == FindingKind.Runtime && RanWithoutItsLibraries(error, chosen) is { } withoutLibraries)
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Warning, Confidence.Possible, chosen) with
+                {
+                    Title = RunTitle(error, outcome.Run),
+                    Explanation = withoutLibraries,
+                    SuggestedFix = "Open the project in its IDE, or build it once with its build tool, so that what it names is downloaded, then check " +
+                                   "it again - FixFinder never downloads anything itself.",
+                    CorrectedExample = "",
+                });
+                return;
+            }
+
             var local = outcome.Best is { } best && (best.LocalFix is not null || best.Id.EndsWith(":did-you-mean", StringComparison.Ordinal)) ? best : null;
 
-            Add(FindingFactory.FromError(error, kind, Severity.Error, Confidence.Certain, chosen, local) with
+            var finishedNormally = kind == FindingKind.Runtime && outcome.Run is { ExitCode: 0 };
+
+            Add(FindingFactory.FromError(error, kind, finishedNormally ? Severity.Warning : Severity.Error, Confidence.Certain, chosen, local) with
             {
-                Title = kind == FindingKind.Runtime ? $"It crashed: {FindingFactory.TitleOf(error)}" : FindingFactory.TitleOf(error),
+                Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
             });
 
             return;
@@ -241,6 +537,24 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
         switch (outcome.Result)
         {
+            case SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed:
+                Add(new Finding
+                {
+                    Kind = FindingKind.Runtime,
+                    Severity = Severity.Warning,
+                    Confidence = Confidence.Possible,
+                    File = chosen,
+                    Title = outcome.Headline,
+                    Explanation = outcome.Detail,
+                    WhyItMatters = "A program that ends with a failing code is saying it did not finish its job. That is right when something " +
+                                   "it needs is missing, and a mistake when nothing is.",
+                    SuggestedFix = "If it needs arguments, input or a file, give them under the program and check it again. If it should have " +
+                                   "finished, find the line that ends it - a System.exit, sys.exit or return from main - and the test that leads there.",
+                    CorrectedExample = "",
+                    RuleId = "ended-with-failure-code",
+                });
+                break;
+
             case SessionResult.FailedSilently:
                 Add(new Finding
                 {
@@ -258,6 +572,12 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                 });
                 break;
 
+            case SessionResult.RanFine when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn:
+                Note($"{Path.GetFileName(chosen)} is {runsOn.Is} - and such a program keeps running until {runsOn.Until}, so it was still " +
+                     $"running when its time ran out, which is not by itself a sign of a mistake. What it did before then was checked; " +
+                     $"{runsOn.Unchecked} was not.");
+                break;
+
             case SessionResult.RanFine when outcome.Run?.Outcome == RunOutcome.TimedOut:
                 Add(new Finding
                 {
@@ -266,7 +586,9 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
                     Confidence = Confidence.Possible,
                     File = chosen,
                     Title = "It was still running when the time ran out",
-                    Explanation = outcome.Detail,
+                    Explanation = outcome.Spec is { } spec
+                        ? $"It was still running after {spec.Timeout.TotalSeconds:0.#} seconds, when FixFinder stopped it, and had printed no error."
+                        : "It was still running when FixFinder stopped it, and had printed no error.",
                     WhyItMatters = "A program that is meant to finish but never does has a loop that cannot end, or is waiting for input nobody gave it.",
                     SuggestedFix = "If it asks questions, type the answers into the input box. Otherwise look for a loop whose condition never changes.",
                     CorrectedExample = "",
@@ -281,11 +603,29 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
         var warnings = report.Warnings.Count > 0 ? $", with {Count(report.Warnings.Count, "warning")}" : "";
         var reads = Path.GetExtension(chosen).ToLowerInvariant() is ".py" or ".pyw" or ".js" or ".mjs" or ".cjs" ? "No syntax errors" : "It builds";
 
+        var lines = outcome.Run?.Lines.Select(line => line.Text).ToList() ?? [];
+        var tests = JavaTests.ResultsIn(lines);
+
+        if (tests.Count > 0 || JavaTests.TestsFound(lines) is 0)
+        {
+            var failed = tests.Count(test => test.Status == "FAILED");
+            var ran = tests.Count(test => test.Status is "SUCCESSFUL" or "FAILED");
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed"
+                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}"
+                : $"{reads}{warnings}, but JUnit ran none of its tests";
+        }
+
         return outcome.Result switch
         {
             SessionResult.CouldNotRun => "It could not be started",
+            _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
+            _ when outcome.Error is { } error && NoJavaFxToStartIt(error, chosen) is not null => $"{reads}{warnings}; Java would not start it without JavaFX",
             _ when outcome.Error is not null => $"{reads}{warnings}, but it stops with an error when run",
+            SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed => $"{reads}{warnings}, but it stops with a failing exit code",
             SessionResult.FailedSilently => $"{reads}{warnings}, but it crashes when run",
+            _ when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn =>
+                $"{reads}{warnings}, and it was still running when its time ran out, as {runsOn.Like} does",
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
             _ => $"{reads}{warnings}, and it runs to the end",
         };
@@ -344,9 +684,25 @@ public sealed class ProgramChecker(FixFinderHttpClient http, FixSourceRegistry s
 
             foreach (var note in result.Notes) Note(note);
 
+            var stopped = result.Mismatch.Ending != RunEnding.Finished;
+
+            if (stopped && result.Fix is null && SameRunAsTheCheck(expected.Runs[result.FailingRun - 1], launch))
+            {
+                // The run that stopped is the one the syntax check made too, which reports what stopped it; a finding that
+                // only says it did not get as far as the expected output would be the same failure twice.
+                Note($"What it prints could not be compared with what you expected: {result.Mismatch.Describe()}.");
+                return "It stopped before printing what you expected";
+            }
+
             Add(FindingFactory.FromWrongOutput(result, expected.Runs.Count, chosen, SourceFile.Read(chosen)));
 
-            return result.Fix is not null ? "Wrong output - FixFinder found the change that fixes it" : "Wrong output";
+            return (stopped, result.Fix is not null) switch
+            {
+                (true, true) => "It stopped before printing what you expected - FixFinder found the change that fixes it",
+                (true, false) => "It stopped before printing what you expected",
+                (false, true) => "Wrong output - FixFinder found the change that fixes it",
+                _ => "Wrong output",
+            };
         }
         finally
         {

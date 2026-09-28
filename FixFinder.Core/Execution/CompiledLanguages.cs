@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution.Libraries;
 
 namespace FixFinder.Core.Execution;
 
@@ -53,6 +54,7 @@ public static partial class CompiledLanguages
     {
         var language = cpp ? "C++" : "C";
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
+        var start = WorkingFolder.For(source);
 
         var sources = ProgramLayout.NativeSources(source);
 
@@ -66,8 +68,8 @@ public static partial class CompiledLanguages
                 Path.GetDirectoryName(source)!,
                 timeout);
 
-            return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it{Along(sources)} with {gnu.Name}, then running the result."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
+                $"Building it{Along(sources)} with {gnu.Name}, then running the result{StartsFrom(start, source)}."), null);
         }
 
         if (Toolchains.FindMsvc() is { SetupScript: { } script } msvc)
@@ -76,8 +78,8 @@ public static partial class CompiledLanguages
 
             var compile = Spec("cmd.exe", $"/c \"{batch}\"", output, timeout);
 
-            return (new BuildAndRun(compile, Run(exe, output, timeout),
-                $"Building it{Along(sources)} with {msvc.Name}, then running the result."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
+                $"Building it{Along(sources)} with {msvc.Name}, then running the result{StartsFrom(start, source)}."), null);
         }
 
         return (null,
@@ -259,20 +261,85 @@ public static partial class CompiledLanguages
                 "need to be on PATH.");
         }
 
+        var libraries = JavaLibraries.For(source);
+
+        // A class of JUnit tests is run with JUnit, through a launcher of FixFinder's compiled beside it - but only when
+        // everything JUnit needs is here; otherwise it is left to say it has no main, and why its tests could not be run.
+        var framework = JavaTests.FrameworkOf(source);
+        var runner = framework == JavaTests.Framework.None ? null : JavaTests.RunnerFor(framework, libraries.ClassPath, JavaLibraries.CurrentStores);
+        var launcher = runner is { CannotRun: null } ? WriteTestLauncher(output, framework) : null;
+
+        IReadOnlyList<string> classPath = [.. libraries.ClassPath, .. launcher is null ? [] : runner!.ExtraJars];
+        var sourcePath = string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(source), .. libraries.OtherSourceRoots(source)]);
+        var libraryPath = classPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, classPath)}\"" : "";
+        var launcherSource = launcher is null ? "" : $" \"{launcher}\"";
+        var processorPath = libraries.ProcessorPath.Count > 0 ? $" -processorpath \"{string.Join(Path.PathSeparator, libraries.ProcessorPath)}\"" : " -proc:none";
+        var namedSources = string.Concat(libraries.SourcesToName(source).Select(file => $" \"{file}\""));
+
         var compile = Spec(
             javac.Program,
-            $"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\" -sourcepath \"{ProgramLayout.JavaSourceRoot(source)}\" \"{source}\"",
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath}{processorPath} -sourcepath \"{sourcePath}\" \"{source}\"{namedSources}{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
+        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java will not start a class that
+        // extends javafx.application.Application from JavaFX on the class path.
+        var javaFx = libraries.JavaFxModules;
+        var modulePath = javaFx.Count > 0 ? $"--module-path \"{string.Join(Path.PathSeparator, javaFx)}\" --add-modules ALL-MODULE-PATH " : "";
+
+        var start = WorkingFolder.For(source);
+        var runPath = string.Join(Path.PathSeparator,
+            [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath.Except(javaFx, StringComparer.OrdinalIgnoreCase)]);
+        var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherClass} {MainClass(source)}";
+
         var run = Spec(
             java.Program,
-            $"-cp \"{output}\" {MainClass(source)}",
-            output,
+            ShortEnough($"{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
+            start.Folder,
             timeout);
 
+        var with = libraries.Described is { } described ? $" and {described}" : "";
+        var then = launcher is not null ? $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}"
+            : javaFx.Count > 0 ? "running it with java, with JavaFX's modules on the module path"
+            : "running it with java";
+
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}, then running it with java."), null);
+            $"Building it with {javac.Name}{with}, then {then}{StartsFrom(start, source)}."), null);
+    }
+
+    /// <summary>Writes FixFinder's JUnit launcher into the build folder, in a folder of its own, and says where.</summary>
+    private static string WriteTestLauncher(string output, JavaTests.Framework framework)
+    {
+        var folder = Path.Combine(output, "fixfinder-tests");
+        Directory.CreateDirectory(folder);
+
+        var launcher = Path.Combine(folder, JavaTests.LauncherClass + ".java");
+        File.WriteAllText(launcher, JavaTests.LauncherSource(framework), new UTF8Encoding(false));
+        return launcher;
+    }
+
+    /// <summary>
+    /// The arguments as they are, or - when a project's libraries make them longer than Windows lets a command line be -
+    /// an @file holding them, which javac and java both read.
+    /// </summary>
+    internal static string ShortEnough(string arguments, string output, string tool)
+    {
+        if (arguments.Length < 24_000) return arguments;
+
+        var file = Path.Combine(output, $"{tool}-arguments.txt");
+        File.WriteAllText(file, arguments.Replace("\\", "\\\\", StringComparison.Ordinal), new UTF8Encoding(false));
+        return $"\"@{file}\"";
+    }
+
+    /// <summary>Which folder the program starts from, said only when it is not simply the one the file is in.</summary>
+    private static string StartsFrom(WorkingFolder.Choice start, string source)
+    {
+        if (string.Equals(start.Folder, Path.GetDirectoryName(Path.GetFullPath(source)), StringComparison.OrdinalIgnoreCase)) return "";
+
+        var folder = Path.GetFileName(start.Folder);
+        if (start.FileFound is { } file) return $" from {folder}, where {file} is";
+
+        return start.IsProjectFolder ? $" from {folder}, the folder that holds src, as an IDE runs it" : $" from {folder}";
     }
 
     private static string MainClass(string source)

@@ -64,7 +64,8 @@ reading it, and it is the strongest thing in the set.
 ## If Windows will not start a demo
 
 On a PC with Smart App Control on, Windows can refuse to start a program FixFinder has just
-built. On 27 September it refused demo 13's Go program, and FixFinder then also said the
-program *finished unhappily, but printed no error* - Windows stopped it, not the code. When the
-same happens to the AddressSanitizer build of a C or C++ demo, FixFinder says so in a note.
-The findings that come from reading the code are the same either way.
+built. On 27 September it refused demo 13's Go program. When the launcher - `go run`, say -
+prints Windows' own words for that, FixFinder says in a note that Windows would not start the
+program: Windows stopped it, not the code. When the same happens to the AddressSanitizer build of
+a C or C++ demo, FixFinder says so in a note too. The findings that come from reading the code
+are the same either way.

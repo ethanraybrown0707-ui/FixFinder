@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.Sources;
@@ -187,6 +188,7 @@ public static partial class MissingDependency
     ];
 
     /// <summary>What is missing, and the line that gets it.</summary>
+    /// <param name="GoesIn">The file the text is added to - pom.xml, build.gradle - when it is a change to the project's build, not a command to run.</param>
     public sealed record Missing(
         string Requested,
         string Package,
@@ -194,7 +196,8 @@ public static partial class MissingDependency
         string Text,
         string TextDescription,
         string Url,
-        string Note = "");
+        string Note = "",
+        string? GoesIn = null);
 
     public static Missing? Read(ParsedError error, string? workingDirectory = null)
     {
@@ -226,17 +229,19 @@ public static partial class MissingDependency
         if (Read(error, spec?.WorkingDirectory) is not { } missing) return null;
 
         var body =
-            $"`{missing.Requested}` is not installed for this project.\n\n" +
+            (missing.GoesIn is not null
+                ? $"`{missing.Requested}` comes from a library the program does not have. This is {missing.TextDescription}.\n\n"
+                : $"`{missing.Requested}` is not installed for this project.\n\n") +
             (missing.Note is { Length: > 0 } note ? note + "\n\n" : "") +
             $"    {missing.Text.Replace("\n", "\n    ")}\n";
+
+        var provides = string.Equals(missing.Requested, missing.Package, StringComparison.OrdinalIgnoreCase) ? "" : $", which provides {missing.Requested}";
 
         var candidate = new FixCandidate
         {
             SourceName = missing.Ecosystem,
             Id = $"dep:{missing.Package}",
-            Title = string.Equals(missing.Requested, missing.Package, StringComparison.OrdinalIgnoreCase)
-                ? $"Install {missing.Package}"
-                : $"Install {missing.Package}, which provides {missing.Requested}",
+            Title = missing.GoesIn is { } file ? $"Add {missing.Package} to {file}{provides}" : $"Install {missing.Package}{provides}",
             Url = missing.Url,
             BodyText = body,
             RawBody = body,
@@ -244,6 +249,7 @@ public static partial class MissingDependency
             Tier = FixTier.Dependency,
             Command = missing.Text,
             CommandDescription = missing.TextDescription,
+            CommandGoesIn = missing.GoesIn,
             CreatedAt = DateTimeOffset.UtcNow,
             LastActivityAt = DateTimeOffset.UtcNow,
             AnswerNoun = "suggestions",
@@ -379,7 +385,14 @@ public static partial class MissingDependency
         var group = coordinate.Split(':')[0];
         var artifact = coordinate.Split(':')[1];
 
-        var gradle = Has(workingDirectory, "build.gradle") || Has(workingDirectory, "build.gradle.kts");
+        // A library the project's build already names is not one to add: either it is not downloaded, which the check of
+        // the program says, or the missing class is not in it.
+        var libraries = workingDirectory is null ? JavaLibraries.None : JavaLibraries.ForFolder(workingDirectory);
+        if (libraries.Names(group, artifact)) return null;
+
+        var project = libraries.ProjectFolder ?? workingDirectory;
+        var gradle = Has(project, "build.gradle") || Has(project, "build.gradle.kts");
+        var buildFile = gradle ? "build.gradle" : "pom.xml";
 
         var text = gradle
             ? $"implementation(\"{group}:{artifact}:VERSION\")"
@@ -387,10 +400,11 @@ public static partial class MissingDependency
 
         return new Missing(
             className, coordinate, "Your Java project", text,
-            gradle ? "the line to add to build.gradle" : "the block to add to pom.xml",
+            $"the {(gradle ? "line" : "block")} to add to {buildFile}",
             $"https://central.sonatype.com/artifact/{group}/{artifact}",
             $"`{className}` ships in `{coordinate}`. Put the current version in place of VERSION - " +
-            "FixFinder does not guess version numbers.");
+            "FixFinder does not guess version numbers.",
+            GoesIn: buildFile);
     }
 
     private static Missing? Perl(ParsedError error)

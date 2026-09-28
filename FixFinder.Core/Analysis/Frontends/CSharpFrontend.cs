@@ -36,6 +36,6 @@ public static class CSharpFrontend
             classes.AddRange(unitClasses);
         }
 
-        return new IrProgram(SourceLanguage.CSharp, files, classes, functions, problems);
+        return ProgramStops.Lower(new IrProgram(SourceLanguage.CSharp, files, classes, functions, problems));
     }
 }

@@ -33,7 +33,53 @@ until the program prints what it should. FixFinder never changes your files.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
-headers beside them.
+headers beside them. A Java folder of exercises, each with its own `main`, holds several programs: one the chosen file's
+code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
+
+A program with a window - one written with JavaFX or Swing, in the file chosen or one it names - runs until its window is
+closed, and a server - on a `ServerSocket` or Java's `HttpServer`, or a Spring Boot application with a web server such as
+Tomcat among its libraries - runs until it is stopped, so either still running when its
+time runs out is said in a note, not reported as a program that never finishes; what it does when someone uses the window,
+or something connects, is not checked.
+
+A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
+the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
+beside their source, as a program built at a command line does; the rest start where the program is. When a file the
+program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
+The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
+a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
+
+A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
+project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
+each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and
+`testImplementation` lines, its `platform()` BOMs and version catalog, the highest version winning as in Gradle; the
+libraries IntelliJ's `.idea` and `.iml` files, Eclipse's `.classpath` and VS Code's `java.project.referencedLibraries`
+record; and jars kept in a `lib`, `libs` or `jars` folder. Each is looked for among what Maven and Gradle have already
+downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
+named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
+errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would
+have written into the program's own classes, such as the getters Lombok adds to a class marked `@Data`, which cannot be
+judged until the library is there. A package a letter or two from Java's own or the program's, such as `java.utils`, is
+a typing mistake, and still is one; so is a one-word package that nothing imports, such as the `Sytem` javac reports for
+`Sytem.out.println`.
+
+**Annotation processors**, such as Lombok's and MapStruct's, are run as the build runs them: those a `pom.xml` gives
+maven-compiler-plugin in `annotationProcessorPaths`, or a Gradle build gives `annotationProcessor`, and only those; and when
+the build names none, any that the program's libraries hold, as javac did by default until JDK 23. As javac runs a
+processor only on the files it is given by name, every file of the program is then named, as a build names them - its
+tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
+path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
+to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
+computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A program that stops
+for want of a class, or of a database driver, while libraries its build names are not on this computer, is reported as
+possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
+to add to `pom.xml`, or the line to add to `build.gradle`.
+
+A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
+when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
+from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it
+failed on, in JUnit's own words, and names the line of the program's code the failure was thrown from when it came from
+there. When JUnit cannot run the tests, a note says what it is missing.
 
 ## What each finding tells you
 
@@ -64,6 +110,14 @@ it stops with:
 | JavaScript | `node --check` on every file |
 | Go | `go build`, then `go vet` |
 
+What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
+it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
+only a crash gives. A program that ends itself with a failing exit code - `System.exit(1)` after printing how to run
+it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
+without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
+program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
+start a program that has just been built, and says so, a note says that too rather than blaming the code.
+
 For an error whose message pins the answer down - a missing import, a misspelt name, a semicolon, a loop one step too
 long - a **fix rule** works out the change from the code. Every fix is made in a copy and checked by the compiler or
 interpreter, and only offered if that passes.
@@ -78,6 +132,9 @@ list. When an expected output was given, it also runs changed copies of the prog
    wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
+
+A run that stops with an error, or is still going when the time runs out, is compared as far as it got and said to have
+stopped - never to have run to the end - and an edit only counts if the program then finishes.
 
 In every language it can read, the logic check also **follows every value through the code** (abstract interpretation).
 Each language is read by a parser that agrees with its own compiler where there is one to ask - Python's `ast`, javac's
@@ -102,10 +159,15 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
+A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
+what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
+
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
-**contract**. What a function returns is worked out once and used at every call, which is how a function that always
-returns None is caught where its result is used. What a method returns is never assumed, because a subclass can
+**contract**. A guard that ends the whole program instead of raising - `sys.exit`, `System.exit`, C's `exit` - is where the
+program stops rather than a contract, so a call that reaches it is not reported as breaking one. What a function returns
+is worked out once and used at every call, which is how a function that always returns None is caught where its result
+is used. What a method returns is never assumed, because a subclass can
 replace it. A variable's declared type also sets its range, so `b < 0` for a C# `byte` can never be true, and a number
 kept in a `double` divides into infinity rather than failing, since dividing a double by zero is no error.
 
@@ -229,11 +291,11 @@ Each language keeps its own rules, and a finding says what that language actuall
 
 | | |
 |---|---|
-| **Go** | A nil slice has no items and a nil map reads as missing, so `len`, indexing and `range` on them are all fine, while reading a field through a nil pointer is a panic - and a method with a nil receiver is ordinary Go, so `if c == nil` at the top of one is not a test that can never be true. Both sides of a division have the same type, so a whole-number divisor means whole-number division. `panic` is what a guard raises; a deferred call runs on every way out, so a lock released by `defer` is never reported as left locked, and one taken by `defer` is taken for the caller. A slice is a value, so handing it to other code cannot change how long it is. Goroutines started with `go` are followed like any other thread. |
-| **JavaScript** | Dividing by zero gives Infinity rather than failing, and a position past the end gives `undefined`, so neither is reported. Every object and array is true however empty, only `0`, `""`, `null` and `undefined` are false, and `a?.b.c` gives nothing when `a` is nothing - the whole chain is skipped, not just the next step. `typeof x === "number"` says x is something. A variable declared with no value is `undefined`, so reading a field of it is a TypeError. |
+| **Go** | A nil slice has no items and a nil map reads as missing, so `len`, indexing and `range` on them are all fine, while reading a field through a nil pointer is a panic - and a method with a nil receiver is ordinary Go, so `if c == nil` at the top of one is not a test that can never be true. Both sides of a division have the same type, so a whole-number divisor means whole-number division. `panic` is what a guard raises, while `os.Exit` and `log.Fatal` end the program, so nothing after one runs; a deferred call runs on every way out, so a lock released by `defer` is never reported as left locked, and one taken by `defer` is taken for the caller. A slice is a value, so handing it to other code cannot change how long it is. Goroutines started with `go` are followed like any other thread. |
+| **JavaScript** | Dividing by zero gives Infinity rather than failing, and a position past the end gives `undefined`, so neither is reported. Every object and array is true however empty, only `0`, `""`, `null` and `undefined` are false, and `a?.b.c` gives nothing when `a` is nothing - the whole chain is skipped, not just the next step. `typeof x === "number"` says x is something. A variable declared with no value is `undefined`, so reading a field of it is a TypeError. `process.exit` ends the program, so nothing after it runs. |
 | **C and C++** | Dividing by zero, going through a null pointer and reading past the end of an array are undefined behaviour, which usually stops the program. `malloc` and its like can come back with nothing, so what they return is checked before it is used. `exit` and `abort` never return, so nothing after one runs. In C++ an overloaded operator is read as a function of its own - `operator*`, `operator<<` - and `<<` and `>>` on a stream are the stream's writes and reads, not shifts: `std::cin >> count` gives `count` the number typed. A variable whose address is handed out - `&end` to `strtoll`, `&count` to a function of the program's own - is changed by the calls given the address and by writes through a pointer that holds it, when the address only goes to C's own functions that keep none of it (`scanf`, `strtol`, `printf` and the like) or to the program's functions that only read and write through it; once it may be kept anywhere, any call at all can change it. A tie two variables keep through a call is not followed - that a function adds to `count` only when it gives `items` memory - so `if (count > 0)` after the loop that fills them does not show `items` has memory, and a read of it there can be reported as possibly NULL. |
-| **Python** | Dividing by zero is ZeroDivisionError whatever the numbers are; an empty list is false; text and numbers cannot be added. |
-| **Java and C#** | Whole-number division by zero fails while real division gives infinity; a declared type sets what a variable can hold and how large it can be. |
+| **Python** | Dividing by zero is ZeroDivisionError whatever the numbers are; an empty list is false; text and numbers cannot be added. `sys.exit`, `exit` and `quit` end the program, so nothing after one runs - unless the program defines an `exit` of its own. |
+| **Java and C#** | Whole-number division by zero fails while real division gives infinity; a declared type sets what a variable can hold and how large it can be. `System.exit` and `Environment.Exit` end the program, so nothing after one runs. |
 
 For **C and C++** the same walk through the graph also checks what happens to memory:
 
@@ -437,7 +499,7 @@ Inside `FixFinder.Core`:
 | `Logic` | The logic checks, and the search for the change that fixes the output. |
 | `Analysis` | Following the values: the shared form (`Ir`), each language's reader (`Frontends`), the graph of the ways through a function (`Flow`), the values tracked (`Abstract`), the constraint solver (`Solver`), path-by-path execution and loop bounds (`Symbolic`), backward slices (`Slicing`), running a prediction for real with a line tracer (`Dynamic`), comparing a fix with the original (`Diffing`) and the checks (`Checks`), including what each language does when a program goes wrong (`Checks/Failures.cs`). |
 | `LocalFixes/Rules` | The fix rules: one folder per language, one file per kind of mistake (`SyntaxRules`, `NameRules`, `TypeRules`, `ClassRules`, `CrashRules`, ...), and one helper class per language (`PythonCode`, `JavaCode`, `CSharpCode`, ...). |
-| `Execution` | Finding toolchains, building and running programs. |
+| `Execution` | Finding toolchains, building and running programs - and, in `Execution/Libraries`, the libraries a Java program is built with and the running of its JUnit tests. |
 | `Parsing` | The stack-trace parsers. |
 | `Fingerprinting`, `Sources`, `Ranking`, `Http`, `Security` | Online search: the query, GitHub and Stack Overflow, ranking, caching and token storage. |
 | `Patching` | Reading diffs from search results and working out where they would land in your code. |
