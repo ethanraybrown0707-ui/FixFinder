@@ -37,9 +37,23 @@ public static class ProgramCopy
             _ when WorkingFolder.Chooses(file) => WorkingFolder.CopyRoot(file),
             ".cs" when ProgramLayout.CSharpProject(file) is { } project => Path.GetDirectoryName(project)!,
             ".go" when ProgramLayout.GoPackageOf(file).Module is { } module => module,
+            ".py" when NotebookScript.Of(file) is { } notebook => Path.GetDirectoryName(notebook.Notebook)!,
             ".py" when ProgramLayout.PythonModule(file) is { } module => module.Folder,
             _ => Path.GetDirectoryName(file)!,
         };
+    }
+
+    /// <summary>
+    /// Where the chosen file goes in a copy of the program made at <paramref name="copy"/>: where it is under the program's
+    /// folder - or, for the script of a notebook's code, which FixFinder wrote to the temp folder, beside the copies of
+    /// the notebook's own files, which is where it runs from.
+    /// </summary>
+    public static string InCopy(string root, string chosen, string copy)
+    {
+        var relative = Path.GetRelativePath(root, chosen);
+        var outside = relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative);
+
+        return Path.Combine(copy, outside ? Path.GetFileName(chosen) : relative);
     }
 
     /// <summary>

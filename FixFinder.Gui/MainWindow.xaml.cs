@@ -320,7 +320,7 @@ public partial class MainWindow : Window
         NothingChosenPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Visible;
 
-        ShowChosen(_launch.ChosenFile ?? path);
+        ShowChosen(_launch.ShownFile ?? path);
         HowItRunsText.Text = _launch.Ok ? _launch.Explanation : _launch.Problem ?? "";
         HowItRunsText.Foreground = (Brush)FindResource(_launch.Ok ? "HintBrush" : "ErrorBrush");
 
@@ -528,7 +528,7 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Collapsed;
         CopyReportButton.IsEnabled = false;
 
-        ReportSubtitleText.Text = $"{Path.GetFileName(launch.ChosenFile ?? launch.Spec!.ExecutablePath)}  ·  " +
+        ReportSubtitleText.Text = $"{Path.GetFileName(launch.ShownFile ?? launch.Spec!.ExecutablePath)}  ·  " +
                                   $"{(_language.IsAny ? "language worked out automatically" : _language.Name)}  ·  checking…";
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, launch.NeedsCompiling ? "Compiling…" : "Reading the code…", LaneState.Running);
@@ -549,7 +549,7 @@ public partial class MainWindow : Window
         SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
             report.Findings.Any(f => (f.Kind == FindingKind.Logic || f.FoundBy is not null) && f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
 
-        ReportSubtitleText.Text = $"{Path.GetFileName(_launch?.ChosenFile ?? "")}  ·  {(_language.IsAny ? "Auto-detected" : _language.Name)}  ·  " +
+        ReportSubtitleText.Text = $"{Path.GetFileName(_launch?.ShownFile ?? "")}  ·  {(_language.IsAny ? "Auto-detected" : _language.Name)}  ·  " +
                                   $"checked at {DateTime.Now:HH:mm}";
 
         if (report.Run?.Run is { } run && _output.Count == 0)
@@ -651,19 +651,19 @@ public partial class MainWindow : Window
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
 
-        // Which findings follow from which is worked out in Core; the window only has to look up the lines, which it
-        // can do because it is the one place that can see the whole report at once.
+        // Which findings follow from which is worked out in Core; the window only has to look them up, which it can do
+        // because it is the one place that can see the whole report at once.
         var byId = findings.ToDictionary(f => f.Id, f => f, StringComparer.Ordinal);
-        var followers = findings.Where(f => f.CausedBy is not null)
+        var followers = findings.Where(f => f.CausedBy is not null && f.Line is > 0)
             .GroupBy(f => f.CausedBy!.RootId, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<int>)[.. g.Select(f => f.Line ?? 0).Where(line => line > 0).Order()], StringComparer.Ordinal);
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Finding>)[.. g.OrderBy(f => f.Line)], StringComparer.Ordinal);
 
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
             Level = _preferences.Explanations,
-            FollowsLine = f.CausedBy is { } cause && byId.TryGetValue(cause.RootId, out var root) ? root.Line : null,
-            ExplainsLines = followers.GetValueOrDefault(f.Id, []),
+            FollowsFrom = f.CausedBy is { } cause && byId.TryGetValue(cause.RootId, out var root) && root.Line is not null ? root : null,
+            LeadsTo = followers.GetValueOrDefault(f.Id, []),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -1009,7 +1009,7 @@ public partial class MainWindow : Window
 
     private void CopyReportButton_Click(object sender, RoutedEventArgs e)
     {
-        var header = $"FixFinder report for {Path.GetFileName(_launch?.ChosenFile ?? "")} ({_language.Name})";
+        var header = $"FixFinder report for {Path.GetFileName(_launch?.ShownFile ?? "")} ({_language.Name})";
         var text = string.Join(Environment.NewLine + Environment.NewLine,
             new[] { header }.Concat(_notes).Concat(_findings.Select(r => r.AsText())));
 
@@ -1018,11 +1018,13 @@ public partial class MainWindow : Window
 
     private void ShowInFolder_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.Tag is not FindingRow row || !File.Exists(row.Finding.File)) return;
+        // A notebook's code is checked as a script FixFinder writes, but the file the reader has is the notebook.
+        if ((sender as FrameworkElement)?.Tag is not FindingRow row || (row.Finding.InNotebook?.Notebook ?? row.Finding.File) is not { } file
+            || !File.Exists(file)) return;
 
         try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{row.Finding.File}\"") { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file}\"") { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException)
         {

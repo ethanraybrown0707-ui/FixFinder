@@ -92,8 +92,9 @@ public static partial class LineCoverage
         var output = Path.Combine(folder, "lines.json");
         await File.WriteAllTextAsync(tracer, Tracer, new UTF8Encoding(false), cancellationToken);
 
-        var spec = Spec(run.ExecutablePath, $"-X utf8 \"{tracer}\" \"{output}\" \"{file}\"", Path.GetDirectoryName(file)!, timeout)
-            .WithArguments(arguments).WithInput(input);
+        // From where the program itself runs, and with what it runs with: a notebook's code runs from the notebook's folder.
+        var spec = Spec(run.ExecutablePath, $"-X utf8 \"{tracer}\" \"{output}\" \"{file}\"", run.WorkingDirectory, timeout)
+            .WithArguments(arguments).WithInput(input).WithEnvironment(run.ExtraEnvironment);
 
         await RunAsync(spec, cancellationToken);
 

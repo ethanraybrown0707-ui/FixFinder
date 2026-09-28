@@ -4,6 +4,7 @@ using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Analysis.Dynamic;
 
@@ -87,8 +88,9 @@ public static partial class Confirmation
         if (trace is not { Error: { } error } || trace.ErrorLine != finding.Span.Line || !Expected(finding.CheckId).Contains(error)) return null;
 
         var said = trace.Message is { Length: > 0 } message ? $"{error}: {message}" : error;
+        var ranThrough = NotebookScript.Of(file) is { } notebook ? CellByCell(trace.Lines, notebook) : TraceCompression.Compress(trace.Lines);
 
-        var evidence = $"Running {ran} stopped with {said} on line {trace.ErrorLine}{At(trace, file)}. Lines it ran: {TraceCompression.Compress(trace.Lines)}" +
+        var evidence = $"Running {ran} stopped with {said} on line {trace.ErrorLine}{At(trace, file)}. Lines it ran: {ranThrough}" +
                        (trace.Cut ? " …" : "") + ".";
 
         // The same run recorded what the variables held each time it reached the line, so the table costs nothing
@@ -96,6 +98,27 @@ public static partial class Confirmation
         var state = StateTrace.From(finding.Span.Line, trace.Watched, Mentioned(file, finding.Span.Line), failedOnLastPass: true, trace.WatchedCut);
 
         return (evidence, state);
+    }
+
+    /// <summary>
+    /// The lines a run of a notebook's code went through, cell by cell and counted in each cell as Jupyter counts them -
+    /// "cell 2: 1-4; cell 3: (2-3)×4, 5" - leaving out any line FixFinder put in itself to run the notebook.
+    /// </summary>
+    private static string CellByCell(IReadOnlyList<int> lines, NotebookScript notebook)
+    {
+        const int longestText = 240;
+        var stretches = new List<(int Cell, List<int> Lines)>();
+
+        foreach (var line in lines)
+        {
+            if (notebook.PlaceOf(line) is not { } place) continue;
+
+            if (stretches.Count == 0 || stretches[^1].Cell != place.Cell) stretches.Add((place.Cell, []));
+            stretches[^1].Lines.Add(place.Line);
+        }
+
+        var text = string.Join("; ", stretches.Select(stretch => $"cell {stretch.Cell}: {TraceCompression.Compress(stretch.Lines)}"));
+        return text.Length <= longestText ? text : text[..longestText].TrimEnd(',', ';', ' ') + " …";
     }
 
     /// <summary>The names written on one line of the file, which are the variables that line's behaviour turns on.</summary>

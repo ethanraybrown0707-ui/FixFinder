@@ -28,7 +28,7 @@ public static partial class ProgramFiles
 
         var files = Path.GetExtension(path).ToLowerInvariant() switch
         {
-            ".py" or ".pyw" => Follow(path, PythonNeighbours),
+            ".py" or ".pyw" or ".ipynb" => Follow(path, PythonNeighbours),
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
@@ -62,9 +62,12 @@ public static partial class ProgramFiles
 
     private static IEnumerable<string> PythonNeighbours(string file)
     {
-        if (Read(file) is not { } text) yield break;
+        // A notebook's imports are in the code of its cells, not in the JSON around them.
+        var code = Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookScript.CodeIn(file) : Read(file);
+        if (code is not { } text) yield break;
 
-        var folder = Path.GetDirectoryName(file)!;
+        // A notebook's code imports what is beside the notebook, not what is beside the script it was written to.
+        var folder = NotebookScript.FolderOfCode(file);
 
         foreach (Match import in PythonImport().Matches(text))
         {

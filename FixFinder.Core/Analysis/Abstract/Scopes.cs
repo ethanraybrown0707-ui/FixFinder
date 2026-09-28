@@ -27,7 +27,11 @@ public static class Scopes
     /// b = a between two of the function's own variables is not a way out: the evaluator follows both names as one
     /// object. But it is one object, so if either name escapes, both do.
     /// </remarks>
-    public static HashSet<string> Escaping(IrFunction function)
+    /// <param name="changingNothing">
+    /// The program's own functions known to change none of what they are given, which a collection can be handed to
+    /// without escaping, as it can to len or sum.
+    /// </param>
+    public static HashSet<string> Escaping(IrFunction function, IReadOnlySet<string>? changingNothing = null)
     {
         var escaping = new HashSet<string>(StringComparer.Ordinal);
         var sharing = new List<(string Name, string Of)>();
@@ -46,7 +50,7 @@ public static class Scopes
                     Visit(receiver, true);
                     foreach (var argument in method.Arguments) Visit(argument.Value, false);
                     break;
-                case Call { Callee: Name { Identifier: var builtin } } call when HarmlessBuiltins.Contains(builtin):
+                case Call { Callee: Name { Identifier: var builtin } } call when HarmlessBuiltins.Contains(builtin) || changingNothing?.Contains(builtin) == true:
                     foreach (var argument in call.Arguments) Visit(argument.Value, true);
                     break;
                 case ElementAccess element:

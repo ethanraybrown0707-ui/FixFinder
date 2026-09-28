@@ -139,18 +139,29 @@ public static class PythonProbe
             await File.WriteAllTextAsync(script, Script, new UTF8Encoding(false), cancellationToken);
 
             var arguments = string.Join(" ", new[] { "-X utf8", Quote(script), Quote(output), Quote(file) }.Concat(how.Select(Quote)));
-            await new TargetRunner().RunAsync(new TargetSpec
-            {
-                ExecutablePath = interpreter,
-                Arguments = arguments,
-                WorkingDirectory = Path.GetDirectoryName(file)!,
-                Timeout = timeout,
-            }.WithInput(input).WithEnvironment(new Dictionary<string, string>
+            var environment = new Dictionary<string, string>
             {
                 ["FIXFINDER_MOST_LINES"] = MostLines.ToString(),
                 ["FIXFINDER_WATCH"] = watchLine.ToString(),
                 ["FIXFINDER_MOST_STATES"] = MostStates.ToString(),
-            }), cancellationToken);
+            };
+
+            // A notebook's code runs from the notebook's folder, where its data and its own modules are, not the script's.
+            var folderOfCode = NotebookScript.FolderOfCode(file);
+            if (!string.Equals(folderOfCode, Path.GetDirectoryName(Path.GetFullPath(file)), StringComparison.OrdinalIgnoreCase))
+            {
+                environment["PYTHONPATH"] = Environment.GetEnvironmentVariable("PYTHONPATH") is { Length: > 0 } already
+                    ? folderOfCode + Path.PathSeparator + already
+                    : folderOfCode;
+            }
+
+            await new TargetRunner().RunAsync(new TargetSpec
+            {
+                ExecutablePath = interpreter,
+                Arguments = arguments,
+                WorkingDirectory = folderOfCode,
+                Timeout = timeout,
+            }.WithInput(input).WithEnvironment(environment), cancellationToken);
 
             return File.Exists(output) ? Read(await File.ReadAllTextAsync(output, cancellationToken)) : null;
         }

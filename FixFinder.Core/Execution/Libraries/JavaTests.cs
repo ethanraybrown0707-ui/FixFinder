@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace FixFinder.Core.Execution.Libraries;
@@ -6,7 +5,7 @@ namespace FixFinder.Core.Execution.Libraries;
 /// <summary>
 /// Running a Java class of tests - JUnit's @Test methods, and no main - with JUnit itself. A small launcher of FixFinder's,
 /// compiled beside the tests, hands the class to JUnit 5's launcher or JUnit 4's JUnitCore, and prints what each test did
-/// as one line FixFinder reads back; whether a test passed is JUnit's to say, not FixFinder's.
+/// as one line, read back by <see cref="TestReport"/>; whether a test passed is JUnit's to say, not FixFinder's.
 /// </summary>
 public static partial class JavaTests
 {
@@ -15,17 +14,7 @@ public static partial class JavaTests
     /// <summary>What running a class of tests needs besides the project's libraries, or why it cannot be run.</summary>
     public sealed record Runner(Framework Framework, IReadOnlyList<string> ExtraJars, string? CannotRun);
 
-    /// <summary>What one test did, as JUnit reported it.</summary>
-    /// <param name="Status">SUCCESSFUL, FAILED, ABORTED or SKIPPED, as JUnit names them.</param>
-    /// <param name="Frames">Where the failure was thrown, innermost first: class, method, file and line.</param>
-    public sealed record TestResult(
-        string Status, string Name, string ClassName, string Method, string? Exception, string? Message,
-        IReadOnlyList<(string Class, string Method, string? File, int Line)> Frames);
-
     public const string LauncherClass = "FixFinderTestLauncher";
-
-    private const string ResultMarker = "FIXFINDER-TEST";
-    private const string CountMarker = "FIXFINDER-TESTS-FOUND";
 
     [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?org\.junit\.(?<which>jupiter\.)?")]
     private static partial Regex JUnitImport();
@@ -88,47 +77,6 @@ public static partial class JavaTests
 
     /// <summary>The launcher's Java source for this JUnit: plain Java 8, so it compiles under any release a course uses.</summary>
     public static string LauncherSource(Framework framework) => (framework == Framework.JUnit4 ? JUnit4Launcher : JUnit5Launcher) + Reporting + "}\n";
-
-    /// <summary>What each test did, read from the launcher's lines; empty when the run was not a run of tests.</summary>
-    public static IReadOnlyList<TestResult> ResultsIn(IEnumerable<string> lines)
-    {
-        var results = new List<TestResult>();
-
-        foreach (var line in lines)
-        {
-            if (!line.StartsWith(ResultMarker + "\t", StringComparison.Ordinal)) continue;
-
-            var fields = line.Split('\t').Select(Unescaped).ToArray();
-            if (fields.Length < 8) continue;
-
-            var frames = fields[7].Split(';', StringSplitOptions.RemoveEmptyEntries)
-                .Select(frame => frame.Split('#'))
-                .Where(parts => parts.Length == 4)
-                .Select(parts => (parts[0], parts[1], parts[2].Length > 0 && parts[2] != "null" ? parts[2] : null,
-                    int.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : -1))
-                .ToList();
-
-            results.Add(new TestResult(fields[1], fields[2], fields[3], fields[4], fields[5].Length > 0 ? fields[5] : null, fields[6].Length > 0 ? fields[6] : null, frames));
-        }
-
-        return results;
-    }
-
-    /// <summary>How many tests JUnit found in the class, when the launcher got as far as saying.</summary>
-    public static int? TestsFound(IEnumerable<string> lines) =>
-        lines.FirstOrDefault(line => line.StartsWith(CountMarker + "\t", StringComparison.Ordinal)) is { } found &&
-        int.TryParse(found[(CountMarker.Length + 1)..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
-            ? count
-            : null;
-
-    /// <summary>A launcher field back as it was: \t, \n, \r and \\ undone.</summary>
-    private static string Unescaped(string field) => Regex.Replace(field, @"\\(.)", match => match.Groups[1].Value switch
-    {
-        "t" => "\t",
-        "n" => "\n",
-        "r" => "\r",
-        var other => other,
-    });
 
     private const string JUnit5Launcher = """
         import org.junit.platform.engine.TestExecutionResult;

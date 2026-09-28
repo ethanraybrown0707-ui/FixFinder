@@ -83,7 +83,7 @@ public static class FixRun
     private static string CopyProgram(string chosen, string folder)
     {
         var root = ProgramCopy.RootOf(chosen);
-        if (ProgramCopy.TryCopyWhole(root, folder)) return Path.Combine(folder, Path.GetRelativePath(root, chosen));
+        if (ProgramCopy.TryCopyWhole(root, folder)) return ProgramCopy.InCopy(root, chosen, folder);
 
         foreach (var beside in ProgramFiles.Of(chosen))
         {
@@ -93,7 +93,7 @@ public static class FixRun
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
 
-        ProgramCopy.Remember(folder, Path.GetDirectoryName(chosen)!);
+        ProgramCopy.Remember(folder, NotebookScript.FolderOfCode(chosen));
         return Path.Combine(folder, Path.GetFileName(chosen));
     }
 

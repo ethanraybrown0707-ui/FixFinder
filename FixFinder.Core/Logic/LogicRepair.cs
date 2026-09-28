@@ -256,7 +256,7 @@ public sealed class LogicRepair
     {
         public string Folder { get; } = Path.Combine(Path.GetTempPath(), "FixFinder-logic", Guid.NewGuid().ToString("N")[..12]);
 
-        public string File => Path.Combine(Folder, Path.GetRelativePath(root, chosen));
+        public string File => ProgramCopy.InCopy(root, chosen, Folder);
 
         public bool Create() => ProgramCopy.TryCopyWhole(root, Folder);
 

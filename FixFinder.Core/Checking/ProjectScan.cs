@@ -57,7 +57,7 @@ public static class ProjectScan
     /// <summary>The kinds of file FixFinder can check.</summary>
     private static readonly HashSet<string> Source = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".py", ".java", ".cs", ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".js", ".mjs", ".cjs", ".go",
+        ".py", ".ipynb", ".java", ".cs", ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".js", ".mjs", ".cjs", ".go",
     };
 
     /// <summary>Headers are part of a program rather than programs, so they never start a check of their own.</summary>
@@ -71,6 +71,12 @@ public static class ProjectScan
 
     /// <summary>A file larger than this is generated, minified or data, whatever its extension says.</summary>
     public const long LargestFile = 2 * 1024 * 1024;
+
+    /// <summary>
+    /// A notebook is saved with what its cells last showed - plots, tables - which is most of its size and none of its code,
+    /// so one is only passed over when it is far larger than a source file would be.
+    /// </summary>
+    public const long LargestNotebook = 20 * 1024 * 1024;
 
     /// <summary>
     /// Works out what to check in a folder. Reads the names of files and how big they are, and nothing else.
@@ -155,7 +161,7 @@ public static class ProjectScan
                 try { size = new FileInfo(file).Length; }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
 
-                if (size > LargestFile) continue;
+                if (size > (Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? LargestNotebook : LargestFile)) continue;
 
                 yield return file;
             }

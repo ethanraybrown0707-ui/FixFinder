@@ -33,6 +33,28 @@ public class AbstractInterpretationTests : IDisposable
         code.ReplaceLineEndings("\n").Split('\n').Select((text, i) => (text, i)).First(l => l.text.Contains(marker, StringComparison.Ordinal)).i + 1;
 
     [Theory]
+    // Every call gives it a list with something in: the function still does not check, but this program never fails there.
+    [InlineData(false, "def average(values):\n    return sum(values) / len(values)\n\n\nmarks = [70, 65, 58]\nprint(average(marks))\nprint(average([1, 2]))\n")]
+    // What was typed may be nothing, so the list one call gives it may be empty.
+    [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n\n\nwords = input().split()\nprint(average([len(word) for word in words]))\n")]
+    // It empties the one-item list it is given before it divides.
+    [InlineData(true, "def average_without_top(values):\n    values.remove(max(values))\n    return sum(values) / len(values)\n\n\nprint(average_without_top([5]))\n")]
+    // Handed to sorted to call, with lists that cannot be seen from here.
+    [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n\n\ngroups = [[1, 2], [3]]\nprint(average([4]))\nprint(sorted(groups, key=average))\n")]
+    // Kept in a dictionary and called from there, where the call made through it cannot be followed.
+    [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n\n\noperations = {\"mean\": average}\nprint(average([4]))\nprint(operations[\"mean\"]([]))\n")]
+    // Nothing in the program calls it, so what it will be given is not known.
+    [InlineData(true, "def average(values):\n    return sum(values) / len(values)\n")]
+    public async Task ADivisionByWhatAFunctionIsGivenIsAnErrorOnlyWhenACallCanMakeItZero(bool anError, string code)
+    {
+        if (await Analyse(code) is not { } findings) return;
+
+        var division = Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero");
+        Assert.Equal(anError ? Severity.Error : Severity.Warning, division.Severity);
+        Assert.Equal(!anError, division.Message.EndsWith("Every call this program makes to it gives it what keeps this from happening, so the program does not fail here", StringComparison.Ordinal));
+    }
+
+    [Theory]
     [InlineData("analysis-division-by-zero", "Possible", "def average(values):\n    total = 0\n    count = 0\n    for v in values:\n        total += v\n        count += 1\n    return total / count\n", "total / count")]
     [InlineData("analysis-division-by-zero", "Certain", "def f():\n    zero = 0\n    return 10 / zero\n", "10 / zero")]
     [InlineData("analysis-null-used", "Possible", "def label(score):\n    message = None\n    if score > 90:\n        message = 'top'\n    return message.upper()\n", "message.upper()")]

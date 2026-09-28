@@ -37,6 +37,12 @@ public sealed record Finding
     public required string File { get; init; }
     public int? Line { get; init; }
 
+    /// <summary>
+    /// Where in a Jupyter notebook the finding is, when the code checked was a notebook's: its cell and the line in the
+    /// cell. <see cref="File"/> and <see cref="Line"/> are then the script the notebook's code was checked as.
+    /// </summary>
+    public Execution.NotebookPlace? InNotebook { get; init; }
+
     public required string Title { get; init; }
     public required string Explanation { get; init; }
     public required string WhyItMatters { get; init; }
@@ -59,7 +65,9 @@ public sealed record Finding
     /// What this finding is, as one string: where it is and what was found there. Two reports of the same mistake in
     /// the same place are the same finding, which is what lets one be named as the cause of another.
     /// </summary>
-    public string Id => $"{Path.GetFileName(File)}:{Line?.ToString() ?? "?"}:{RuleId}:{Title}";
+    public string Id => InNotebook is { } place
+        ? $"{Path.GetFileName(place.Notebook)}:cell {place.Cell}:{place.Line}:{RuleId}:{Title}"
+        : $"{Path.GetFileName(File)}:{Line?.ToString() ?? "?"}:{RuleId}:{Title}";
 
     /// <summary>
     /// The finding this one follows from, where there is real evidence that fixing that one removes this one. Null
@@ -131,5 +139,7 @@ public sealed record Finding
         init => _explanations = value;
     }
 
-    public string Location => Line is { } line ? $"{Path.GetFileName(File)}, line {line}" : Path.GetFileName(File);
+    public string Location => InNotebook is { } place ? $"{Path.GetFileName(place.Notebook)}, cell {place.Cell}, line {place.Line}"
+        : Line is { } line ? $"{Path.GetFileName(File)}, line {line}"
+        : Path.GetFileName(File);
 }

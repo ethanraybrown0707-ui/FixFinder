@@ -82,6 +82,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _launch = launch;
         _cancellation = cancellationToken;
+        NoteWhatANotebookIsCheckedAs();
 
         var syntax = Task.Run(() => SyntaxLaneAsync(launch, files, builds, cancellationToken), CancellationToken.None);
         var logic = Task.Run(() => LogicLaneAsync(launch, files, builds.Task, cancellationToken), CancellationToken.None);
@@ -285,15 +286,88 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             new($"a server - it waits for connections with {how}", "a server", "it is stopped", "what it does when something connects");
     }
 
+    /// <summary>What a program is when it runs until it is stopped - a window program, or a server - or null for one meant to finish.</summary>
+    private static RunsUntilStopped? RunsUntilStoppedOf(string chosen) => Path.GetExtension(chosen).ToLowerInvariant() switch
+    {
+        ".java" => JavaRunsUntilStopped(chosen),
+        ".py" or ".pyw" => PythonRunsUntilStopped(chosen),
+        _ => null,
+    };
+
+    [GeneratedRegex(@"(?m)^[ \t]*(?:from[ \t]+(?<module>[\w.]+)[ \t]+import[ \t]+\(?(?<names>[\w \t,]+)|import[ \t]+(?<modules>[\w.]+(?:[ \t]+as[ \t]+\w+)?(?:[ \t]*,[ \t]*[\w.]+(?:[ \t]+as[ \t]+\w+)?)*))")]
+    private static partial Regex PythonImport();
+
+    /// <summary>
+    /// Python's windowing toolkits and servers, by the module that brings each - with, where importing it is not enough,
+    /// the call that makes the program wait: a chart can be drawn to a file, and a socket opened to talk to a server.
+    /// </summary>
+    private static readonly (string Module, string? WaitsAt, RunsUntilStopped What)[] PythonProgramsThatWait =
+    [
+        ("tkinter", null, RunsUntilStopped.Window("tkinter")),
+        ("turtle", null, RunsUntilStopped.Window("turtle")),
+        ("pygame", null, RunsUntilStopped.Window("pygame")),
+        ("PyQt5", null, RunsUntilStopped.Window("Qt")),
+        ("PyQt6", null, RunsUntilStopped.Window("Qt")),
+        ("PySide2", null, RunsUntilStopped.Window("Qt")),
+        ("PySide6", null, RunsUntilStopped.Window("Qt")),
+        ("wx", null, RunsUntilStopped.Window("wxPython")),
+        ("kivy", null, RunsUntilStopped.Window("Kivy")),
+        ("matplotlib", ".show(", RunsUntilStopped.Window("matplotlib's plot window")),
+        ("http.server", null, RunsUntilStopped.Server("Python's http.server")),
+        ("socketserver", null, RunsUntilStopped.Server("socketserver")),
+        ("socket", ".listen(", RunsUntilStopped.Server("a listening socket")),
+        ("flask", ".run(", RunsUntilStopped.Server("Flask")),
+        ("uvicorn", ".run(", RunsUntilStopped.Server("uvicorn")),
+        ("aiohttp", "run_app(", RunsUntilStopped.Server("aiohttp")),
+        ("asyncio", "start_server(", RunsUntilStopped.Server("asyncio's start_server")),
+    ];
+
+    /// <summary>
+    /// What a Python program is when it runs until it is stopped, from what its files import - the file it starts from and
+    /// the program's own modules it imports, which are all FixFinder takes for its program.
+    /// </summary>
+    private static RunsUntilStopped? PythonRunsUntilStopped(string chosen)
+    {
+        // A notebook's plots are made with no window, as Jupyter makes them, so plotting does not make it wait.
+        var plotsWithoutAWindow = NotebookScript.IsCodeOfANotebook(chosen);
+
+        foreach (var text in ProgramFiles.Of(chosen).Select(ReadOrNull).OfType<string>())
+        {
+            var imported = PythonImport().Matches(text).SelectMany(ModulesIn).ToList();
+
+            foreach (var (module, waitsAt, what) in PythonProgramsThatWait)
+            {
+                if (plotsWithoutAWindow && module == "matplotlib") continue;
+
+                var imports = imported.Any(name => name == module || name.StartsWith(module + ".", StringComparison.Ordinal));
+                if (imports && (waitsAt is null || text.Contains(waitsAt, StringComparison.Ordinal))) return what;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The modules one import statement names: import a, b as c names a and b; from a import b names a and a.b.</summary>
+    private static IEnumerable<string> ModulesIn(Match import)
+    {
+        if (import.Groups["module"].Success)
+        {
+            var from = import.Groups["module"].Value;
+            return [from, .. import.Groups["names"].Value.Split(',').Select(name => name.Trim().Split(' ')[0]).Where(name => name.Length > 0).Select(name => $"{from}.{name}")];
+        }
+
+        return import.Groups["modules"].Value.Split(',').Select(part => part.Trim().Split(' ', '\t')[0]);
+    }
+
     /// <summary>
     /// What a Java program is when it runs until it is stopped - a window program written with JavaFX or Swing, or a server
     /// on a ServerSocket, Java's HttpServer or Spring Boot with a web server - from what the file it starts from imports,
     /// or a file whose class that file names; or null for a program meant to finish. Only those files count: a folder of
     /// exercises can hold a window program beside one that never ends for want of a loop that stops.
     /// </summary>
-    private static RunsUntilStopped? RunsUntilStoppedOf(string chosen)
+    private static RunsUntilStopped? JavaRunsUntilStopped(string chosen)
     {
-        if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || ReadOrNull(chosen) is not { } starting) return null;
+        if (ReadOrNull(chosen) is not { } starting) return null;
 
         var webServer = new Lazy<string?>(() => WebServerOf(chosen));
 
@@ -388,50 +462,96 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                "still read for mistakes.";
     }
 
+    /// <summary>The framework a file's tests are run with, by its language: unittest for Python, JUnit for Java.</summary>
+    private static string TestFrameworkOf(string chosen) => IsPython(chosen) ? "unittest" : "JUnit";
+
+    private static bool IsPython(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".pyw";
+
     /// <summary>
-    /// What JUnit said of each test, when the run was a class of tests run through FixFinder's launcher: a failed test is
-    /// an error, found for certain by running it, placed on the test's own line the failure went through.
+    /// Whether a Python file's tests are written for pytest and would not run as a program: pytest runs them, and the file
+    /// running pytest itself - pytest.main() - is the one way running it as a program runs them too.
+    /// </summary>
+    private static bool LeftForPytest(string chosen) =>
+        IsPython(chosen) && PythonTests.FrameworkOf(chosen) == PythonTests.Framework.Pytest &&
+        ReadOrNull(chosen)?.Contains("pytest.main(", StringComparison.Ordinal) != true;
+
+    /// <summary>
+    /// What JUnit or unittest said of each test, when the run was a file of tests run through FixFinder's launcher: a
+    /// failed test is an error, found for certain by running it, placed on the test's own line the failure went through.
     /// </summary>
     private void RecordTests(SessionOutcome outcome, LaunchPlan launch)
     {
         if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen) return;
 
+        var framework = TestFrameworkOf(chosen);
         var lines = run.Lines.Select(line => line.Text).ToList();
-        var results = JavaTests.ResultsIn(lines);
+        var results = TestReport.ResultsIn(lines);
 
-        foreach (var failed in results.Where(result => result.Status == "FAILED")) Add(TestFinding(failed, chosen));
+        foreach (var failed in results.Where(result => result.Status is "FAILED" or "SETUP-FAILED")) Add(TestFinding(failed, chosen, framework));
 
-        if (results.Count == 0 && JavaTests.TestsFound(lines) == 0)
-            Note($"JUnit found no tests to run in {Path.GetFileName(chosen)}. JUnit 5 runs methods marked @Test that are not private and " +
-                 "return nothing; JUnit 4 needs them public.");
+        if (results.Count == 0 && TestReport.TestsFound(lines) == 0)
+        {
+            Note(IsPython(chosen)
+                ? $"unittest found no tests to run in {Path.GetFileName(chosen)}. It runs the methods of a unittest.TestCase class whose names begin with test."
+                : $"JUnit found no tests to run in {Path.GetFileName(chosen)}. JUnit 5 runs methods marked @Test that are not private and " +
+                  "return nothing; JUnit 4 needs them public.");
+        }
 
         var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
-        if (skipped > 0) Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped, or stopped by an assumption that did not hold, so JUnit did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
+        if (skipped > 0)
+        {
+            Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped{(IsPython(chosen) ? "" : ", or stopped by an assumption that did not hold")}, " +
+                 $"so {framework} did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
+        }
+
+        if (LeftForPytest(chosen))
+        {
+            Note($"{Path.GetFileName(chosen)}'s tests are written for pytest, which FixFinder does not run: running the file as a program runs none " +
+                 "of them, so whether they pass was not checked. The code was still read for mistakes.");
+        }
     }
 
-    /// <summary>A failed test as a finding: which test, what JUnit said, and the lines the failure came through.</summary>
-    private static Finding TestFinding(JavaTests.TestResult test, string chosen)
+    /// <summary>A failed test as a finding: which test, what its framework said, and the lines the failure came through.</summary>
+    private static Finding TestFinding(TestReport.TestResult test, string chosen, string framework)
     {
-        var own = test.Frames.FirstOrDefault(frame => test.ClassName.Length > 0 &&
-            (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
-            string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase) && frame.Line > 0);
+        var python = IsPython(chosen);
 
-        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && !frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
+        // Python's frames name the file in full, and unittest's own are left out by its launcher; Java's name the class and file.
+        bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => python
+            ? frame.File is { } file && string.Equals(Path.GetFullPath(file), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)
+            : test.ClassName.Length > 0 && (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
+              string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase);
+
+        var own = test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
+
+        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (python || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
-            !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal));
+            !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal))));
 
         var exception = test.Exception ?? "";
-        var assertion = exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
-                        exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
+        var assertion = python
+            ? exception == "AssertionError"
+            : exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
+              exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
         var message = test.Message is { Length: > 0 } said && said != "null" ? said.ReplaceLineEndings(" ") : null;
         var shown = message is null ? "" : $": {(message.Length <= 120 ? message : message[..117] + "...")}";
-        var name = test.Method.Length > 0 ? test.Method : test.Name;
+        // A Python subtest is named with what it was run with: test_shares (people=4).
+        var name = python && test.Name.Length > 0 ? test.Name : test.Method.Length > 0 ? test.Method : test.Name;
         var line = own is { Line: > 0 } ? $" on line {own.Line}" : "";
+        var thrown = python ? "raised" : "thrown";
+        var stoppedWith = $"{(exception.Length > 0 ? exception : "a failure")}{(message is null ? "" : $" ({message})")}" +
+                          (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}" : line);
 
-        var explanation = assertion
-            ? $"JUnit ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
-            : $"JUnit ran the test {test.Name}, and it stopped with {exception}{(message is null ? "" : $" ({message})")}" +
-              (thrownAt is { } at && at != own ? $", thrown in {at.Class}.{at.Method} on line {at.Line} of {at.File}." : $"{line}.");
+        // Setting up for a class's or a module's tests is not a test: when it fails, those tests do not run at all.
+        var settingUp = test.Status == "SETUP-FAILED";
+
+        var explanation = settingUp
+            ? $"{framework} could not set up for the tests: {test.Name} stopped with {stoppedWith}, so the tests it sets up for did not run."
+            : assertion
+                ? $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
+                : $"{framework} ran the test {test.Name}, and it stopped with {stoppedWith}.";
+
+        var what = settingUp ? name : $"Test {name}";
 
         return new Finding
         {
@@ -440,21 +560,30 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Confidence = Confidence.Certain,
             File = chosen,
             Line = own is { Line: > 0 } ? own.Line : null,
-            Title = assertion ? $"Test {name} failed{shown}" : $"Test {name} stopped with {exception.Split('.')[^1]}{shown}",
+            Title = assertion && !settingUp ? $"{what} failed{shown}" : exception.Length > 0 ? $"{what} stopped with {exception.Split('.')[^1]}{shown}" : $"{what} failed{shown}",
             Explanation = explanation,
             WhyItMatters = "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
                            "or the test expects the wrong thing.",
-            SuggestedFix = assertion
+            SuggestedFix = assertion || exception.Length == 0
                 ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
-                : "Go to the line the exception was thrown on - in the code the test calls, if it came from there - and put right what failed there.",
+                : $"Go to the line the exception was {thrown} on - in the code the test calls, if it came from there - and put right what failed there.",
             CorrectedExample = "",
             RuleId = "test-failed",
         };
     }
 
+    /// <summary>
+    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's for Python - rather than from
+    /// the program: the launcher is where it was raised, or the nearest place to that of the program's own.
+    /// </summary>
+    /// <remarks>
+    /// Both are looked at because Python shows an error raised while another was being handled with that other one's
+    /// places too, and the nearest of the program's own can then be the test file, where the first one began.
+    /// </remarks>
     private static bool FromTestLauncher(ParsedError error) =>
-        (error.CulpritFrame?.File ?? error.Frames.FirstOrDefault()?.File) is { } file &&
-        Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase);
+        new[] { error.CulpritFrame?.File, error.Frames.FirstOrDefault()?.File }.OfType<string>().Any(file =>
+            Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
@@ -502,6 +631,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return;
             }
 
+            if (FromTestLauncher(error))
+            {
+                // Said in full: what stopped it is the part that explains it, and where in FixFinder's launcher is no help to anyone.
+                var said = error.Message is { Length: > 0 } message ? $"{error.ShortExceptionType ?? error.ExceptionType}: {message}" : error.Summary;
+                Note($"FixFinder's launcher for {TestFrameworkOf(chosen)} could not finish, so whether the tests pass is not known: {said}.");
+                return;
+            }
+
             if (NoJavaFxToStartIt(error, chosen) is { } noJavaFx)
             {
                 Note(noJavaFx);
@@ -531,6 +668,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             {
                 Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
             });
+
+            // What the program printed is shown as it was printed, so the traceback in it counts the lines of the script.
+            if (NotebookScript.Of(chosen) is not null)
+            {
+                Note($"{Path.GetFileName(chosen)}'s code cells were run in order as one script, so the line numbers in what it printed " +
+                     "are that script's; the report gives each place as a cell and a line in it.");
+            }
 
             return;
         }
@@ -604,17 +748,28 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var reads = Path.GetExtension(chosen).ToLowerInvariant() is ".py" or ".pyw" or ".js" or ".mjs" or ".cjs" ? "No syntax errors" : "It builds";
 
         var lines = outcome.Run?.Lines.Select(line => line.Text).ToList() ?? [];
-        var tests = JavaTests.ResultsIn(lines);
+        var tests = TestReport.ResultsIn(lines);
 
-        if (tests.Count > 0 || JavaTests.TestsFound(lines) is 0)
+        if (tests.Count > 0 || TestReport.TestsFound(lines) is 0)
         {
-            var failed = tests.Count(test => test.Status == "FAILED");
-            var ran = tests.Count(test => test.Status is "SUCCESSFUL" or "FAILED");
+            // A Python test is one test however many of its subtests fail, as unittest counts it; each of JUnit's is its own.
+            string TestOf(TestReport.TestResult test) => IsPython(chosen) ? $"{test.ClassName}.{test.Method}" : $"{test.ClassName}.{test.Method}.{test.Name}";
 
-            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed"
+            var failed = tests.Where(test => test.Status == "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
+            var ran = tests.Where(test => test.Status is "SUCCESSFUL" or "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
+
+            // Tests whose setting up failed never ran, so they are neither passes nor failures.
+            var notSetUp = tests.Any(test => test.Status == "SETUP-FAILED");
+            var othersNotRun = notSetUp ? ", and setting up for others failed, so those did not run" : "";
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}"
+                : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}"
                 : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}"
-                : $"{reads}{warnings}, but JUnit ran none of its tests";
+                : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {TestFrameworkOf(chosen)} ran none of them"
+                : $"{reads}{warnings}, but {TestFrameworkOf(chosen)} ran none of its tests";
         }
+
+        if (outcome.Result == SessionResult.RanFine && LeftForPytest(chosen)) return $"{reads}{warnings}; its tests are written for pytest, which FixFinder does not run";
 
         return outcome.Result switch
         {
@@ -720,12 +875,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </remarks>
     public async Task<CheckReport> CheckCodeAsync(LaunchPlan launch, CancellationToken cancellationToken = default)
     {
+        // A notebook is written out again, so what is read is the notebook as it was saved, not as it was when picked.
+        if (launch.PickedFile is { } picked && launch.ChosenFile is { } script && NotebookScript.Of(script) is not null)
+            launch = TargetFactory.FromFile(picked, launch.Spec?.Timeout);
+
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
 
         var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
         _launch = launch;
         _cancellation = cancellationToken;
         _codeOnly = true;
+        NoteWhatANotebookIsCheckedAs();
 
         int found;
         try
@@ -912,8 +1072,27 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             VerificationStage.Compiled, StageResult.Failed, $"A copy of {name} with this change does not compile."));
     }
 
+    /// <summary>
+    /// Checks on an expression whose value is not used - which, as the last statement of a notebook cell, Jupyter shows
+    /// under the cell rather than throwing away.
+    /// </summary>
+    private static readonly HashSet<string> ValueNotUsed = new(StringComparer.Ordinal)
+    {
+        "logic-python-statement-has-no-effect", "logic-python-result-discarded", "logic-python-comparison-statement",
+    };
+
     private void Add(Finding finding)
     {
+        // Found in the script a notebook's code was checked as: said of the notebook's cell, or not at all when it is in
+        // FixFinder's own lines, or an expression Jupyter would show as a cell's last statement.
+        if (NotebookScript.Of(finding.File) is { } notebook)
+        {
+            if (finding.Line is not { } scriptLine || notebook.PlaceOf(scriptLine) is not { } place) return;
+            if (ValueNotUsed.Contains(finding.RuleId) && notebook.InACellsLastStatement(scriptLine)) return;
+
+            finding = finding with { InNotebook = place };
+        }
+
         IReadOnlyList<Finding> snapshot;
 
         lock (_gate)
@@ -1053,8 +1232,36 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private static int Rank(Finding finding) =>
         (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
 
+    /// <summary>
+    /// Says, for a notebook, how its places are counted - the cell from the notebook's top and the line within it, which is
+    /// not the number Jupyter shows beside a cell that has run - and which of its IPython commands were not carried out.
+    /// </summary>
+    private void NoteWhatANotebookIsCheckedAs()
+    {
+        if (_launch?.ChosenFile is not { } chosen || NotebookScript.Of(chosen) is not { } notebook) return;
+
+        var name = Path.GetFileName(notebook.Notebook);
+
+        Note($"{name}'s cells are counted from its top, Markdown cells included, and each line within its cell. " +
+             "The number Jupyter shows beside a cell that has run - [3], or In [3] - is a different count: the order the cells were run in.");
+
+        if (notebook.CommandsNotCarriedOut is not { Count: > 0 } notCarriedOut) return;
+
+        const int mostNamed = 3;
+        var named = notCarriedOut.Take(mostNamed).Select(command => $"\"{command.Command}\" (cell {command.Cell}, line {command.Line})");
+        var more = notCarriedOut.Count > mostNamed ? $", and {notCarriedOut.Count - mostNamed} more" : "";
+
+        Note($"{name} has IPython commands FixFinder does not carry out: {string.Join(", ", named)}{more}. Whatever they would have " +
+             "done - fetched or written a file, defined a name - is missing when the cells after them run, and a failure that follows " +
+             "from that is not a mistake in the notebook's code.");
+    }
+
     private void Note(string note)
     {
+        // A note about a notebook's code names the notebook, not the script FixFinder checked it as.
+        if (_launch?.ChosenFile is { } chosen && NotebookScript.Of(chosen) is { } notebook)
+            note = note.Replace(Path.GetFileName(chosen), Path.GetFileName(notebook.Notebook), StringComparison.Ordinal);
+
         lock (_gate)
         {
             if (!_notes.Contains(note)) _notes.Add(note);
@@ -1063,13 +1270,19 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     /// <summary>
     /// The report's order: worst first, then by where it is - and then the findings that follow from another are put
-    /// behind the one they follow from, so a reader meets the cause before the four reports of its consequences.
+    /// behind the one they follow from, so a reader meets the cause before the four reports of its consequences. What was
+    /// found in a notebook's code is worded as the notebook is read, in cells, on its way out.
     /// </summary>
-    private static List<Finding> Sorted(IEnumerable<Finding> findings) =>
-        [.. RootCauses.Link([.. findings
+    private List<Finding> Sorted(IEnumerable<Finding> findings)
+    {
+        var notebook = _launch?.ChosenFile is { } chosen ? NotebookScript.Of(chosen) : null;
+        var worded = notebook is null ? findings : findings.Select(finding => NotebookWording.AsInTheNotebook(finding, notebook));
+
+        return [.. RootCauses.Link([.. worded
             .OrderBy(f => f.Severity)
             .ThenBy(f => f.File, StringComparer.OrdinalIgnoreCase)
             .ThenBy(f => f.Line ?? 0)])];
+    }
 
     private static async Task ForEachAsync<T>(IEnumerable<T> items, Func<T, Task> body, CancellationToken cancellationToken)
     {

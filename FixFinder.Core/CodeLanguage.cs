@@ -12,7 +12,7 @@ public sealed record CodeLanguage(
 {
     public static CodeLanguage Any { get; } = new("Any language", [], [], []);
 
-    public static CodeLanguage Python { get; } = new("Python", [".py", ".pyw"], ["python"], ["python-"]);
+    public static CodeLanguage Python { get; } = new("Python", [".py", ".pyw", ".ipynb"], ["python"], ["python-"]);
 
     public static CodeLanguage Java { get; } = new("Java", [".java", ".jar"], ["java"], ["java-"]);
 
