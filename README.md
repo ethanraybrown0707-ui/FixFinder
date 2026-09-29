@@ -53,13 +53,38 @@ The changes FixFinder tries are made and run in a copy of the program's folder, 
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
 
 A Python program runs with **its project's own Python** when it has one, as its IDE runs it, so a package installed only
-there is found: the interpreter the project's VS Code settings name (`python.defaultInterpreterPath`, or the older
-`python.pythonPath`), or a virtual environment - `.venv`, `venv`, `env`, `.env` or `virtualenv`, holding its `pyvenv.cfg` - in
-the program's folder or one above it, up to the folder that marks the project: one with a `.git`, `.idea`, `.vscode`,
-`pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt` or `Pipfile`. An environment whose Python has since been
-uninstalled is passed over. How the program is run says which Python it is, and the copies changes are tried in run with
-the same one. An environment kept outside the project, as conda and Poetry keep theirs, is not found, and the Python on
-PATH is used instead.
+there is found. FixFinder looks in the program's folder and each one above it, up to the folder that marks the project - one
+with a `.git`, `.idea`, `.vscode`, `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile` or
+`environment.yml` - and takes the first of these it finds:
+
+- the interpreter the project's VS Code settings name (`python.defaultInterpreterPath`, or the older `python.pythonPath`),
+  or its PyCharm settings name: `.idea\misc.xml` gives the interpreter's name, and PyCharm's own list of interpreters,
+  `jdk.table.xml`, says where it is;
+- a virtual environment in the folder - `.venv`, `venv`, `env`, `.env` or `virtualenv`, holding its `pyvenv.cfg`;
+- the **conda** environment the project's `environment.yml` names: by its `prefix:`, as `conda env export` writes it, or
+  by its `name:` - looked for in conda's own list of the environments it made (`.conda\environments.txt`), in the folders
+  `CONDA_ENVS_DIRS` (or the older `CONDA_ENVS_PATH`) names, in `.conda\envs`, and in the `envs` folder of an Anaconda,
+  Miniconda, Miniforge or Mambaforge installation in the home folder, local application data or ProgramData. A folder is
+  taken for an environment only if it holds conda's `conda-meta` record, so what a removal left behind is not;
+- the environment **Poetry** made for a project it manages - one with `[tool.poetry]` in its `pyproject.toml`, or a
+  `poetry.lock` beside it - under the name Poetry gives it, the project's name and a hash of its folder, worked out as
+  Poetry works it out. It is looked for only where Poetry keeps environments: the folder `POETRY_VIRTUALENVS_PATH`, the
+  project's `poetry.toml` or Poetry's `config.toml` names - read in that order, as Poetry reads a setting - and otherwise
+  the `virtualenvs` folder of Poetry's cache. When Poetry made one for each of two Pythons, the one its `envs.toml` records
+  as in use is taken, and neither when it records none;
+- the environment **Pipenv** made for a project with a `Pipfile`: the one in `WORKON_HOME`, or in `.virtualenvs` in the
+  home folder, whose `.project` file names the project's folder.
+
+A notebook saved with a **Jupyter kernel** of its own - one made with `python -m ipykernel install --user --name ...` - runs
+with that kernel's Python, found where Jupyter finds kernels: the folders `JUPYTER_PATH` names, then this user's Jupyter
+folder (or `JUPYTER_DATA_DIR` in place of it), and ProgramData's only when `JUPYTER_USE_PROGRAMDATA` says to trust it, as
+Jupyter does. The kernel every Python brings is called `python3` whichever Python it is, so a notebook saved with that one
+has its project's own Python looked for as above. A tool run by the Microsoft Store's Python writes into that Python's own
+copy of the application data folders, so Poetry's environments and Jupyter's kernels are looked for there too.
+
+An environment whose Python has since been uninstalled is passed over, and one a project names that is not on this
+computer is not guessed at: the Python on PATH is used instead. How the program is run says which Python it is, and the
+copies changes are tried in run with the same one.
 
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and

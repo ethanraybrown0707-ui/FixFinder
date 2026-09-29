@@ -255,7 +255,12 @@ public static class TargetFactory
     {
         var notebookName = Path.GetFileNameWithoutExtension(script);
         var folder = NotebookScript.FolderOfCode(script);
-        var environment = PythonEnvironment.For(NotebookScript.Of(script)?.Notebook ?? ProgramCopy.OriginalOf(script));
+
+        // The notebook itself: the one the script was written from, or - for a copy made to try a change in - the one it
+        // was copied from. Its own Jupyter kernel decides its Python, when it was saved with one; its project's otherwise.
+        var original = ProgramCopy.OriginalOf(script);
+        var notebook = NotebookScript.Of(script)?.Notebook ?? (original.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ? original[..^3] : original);
+        var environment = JupyterKernels.Named(NotebookScript.KernelNameIn(notebook), PythonEnvironment.Current) ?? PythonEnvironment.For(notebook);
         var python = environment?.Interpreter ?? Resolve(ByExtension[".py"]);
 
         if (python is null)

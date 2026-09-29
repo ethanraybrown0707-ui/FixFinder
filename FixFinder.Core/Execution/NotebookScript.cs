@@ -248,6 +248,24 @@ public sealed partial class NotebookScript
         }
     }
 
+    /// <summary>The name of the Jupyter kernel a notebook was saved with - its metadata's kernelspec name - or null when it names none.</summary>
+    public static string? KernelNameIn(string notebookPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(notebookPath));
+
+            return document.RootElement.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object &&
+                   metadata.TryGetProperty("kernelspec", out var kernel) && kernel.ValueKind == JsonValueKind.Object
+                ? Text(kernel, "name")
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Writes the notebook's code as a script and says where; or why it cannot be - a notebook of another language, say.</summary>
     public static (NotebookScript? Script, string? Problem) Write(string notebookPath)
     {
