@@ -276,10 +276,13 @@ public static class TargetFactory
             ? warningsAlready + "," + PlotNotShown
             : PlotNotShown;
 
+        // Code that awaits outside a function, as a cell can, is run as Jupyter runs it; any other runs as it is.
+        var awaitsOutsideAFunction = NotebookScript.AwaitsOutsideAFunction(File.ReadAllLines(script));
+
         var spec = new TargetSpec
         {
             ExecutablePath = python,
-            Arguments = $"\"{script}\"",
+            Arguments = awaitsOutsideAFunction ? $"\"{NotebookScript.WriteRunner()}\" \"{script}\"" : $"\"{script}\"",
             WorkingDirectory = folder,
             ExtraEnvironment = new Dictionary<string, string>
             {

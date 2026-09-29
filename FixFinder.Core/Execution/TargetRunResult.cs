@@ -19,7 +19,7 @@ public enum RunOutcome
 }
 
 /// <summary>The complete record of one run of the target.</summary>
-public sealed class TargetRunResult
+public sealed record TargetRunResult
 {
     public required RunOutcome Outcome { get; init; }
 

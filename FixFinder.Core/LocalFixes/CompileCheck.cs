@@ -311,7 +311,13 @@ public static class CompileCheck
                 var interpreter = python ?? TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py");
                 if (interpreter is null) return null;
 
-                return Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
+                // A notebook's code is compiled as Jupyter compiles a cell, where await may be used outside a function.
+                return copy.EndsWith(NotebookScript.ScriptEnding, StringComparison.OrdinalIgnoreCase)
+                    ? Spec(interpreter,
+                        "-X utf8 -c \"import ast, sys; compile(open(sys.argv[1], 'rb').read(), sys.argv[1], 'exec', " +
+                        $"flags=getattr(ast, 'PyCF_ALLOW_TOP_LEVEL_AWAIT', 0), dont_inherit=True)\" \"{copy}\"",
+                        folder)
+                    : Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
 
             case ".java":
                 if (Toolchains.FindJavac() is not { } javac) return null;

@@ -107,16 +107,45 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate)
         {
             var logicSummary = logic.Result;
-            var fromCode = _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
+
+            // What was found in the code is counted as it is reported: two findings of one mistake are one, and one in lines
+            // FixFinder put in itself is none. What was said of the output stays said.
             if (logicSummary.EndsWith("in the code", StringComparison.Ordinal))
-                logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
+            {
+                var fromCode = FoundInTheCode();
+                var printedAsExpected = logicSummary.StartsWith("Printed what you expected", StringComparison.Ordinal);
+
+                logicSummary = (printedAsExpected, fromCode) switch
+                {
+                    (true, 0) => "It printed what you expected",
+                    (true, _) => $"Printed what you expected; {Count(fromCode, "possible mistake")} in the code",
+                    (false, 0) => "No logic mistakes found in the code",
+                    _ => $"{Count(fromCode, "possible mistake")} in the code",
+                };
+            }
 
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, run);
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run));
         }
     }
+
+    /// <summary>How many of the findings reported came from reading the code - its patterns and its analyses.</summary>
+    private int FoundInTheCode() =>
+        _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
+
+    /// <summary>
+    /// A line the program printed, as it is shown: for a notebook's code, with each place in the script its cells were run
+    /// as put as a cell and a line, as Jupyter puts them in a traceback. What is read for errors is the line as printed.
+    /// </summary>
+    private CapturedLine AsPrinted(CapturedLine line) =>
+        _launch?.ChosenFile is { } chosen && NotebookScript.Of(chosen) is { } notebook ? line with { Text = notebook.InCellTerms(line.Text) } : line;
+
+    private SessionOutcome? AsPrinted(SessionOutcome? outcome) =>
+        outcome?.Run is { } run && _launch?.ChosenFile is { } chosen && NotebookScript.Of(chosen) is not null
+            ? outcome with { Run = run with { Lines = [.. run.Lines.Select(AsPrinted)] } }
+            : outcome;
 
     private async Task<(string Summary, SessionOutcome? Run)> SyntaxLaneAsync(
         LaunchPlan launch, IReadOnlyList<string> files, TaskCompletionSource<bool> builds, CancellationToken cancellationToken)
@@ -198,7 +227,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var session = new FixFinderSession(http, sources) { Language = Language, SearchOnline = false, CheckLogic = false };
 
         void Relay(string message) => Log?.Invoke(message);
-        void Forward(CapturedLine line) => LineCaptured?.Invoke(line);
+        void Forward(CapturedLine line) => LineCaptured?.Invoke(AsPrinted(line));
         void Status(string message) => Progress?.Invoke(CheckLane.Syntax, message);
 
         session.Log += Relay;
@@ -660,6 +689,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return;
             }
 
+            // Code written for Google Colab needs Colab's own module, which nothing installs anywhere else.
+            if (kind == FindingKind.Runtime && MissingModule.IsColabOnly(error))
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Warning, Confidence.Certain, chosen) with
+                {
+                    Title = RunTitle(error, outcome.Run),
+                    Explanation = "google.colab is Google Colab's own module: it is there on Colab's machines and installed nowhere else, so " +
+                                  "this code was written to run on Colab. Here it stops at this import, and nothing after it runs.",
+                    SuggestedFix = "Run it on Google Colab. To run it here, take out what it uses google.colab for - drive.mount, " +
+                                   "files.upload - and open the files it reads by their paths on this computer instead.",
+                    CorrectedExample = "",
+                    RuleId = "python-colab-only",
+                });
+                return;
+            }
+
             var local = outcome.Best is { } best && (best.LocalFix is not null || best.Id.EndsWith(":did-you-mean", StringComparison.Ordinal)) ? best : null;
 
             var finishedNormally = kind == FindingKind.Runtime && outcome.Run is { ExitCode: 0 };
@@ -668,13 +713,6 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             {
                 Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
             });
-
-            // What the program printed is shown as it was printed, so the traceback in it counts the lines of the script.
-            if (NotebookScript.Of(chosen) is not null)
-            {
-                Note($"{Path.GetFileName(chosen)}'s code cells were run in order as one script, so the line numbers in what it printed " +
-                     "are that script's; the report gives each place as a cell and a line in it.");
-            }
 
             return;
         }
@@ -887,10 +925,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         _codeOnly = true;
         NoteWhatANotebookIsCheckedAs();
 
-        int found;
         try
         {
-            found = await CodeFindingsAsync(launch, files, cancellationToken);
+            await CodeFindingsAsync(launch, files, cancellationToken);
         }
         finally
         {
@@ -903,7 +940,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         lock (_gate)
         {
-            var logicSummary = found == 0 ? "No logic mistakes found in the code" : $"{Count(found, "possible mistake")} in the code";
+            var fromCode = FoundInTheCode();
+            var logicSummary = fromCode == 0 ? "No logic mistakes found in the code" : $"{Count(fromCode, "possible mistake")} in the code";
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 

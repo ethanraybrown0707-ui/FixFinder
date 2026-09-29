@@ -133,6 +133,22 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task AMisspeltBuiltInIsPutRightAsPythonSuggestsAndTheChangeIsTriedOnACopy()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var program = Write(@"typo\totals.py", "marks = [40, 2]\ntotal = sum(marks)\nprnt(total)\n");
+
+        var report = await CheckAsync(program);
+
+        var misspelt = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal("Change prnt to print. Python itself compared `prnt` with the names it knew at this point, and suggested `print`.", misspelt.SuggestedFix);
+        Assert.Equal(["prnt(total)", "print(total)"], misspelt.Change!.Lines.Where(line => line.Kind != ChangeKind.Context).Select(line => line.Text));
+        Assert.True(misspelt.CameFrom!.IsTheLanguagesOwn);
+        Assert.True(misspelt.Verified.IsVerified, string.Join(" / ", misspelt.Verified.Steps.Select(step => step.Detail)));
+    }
+
+    [Fact]
     public void AnEnvironmentBeyondTheProjectsOwnFolderIsNotTaken()
     {
         // An environment of some other project further up: the folder with .git is where this project begins.

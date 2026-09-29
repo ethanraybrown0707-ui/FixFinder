@@ -44,7 +44,24 @@ public sealed record Finding
     public Execution.NotebookPlace? InNotebook { get; init; }
 
     public required string Title { get; init; }
-    public required string Explanation { get; init; }
+
+    private readonly string _explanation = "";
+
+    /// <summary>
+    /// What is wrong, at the middle depth. Setting it drops the wordings written for the other depths, which belong to the
+    /// explanation they were written with: a finding made again with a new explanation says the new one at every depth,
+    /// unless wordings for the other depths are set after it.
+    /// </summary>
+    public required string Explanation
+    {
+        get => _explanation;
+        init
+        {
+            _explanation = value;
+            _explanations = null;
+        }
+    }
+
     public required string WhyItMatters { get; init; }
     public required string SuggestedFix { get; init; }
     public required string CorrectedExample { get; init; }

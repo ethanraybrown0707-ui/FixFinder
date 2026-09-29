@@ -101,6 +101,27 @@ public class RuntimeSuggestionTests : IDisposable
     }
 
     [Fact]
+    public async Task WhatPythonSuggestsIsAnEditOfTheLineItNamed()
+    {
+        if (Python is null) return;
+
+        var script = Write("builtin.py", """
+            total = 12
+            prnt(total)
+            """);
+
+        var candidate = RuntimeSuggestion.For(await CrashOf(script), _temp.Path);
+
+        // A misspelt built-in is suggested by Python as any other name is, and becomes the one line put right.
+        var edit = candidate?.LocalFix;
+        Assert.NotNull(edit);
+        Assert.Equal((2, 1), (edit!.StartLine, edit.RemoveCount));
+        Assert.Equal(["print(total)"], edit.NewLines);
+        Assert.Equal("Change prnt to print", edit.Title);
+        Assert.Equal("Python", RuntimeSuggestion.SuggestedBy(candidate!));
+    }
+
+    [Fact]
     public async Task AnErrorWithNoSuggestionProducesNothing()
     {
         if (Python is null) return;

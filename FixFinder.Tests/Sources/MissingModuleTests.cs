@@ -36,6 +36,9 @@ public class MissingModuleTests
     [InlineData("No module named 'cv2'", "cv2", "opencv-python")]
     [InlineData("No module named 'PIL'", "PIL", "pillow")]
     [InlineData("No module named 'sklearn'", "sklearn", "scikit-learn")]
+    [InlineData("No module named 'google.protobuf'", "google.protobuf", "protobuf")]
+    [InlineData("No module named 'google.cloud.storage'", "google.cloud.storage", "google-cloud-storage")]
+    [InlineData("No module named 'googleapiclient'", "googleapiclient", "google-api-python-client")]
     public void TheImportNameIsMappedToThePackageThatProvidesIt(
         string message, string module, string package)
     {
@@ -45,6 +48,28 @@ public class MissingModuleTests
         Assert.Equal(module, missing!.Module);
         Assert.Equal(package, missing.Package);
     }
+
+    /// <summary>
+    /// Google's packages share the one `google` name, so a module under it that is not known is given no package at all:
+    /// protobuf, which the bare name used to be taken for, provides neither google.colab nor anything but google.protobuf.
+    /// </summary>
+    [Theory]
+    [InlineData("No module named 'google.colab'")]
+    [InlineData("No module named 'google'")]
+    [InlineData("No module named 'google.some_new_service'")]
+    public void AModuleUnderGoogleThatIsNotKnownIsGivenNoPackageToInstall(string message)
+    {
+        Assert.Null(MissingModule.Read(Error(message)));
+        Assert.Null(MissingModule.For(Error(message), Spec()));
+    }
+
+    [Theory]
+    [InlineData("No module named 'google.colab'", true)]
+    [InlineData("No module named 'google.colab.drive'", true)]
+    [InlineData("No module named 'google.protobuf'", false)]
+    [InlineData("No module named 'colab'", false)]
+    public void GoogleColabsOwnModuleIsToldApart(string message, bool colabOnly) =>
+        Assert.Equal(colabOnly, MissingModule.IsColabOnly(Error(message)));
 
     [Fact]
     public void ASubmoduleResolvesToItsTopLevelPackage()

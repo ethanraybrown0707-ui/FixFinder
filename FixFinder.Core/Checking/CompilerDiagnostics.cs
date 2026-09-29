@@ -25,8 +25,13 @@ public static partial class CompilerDiagnostics
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(3);
 
+    /// <summary>
+    /// Compiles each file and says what it found. The script of a notebook's code - named .ipynb.py - is compiled as
+    /// Jupyter compiles a cell, where await may be used outside a function.
+    /// </summary>
     private const string PythonChecker = """
-        import sys, warnings, traceback
+        import ast, sys, warnings, traceback
+        awaits_allowed = getattr(ast, "PyCF_ALLOW_TOP_LEVEL_AWAIT", 0)
         for path in sys.argv[1:]:
             print("@@FILE@@ " + path, file=sys.stderr, flush=True)
             try:
@@ -37,7 +42,7 @@ public static partial class CompilerDiagnostics
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
                 try:
-                    compile(source, path, "exec", dont_inherit=True)
+                    compile(source, path, "exec", flags=awaits_allowed if path.lower().endswith(".ipynb.py") else 0, dont_inherit=True)
                 except (SyntaxError, ValueError) as error:
                     sys.stderr.write("".join(traceback.format_exception_only(type(error), error)))
             for warning in caught:

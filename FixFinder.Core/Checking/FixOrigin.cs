@@ -27,11 +27,23 @@ public sealed record FixOrigin
     public bool HasLink =>
         Uri.TryCreate(Url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 
+    /// <summary>
+    /// Whether the language itself suggested the fix - Python's "Did you mean: 'print'?" - having compared what was written
+    /// with the names it knew at that point, so FixFinder only put its answer on the line.
+    /// </summary>
+    public bool IsTheLanguagesOwn { get; init; }
+
     /// <summary>A fix FixFinder worked out itself, named by the rule that did it.</summary>
     public static FixOrigin? OwnRule(string? ruleId) =>
         string.IsNullOrWhiteSpace(ruleId)
             ? null
             : new FixOrigin { SourceName = "FixFinder", Title = ruleId, Url = null };
 
-    public string Describe => HasLink ? $"{SourceName}: {Title}" : $"{SourceName}'s rule {Title}";
+    /// <summary>A fix the language suggested itself, in its own "Did you mean".</summary>
+    public static FixOrigin FromTheLanguage(string language) =>
+        new() { SourceName = language, Title = "its own \"Did you mean\"", Url = null, IsTheLanguagesOwn = true };
+
+    public string Describe => HasLink ? $"{SourceName}: {Title}"
+        : IsTheLanguagesOwn ? $"{SourceName}'s own suggestion"
+        : $"{SourceName}'s rule {Title}";
 }
