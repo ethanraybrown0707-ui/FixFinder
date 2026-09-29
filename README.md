@@ -91,7 +91,10 @@ project's `pom.xml`, with its parents, its properties, the versions its dependen
 each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and
 `testImplementation` lines, its `platform()` BOMs and version catalog, the highest version winning as in Gradle; the
 libraries IntelliJ's `.idea` and `.iml` files, Eclipse's `.classpath` and VS Code's `java.project.referencedLibraries`
-record; and jars kept in a `lib`, `libs` or `jars` folder. Each is looked for among what Maven and Gradle have already
+record; and jars kept in a `lib`, `libs` or `jars` folder. The JUnit that comes with Eclipse, which a `.classpath` takes
+as its JUnit 4, 5 or 6 container, is taken from an Eclipse on this computer: the jars Eclipse makes that container of, at
+the versions Eclipse allows, from among the bundles an Eclipse the installer put in the `eclipse` folder of the home folder
+uses, or from the installer's shared pool of bundles in `.p2`. Each is looked for among what Maven and Gradle have already
 downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
 named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
 errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would

@@ -602,9 +602,13 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
             </classpath>
             """);
 
-        var eclipse = IdeLibraries.Read(Folder("eclipse"), new MavenRepository(repository));
-        Assert.Contains(Path.GetFullPath(eclipseJar), eclipse.Main, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains(eclipse.Missing, missing => missing.Name == "JUnit 5");
+        // Read as on a computer with no Eclipse, whose own JUnit is then missing.
+        using (EclipseJUnit.LookingIn(Folder("home-without-eclipse")))
+        {
+            var eclipse = IdeLibraries.Read(Folder("eclipse"), new MavenRepository(repository));
+            Assert.Contains(Path.GetFullPath(eclipseJar), eclipse.Main, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains(eclipse.Missing, missing => missing.Name == "JUnit 5");
+        }
 
         var vscodeJar = Write(@"vscode\jars-here\nested\json.jar", "");
         Write(@"vscode\.vscode\settings.json", """

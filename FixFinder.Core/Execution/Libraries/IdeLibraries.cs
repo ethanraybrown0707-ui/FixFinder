@@ -154,7 +154,8 @@ public static partial class IdeLibraries
 
     /// <summary>
     /// Eclipse's .classpath: kind="lib" entries are jars, relative to the project or written in full; M2_REPO in a
-    /// kind="var" entry is Maven's repository. Eclipse's own JUnit container lives inside Eclipse, and is named as missing.
+    /// kind="var" entry is Maven's repository. Eclipse's own JUnit container is the JUnit that comes with Eclipse: its jars
+    /// are taken from an Eclipse on this computer, for the tests, and named as missing when no Eclipse here has them.
     /// </summary>
     private static void Eclipse(string project, MavenRepository mavenRepository, Action<string, bool, string> take, List<MissingLibrary> missing)
     {
@@ -181,9 +182,23 @@ public static partial class IdeLibraries
                     break;
 
                 case "con" when path.StartsWith("org.eclipse.jdt.junit.JUNIT_CONTAINER", StringComparison.Ordinal):
-                    missing.Add(new MissingLibrary($"JUnit {path.Split('/').ElementAtOrDefault(1) ?? ""}".Trim(),
-                        "Eclipse's .classpath uses the JUnit that comes inside Eclipse, which FixFinder does not look inside"));
+                {
+                    var version = path.Split('/').ElementAtOrDefault(1) ?? "";
+
+                    if (EclipseJUnit.For(version) is { } junit)
+                    {
+                        // JUnit is what the tests are run with, so its jars are the tests' own libraries.
+                        foreach (var jar in junit.Jars) take(jar, true, $"Eclipse's JUnit {version}, from {junit.From}");
+                    }
+                    else
+                    {
+                        missing.Add(new MissingLibrary($"JUnit {version}".Trim(),
+                            "Eclipse's .classpath uses the JUnit that comes with Eclipse, and no Eclipse on this computer has it - " +
+                            $"looked in {string.Join(", ", EclipseJUnit.PlacesLookedIn())}"));
+                    }
+
                     break;
+                }
             }
         }
     }

@@ -53,7 +53,8 @@ public static partial class JavaTests
 
         if (framework == Framework.JUnit4)
         {
-            return Has("junit-4") || Has("junit.jar") || classPath.Any(jar => Regex.IsMatch(Path.GetFileName(jar), @"^junit[-_]?4", RegexOptions.IgnoreCase))
+            // Maven's junit-4.13.2.jar, a junit.jar kept by hand, or the org.junit_4.13.2 bundle Eclipse's own JUnit is.
+            return Has("junit-4") || Has("junit.jar") || classPath.Any(jar => Regex.IsMatch(Path.GetFileName(jar), @"^(?:junit[-_]?4|org\.junit_4\.)", RegexOptions.IgnoreCase))
                 ? new Runner(framework, [], null)
                 : new Runner(framework, [], "JUnit 4's jar is not among the project's libraries");
         }
