@@ -353,6 +353,57 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task AChangeToANotebookThatAwaitsOutsideAFunctionIsTriedAsJupyterWouldRunIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"awaited\awaited.ipynb",
+            ("code", "import asyncio\n\n\nasync def doubled(value):\n    await asyncio.sleep(0)\n    return value * 2"),
+            ("code", "result = await doubled(21)\nprnt(result)"));
+
+        var report = await CheckAsync(notebook);
+
+        // The copy the change is tried on awaits outside a function too, so it is run as a cell is.
+        var misspelt = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal("awaited.ipynb, cell 2, line 2", misspelt.Location);
+        Assert.True(misspelt.Verified.IsVerified, string.Join(" / ", misspelt.Verified.Steps.Select(step => step.Detail)));
+    }
+
+    [Fact]
+    public async Task AChangeFixFindersRulesWorkOutForANotebookThatAwaitsIsCompiledAsJupyterCompilesIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"averaged\averaged.ipynb",
+            ("code", "import asyncio\n\n\nasync def fetched(values):\n    await asyncio.sleep(0)\n    return values"),
+            ("code", "marks = await fetched([])\n\n\ndef average(values):\n    return sum(values) / len(values)\n\n\nprint(average(marks))"));
+
+        var report = await CheckAsync(notebook);
+
+        // A change one of FixFinder's rules works out is compiled before it is run, and compiled as a cell is compiled.
+        var byZero = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.StartsWith("It crashed: ZeroDivisionError", byZero.Title, StringComparison.Ordinal);
+        Assert.False(byZero.CameFrom!.IsTheLanguagesOwn);
+        Assert.True(byZero.Verified.IsVerified, string.Join(" / ", byZero.Verified.Steps.Select(step => step.Detail)));
+    }
+
+    [Fact]
+    public async Task AWarningsPlaceIsGivenAsACellAndALineAsJupyterGivesIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"warned\warned.ipynb",
+            ("code", "import warnings"),
+            ("markdown", "## Totals"),
+            ("code", "marks = [40, 2]\nwarnings.warn(\"the marks are rounded\")\nprint(sum(marks))"));
+
+        var report = await CheckAsync(notebook);
+
+        Assert.Contains(report.Run!.Run!.Lines,
+            line => line.Text == $"{Path.GetFullPath(notebook)}, cell 3, line 2: UserWarning: the marks are rounded");
+    }
+
+    [Fact]
     public async Task PlotlysShowCarriesOnAsInJupyterRatherThanOpeningABrowser()
     {
         if (PythonWith("plotly") is not { } python) return;

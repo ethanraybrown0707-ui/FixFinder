@@ -12,7 +12,7 @@ public class MissingModuleTests
         TargetFactory.FindOnPath("py") ??
         TargetFactory.FindOnPath("python3");
 
-    private static ParsedError Error(string message, string type = "ModuleNotFoundError") => new()
+    private static ParsedError Error(string message, string type = "ModuleNotFoundError", ErrorFrame[]? frames = null) => new()
     {
         LanguageId = "python",
         Confidence = 90,
@@ -20,7 +20,7 @@ public class MissingModuleTests
         FirstLineSequence = 0,
         ExceptionType = type,
         Message = message,
-        Frames = [],
+        Frames = frames ?? [],
     };
 
     private static TargetSpec Spec(string? executable = null) => new()
@@ -70,6 +70,21 @@ public class MissingModuleTests
     [InlineData("No module named 'colab'", false)]
     public void GoogleColabsOwnModuleIsToldApart(string message, bool colabOnly) =>
         Assert.Equal(colabOnly, MissingModule.IsColabOnly(Error(message)));
+
+    [Theory]
+    [InlineData("from google.colab import drive", true)]
+    [InlineData("import google.colab", true)]
+    [InlineData("from google.cloud import storage", false)]
+    public void WhereNothingProvidesGoogleTheLineThatStoppedSaysWhetherItWasColabs(string importing, bool colabOnly)
+    {
+        // With no package of Google's installed, Python names only google as missing, whichever module under it was imported.
+        using var temp = new TempFolder();
+        var program = Path.Combine(temp.Path, "analysis.py");
+        File.WriteAllText(program, $"import os\n{importing}\n");
+        var stopped = new ErrorFrame { Order = 0, Symbol = "<module>", File = program, Line = 2, RawLine = "" };
+
+        Assert.Equal(colabOnly, MissingModule.IsColabOnly(Error("No module named 'google'", frames: [stopped])));
+    }
 
     [Fact]
     public void ASubmoduleResolvesToItsTopLevelPackage()

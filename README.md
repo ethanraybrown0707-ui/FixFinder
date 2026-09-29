@@ -128,21 +128,32 @@ pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions - ar
 Python, and a note says so.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
-notebook's folder - so its own modules and data files are found - and with its project's own Python when it has one.
-IPython's commands are made plain Python where that can be done without touching anything outside the run: `%cd` changes
-the folder, `%env` sets a variable, `%run helpers.py` runs the script and keeps what it defines, and `%time`, `%timeit`,
-`%%time` and `%%timeit` keep the code they time, running it once. Those that only show something or install a package do
-nothing: `%matplotlib inline`, and `!pip install` or `pip install`, which install nothing. The rest - a shell command such
-as `!wget`, a cell in another language such as `%%bash`, the file `%%writefile` would write - are not carried out, and a
-note names each one and where it is, since the cells after it run without what it would have done. matplotlib's plots are
-made without opening a window, as Jupyter makes them, so the cells after a `show()` run;
-`display()` prints what it is given when IPython is not installed. Everything found is said as the notebook is read: the
-cell, counted from the notebook's top with Markdown cells included, and the line within it. That is not the number Jupyter
-shows beside a cell that has run - the order the cells were run in - and a note says so. A line an explanation names in
-another cell is named with its cell, and an expression that ends a cell is not reported as a value thrown away, since
-Jupyter shows it under the cell. What the program printed is shown as it was printed, so a traceback in it counts the
-lines of the one script the cells were run as. A notebook of another language, such as R, is said to be one and is not
-run. The script and the copies changes are tried in are made in the temp folder; the notebook itself is never changed.
+notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
+it has one. IPython's commands are made plain Python where that can be done without touching anything outside the run:
+`%cd` changes the folder, `%env` sets a variable, `%run helpers.py` runs the script and keeps what it defines, and `%time`,
+`%timeit`, `%%time` and `%%timeit` keep the code they time, running it once. Those that only show something or install a
+package do nothing: `%matplotlib inline`, and `!pip install`, which install nothing. The rest - a shell command such as
+`!wget`, a cell in another language such as `%%bash`, the file `%%writefile` would write - are not carried out, and a note
+names each one and where it is, since the cells after it run without what it would have done. A command written without
+its `%` - `pip install pandas`, `ls`, `cd data`, `time total = sum(marks)` - is read as IPython reads it, as the command,
+unless the notebook gives a name of that name a value itself, as `run = 2` does.
+
+Code that uses `await` - or `async for` or `async with` - outside a function, as a cell may, runs as Jupyter runs it:
+compiled with Python's own flag for that, and run on an event loop through a small runner of FixFinder's, where plain
+Python would refuse the whole file. matplotlib's plots are made without opening a window, as Jupyter makes them, so the
+cells after a `show()` run; plotly's `show()` shows nothing, rather than opening a browser and waiting for it; `display()`
+prints what it is given when IPython is not installed. Code written for Google Colab - a notebook or a program that
+imports `google.colab`, which is only on Colab's own machines - is reported as that, with what to change to run it
+elsewhere, rather than as a package to install.
+
+Everything found is said as the notebook is read: the cell, counted from the notebook's top with Markdown cells included,
+and the line within it. That is not the number Jupyter shows beside a cell that has run - the order the cells were run
+in - and a note says so. What the program printed is shown as it was printed, except that a place in the one script the
+cells were run as - in a traceback, or a warning - is given as the cell, counted the same way, and the line in it. A line
+an explanation names in another cell is named with its cell, and an expression that ends a cell is not reported as a
+value thrown away, since Jupyter shows it under the cell. A notebook of another language, such as R, is said to be one
+and is not run. The script and the copies changes are tried in are made in the temp folder; the notebook itself is never
+changed.
 
 ## What each finding tells you
 
@@ -182,8 +193,10 @@ program still finishes. A Java class with no main method has nothing to run, and
 start a program that has just been built, and says so, a note says that too rather than blaming the code.
 
 For an error whose message pins the answer down - a missing import, a misspelt name, a semicolon, a loop one step too
-long - a **fix rule** works out the change from the code. Every fix is made in a copy and checked by the compiler or
-interpreter, and only offered if that passes.
+long - a **fix rule** works out the change from the code. When the language names the answer itself - Python's `Did you
+mean: 'print'?`, gcc's and clang's `did you mean` - that is the change, made on the line it names and credited to Python,
+or to the compiler, rather than to a rule of FixFinder's. Every fix is made in a copy and checked by the compiler or interpreter, and
+only offered if that passes.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
