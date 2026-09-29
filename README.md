@@ -123,9 +123,22 @@ itself, test by test, through a small launcher of FixFinder's, whether or not th
 fails is an error on the line of the test it failed on, in unittest's own words; a subtest that fails is named with what it
 was run with, such as `test_shares (people=4)`, and an error raised in the program's own code names the function, line and
 file it was raised in. When setting up for a class's or a module's tests fails - in `setUpClass`, say - that is reported as
-what it is, and the summary says those tests did not run. The summary says how many of the tests failed. Tests written for **pytest** - in a file that imports
-pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions - are not run, since pytest is not part of
-Python, and a note says so.
+what it is, and the summary says those tests did not run; when cleaning up after them fails, in `tearDownClass`, the tests
+ran, and that is said apart from them. The summary says how many of the tests failed.
+
+A file of **pytest** tests - one that imports pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions -
+is run with pytest itself, through a launcher of FixFinder's, from the Python the project runs with, so the project's own
+`pytest.ini`, `pyproject.toml`, `tox.ini` or `setup.cfg` settings and its `conftest.py` fixtures are pytest's to read as usual. Each
+test that fails is an error on its own line, in pytest's own words - `assert 25.0 == 20`, with pytest's
+`where 25.0 = share_of(4)` - and each set of parameters is a test of its own, as pytest counts them: `test_shares[4-20]`. A
+fixture that fails is reported as setting up that test, on the fixture's line, and the test as not run; the rest of a
+fixture after its `yield` failing is reported as cleaning up after a test that ran. A test marked `xfail` that fails as
+expected is not a failure, as pytest does not count it one. A file pytest cannot import is reported as the error that stops
+it, as any program is; a file it skips whole, as `pytest.importorskip` does, is said to have had none of its tests run;
+when a test stops pytest partway, with `pytest.exit()`, the summary says how many tests ran before it; and when pytest will
+not start - an option in the project's settings from a plugin that is not installed, say - a note quotes what pytest said. pytest's cache goes in a folder of its own, removed afterwards, rather than into the project, and no
+compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
+project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when

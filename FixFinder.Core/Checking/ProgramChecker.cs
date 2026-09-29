@@ -491,39 +491,53 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                "still read for mistakes.";
     }
 
-    /// <summary>The framework a file's tests are run with, by its language: unittest for Python, JUnit for Java.</summary>
-    private static string TestFrameworkOf(string chosen) => IsPython(chosen) ? "unittest" : "JUnit";
+    /// <summary>The framework a file's tests are run with: for Python, pytest or unittest, whichever the file is written for; JUnit for Java.</summary>
+    private static string TestFrameworkOf(string chosen) =>
+        !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) == PythonTests.Framework.Pytest ? "pytest" : "unittest";
 
     private static bool IsPython(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".pyw";
 
-    /// <summary>
-    /// Whether a Python file's tests are written for pytest and would not run as a program: pytest runs them, and the file
-    /// running pytest itself - pytest.main() - is the one way running it as a program runs them too.
-    /// </summary>
-    private static bool LeftForPytest(string chosen) =>
-        IsPython(chosen) && PythonTests.FrameworkOf(chosen) == PythonTests.Framework.Pytest &&
-        ReadOrNull(chosen)?.Contains("pytest.main(", StringComparison.Ordinal) != true;
+    /// <summary>Whether a file's tests are written for pytest, and the Python they were run with has no pytest installed.</summary>
+    private static bool PytestWasMissing(IEnumerable<string> lines) => lines.Contains(PythonTests.PytestMissingMarker, StringComparer.Ordinal);
 
     /// <summary>
-    /// What JUnit or unittest said of each test, when the run was a file of tests run through FixFinder's launcher: a
-    /// failed test is an error, found for certain by running it, placed on the test's own line the failure went through.
+    /// What JUnit, unittest or pytest said of each test, when the run was a file of tests run through FixFinder's launcher:
+    /// a failed test is an error, found for certain by running it, placed on the test's own line the failure went through.
     /// </summary>
     private void RecordTests(SessionOutcome outcome, LaunchPlan launch)
     {
         if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen) return;
 
         var framework = TestFrameworkOf(chosen);
+        var name = Path.GetFileName(chosen);
         var lines = run.Lines.Select(line => line.Text).ToList();
         var results = TestReport.ResultsIn(lines);
 
-        foreach (var failed in results.Where(result => result.Status is "FAILED" or "SETUP-FAILED")) Add(TestFinding(failed, chosen, framework));
-
-        if (results.Count == 0 && TestReport.TestsFound(lines) == 0)
+        if (PytestWasMissing(lines))
         {
-            Note(IsPython(chosen)
-                ? $"unittest found no tests to run in {Path.GetFileName(chosen)}. It runs the methods of a unittest.TestCase class whose names begin with test."
-                : $"JUnit found no tests to run in {Path.GetFileName(chosen)}. JUnit 5 runs methods marked @Test that are not private and " +
-                  "return nothing; JUnit 4 needs them public.");
+            Note($"{name}'s tests are written for pytest, which is not part of Python and is not installed for the Python it was run with, " +
+                 "so they were not run; the file was run as a program instead, and its code was still read for mistakes. Installing pytest " +
+                 "for that Python - python -m pip install pytest - lets them be run. FixFinder never installs anything itself.");
+            return;
+        }
+
+        foreach (var failed in results.Where(result => result.Status is "FAILED" or "SETUP-FAILED" or "TEARDOWN-FAILED"))
+            Add(TestFinding(failed, chosen, framework));
+
+        if (results.FirstOrDefault(result => result.Status == "FILE-SKIPPED") is { } fileSkipped)
+        {
+            Note($"pytest skipped the whole of {name}{(fileSkipped.Message is { } why ? $" - {why}" : "")} - so none of its tests were run.");
+        }
+        else if (results.Count == 0 && TestReport.TestsFound(lines) == 0)
+        {
+            Note(framework switch
+            {
+                "pytest" => $"pytest found no tests to run in {name}. By default it runs the functions whose names begin with test, and " +
+                            "the methods whose names begin with test of the classes whose names begin with Test and that have no __init__.",
+                "unittest" => $"unittest found no tests to run in {name}. It runs the methods of a unittest.TestCase class whose names begin with test.",
+                _ => $"JUnit found no tests to run in {name}. JUnit 5 runs methods marked @Test that are not private and return nothing; " +
+                     "JUnit 4 needs them public.",
+            });
         }
 
         var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
@@ -533,11 +547,54 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                  $"so {framework} did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
         }
 
-        if (LeftForPytest(chosen))
+        switch (framework == "pytest" ? PythonTests.PytestExitCode(lines) : null)
         {
-            Note($"{Path.GetFileName(chosen)}'s tests are written for pytest, which FixFinder does not run: running the file as a program runs none " +
-                 "of them, so whether they pass was not checked. The code was still read for mistakes.");
+            case PythonTests.PytestUsageError:
+                Note($"pytest would not run {name}'s tests, so whether they pass is not known." +
+                     (PytestsReason(run) is { } reason ? $" It said: {reason}" : ""));
+                break;
+
+            case PythonTests.PytestInternalError:
+                Note($"pytest itself failed while it was running {name}'s tests, so whether they pass is not known. Its INTERNALERROR lines say where.");
+                break;
+
+            case PytestInterrupted when outcome.Error is null:
+                Note($"pytest stopped before it had run all of {name}'s tests" +
+                     (PytestsStop(run) is { } stop ? $" - it said \"{stop}\" -" : "") + " so those it had not reached were not run.");
+                break;
         }
+    }
+
+    /// <summary>pytest's code for having been stopped before it finished: by an error importing the tests, pytest.exit() or Ctrl+C.</summary>
+    private const int PytestInterrupted = 2;
+
+    /// <summary>What pytest says stopped it, between the rows of ! it prints either side: _pytest.outcomes.Exit: the marks file is missing.</summary>
+    private static string? PytestsStop(TargetRunResult run) =>
+        run.Lines.Select(line => Regex.Match(line.Text.Trim(), @"^!{3,} (?<said>.+?) !{3,}$")).FirstOrDefault(said => said.Success)?.Groups["said"].Value;
+
+    /// <summary>Whether pytest was stopped before it had run all the tests, by something other than an error importing them.</summary>
+    private static bool PytestStoppedEarly(SessionOutcome outcome, IReadOnlyList<string> lines, string framework) =>
+        framework == "pytest" && PythonTests.PytestExitCode(lines) == PytestInterrupted && outcome.Error is null;
+
+    /// <summary>
+    /// Why pytest would not run, in its own words: what its usage error names, or the first line it wrote with the error it
+    /// gives for it - a conftest.py it could not import, say - and the settings file it read, when it names one.
+    /// </summary>
+    private static string? PytestsReason(TargetRunResult run)
+    {
+        var said = run.Lines.Where(line => line.IsError).Select(line => line.Text.Trim()).Where(text => text.Length > 0).ToList();
+        if (said.Count == 0) return null;
+
+        const string usageError = ": error: ";
+        var reason = said.FirstOrDefault(text => text.Contains(usageError, StringComparison.Ordinal)) is { } usage
+            ? usage[(usage.IndexOf(usageError, StringComparison.Ordinal) + usageError.Length)..]
+            : said.FirstOrDefault(text => text.StartsWith("E ", StringComparison.Ordinal)) is { } raised
+                ? $"{said[0]} {raised[1..].Trim()}"
+                : said[0];
+
+        var settings = said.FirstOrDefault(text => text.StartsWith("inifile: ", StringComparison.Ordinal))?["inifile: ".Length..];
+
+        return $"\"{reason}\"{(settings is null ? "" : $" - and it takes options from {settings} as well as from how it is run")}.";
     }
 
     /// <summary>A failed test as a finding: which test, what its framework said, and the lines the failure came through.</summary>
@@ -562,25 +619,53 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? exception == "AssertionError"
             : exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
               exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
-        var message = test.Message is { Length: > 0 } said && said != "null" ? said.ReplaceLineEndings(" ") : null;
-        var shown = message is null ? "" : $": {(message.Length <= 120 ? message : message[..117] + "...")}";
-        // A Python subtest is named with what it was run with: test_shares (people=4).
+        // pytest fails a test itself with Failed - DID NOT RAISE, when pytest.raises saw nothing raised, or pytest.fail().
+        var failedByPytest = framework == "pytest" && exception == "Failed";
+
+        // Said in one line, its runs of spaces made one; a title takes only its first line, as a long message is best read whole.
+        var message = test.Message is { Length: > 0 } said && said != "null" ? Regex.Replace(said.Trim(), @"\s+", " ") : null;
+        var firstLine = test.Message is { Length: > 0 } && message is not null ? test.Message.Trim().Split('\n')[0].Trim() : null;
+        var shown = firstLine is null ? "" : $": {(firstLine.Length <= 120 ? firstLine : firstLine[..117] + "...")}";
+
+        // A Python subtest is named with what it was run with: test_shares (people=4); a pytest test with its parameters: test_shares[4-20].
         var name = python && test.Name.Length > 0 ? test.Name : test.Method.Length > 0 ? test.Method : test.Name;
         var line = own is { Line: > 0 } ? $" on line {own.Line}" : "";
         var thrown = python ? "raised" : "thrown";
         var stoppedWith = $"{(exception.Length > 0 ? exception : "a failure")}{(message is null ? "" : $" ({message})")}" +
                           (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}" : line);
+        var stoppedWithName = exception.Length > 0 ? exception.Split('.')[^1] : null;
 
-        // Setting up for a class's or a module's tests is not a test: when it fails, those tests do not run at all.
-        var settingUp = test.Status == "SETUP-FAILED";
+        // Setting up for a test is not the test, and nor is cleaning up after it: when setting up fails, the test does not run
+        // at all; when cleaning up fails, it has run. unittest names what failed - setUpClass (test_bank.BankTests) - and pytest
+        // the test it was for.
+        var (title, explanation) = (test.Status, framework) switch
+        {
+            ("SETUP-FAILED", "pytest") => (
+                $"Setting up {name} stopped with {stoppedWithName ?? "a failure"}{shown}",
+                $"pytest could not set up the test {name}: setting it up - a fixture it asks for, or a setup function - stopped with " +
+                $"{stoppedWith}, so the test did not run."),
+            ("SETUP-FAILED", _) => (
+                $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
+                $"{framework} could not set up for the tests: {test.Name} stopped with {stoppedWith}, so the tests it sets up for did not run."),
+            ("TEARDOWN-FAILED", "pytest") => (
+                $"Cleaning up after {name} stopped with {stoppedWithName ?? "a failure"}{shown}",
+                $"pytest ran the test {name}, and then cleaning up after it - the rest of a fixture after its yield, or a teardown " +
+                $"function - stopped with {stoppedWith}."),
+            ("TEARDOWN-FAILED", _) => (
+                $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
+                $"{framework} ran the tests, and then cleaning up after them stopped: {test.Name} stopped with {stoppedWith}."),
+            _ when assertion => (
+                $"Test {name} failed{shown}",
+                $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"),
+            _ when failedByPytest => (
+                $"Test {name} failed{shown}",
+                $"pytest ran the test {test.Name}, and failed it{line}{(message is null ? "." : $": {message}.")}"),
+            _ => (
+                stoppedWithName is null ? $"Test {name} failed{shown}" : $"Test {name} stopped with {stoppedWithName}{shown}",
+                $"{framework} ran the test {test.Name}, and it stopped with {stoppedWith}."),
+        };
 
-        var explanation = settingUp
-            ? $"{framework} could not set up for the tests: {test.Name} stopped with {stoppedWith}, so the tests it sets up for did not run."
-            : assertion
-                ? $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"
-                : $"{framework} ran the test {test.Name}, and it stopped with {stoppedWith}.";
-
-        var what = settingUp ? name : $"Test {name}";
+        var cleaningUp = test.Status == "TEARDOWN-FAILED";
 
         return new Finding
         {
@@ -589,21 +674,26 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Confidence = Confidence.Certain,
             File = chosen,
             Line = own is { Line: > 0 } ? own.Line : null,
-            Title = assertion && !settingUp ? $"{what} failed{shown}" : exception.Length > 0 ? $"{what} stopped with {exception.Split('.')[^1]}{shown}" : $"{what} failed{shown}",
+            Title = title,
             Explanation = explanation,
-            WhyItMatters = "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
-                           "or the test expects the wrong thing.",
-            SuggestedFix = assertion || exception.Length == 0
-                ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
-                : $"Go to the line the exception was {thrown} on - in the code the test calls, if it came from there - and put right what failed there.",
+            WhyItMatters = cleaningUp
+                ? "What a test leaves behind when cleaning up after it fails - a file still open, a setting still changed - is still there " +
+                  "for the tests that come after it."
+                : "A test that fails is a check the code did not pass: either the code does not do what the test expects of it, " +
+                  "or the test expects the wrong thing.",
+            SuggestedFix = cleaningUp
+                ? $"Go to the line the exception was {thrown} on, in the code that cleans up after the tests, and put right what failed there."
+                : assertion || failedByPytest || exception.Length == 0
+                    ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
+                    : $"Go to the line the exception was {thrown} on - in the code the test calls, if it came from there - and put right what failed there.",
             CorrectedExample = "",
             RuleId = "test-failed",
         };
     }
 
     /// <summary>
-    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's for Python - rather than from
-    /// the program: the launcher is where it was raised, or the nearest place to that of the program's own.
+    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's or pytest's for Python - rather
+    /// than from the program: the launcher is where it was raised, or the nearest place to that of the program's own.
     /// </summary>
     /// <remarks>
     /// Both are looked at because Python shows an error raised while another was being handled with that other one's
@@ -612,7 +702,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private static bool FromTestLauncher(ParsedError error) =>
         new[] { error.CulpritFrame?.File, error.Frames.FirstOrDefault()?.File }.OfType<string>().Any(file =>
             Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
-            Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
@@ -787,27 +878,45 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         var lines = outcome.Run?.Lines.Select(line => line.Text).ToList() ?? [];
         var tests = TestReport.ResultsIn(lines);
+        var framework = TestFrameworkOf(chosen);
+
+        if (PytestWasMissing(lines)) return $"{reads}{warnings}; its tests are written for pytest, which is not installed for the Python it ran with";
+
+        switch (framework == "pytest" ? PythonTests.PytestExitCode(lines) : null)
+        {
+            case PythonTests.PytestUsageError:
+                return $"{reads}{warnings}, but pytest would not run its tests";
+            case PythonTests.PytestInternalError:
+                return $"{reads}{warnings}, but pytest itself failed while running its tests";
+        }
 
         if (tests.Count > 0 || TestReport.TestsFound(lines) is 0)
         {
-            // A Python test is one test however many of its subtests fail, as unittest counts it; each of JUnit's is its own.
-            string TestOf(TestReport.TestResult test) => IsPython(chosen) ? $"{test.ClassName}.{test.Method}" : $"{test.ClassName}.{test.Method}.{test.Name}";
+            // A unittest test is one test however many of its subtests fail, as unittest counts it; each of pytest's - each set
+            // of parameters it is given - and each of JUnit's is its own.
+            string TestOf(TestReport.TestResult test) => framework == "unittest" ? $"{test.ClassName}.{test.Method}" : $"{test.ClassName}.{test.Method}.{test.Name}";
 
             var failed = tests.Where(test => test.Status == "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
             var ran = tests.Where(test => test.Status is "SUCCESSFUL" or "FAILED").Select(TestOf).Distinct(StringComparer.Ordinal).Count();
 
-            // Tests whose setting up failed never ran, so they are neither passes nor failures.
+            // Tests whose setting up failed never ran, so they are neither passes nor failures; cleaning up after tests that
+            // ran is said apart from them.
             var notSetUp = tests.Any(test => test.Status == "SETUP-FAILED");
             var othersNotRun = notSetUp ? ", and setting up for others failed, so those did not run" : "";
+            var notCleanedUp = tests.Any(test => test.Status == "TEARDOWN-FAILED") ? $"; cleaning up after {(ran == 1 ? "it" : "them")} failed" : "";
 
-            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}"
-                : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}"
-                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}"
-                : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {TestFrameworkOf(chosen)} ran none of them"
-                : $"{reads}{warnings}, but {TestFrameworkOf(chosen)} ran none of its tests";
+            if (PytestStoppedEarly(outcome, lines, framework))
+            {
+                var found = TestReport.TestsFound(lines) is { } count && count >= ran ? count : ran;
+                return $"{reads}{warnings}; pytest stopped after {ran} of its {Count(found, "test")}{(failed > 0 ? $", {failed} of which failed" : "")}";
+            }
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}{notCleanedUp}"
+                : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}{notCleanedUp}"
+                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}{notCleanedUp}"
+                : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {framework} ran none of them"
+                : $"{reads}{warnings}, but {framework} ran none of its tests";
         }
-
-        if (outcome.Result == SessionResult.RanFine && LeftForPytest(chosen)) return $"{reads}{warnings}; its tests are written for pytest, which FixFinder does not run";
 
         return outcome.Result switch
         {

@@ -860,17 +860,325 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
         Assert.Equal("No syntax errors, and all 2 of its tests pass", report.SyntaxSummary);
     }
 
-    [Fact]
-    public async Task TestsWrittenForPytestAreSaidNotToHaveBeenRun()
+    /// <summary>
+    /// A project whose VS Code settings name a Python with pytest installed - the one the tests were given, or the one on
+    /// PATH - so its tests run with pytest itself. Null when there is no Python here with pytest.
+    /// </summary>
+    private string? WithPytest(string project)
     {
-        if (!LocalFixLiveTests.Available("python")) return;
+        if (NotebookTests.PythonWith("pytest") is not { } python) return null;
 
-        var tests = Write(@"pytest-style\test_totals.py", "def total(values):\n    return sum(values)\n\n\ndef test_total():\n    assert total([1, 2, 3]) == 6\n");
+        Write(Path.Combine(project, ".vscode", "settings.json"),
+            JsonSerializer.Serialize(new Dictionary<string, string> { ["python.defaultInterpreterPath"] = python }));
+        return python;
+    }
+
+    private const string BankPytests = """
+        import pytest
+
+        from bank import BankAccount, InsufficientFunds
+
+
+        @pytest.fixture
+        def account():
+            return BankAccount("Ada", 100)
+
+
+        @pytest.fixture
+        def closed_account():
+            raise ValueError("the account is closed")
+
+
+        def test_balance(account):
+            assert account.balance == 100
+
+
+        @pytest.mark.parametrize("people, share", [(1, 100), (2, 50), (4, 20)])
+        def test_shares(account, people, share):
+            assert account.share_of(people) == share
+
+
+        def test_share_between_nobody(account):
+            assert account.share_of(0) == 0
+
+
+        def test_withdraw_from_closed(closed_account):
+            closed_account.withdraw(10)
+
+
+        def test_withdraw_more_than_balance(account):
+            with pytest.raises(InsufficientFunds):
+                account.withdraw(101)
+
+
+        @pytest.mark.skip(reason="interest is not written yet")
+        def test_interest(account):
+            pass
+
+
+        @pytest.mark.xfail(reason="an overdraft of 1 is allowed")
+        def test_overdraft(account):
+            with pytest.raises(Exception):
+                account.withdraw(101)
+        """;
+
+    [Fact]
+    public async Task EachPytestTestIsRunWithPytestItselfAndEachThatFailsIsReportedOnItsOwnLine()
+    {
+        if (WithPytest("pytests") is null) return;
+
+        Write(@"pytests\bank.py", Bank);
+        // The project's own settings are pytest's to read: -v changes how pytest writes what it does, not what is found.
+        Write(@"pytests\pytest.ini", "[pytest]\naddopts = -v\n");
+        var tests = Write(@"pytests\test_bank.py", BankPytests);
+        int LineOf(string text) => Array.FindIndex(BankPytests.ReplaceLineEndings("\n").Split('\n'), line => line.Contains(text, StringComparison.Ordinal)) + 1;
+
+        Assert.Equal("Running its tests with pytest, test by test, using the Python this project's VS Code settings name.", TargetFactory.FromFile(tests).Explanation);
+
+        var report = await CheckAsync(tests);
+        var failed = report.Findings.Where(finding => finding.RuleId == "test-failed").ToList();
+
+        // A share of 100 among 4 is 25, not 20: the one set of parameters that fails is said, in pytest's own words.
+        var share = Assert.Single(failed, finding => finding.Title == "Test test_shares[4-20] failed: assert 25.0 == 20");
+        Assert.Equal(LineOf("assert account.share_of(people) == share"), share.Line);
+        Assert.Contains("assert 25.0 == 20 + where 25.0 = share_of(4)", share.Explanation, StringComparison.Ordinal);
+
+        // pytest fails a test itself when pytest.raises sees nothing raised - in words that name the exception differently from
+        // one version of pytest to the next.
+        var notRaised = Assert.Single(failed, finding =>
+            finding.Title.StartsWith("Test test_withdraw_more_than_balance failed: DID NOT RAISE", StringComparison.Ordinal) &&
+            finding.Title.Contains("InsufficientFunds", StringComparison.Ordinal));
+        Assert.Equal(LineOf("with pytest.raises(InsufficientFunds):"), notRaised.Line);
+        Assert.StartsWith("pytest ran the test test_withdraw_more_than_balance, and failed it on line", notRaised.Explanation, StringComparison.Ordinal);
+
+        var byZero = Assert.Single(failed, finding => finding.Title == "Test test_share_between_nobody stopped with ZeroDivisionError: division by zero");
+        Assert.Equal(LineOf("assert account.share_of(0) == 0"), byZero.Line);
+        Assert.Contains("raised in bank.share_of on line 16 of bank.py", byZero.Explanation, StringComparison.Ordinal);
+
+        // The fixture it asks for fails, so the test never runs: placed on the fixture's own line.
+        var settingUp = Assert.Single(failed, finding => finding.Title == "Setting up test_withdraw_from_closed stopped with ValueError: the account is closed");
+        Assert.Equal(LineOf("raise ValueError(\"the account is closed\")"), settingUp.Line);
+        Assert.EndsWith("so the test did not run.", settingUp.Explanation, StringComparison.Ordinal);
+
+        Assert.Equal(4, failed.Count);
+        Assert.Contains("1 test was skipped, so pytest did not say whether it passes.", report.Notes);
+
+        // Each set of parameters is a test of its own, as pytest counts them; the xfail test failing as marked is no failure.
+        Assert.Equal("No syntax errors; 3 of 7 tests failed, and setting up for others failed, so those did not run", report.SyntaxSummary);
+
+        // pytest's cache is kept out of the project, and so are the compiled files Python keeps beside the code it imports.
+        Assert.False(Directory.Exists(Folder(@"pytests\.pytest_cache")));
+        Assert.False(Directory.Exists(Folder(@"pytests\__pycache__")));
+    }
+
+    [Fact]
+    public async Task AFailureInsidePytestItselfIsPlacedOnTheTestsLineAsPytestPlacesIt()
+    {
+        if (WithPytest("inside") is null) return;
+
+        // pytest.approx is given a set, which it cannot compare in order: its own code raises the error.
+        var tests = Write(@"inside\test_close.py", "import pytest\n\n\ndef test_close_enough():\n    assert [0.1 + 0.2] == pytest.approx({0.3})\n");
 
         var report = await CheckAsync(tests);
 
-        Assert.Contains(report.Notes, note => note.StartsWith("test_totals.py's tests are written for pytest, which FixFinder does not run", StringComparison.Ordinal));
-        Assert.Equal("No syntax errors; its tests are written for pytest, which FixFinder does not run", report.SyntaxSummary);
+        var stopped = Assert.Single(report.Findings, finding => finding.RuleId == "test-failed");
+        Assert.StartsWith("Test test_close_enough stopped with TypeError: pytest.approx() only supports ordered sequences", stopped.Title, StringComparison.Ordinal);
+        Assert.Equal(5, stopped.Line);
+        Assert.DoesNotContain("_pytest", stopped.Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATestCaseClassInAFileThatImportsPytestIsRunWithPytestAlongsideItsOtherTests()
+    {
+        if (WithPytest("mixed") is null) return;
+
+        var tests = Write(@"mixed\test_marks.py", """
+            import unittest
+
+            import pytest
+
+
+            class MarksTests(unittest.TestCase):
+                def test_total(self):
+                    self.assertEqual(sum([40, 2]), 42)
+
+
+            @pytest.mark.parametrize("mark", [40, 2])
+            def test_positive(mark):
+                assert mark > 0
+            """);
+
+        Assert.StartsWith("Running its tests with pytest", TargetFactory.FromFile(tests).Explanation, StringComparison.Ordinal);
+
+        var report = await CheckAsync(tests);
+
+        Assert.Empty(report.Findings.Where(finding => finding.RuleId == "test-failed"));
+        Assert.Equal("No syntax errors, and all 3 of its tests pass", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task APytestFileThatCannotBeImportedIsReportedAsTheErrorThatStopsIt()
+    {
+        if (WithPytest("unimportable") is null) return;
+
+        var tests = Write(@"unimportable\test_tidy.py", "from text_helpers import tidy\n\n\ndef test_tidy():\n    assert tidy(\" a \") == \"a\"\n");
+
+        var report = await CheckAsync(tests);
+
+        var stopped = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.StartsWith("It crashed: ModuleNotFoundError: No module named 'text_helpers'", stopped.Title, StringComparison.Ordinal);
+        Assert.Equal(1, stopped.Line);
+        Assert.DoesNotContain(report.Notes, note => note.Contains("found no tests", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ATestFileThatPytestSkipsWholeIsSaidToHaveHadNoneOfItsTestsRun()
+    {
+        if (WithPytest("skipped") is null) return;
+
+        var tests = Write(@"skipped\test_stats.py", "import pytest\n\nstats = pytest.importorskip(\"no_such_stats_library\")\n\n\ndef test_mean():\n    assert stats.mean([1, 2]) == 1.5\n");
+
+        var report = await CheckAsync(tests);
+
+        Assert.Empty(report.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+        Assert.Contains(report.Notes, note => note.StartsWith(
+            "pytest skipped the whole of test_stats.py - could not import 'no_such_stats_library': No module named 'no_such_stats_library' - so none of its tests were run.",
+            StringComparison.Ordinal));
+        Assert.Equal("No syntax errors, but pytest ran none of its tests", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task CleaningUpAfterAPytestTestThatFailsIsReportedApartFromTheTest()
+    {
+        if (WithPytest("cleanup") is null) return;
+
+        var tests = Write(@"cleanup\test_files.py", """
+            import pytest
+
+
+            @pytest.fixture
+            def report_file():
+                yield "report.txt"
+                raise RuntimeError("the report is still open")
+
+
+            def test_name(report_file):
+                assert report_file.endswith(".txt")
+            """);
+
+        var report = await CheckAsync(tests);
+
+        var cleaningUp = Assert.Single(report.Findings, finding => finding.RuleId == "test-failed");
+        Assert.Equal("Cleaning up after test_name stopped with RuntimeError: the report is still open", cleaningUp.Title);
+        Assert.Equal(7, cleaningUp.Line);
+        Assert.Equal("No syntax errors, and its test passes; cleaning up after it failed", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task WhatPytestSaysWhenItWillNotRunTheTestsIsQuoted()
+    {
+        if (WithPytest("options") is null) return;
+
+        // An option of a plugin that is not installed, as a course's settings may name for coverage.
+        Write(@"options\pytest.ini", "[pytest]\naddopts = --cov=src\n");
+        var tests = Write(@"options\test_one.py", "def test_one():\n    assert 1 + 1 == 2\n");
+
+        var report = await CheckAsync(tests);
+
+        // The settings file is named as pytest names it, which may spell the temp folder out in full.
+        Assert.Contains(report.Notes, note =>
+            note.StartsWith("pytest would not run test_one.py's tests, so whether they pass is not known. It said: \"unrecognized arguments: --cov=src\" - " +
+                            "and it takes options from ", StringComparison.Ordinal) &&
+            note.EndsWith(@"\options\pytest.ini as well as from how it is run.", StringComparison.Ordinal));
+        Assert.Empty(report.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+        Assert.Equal("No syntax errors, but pytest would not run its tests", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task ATestThatStopsPytestLeavesTheTestsAfterItSaidNotToHaveRun()
+    {
+        if (WithPytest("stopping") is null) return;
+
+        var tests = Write(@"stopping\test_marks.py", """
+            import pytest
+
+
+            def test_first():
+                assert True
+
+
+            def test_stops():
+                pytest.exit("the marks file is missing")
+
+
+            def test_never_reached():
+                assert True
+            """);
+
+        var report = await CheckAsync(tests);
+
+        Assert.Contains("pytest stopped before it had run all of test_marks.py's tests - it said \"_pytest.outcomes.Exit: the marks file is missing\" - " +
+                        "so those it had not reached were not run.", report.Notes);
+        Assert.Equal("No syntax errors; pytest stopped after 1 of its 3 tests", report.SyntaxSummary);
+    }
+
+    [Fact]
+    public async Task WithoutPytestInstalledTheTestsAreSaidNotToHaveBeenRunAndTheFileIsRunAsAProgram()
+    {
+        // An environment of the project's own, which has nothing installed in it - pytest included, whatever the Python it was
+        // made from has.
+        if (!MadeEnvironment(Folder(@"no-pytest\.venv"))) return;
+
+        // Run as a program, the file finds what is beside it, as it would.
+        Write(@"no-pytest\totals.py", "def total(values):\n    return sum(values)\n");
+        var plain = Write(@"no-pytest\test_totals.py", "from totals import total\n\n\ndef test_total():\n    assert total([1, 2, 3]) == 6\n");
+        var importing = Write(@"no-pytest\test_marks.py", "import pytest\n\n\ndef test_marks():\n    with pytest.raises(ValueError):\n        int(\"x\")\n");
+
+        var plainReport = await CheckAsync(plain);
+
+        Assert.Contains(plainReport.Notes, note => note.StartsWith(
+            "test_totals.py's tests are written for pytest, which is not part of Python and is not installed for the Python it was run with, so they were not run",
+            StringComparison.Ordinal));
+        Assert.Equal("No syntax errors; its tests are written for pytest, which is not installed for the Python it ran with", plainReport.SyntaxSummary);
+        Assert.Empty(plainReport.Findings.Where(finding => finding.Kind == FindingKind.Runtime));
+
+        // Run as a program, a file that imports pytest stops there, as it would.
+        var importingReport = await CheckAsync(importing);
+
+        var stopped = Assert.Single(importingReport.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.StartsWith("It crashed: ModuleNotFoundError: No module named 'pytest'", stopped.Title, StringComparison.Ordinal);
+        Assert.Equal(1, stopped.Line);
+    }
+
+    [Fact]
+    public async Task ATestClassWhoseCleaningUpFailsHasItsTestsCountedAndTheCleaningUpSaid()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var tests = Write(@"teardown\test_ledger.py", """
+            import unittest
+
+
+            class LedgerTests(unittest.TestCase):
+                @classmethod
+                def tearDownClass(cls):
+                    raise RuntimeError("the ledger is still open")
+
+                def test_opening(self):
+                    self.assertEqual(0, 0)
+
+                def test_closing(self):
+                    self.assertTrue(True)
+            """);
+
+        var report = await CheckAsync(tests);
+
+        // Both tests ran and passed; cleaning up after them is not setting up for them.
+        var cleaningUp = Assert.Single(report.Findings, finding => finding.RuleId == "test-failed");
+        Assert.Equal("tearDownClass (test_ledger.LedgerTests) stopped with RuntimeError: the ledger is still open", cleaningUp.Title);
+        Assert.Equal(7, cleaningUp.Line);
+        Assert.StartsWith("unittest ran the tests, and then cleaning up after them stopped", cleaningUp.Explanation, StringComparison.Ordinal);
+        Assert.Equal("No syntax errors, and all 2 of its tests pass; cleaning up after them failed", report.SyntaxSummary);
     }
 
     [Fact]

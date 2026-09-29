@@ -193,6 +193,14 @@ public static class TargetFactory
                 break;
             }
 
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Pytest:
+                // Its tests are run with pytest itself, one by one, from where running the file - or its package - would start;
+                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there.
+                workingDirectory = ProgramLayout.PythonModule(full)?.Folder ?? workingDirectory;
+                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"";
+                testsRunBy = "pytest";
+                break;
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."

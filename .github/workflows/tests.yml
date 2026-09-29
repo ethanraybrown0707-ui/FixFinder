@@ -93,6 +93,37 @@ jobs:
           "FIXFINDER_JUNIT_JARS=$folder" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "FIXFINDER_LOMBOK_JAR=$(Join-Path $lombok 'lombok-1.18.48.jar')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # The tests of pytest files need pytest, and the test of a notebook that draws a plotly chart needs plotly; no runner
+      # image has either. They are installed into an environment of their own, made for the tests and used by nothing else,
+      # so the runner's own Python stays as it came. Each package - dependencies included - is pinned to one version and to
+      # the SHA-256 PyPI publishes for its wheel, and pip refuses anything that does not match. The tests find it through
+      # FIXFINDER_TEST_PACKAGES_PYTHON, and return early without it.
+      - name: Install pytest and plotly for the tests that use them
+        shell: pwsh
+        run: |
+          $pinned = @(
+            "colorama==0.4.6 --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+            "iniconfig==2.3.0 --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+            "narwhals==2.26.0 --hash=sha256:29326d74f107c347fd1009bd58e38d9f7c7c5b51e6de97bc93dbc325d9038b54",
+            "packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+            "plotly==7.1.0 --hash=sha256:dbb7fa18afce40d0a8e80d1bf162eceb3faa0ce5a77fe741ad09a74cf78f53f3",
+            "pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+            "pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+            "pytest==9.1.1 --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+          )
+
+          $requirements = Join-Path $env:RUNNER_TEMP "test-packages.txt"
+          $pinned | Set-Content -Path $requirements -Encoding utf8
+
+          $environment = Join-Path $env:RUNNER_TEMP "test-packages"
+          python -m venv $environment
+          $python = Join-Path $environment "Scripts\python.exe"
+
+          & $python -m pip install --quiet --no-deps --require-hashes --only-binary=:all: -r $requirements
+          if ($LASTEXITCODE -ne 0) { throw "pip could not install the pinned test packages" }
+
+          "FIXFINDER_TEST_PACKAGES_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       # No network access is needed or wanted: searches run against recorded responses through a
       # handler that throws on anything unrecorded, so a test cannot quietly reach the internet.
       - name: Test
@@ -168,6 +199,13 @@ jobs:
           # The SDK that `dotnet` resolves to decides whether a lone .cs file can be run at all.
           if (Get-Command dotnet -ErrorAction SilentlyContinue) {
             Write-Host ("{0,-8} {1}" -f 'sdk ver', (& dotnet --version))
+          }
+
+          # The tests of pytest files run with the pytest installed for them; without it they return early.
+          if ($env:FIXFINDER_TEST_PACKAGES_PYTHON -and (Test-Path $env:FIXFINDER_TEST_PACKAGES_PYTHON)) {
+            Write-Host ("{0,-8} {1}" -f 'pytest', (& $env:FIXFINDER_TEST_PACKAGES_PYTHON -m pytest --version))
+          } else {
+            Write-Host ("{0,-8} {1}" -f 'pytest', 'not present')
           }
 
           # gcc's version matters as much as its presence. The build prefers gcc to MSVC when it is on
