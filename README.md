@@ -203,7 +203,11 @@ only a crash gives. A program that ends itself with a failing exit code - `Syste
 it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
 without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
 program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
-start a program that has just been built, and says so, a note says that too rather than blaming the code.
+start a program that has just been built, and says so, a note says that too rather than blaming the code. A program that
+stops because a connection it made was refused - its database or server not running - is reported as that, in any
+language, from what its runtime said: the address, when the error names one, and what usually listens on that port, such
+as PostgreSQL on 5432 - not as a mistake in the code. Java's HTTP client gives no reason with its ConnectException, so for
+it that is said to be likely rather than certain.
 
 For an error whose message pins the answer down - a missing import, a misspelt name, a semicolon, a loop one step too
 long - a **fix rule** works out the change from the code. When the language names the answer itself - Python's `Did you

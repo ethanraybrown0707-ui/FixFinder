@@ -796,6 +796,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return;
             }
 
+            // A connection the program made was refused: what it connects to was not there to answer, which no change to the code alters.
+            if (kind == FindingKind.Runtime && RefusedConnection.In(error) is { } refusal)
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Warning, refusal.SaidRefused ? Confidence.Certain : Confidence.Likely, chosen) with
+                {
+                    Title = RefusedConnection.TitleOf(refusal, error),
+                    Explanation = RefusedConnection.ExplanationOf(refusal),
+                    WhyItMatters = "A program that needs a database or a server cannot do its work while that is not there to answer, and no " +
+                                   "change to its code alters that.",
+                    SuggestedFix = RefusedConnection.FixOf(refusal),
+                    CorrectedExample = "",
+                    RuleId = "connection-refused",
+                });
+                return;
+            }
+
             var local = outcome.Best is { } best && (best.LocalFix is not null || best.Id.EndsWith(":did-you-mean", StringComparison.Ordinal)) ? best : null;
 
             var finishedNormally = kind == FindingKind.Runtime && outcome.Run is { ExitCode: 0 };
@@ -923,6 +939,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             SessionResult.CouldNotRun => "It could not be started",
             _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
             _ when outcome.Error is { } error && NoJavaFxToStartIt(error, chosen) is not null => $"{reads}{warnings}; Java would not start it without JavaFX",
+            _ when outcome.Error is { } error && RefusedConnection.In(error) is { } refusal =>
+                $"{reads}{warnings}, but it could not connect{(refusal.Address is { } address ? $" to {address}" : "")} when run",
             _ when outcome.Error is not null => $"{reads}{warnings}, but it stops with an error when run",
             SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed => $"{reads}{warnings}, but it stops with a failing exit code",
             SessionResult.FailedSilently => $"{reads}{warnings}, but it crashes when run",

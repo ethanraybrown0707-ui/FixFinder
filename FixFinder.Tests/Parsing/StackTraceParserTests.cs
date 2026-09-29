@@ -47,6 +47,10 @@ public class StackTraceParserTests
     [InlineData("perl/carp.txt", "perl")]
     [InlineData("lua/nil-index.txt", "lua")]
     [InlineData("generic/perl.txt", "generic")]
+    [InlineData("csharp/socket-exception-code.txt", "csharp")]
+    [InlineData("csharp/http-request-refused.txt", "csharp")]
+    [InlineData("node/econnrefused-socket.txt", "node")]
+    [InlineData("node/fetch-failed.txt", "node")]
     public void RoutesEachFixtureToTheRightParser(string fixture, string expectedLanguage)
     {
         Assert.Equal(expectedLanguage, Parse(fixture).LanguageId);
@@ -529,5 +533,59 @@ public class StackTraceParserTests
         Assert.Equal("java", parsed!.LanguageId);
         Assert.NotEqual("compile error", parsed.ExceptionType);
         Assert.True(parsed.Frames.Count > 1, "a stack trace has frames; a diagnostic has one");
+    }
+
+    // The four fixtures below were captured from .NET 10 and Node 24 on Windows, connecting to a port nothing was listening on.
+    // The one line of the .NET ones that named where the program was saved is written C:\src\Client\Program.cs, as the other
+    // fixtures write a program's path; nothing else in them is changed.
+
+    [Fact]
+    public void ADotNetExceptionThatCarriesASystemCodeIsRead()
+    {
+        var parsed = Parse("csharp/socket-exception-code.txt");
+
+        Assert.Equal("System.Net.Sockets.SocketException", parsed.ExceptionType);
+        Assert.Equal("10061", parsed.ErrorCode);
+        Assert.Equal("No connection could be made because the target machine actively refused it. [::ffff:127.0.0.1]:59999", parsed.Message);
+        Assert.Contains(parsed.Frames, frame => frame.File == @"C:\src\Client\Program.cs" && frame.Line == 1);
+    }
+
+    [Fact]
+    public void ADotNetInnerExceptionThatCarriesASystemCodeIsRead()
+    {
+        var parsed = Parse("csharp/http-request-refused.txt");
+
+        Assert.Equal("System.Net.Http.HttpRequestException", parsed.ExceptionType);
+        Assert.Equal("No connection could be made because the target machine actively refused it. (localhost:59999)", parsed.Message);
+
+        var inner = Assert.Single(parsed.Causes);
+        Assert.Equal("System.Net.Sockets.SocketException", inner.ExceptionType);
+        Assert.Equal("10061", inner.ErrorCode);
+    }
+
+    [Fact]
+    public void ANodeErrorWithTheSystemsCodeKeepsWhatNodePrintsAfterItsFrames()
+    {
+        var parsed = Parse("node/econnrefused-socket.txt");
+
+        Assert.Equal("AggregateError", parsed.ExceptionType);
+        Assert.Equal("ECONNREFUSED", parsed.ErrorCode);
+
+        // Node prints each address it tried among the properties after the frames: part of the error, not frames of its own.
+        Assert.Contains("Error: connect ECONNREFUSED ::1:59999", parsed.RawText, StringComparison.Ordinal);
+        Assert.Contains("Error: connect ECONNREFUSED 127.0.0.1:59999", parsed.RawText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Node.js v", parsed.RawText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ANodeErrorPrintedAsAnObjectIsReadWithWhatCausedIt()
+    {
+        // fetch's promise rejected with nothing to handle it: Node prints the error as an object, its cause inside.
+        var parsed = Parse("node/fetch-failed.txt");
+
+        Assert.Equal("TypeError", parsed.ExceptionType);
+        Assert.Equal("fetch failed", parsed.Message);
+        Assert.Contains("[cause]: AggregateError [ECONNREFUSED]", parsed.RawText, StringComparison.Ordinal);
+        Assert.Contains("Error: connect ECONNREFUSED ::1:59999", parsed.RawText, StringComparison.Ordinal);
     }
 }
