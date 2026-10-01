@@ -115,6 +115,14 @@ for want of a class, or of a database driver, while libraries its build names ar
 possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
 to add to `pom.xml`, or the line to add to `build.gradle`.
 
+A program written as a **module** - with a `module-info.java` at the top of its source - is built as Maven builds one: the
+jars of the modules it `requires`, and of those they require in turn, go on the module path, and the rest on the class
+path, so a module is neither told it cannot find what it requires nor let off using a library it does not require. Which
+jar is which module is read as java reads it: from the jar's `module-info.class`, its manifest's `Automatic-Module-Name`,
+or its file's name. A module's tests in `src/test/java`, and FixFinder's own JUnit launcher, are compiled patched into the
+module, reading the class path, as a build compiles a module's tests; so is the copy a change is checked in. The program
+is then run from the class path, as before.
+
 A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
 from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it
@@ -216,7 +224,9 @@ For an error whose message pins the answer down - a missing import, a misspelt n
 long - a **fix rule** works out the change from the code. When the language names the answer itself - Python's `Did you
 mean: 'print'?`, gcc's and clang's `did you mean` - that is the change, made on the line it names and credited to Python,
 or to the compiler, rather than to a rule of FixFinder's. Every fix is made in a copy and checked by the compiler or interpreter, and
-only offered if that passes.
+only offered if that passes. The copy is then run - built first, for C, C++ and Java - and the fix is said to be verified
+only when the copy ran without the failure; a copy that could not be built or started is said to be that, never taken as
+a pass.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
