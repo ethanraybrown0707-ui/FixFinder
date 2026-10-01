@@ -69,6 +69,19 @@ public class FixRunTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task ACopyThatCouldNotBeStartedIsNeverTakenAsAPass()
+    {
+        // A program that is not there cannot be started: Windows refusing a fresh build, say, ends the same way.
+        var missing = Path.Combine(_temp.Path, "never-built.exe");
+        var plan = new LaunchPlan(new TargetSpec { ExecutablePath = missing, Arguments = "", WorkingDirectory = _temp.Path }, null, "Running it.");
+
+        var verified = await FixRun.JudgeAsync(Verification.NotTested, plan, original: null, expected: null, CancellationToken.None);
+
+        Assert.False(verified.IsVerified);
+        Assert.Equal(StageResult.Skipped, verified.ResultOf(VerificationStage.Ran));
+    }
+
+    [Fact]
     public async Task AFixToAJavaProgramIsVerifiedByBuildingAndRunningItsCopy()
     {
         if (!LocalFixLiveTests.Available("java")) return;

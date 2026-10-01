@@ -65,6 +65,10 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("def average(values):\n    return sum(values) / len(values)\n\nprint(average([1, 2]))\n", "Python")]
     [InlineData("#include <stdio.h>\n\nint main(void) {\n    printf(\"%d\\n\", 1);\n    return 0;\n}\n", "C")]
     [InlineData("#include <iostream>\n#include <stdio.h>\n\nint main() {\n    std::cout << 1;\n}\n", "C++")]
+    // C has no iostream, so C++ it is, though C's marks are the more.
+    [InlineData("#include <iostream>\n#include <stdio.h>\n\nint main() {\n    printf(\"%d\\n\", 1);\n}\n", "C++")]
+    // Java's System.out.printf is not C's printf.
+    [InlineData("System.out.printf(\"%d%n\", total);\n", "Java")]
     [InlineData("const total = [1, 2].reduce((a, b) => a + b);\nconsole.log(total);\n", "JavaScript")]
     [InlineData("package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(1)\n}\n", "Go")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>

@@ -97,7 +97,7 @@ public static class FixRun
         return Path.Combine(folder, Path.GetFileName(chosen));
     }
 
-    private static async Task<Verification> JudgeAsync(
+    internal static async Task<Verification> JudgeAsync(
         Verification sofar, LaunchPlan plan, ParsedError? original, ExpectedBehaviour? expected, CancellationToken cancellationToken)
     {
         var runner = new TargetRunner(new ParserRegistry());
