@@ -119,7 +119,10 @@ processor only on the files it is given by name, every file of the program is th
 tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
 path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
 to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
-computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A program that stops
+computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A Gradle build that applies the JavaFX plugin,
+`org.openjfx.javafxplugin`, has the modules its `javafx { }` block names, with those they need as the plugin's own list
+has them, each as the jar of it for this computer that Gradle downloaded - or from the `lib` folder of the JavaFX SDK the
+block names with `sdk`; a block whose version or modules FixFinder cannot read is named as not read. A program that stops
 for want of a class, or of a database driver, while libraries its build names are not on this computer, is reported as
 possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
 to add to `pom.xml`, or the line to add to `build.gradle`.
@@ -557,6 +560,23 @@ one. Every compiler warning is reported too, rated as an error, warning or sugge
 
 A crash is read in fifteen languages, each with its own stack-trace parser: Python, C#, Java, JavaScript, Go, C, C++,
 Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a generic reading of its file and line.
+
+Some limits are part of how FixFinder works:
+
+- **Time.** Each run of a program is given 60 seconds - six minutes for Go, whose first build compiles its standard
+  library - and is stopped when its time runs out. A program with a window, or a server, runs until it is closed or
+  stopped, so it is always stopped this way: what it did until then is checked, and what it would do when someone uses
+  the window, or something connects, is not.
+- **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
+  in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
+  downloads it.
+- **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
+  code uses come first, and a note says how many were left out. Building and running the program are not limited by
+  this. A C or C++ file is built with the other source files beside it only when its folder holds no more than 200 files
+  and exactly one of them has a `main`; otherwise it is built on its own.
+- **Reading the code.** The values are followed through the code by its own language's parser - Python's, javac's, Go's -
+  run by the program's own tools; when that cannot run, a note says the code was checked against the logic patterns
+  alone.
 
 Each check is written to stay quiet when it is not sure, because a check that fires on correct code teaches people to
 ignore it. The newest checks were run over large bodies of working code - Python's standard library, part of the JDK's

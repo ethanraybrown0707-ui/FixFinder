@@ -78,11 +78,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be run."], "Not checked", "Not checked", null);
 
-        var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
+        var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
+        var files = found?.Files ?? [];
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _launch = launch;
         _cancellation = cancellationToken;
         NoteWhatANotebookIsCheckedAs();
+        NoteFilesLeftOut(found, launch);
 
         var syntax = Task.Run(() => SyntaxLaneAsync(launch, files, builds, cancellationToken), CancellationToken.None);
         var logic = Task.Run(() => LogicLaneAsync(launch, files, builds.Task, cancellationToken), CancellationToken.None);
@@ -1046,11 +1048,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
 
-        var files = launch.ChosenFile is { } chosen ? ProgramFiles.Of(chosen) : [];
+        var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
+        var files = found?.Files ?? [];
         _launch = launch;
         _cancellation = cancellationToken;
         _codeOnly = true;
         NoteWhatANotebookIsCheckedAs();
+        NoteFilesLeftOut(found, launch);
 
         try
         {
@@ -1107,6 +1111,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             Progress?.Invoke(CheckLane.Logic, "Following every value through the code...");
             var program = await reading;
+
+            // A reader that could not run read nothing, so finding no mistake there says nothing about the code.
+            if (program.NotRead is { } notRead)
+            {
+                Note($"FixFinder could not follow the values through the code, so it was checked against the logic patterns alone: {notRead.TrimEnd('.')}.");
+                return 0;
+            }
+
             foreach (var problem in program.Problems) Log?.Invoke($"Following the values skipped {problem}");
 
             // A full check compiles or runs the program and reports such a problem with its fix; reading the code alone
@@ -1396,6 +1408,20 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     private static int Rank(Finding finding) =>
         (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
+
+    /// <summary>
+    /// Says how many of a program's files its code was not read from for logic mistakes, when it has more than are read - so
+    /// that finding no logic mistakes is never taken to cover files that were not looked at.
+    /// </summary>
+    private void NoteFilesLeftOut(ProgramFiles.Found? found, LaunchPlan launch)
+    {
+        if (found is not { LeftOut: > 0 } || launch.ShownFile is not { } shown) return;
+
+        var atLeast = found.LeftOutAtLeast ? "at least " : "";
+        Note($"The program has {atLeast}{found.Files.Count + found.LeftOut} source files, more than the {ProgramFiles.MostFiles} FixFinder reads its " +
+             $"code from for logic mistakes: it read {Path.GetFileName(shown)} and the files its code uses first, and left out " +
+             $"{(found.LeftOutAtLeast ? $"at least {found.LeftOut} others" : $"the other {found.LeftOut}")}, so a mistake only in those was not looked for.");
+    }
 
     /// <summary>
     /// Says, for a notebook, how its places are counted - the cell from the notebook's top and the line within it, which is

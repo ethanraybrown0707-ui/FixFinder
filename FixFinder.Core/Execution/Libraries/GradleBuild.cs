@@ -128,6 +128,31 @@ public static partial class GradleBuild
     [GeneratedRegex(@"\Gconfigure\s*\(\s*(?:(?<which>subprojects|allprojects)\s*\)|[^{}]*?(?:\{[^{}]*\}[^{}]*?)*\))\s*\{")]
     private static partial Regex ConfigureBlock();
 
+    /// <summary>
+    /// JavaFX's own modules as the JavaFX plugin, org.openjfx.javafxplugin, knows them, each with the modules it needs - from the
+    /// plugin's own list of them.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> JavaFxModulesNeeded = new(StringComparer.Ordinal)
+    {
+        ["javafx.base"] = [],
+        ["javafx.graphics"] = ["javafx.base"],
+        ["javafx.controls"] = ["javafx.base", "javafx.graphics"],
+        ["javafx.fxml"] = ["javafx.base", "javafx.graphics"],
+        ["javafx.media"] = ["javafx.base", "javafx.graphics"],
+        ["javafx.swing"] = ["javafx.base", "javafx.graphics"],
+        ["javafx.web"] = ["javafx.base", "javafx.controls", "javafx.graphics", "javafx.media"],
+    };
+
+    /// <summary>version = "21", version '21', or version = fxVersion - a value set elsewhere in the build file.</summary>
+    [GeneratedRegex(@"\bversion\s*(?:=\s*)?\(?\s*(?:['""](?<version>[^'""]+)['""]|(?<name>[A-Za-z_]\w*)\s*\)?\s*$)", RegexOptions.Multiline)]
+    private static partial Regex JavaFxVersion();
+
+    [GeneratedRegex(@"\bsdk\s*(?:=\s*)?\(?\s*['""](?<sdk>[^'""]+)['""]")]
+    private static partial Regex JavaFxSdk();
+
+    [GeneratedRegex(@"\bconfigurations?\s*(?:=\s*)?(?<names>[^\r\n]*)")]
+    private static partial Regex JavaFxConfigurations();
+
     /// <summary>What a build file declares, for the project in its folder on its own.</summary>
     public static Declared Read(string buildFile)
     {
@@ -212,6 +237,17 @@ public static partial class GradleBuild
             applying.Concat(above.Select(project => project.Text)).Select(text => SpringBootPlugin().Match(text)).FirstOrDefault(match => match.Success) is { } boot)
         {
             platforms.Add(new LibraryName("org.springframework.boot", "spring-boot-dependencies", boot.Groups["version"].Value));
+        }
+
+        // The JavaFX plugin adds the JavaFX modules its javafx { } block names - in the build file, or a convention plugin.
+        if (applying.Any(text => PluginId().Matches(text).Any(plugin => plugin.Groups["id"].Value == "org.openjfx.javafxplugin")) &&
+            conventions.Prepend((File: buildFile ?? "", Text: ownText)).FirstOrDefault(each => each.File.Length > 0 && BlockNamed(each.Text, "javafx") is not null) is
+                { File.Length: > 0 } configuring)
+        {
+            var (javaFx, unreadJavaFx) = JavaFxOf(BlockNamed(configuring.Text, "javafx")!, configuring.File, variables, projectFolder);
+            dependencies.AddRange(javaFx);
+            notRead.AddRange(unreadJavaFx);
+            if (!readFrom.Contains(configuring.File)) readFrom.Add(configuring.File);
         }
 
         foreach (var (block, file, unsure) in blocks)
@@ -300,6 +336,88 @@ public static partial class GradleBuild
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// The name the JavaFX plugin gives this computer's jars of JavaFX - win, mac, mac-aarch64, linux or linux-aarch64, the
+    /// classifier of each jar of JavaFX on Maven Central - or null for a computer it has none for.
+    /// </summary>
+    internal static string? JavaFxPlatform()
+    {
+        var architecture = System.Runtime.InteropServices.RuntimeInformation.OSArchitecture;
+        var x64 = architecture == System.Runtime.InteropServices.Architecture.X64;
+        var arm64 = architecture == System.Runtime.InteropServices.Architecture.Arm64;
+
+        return OperatingSystem.IsWindows() && x64 ? "win"
+            : OperatingSystem.IsMacOS() && x64 ? "mac"
+            : OperatingSystem.IsMacOS() && arm64 ? "mac-aarch64"
+            : OperatingSystem.IsLinux() && x64 ? "linux"
+            : OperatingSystem.IsLinux() && arm64 ? "linux-aarch64"
+            : null;
+    }
+
+    /// <summary>
+    /// What the JavaFX plugin adds for a javafx { } block: the JavaFX modules it names, and those they need, at the version it
+    /// gives - each as the jar of it for this computer, which is what the plugin has Gradle download, or from the lib folder
+    /// of the JavaFX SDK it names with sdk. The jars are taken as they are, with nothing their pom.xml would bring, as the
+    /// plugin's own list says what each module needs.
+    /// </summary>
+    private static (IReadOnlyList<DeclaredDependency> Dependencies, IReadOnlyList<UnreadLine> NotRead) JavaFxOf(
+        string block, string file, IReadOnlyDictionary<string, string> variables, string projectFolder)
+    {
+        var filled = Fill(block, variables);
+        var lines = block.Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+        UnreadLine LineNaming(string what) => new(lines.FirstOrDefault(line => line.Contains(what, StringComparison.Ordinal)) ?? $"javafx {{ {what} }}", file);
+
+        var named = Quoted().Matches(filled).Select(quoted => quoted.Groups["text"].Value)
+            .Where(name => name.StartsWith("javafx.", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var notRead = named.Where(name => !JavaFxModulesNeeded.ContainsKey(name)).Select(LineNaming).ToList();
+
+        var modules = named.Where(JavaFxModulesNeeded.ContainsKey)
+            .SelectMany(name => JavaFxModulesNeeded[name].Append(name))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        if (modules.Count == 0) return ([], notRead);
+
+        static string ArtifactOf(string module) => "javafx-" + module["javafx.".Length..];
+
+        if (JavaFxSdk().Match(filled) is { Success: true } sdk)
+        {
+            // An SDK's lib folder holds a jar for each module, named for it - javafx.controls.jar - taken as a jar named by its path is.
+            var lib = Path.Combine(Path.GetFullPath(Path.Combine(projectFolder, sdk.Groups["sdk"].Value)), "lib");
+            return (modules.Select(module => new DeclaredDependency("org.openjfx", ArtifactOf(module), null, Scope: "system", SystemPath: Path.Combine(lib, module + ".jar"))).ToList(), notRead);
+        }
+
+        // The plugin adds them to implementation unless told otherwise; to the tests alone only when every configuration it is given is the tests'.
+        var configurations = JavaFxConfigurations().Match(filled) is { Success: true } given
+            ? Quoted().Matches(given.Groups["names"].Value).Select(quoted => quoted.Groups["text"].Value).ToList()
+            : [];
+        var forTests = configurations.Count > 0 && configurations.All(configuration => ConfigurationIsTest.TryGetValue(configuration, out var test) && test);
+
+        // Without a version it can read, or a name for this computer's jars, which jars they are cannot be told.
+        var version = JavaFxVersion().Match(filled) is { Success: true } written
+            ? written.Groups["version"].Success ? written.Groups["version"].Value : variables.GetValueOrDefault(written.Groups["name"].Value)
+            : null;
+
+        if (version is null || version.Contains('$') || JavaFxPlatform() is not { } platform) return ([], [.. notRead, LineNaming("modules")]);
+
+        return (modules.Select(module => new DeclaredDependency("org.openjfx", ArtifactOf(module), version,
+            Scope: forTests ? "test" : null, Classifier: platform, Exclusions: [("*", "*")])).ToList(), notRead);
+    }
+
+    /// <summary>The text inside the first block of this name - javafx { } - or null when the build file has none.</summary>
+    private static string? BlockNamed(string text, string name)
+    {
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (IsWordAt(text, i) && Starts(text, i, name) && OpensBlock(text, i + name.Length, out var opening) && ClosingBrace(text, opening) is var close and >= 0)
+                return text[(opening + 1)..close];
+        }
+
+        return null;
     }
 
     /// <summary>

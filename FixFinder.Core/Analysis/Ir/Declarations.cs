@@ -123,4 +123,7 @@ public sealed record IrProgram(
     IReadOnlyList<string> Problems)
 {
     public IEnumerable<IrFunction> AllFunctions => Functions.Concat(Classes.SelectMany(c => c.Methods));
+
+    /// <summary>Why none of the program could be read, when the language's reader could not run at all; null when it ran.</summary>
+    public string? NotRead { get; init; }
 }

@@ -18,16 +18,18 @@ public static class PythonFrontend
         var id = Guid.NewGuid().ToString("N");
         var script = Path.Combine(folder, $"ast-{id}.py");
         var output = Path.Combine(folder, $"ast-{id}.json");
+        var listing = Path.Combine(folder, $"ast-{id}.files");
 
         try
         {
             Directory.CreateDirectory(folder);
             await File.WriteAllTextAsync(script, PythonAstScript.Source, new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllLinesAsync(listing, files, new UTF8Encoding(false), cancellationToken);
 
             var run = await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = interpreter,
-                Arguments = $"-X utf8 \"{script}\" \"{output}\" " + string.Join(" ", files.Select(f => $"\"{f}\"")),
+                Arguments = $"-X utf8 \"{script}\" \"{output}\" \"{listing}\"",
                 WorkingDirectory = Path.GetDirectoryName(files[0]) ?? folder,
                 Timeout = ParseTimeout,
             }, cancellationToken);
@@ -42,6 +44,7 @@ public static class PythonFrontend
         {
             TryDelete(script);
             TryDelete(output);
+            TryDelete(listing);
         }
     }
 
@@ -74,7 +77,7 @@ public static class PythonFrontend
     }
 
     private static IrProgram Unread(IReadOnlyList<string> files, string problem) =>
-        new(SourceLanguage.Python, files, [], [], [problem]);
+        new(SourceLanguage.Python, files, [], [], [problem]) { NotRead = problem };
 
     private static void TryDelete(string path)
     {

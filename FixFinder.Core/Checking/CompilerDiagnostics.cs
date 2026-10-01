@@ -27,12 +27,15 @@ public static partial class CompilerDiagnostics
 
     /// <summary>
     /// Compiles each file and says what it found. The script of a notebook's code - named .ipynb.py - is compiled as
-    /// Jupyter compiles a cell, where await may be used outside a function.
+    /// Jupyter compiles a cell, where await may be used outside a function. The files come in a file of their own, one path
+    /// to a line, as a program's worth of paths can be longer than a command line may be.
     /// </summary>
     private const string PythonChecker = """
         import ast, sys, warnings, traceback
         awaits_allowed = getattr(ast, "PyCF_ALLOW_TOP_LEVEL_AWAIT", 0)
-        for path in sys.argv[1:]:
+        with open(sys.argv[1], encoding="utf-8") as listing:
+            paths = [line for line in listing.read().splitlines() if line]
+        for path in paths:
             print("@@FILE@@ " + path, file=sys.stderr, flush=True)
             try:
                 with open(path, "rb") as handle:
@@ -120,16 +123,18 @@ public static partial class CompilerDiagnostics
         if (interpreter is null) return CompilerReport.NotChecked("Python is not installed, so the code could not be checked.");
 
         var script = Path.Combine(Path.GetTempPath(), "FixFinder-check", $"syntax-{Guid.NewGuid():N}.py");
+        var listing = Path.ChangeExtension(script, ".files");
 
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(script)!);
             await File.WriteAllTextAsync(script, PythonChecker, new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllLinesAsync(listing, files, new UTF8Encoding(false), cancellationToken);
 
             var run = await RunAsync(new TargetSpec
             {
                 ExecutablePath = interpreter,
-                Arguments = $"-X utf8 \"{script}\" " + string.Join(" ", files.Select(f => $"\"{f}\"")),
+                Arguments = $"-X utf8 \"{script}\" \"{listing}\"",
                 WorkingDirectory = Path.GetDirectoryName(files[0])!,
                 Timeout = Timeout,
             }, log, cancellationToken);
@@ -170,7 +175,10 @@ public static partial class CompilerDiagnostics
         }
         finally
         {
-            try { File.Delete(script); } catch (IOException) { }
+            foreach (var written in new[] { script, listing })
+            {
+                try { File.Delete(written); } catch (IOException) { }
+            }
         }
     }
 
@@ -204,16 +212,24 @@ public static partial class CompilerDiagnostics
         var output = new List<CapturedLine>();
         var registry = new ParserRegistry(new ParserRegistry().Parsers.Where(p => p.LanguageId == "node"));
 
-        foreach (var file in files)
+        // node checks one file at a time, so a program of many files is checked a few files at once - and reported in the
+        // order of its files, whichever finished first.
+        var runs = new TargetRunResult[files.Count];
+        var atOnce = new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8), CancellationToken = cancellationToken };
+
+        await Parallel.ForEachAsync(Enumerable.Range(0, files.Count), atOnce, async (index, stopping) =>
         {
-            var run = await RunAsync(new TargetSpec
+            runs[index] = await RunAsync(new TargetSpec
             {
                 ExecutablePath = node,
-                Arguments = $"--check \"{file}\"",
-                WorkingDirectory = Path.GetDirectoryName(file)!,
+                Arguments = $"--check \"{files[index]}\"",
+                WorkingDirectory = Path.GetDirectoryName(files[index])!,
                 Timeout = Timeout,
-            }, log, cancellationToken);
+            }, log, stopping);
+        });
 
+        foreach (var run in runs)
+        {
             output.AddRange(run.Lines);
 
             if (run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error) errors.Add(error);

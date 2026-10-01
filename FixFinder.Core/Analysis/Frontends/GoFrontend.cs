@@ -23,13 +23,16 @@ public static class GoFrontend
         if (helper.Problem is { } problem) return Unread(files, problem);
 
         var output = Path.Combine(Path.GetTempPath(), "FixFinder-analysis", $"go-ast-{Guid.NewGuid():N}.json");
+        var listing = Path.ChangeExtension(output, ".files");
 
         try
         {
+            await File.WriteAllLinesAsync(listing, files, new UTF8Encoding(false), cancellationToken);
+
             var run = await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = helper.Program,
-                Arguments = $"\"{output}\" " + string.Join(" ", files.Select(f => $"\"{f}\"")),
+                Arguments = $"\"{output}\" \"{listing}\"",
                 WorkingDirectory = Path.GetDirectoryName(files[0]) ?? Path.GetTempPath(),
                 Timeout = ReadTimeout,
             }, cancellationToken);
@@ -42,7 +45,10 @@ public static class GoFrontend
         }
         finally
         {
-            try { File.Delete(output); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (var written in new[] { output, listing })
+            {
+                try { File.Delete(written); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
         }
     }
 
@@ -115,5 +121,5 @@ public static class GoFrontend
         return ProgramStops.Lower(new IrProgram(SourceLanguage.Go, files, classes, functions, problems));
     }
 
-    private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Go, files, [], [], [problem]);
+    private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Go, files, [], [], [problem]) { NotRead = problem };
 }
