@@ -13,9 +13,12 @@ until the program prints what it should. FixFinder never changes your files.
 
 ## Using it
 
-1. **Choose a program.** Drop the file on the window, or press **Choose a file…**.
+1. **Choose a program.** Drop the file on the window, or press **Choose a file…**. When the file is hard to find, press
+   **or paste the code in instead**, and paste the program's code into the box.
 2. **Press the language it is written in** - Python, Java, C#, C, C++, JavaScript or Go, or **Auto-detect**. That starts
-   both checks at once. The program is compiled if it needs to be, and run.
+   both checks at once. The program is compiled if it needs to be, and run. For pasted code, **Auto-detect** works the
+   language out from what only that language writes - `System.out.println`, `#include <iostream>`, a `def` line ending
+   in `:` - and when the code shows no language more than another, asks for it rather than guessing.
 3. **Optionally, say what it should print.** Arguments, the input to type and the expected output go in the boxes under
    the program, and **+ Add another run** adds more. With them, a program that runs but prints the wrong thing is caught
    too, and the change that makes it right is searched for.
@@ -30,6 +33,12 @@ until the program prints what it should. FixFinder never changes your files.
    patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
    press the language to do that. Code that does not read as its language at all is noted rather than reported as having
    no mistakes.
+
+Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
+the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
+the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
+with it, and a note says so. Check on save watches a file chosen from disk; for pasted code, press the language again to
+check it after a change. The saved copy is removed when the window closes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and

@@ -62,6 +62,15 @@ public partial class MainWindow : Window
     private LaunchPlan? _launch;
     private CodeLanguage _language = CodeLanguage.Any;
 
+    /// <summary>Whether the program being checked was pasted in, rather than chosen as a file.</summary>
+    private bool _pasting;
+
+    /// <summary>The folder this window saves pasted code in, to check it; removed when the window closes.</summary>
+    private string? _pastedFolder;
+
+    /// <summary>The language pasted code was checked as when Auto-detect worked it out from the code; null otherwise.</summary>
+    private CodeLanguage? _pastedLanguage;
+
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
 
@@ -127,6 +136,15 @@ public partial class MainWindow : Window
         _logger?.Dispose();
         _http.Dispose();
 
+        // The pasted code was saved only to be checked; it is not kept.
+        try
+        {
+            if (_pastedFolder is not null && Directory.Exists(_pastedFolder)) Directory.Delete(_pastedFolder, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
         base.OnClosed(e);
     }
 
@@ -159,8 +177,11 @@ public partial class MainWindow : Window
         _programs.Clear();
         FolderList.ItemsSource = _programs;
 
+        _pasting = false;
+        _pastedLanguage = null;
         NothingChosenPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Collapsed;
+        PastePanel.Visibility = Visibility.Collapsed;
         FolderPanel.Visibility = Visibility.Visible;
         EmptyState.Visibility = Visibility.Collapsed;
 
@@ -306,6 +327,10 @@ public partial class MainWindow : Window
 
     private void Choose(string path)
     {
+        _pasting = false;
+        _pastedLanguage = null;
+        PastePanel.Visibility = Visibility.Collapsed;
+
         _chosenPath = path;
         _launch = TargetFactory.FromFile(path);
 
@@ -393,18 +418,106 @@ public partial class MainWindow : Window
 
         _language = language;
 
-        if (_chosenPath is null && !PickFile()) return;
-
-        if (_language.Refuses(_chosenPath!) is { } refusal)
+        if (_pasting)
         {
-            var detected = CodeLanguage.Of(_chosenPath!);
-            ShowProblem("That file is in a different language.", $"{refusal} Press {detected!.Name} instead, or choose a {_language.Name} file.");
-            OfferLanguage(detected);
-            return;
+            if (!SavePastedCode()) return;
+        }
+        else
+        {
+            if (_chosenPath is null && !PickFile()) return;
+
+            if (_language.Refuses(_chosenPath!) is { } refusal)
+            {
+                var detected = CodeLanguage.Of(_chosenPath!);
+                ShowProblem("That file is in a different language.", $"{refusal} Press {detected!.Name} instead, or choose a {_language.Name} file.");
+                OfferLanguage(detected);
+                return;
+            }
         }
 
         await CheckAsync();
     }
+
+    /// <summary>Shows the box code can be pasted into, for a program that is hard to find as a file.</summary>
+    private void PasteCodeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _pasting = true;
+        _chosenPath = null;
+        _launch = null;
+
+        // Pasted code has no file of the person's to watch for saves: pressing the language again checks it again.
+        CheckOnSaveBox.IsChecked = false;
+        CheckOnSaveBox.IsEnabled = false;
+        StopWatchingForSaves();
+
+        NothingChosenPanel.Visibility = Visibility.Collapsed;
+        ChosenPanel.Visibility = Visibility.Collapsed;
+        FolderPanel.Visibility = Visibility.Collapsed;
+        PastePanel.Visibility = Visibility.Visible;
+        PastedSavedAsText.Visibility = Visibility.Collapsed;
+        UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
+
+        LanguageHintText.Text = "Press the language the pasted code is written in, or Auto-detect to let FixFinder work it out from the code.";
+        PastedCodeBox.Focus();
+    }
+
+    private void ClearPastedCodeButton_Click(object sender, RoutedEventArgs e)
+    {
+        PastedCodeBox.Clear();
+        PastedSavedAsText.Visibility = Visibility.Collapsed;
+        PastedCodeBox.Focus();
+    }
+
+    /// <summary>
+    /// Saves the pasted code as the file its language needs, for the check to read: as the language pressed, or - for
+    /// Auto-detect - the one the code shows it is written in; and says why not, when it cannot be.
+    /// </summary>
+    private bool SavePastedCode()
+    {
+        var code = PastedCodeBox.Text;
+
+        // Said again only once this code is saved: until then, what it said was of code checked before.
+        PastedSavedAsText.Visibility = Visibility.Collapsed;
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            ShowProblem("There is no code to check.", "Paste the program's code into the box, then press the language it is written in.");
+            return false;
+        }
+
+        var language = _language.IsAny ? PastedCode.LanguageOf(code) : _language;
+        if (language is null)
+        {
+            ShowProblem("FixFinder cannot tell which language this is.",
+                "The code does not show clearly enough which language it is written in. Press that language, and it is checked as that.");
+            return false;
+        }
+
+        try
+        {
+            _chosenPath = PastedCode.Save(code, language, _pastedFolder ??= PastedCode.NewFolder());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowProblem("The pasted code could not be saved to be checked.", ex.Message);
+            return false;
+        }
+
+        _pastedLanguage = _language.IsAny ? language : null;
+        PastedSavedAsText.Text = $"Checked as {language.Name}{(_language.IsAny ? ", worked out from the code" : "")} - saved as " +
+                                 $"{Path.GetFileName(_chosenPath)} in a folder of its own.";
+        PastedSavedAsText.Visibility = Visibility.Visible;
+        return true;
+    }
+
+    /// <summary>What the report calls the program: its file's name, or pasted code.</summary>
+    private string ProgramShown(string? path) => _pasting ? "Pasted code" : Path.GetFileName(path ?? "");
+
+    /// <summary>What the report calls the language: the one pressed, or the one worked out, and how.</summary>
+    private string LanguageShown(bool finished) =>
+        !_language.IsAny ? _language.Name
+        : _pastedLanguage is { } workedOut ? $"{workedOut.Name}, worked out from the code"
+        : finished ? "Auto-detected" : "language worked out automatically";
 
     private void OfferLanguage(CodeLanguage? detected)
     {
@@ -528,8 +641,7 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Collapsed;
         CopyReportButton.IsEnabled = false;
 
-        ReportSubtitleText.Text = $"{Path.GetFileName(launch.ShownFile ?? launch.Spec!.ExecutablePath)}  ·  " +
-                                  $"{(_language.IsAny ? "language worked out automatically" : _language.Name)}  ·  checking…";
+        ReportSubtitleText.Text = $"{ProgramShown(launch.ShownFile ?? launch.Spec!.ExecutablePath)}  ·  {LanguageShown(finished: false)}  ·  checking…";
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, launch.NeedsCompiling ? "Compiling…" : "Reading the code…", LaneState.Running);
         SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the code for logic mistakes…", LaneState.Running);
@@ -539,6 +651,13 @@ public partial class MainWindow : Window
 
     private void FinishReport(CheckReport report)
     {
+        // Said first, as it bears on everything else: the code was checked with nothing of its program beside it.
+        if (_pasting && _chosenPath is { } saved)
+        {
+            _notes.Add($"This code was pasted in, so it was checked on its own, saved as {Path.GetFileName(saved)}: anything else of its " +
+                       "program - another file it imports, a file it reads - was not there with it.");
+        }
+
         foreach (var note in report.Notes) _notes.Add(note);
 
         ShowFindings(report.Findings);
@@ -549,8 +668,7 @@ public partial class MainWindow : Window
         SetLane(LogicStatusText, LogicIcon, LogicProgress, report.LogicSummary,
             report.Findings.Any(f => (f.Kind == FindingKind.Logic || f.FoundBy is not null) && f.Severity != Severity.Suggestion) ? LaneState.Warned : LaneState.Passed);
 
-        ReportSubtitleText.Text = $"{Path.GetFileName(_launch?.ShownFile ?? "")}  ·  {(_language.IsAny ? "Auto-detected" : _language.Name)}  ·  " +
-                                  $"checked at {DateTime.Now:HH:mm}";
+        ReportSubtitleText.Text = $"{ProgramShown(_launch?.ShownFile)}  ·  {LanguageShown(finished: true)}  ·  checked at {DateTime.Now:HH:mm}";
 
         if (report.Run?.Run is { } run && _output.Count == 0)
         {
@@ -953,6 +1071,10 @@ public partial class MainWindow : Window
         ChooseAnotherButton.IsEnabled = !busy;
         ChooseFolderButton.IsEnabled = !busy;
         ChooseAnotherFolderButton.IsEnabled = !busy;
+        PasteCodeButton.IsEnabled = !busy;
+        PasteInsteadButton.IsEnabled = !busy;
+        ChooseFileInsteadButton.IsEnabled = !busy;
+        ClearPastedCodeButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
         UseDetectedLanguageButton.IsEnabled = !busy;
         AllowDrop = !busy;
@@ -990,6 +1112,15 @@ public partial class MainWindow : Window
         FilterPanel.Visibility = Visibility.Collapsed;
         ViewTabs.Visibility = Visibility.Collapsed;
         EfficiencyIntro.Visibility = Visibility.Collapsed;
+
+        // Nothing said of an earlier check stands beside the problem that stopped this one.
+        _notes.Clear();
+        _output.Clear();
+        SinceLastText.Visibility = Visibility.Collapsed;
+        CopyReportButton.IsEnabled = false;
+        ReportSubtitleText.Text = "Not checked";
+        SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, "Not checked", LaneState.Stopped);
+        SetLane(LogicStatusText, LogicIcon, LogicProgress, "Not checked", LaneState.Stopped);
 
         EmptyState.Visibility = Visibility.Visible;
         EmptyTitleText.Text = title;
