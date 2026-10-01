@@ -260,4 +260,46 @@ public class JavaModuleTests(ITestOutputHelper output) : IDisposable
         Assert.Single(report.Findings, finding => finding.Title.StartsWith("Test dividesByZero stopped with ArithmeticException", StringComparison.Ordinal));
         Assert.Equal("It builds; 1 of 2 tests failed", report.SyntaxSummary);
     }
+
+    [Fact]
+    public async Task TestsInsideAModuleThatRequiresJUnitAreRunWithFixFindersLauncherPatchedIn()
+    {
+        // Only modular jars of JUnit 5 make org.junit.jupiter.api a module to require; the standalone jar does not.
+        if (Toolchains.FindJavac() is null || JUnit5Jars() is not { } junit || !junit.Any(jar => JavaModules.NameOf(jar) == "org.junit.jupiter.api")) return;
+
+        Directory.CreateDirectory(Folder(@"till\lib"));
+        foreach (var jar in junit) File.Copy(jar, Path.Combine(Folder(@"till\lib"), Path.GetFileName(jar)));
+
+        // An Eclipse project as its wizard makes one: a single src folder, with module-info.java in it, and the tests beside the code.
+        Write(@"till\.classpath", "<classpath>\n  <classpathentry kind=\"src\" path=\"src\"/>\n" +
+            string.Concat(junit.Select(jar => $"  <classpathentry kind=\"lib\" path=\"lib/{Path.GetFileName(jar)}\"/>\n")) + "</classpath>\n");
+        Write(@"till\src\module-info.java", "module till {\n    requires org.junit.jupiter.api;\n}\n");
+        Write(@"till\src\till\Calculator.java", "package till;\n\npublic class Calculator {\n    public int divide(int dividend, int divisor) {\n        return dividend / divisor;\n    }\n}\n");
+        var tests = Write(@"till\src\till\CalculatorTest.java", """
+            package till;
+
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class CalculatorTest {
+                @Test
+                void dividesEvenly() {
+                    assertEquals(2, new Calculator().divide(4, 2));
+                }
+
+                @Test
+                void dividesByZero() {
+                    assertEquals(0, new Calculator().divide(4, 0));
+                }
+            }
+            """);
+
+        var report = await CheckAsync(tests);
+
+        // FixFinder's launcher is compiled with the tests and uses JUnit's launcher, which the module does not require: it is
+        // patched into the module, which then reads the class path, or it would not build.
+        Assert.Single(report.Findings, finding => finding.Title.StartsWith("Test dividesByZero stopped with ArithmeticException", StringComparison.Ordinal));
+        Assert.Equal("It builds; 1 of 2 tests failed", report.SyntaxSummary);
+    }
 }
