@@ -307,13 +307,16 @@ public static partial class CompiledLanguages
             timeout);
 
         var with = libraries.Described is { } described ? $" and {described}" : "";
-        var asModule = module is null ? "" : $", as the module {module.Name} its module-info.java declares";
+        var projects = libraries.ProjectsDescribed is { } used ? $", with {used}" : "";
+        var asModule = module is null ? ""
+            : libraries.ProjectModules.TryGetValue(module.Name, out var declaredBy) ? $", as part of the module {module.Name} the project {declaredBy} declares"
+            : $", as the module {module.Name} its module-info.java declares";
         var then = launcher is not null ? $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}"
             : javaFx.Count > 0 ? "running it with java, with JavaFX's modules on the module path"
             : "running it with java";
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}{with}{asModule}, then {then}{StartsFrom(start, source)}."), null);
+            $"Building it with {javac.Name}{with}{projects}{asModule}, then {then}{StartsFrom(start, source)}."), null);
     }
 
     /// <summary>

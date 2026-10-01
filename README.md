@@ -132,6 +132,19 @@ or its file's name. A module's tests in `src/test/java`, and FixFinder's own JUn
 module, reading the class path, as a build compiles a module's tests; so is the copy a change is checked in. The program
 is then run from the class path, as before.
 
+A Gradle build of **several projects** is read as Gradle lays it out. Its `settings.gradle` - or `settings.gradle.kts` -
+names the projects it includes, each in a folder of its own: `:libs:core` in `libs\core`, unless the settings move it with
+`projectDir`. A project that uses another, with `implementation project(':core')`, is built with that project's source and
+resources and the libraries it declares for its own code, and so on through the projects that one uses; what a project
+uses only for its own tests stays with it. Each project is read with what the build gives it besides: the version catalog
+and `gradle.properties` in the build's top folder, the values set there with `ext`, the dependencies the build file above it
+puts in `allprojects { }`, `subprojects { }` or `project(':app') { }`, and the build's own convention plugins it applies,
+written as `.gradle` files in `buildSrc` or in a build the settings include. A project named that the settings do not
+include, or whose folder is not there, is said to be so, with why, rather than its classes taken for a missing library's;
+the lines of a block that picks its projects as Gradle runs, such as `configure(subprojects.findAll { ... })`, are named as
+not read. The projects' code is compiled together, from source, so a program that is itself a module and requires another
+project's module cannot be built this way: a note says so, rather than javac's error being reported as a mistake.
+
 A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
 from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it

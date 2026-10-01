@@ -200,7 +200,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 builds.TrySetResult(false);
 
                 return (codeErrors.Count > 0 ? $"{Count(codeErrors.Count, "error")} {(codeErrors.Count == 1 ? "stops" : "stop")} it building"
-                    : sorted.FromLibraries > 0 ? "It needs a library that is not on this computer, so it was not built"
+                    : sorted.FromLibraries > 0 ? sorted.NotBuilt ?? "It needs a library that is not on this computer, so it was not built"
                     : "It did not build", null);
             }
 

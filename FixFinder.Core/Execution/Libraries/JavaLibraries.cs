@@ -76,6 +76,27 @@ public sealed partial record JavaLibraries(
     public IReadOnlyList<string> JavaFxModules { get; init; } = [];
 
     /// <summary>
+    /// The other projects of its Gradle build whose code the program is built with: :core, for implementation project(':core'),
+    /// and those :core uses in turn. Their source is on the source path, their resources beside its own, and their libraries
+    /// among its own.
+    /// </summary>
+    public IReadOnlyList<string> ProjectsUsed { get; init; } = [];
+
+    /// <summary>Projects of its Gradle build the program uses whose code FixFinder could not find, each with why.</summary>
+    public IReadOnlyList<MissingProject> MissingProjects { get; init; } = [];
+
+    /// <summary>The modules the projects used declare in a module-info.java of their own, each with the project's path.</summary>
+    public IReadOnlyDictionary<string, string> ProjectModules { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>A few words for how a run explanation names the projects used: "the code of the project :core of its Gradle build".</summary>
+    public string? ProjectsDescribed => ProjectsUsed.Count == 0 ? null
+        : $"the code of {(ProjectsUsed.Count == 1 ? "the project" : "the projects")} {Listed(ProjectsUsed)} of its Gradle build";
+
+    /// <summary>Things named one after another, as a sentence names them: a, b and c.</summary>
+    internal static string Listed(IReadOnlyList<string> items) =>
+        items.Count <= 1 ? string.Concat(items) : $"{string.Join(", ", items.Take(items.Count - 1))} and {items[^1]}";
+
+    /// <summary>
     /// The program's source files to give javac by name besides the one it starts from: every one under its source roots
     /// when an annotation processor runs, since javac runs processors only on the files it is given, never on those it finds
     /// on the source path - a Lombok class in another file would get none of its getters; none when no processor runs.
@@ -160,8 +181,9 @@ public sealed partial record JavaLibraries(
 
         var libraries = Read(project);
 
-        // What is missing may be downloaded at any moment, by opening the project in an IDE, so it is never remembered.
-        if (libraries.Missing.Count == 0) Found[project] = (stamp, libraries);
+        // What is missing may be downloaded at any moment, by opening the project in an IDE - or, for a project of the build,
+        // written - so it is never remembered.
+        if (libraries.Missing.Count == 0 && libraries.MissingProjects.Count == 0) Found[project] = (stamp, libraries);
         return libraries;
     }
 
@@ -182,8 +204,14 @@ public sealed partial record JavaLibraries(
                                       IsProject(folder));
     }
 
+    /// <summary>
+    /// Whether a folder is a project: it has a build file, or an IDE's record of its libraries, or it is one of the projects a
+    /// Gradle build's settings include - which need not have a build file of its own.
+    /// </summary>
     private static bool IsProject(string folder) =>
-        BuildFiles.Any(name => File.Exists(Path.Combine(folder, name))) || IdeLibraries.Records(folder);
+        BuildFiles.Any(name => File.Exists(Path.Combine(folder, name))) || IdeLibraries.Records(folder) || IncludedInAGradleBuild(folder);
+
+    private static bool IncludedInAGradleBuild(string folder) => GradleSettings.Of(folder)?.PathOf(folder) is { } path && path != ":";
 
     private static readonly string[] BuildFiles = ["pom.xml", "build.gradle", "build.gradle.kts"];
 
@@ -199,30 +227,119 @@ public sealed partial record JavaLibraries(
             return Built(resolver.Resolve(pom), resolver.ProcessorsOf(pom), [], "pom.xml", project, StandardRoots(project));
         }
 
-        if (BuildFiles.Skip(1).Select(name => Path.Combine(project, name)).FirstOrDefault(File.Exists) is { } gradleFile)
-        {
-            var declared = GradleBuild.Read(gradleFile);
-            var resolver = new MavenResolver(stores, highestVersionWins: true);
-            var managed = resolver.ManagedBy(declared.Platforms);
-            var resolved = resolver.Resolve(declared.Dependencies, managed);
-
-            resolved = resolved with
-            {
-                Main = [.. resolved.Main, .. declared.Files.Where(file => !file.Test).Select(file => file.Jar)],
-                Test = [.. resolved.Test, .. declared.Files.Where(file => file.Test).Select(file => file.Jar)],
-            };
-
-            ResolvedLibraries? processors = null;
-            if (declared.NamesProcessors)
-            {
-                var named = resolver.Resolve(declared.Processors, managed);
-                processors = named with { Main = [.. named.Main, .. named.Test, .. declared.ProcessorFiles] };
-            }
-
-            return Built(resolved, processors, declared.NotRead, Path.GetFileName(gradleFile), project, StandardRoots(project));
-        }
+        if (GradleBuild.BuildFileIn(project) is not null || IncludedInAGradleBuild(project)) return FromGradle(project, GradleSettings.Of(project), stores);
 
         return Built(IdeLibraries.Read(project, mavenRepository), null, [], IdeLibraries.Describe(project), project, IdeRoots(project));
+    }
+
+    /// <summary>A project of its Gradle build that the program uses, with what that project declares, and whether only the program's tests use it.</summary>
+    private sealed record UsedProject(string Path, string Folder, GradleBuild.Declared Declared, bool ForTests);
+
+    /// <summary>
+    /// The libraries of a Gradle project: those its build file - and the build it is part of - declare, with the code of the
+    /// other projects of the build it uses and the libraries those declare for their own code.
+    /// </summary>
+    private static JavaLibraries FromGradle(string project, GradleSettings.Build? build, LibraryStores stores)
+    {
+        var declared = GradleBuild.ReadProject(project, build);
+        var (used, missingProjects) = ProjectsUsedBy(project, declared, build);
+
+        // What a project used declares for its own code comes with it; for the program's tests alone, when only they use it.
+        var dependencies = declared.Dependencies.Concat(used.SelectMany(each => each.Declared.Dependencies
+            .Where(dependency => dependency.Scope != "test")
+            .Select(dependency => each.ForTests ? dependency with { Scope = "test" } : dependency))).ToList();
+        var files = declared.Files.Concat(used.SelectMany(each => each.Declared.Files.Where(file => !file.Test).Select(file => (file.Jar, Test: each.ForTests)))).ToList();
+        var platforms = declared.Platforms.Concat(used.SelectMany(each => each.Declared.Platforms)).Distinct().ToList();
+
+        var resolver = new MavenResolver(stores, highestVersionWins: true);
+        var managed = resolver.ManagedBy(platforms);
+        var resolved = resolver.Resolve(dependencies, managed);
+
+        resolved = resolved with
+        {
+            Main = [.. resolved.Main, .. files.Where(file => !file.Test).Select(file => file.Jar)],
+            Test = [.. resolved.Test, .. files.Where(file => file.Test).Select(file => file.Jar)],
+        };
+
+        // A project used is compiled with the program, from its source, so the processors it names run on it too.
+        ResolvedLibraries? processors = null;
+        if (declared.NamesProcessors || used.Any(each => each.Declared.NamesProcessors))
+        {
+            var named = resolver.Resolve([.. declared.Processors, .. used.SelectMany(each => each.Declared.Processors)], managed);
+            processors = named with { Main = [.. named.Main, .. named.Test, .. declared.ProcessorFiles, .. used.SelectMany(each => each.Declared.ProcessorFiles)] };
+        }
+
+        // Files of the build are named from its top folder - app\build.gradle - and a line not read from any but the
+        // project's own build file says which it is in.
+        var top = build?.RootFolder ?? project;
+        var ownBuildFile = GradleBuild.BuildFileIn(project);
+        string FromTop(string file) => Path.GetRelativePath(top, file);
+        string Written(GradleBuild.UnreadLine line) =>
+            string.Equals(line.File, ownBuildFile, StringComparison.OrdinalIgnoreCase) ? line.Text : $"{line.Text} (in {FromTop(line.File)})";
+
+        var notRead = declared.NotRead.Concat(used.SelectMany(each => each.Declared.NotRead)).Select(Written).Distinct(StringComparer.Ordinal).ToList();
+        var readFrom = declared.ReadFrom.Concat(used.SelectMany(each => each.Declared.ReadFrom)).Distinct(StringComparer.OrdinalIgnoreCase).Select(FromTop).ToList();
+        var declaredIn = readFrom.Count > 0 ? Listed(readFrom) : $"the Gradle build in {Path.GetFileName(top)}";
+
+        var (ownSources, ownResources) = StandardRoots(project);
+        IReadOnlyList<string> sources = [.. ownSources, .. used.Select(each => Path.Combine(each.Folder, "src", "main", "java")).Where(Directory.Exists)];
+        IReadOnlyList<string> resources = [.. ownResources, .. used.Select(each => Path.Combine(each.Folder, "src", "main", "resources")).Where(Directory.Exists)];
+
+        var projectModules = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var each in used)
+        {
+            if (JavaModules.In(Path.Combine(each.Folder, "src", "main", "java")) is { } module) projectModules.TryAdd(module.Name, each.Path);
+        }
+
+        return Built(resolved, processors, notRead, declaredIn, project, (sources, resources)) with
+        {
+            ProjectsUsed = used.Select(each => each.Path).ToList(),
+            MissingProjects = missingProjects,
+            ProjectModules = projectModules,
+        };
+    }
+
+    /// <summary>
+    /// The projects of its Gradle build a project uses - those its build file names, as implementation project(':core'), and
+    /// those they use in turn for their own code - and those it names that FixFinder could not find, each with why.
+    /// </summary>
+    private static (IReadOnlyList<UsedProject> Used, IReadOnlyList<MissingProject> Missing) ProjectsUsedBy(
+        string project, GradleBuild.Declared declared, GradleSettings.Build? build)
+    {
+        var used = new List<UsedProject>();
+        var missing = new List<MissingProject>();
+        var reached = new HashSet<string>(StringComparer.Ordinal) { build?.PathOf(project) ?? ":" };
+        var settings = build is null ? null : Path.GetFileName(build.SettingsFile);
+
+        void Reach(IEnumerable<string> paths, bool forTests)
+        {
+            foreach (var path in paths)
+            {
+                if (!reached.Add(path)) continue;
+
+                var folder = build?.FolderOf(path);
+
+                if (folder is null || !Directory.Exists(folder))
+                {
+                    missing.Add(new MissingProject(path,
+                        settings is null ? "FixFinder found no settings.gradle in the project's folder or above it to say which projects its build has"
+                        : folder is null ? $"FixFinder did not find it among the projects {settings} includes"
+                        : $"{settings} includes it, in {Path.GetRelativePath(build!.RootFolder, folder)}, but that folder is not there"));
+                    continue;
+                }
+
+                var its = GradleBuild.ReadProject(folder, build);
+                used.Add(new UsedProject(path, folder, its, forTests));
+
+                // What a project uses for its own code comes with it; what it uses for its own tests does not.
+                Reach(its.Projects.Where(named => !named.Test).Select(named => named.Path), forTests);
+            }
+        }
+
+        Reach(declared.Projects.Where(named => !named.Test).Select(named => named.Path), forTests: false);
+        Reach(declared.Projects.Where(named => named.Test).Select(named => named.Path), forTests: true);
+
+        return (used, missing);
     }
 
     /// <param name="namedProcessors">The annotation processors the build names, or null when it names none.</param>
@@ -326,8 +443,11 @@ public sealed partial record JavaLibraries(
             Path.Combine(".idea", "libraries"), "lib", "libs", "jars",
         ];
 
-        var stamps = recorded.Select(name => Path.Combine(project, name))
-            .Select(path => File.Exists(path) ? File.GetLastWriteTimeUtc(path) : Directory.Exists(path) ? Directory.GetLastWriteTimeUtc(path) : DateTime.MinValue);
+        // A project of a Gradle build reads the build's settings and other build files too.
+        var paths = recorded.Select(name => Path.Combine(project, name));
+        if (GradleSettings.Of(project) is { } build) paths = paths.Concat(GradleBuild.FilesOf(build));
+
+        var stamps = paths.Select(path => File.Exists(path) ? File.GetLastWriteTimeUtc(path) : Directory.Exists(path) ? Directory.GetLastWriteTimeUtc(path) : DateTime.MinValue);
 
         try
         {

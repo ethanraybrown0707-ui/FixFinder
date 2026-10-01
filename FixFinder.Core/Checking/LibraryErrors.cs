@@ -20,7 +20,12 @@ namespace FixFinder.Core.Checking;
 public static partial class LibraryErrors
 {
     /// <summary>The errors that are mistakes in the code, and the note that says what the rest were.</summary>
-    public sealed record Sorted(IReadOnlyList<ParsedError> CodeErrors, string? Note, int FromLibraries);
+    /// <param name="NotBuilt">Why the program was not built, when the errors set aside were the only ones - or null for a library not here.</param>
+    public sealed record Sorted(IReadOnlyList<ParsedError> CodeErrors, string? Note, int FromLibraries, string? NotBuilt = null);
+
+    /// <summary>javac's error for a module that a module-info.java requires and is nowhere to be found.</summary>
+    [GeneratedRegex(@"^module not found: (?<module>[\w.]+)")]
+    private static partial Regex ModuleNotFound();
 
     [GeneratedRegex(@"^package (?<package>[\w.]+) does not exist")]
     private static partial Regex PackageDoesNotExist();
@@ -83,6 +88,12 @@ public static partial class LibraryErrors
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || errors.Count == 0) return new Sorted(errors, null, 0);
 
         var libraries = JavaLibraries.For(chosen);
+
+        // The code of the other projects of its build is compiled with the program's, from source, as one module - so a module
+        // another of them is never there for the program to require.
+        if (libraries.ProjectsUsed.Count > 0 && errors.Where(error => ModuleNotFound().IsMatch(error.Message ?? "")).ToList() is { Count: > 0 } notFound)
+            return ModulesOfProjectsNotBuilt(errors, notFound, libraries);
+
         var ownPackages = OwnPackages(chosen, libraries);
         var importsByFile = new Dictionary<string, IReadOnlyList<(string Path, bool Static)>>(StringComparer.OrdinalIgnoreCase);
 
@@ -97,7 +108,17 @@ public static partial class LibraryErrors
             .Select(package => package.Key)
             .ToList();
 
-        if (absent.Count == 0) return new Sorted(errors, null, 0);
+        var projectsMissing = libraries.MissingProjects.Count > 0;
+        var notBuilt = projectsMissing ? "It uses code FixFinder could not find, so it was not built" : null;
+
+        // A project's code that was not there may have held what the code uses in a package of the program's own - so a
+        // class javac cannot find there may not be a mistake. The errors stay, with that said beside them.
+        if (absent.Count == 0)
+        {
+            return projectsMissing
+                ? new Sorted(errors, $"{ProjectsNotFound(libraries)} So an error about a class or method from that code may not be a mistake in the code.", 0, notBuilt)
+                : new Sorted(errors, null, 0);
+        }
 
         var marked = new Lazy<MarkedClasses>(() => MarkedBy(absent, chosen, libraries));
         var fromLibraries = new List<ParsedError>();
@@ -121,8 +142,53 @@ public static partial class LibraryErrors
             }
         }
 
-        return new Sorted(inTheCode, Note(absent, libraries, fromLibraries.Count, addedTo), fromLibraries.Count);
+        return new Sorted(inTheCode, Note(absent, libraries, fromLibraries.Count, addedTo), fromLibraries.Count, notBuilt);
     }
+
+    /// <summary>
+    /// The errors of a program that is a module and uses other projects of its Gradle build, with javac's errors for the
+    /// modules it could not find set aside. A module another project declares is not there to be found, as that project's
+    /// code is compiled as part of the program's own module; a module named nowhere may be the name the build gives one of
+    /// those projects as a jar, or may be mistyped, which cannot be told here - so neither is shown as a mistake in the code.
+    /// </summary>
+    private static Sorted ModulesOfProjectsNotBuilt(IReadOnlyList<ParsedError> errors, IReadOnlyList<ParsedError> notFound, JavaLibraries libraries)
+    {
+        var modules = notFound.Select(error => ModuleNotFound().Match(error.Message!).Groups["module"].Value).Distinct(StringComparer.Ordinal).ToList();
+        var ofProjects = modules.Where(libraries.ProjectModules.ContainsKey).ToList();
+        var namedNowhere = modules.Except(ofProjects).ToList();
+
+        var said = new List<string>();
+
+        if (ofProjects.Count > 0)
+        {
+            said.Add($"javac could not find {And(ofProjects.Select(module => $"the module {module}, which the project {libraries.ProjectModules[module]} of its Gradle build declares").ToList())}.");
+        }
+
+        if (namedNowhere.Count > 0)
+        {
+            var one = namedNowhere.Count == 1;
+            var projects = libraries.ProjectsUsed.Count == 1 ? $"the project {libraries.ProjectsUsed[0]}" : $"one of the projects {And(libraries.ProjectsUsed)}";
+            var orALibrary = libraries.Missing.Count > 0 ? ", or a library's that is not on this computer" : "";
+
+            said.Add($"javac could not find the module{(one ? "" : "s")} {And(namedNowhere)}, which no project or library FixFinder found declares: " +
+                     $"{(one ? "it" : "they")} may be the name the build gives {projects}{orALibrary}, or mistyped, which cannot be told here.");
+        }
+
+        said.Add("FixFinder builds a program with the code of the other projects of its build from their source, compiled with its own as one module, " +
+                 "so another project's module is never there to be required. So the program could not be built here, and javac's " +
+                 $"error{(notFound.Count == 1 ? " that the module is" : "s that the modules are")} not found {(notFound.Count == 1 ? "is" : "are")} not shown as " +
+                 "a mistake in the code. The code was still read for mistakes.");
+
+        return new Sorted(errors.Except(notFound).ToList(), string.Join(" ", said), notFound.Count,
+            "It needs another project's module, which FixFinder cannot build with it, so it was not built");
+    }
+
+    /// <summary>What to say of the projects of its Gradle build a program uses whose code FixFinder could not find.</summary>
+    private static string ProjectsNotFound(JavaLibraries libraries) => libraries.MissingProjects switch
+    {
+        [var only] => $"The Gradle build names the project {only.Path}, but {only.Reason}, so its code was not there to build the program with.",
+        var several => $"The Gradle build names projects whose code was not there to build the program with: {And(several.Select(missing => missing.ToString()).ToList())}.",
+    };
 
     /// <summary>Whether an error is about a missing library: its package, an import of it, or a name imported from it.</summary>
     private static bool CausedBy(ParsedError error, IReadOnlyList<(string Path, bool Static)> imported, IReadOnlyList<string> absent, string chosen)
@@ -247,22 +313,29 @@ public static partial class LibraryErrors
         var one = absent.Count == 1;
         var oneLibrary = absent.Select(package => LibraryOf(package) ?? package).Distinct(StringComparer.Ordinal).Count() == 1;
 
-        var comesFrom = named.Length > 0
-            ? $"{(one ? "it comes" : "they come")} from a library - {named}"
+        // With a project of the build not found, what is missing may be that project's code rather than a library's.
+        var projectsMissing = libraries.MissingProjects.Count > 0;
+        var ofThisProgram = projectsMissing ? "of the code FixFinder found for this program" : "of this program";
+
+        var comesFrom = named.Length > 0 ? $"{(one ? "it comes" : "they come")} from a library - {named}"
+            : projectsMissing ? $"{(one ? "it" : "they")} may be part of a project of its Gradle build that FixFinder could not find, or come from a library"
             : $"{(one ? "it comes" : "they come")} from a library";
 
-        var where = libraries switch
+        var whereLibraries = libraries switch
         {
             { Missing.Count: > 0, DeclaredIn: { } declared } =>
                 $"{And(libraries.Missing.Select(missing => missing.Name).Distinct(StringComparer.Ordinal).Take(6).ToList())} " +
                 $"{(libraries.Missing.Count == 1 ? "is" : "are")} named in {declared} but not on this computer: {libraries.Missing[0].Reason}. Opening the " +
                 "project in its IDE, or building it once with its build tool, downloads what it needs - FixFinder never downloads anything itself.",
+            { MissingProjects.Count: > 0 } => "",
             { DeclaredIn: { } declared } =>
                 $"None of the libraries from {declared} has {(one ? "it" : "them")}, so the library {(one ? "it comes" : "they come")} from is not named there.",
             _ =>
                 "Nothing says where that library is: FixFinder looks for a pom.xml or a build.gradle, jars in a lib, libs or jars folder, and the " +
                 "libraries IntelliJ, Eclipse and VS Code record for the project, and found none of them.",
         };
+
+        var where = string.Join(" ", new[] { projectsMissing ? ProjectsNotFound(libraries) : "", whereLibraries }.Where(part => part.Length > 0));
 
         var unread = libraries is { NotRead: [var first, ..], DeclaredIn: { } file }
             ? $" FixFinder could not read {Count(libraries.NotRead.Count, "line")} of {file}, which may be where {(one ? "it is" : "they are")} named: {first}."
@@ -272,7 +345,7 @@ public static partial class LibraryErrors
 
         if (addedTo.Count == 0)
         {
-            return $"{packages} {(one ? "is" : "are")} not part of Java or of this program: {comesFrom}. {where}{unread} So the program could not be built, and " +
+            return $"{packages} {(one ? "is" : "are")} not part of Java or {ofThisProgram}: {comesFrom}. {where}{unread} So the program could not be built, and " +
                    $"{theErrors} not mistakes in the code and {(errors == 1 ? "is" : "are")} not shown as such. The code was still read for mistakes.";
         }
 
@@ -285,7 +358,7 @@ public static partial class LibraryErrors
                     $"say, or a constructor. Javac cannot see what {(oneLibrary ? "it adds" : "they add")} without {(oneLibrary ? "it" : "them")}, so whether " +
                     $"{(addedTo.Count == 1 ? "that use is" : "those uses are")} right cannot be told until {(oneLibrary ? "it is" : "they are")} on this computer.";
 
-        return $"{packages} {(one ? "is" : "are")} not part of Java or of this program: {comesFrom}. {where}{unread} So the program could not be built, and " +
+        return $"{packages} {(one ? "is" : "are")} not part of Java or {ofThisProgram}: {comesFrom}. {where}{unread} So the program could not be built, and " +
                $"{theErrors} not shown as mistakes in the code. {added} The code was still read for mistakes.";
     }
 

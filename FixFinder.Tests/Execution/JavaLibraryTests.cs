@@ -536,7 +536,8 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
             declared.Dependencies.Select(dependency => $"{dependency.Group}:{dependency.Artifact}:{dependency.Version}:{dependency.Scope}").ToArray());
         Assert.Equal([new LibraryName("org.junit", "junit-bom", "5.10.2")], declared.Platforms.ToArray());
         Assert.Equal([Path.GetFullPath(jar)], declared.Files.Select(file => file.Jar).ToArray(), StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(["implementation project(':core')"], declared.NotRead.ToArray());
+        Assert.Equal([(":core", false)], declared.Projects.ToArray());
+        Assert.Empty(declared.NotRead);
     }
 
     [Fact]
