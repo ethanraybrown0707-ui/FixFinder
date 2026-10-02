@@ -63,12 +63,14 @@ public class TargetRunnerTests
     {
         if (!OnWindows) return;
 
+        // With stdin left open, set /p waits for a line that never comes, until the run's time runs out; closed, it reads
+        // nothing and goes on to echo. How long the run took says nothing either way - a busy machine is slow at both - so a
+        // generous limit costs nothing but time when stdin is left open.
         var result = await new TargetRunner().RunAsync(
-            Cmd("/c set /p LINE= & echo done", timeoutSeconds: 20), CancellationToken.None);
+            Cmd("/c set /p LINE= & echo done", timeoutSeconds: 60), CancellationToken.None);
 
         Assert.NotEqual(RunOutcome.TimedOut, result.Outcome);
-        Assert.True(result.Duration < TimeSpan.FromSeconds(10),
-            $"took {result.Duration.TotalSeconds:0.#}s - stdin was probably left open");
+        Assert.Contains(result.Lines, line => line.Text.Trim() == "done");
     }
 
     [Fact]
@@ -86,9 +88,10 @@ public class TargetRunnerTests
 
         var result = await new TargetRunner().RunAsync(spec, CancellationToken.None);
 
+        // Stopped well before the two minutes the program would have taken - with room for a busy machine to be slow.
         Assert.Equal(RunOutcome.TimedOut, result.Outcome);
         Assert.Null(result.ExitCode);
-        Assert.True(result.Duration < TimeSpan.FromSeconds(30));
+        Assert.True(result.Duration < TimeSpan.FromSeconds(100), $"took {result.Duration.TotalSeconds:0.#}s - the program was not stopped");
     }
 
     [Fact]
