@@ -571,9 +571,10 @@ Some limits are part of how FixFinder works:
   in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
   downloads it.
 - **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
-  code uses come first, and a note says how many were left out. Building and running the program are not limited by
-  this. A C or C++ file is built with the other source files beside it only when its folder holds no more than 200 files
-  and exactly one of them has a `main`; otherwise it is built on its own.
+  code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
+  same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
+  is built with the other source files beside it only when its folder holds no more than 200 files and exactly one of
+  them has a `main`; otherwise it is built on its own.
 - **Reading the code.** The values are followed through the code by its own language's parser - Python's, javac's, Go's -
   run by the program's own tools; when that cannot run, a note says the code was checked against the logic patterns
   alone.
