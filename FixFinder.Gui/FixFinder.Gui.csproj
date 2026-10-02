@@ -41,6 +41,9 @@
   <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
     <Exec ContinueOnError="true"
           Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+    <!-- The launcher exe beside the DLL too, so everything of FixFinder's the build makes is signed. -->
+    <Exec ContinueOnError="true" Condition="Exists('$(TargetDir)$(AssemblyName).exe')"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetDir)$(AssemblyName).exe&quot;" />
   </Target>
 
 </Project>
