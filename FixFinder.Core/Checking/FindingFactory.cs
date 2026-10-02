@@ -240,6 +240,12 @@ public static partial class FindingFactory
             return new FixOrigin { SourceName = page.SourceName, Title = page.Title, Url = page.Url };
         }
 
+        // What the language suggested itself is credited to it, not to a rule of FixFinder's.
+        if (candidate is not null && edit is not null && RuntimeSuggestion.SuggestedBy(candidate) is { } language)
+        {
+            return FixOrigin.FromTheLanguage(language);
+        }
+
         return FixOrigin.OwnRule(edit?.RuleId);
     }
 

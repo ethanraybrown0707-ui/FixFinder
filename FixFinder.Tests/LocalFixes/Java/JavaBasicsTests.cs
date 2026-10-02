@@ -2,6 +2,7 @@ using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 using FixFinder.Core.Parsing;
 using FixFinder.Core.Sources;
 
@@ -193,5 +194,19 @@ public class JavaBasicsTests : IDisposable
 
         Assert.NotNull(copied);
         Assert.Contains(expected, copied!.Text.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AClassJavapSaidNothingOfIsAskedAboutAgainNextTime()
+    {
+        if (!LocalFixLiveTests.Available("java")) return;
+
+        // javap says nothing of a class that is not there - nor of one, on a busy machine, that it was too slow to read.
+        Assert.Empty(JavaTypes.Members("com.example.nowhere.NoSuchClass", methods: true));
+        Assert.False(JavaTypes.IsRemembered("com.example.nowhere.NoSuchClass", methods: true));
+
+        // What it does say is remembered, so it is asked once.
+        Assert.Contains("toUpperCase", JavaTypes.Members("java.lang.String", methods: true));
+        Assert.True(JavaTypes.IsRemembered("java.lang.String", methods: true));
     }
 }

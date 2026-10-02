@@ -71,10 +71,36 @@ public static partial class RuntimeSuggestion
         return match.Success ? match.Groups["wrong"].Value : null;
     }
 
+    /// <summary>
+    /// What calls itself by a language's id - python, gcc - in the words a reader knows it by, as written within a sentence:
+    /// gcc's reader reads clang's messages too, so a C compiler is only "the compiler".
+    /// </summary>
+    private static string LanguageNamed(string languageId) => languageId switch
+    {
+        "python" => "Python",
+        "ruby" => "Ruby",
+        _ => "the compiler",
+    };
+
+    /// <summary>The language whose own "Did you mean" a fix is, when it is one of those; null for any other fix.</summary>
+    public static string? SuggestedBy(FixCandidate candidate) =>
+        candidate.Id.EndsWith(":did-you-mean", StringComparison.Ordinal) ? LanguageNamed(candidate.Id[..candidate.Id.IndexOf(':')]) : null;
+
     public static FixCandidate? For(ParsedError error, string? sourceRoot)
     {
         if (Read(error) is not { } correction) return null;
-        if (Diff(correction, sourceRoot) is not { } diff) return null;
+        if (Change(correction, sourceRoot) is not { } change) return null;
+
+        var (diff, fixedLine) = change;
+        var suggestedBy = LanguageNamed(error.LanguageId);
+
+        // The correction as an edit of the one line, so it can be shown beside the line as written and tried on a copy of
+        // the program like any other fix - the words are the language's, the line is the reader's own.
+        var edit = LocalFixes.LocalFix.ReplaceLine(
+            $"{error.LanguageId}-did-you-mean",
+            $"Change {correction.Wrong} to {correction.Right}",
+            $"{char.ToUpperInvariant(suggestedBy[0])}{suggestedBy[1..]} itself compared `{correction.Wrong}` with the names it knew at this point, and suggested `{correction.Right}`.",
+            correction.File, correction.Line, fixedLine);
 
         var title = $"{error.ExceptionType}: {error.Message}";
 
@@ -100,6 +126,7 @@ public static partial class RuntimeSuggestion
             CreatedAt = DateTimeOffset.UtcNow,
             LastActivityAt = DateTimeOffset.UtcNow,
             AnswerNoun = "suggestions",
+            LocalFix = edit,
         };
 
         candidate.Score = 100;
@@ -114,7 +141,8 @@ public static partial class RuntimeSuggestion
         return candidate;
     }
 
-    private static string? Diff(Correction correction, string? sourceRoot)
+    /// <summary>The correction as a diff of the one line, and the line as it becomes; null when it cannot be made safely.</summary>
+    private static (string Diff, string FixedLine)? Change(Correction correction, string? sourceRoot)
     {
         string[] lines;
 
@@ -173,7 +201,7 @@ public static partial class RuntimeSuggestion
 
         if (after is not null) diff.Append(' ').Append(after).Append('\n');
 
-        return diff.ToString();
+        return (diff.ToString(), fixedLine);
     }
 
     internal static string RelativePath(string file, string? sourceRoot)

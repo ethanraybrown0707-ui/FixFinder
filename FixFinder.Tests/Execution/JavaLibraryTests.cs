@@ -536,7 +536,8 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
             declared.Dependencies.Select(dependency => $"{dependency.Group}:{dependency.Artifact}:{dependency.Version}:{dependency.Scope}").ToArray());
         Assert.Equal([new LibraryName("org.junit", "junit-bom", "5.10.2")], declared.Platforms.ToArray());
         Assert.Equal([Path.GetFullPath(jar)], declared.Files.Select(file => file.Jar).ToArray(), StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(["implementation project(':core')"], declared.NotRead.ToArray());
+        Assert.Equal([(":core", false)], declared.Projects.ToArray());
+        Assert.Empty(declared.NotRead);
     }
 
     [Fact]
@@ -602,9 +603,13 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
             </classpath>
             """);
 
-        var eclipse = IdeLibraries.Read(Folder("eclipse"), new MavenRepository(repository));
-        Assert.Contains(Path.GetFullPath(eclipseJar), eclipse.Main, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains(eclipse.Missing, missing => missing.Name == "JUnit 5");
+        // Read as on a computer with no Eclipse, whose own JUnit is then missing.
+        using (EclipseJUnit.LookingIn(Folder("home-without-eclipse")))
+        {
+            var eclipse = IdeLibraries.Read(Folder("eclipse"), new MavenRepository(repository));
+            Assert.Contains(Path.GetFullPath(eclipseJar), eclipse.Main, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains(eclipse.Missing, missing => missing.Name == "JUnit 5");
+        }
 
         var vscodeJar = Write(@"vscode\jars-here\nested\json.jar", "");
         Write(@"vscode\.vscode\settings.json", """
@@ -967,6 +972,136 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         Assert.Empty(report.Findings);
         Assert.Equal("It printed what you expected", report.LogicSummary);
         Assert.Contains("with JavaFX's modules on the module path", TargetFactory.FromFile(app).Explanation, StringComparison.Ordinal);
+    }
+
+    /// <summary>A jar standing in for JavaFX's javafx.base: the module, and nothing in it, as the stand-in javafx.graphics needs nothing from it.</summary>
+    private string? JavaFxBaseStandIn()
+    {
+        if (Toolchains.FindJavac() is not { } javac) return null;
+
+        var jarTool = Path.Combine(Path.GetDirectoryName(javac.Program)!, "jar.exe");
+        if (!File.Exists(jarTool)) return null;
+
+        var classes = Folder("javafx-base-classes");
+        var jar = Path.Combine(_temp.Path, "javafx-base", "javafx.base.jar");
+        Directory.CreateDirectory(Path.GetDirectoryName(jar)!);
+
+        Run(javac.Program, $"-d \"{classes}\" \"{Write(@"javafx-base-source\module-info.java", "module javafx.base {\n}\n")}\"");
+        Run(jarTool, $"cf \"{jar}\" -C \"{classes}\" .");
+
+        return File.Exists(jar) ? jar : null;
+    }
+
+    [Fact]
+    public async Task AGradleJavaFxApplicationIsStartedWithTheModulesItsJavaFxBlockNames()
+    {
+        if (GradleBuild.JavaFxPlatform() is not { } platform || JavaFxGraphicsStandIn(asAModule: true) is not { } graphics || JavaFxBaseStandIn() is not { } javaFxBase) return;
+
+        // Laid out as Gradle keeps what the JavaFX plugin had it download: the jar of each module for this computer.
+        var cache = Folder("gradle-cache");
+        foreach (var (artifact, jar) in new[] { ("javafx-graphics", graphics), ("javafx-base", javaFxBase) })
+        {
+            var folder = Path.Combine(cache, "org.openjfx", artifact, "21", "0123abcd");
+            Directory.CreateDirectory(folder);
+            File.Copy(jar, Path.Combine(folder, $"{artifact}-21-{platform}.jar"));
+        }
+
+        Write(@"fx-gradle\build.gradle", "plugins {\n    id 'application'\n    id 'org.openjfx.javafxplugin' version '0.1.0'\n}\n\njavafx {\n    version = '21'\n    modules = ['javafx.graphics']\n}\n");
+        var app = Write(@"fx-gradle\src\main\java\app\HelloApp.java", JavaFxApplication);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new GradleCache(cache)]));
+        var report = await CheckAsync(app, "started");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("2 libraries from build.gradle, then running it with java, with JavaFX's modules on the module path", TargetFactory.FromFile(app).Explanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheJavaFxPluginsModulesAreTheJarsOfThemForThisComputer()
+    {
+        // The plugin's names for the jars of each computer it has them for; this one is Windows on x64, as the tests' runner is.
+        if (!OperatingSystem.IsWindows() || System.Runtime.InteropServices.RuntimeInformation.OSArchitecture != System.Runtime.InteropServices.Architecture.X64) return;
+
+        var groovy = Write(@"groovy\build.gradle", """
+            plugins {
+                id 'application'
+                id 'org.openjfx.javafxplugin' version '0.1.0'
+            }
+
+            javafx {
+                version = "21"
+                modules = [ 'javafx.controls', 'javafx.fxml' ]
+            }
+            """);
+
+        // Each module with those it needs, as the plugin's own list has them, and nothing their pom.xml would bring besides.
+        var declared = GradleBuild.Read(groovy);
+        Assert.Equal(
+            ["org.openjfx:javafx-base:21:win", "org.openjfx:javafx-controls:21:win", "org.openjfx:javafx-fxml:21:win", "org.openjfx:javafx-graphics:21:win"],
+            declared.Dependencies.Select(dependency => $"{dependency.Group}:{dependency.Artifact}:{dependency.Version}:{dependency.Classifier}").ToArray());
+        Assert.All(declared.Dependencies, dependency => Assert.Equal([("*", "*")], dependency.Excluding.ToArray()));
+
+        var kotlin = Write(@"kotlin\build.gradle.kts", """
+            plugins {
+                application
+                id("org.openjfx.javafxplugin") version "0.1.0"
+            }
+
+            val fxVersion = "22"
+
+            javafx {
+                version = fxVersion
+                modules("javafx.web")
+            }
+            """);
+
+        Assert.Equal(["javafx-base:22", "javafx-controls:22", "javafx-graphics:22", "javafx-media:22", "javafx-web:22"],
+            GradleBuild.Read(kotlin).Dependencies.Select(dependency => $"{dependency.Artifact}:{dependency.Version}").ToArray());
+
+        // Given to the tests' configuration alone, they are the tests' libraries.
+        var forTests = Write(@"tests\build.gradle",
+            "plugins {\n    id 'org.openjfx.javafxplugin' version '0.1.0'\n}\n\njavafx {\n    version = '21'\n    modules = ['javafx.base']\n    configuration = 'testImplementation'\n}\n");
+        Assert.Equal(["javafx-base:test"], GradleBuild.Read(forTests).Dependencies.Select(dependency => $"{dependency.Artifact}:{dependency.Scope}").ToArray());
+    }
+
+    [Fact]
+    public void TheModulesOfAJavaFxSdkTheBuildNamesAreTakenFromItsLibFolder()
+    {
+        var lib = Folder(@"javafx-sdk-21\lib");
+        Directory.CreateDirectory(lib);
+        File.WriteAllBytes(Path.Combine(lib, "javafx.base.jar"), []);
+        File.WriteAllBytes(Path.Combine(lib, "javafx.graphics.jar"), []);
+
+        Write(@"fx-sdk\build.gradle", $"plugins {{\n    id 'org.openjfx.javafxplugin' version '0.1.0'\n}}\n\njavafx {{\n    sdk = '{Folder("javafx-sdk-21").Replace('\\', '/')}'\n    modules = ['javafx.controls']\n}}\n");
+        var app = Write(@"fx-sdk\src\main\java\app\App.java", "package app;\n\npublic class App {\n}\n");
+
+        var libraries = JavaLibraries.For(app);
+
+        Assert.Equal([Path.Combine(lib, "javafx.base.jar"), Path.Combine(lib, "javafx.graphics.jar")], libraries.ClassPath.ToArray(), StringComparer.OrdinalIgnoreCase);
+
+        // An SDK without the module asked for is said to be so, by the jar that is not there.
+        var controls = Assert.Single(libraries.Missing);
+        Assert.Equal("org.openjfx:javafx-controls", controls.Name);
+        Assert.Contains("javafx.controls.jar is not a file on this computer", controls.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AJavaFxBlockThatDoesNotSayWhichJarsItMeansIsNamedAsNotRead()
+    {
+        // No version, so which jars cannot be told; a module JavaFX does not have is named on its own.
+        var noVersion = Write(@"no-version\build.gradle", "plugins {\n    id 'org.openjfx.javafxplugin' version '0.1.0'\n}\n\njavafx {\n    modules = ['javafx.controls']\n}\n");
+        var unknown = Write(@"unknown\build.gradle", "plugins {\n    id 'org.openjfx.javafxplugin' version '0.1.0'\n}\n\njavafx {\n    version = '21'\n    modules = ['javafx.controlz']\n}\n");
+
+        Assert.Empty(GradleBuild.Read(noVersion).Dependencies);
+        Assert.Equal(["modules = ['javafx.controls']"], GradleBuild.Read(noVersion).NotRead.Select(line => line.Text).ToArray());
+
+        Assert.Empty(GradleBuild.Read(unknown).Dependencies);
+        Assert.Equal(["modules = ['javafx.controlz']"], GradleBuild.Read(unknown).NotRead.Select(line => line.Text).ToArray());
+
+        // Without the plugin, a javafx { } block is no one's to read.
+        var noPlugin = Write(@"no-plugin\build.gradle", "javafx {\n    version = '21'\n    modules = ['javafx.controls']\n}\n");
+        Assert.Empty(GradleBuild.Read(noPlugin).Dependencies);
     }
 
     [Fact]

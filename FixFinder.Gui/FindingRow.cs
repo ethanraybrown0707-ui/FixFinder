@@ -249,9 +249,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public bool HasOrigin => Finding.CameFrom is not null && Finding.Fix is not null;
 
     public string OriginText => Finding.CameFrom is { } came
-        ? came.HasLink
-            ? $"Taken from {came.SourceName}: {came.Title}"
-            : $"Worked out by FixFinder's own rule `{came.Title}`"
+        ? came.HasLink ? $"Taken from {came.SourceName}: {came.Title}"
+        : came.IsTheLanguagesOwn ? $"Suggested by {came.SourceName} itself, in {came.Title}"
+        : $"Worked out by FixFinder's own rule `{came.Title}`"
         : "";
 
     public bool HasOriginLink => Finding.CameFrom?.HasLink == true;

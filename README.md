@@ -13,9 +13,12 @@ until the program prints what it should. FixFinder never changes your files.
 
 ## Using it
 
-1. **Choose a program.** Drop the file on the window, or press **Choose a file…**.
+1. **Choose a program.** Drop the file on the window, or press **File…** and pick it. When the file is hard to find, press
+   **Paste code** and paste the program's code into the box; **Folder…** checks every program in a folder.
 2. **Press the language it is written in** - Python, Java, C#, C, C++, JavaScript or Go, or **Auto-detect**. That starts
-   both checks at once. The program is compiled if it needs to be, and run.
+   both checks at once. The program is compiled if it needs to be, and run. For pasted code, **Auto-detect** works the
+   language out from what only that language writes - `System.out.println`, `#include <iostream>`, a `def` line ending
+   in `:` - and when the code shows no language more than another, asks for it rather than guessing.
 3. **Optionally, say what it should print.** Arguments, the input to type and the expected output go in the boxes under
    the program, and **+ Add another run** adds more. With them, a program that runs but prints the wrong thing is caught
    too, and the change that makes it right is searched for.
@@ -30,6 +33,12 @@ until the program prints what it should. FixFinder never changes your files.
    patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
    press the language to do that. Code that does not read as its language at all is noted rather than reported as having
    no mistakes.
+
+Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
+the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
+the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
+with it, and a note says so. Check on save watches a file chosen from disk; for pasted code, press the language again to
+check it after a change. The saved copy is removed when the window closes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
@@ -53,20 +62,48 @@ The changes FixFinder tries are made and run in a copy of the program's folder, 
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
 
 A Python program runs with **its project's own Python** when it has one, as its IDE runs it, so a package installed only
-there is found: the interpreter the project's VS Code settings name (`python.defaultInterpreterPath`, or the older
-`python.pythonPath`), or a virtual environment - `.venv`, `venv`, `env`, `.env` or `virtualenv`, holding its `pyvenv.cfg` - in
-the program's folder or one above it, up to the folder that marks the project: one with a `.git`, `.idea`, `.vscode`,
-`pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt` or `Pipfile`. An environment whose Python has since been
-uninstalled is passed over. How the program is run says which Python it is, and the copies changes are tried in run with
-the same one. An environment kept outside the project, as conda and Poetry keep theirs, is not found, and the Python on
-PATH is used instead.
+there is found. FixFinder looks in the program's folder and each one above it, up to the folder that marks the project - one
+with a `.git`, `.idea`, `.vscode`, `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile` or
+`environment.yml` - and takes the first of these it finds:
+
+- the interpreter the project's VS Code settings name (`python.defaultInterpreterPath`, or the older `python.pythonPath`),
+  or its PyCharm settings name: `.idea\misc.xml` gives the interpreter's name, and PyCharm's own list of interpreters,
+  `jdk.table.xml`, says where it is;
+- a virtual environment in the folder - `.venv`, `venv`, `env`, `.env` or `virtualenv`, holding its `pyvenv.cfg`;
+- the **conda** environment the project's `environment.yml` names: by its `prefix:`, as `conda env export` writes it, or
+  by its `name:` - looked for in conda's own list of the environments it made (`.conda\environments.txt`), in the folders
+  `CONDA_ENVS_DIRS` (or the older `CONDA_ENVS_PATH`) names, in `.conda\envs`, and in the `envs` folder of an Anaconda,
+  Miniconda, Miniforge or Mambaforge installation in the home folder, local application data or ProgramData. A folder is
+  taken for an environment only if it holds conda's `conda-meta` record, so what a removal left behind is not;
+- the environment **Poetry** made for a project it manages - one with `[tool.poetry]` in its `pyproject.toml`, or a
+  `poetry.lock` beside it - under the name Poetry gives it, the project's name and a hash of its folder, worked out as
+  Poetry works it out. It is looked for only where Poetry keeps environments: the folder `POETRY_VIRTUALENVS_PATH`, the
+  project's `poetry.toml` or Poetry's `config.toml` names - read in that order, as Poetry reads a setting - and otherwise
+  the `virtualenvs` folder of Poetry's cache. When Poetry made one for each of two Pythons, the one its `envs.toml` records
+  as in use is taken, and neither when it records none;
+- the environment **Pipenv** made for a project with a `Pipfile`: the one in `WORKON_HOME`, or in `.virtualenvs` in the
+  home folder, whose `.project` file names the project's folder.
+
+A notebook saved with a **Jupyter kernel** of its own - one made with `python -m ipykernel install --user --name ...` - runs
+with that kernel's Python, found where Jupyter finds kernels: the folders `JUPYTER_PATH` names, then this user's Jupyter
+folder (or `JUPYTER_DATA_DIR` in place of it), and ProgramData's only when `JUPYTER_USE_PROGRAMDATA` says to trust it, as
+Jupyter does. The kernel every Python brings is called `python3` whichever Python it is, so a notebook saved with that one
+has its project's own Python looked for as above. A tool run by the Microsoft Store's Python writes into that Python's own
+copy of the application data folders, so Poetry's environments and Jupyter's kernels are looked for there too.
+
+An environment whose Python has since been uninstalled is passed over, and one a project names that is not on this
+computer is not guessed at: the Python on PATH is used instead. How the program is run says which Python it is, and the
+copies changes are tried in run with the same one.
 
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
 each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and
 `testImplementation` lines, its `platform()` BOMs and version catalog, the highest version winning as in Gradle; the
 libraries IntelliJ's `.idea` and `.iml` files, Eclipse's `.classpath` and VS Code's `java.project.referencedLibraries`
-record; and jars kept in a `lib`, `libs` or `jars` folder. Each is looked for among what Maven and Gradle have already
+record; and jars kept in a `lib`, `libs` or `jars` folder. The JUnit that comes with Eclipse, which a `.classpath` takes
+as its JUnit 4, 5 or 6 container, is taken from an Eclipse on this computer: the jars Eclipse makes that container of, at
+the versions Eclipse allows, from among the bundles an Eclipse the installer put in the `eclipse` folder of the home folder
+uses, or from the installer's shared pool of bundles in `.p2`. Each is looked for among what Maven and Gradle have already
 downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
 named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
 errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would
@@ -82,10 +119,34 @@ processor only on the files it is given by name, every file of the program is th
 tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
 path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
 to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
-computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A program that stops
+computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A Gradle build that applies the JavaFX plugin,
+`org.openjfx.javafxplugin`, has the modules its `javafx { }` block names, with those they need as the plugin's own list
+has them, each as the jar of it for this computer that Gradle downloaded - or from the `lib` folder of the JavaFX SDK the
+block names with `sdk`; a block whose version or modules FixFinder cannot read is named as not read. A program that stops
 for want of a class, or of a database driver, while libraries its build names are not on this computer, is reported as
 possibly that rather than as a mistake in the code. A class from a library the build does not name at all gets the block
 to add to `pom.xml`, or the line to add to `build.gradle`.
+
+A program written as a **module** - with a `module-info.java` at the top of its source - is built as Maven builds one: the
+jars of the modules it `requires`, and of those they require in turn, go on the module path, and the rest on the class
+path, so a module is neither told it cannot find what it requires nor let off using a library it does not require. Which
+jar is which module is read as java reads it: from the jar's `module-info.class`, its manifest's `Automatic-Module-Name`,
+or its file's name. A module's tests in `src/test/java`, and FixFinder's own JUnit launcher, are compiled patched into the
+module, reading the class path, as a build compiles a module's tests; so is the copy a change is checked in. The program
+is then run from the class path, as before.
+
+A Gradle build of **several projects** is read as Gradle lays it out. Its `settings.gradle` - or `settings.gradle.kts` -
+names the projects it includes, each in a folder of its own: `:libs:core` in `libs\core`, unless the settings move it with
+`projectDir`. A project that uses another, with `implementation project(':core')`, is built with that project's source and
+resources and the libraries it declares for its own code, and so on through the projects that one uses; what a project
+uses only for its own tests stays with it. Each project is read with what the build gives it besides: the version catalog
+and `gradle.properties` in the build's top folder, the values set there with `ext`, the dependencies the build file above it
+puts in `allprojects { }`, `subprojects { }` or `project(':app') { }`, and the build's own convention plugins it applies,
+written as `.gradle` files in `buildSrc` or in a build the settings include. A project named that the settings do not
+include, or whose folder is not there, is said to be so, with why, rather than its classes taken for a missing library's;
+the lines of a block that picks its projects as Gradle runs, such as `configure(subprojects.findAll { ... })`, are named as
+not read. The projects' code is compiled together, from source, so a program that is itself a module and requires another
+project's module cannot be built this way: a note says so, rather than javac's error being reported as a mistake.
 
 A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small launcher of FixFinder's compiled beside it,
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
@@ -98,26 +159,50 @@ itself, test by test, through a small launcher of FixFinder's, whether or not th
 fails is an error on the line of the test it failed on, in unittest's own words; a subtest that fails is named with what it
 was run with, such as `test_shares (people=4)`, and an error raised in the program's own code names the function, line and
 file it was raised in. When setting up for a class's or a module's tests fails - in `setUpClass`, say - that is reported as
-what it is, and the summary says those tests did not run. The summary says how many of the tests failed. Tests written for **pytest** - in a file that imports
-pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions - are not run, since pytest is not part of
-Python, and a note says so.
+what it is, and the summary says those tests did not run; when cleaning up after them fails, in `tearDownClass`, the tests
+ran, and that is said apart from them. The summary says how many of the tests failed.
+
+A file of **pytest** tests - one that imports pytest, or a `test_*.py` or `*_test.py` file of top-level `test_` functions -
+is run with pytest itself, through a launcher of FixFinder's, from the Python the project runs with, so the project's own
+`pytest.ini`, `pyproject.toml`, `tox.ini` or `setup.cfg` settings and its `conftest.py` fixtures are pytest's to read as usual. Each
+test that fails is an error on its own line, in pytest's own words - `assert 25.0 == 20`, with pytest's
+`where 25.0 = share_of(4)` - and each set of parameters is a test of its own, as pytest counts them: `test_shares[4-20]`. A
+fixture that fails is reported as setting up that test, on the fixture's line, and the test as not run; the rest of a
+fixture after its `yield` failing is reported as cleaning up after a test that ran. A test marked `xfail` that fails as
+expected is not a failure, as pytest does not count it one. A file pytest cannot import is reported as the error that stops
+it, as any program is; a file it skips whole, as `pytest.importorskip` does, is said to have had none of its tests run;
+when a test stops pytest partway, with `pytest.exit()`, the summary says how many tests ran before it; and when pytest will
+not start - an option in the project's settings from a plugin that is not installed, say - a note quotes what pytest said. pytest's cache goes in a folder of its own, removed afterwards, rather than into the project, and no
+compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
+project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
-notebook's folder - so its own modules and data files are found - and with its project's own Python when it has one.
-IPython's commands are made plain Python where that can be done without touching anything outside the run: `%cd` changes
-the folder, `%env` sets a variable, `%run helpers.py` runs the script and keeps what it defines, and `%time`, `%timeit`,
-`%%time` and `%%timeit` keep the code they time, running it once. Those that only show something or install a package do
-nothing: `%matplotlib inline`, and `!pip install` or `pip install`, which install nothing. The rest - a shell command such
-as `!wget`, a cell in another language such as `%%bash`, the file `%%writefile` would write - are not carried out, and a
-note names each one and where it is, since the cells after it run without what it would have done. matplotlib's plots are
-made without opening a window, as Jupyter makes them, so the cells after a `show()` run;
-`display()` prints what it is given when IPython is not installed. Everything found is said as the notebook is read: the
-cell, counted from the notebook's top with Markdown cells included, and the line within it. That is not the number Jupyter
-shows beside a cell that has run - the order the cells were run in - and a note says so. A line an explanation names in
-another cell is named with its cell, and an expression that ends a cell is not reported as a value thrown away, since
-Jupyter shows it under the cell. What the program printed is shown as it was printed, so a traceback in it counts the
-lines of the one script the cells were run as. A notebook of another language, such as R, is said to be one and is not
-run. The script and the copies changes are tried in are made in the temp folder; the notebook itself is never changed.
+notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
+it has one. IPython's commands are made plain Python where that can be done without touching anything outside the run:
+`%cd` changes the folder, `%env` sets a variable, `%run helpers.py` runs the script and keeps what it defines, and `%time`,
+`%timeit`, `%%time` and `%%timeit` keep the code they time, running it once. Those that only show something or install a
+package do nothing: `%matplotlib inline`, and `!pip install`, which install nothing. The rest - a shell command such as
+`!wget`, a cell in another language such as `%%bash`, the file `%%writefile` would write - are not carried out, and a note
+names each one and where it is, since the cells after it run without what it would have done. A command written without
+its `%` - `pip install pandas`, `ls`, `cd data`, `time total = sum(marks)` - is read as IPython reads it, as the command,
+unless the notebook gives a name of that name a value itself, as `run = 2` does.
+
+Code that uses `await` - or `async for` or `async with` - outside a function, as a cell may, runs as Jupyter runs it:
+compiled with Python's own flag for that, and run on an event loop through a small runner of FixFinder's, where plain
+Python would refuse the whole file. matplotlib's plots are made without opening a window, as Jupyter makes them, so the
+cells after a `show()` run; plotly's `show()` shows nothing, rather than opening a browser and waiting for it; `display()`
+prints what it is given when IPython is not installed. Code written for Google Colab - a notebook or a program that
+imports `google.colab`, which is only on Colab's own machines - is reported as that, with what to change to run it
+elsewhere, rather than as a package to install.
+
+Everything found is said as the notebook is read: the cell, counted from the notebook's top with Markdown cells included,
+and the line within it. That is not the number Jupyter shows beside a cell that has run - the order the cells were run
+in - and a note says so. What the program printed is shown as it was printed, except that a place in the one script the
+cells were run as - in a traceback, or a warning - is given as the cell, counted the same way, and the line in it. A line
+an explanation names in another cell is named with its cell, and an expression that ends a cell is not reported as a
+value thrown away, since Jupyter shows it under the cell. A notebook of another language, such as R, is said to be one
+and is not run. The script and the copies changes are tried in are made in the temp folder; the notebook itself is never
+changed.
 
 ## What each finding tells you
 
@@ -154,11 +239,19 @@ only a crash gives. A program that ends itself with a failing exit code - `Syste
 it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
 without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
 program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
-start a program that has just been built, and says so, a note says that too rather than blaming the code.
+start a program that has just been built, and says so, a note says that too rather than blaming the code. A program that
+stops because a connection it made was refused - its database or server not running - is reported as that, in any
+language, from what its runtime said: the address, when the error names one, and what usually listens on that port, such
+as PostgreSQL on 5432 - not as a mistake in the code. Java's HTTP client gives no reason with its ConnectException, so for
+it that is said to be likely rather than certain.
 
 For an error whose message pins the answer down - a missing import, a misspelt name, a semicolon, a loop one step too
-long - a **fix rule** works out the change from the code. Every fix is made in a copy and checked by the compiler or
-interpreter, and only offered if that passes.
+long - a **fix rule** works out the change from the code. When the language names the answer itself - Python's `Did you
+mean: 'print'?`, gcc's and clang's `did you mean` - that is the change, made on the line it names and credited to Python,
+or to the compiler, rather than to a rule of FixFinder's. Every fix is made in a copy and checked by the compiler or interpreter, and
+only offered if that passes. The copy is then run - built first, for C, C++ and Java - and the fix is said to be verified
+only when the copy ran without the failure; a copy that could not be built or started is said to be that, never taken as
+a pass.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
@@ -468,6 +561,24 @@ one. Every compiler warning is reported too, rated as an error, warning or sugge
 A crash is read in fifteen languages, each with its own stack-trace parser: Python, C#, Java, JavaScript, Go, C, C++,
 Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a generic reading of its file and line.
 
+Some limits are part of how FixFinder works:
+
+- **Time.** Each run of a program is given 60 seconds - six minutes for Go, whose first build compiles its standard
+  library - and is stopped when its time runs out. A program with a window, or a server, runs until it is closed or
+  stopped, so it is always stopped this way: what it did until then is checked, and what it would do when someone uses
+  the window, or something connects, is not.
+- **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
+  in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
+  downloads it.
+- **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
+  code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
+  same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
+  is built with the other source files beside it only when its folder holds no more than 200 files and exactly one of
+  them has a `main`; otherwise it is built on its own.
+- **Reading the code.** The values are followed through the code by its own language's parser - Python's, javac's, Go's -
+  run by the program's own tools; when that cannot run, a note says the code was checked against the logic patterns
+  alone.
+
 Each check is written to stay quiet when it is not sure, because a check that fires on correct code teaches people to
 ignore it. The newest checks were run over large bodies of working code - Python's standard library, part of the JDK's
 own library, npm, and FixFinder itself - and each false alarm found there was fixed and kept as a test. So are
@@ -574,8 +685,8 @@ runtime installed. Keep it somewhere writable, since it writes its `Logs` folder
 
 On a machine with Windows Smart App Control, a newly built exe or DLL can be refused until Windows has seen it before,
 even when it is signed. `run-fixfinder.cmd` starts the DLL through `dotnet.exe`, which Windows already trusts, and is the
-dependable way in. Each project signs its Debug build with `sign-for-wdac.ps1` when a code-signing certificate is present,
-and does nothing when there is not one, as on CI.
+dependable way in. Each project signs its Debug build - its DLL, and the launcher exe beside it - with `sign-for-wdac.ps1`
+when a code-signing certificate is present, and does nothing when there is not one, as on CI.
 
 The logo is drawn by `FixFinder.Gui\Assets\make-icon.py`, which draws every icon size at its own scale so the small ones
 stay sharp.

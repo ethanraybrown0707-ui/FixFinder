@@ -1,0 +1,35 @@
+node:events:487
+      throw er; // Unhandled 'error' event
+      ^
+
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1339:18)
+    at afterConnectMultiple (node:net:1942:7)
+Emitted 'error' event on Socket instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'ECONNREFUSED',
+  [errors]: [
+    Error: connect ECONNREFUSED ::1:59999
+        at createConnectionError (node:net:1905:14)
+        at afterConnectMultiple (node:net:1935:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 59999
+    },
+    Error: connect ECONNREFUSED 127.0.0.1:59999
+        at createConnectionError (node:net:1905:14)
+        at afterConnectMultiple (node:net:1935:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 59999
+    }
+  ]
+}
+
+Node.js v24.19.0

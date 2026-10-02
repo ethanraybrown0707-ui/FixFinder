@@ -119,7 +119,7 @@ public static class Toolchains
             var output = process.StandardOutput.ReadToEndAsync();
             _ = process.StandardError.ReadToEndAsync();
 
-            if (!process.WaitForExit(TimeSpan.FromMinutes(2)) || !output.Wait(TimeSpan.FromSeconds(10)))
+            if (!process.WaitForExit(TimeSpan.FromMinutes(2)) || !output.Wait(ToolOutput.AfterExit))
             {
                 try { process.Kill(entireProcessTree: true); }
                 catch (InvalidOperationException) { }

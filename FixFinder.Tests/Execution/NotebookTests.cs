@@ -65,10 +65,19 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>Whether the Python here has a module installed - one a notebook imports, which FixFinder never installs.</summary>
-    private static bool Installed(string module)
-    {
-        if (TargetFactory.FindOnPath("python") is not { } python) return false;
+    private static bool Installed(string module) => TargetFactory.FindOnPath("python") is { } python && Imports(python, module);
 
+    /// <summary>
+    /// A Python that has a module installed, for a test of a notebook that imports it: the one FIXFINDER_TEST_PACKAGES_PYTHON
+    /// names, where packages were installed for the tests, or the one on PATH. Null when neither has it.
+    /// </summary>
+    internal static string? PythonWith(string module) =>
+        new[] { Environment.GetEnvironmentVariable("FIXFINDER_TEST_PACKAGES_PYTHON"), TargetFactory.FindOnPath("python") }
+            .OfType<string>()
+            .FirstOrDefault(python => File.Exists(python) && Imports(python, module));
+
+    private static bool Imports(string python, string module)
+    {
         using var importing = Process.Start(new ProcessStartInfo(python, $"-c \"import {module}\"")
         {
             UseShellExecute = false,
@@ -80,6 +89,11 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
 
         return importing.WaitForExit(60_000) && importing.ExitCode == 0;
     }
+
+    /// <summary>A project folder whose VS Code settings name the Python its notebooks run with, as a project that uses one does.</summary>
+    private void RunsWith(string folder, string python) =>
+        Write(Path.Combine(folder, ".vscode", "settings.json"),
+            JsonSerializer.Serialize(new Dictionary<string, string> { ["python.defaultInterpreterPath"] = python }));
 
     private async Task<CheckReport> CheckAsync(string file, string? expected = null, TimeSpan? timeLimit = null)
     {
@@ -158,8 +172,12 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
 
         // Which count "cell 3" is, since Jupyter's own number beside a cell is another one.
         Assert.Contains(report.Notes, note => note.StartsWith("marks.ipynb's cells are counted from its top, Markdown cells included", StringComparison.Ordinal));
-        Assert.Contains(report.Notes, note => note.StartsWith("marks.ipynb's code cells were run in order as one script", StringComparison.Ordinal));
         SaysNothingOfTheScript(report, launch.ChosenFile!);
+
+        // What it printed places the failure as Jupyter's own traceback does, in the notebook's cells.
+        var printed = report.Run!.Run!.Lines.Select(line => line.Text).ToList();
+        Assert.Contains(printed, line => line.Contains($"File \"{Path.GetFullPath(notebook)}\", cell 3, line 2, in average", StringComparison.Ordinal));
+        Assert.DoesNotContain(printed, line => line.Contains(Path.GetFileName(launch.ChosenFile!), StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -294,6 +312,135 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
             report.Notes);
         Assert.False(File.Exists(Path.Combine(_temp.Path, @"commands\notes.txt")));
         Assert.False(File.Exists(Path.Combine(_temp.Path, @"commands\data\scores.csv")));
+    }
+
+    [Fact]
+    public async Task ANotebookWrittenForColabIsSaidToBeOneRatherThanToNeedAPackage()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"colab\colab.ipynb",
+            ("code", "from google.colab import drive\ndrive.mount(\"/content/drive\")"),
+            ("code", "print(\"mounted\")"));
+
+        var report = await CheckAsync(notebook);
+
+        // Whether Python names google.colab or only google as missing, it is Colab's module, and nothing is offered to install.
+        var colab = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal("python-colab-only", colab.RuleId);
+        Assert.Equal(Severity.Warning, colab.Severity);
+        Assert.Equal("colab.ipynb, cell 1, line 1", colab.Location);
+        Assert.StartsWith("google.colab is Google Colab's own module", colab.Explanations.At(ExplanationLevel.Beginner), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ACellThatAwaitsOutsideAFunctionRunsAsItDoesInJupyter()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"awaiting\awaiting.ipynb",
+            ("code", "import asyncio\n\n\nasync def doubled(value):\n    await asyncio.sleep(0)\n    return value * 2"),
+            ("code", "result = await doubled(21)\nprint(result)"),
+            ("code", "print(10 / (result - 42))"));
+
+        var report = await CheckAsync(notebook);
+
+        // Plain Python refuses the whole file; Jupyter runs it, and so does FixFinder - as far as the third cell's mistake.
+        Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Syntax);
+        Assert.Contains(report.Run!.Run!.Lines, line => line.Text == "42");
+        var stopped = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal("awaiting.ipynb, cell 3, line 1", stopped.Location);
+    }
+
+    [Fact]
+    public async Task AChangeToANotebookThatAwaitsOutsideAFunctionIsTriedAsJupyterWouldRunIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"awaited\awaited.ipynb",
+            ("code", "import asyncio\n\n\nasync def doubled(value):\n    await asyncio.sleep(0)\n    return value * 2"),
+            ("code", "result = await doubled(21)\nprnt(result)"));
+
+        var report = await CheckAsync(notebook);
+
+        // The copy the change is tried on awaits outside a function too, so it is run as a cell is.
+        var misspelt = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.Equal("awaited.ipynb, cell 2, line 2", misspelt.Location);
+        Assert.True(misspelt.Verified.IsVerified, string.Join(" / ", misspelt.Verified.Steps.Select(step => step.Detail)));
+    }
+
+    [Fact]
+    public async Task AChangeFixFindersRulesWorkOutForANotebookThatAwaitsIsCompiledAsJupyterCompilesIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"averaged\averaged.ipynb",
+            ("code", "import asyncio\n\n\nasync def fetched(values):\n    await asyncio.sleep(0)\n    return values"),
+            ("code", "marks = await fetched([])\n\n\ndef average(values):\n    return sum(values) / len(values)\n\n\nprint(average(marks))"));
+
+        var report = await CheckAsync(notebook);
+
+        // A change one of FixFinder's rules works out is compiled before it is run, and compiled as a cell is compiled.
+        var byZero = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+        Assert.StartsWith("It crashed: ZeroDivisionError", byZero.Title, StringComparison.Ordinal);
+        Assert.False(byZero.CameFrom!.IsTheLanguagesOwn);
+        Assert.True(byZero.Verified.IsVerified, string.Join(" / ", byZero.Verified.Steps.Select(step => step.Detail)));
+    }
+
+    [Fact]
+    public async Task AWarningsPlaceIsGivenAsACellAndALineAsJupyterGivesIt()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var notebook = Notebook(@"warned\warned.ipynb",
+            ("code", "import warnings"),
+            ("markdown", "## Totals"),
+            ("code", "marks = [40, 2]\nwarnings.warn(\"the marks are rounded\")\nprint(sum(marks))"));
+
+        var report = await CheckAsync(notebook);
+
+        Assert.Contains(report.Run!.Run!.Lines,
+            line => line.Text == $"{Path.GetFullPath(notebook)}, cell 3, line 2: UserWarning: the marks are rounded");
+    }
+
+    [Fact]
+    public async Task PlotlysShowCarriesOnAsInJupyterRatherThanOpeningABrowser()
+    {
+        if (PythonWith("plotly") is not { } python) return;
+
+        RunsWith("plotly", python);
+        var notebook = Notebook(@"plotly\charts.ipynb",
+            ("code", "import plotly.graph_objects as go"),
+            ("code", "figure = go.Figure(go.Bar(x=[\"a\", \"b\"], y=[3, 5]))\nfigure.show()"),
+            ("code", "print(\"after the chart\")"));
+
+        // Outside Jupyter, plotly would open a browser and wait for it to ask for the chart.
+        var report = await CheckAsync(notebook, "after the chart", TimeSpan.FromSeconds(60));
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+    }
+
+    [Fact]
+    public async Task CommandsWrittenWithoutTheirPercentAreReadAsIPythonReadsThem()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        Write(@"bare\data\marks.txt", "40\n2\n");
+        var notebook = Notebook(@"bare\bare.ipynb",
+            ("code", "pip install --quiet requests\nls\npwd\ncd data\nmkdir results"),
+            ("code", "with open(\"marks.txt\") as source:\n    marks = [int(line) for line in source]\ntime total = sum(marks)\nprint(total)"),
+            ("code", "run = 2\nrun\nprint(run)"));
+
+        var report = await CheckAsync(notebook, "42\n2");
+
+        Assert.DoesNotContain(report.Findings, finding => finding.Kind is FindingKind.Syntax or FindingKind.Runtime);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+
+        // mkdir would make a folder, so it is named and not carried out; the notebook's own run is a name, not IPython's %run.
+        Assert.Contains(report.Notes, note => note.Contains("\"mkdir results\" (cell 1, line 5)", StringComparison.Ordinal));
+        Assert.DoesNotContain(report.Notes, note => note.Contains("\"run\"", StringComparison.Ordinal));
+        Assert.False(Directory.Exists(Path.Combine(_temp.Path, @"bare\data\results")));
     }
 
     [Fact]

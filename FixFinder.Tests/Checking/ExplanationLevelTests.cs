@@ -130,6 +130,23 @@ public class ExplanationLevelTests
         Assert.True(finding.Explanations.VariesByLevel);
     }
 
+    /// <summary>
+    /// A finding made again with a new explanation - one for a program that ran without its libraries, say - says the
+    /// new one at every depth: the old depths described the old explanation, and a reader at any depth must see the new.
+    /// </summary>
+    [Fact]
+    public void ANewExplanationIsWhatEveryDepthSays()
+    {
+        var found = FindingFactory.FromError(
+            new Core.Parsing.ParsedError { LanguageId = "java", Confidence = 90, RawText = "", FirstLineSequence = 0, Frames = [], ExceptionType = "java.lang.ClassNotFoundException" },
+            FindingKind.Runtime, Severity.Error, Confidence.Certain, @"C:\work\App.java");
+
+        var madeAgain = found with { Explanation = "It ran without the libraries its build names." };
+
+        Assert.All(Enum.GetValues<ExplanationLevel>(), level =>
+            Assert.Equal("It ran without the libraries its build names.", madeAgain.Explanations.At(level)));
+    }
+
     [Fact]
     public void APreferenceSurvivesBeingPutAwayAndFetchedBack()
     {

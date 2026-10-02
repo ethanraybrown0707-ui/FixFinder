@@ -48,7 +48,11 @@ internal static class PythonAstScript
 
 
         def main():
-            output, files = sys.argv[1], sys.argv[2:]
+            # The files come in a file of their own, one path to a line: a program's worth of paths can be longer than a
+            # command line may be.
+            output, listing = sys.argv[1], sys.argv[2]
+            with open(listing, encoding="utf-8") as handle:
+                files = [line for line in handle.read().splitlines() if line]
             results = []
             for path in files:
                 try:

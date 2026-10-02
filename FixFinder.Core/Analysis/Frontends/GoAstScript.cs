@@ -19,6 +19,7 @@ internal static class GoAstScript
         	"os"
         	"reflect"
         	"strconv"
+        	"strings"
         	"unicode/utf8"
         )
 
@@ -34,13 +35,25 @@ internal static class GoAstScript
         )
 
         func main() {
+        	// The files come in a file of their own, one path to a line: a program's worth of paths can be longer than a
+        	// command line may be.
+        	listing, err := os.ReadFile(os.Args[2])
+        	if err != nil {
+        		os.Exit(2)
+        	}
+        	var paths []string
+        	for _, line := range strings.Split(string(listing), "\n") {
+        		if line = strings.TrimRight(line, "\r"); line != "" {
+        			paths = append(paths, line)
+        		}
+        	}
         	file, err := os.Create(os.Args[1])
         	if err != nil {
         		os.Exit(2)
         	}
         	out = bufio.NewWriter(file)
         	out.WriteString(`{"files":[`)
-        	for i, path := range os.Args[2:] {
+        	for i, path := range paths {
         		if i > 0 {
         			out.WriteByte(',')
         		}

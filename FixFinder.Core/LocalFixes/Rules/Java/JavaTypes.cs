@@ -122,6 +122,7 @@ internal static partial class JavaTypes
         }
 
         var names = new List<string>();
+        var answer = "";
 
         if (QualifiedName().IsMatch(fqn) &&
             Toolchains.FindJavac() is { } javac &&
@@ -131,7 +132,10 @@ internal static partial class JavaTypes
         {
             var simple = fqn[(fqn.LastIndexOf('.') + 1)..];
 
-            foreach (var line in RunJavap(javap, fqn).Split('\n'))
+            // Asked again once when it says nothing, as a busy machine can keep javap from answering in time.
+            answer = RunJavap(javap, fqn) is { Length: > 0 } first ? first : RunJavap(javap, fqn);
+
+            foreach (var line in answer.Split('\n'))
             {
                 var match = methods ? MethodDeclaration().Match(line) : FieldDeclaration().Match(line);
 
@@ -139,12 +143,25 @@ internal static partial class JavaTypes
             }
         }
 
+        // Only what javap said is remembered. Had a javap that did not answer been remembered as a class with no members,
+        // every later look at that class would find nothing, and every fix that needs one would be missed.
+        if (answer.Length == 0) return names;
+
         lock (MemberCache)
         {
             MemberCache[key] = names;
         }
 
         return names;
+    }
+
+    /// <summary>Whether what javap says of a class's members is remembered.</summary>
+    internal static bool IsRemembered(string fqn, bool methods)
+    {
+        lock (MemberCache)
+        {
+            return MemberCache.ContainsKey((methods ? "m:" : "f:") + fqn);
+        }
     }
 
     private static string RunJavap(string javap, string fqn)
@@ -179,7 +196,7 @@ internal static partial class JavaTypes
                 return "";
             }
 
-            return output.Wait(5_000) ? output.Result : "";
+            return output.Wait(ToolOutput.AfterExit) ? output.Result : "";
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {

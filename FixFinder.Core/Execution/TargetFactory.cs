@@ -193,6 +193,14 @@ public static class TargetFactory
                 break;
             }
 
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Pytest:
+                // Its tests are run with pytest itself, one by one, from where running the file - or its package - would start;
+                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there.
+                workingDirectory = ProgramLayout.PythonModule(full)?.Folder ?? workingDirectory;
+                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"";
+                testsRunBy = "pytest";
+                break;
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."
@@ -255,7 +263,12 @@ public static class TargetFactory
     {
         var notebookName = Path.GetFileNameWithoutExtension(script);
         var folder = NotebookScript.FolderOfCode(script);
-        var environment = PythonEnvironment.For(NotebookScript.Of(script)?.Notebook ?? ProgramCopy.OriginalOf(script));
+
+        // The notebook itself: the one the script was written from, or - for a copy made to try a change in - the one it
+        // was copied from. Its own Jupyter kernel decides its Python, when it was saved with one; its project's otherwise.
+        var original = ProgramCopy.OriginalOf(script);
+        var notebook = NotebookScript.Of(script)?.Notebook ?? (original.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ? original[..^3] : original);
+        var environment = JupyterKernels.Named(NotebookScript.KernelNameIn(notebook), PythonEnvironment.Current) ?? PythonEnvironment.For(notebook);
         var python = environment?.Interpreter ?? Resolve(ByExtension[".py"]);
 
         if (python is null)
@@ -276,10 +289,13 @@ public static class TargetFactory
             ? warningsAlready + "," + PlotNotShown
             : PlotNotShown;
 
+        // Code that awaits outside a function, as a cell can, is run as Jupyter runs it; any other runs as it is.
+        var awaitsOutsideAFunction = NotebookScript.AwaitsOutsideAFunction(File.ReadAllLines(script));
+
         var spec = new TargetSpec
         {
             ExecutablePath = python,
-            Arguments = $"\"{script}\"",
+            Arguments = awaitsOutsideAFunction ? $"\"{NotebookScript.WriteRunner()}\" \"{script}\"" : $"\"{script}\"",
             WorkingDirectory = folder,
             ExtraEnvironment = new Dictionary<string, string>
             {

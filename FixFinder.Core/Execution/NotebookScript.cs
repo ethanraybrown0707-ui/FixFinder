@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Execution;
 
@@ -58,8 +59,33 @@ public sealed partial class NotebookScript
     {
         "matplotlib", "config", "load_ext", "reload_ext", "autoreload", "aimport", "precision", "xmode", "pip", "conda", "mamba",
         "who", "whos", "who_ls", "history", "lsmagic", "magic", "quickref", "pwd", "ls", "dirs", "pdef", "pdoc", "psource",
-        "pinfo", "pinfo2", "time", "timeit",
+        "pinfo", "pinfo2", "time", "timeit", "clear", "env",
     };
+
+    /// <summary>
+    /// Line commands a line may start with and no %: IPython runs them as commands by default - its automagic - unless the
+    /// notebook has a name of its own called that. These are the ones people type that way.
+    /// </summary>
+    private static readonly HashSet<string> CommandsRunWithoutAPercent = new(StringComparer.Ordinal)
+    {
+        "pip", "conda", "mamba", "matplotlib", "cd", "ls", "pwd", "mkdir", "clear", "who", "whos", "history", "time", "timeit",
+        "prun", "env", "run", "load_ext", "reload_ext", "autoreload", "config",
+    };
+
+    /// <summary>
+    /// What makes plotly's show() carry on as it does in Jupyter, where it shows the figure beside the cell, rather than open
+    /// a browser and wait for it: outside Jupyter there is nowhere to show a figure, so it shows nothing. Only put in when
+    /// the notebook uses plotly, and does nothing when plotly is not installed.
+    /// </summary>
+    private static readonly string[] PlotlyShowsNothing =
+    [
+        "try:",
+        "    import plotly.io as fixfinder_plotly_io",
+        "    fixfinder_plotly_io.show = lambda *shown, **options: None",
+        "    del fixfinder_plotly_io",
+        "except ImportError:",
+        "    pass",
+    ];
 
     /// <summary>Shell commands that install a package, or only look, so leaving them out changes nothing the cells after them read.</summary>
     private static readonly HashSet<string> ShellCommandsThatChangeNothingRead = new(StringComparer.OrdinalIgnoreCase)
@@ -93,11 +119,41 @@ public sealed partial class NotebookScript
     [GeneratedRegex(@"^%run\s+(?<script>""[^""]+\.py""|'[^']+\.py'|[^\s\-""']\S*\.py)\s*$")]
     private static partial Regex RunScript();
 
-    /// <summary>
-    /// A command IPython runs without its % in front, as it does by default: <c>pip install pandas</c>, <c>matplotlib inline</c>.
-    /// </summary>
-    [GeneratedRegex(@"^(?:(?:pip3?|conda|mamba)\s+(?:install|uninstall)\b.*|matplotlib\s+inline\s*)$")]
-    private static partial Regex CommandWithoutItsPercent();
+    /// <summary>The name a line starts with, and what follows it.</summary>
+    [GeneratedRegex(@"^(?<name>[A-Za-z_]\w*)(?<rest>.*)$")]
+    private static partial Regex LeadingName();
+
+    // The ways code gives a name a value, each naming the names it gives: `total = 0`, `a, b = pair`, `def ls():`,
+    // `for history in runs:`, `import time`, `from os import getcwd as pwd`.
+
+    [GeneratedRegex(@"^\s*(?<names>[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*(?:[-+*/%&|^@]|//|\*\*|<<|>>)?=(?!=)")]
+    private static partial Regex Assigned();
+
+    [GeneratedRegex(@"^\s*(?:(?:async\s+)?def|class)\s+(?<names>\w+)")]
+    private static partial Regex Defined();
+
+    [GeneratedRegex(@"^\s*(?:async\s+)?for\s+(?<names>[\w\s,()]+?)\s+in\b")]
+    private static partial Regex Looped();
+
+    [GeneratedRegex(@"^\s*import\s+(?<names>[\w.]+(?:\s*,\s*[\w.]+)*)\s*$")]
+    private static partial Regex Imported();
+
+    [GeneratedRegex(@"^\s*from\s+\S+\s+import\s+(?<names>[\w\s,()]+)$")]
+    private static partial Regex ImportedFrom();
+
+    [GeneratedRegex(@"\bas\s+(?<names>\w+)")]
+    private static partial Regex Aliased();
+
+    /// <summary>An await, or an async for or with, which a function makes legal and Jupyter allows outside one too.</summary>
+    [GeneratedRegex(@"\bawait\b|^\s*async\s+(?:for|with)\b")]
+    private static partial Regex Awaiting();
+
+    [GeneratedRegex(@"^\s*(?:async\s+)?def\s")]
+    private static partial Regex FunctionHeader();
+
+    /// <summary><c>File "C:\...\analysis.ipynb.py", line 57</c>, as a traceback names a place.</summary>
+    [GeneratedRegex(@"File ""(?<path>[^""]+)"", line (?<line>\d+)")]
+    private static partial Regex TracebackPlace();
 
     /// <summary><c>files = !ls</c>, <c>result = %sx ls</c> - what an IPython command gives, kept in a variable.</summary>
     [GeneratedRegex(@"^[A-Za-z_][\w.]*(?:\s*,\s*[A-Za-z_][\w.]*)*\s*=\s*[!%]")]
@@ -192,6 +248,24 @@ public sealed partial class NotebookScript
         }
     }
 
+    /// <summary>The name of the Jupyter kernel a notebook was saved with - its metadata's kernelspec name - or null when it names none.</summary>
+    public static string? KernelNameIn(string notebookPath)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(notebookPath));
+
+            return document.RootElement.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object &&
+                   metadata.TryGetProperty("kernelspec", out var kernel) && kernel.ValueKind == JsonValueKind.Object
+                ? Text(kernel, "name")
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Writes the notebook's code as a script and says where; or why it cannot be - a notebook of another language, say.</summary>
     public static (NotebookScript? Script, string? Problem) Write(string notebookPath)
     {
@@ -242,6 +316,13 @@ public sealed partial class NotebookScript
                 foreach (var line in DisplayFallback) AddFixFindersOwn(line);
             }
 
+            if (codeCells.Any(cell => cell.Lines.Any(line => line.Contains("plotly", StringComparison.Ordinal))))
+            {
+                foreach (var line in PlotlyShowsNothing) AddFixFindersOwn(line);
+            }
+
+            var namesGiven = NamesGivenIn(codeCells.SelectMany(cell => cell.Lines));
+
             foreach (var (cell, source) in codeCells)
             {
                 if (lines.Count > 0)
@@ -250,7 +331,7 @@ public sealed partial class NotebookScript
                 }
 
                 var first = lines.Count + 1;
-                var converted = Converted(source, cell, notCarriedOut);
+                var converted = Converted(source, cell, namesGiven, notCarriedOut);
 
                 for (var index = 0; index < converted.Count; index++)
                 {
@@ -312,33 +393,31 @@ public sealed partial class NotebookScript
     }
 
     /// <summary>A code cell's lines with IPython's commands made plain Python, one line for one, so each keeps its number.</summary>
-    private static List<string> Converted(IReadOnlyList<string> source, int cell, List<CommandNotCarriedOut> notCarriedOut)
+    private static List<string> Converted(
+        IReadOnlyList<string> source, int cell, IReadOnlySet<string> namesGiven, List<CommandNotCarriedOut> notCarriedOut)
     {
         if (source.Count > 0 && source[0].TrimStart().StartsWith("%%", StringComparison.Ordinal))
         {
             var command = source[0].TrimStart()[2..].Split(' ', 2)[0];
 
             if (PythonCellCommands.Contains(command))
-                return [$"pass  # IPython's %%{command}", .. source.Skip(1).Select((line, index) => ConvertedLine(line, cell, index + 2, notCarriedOut))];
+            {
+                return [$"pass  # IPython's %%{command}",
+                        .. source.Skip(1).Select((line, index) => ConvertedLine(line, cell, index + 2, namesGiven, notCarriedOut))];
+            }
 
             // A cell of another language - %%bash, %%writefile, %%html - is not Python: it stays, as comments, and runs nothing.
             if (!ShowingCellCommands.Contains(command)) notCarriedOut.Add(new CommandNotCarriedOut(cell, 1, source[0].Trim()));
             return source.Select(line => "# " + line).ToList();
         }
 
-        return source.Select((line, index) => ConvertedLine(line, cell, index + 1, notCarriedOut)).ToList();
+        return source.Select((line, index) => ConvertedLine(line, cell, index + 1, namesGiven, notCarriedOut)).ToList();
     }
 
-    private static string ConvertedLine(string line, int cell, int number, List<CommandNotCarriedOut> notCarriedOut)
+    private static string ConvertedLine(string line, int cell, int number, IReadOnlySet<string> namesGiven, List<CommandNotCarriedOut> notCarriedOut)
     {
         var body = line.TrimStart();
         var indent = line[..(line.Length - body.Length)];
-
-        if (StatementCommands.FirstOrDefault(command => body.StartsWith(command, StringComparison.Ordinal)) is { } timing)
-            return indent + body[timing.Length..];
-
-        var command = CommandWithoutItsPercent().IsMatch(body) ? "%" + body : body;
-        var isCommand = command.StartsWith('%') || (command.StartsWith('!') && !command.StartsWith("!=", StringComparison.Ordinal));
 
         if (HelpAsked().IsMatch(body)) return $"{indent}pass  # IPython: {body}";
 
@@ -348,12 +427,170 @@ public sealed partial class NotebookScript
             return $"{indent}pass  # IPython: {body}";
         }
 
-        if (!isCommand) return line;
+        // IPython's commands start with % or !, and the ones it runs by their name alone start with nothing at all.
+        var shellCommand = body.StartsWith('!') && !body.StartsWith("!=", StringComparison.Ordinal);
+        var command = body.StartsWith('%') || shellCommand ? body
+            : IsCommandWithoutItsPercent(body, namesGiven) ? "%" + body
+            : null;
+
+        if (command is null) return line;
+
+        if (StatementCommands.FirstOrDefault(prefix => command.StartsWith(prefix, StringComparison.Ordinal)) is { } timing)
+            return indent + command[timing.Length..];
 
         if (InPython(command) is { } python) return $"{indent}{python}  # IPython: {body}";
 
         if (!ChangesNothingRead(command)) notCarriedOut.Add(new CommandNotCarriedOut(cell, number, body));
         return $"{indent}pass  # IPython: {body}";
+    }
+
+    /// <summary>
+    /// Whether a line is one of IPython's commands written without its %, as IPython reads it: the line starts with the
+    /// command's name, the notebook gives nothing that name itself, and what follows does not give the name a value -
+    /// `ls = []` is Python - nor use it as a name, as `ls.sort()` and `ls(1)` do.
+    /// </summary>
+    private static bool IsCommandWithoutItsPercent(string body, IReadOnlySet<string> namesGiven)
+    {
+        if (LeadingName().Match(body) is not { Success: true } leading) return false;
+
+        var name = leading.Groups["name"].Value;
+        var rest = leading.Groups["rest"].Value;
+
+        if (!CommandsRunWithoutAPercent.Contains(name) || namesGiven.Contains(name)) return false;
+        if (rest.Length == 0) return true;
+        if (!char.IsWhiteSpace(rest[0])) return false;
+
+        var after = rest.TrimStart();
+        return after.Length == 0 || after[0] is not ('=' or ',');
+    }
+
+    /// <summary>Every name the notebook's code gives a value to, anywhere in it - a name IPython would not take for a command.</summary>
+    private static HashSet<string> NamesGivenIn(IEnumerable<string> code)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        Regex[] givingNames = [Assigned(), Defined(), Looped(), Imported(), ImportedFrom(), Aliased()];
+
+        foreach (var line in code)
+        {
+            foreach (var giving in givingNames)
+            {
+                foreach (Match given in giving.Matches(line))
+                {
+                    // `import os.path` gives os; `for (a, b) in pairs` gives a and b.
+                    foreach (var named in given.Groups["names"].Value.Split([',', '(', ')', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+                        names.Add(named.Split('.')[0]);
+                }
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Whether a script's code has an await - or an async for or with - outside any function: Jupyter runs a cell like that,
+    /// and plain Python refuses the whole file. Reads the code as its indenting lays it out, so a doubtful case counts as
+    /// one, which costs nothing - such code is run by a runner that runs code without one just as Python would.
+    /// </summary>
+    public static bool AwaitsOutsideAFunction(IReadOnlyList<string> lines)
+    {
+        var masked = CodeText.MaskAll(lines, Syntax.Python);
+        var functionIndents = new Stack<int>();
+
+        foreach (var line in masked)
+        {
+            if (line.Trim().Length == 0) continue;
+
+            var indent = line.Length - line.TrimStart().Length;
+            while (functionIndents.Count > 0 && indent <= functionIndents.Peek()) functionIndents.Pop();
+
+            if (FunctionHeader().IsMatch(line))
+            {
+                functionIndents.Push(indent);
+                continue;
+            }
+
+            if (functionIndents.Count == 0 && Awaiting().IsMatch(line)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A line the program printed, with each place in this script put as the notebook has it - as Jupyter puts the places in
+    /// a traceback: File "...analysis.ipynb", cell 3, line 2. A place in a line FixFinder put in itself is left as printed.
+    /// </summary>
+    public string InCellTerms(string printed)
+    {
+        if (!printed.Contains(Path.GetFileName(Script), StringComparison.OrdinalIgnoreCase)) return printed;
+
+        var traced = TracebackPlace().Replace(printed, place =>
+            SameFile(place.Groups["path"].Value) && PlaceOf(int.Parse(place.Groups["line"].Value)) is { } at
+                ? $"File \"{Notebook}\", cell {at.Cell}, line {at.Line}"
+                : place.Value);
+
+        // A warning is printed as path:line: category: message.
+        var warned = Regex.Match(traced, $@"^{Regex.Escape(Script)}:(?<line>\d+):", RegexOptions.IgnoreCase);
+        return warned.Success && PlaceOf(int.Parse(warned.Groups["line"].Value)) is { } warnedAt
+            ? $"{Notebook}, cell {warnedAt.Cell}, line {warnedAt.Line}:{traced[warned.Length..]}"
+            : traced;
+    }
+
+    private bool SameFile(string path)
+    {
+        try
+        {
+            return string.Equals(Path.GetFullPath(path), Script, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The name the runner is written under, so an error of the runner's own can be told from the notebook's.</summary>
+    public const string RunnerPrefix = "fixfinder_notebook_runner";
+
+    /// <summary>
+    /// Runs a notebook's code as Jupyter runs a cell, where await can be used outside a function: compiled with Python's own
+    /// flag for that, and run on an event loop when it awaits, or as plain code when it does not.
+    /// </summary>
+    private const string RunnerSource = """
+        # Written by FixFinder: runs a notebook's code as Jupyter runs a cell, where await can be used outside a function.
+
+        import ast
+        import asyncio
+        import inspect
+        import sys
+        import types
+
+        script = sys.argv[1]
+        sys.argv = sys.argv[1:]
+
+        with open(script, "rb") as source:
+            code = compile(source.read(), script, "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT, dont_inherit=True)
+
+        main = types.ModuleType("__main__")
+        sys.modules["__main__"] = main
+
+        if code.co_flags & inspect.CO_COROUTINE:
+            asyncio.run(eval(code, main.__dict__))
+        else:
+            exec(code, main.__dict__)
+        """;
+
+    /// <summary>Writes the runner where every Python can read it, named for its own text, and says where.</summary>
+    public static string WriteRunner()
+    {
+        var name = $"{RunnerPrefix}_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(RunnerSource)))[..12].ToLowerInvariant()}.py";
+        var runner = Path.Combine(Path.GetTempPath(), "FixFinder-notebooks", name);
+
+        if (!File.Exists(runner))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(runner)!);
+            File.WriteAllText(runner, RunnerSource, new UTF8Encoding(false));
+        }
+
+        return runner;
     }
 
     /// <summary>

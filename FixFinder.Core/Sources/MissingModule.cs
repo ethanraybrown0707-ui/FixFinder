@@ -29,7 +29,8 @@ public static partial class MissingModule
         ["win32com"] = "pywin32",
         ["pkg_resources"] = "setuptools",
         ["attr"] = "attrs",
-        ["google"] = "protobuf",
+        ["googleapiclient"] = "google-api-python-client",
+        ["google_auth_oauthlib"] = "google-auth-oauthlib",
         ["magic"] = "python-magic",
         ["fitz"] = "pymupdf",
         ["docx"] = "python-docx",
@@ -37,10 +38,64 @@ public static partial class MissingModule
         ["Crypto"] = "pycryptodome",
     };
 
+    /// <summary>
+    /// What Google publishes under the one `google` name its packages share, by the module an import names: the name
+    /// after `google` decides the package. A module there that is not listed is given no package, since a guess would
+    /// name the wrong thing to install.
+    /// </summary>
+    private static readonly (string Module, string Package)[] UnderGoogle =
+    [
+        ("google.protobuf", "protobuf"),
+        ("google.auth", "google-auth"),
+        ("google.oauth2", "google-auth"),
+        ("google.generativeai", "google-generativeai"),
+        ("google.genai", "google-genai"),
+        ("google.cloud.storage", "google-cloud-storage"),
+        ("google.cloud.bigquery", "google-cloud-bigquery"),
+        ("google.cloud.firestore", "google-cloud-firestore"),
+        ("google.cloud.pubsub", "google-cloud-pubsub"),
+        ("google.cloud.vision", "google-cloud-vision"),
+        ("google.cloud.translate", "google-cloud-translate"),
+        ("google.cloud.speech", "google-cloud-speech"),
+        ("google.cloud.language", "google-cloud-language"),
+        ("google.cloud.texttospeech", "google-cloud-texttospeech"),
+    ];
+
+    /// <summary>Google Colab's own module, which is there on Colab's machines and installed nowhere else.</summary>
+    private const string ColabModule = "google.colab";
+
     /// <summary>What is missing and what installs it.</summary>
     public sealed record Missing(string Module, string Package);
 
     public static Missing? Read(ParsedError error)
+    {
+        if (ModuleIn(error) is not { } module) return null;
+
+        if (module.Split('.')[0] == "google")
+            return UnderGoogle.FirstOrDefault(known => Within(module, known.Module)) is { Package: { } published } ? new Missing(module, published) : null;
+
+        var top = module.Split('.')[0];
+
+        return new Missing(module, KnownPackages.TryGetValue(top, out var package) ? package : top);
+    }
+
+    /// <summary>
+    /// Whether what was missing is Google Colab's own module, so the code was written to run on Colab. Where nothing provides
+    /// the `google` name at all, Python says `google` is missing, and the line that stopped says it was Colab's.
+    /// </summary>
+    public static bool IsColabOnly(ParsedError error)
+    {
+        if (ModuleIn(error) is not { } module) return false;
+        if (Within(module, ColabModule)) return true;
+        if (module != "google") return false;
+
+        var frame = LocalFixes.LocalFixContext.OwnFrame(error);
+        return frame?.Line is { } line && LocalFixes.SourceFile.Read(frame.File)?.Line(line) is { } importing &&
+               Regex.IsMatch(importing, @"^\s*(?:from\s+google\.colab\b|import\s+google\.colab\b)");
+    }
+
+    /// <summary>The module an import could not find, as the error names it; null for any other error.</summary>
+    private static string? ModuleIn(ParsedError error)
     {
         if (error.ExceptionType is not { Length: > 0 } type) return null;
 
@@ -54,13 +109,12 @@ public static partial class MissingModule
         if (!match.Success) return null;
 
         var module = match.Groups["name"].Value;
-
-        if (!SafeName().IsMatch(module)) return null;
-
-        var top = module.Split('.')[0];
-
-        return new Missing(module, KnownPackages.TryGetValue(top, out var package) ? package : top);
+        return SafeName().IsMatch(module) ? module : null;
     }
+
+    /// <summary>Whether a module is the one named, or inside it.</summary>
+    private static bool Within(string module, string named) =>
+        module == named || module.StartsWith(named + ".", StringComparison.Ordinal);
 
     public static FixCandidate? For(ParsedError error, TargetSpec? spec)
     {

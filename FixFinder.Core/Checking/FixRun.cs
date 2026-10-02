@@ -97,10 +97,25 @@ public static class FixRun
         return Path.Combine(folder, Path.GetFileName(chosen));
     }
 
-    private static async Task<Verification> JudgeAsync(
+    internal static async Task<Verification> JudgeAsync(
         Verification sofar, LaunchPlan plan, ParsedError? original, ExpectedBehaviour? expected, CancellationToken cancellationToken)
     {
         var runner = new TargetRunner(new ParserRegistry());
+
+        // A program in a compiled language is built before its copy can run: what runs is what that build made.
+        if (plan.Compile is { } compile)
+        {
+            var build = await runner.RunAsync(compile, cancellationToken);
+
+            if (build.Outcome is RunOutcome.LaunchFailed or RunOutcome.Cancelled or RunOutcome.TimedOut)
+                return sofar.With(VerificationStage.Ran, StageResult.Skipped, "The copy could not be built here, so it was not run.");
+
+            if (build.Outcome != RunOutcome.ExitedClean)
+            {
+                return sofar.With(VerificationStage.Ran, StageResult.Failed,
+                    build.Error is { } error ? $"The copy did not build: {Name(error)}." : "The copy did not build.");
+            }
+        }
 
         // One run per thing the person said the program should print, so every one of them is checked - and a single
         // plain run when they said nothing, because the failure is worth testing either way.
@@ -120,12 +135,20 @@ public static class FixRun
                     $"The copy was still going after {spec.Timeout.TotalSeconds:0} seconds, so nothing follows either way.");
             }
 
+            // A copy that never started, or was stopped, showed nothing about the change either way.
+            if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.Cancelled)
+                return sofar.With(VerificationStage.Ran, StageResult.Skipped, "The copy could not be started, so it was not run.");
+
             if (run.Error is { } still)
             {
                 return sofar.With(VerificationStage.Ran, StageResult.Failed, Same(still, original)
                     ? $"The copy still stopped with {Name(still)}."
                     : $"The copy stopped with a different error: {Name(still)}.");
             }
+
+            // A crash the runtime printed nothing readable about is still a crash.
+            if (run.Outcome == RunOutcome.Crashed)
+                return sofar.With(VerificationStage.Ran, StageResult.Failed, $"The copy crashed{(run.ExitCode is { } code ? $", with exit code {code}" : "")}.");
 
             if (checkingOutput && mismatched is null && OutputComparison.Compare(OutputComparison.Printed(run), want.ExpectedOutput) is { } off)
             {
@@ -134,9 +157,9 @@ public static class FixRun
         }
 
         var ran = sofar.With(VerificationStage.Ran, StageResult.Passed,
-            original is null
-                ? "The copy ran to the end without failing."
-                : $"The copy ran and did not stop with {Name(original)} the way it did before.");
+            original is null ? "The copy ran to the end without failing."
+            : IsCompilersOwn(original) ? "The copy built, and ran without stopping with an error."
+            : $"The copy ran and did not stop with {Name(original)} the way it did before.");
 
         if (!checkingOutput)
         {
@@ -147,6 +170,10 @@ public static class FixRun
             ? ran.With(VerificationStage.MatchedExpectedOutput, StageResult.Passed, "It printed what you said it should.")
             : ran.With(VerificationStage.MatchedExpectedOutput, StageResult.Failed, mismatched);
     }
+
+    /// <summary>Whether an error is one the compiler gave while building the program - javac's, gcc's, C#'s - rather than one from running it.</summary>
+    private static bool IsCompilersOwn(ParsedError error) =>
+        error.ExceptionType == "compile error" || LocalFixes.LocalFixEngine.IsCompileError(error);
 
     /// <summary>Whether this is the failure the fix was meant to stop, judged by what the runtime called it.</summary>
     private static bool Same(ParsedError now, ParsedError? before) =>

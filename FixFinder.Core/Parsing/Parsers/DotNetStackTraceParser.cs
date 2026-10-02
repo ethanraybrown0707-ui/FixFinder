@@ -9,10 +9,12 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
     public string LanguageId => "csharp";
     public string DisplayName => ".NET";
 
-    [GeneratedRegex(@"^(?:Unhandled exception\.\s*)?(?<type>[\w.`+\[\],<>]*(?:Exception|Error))(?:\s*:\s*(?<msg>.*))?$")]
+    // An exception that carries a code from the system writes it after its name: SocketException (10061),
+    // Win32Exception (2), SqlException (0x80131904).
+    [GeneratedRegex(@"^(?:Unhandled exception\.\s*)?(?<type>[\w.`+\[\],<>]*(?:Exception|Error))(?:\s+\((?<code>0x[0-9A-Fa-f]+|-?\d+)\))?(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex HeaderPattern();
 
-    [GeneratedRegex(@"^\s*--->\s*(?:\(Inner Exception #\d+\)\s*)?(?<type>[\w.`+\[\],<>]*(?:Exception|Error))(?:\s*:\s*(?<msg>.*))?$")]
+    [GeneratedRegex(@"^\s*--->\s*(?:\(Inner Exception #\d+\)\s*)?(?<type>[\w.`+\[\],<>]*(?:Exception|Error))(?:\s+\((?<code>0x[0-9A-Fa-f]+|-?\d+)\))?(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex InnerHeaderPattern();
 
     [GeneratedRegex(@"^\s+at\s+(?<sym>.+?)(?:\s+in\s+(?<file>.+?):line\s+(?<line>\d+))?\s*$")]
@@ -53,14 +55,14 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
 
         var first = HeaderPattern().Match(lines[index].Text);
         if (!first.Success) return null;
-        levels.Add(new Level(first.Groups["type"].Value, TrimMessage(first.Groups["msg"].Value)));
+        levels.Add(LevelOf(first));
         index++;
 
         while (index < lines.Count)
         {
             var inner = InnerHeaderPattern().Match(lines[index].Text);
             if (!inner.Success) break;
-            levels.Add(new Level(inner.Groups["type"].Value, TrimMessage(inner.Groups["msg"].Value)));
+            levels.Add(LevelOf(inner));
             index++;
         }
 
@@ -87,7 +89,7 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
             var sibling = InnerHeaderPattern().Match(text);
             if (sibling.Success)
             {
-                levels.Add(new Level(sibling.Groups["type"].Value, TrimMessage(sibling.Groups["msg"].Value)));
+                levels.Add(LevelOf(sibling));
                 current = levels.Count - 1;
                 end = index + 1;
                 continue;
@@ -123,6 +125,7 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
                 RawText = raw,
                 FirstLineSequence = lines[start].Sequence,
                 ExceptionType = levels[level].Type,
+                ErrorCode = levels[level].Code,
                 Message = levels[level].Message,
                 Frames = levels[level].Frames,
                 Causes = built is null ? [] : [built],
@@ -164,7 +167,10 @@ public sealed partial class DotNetStackTraceParser : IStackTraceParser
     private static string? TrimMessage(string message) =>
         message.Trim() is { Length: > 0 } trimmed ? trimmed : null;
 
-    private sealed record Level(string Type, string? Message)
+    private static Level LevelOf(Match header) =>
+        new(header.Groups["type"].Value, TrimMessage(header.Groups["msg"].Value), header.Groups["code"].Success ? header.Groups["code"].Value : null);
+
+    private sealed record Level(string Type, string? Message, string? Code)
     {
         public List<ErrorFrame> Frames { get; } = [];
     }

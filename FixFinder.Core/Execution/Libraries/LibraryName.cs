@@ -15,3 +15,9 @@ public sealed record MissingLibrary(string Name, string Reason)
 {
     public override string ToString() => $"{Name} ({Reason})";
 }
+
+/// <summary>A project of its Gradle build that the program uses - :core - whose code FixFinder could not find, and why.</summary>
+public sealed record MissingProject(string Path, string Reason)
+{
+    public override string ToString() => $"{Path} ({Reason})";
+}

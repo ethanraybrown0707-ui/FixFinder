@@ -30,17 +30,23 @@ internal static class JavaAstScript
             }
 
             public static void main(String[] args) throws Exception {
+                // The files come in a file of their own, one path to a line: a program's worth of paths can be longer than a
+                // command line may be.
+                List<String> files = new ArrayList<>();
+                for (String line : Files.readAllLines(Paths.get(args[1]), StandardCharsets.UTF_8))
+                    if (!line.isEmpty()) files.add(line);
+
                 JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
                 StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8);
                 StringBuilder json = new StringBuilder("{\"files\":[");
 
-                for (int i = 1; i < args.length; i++) {
-                    if (i > 1) json.append(',');
-                    json.append("{\"path\":").append(quote(args[i]));
+                for (int i = 0; i < files.size(); i++) {
+                    if (i > 0) json.append(',');
+                    json.append("{\"path\":").append(quote(files.get(i)));
 
                     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
                     JavacTask task = (JavacTask) compiler.getTask(null, fileManager, diagnostics, List.of("-proc:none"), null,
-                        fileManager.getJavaFileObjects(args[i]));
+                        fileManager.getJavaFileObjects(files.get(i)));
                     Iterable<? extends CompilationUnitTree> units = task.parse();
 
                     List<String> problems = new ArrayList<>();

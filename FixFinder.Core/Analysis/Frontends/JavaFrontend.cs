@@ -21,13 +21,16 @@ public static class JavaFrontend
         if (helper.Problem is { } problem) return Unread(files, problem);
 
         var output = Path.Combine(Path.GetTempPath(), "FixFinder-analysis", $"java-ast-{Guid.NewGuid():N}.json");
+        var listing = Path.ChangeExtension(output, ".files");
 
         try
         {
+            await File.WriteAllLinesAsync(listing, files, new UTF8Encoding(false), cancellationToken);
+
             var run = await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = java,
-                Arguments = $"-cp \"{helper.Folder}\" {JavaAstScript.ClassName} \"{output}\" " + string.Join(" ", files.Select(f => $"\"{f}\"")),
+                Arguments = $"-cp \"{helper.Folder}\" {JavaAstScript.ClassName} \"{output}\" \"{listing}\"",
                 WorkingDirectory = Path.GetDirectoryName(files[0]) ?? helper.Folder,
                 Timeout = ToolTimeout,
             }, cancellationToken);
@@ -40,7 +43,10 @@ public static class JavaFrontend
         }
         finally
         {
-            try { File.Delete(output); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            foreach (var written in new[] { output, listing })
+            {
+                try { File.Delete(written); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
         }
     }
 
@@ -106,5 +112,5 @@ public static class JavaFrontend
         return ProgramStops.Lower(new IrProgram(SourceLanguage.Java, files, classes, functions, problems));
     }
 
-    private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Java, files, [], [], [problem]);
+    private static IrProgram Unread(IReadOnlyList<string> files, string problem) => new(SourceLanguage.Java, files, [], [], [problem]) { NotRead = problem };
 }

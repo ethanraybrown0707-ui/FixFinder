@@ -101,6 +101,27 @@ public class RuntimeSuggestionTests : IDisposable
     }
 
     [Fact]
+    public async Task WhatPythonSuggestsIsAnEditOfTheLineItNamed()
+    {
+        if (Python is null) return;
+
+        var script = Write("builtin.py", """
+            total = 12
+            prnt(total)
+            """);
+
+        var candidate = RuntimeSuggestion.For(await CrashOf(script), _temp.Path);
+
+        // A misspelt built-in is suggested by Python as any other name is, and becomes the one line put right.
+        var edit = candidate?.LocalFix;
+        Assert.NotNull(edit);
+        Assert.Equal((2, 1), (edit!.StartLine, edit.RemoveCount));
+        Assert.Equal(["print(total)"], edit.NewLines);
+        Assert.Equal("Change prnt to print", edit.Title);
+        Assert.Equal("Python", RuntimeSuggestion.SuggestedBy(candidate!));
+    }
+
+    [Fact]
     public async Task AnErrorWithNoSuggestionProducesNothing()
     {
         if (Python is null) return;
@@ -113,7 +134,7 @@ public class RuntimeSuggestionTests : IDisposable
         Assert.Null(RuntimeSuggestion.Read(await CrashOf(script)));
     }
 
-    private static ParsedError Captured(string language, string type, string message, string? raw = null) =>
+    private static ParsedError Captured(string language, string type, string message, string? raw = null, string file = "main.c") =>
         new()
         {
             LanguageId = language,
@@ -122,8 +143,28 @@ public class RuntimeSuggestionTests : IDisposable
             FirstLineSequence = 0,
             ExceptionType = type,
             Message = message,
-            Frames = [new ErrorFrame { Order = 0, File = "main.c", Line = 4, RawLine = "" }],
+            Frames = [new ErrorFrame { Order = 0, File = file, Line = 4, RawLine = "" }],
         };
+
+    [Fact]
+    public void ACCompilersOwnSuggestionIsCreditedToTheCompiler()
+    {
+        var source = Write("main.c", """
+            #include <stdio.h>
+
+            int main(void) {
+                printf("%d\n", avarage(4, 2));
+                return 0;
+            }
+            """);
+
+        var candidate = RuntimeSuggestion.For(
+            Captured("gcc", "compile error", "'avarage' undeclared (first use in this function); did you mean 'average'?", file: source), _temp.Path);
+
+        // gcc's reader reads clang's messages too, so which compiler it was is not known: it is the compiler, in any sentence.
+        Assert.Equal("the compiler", RuntimeSuggestion.SuggestedBy(candidate!));
+        Assert.StartsWith("The compiler itself compared `avarage`", candidate!.LocalFix!.Explanation, StringComparison.Ordinal);
+    }
 
     [Theory]
     [InlineData("'avarage' undeclared (first use in this function); did you mean 'average'?")]

@@ -6,7 +6,18 @@ namespace FixFinder.Core.Checking;
 /// <summary>The source files a chosen file's program is made of: the file itself, then the ones it uses.</summary>
 public static partial class ProgramFiles
 {
-    private const int MostFiles = 40;
+    /// <summary>
+    /// The most files of a program whose code is read for logic mistakes. The file chosen and the files its code uses come
+    /// first, so a program with more leaves out those furthest from it - and the report says how many.
+    /// </summary>
+    public const int MostFiles = 200;
+
+    /// <summary>The most files looked through to put them in that order: more than any course project has, never a whole drive.</summary>
+    private const int MostFilesLookedAt = 2000;
+
+    /// <summary>A program's files, the file chosen first, and how many more it has that were left out.</summary>
+    /// <param name="LeftOutAtLeast">Whether it has more files than were looked through, so at least <paramref name="LeftOut"/> were left out.</param>
+    public sealed record Found(IReadOnlyList<string> Files, int LeftOut, bool LeftOutAtLeast);
 
     private static readonly HashSet<string> SkippedFolders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -22,34 +33,38 @@ public static partial class ProgramFiles
     [GeneratedRegex(@"(?m)^\s*#\s*include\s*""(?<header>[^""]+)""")]
     private static partial Regex LocalInclude();
 
-    public static IReadOnlyList<string> Of(string chosen)
+    [GeneratedRegex(@"\w+")]
+    private static partial Regex Word();
+
+    public static IReadOnlyList<string> Of(string chosen) => Read(chosen).Files;
+
+    public static Found Read(string chosen)
     {
         var path = Path.GetFullPath(chosen);
 
-        var files = Path.GetExtension(path).ToLowerInvariant() switch
+        var (files, lookedAtAll) = Path.GetExtension(path).ToLowerInvariant() switch
         {
             ".py" or ".pyw" or ".ipynb" => Follow(path, PythonNeighbours),
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
-            ".go" => ProgramLayout.GoPackageOf(path).Files,
-            ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => NativeFiles(path),
-            _ => [path],
+            ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
+            ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => (NativeFiles(path), true),
+            _ => ([path], true),
         };
 
-        return files
-            .Select(Path.GetFullPath)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(MostFiles)
-            .ToList();
+        var distinct = files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new Found(distinct.Take(MostFiles).ToList(), Math.Max(0, distinct.Count - MostFiles), !lookedAtAll);
     }
 
-    private static List<string> Follow(string chosen, Func<string, IEnumerable<string>> neighbours)
+    /// <summary>The chosen file and those it imports, and so on, nearest first - and whether every one was reached.</summary>
+    private static (IReadOnlyList<string> Files, bool LookedAtAll) Follow(string chosen, Func<string, IEnumerable<string>> neighbours)
     {
         var found = new List<string> { chosen };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { chosen };
+        var next = 0;
 
-        for (var next = 0; next < found.Count && found.Count < MostFiles; next++)
+        for (; next < found.Count && found.Count < MostFilesLookedAt; next++)
         {
             foreach (var file in neighbours(found[next]))
             {
@@ -57,13 +72,13 @@ public static partial class ProgramFiles
             }
         }
 
-        return found;
+        return (found, next >= found.Count);
     }
 
     private static IEnumerable<string> PythonNeighbours(string file)
     {
         // A notebook's imports are in the code of its cells, not in the JSON around them.
-        var code = Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookScript.CodeIn(file) : Read(file);
+        var code = Path.GetExtension(file).Equals(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookScript.CodeIn(file) : TextOf(file);
         if (code is not { } text) yield break;
 
         // A notebook's code imports what is beside the notebook, not what is beside the script it was written to.
@@ -109,7 +124,7 @@ public static partial class ProgramFiles
 
     private static IEnumerable<string> JavaScriptNeighbours(string file)
     {
-        if (Read(file) is not { } text) yield break;
+        if (TextOf(file) is not { } text) yield break;
 
         var folder = Path.GetDirectoryName(file)!;
 
@@ -129,58 +144,74 @@ public static partial class ProgramFiles
     }
 
     /// <summary>
-    /// A Java program's files: the one chosen, and the others under its source root - except another program's. A folder of
-    /// exercises holds several programs, each with a main of its own; a file with a main that the chosen file's code does not
-    /// reach is another program, and so is a file only such a one reaches. Other files stay, since a framework can use a
-    /// class nothing names.
+    /// A Java program's files: the one chosen, the others under its source root its code reaches - nearest first - and then the
+    /// rest, except another program's. A folder of exercises holds several programs, each with a main of its own; a file with a
+    /// main that the chosen file's code does not reach is another program, and so is a file only such a one reaches. Other
+    /// files stay, since a framework can use a class nothing names.
     /// </summary>
-    private static IReadOnlyList<string> JavaFiles(string chosen)
+    private static (IReadOnlyList<string> Files, bool LookedAtAll) JavaFiles(string chosen)
     {
-        var root = ProgramLayout.JavaSourceRoot(chosen);
-        var others = SourcesUnder(root, ".java").Where(file => !file.Equals(chosen, StringComparison.OrdinalIgnoreCase)).ToList();
+        var (sources, lookedAtAll) = SourcesUnder(ProgramLayout.JavaSourceRoot(chosen), ".java");
+        var others = sources.Where(file => !file.Equals(chosen, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [chosen] = Read(chosen) ?? "" };
-        foreach (var file in others) texts[file] = Read(file) ?? "";
+        var texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [chosen] = TextOf(chosen) ?? "" };
+        foreach (var file in others) texts[file] = TextOf(file) ?? "";
+        var words = texts.ToDictionary(text => text.Key, text => WordsIn(text.Value), StringComparer.OrdinalIgnoreCase);
 
-        var reached = Reached([chosen], texts, excluded: new HashSet<string>());
-        var otherPrograms = others.Where(file => !reached.Contains(file) && JavaMain().IsMatch(texts[file])).ToList();
-        var theirs = Reached(otherPrograms, texts, excluded: reached);
+        var reached = Reached([chosen], words, excluded: new HashSet<string>());
+        var reachedFiles = new HashSet<string>(reached, StringComparer.OrdinalIgnoreCase);
+        var otherPrograms = others.Where(file => !reachedFiles.Contains(file) && JavaMain().IsMatch(texts[file])).ToList();
+        var theirs = new HashSet<string>(Reached(otherPrograms, words, excluded: reachedFiles), StringComparer.OrdinalIgnoreCase);
 
-        return [chosen, .. others.Where(file => !theirs.Contains(file))];
+        return ([.. reached, .. others.Where(file => !reachedFiles.Contains(file) && !theirs.Contains(file))], lookedAtAll);
     }
 
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex JavaMain();
 
-    /// <summary>The files these start from, and every file whose class their code names, and so on, leaving out those excluded.</summary>
-    private static HashSet<string> Reached(IEnumerable<string> starts, IReadOnlyDictionary<string, string> texts, IReadOnlySet<string> excluded)
+    /// <summary>
+    /// The files these start from, then every file whose class their code names - its file's name, as a word of their code -
+    /// and so on, nearest first, leaving out those excluded.
+    /// </summary>
+    private static List<string> Reached(IEnumerable<string> starts, IReadOnlyDictionary<string, IReadOnlyList<string>> words, IReadOnlySet<string> excluded)
     {
-        var reached = new HashSet<string>(starts, StringComparer.OrdinalIgnoreCase);
-        var pending = new Queue<string>(reached);
+        var order = starts.ToList();
+        var reached = new HashSet<string>(order, StringComparer.OrdinalIgnoreCase);
+        var filesNamed = words.Keys.Where(file => !excluded.Contains(file)).ToLookup(Path.GetFileNameWithoutExtension, StringComparer.Ordinal);
 
-        while (pending.Count > 0)
+        for (var next = 0; next < order.Count; next++)
         {
-            var text = texts[pending.Dequeue()];
-
-            foreach (var file in texts.Keys.Where(file => !reached.Contains(file) && !excluded.Contains(file)).ToList())
+            foreach (var word in words[order[next]])
             {
-                if (!Regex.IsMatch(text, $@"\b{Regex.Escape(Path.GetFileNameWithoutExtension(file))}\b")) continue;
-
-                reached.Add(file);
-                pending.Enqueue(file);
+                foreach (var file in filesNamed[word])
+                {
+                    if (reached.Add(file)) order.Add(file);
+                }
             }
         }
 
-        return reached;
+        return order;
     }
 
-    private static IReadOnlyList<string> CSharpFiles(string chosen)
+    /// <summary>The words of a file's code, each once, in the order they first come.</summary>
+    private static IReadOnlyList<string> WordsIn(string text) =>
+        Word().Matches(text).Select(word => word.Value).Distinct(StringComparer.Ordinal).ToList();
+
+    /// <summary>A C# project's files: the one chosen, those its code reaches - by the names of their files - nearest first, then the rest.</summary>
+    private static (IReadOnlyList<string> Files, bool LookedAtAll) CSharpFiles(string chosen)
     {
-        if (ProgramLayout.CSharpProject(chosen) is not { } project) return [chosen];
+        if (ProgramLayout.CSharpProject(chosen) is not { } project) return ([chosen], true);
 
-        var files = SourcesUnder(Path.GetDirectoryName(project)!, ".cs");
+        var (sources, lookedAtAll) = SourcesUnder(Path.GetDirectoryName(project)!, ".cs");
+        var others = sources.Where(file => !file.Equals(chosen, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        return [chosen, .. files.Where(f => !f.Equals(chosen, StringComparison.OrdinalIgnoreCase))];
+        var words = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase) { [chosen] = WordsIn(TextOf(chosen) ?? "") };
+        foreach (var file in others) words[file] = WordsIn(TextOf(file) ?? "");
+
+        var reached = Reached([chosen], words, excluded: new HashSet<string>());
+        var reachedFiles = new HashSet<string>(reached, StringComparer.OrdinalIgnoreCase);
+
+        return ([.. reached, .. others.Where(file => !reachedFiles.Contains(file))], lookedAtAll);
     }
 
     private static IReadOnlyList<string> NativeFiles(string chosen)
@@ -190,7 +221,7 @@ public static partial class ProgramFiles
 
         foreach (var source in sources)
         {
-            if (Read(source) is not { } text) continue;
+            if (TextOf(source) is not { } text) continue;
 
             foreach (Match include in LocalInclude().Matches(text))
             {
@@ -202,14 +233,15 @@ public static partial class ProgramFiles
         return [.. sources, .. headers];
     }
 
-    private static List<string> SourcesUnder(string root, string extension)
+    /// <summary>The source files under a folder - as many as are looked through - and whether that was every one.</summary>
+    private static (List<string> Files, bool LookedAtAll) SourcesUnder(string root, string extension)
     {
         var found = new List<string>();
         var pending = new Stack<string>([root]);
 
         try
         {
-            while (pending.Count > 0 && found.Count < MostFiles)
+            while (pending.Count > 0 && found.Count < MostFilesLookedAt)
             {
                 var folder = pending.Pop();
 
@@ -225,10 +257,10 @@ public static partial class ProgramFiles
         {
         }
 
-        return found.Take(MostFiles).ToList();
+        return (found.Take(MostFilesLookedAt).ToList(), pending.Count == 0 && found.Count <= MostFilesLookedAt);
     }
 
-    private static string? Read(string file)
+    private static string? TextOf(string file)
     {
         try
         {

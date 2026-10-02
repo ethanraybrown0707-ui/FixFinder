@@ -12,7 +12,7 @@ public class MissingModuleTests
         TargetFactory.FindOnPath("py") ??
         TargetFactory.FindOnPath("python3");
 
-    private static ParsedError Error(string message, string type = "ModuleNotFoundError") => new()
+    private static ParsedError Error(string message, string type = "ModuleNotFoundError", ErrorFrame[]? frames = null) => new()
     {
         LanguageId = "python",
         Confidence = 90,
@@ -20,7 +20,7 @@ public class MissingModuleTests
         FirstLineSequence = 0,
         ExceptionType = type,
         Message = message,
-        Frames = [],
+        Frames = frames ?? [],
     };
 
     private static TargetSpec Spec(string? executable = null) => new()
@@ -36,6 +36,9 @@ public class MissingModuleTests
     [InlineData("No module named 'cv2'", "cv2", "opencv-python")]
     [InlineData("No module named 'PIL'", "PIL", "pillow")]
     [InlineData("No module named 'sklearn'", "sklearn", "scikit-learn")]
+    [InlineData("No module named 'google.protobuf'", "google.protobuf", "protobuf")]
+    [InlineData("No module named 'google.cloud.storage'", "google.cloud.storage", "google-cloud-storage")]
+    [InlineData("No module named 'googleapiclient'", "googleapiclient", "google-api-python-client")]
     public void TheImportNameIsMappedToThePackageThatProvidesIt(
         string message, string module, string package)
     {
@@ -44,6 +47,43 @@ public class MissingModuleTests
         Assert.NotNull(missing);
         Assert.Equal(module, missing!.Module);
         Assert.Equal(package, missing.Package);
+    }
+
+    /// <summary>
+    /// Google's packages share the one `google` name, so a module under it that is not known is given no package at all:
+    /// protobuf, which the bare name used to be taken for, provides neither google.colab nor anything but google.protobuf.
+    /// </summary>
+    [Theory]
+    [InlineData("No module named 'google.colab'")]
+    [InlineData("No module named 'google'")]
+    [InlineData("No module named 'google.some_new_service'")]
+    public void AModuleUnderGoogleThatIsNotKnownIsGivenNoPackageToInstall(string message)
+    {
+        Assert.Null(MissingModule.Read(Error(message)));
+        Assert.Null(MissingModule.For(Error(message), Spec()));
+    }
+
+    [Theory]
+    [InlineData("No module named 'google.colab'", true)]
+    [InlineData("No module named 'google.colab.drive'", true)]
+    [InlineData("No module named 'google.protobuf'", false)]
+    [InlineData("No module named 'colab'", false)]
+    public void GoogleColabsOwnModuleIsToldApart(string message, bool colabOnly) =>
+        Assert.Equal(colabOnly, MissingModule.IsColabOnly(Error(message)));
+
+    [Theory]
+    [InlineData("from google.colab import drive", true)]
+    [InlineData("import google.colab", true)]
+    [InlineData("from google.cloud import storage", false)]
+    public void WhereNothingProvidesGoogleTheLineThatStoppedSaysWhetherItWasColabs(string importing, bool colabOnly)
+    {
+        // With no package of Google's installed, Python names only google as missing, whichever module under it was imported.
+        using var temp = new TempFolder();
+        var program = Path.Combine(temp.Path, "analysis.py");
+        File.WriteAllText(program, $"import os\n{importing}\n");
+        var stopped = new ErrorFrame { Order = 0, Symbol = "<module>", File = program, Line = 2, RawLine = "" };
+
+        Assert.Equal(colabOnly, MissingModule.IsColabOnly(Error("No module named 'google'", frames: [stopped])));
     }
 
     [Fact]

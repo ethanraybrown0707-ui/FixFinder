@@ -9,11 +9,19 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
     public string LanguageId => "node";
     public string DisplayName => "Node.js";
 
-    [GeneratedRegex(@"^\s+at\s+(?:async\s+)?(?:(?<sym>.+?)\s+\()?(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/|node:|[\w.\-]+[\\/]).*?):(?<line>\d+):(?<col>\d+)\)?\s*$")]
+    // A frame can end with the { that opens the properties Node prints after an error's frames.
+    [GeneratedRegex(@"^\s+at\s+(?:async\s+)?(?:(?<sym>.+?)\s+\()?(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/|node:|[\w.\-]+[\\/]).*?):(?<line>\d+):(?<col>\d+)\)?(?:\s*\{)?\s*$")]
     private static partial Regex FramePattern();
 
-    [GeneratedRegex(@"^(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*\[(?<code>ERR_\w+)\])?(?:\s*:\s*(?<msg>.*))?$")]
+    // The code in brackets is Node's own - Error [ERR_MODULE_NOT_FOUND] - or the system's: AggregateError [ECONNREFUSED].
+    [GeneratedRegex(@"^(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*\[(?<code>[A-Z][A-Z0-9_]*)\])?(?:\s*:\s*(?<msg>.*))?$")]
     private static partial Regex HeaderPattern();
+
+    /// <summary>An error printed as an object, with what caused it inside: [TypeError: fetch failed] {, as fetch fails.</summary>
+    [GeneratedRegex(@"^\[(?<type>(?:[A-Z]\w*)?(?:Error|Exception))(?:\s*\[(?<code>[A-Z][A-Z0-9_]*)\])?(?::\s*(?<msg>.*?))?\]\s*\{\s*$")]
+    private static partial Regex PrintedObjectHeaderPattern();
+
+    private static Match Header(string text) => HeaderPattern().Match(text) is { Success: true } header ? header : PrintedObjectHeaderPattern().Match(text);
 
     [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/).+?\.[mc]?js):(?<line>\d+)\s*$")]
     private static partial Regex LocationPattern();
@@ -37,7 +45,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
                 if (frame.Groups["sym"].Success) score += 4;
             }
 
-            if (HeaderPattern().IsMatch(line)) score += 12;
+            if (Header(line).Success) score += 12;
         }
 
         return Math.Min(score, 100);
@@ -48,7 +56,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
         var headerIndex = -1;
         for (var i = lines.Count - 1; i >= 0; i--)
         {
-            if (!HeaderPattern().IsMatch(lines[i].Text)) continue;
+            if (!Header(lines[i].Text).Success) continue;
 
             for (var j = i + 1; j < Math.Min(i + 12, lines.Count); j++)
             {
@@ -58,14 +66,14 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
                     break;
                 }
 
-                if (!IsRequireStack(lines[j].Text) && j >= i + 2) break;
+                if (!IsRequireStack(lines[j].Text) && !IsCause(lines[j].Text) && j >= i + 2) break;
             }
             if (headerIndex >= 0) break;
         }
 
         if (headerIndex < 0) return null;
 
-        var header = HeaderPattern().Match(lines[headerIndex].Text);
+        var header = Header(lines[headerIndex].Text);
         var frames = new List<ErrorFrame>();
         var end = headerIndex + 1;
 
@@ -75,7 +83,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
             var frame = FramePattern().Match(text);
             if (!frame.Success)
             {
-                if (text.Trim().Length == 0 || (frames.Count == 0 && IsRequireStack(text)) ||
+                if (text.Trim().Length == 0 || (frames.Count == 0 && (IsRequireStack(text) || IsCause(text))) ||
                     (text.Length > 0 && char.IsWhiteSpace(text[0]) && text.TrimStart().StartsWith("at ", StringComparison.Ordinal))) continue;
                 break;
             }
@@ -97,6 +105,8 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
         }
 
         if (frames.Count == 0) return null;
+
+        end = EndOfWhatNodePrinted(lines, end);
 
         if (Location(lines, headerIndex) is { } location &&
             !(string.Equals(frames[0].File, location.File, StringComparison.OrdinalIgnoreCase) && frames[0].Line == location.Line))
@@ -129,6 +139,33 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
 
     private static bool IsRequireStack(string text) =>
         text.StartsWith("Require stack:", StringComparison.Ordinal) || text.StartsWith("- ", StringComparison.Ordinal);
+
+    /// <summary>The line that says, inside an error printed as an object, what caused it: [cause]: AggregateError [ECONNREFUSED]:.</summary>
+    private static bool IsCause(string text) => text.TrimStart().StartsWith("[cause]:", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Where what Node printed of the error ends, after the frames read: where an 'error' event was emitted from, with its
+    /// frames, and the properties Node gives the error between { and } - its code and, for a connection, each address and
+    /// port it tried. They are part of the error's text, not frames of its own.
+    /// </summary>
+    private static int EndOfWhatNodePrinted(IReadOnlyList<CapturedLine> lines, int end)
+    {
+        while (end < lines.Count &&
+               (lines[end].Text.StartsWith("Emitted 'error' event", StringComparison.Ordinal) || FramePattern().IsMatch(lines[end].Text)))
+        {
+            end++;
+        }
+
+        if (end == 0 || !lines[end - 1].Text.TrimEnd().EndsWith('{')) return end;
+
+        // The properties close with a } of their own on a line of its own.
+        for (var i = end; i < lines.Count; i++)
+        {
+            if (lines[i].Text.Trim() == "}") return i + 1;
+        }
+
+        return end;
+    }
 
     private static ErrorFrame? Location(IReadOnlyList<CapturedLine> lines, int headerIndex)
     {

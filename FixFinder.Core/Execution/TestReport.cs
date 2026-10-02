@@ -4,15 +4,16 @@ using System.Text.RegularExpressions;
 namespace FixFinder.Core.Execution;
 
 /// <summary>
-/// What a test launcher of FixFinder's printed about each test it ran - JUnit's for Java, unittest's for Python - one
-/// line to a test, read back here. Whether a test passed is the test framework's to say, not FixFinder's.
+/// What a test launcher of FixFinder's printed about each test it ran - JUnit's for Java, unittest's or pytest's for
+/// Python - one line to a test, read back here. Whether a test passed is the test framework's to say, not FixFinder's.
 /// </summary>
 public static class TestReport
 {
     /// <summary>What one test did, as its framework reported it.</summary>
     /// <param name="Status">
-    /// SUCCESSFUL, FAILED, ABORTED or SKIPPED - or, from unittest, SETUP-FAILED: setting up for a class's or a module's
-    /// tests failed, which is not a test of its own, and those tests did not run.
+    /// SUCCESSFUL, FAILED, ABORTED or SKIPPED - or, from Python's frameworks, SETUP-FAILED: setting up for tests failed,
+    /// and they did not run; TEARDOWN-FAILED: cleaning up after tests that ran failed; and, from pytest, FILE-SKIPPED: the
+    /// whole file was skipped, as pytest.importorskip at its top does.
     /// </param>
     /// <param name="Frames">Where the failure was raised, innermost first: class or module, method, file and line.</param>
     public sealed record TestResult(
@@ -58,8 +59,8 @@ public static class TestReport
             : null;
 
     /// <summary>
-    /// A part of a place back as it was. A path can hold the # and ; that separate the parts, so the unittest launcher
-    /// writes them as %23 and %3B, and % itself as %25; the JUnit launcher's class, method and file names never hold a %.
+    /// A part of a place back as it was. A path can hold the # and ; that separate the parts, so Python's launchers write
+    /// them as %23 and %3B, and % itself as %25; the JUnit launcher's class, method and file names never hold a %.
     /// </summary>
     private static string Decoded(string part) => Regex.Replace(part, "%(?:23|3B|25)", encoded => encoded.Value switch
     {

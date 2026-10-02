@@ -188,19 +188,22 @@ public static class CompileCheck
     internal static IReadOnlyList<string> JavacArguments(string copy, string originalFile, string folder)
     {
         var libraries = JavaLibraries.For(originalFile);
-        IEnumerable<string> classPath = libraries.ClassPath.Count > 0 ? ["-cp", string.Join(Path.PathSeparator, libraries.ClassPath)] : [];
 
         // A processor the program's build names, or its libraries hold, writes code the program calls, so a copy is checked
         // with it run; with none, processing stays off, as the program's own build has it.
         IEnumerable<string> processing = libraries.ProcessorPath.Count > 0 ? ["-processorpath", string.Join(Path.PathSeparator, libraries.ProcessorPath)] : ["-proc:none"];
+
+        // The copy stands outside the program's source, so in a program written as a module it is patched into the module, as
+        // a module's tests are compiled.
+        var sourceAndLibraries = JavaModules.SourceAndLibraries(
+            ProgramLayout.JavaSourceRoot(originalFile), libraries.OtherSourceRoots(originalFile), libraries.ClassPath, [Path.GetDirectoryName(Path.GetFullPath(copy))!]);
 
         // A processor runs only on the files javac is given by name, so with one, the rest of the program is named too - all
         // but the file the copy stands in for.
         return
         [
             .. JavaRelease(),
-            .. processing, CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. classPath,
-            "-sourcepath", string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(originalFile), .. libraries.OtherSourceRoots(originalFile)]), copy,
+            .. processing, CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. sourceAndLibraries, copy,
             .. libraries.SourcesToName(originalFile),
         ];
     }
@@ -311,7 +314,13 @@ public static class CompileCheck
                 var interpreter = python ?? TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py");
                 if (interpreter is null) return null;
 
-                return Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
+                // A notebook's code is compiled as Jupyter compiles a cell, where await may be used outside a function.
+                return copy.EndsWith(NotebookScript.ScriptEnding, StringComparison.OrdinalIgnoreCase)
+                    ? Spec(interpreter,
+                        "-X utf8 -c \"import ast, sys; compile(open(sys.argv[1], 'rb').read(), sys.argv[1], 'exec', " +
+                        $"flags=getattr(ast, 'PyCF_ALLOW_TOP_LEVEL_AWAIT', 0), dont_inherit=True)\" \"{copy}\"",
+                        folder)
+                    : Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
 
             case ".java":
                 if (Toolchains.FindJavac() is not { } javac) return null;

@@ -270,15 +270,23 @@ public static partial class CompiledLanguages
         var launcher = runner is { CannotRun: null } ? WriteTestLauncher(output, framework) : null;
 
         IReadOnlyList<string> classPath = [.. libraries.ClassPath, .. launcher is null ? [] : runner!.ExtraJars];
-        var sourcePath = string.Join(Path.PathSeparator, [ProgramLayout.JavaSourceRoot(source), .. libraries.OtherSourceRoots(source)]);
-        var libraryPath = classPath.Count > 0 ? $" -cp \"{string.Join(Path.PathSeparator, classPath)}\"" : "";
+        var ownRoot = ProgramLayout.JavaSourceRoot(source);
+        var otherRoots = libraries.OtherSourceRoots(source);
+
+        // A program written as a module is compiled as its build compiles it: the modules it requires on the module path, and
+        // its tests and FixFinder's launcher patched into it. Any other has its libraries on the class path, as ever.
+        var module = JavaModules.For(ownRoot, otherRoots);
+        var launcherRoot = launcher is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(launcher));
+        var sourceAndLibraries = string.Concat(JavaModules.SourceAndLibraries(ownRoot, otherRoots, classPath, launcherRoot is null ? [] : [launcherRoot])
+            .Select(argument => argument.StartsWith('-') ? $" {argument}" : $" \"{argument}\""));
+
         var launcherSource = launcher is null ? "" : $" \"{launcher}\"";
         var processorPath = libraries.ProcessorPath.Count > 0 ? $" -processorpath \"{string.Join(Path.PathSeparator, libraries.ProcessorPath)}\"" : " -proc:none";
         var namedSources = string.Concat(libraries.SourcesToName(source).Select(file => $" \"{file}\""));
 
         var compile = Spec(
             javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{libraryPath}{processorPath} -sourcepath \"{sourcePath}\" \"{source}\"{namedSources}{launcherSource}", output, "javac"),
+            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{processorPath}{sourceAndLibraries} \"{source}\"{namedSources}{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
@@ -290,7 +298,7 @@ public static partial class CompiledLanguages
         var start = WorkingFolder.For(source);
         var runPath = string.Join(Path.PathSeparator,
             [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath.Except(javaFx, StringComparer.OrdinalIgnoreCase)]);
-        var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherClass} {MainClass(source)}";
+        var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherFullName} {MainClass(source)}";
 
         var run = Spec(
             java.Program,
@@ -299,18 +307,25 @@ public static partial class CompiledLanguages
             timeout);
 
         var with = libraries.Described is { } described ? $" and {described}" : "";
+        var projects = libraries.ProjectsDescribed is { } used ? $", with {used}" : "";
+        var asModule = module is null ? ""
+            : libraries.ProjectModules.TryGetValue(module.Name, out var declaredBy) ? $", as part of the module {module.Name} the project {declaredBy} declares"
+            : $", as the module {module.Name} its module-info.java declares";
         var then = launcher is not null ? $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}"
             : javaFx.Count > 0 ? "running it with java, with JavaFX's modules on the module path"
             : "running it with java";
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}{with}, then {then}{StartsFrom(start, source)}."), null);
+            $"Building it with {javac.Name}{with}{projects}{asModule}, then {then}{StartsFrom(start, source)}."), null);
     }
 
-    /// <summary>Writes FixFinder's JUnit launcher into the build folder, in a folder of its own, and says where.</summary>
+    /// <summary>
+    /// Writes FixFinder's JUnit launcher into the build folder, in a folder of its own - its package's folder, inside the
+    /// folder that is the launcher's source root - and says where.
+    /// </summary>
     private static string WriteTestLauncher(string output, JavaTests.Framework framework)
     {
-        var folder = Path.Combine(output, "fixfinder-tests");
+        var folder = Path.Combine(output, "fixfinder-tests", JavaTests.LauncherPackage);
         Directory.CreateDirectory(folder);
 
         var launcher = Path.Combine(folder, JavaTests.LauncherClass + ".java");

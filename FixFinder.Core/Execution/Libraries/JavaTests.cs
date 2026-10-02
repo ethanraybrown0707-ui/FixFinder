@@ -53,7 +53,8 @@ public static partial class JavaTests
 
         if (framework == Framework.JUnit4)
         {
-            return Has("junit-4") || Has("junit.jar") || classPath.Any(jar => Regex.IsMatch(Path.GetFileName(jar), @"^junit[-_]?4", RegexOptions.IgnoreCase))
+            // Maven's junit-4.13.2.jar, a junit.jar kept by hand, or the org.junit_4.13.2 bundle Eclipse's own JUnit is.
+            return Has("junit-4") || Has("junit.jar") || classPath.Any(jar => Regex.IsMatch(Path.GetFileName(jar), @"^(?:junit[-_]?4|org\.junit_4\.)", RegexOptions.IgnoreCase))
                 ? new Runner(framework, [], null)
                 : new Runner(framework, [], "JUnit 4's jar is not among the project's libraries");
         }
@@ -75,8 +76,18 @@ public static partial class JavaTests
             "Maven and Gradle download it when they run the tests, and an IDE brings its own");
     }
 
+    /// <summary>
+    /// The package the launcher is in: a package of its own, so it can be compiled into a program written as a module, as a
+    /// module's tests are compiled - a module cannot hold a class in no package.
+    /// </summary>
+    public const string LauncherPackage = "fixfinder";
+
+    /// <summary>The launcher's class by its full name, as java is told to run it.</summary>
+    public const string LauncherFullName = LauncherPackage + "." + LauncherClass;
+
     /// <summary>The launcher's Java source for this JUnit: plain Java 8, so it compiles under any release a course uses.</summary>
-    public static string LauncherSource(Framework framework) => (framework == Framework.JUnit4 ? JUnit4Launcher : JUnit5Launcher) + Reporting + "}\n";
+    public static string LauncherSource(Framework framework) =>
+        $"package {LauncherPackage};\n\n" + (framework == Framework.JUnit4 ? JUnit4Launcher : JUnit5Launcher) + Reporting + "}\n";
 
     private const string JUnit5Launcher = """
         import org.junit.platform.engine.TestExecutionResult;
