@@ -291,10 +291,12 @@ public class PythonCourseTests : IDisposable
     {
         if (Python.Value is null) return;
 
-        var outcome = await RunOffline(Write("app.py", source));
+        var said = new List<string>();
+        var outcome = await RunOffline(Write("app.py", source), said: said);
 
+        // What the session said it did, so a fix that was not found says why: a rule that proposed nothing, or a check refused.
         if (ApplicationControl.Refused(outcome)) return;
-        Assert.True(outcome.Result == SessionResult.FoundFix, $"{topic}: {outcome.Result} - {outcome.Headline}");
+        Assert.True(outcome.Result == SessionResult.FoundFix, $"{topic}: {outcome.Result} - {outcome.Headline}\n{string.Join("\n", said)}");
         Assert.Equal(id, outcome.Best!.Id);
 
         Assert.DoesNotContain(outcome.Candidates, candidate => candidate.Id.StartsWith("pip:", StringComparison.Ordinal));
@@ -372,7 +374,7 @@ public class PythonCourseTests : IDisposable
         Assert.Contains("more input than the 1 line you gave it", outcome.Headline, StringComparison.Ordinal);
     }
 
-    private static async Task<SessionOutcome> RunOffline(string path, string? input = null)
+    private static async Task<SessionOutcome> RunOffline(string path, string? input = null, List<string>? said = null)
     {
         var plan = TargetFactory.FromFile(path, TimeSpan.FromMinutes(2));
         Assert.True(plan.Ok, plan.Problem);
@@ -380,8 +382,9 @@ public class PythonCourseTests : IDisposable
         if (input is not null) plan = plan with { Spec = plan.Spec!.WithInput(input) };
 
         using var http = new FixFinderHttpClient();
+        var session = new FixFinderSession(http, new FixSourceRegistry());
+        if (said is not null) session.Log += message => { lock (said) said.Add(message); };
 
-        return await new FixFinderSession(http, new FixSourceRegistry())
-            .RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
+        return await session.RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
     }
 }
