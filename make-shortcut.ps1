@@ -16,7 +16,7 @@
 [CmdletBinding()]
 param(
     # Defaults to the published single-file exe; pass -Target to point at something else.
-    [string]$Target = (Join-Path $PSScriptRoot "publish\FixFinder.exe"),
+    [string]$Target,
 
     [string]$Name = "FixFinder",
 
@@ -25,6 +25,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Worked out here rather than as the parameter's default: Windows PowerShell leaves $PSScriptRoot empty while it fills
+# in a default, so the shortcut was refused for want of a path.
+if (-not $Target) { $Target = Join-Path $PSScriptRoot "publish\FixFinder.exe" }
 
 if (-not (Test-Path $Target)) {
     throw "Not found: $Target`n`nBuild it first:  powershell -ExecutionPolicy Bypass -File publish-exe.ps1"
