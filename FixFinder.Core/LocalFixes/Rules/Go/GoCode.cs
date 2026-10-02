@@ -192,7 +192,7 @@ internal static partial class GoCode
                 return null;
             }
 
-            return process.ExitCode == 0 && output.Wait(5_000) ? output.Result : null;
+            return process.ExitCode == 0 && output.Wait(ToolOutput.AfterExit) ? output.Result : null;
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {

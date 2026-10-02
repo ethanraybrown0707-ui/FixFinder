@@ -196,7 +196,7 @@ internal static partial class JavaTypes
                 return "";
             }
 
-            return output.Wait(5_000) ? output.Result : "";
+            return output.Wait(ToolOutput.AfterExit) ? output.Result : "";
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {

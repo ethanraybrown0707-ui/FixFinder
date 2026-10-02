@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.LocalFixes.Rules;
 
@@ -135,7 +136,7 @@ internal static partial class PythonStandardLibrary
                 return null;
             }
 
-            return process.ExitCode == 0 && output.Wait(15_000) ? output.Result : null;
+            return process.ExitCode == 0 && output.Wait(ToolOutput.AfterExit) ? output.Result : null;
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
         {
