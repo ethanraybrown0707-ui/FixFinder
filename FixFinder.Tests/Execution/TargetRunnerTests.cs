@@ -34,8 +34,10 @@ public class TargetRunnerTests
     {
         if (!OnWindows) return;
 
+        // A deadlock never finishes; a busy machine only drains the two streams slowly - CI's runner once took more than two
+        // minutes to - so the limit is generous, and costs time only when the streams really are stuck.
         var result = await new TargetRunner().RunAsync(
-            Cmd("/c for /l %i in (1,1,2000) do @(echo out-%i & echo err-%i 1>&2)", timeoutSeconds: 120),
+            Cmd("/c for /l %i in (1,1,2000) do @(echo out-%i & echo err-%i 1>&2)", timeoutSeconds: 600),
             CancellationToken.None);
 
         Assert.Equal(RunOutcome.ExitedClean, result.Outcome);
@@ -49,7 +51,7 @@ public class TargetRunnerTests
         if (!OnWindows) return;
 
         var result = await new TargetRunner().RunAsync(
-            Cmd("/c for /l %i in (1,1,200) do @(echo out-%i & echo err-%i 1>&2)", timeoutSeconds: 60),
+            Cmd("/c for /l %i in (1,1,200) do @(echo out-%i & echo err-%i 1>&2)", timeoutSeconds: 300),
             CancellationToken.None);
 
         var sequences = result.Lines.Select(l => l.Sequence).ToArray();
