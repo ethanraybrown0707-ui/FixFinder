@@ -13,8 +13,8 @@ until the program prints what it should. FixFinder never changes your files.
 
 ## Using it
 
-1. **Choose a program.** Drop the file on the window, or press **Choose a file…**. When the file is hard to find, press
-   **or paste the code in instead**, and paste the program's code into the box.
+1. **Choose a program.** Drop the file on the window, or press **File…** and pick it. When the file is hard to find, press
+   **Paste code** and paste the program's code into the box; **Folder…** checks every program in a folder.
 2. **Press the language it is written in** - Python, Java, C#, C, C++, JavaScript or Go, or **Auto-detect**. That starts
    both checks at once. The program is compiled if it needs to be, and run. For pasted code, **Auto-detect** works the
    language out from what only that language writes - `System.out.println`, `#include <iostream>`, a `def` line ending
@@ -685,8 +685,8 @@ runtime installed. Keep it somewhere writable, since it writes its `Logs` folder
 
 On a machine with Windows Smart App Control, a newly built exe or DLL can be refused until Windows has seen it before,
 even when it is signed. `run-fixfinder.cmd` starts the DLL through `dotnet.exe`, which Windows already trusts, and is the
-dependable way in. Each project signs its Debug build with `sign-for-wdac.ps1` when a code-signing certificate is present,
-and does nothing when there is not one, as on CI.
+dependable way in. Each project signs its Debug build - its DLL, and the launcher exe beside it - with `sign-for-wdac.ps1`
+when a code-signing certificate is present, and does nothing when there is not one, as on CI.
 
 The logo is drawn by `FixFinder.Gui\Assets\make-icon.py`, which draws every icon size at its own scale so the small ones
 stay sharp.
