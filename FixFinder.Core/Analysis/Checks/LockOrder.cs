@@ -507,6 +507,9 @@ internal sealed class LockOrder(IrProgram program, ProgramNames names, IReadOnly
         if (function.Name == IrFunction.ModuleBody) return true;
         if (function is { IsStatic: true, Owner: not null, Name: "main" or "Main" } && program.Language is SourceLanguage.Java or SourceLanguage.CSharp) return true;
 
+        // From Java 25 a main need not be static - java makes an object of its class and calls it on the main thread all the same.
+        if (function is { IsStatic: false, Owner: not null, Name: "main" } && program.Language == SourceLanguage.Java && function.Parameters.Count <= 1) return true;
+
         return depth < ProgramNames.MostNesting && function.Name.StartsWith("lambda at line ", StringComparison.Ordinal) && !threadBodies.Contains(function) &&
             names.Targets.Enclosing(function) is { } outer && IsMainCode(outer, depth + 1);
     }
