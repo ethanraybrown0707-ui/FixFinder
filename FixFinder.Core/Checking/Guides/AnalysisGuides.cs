@@ -638,14 +638,17 @@ internal static class AnalysisGuides
             """),
 
         AtEveryLevel(["analysis-index-out-of-range"], "Asking for a position that does not exist",
-            "Positions in an array start at 0, so an array of three things has positions 0, 1 and 2. FixFinder knows this array's length here, and the position asked for is past its last one.",
-            "The array or text has a known length here, and the position asked for is past its end.",
-            "The index lies outside 0 to length - 1 for the array's known length on this path, so the bounds check throws ArrayIndexOutOfBoundsException - StringIndexOutOfBoundsException for a String.",
-            "Positions run from 0 to length - 1, so this stops the program with an ArrayIndexOutOfBoundsException.",
-            "Use a position inside the array, such as length - 1 for the last item.",
+            "Positions in an array or a list start at 0, so one of three things has positions 0, 1 and 2. FixFinder knows how many things there are here, and the position asked for is past the last one.",
+            "The array, list or text has a known length here, and the position asked for is past its end.",
+            "The index lies outside 0 to length - 1 for the known length on this path, so the bounds check throws an IndexOutOfBoundsException - ArrayIndexOutOfBoundsException for an array, StringIndexOutOfBoundsException for a String.",
+            "Positions run from 0 to length - 1, so this stops the program with an IndexOutOfBoundsException - an ArrayIndexOutOfBoundsException for an array.",
+            "Use a position inside it, such as length - 1 - or size() - 1 for a list - for the last item.",
             """
             int[] points = {3, 5, 8};
             int last = points[points.length - 1];
+
+            List<String> names = List.of("Ada", "Alan");
+            String lastName = names.get(names.size() - 1);
             """),
 
         AtEveryLevel(["analysis-empty-collection"], "Taking an item from something empty",
