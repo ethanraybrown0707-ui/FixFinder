@@ -78,6 +78,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be run."], "Not checked", "Not checked", null);
 
+        using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -175,6 +176,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             var sorted = LibraryErrors.Sort(report.Errors.Where(error => !FromTestLauncher(error)).ToList(), chosen);
             if (sorted.Note is { } missingLibrary) Note(missingLibrary);
             var codeErrors = sorted.CodeErrors;
+
+            // Code newer than the Java it is built for: which Java it needs, and whether a JDK of it is on this computer.
+            if (JavaVersionErrors.NoteFor(codeErrors, chosen) is { } needsALaterJava) Note(needsALaterJava);
 
             if (report.Errors.Count > 0)
             {
@@ -489,8 +493,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         return $"{Path.GetFileName(chosen)} has no main method, so there is nothing in it to run: Java starts a program at " +
-               "public static void main(String[] args). Choose the file of the program that has one. The code in this file was " +
-               "still read for mistakes.";
+               "public static void main(String[] args) - or, from Java 25, at a main that is not static or takes no arguments, " +
+               "such as void main(). Choose the file of the program that has one. The code in this file was still read for mistakes.";
     }
 
     /// <summary>The framework a file's tests are run with: for Python, pytest or unittest, whichever the file is written for; JUnit for Java.</summary>
@@ -1048,6 +1052,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
 
+        using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
         _launch = launch;
@@ -1174,6 +1179,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? spec.ExecutablePath
             : PythonFrontend.FindInterpreter();
 
+    /// <summary>
+    /// For a Java program, the JDK it is built with is the one everything in the check uses - reading its code, checking a
+    /// fix compiles, asking javap about a class - until the check ends; nothing for any other program.
+    /// </summary>
+    private static IDisposable? UseTheProgramsJdk(LaunchPlan launch) =>
+        launch.ChosenFile is { } chosen && chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) && JavaSetup.For(chosen).Setup is { } setup
+            ? Jdks.Using(setup.Jdk)
+            : null;
+
     /// <summary>Reads the program with its own language's parser, or returns null when that language cannot be read yet.</summary>
     private static Task<IrProgram>? ReadProgramAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
@@ -1183,7 +1197,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return PythonInterpreter(launch) is { } interpreter ? PythonFrontend.ReadAsync(files, interpreter, cancellationToken) : null;
 
         if (AllEndIn(".java"))
+        {
+            if (launch.ChosenFile is { } chosen && JavaSetup.For(chosen).Setup is { } setup) return JavaFrontend.ReadAsync(files, setup, cancellationToken);
             return JavaFrontend.FindTools() is { } tools ? JavaFrontend.ReadAsync(files, tools.Javac, tools.Java, cancellationToken) : null;
+        }
 
         if (AllEndIn(".cs")) return CSharpFrontend.ReadAsync(files, cancellationToken);
 

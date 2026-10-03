@@ -76,6 +76,10 @@ public sealed partial class VersionCatalog
     /// <summary>The library libs.alias stands for, or null when the catalog does not have it.</summary>
     public DeclaredDependency? Library(string alias) => _libraries.GetValueOrDefault(Accessor(alias));
 
+    /// <summary>The version libs.versions.alias stands for - a build's Java, say, as libs.versions.java - or null when there is none.</summary>
+    public string? Version(string alias) =>
+        _versions.FirstOrDefault(version => Accessor(version.Key) == Accessor(alias)).Value;
+
     /// <summary>The libraries libs.bundles.alias stands for, or null when the catalog does not have that bundle.</summary>
     public IReadOnlyList<DeclaredDependency>? Bundle(string alias) =>
         _bundles.TryGetValue(Accessor(alias), out var members) && members.All(_libraries.ContainsKey) ? members.Select(member => _libraries[member]).ToList() : null;

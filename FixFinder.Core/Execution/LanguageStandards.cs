@@ -18,7 +18,11 @@ public sealed record LanguageStandards
 {
     public static readonly string[] CChoices = ["", "c89", "c99", "c11", "c17", "c23"];
     public static readonly string[] CppChoices = ["c++11", "c++14", "c++17", "c++20", "c++23"];
-    public static readonly string[] JavaChoices = ["", "8", "11", "17", "21"];
+    /// <summary>
+    /// Java's releases with long-term support up to 21, and every release since: each is a release a course may be taught
+    /// in, and javac from 21 to 27 compiles for any of them up to its own.
+    /// </summary>
+    public static readonly string[] JavaChoices = ["", "8", "11", "17", "21", "22", "23", "24", "25", "26", "27"];
 
     /// <summary>What the compilers have always been given, so nothing changes until somebody chooses otherwise.</summary>
     public static readonly LanguageStandards Default = new();
@@ -28,7 +32,7 @@ public sealed record LanguageStandards
 
     public string Cpp { get; init; } = "c++17";
 
-    /// <summary>The Java release, or empty for whatever the installed JDK is.</summary>
+    /// <summary>The Java release, or empty for the one the program's project names - or, when it names none, its JDK's own.</summary>
     public string Java { get; init; } = "";
 
     /// <summary>

@@ -200,17 +200,14 @@ public static class CompileCheck
 
         // A processor runs only on the files javac is given by name, so with one, the rest of the program is named too - all
         // but the file the copy stands in for.
+        // A fix is checked for the Java the program itself is compiled for, with its preview features, by the same JDK.
         return
         [
-            .. JavaRelease(),
+            .. JavaSetup.For(originalFile).Setup?.CompilerOptions ?? [],
             .. processing, CompiledLanguages.JavaLint, "-Xmaxerrs", "500", "-d", Path.Combine(folder, "out"), .. sourceAndLibraries, copy,
             .. libraries.SourcesToName(originalFile),
         ];
     }
-
-    /// <summary>The Java release a fix is checked against, as the two arguments javac takes it in, or nothing at all.</summary>
-    private static IEnumerable<string> JavaRelease() =>
-        LanguageStandards.Current.JavaReleaseNumber is { Length: > 0 } release ? ["--release", release] : [];
 
     private static readonly ConcurrentDictionary<string, CheckResult> Remembered = new(StringComparer.Ordinal);
 
@@ -323,10 +320,10 @@ public static class CompileCheck
                     : Spec(interpreter, $"-X utf8 -m py_compile \"{copy}\"", folder);
 
             case ".java":
-                if (Toolchains.FindJavac() is not { } javac) return null;
+                if (JavaSetup.For(original).Setup is not { } setup) return null;
 
                 return Spec(
-                    javac.Program,
+                    setup.Jdk.Javac,
                     CompiledLanguages.ShortEnough(string.Join(" ", JavacArguments(copy, original, folder).Select(a => a.StartsWith('-') ? a : $"\"{a}\"")), folder, "javac"),
                     folder);
 

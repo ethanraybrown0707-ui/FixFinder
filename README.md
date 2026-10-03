@@ -95,6 +95,27 @@ An environment whose Python has since been uninstalled is passed over, and one a
 computer is not guessed at: the Python on PATH is used instead. How the program is run says which Python it is, and the
 copies changes are tried in run with the same one.
 
+A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
+computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
+those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, BellSoft's, IBM Semeru's, SAP's and Red
+Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with it
+- and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
+program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the one
+JDK. The Java it is compiled for is the one chosen in Settings, else the one its project names: `pom.xml`'s
+`maven.compiler.release`, or its source and target - as properties or as maven-compiler-plugin's own settings, from the
+`pom.xml` or a parent - or Spring Boot's `java.version`; a Gradle build's toolchain, `options.release` or
+`sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
+IntelliJ's language level; or Eclipse's compliance level. Preview features are on when the build turns them on. The JDK
+is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
+is here; else the usual one, when it is new enough; else the oldest that is. The code itself can need a later Java - a
+compact source file, with no class around its methods, and `import module` need Java 25, an unnamed `_` Java 22 - or an
+earlier one: an applet needs Java 25 or earlier, as Java 26 took the Applet API out, and a Lombok works only with the Java
+releases it supports, as Lombok's changelog records them. A project that names a later Java than any JDK here has is not
+built, and the report says which to install; code that needs a JDK that is not here is built with the nearest, and the run
+explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
+Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
+it is on this computer.
+
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
 each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and

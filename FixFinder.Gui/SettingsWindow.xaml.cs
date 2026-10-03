@@ -32,7 +32,7 @@ public partial class SettingsWindow : Window
 
         Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "Compiler's default" : choice.ToUpperInvariant());
         Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Replace("c++", "C++"));
-        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The installed JDK" : $"Java {choice}");
+        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The project's own" : $"Java {choice}");
         _standardsReady = true;
 
         RefreshCredentialState();

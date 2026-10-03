@@ -434,13 +434,14 @@ public sealed partial record JavaLibraries(
     }
 
     /// <summary>When the project's own record of its libraries last changed - its build file, its IDE settings, its lib folders.</summary>
-    private static DateTime StampOf(string project)
+    internal static DateTime StampOf(string project)
     {
         string[] recorded =
         [
             "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradle.properties",
             Path.Combine("gradle", "libs.versions.toml"), ".classpath", Path.Combine(".vscode", "settings.json"),
-            Path.Combine(".idea", "libraries"), "lib", "libs", "jars",
+            Path.Combine(".idea", "libraries"), Path.Combine(".idea", "misc.xml"), Path.Combine(".settings", "org.eclipse.jdt.core.prefs"),
+            "lib", "libs", "jars",
         ];
 
         // A project of a Gradle build reads the build's settings and other build files too.

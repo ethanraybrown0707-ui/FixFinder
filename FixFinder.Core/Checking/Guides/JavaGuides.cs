@@ -698,5 +698,96 @@ internal static class JavaGuides
             """
             int[] values = new int[Math.max(count, 0)];
             """),
+
+        Compile(@"(?:is|are) a preview feature and (?:is|are) disabled by default",
+            "Java adds new things to the language over the years, and tries some of them out first as preview features, which " +
+            "stay switched off unless they are asked for. In the JDK that built this program, something this line uses is still " +
+            "one of those, so javac will not build it. A later Java may have made it an ordinary part of the language - the note " +
+            "says which.",
+            "The code uses a feature that is only a preview in the JDK that compiled it, and javac compiles a preview feature only " +
+            "when it is told to with --enable-preview.",
+            "A preview language feature (JEP 12) is fully specified but not yet permanent: javac accepts it only with " +
+            "--enable-preview and a --release or -source of the JDK's own version, and the class files it writes then run only with " +
+            "java --enable-preview on that same release. Once a later release makes the feature final, it needs no flag there.",
+            "Build the program with a JDK of the Java that made the feature standard - the note says which, and whether one is on " +
+            "this computer - or write the code without it.",
+            """
+            public class Hello {
+                public static void main(String[] args) {
+                    System.out.println("Hello");
+                }
+            }
+            """),
+
+        Compile(@"(?:is|are) not supported in -source \d+",
+            "Each version of Java added things to the language. This program is being compiled for an older version than the " +
+            "one that brought in something this line uses, so javac refuses it, as it would for the course or project that chose " +
+            "that version.",
+            "The code uses a feature from a later Java than the release it is compiled for.",
+            "javac's -source or --release fixes the language level, and rejects a feature that came in at a later level, naming " +
+            "that level as 'use -source N or higher'.",
+            "Compile it for the Java the message names, or a later one - by changing the Java the project or Settings chooses - or " +
+            "write the line without the feature.",
+            """
+            // var needs Java 10 or later; the type written out builds on every Java
+            ArrayList<String> names = new ArrayList<>();
+            """),
+
+        Thrown("launcher error",
+            "From Java 25, main does not have to be static. When it is not, Java first makes an object of the class to call main " +
+            "on, using a constructor that takes nothing - and this class has no such constructor that Java may use: its " +
+            "constructors are private, or all of them take something.",
+            "main is not static, so java has to make an object of the class first, with a constructor that takes no arguments and " +
+            "is not private - and the class has none.",
+            "For an instance main method (JEP 512) the launcher instantiates the launched class through a non-private constructor " +
+            "with no parameters, then invokes main on that instance; the class declares none it can use.",
+            "The program never starts: java stops before any of its code runs.",
+            "Make main static - public static void main(String[] args) - or give the class a constructor that takes nothing and is " +
+            "not private.",
+            """
+            public class Game {
+                public static void main(String[] args) {
+                    new Game(3).play();
+                }
+            }
+            """,
+            pattern: @"^no non-private zero argument constructor found in class"),
+
+        Thrown("launcher error",
+            "From Java 25, main does not have to be static. When it is not, Java makes an object of the class to call main on - " +
+            "and this class is abstract, which means no object can be made of it.",
+            "main is not static, so java has to make an object of the class, and the class is abstract.",
+            "For an instance main method (JEP 512) the launcher instantiates the launched class, and an abstract class cannot be " +
+            "instantiated.",
+            "The program never starts: java stops before any of its code runs.",
+            "Make main static, or start the program from a class that is not abstract.",
+            """
+            public abstract class Shape {
+                public static void main(String[] args) {
+                    System.out.println(new Circle(2).area());
+                }
+            }
+            """,
+            pattern: @"^abstract class \S+ can not be instantiated"),
+
+        Thrown("launcher error",
+            "From Java 25, main does not have to be static. When it is not, Java makes an object of the class to call main on - " +
+            "and this class is written inside another without static, so an object of it can only be made from an object of the " +
+            "class around it, which Java does not have.",
+            "main is not static, and its class is an inner class, which java cannot make an object of on its own.",
+            "For an instance main method (JEP 512) the launcher instantiates the launched class, and a non-static inner class needs " +
+            "an enclosing instance to be constructed.",
+            "The program never starts: java stops before any of its code runs.",
+            "Make the class static, move it out to a file of its own, or make main static.",
+            """
+            public class Outer {
+                static class Program {
+                    void main() {
+                        IO.println("Hello");
+                    }
+                }
+            }
+            """,
+            pattern: @"^non-static inner class \S+ constructor can not be invoked"),
     ];
 }

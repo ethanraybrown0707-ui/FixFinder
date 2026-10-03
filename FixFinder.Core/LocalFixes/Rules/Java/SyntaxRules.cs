@@ -411,9 +411,10 @@ public sealed partial class JavaMainSignature : ILocalFixRule
 
         return LocalFix.ReplaceLine(
             Id, "Declare main as Java looks for it: public static void main(String[] args)",
-            "Java starts a program by looking for exactly `public static void main(String[] args)` - `static`, so it can be called before " +
-            "any object exists, and taking an array of the command-line arguments. Anything else compiles, because it is a legal method, " +
-            "and then is not found when the program is run.",
+            "Java starts a program at a method called main that takes the command-line arguments as an array, `String[] args` - and, " +
+            "before Java 25, only at one that is also `static`, so it can be called before any object exists; from Java 25 a main that " +
+            "takes nothing at all will do too. A main of any other shape compiles, because it is a legal method, and then is not " +
+            "found when the program is run. `public static void main(String[] args)` is found by every Java.",
             source.Path, index + 1, head + $"String[] {argument}" + match.Groups["tail"].Value);
     }
 }

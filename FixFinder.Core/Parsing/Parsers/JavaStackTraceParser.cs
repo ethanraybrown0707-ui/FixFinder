@@ -28,11 +28,21 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
     private static partial Regex JavacDetailPattern();
 
     /// <summary>
+    /// The line in brackets javac puts under an error about the Java a feature needs - (use -source 25 or higher to enable
+    /// implicitly declared classes), (use --enable-preview to enable unnamed classes) - which says what the feature needs.
+    /// In javac 27's messages only those errors have such a line of their own.
+    /// </summary>
+    [GeneratedRegex(@"^\s+\((?<hint>use .+?)\)\s*$")]
+    private static partial Regex JavacHintPattern();
+
+    /// <summary>
     /// What the java launcher itself says when it cannot start the program - no main method of the right shape, a class
     /// it cannot find, load or set up, a JavaFX application with no JavaFX modules to start it - before any of the
-    /// program runs, so no stack trace of the program follows it.
+    /// program runs, so no stack trace of the program follows it. From Java 25 a main need not be static, and the launcher
+    /// says so when it cannot make the object to call one on: a class with no constructor it may call without arguments, an
+    /// inner class, an abstract class. Each message is the launcher's own, from its launcher.properties for 21, 25 and 27.
     /// </summary>
-    [GeneratedRegex(@"^Error: (?<msg>(?:Main method (?:not found|is not static)|Could not find or load main class|LinkageError occurred while loading main class|Unable to initialize main class|A JNI error has occurred|JavaFX runtime components are missing)\b.*)$")]
+    [GeneratedRegex(@"^Error: (?<msg>(?:Main method (?:not found|is not static|must return a value of type void)|Could not find or load main class|LinkageError occurred while loading main class|Unable to initialize main class|A JNI error has occurred|JavaFX runtime components are missing|no non-private zero argument constructor found in class|non-static inner class \S+ constructor can not be invoked|abstract class \S+ can not be instantiated)\b.*)$")]
     private static partial Regex LauncherPattern();
 
     /// <summary>The exception type given to what the java launcher reports, which is not an exception the program threw.</summary>
@@ -151,6 +161,7 @@ public sealed partial class JavaStackTraceParser : IStackTraceParser, IMultiErro
             {
                 var detail = JavacDetailPattern().Match(lines[k].Text);
                 if (detail.Success) details.Add($"{detail.Groups["key"].Value}: {detail.Groups["value"].Value}");
+                else if (JavacHintPattern().Match(lines[k].Text) is { Success: true } hint) details.Add(hint.Groups["hint"].Value);
             }
 
             var file = match.Groups["file"].Value;

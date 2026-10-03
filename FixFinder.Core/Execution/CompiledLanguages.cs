@@ -247,19 +247,9 @@ public static partial class CompiledLanguages
 
     private static (BuildAndRun?, string?) Java(string source, string output, TimeSpan timeout)
     {
-        var javac = Toolchains.FindJavac();
-        var java = Toolchains.FindJava();
-
-        if (javac is null || java is null)
-        {
-            return (null,
-                $"{Path.GetFileName(source)} is Java, which has to be compiled before it can run, " +
-                "and no JDK was found.\n\n" +
-                "Install one - for example:\n" +
-                "  winget install Microsoft.OpenJDK.21\n\n" +
-                "FixFinder looks on PATH and in the usual Program Files locations, so it does not " +
-                "need to be on PATH.");
-        }
+        // The JDK and the Java it compiles for are the ones the program's project, its own code or Settings ask for.
+        var (setup, problem) = JavaSetup.For(source);
+        if (setup is null) return (null, problem);
 
         var libraries = JavaLibraries.For(source);
 
@@ -285,8 +275,8 @@ public static partial class CompiledLanguages
         var namedSources = string.Concat(libraries.SourcesToName(source).Select(file => $" \"{file}\""));
 
         var compile = Spec(
-            javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{processorPath}{sourceAndLibraries} \"{source}\"{namedSources}{launcherSource}", output, "javac"),
+            setup.Jdk.Javac,
+            ShortEnough($"-g {setup.CompilerArguments}{JavaLint} -d \"{output}\"{processorPath}{sourceAndLibraries} \"{source}\"{namedSources}{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
@@ -301,8 +291,8 @@ public static partial class CompiledLanguages
         var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherFullName} {MainClass(source)}";
 
         var run = Spec(
-            java.Program,
-            ShortEnough($"{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
+            setup.Jdk.Java,
+            ShortEnough($"{setup.RunArguments}{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
             start.Folder,
             timeout);
 
@@ -316,7 +306,8 @@ public static partial class CompiledLanguages
             : "running it with java";
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}{with}{projects}{asModule}, then {then}{StartsFrom(start, source)}."), null);
+            $"Building it with the javac of {setup.JdkExplained}{with}{projects}{asModule}{(setup.HowCompiled is { } how ? $", {how}" : "")}, " +
+            $"then {then}{StartsFrom(start, source)}."), null);
     }
 
     /// <summary>

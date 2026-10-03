@@ -170,6 +170,159 @@ public static partial class GradleBuild
         return Read(BuildFileIn(folder), folder, build);
     }
 
+    [GeneratedRegex(@"\b(?:JavaLanguageVersion\s*\.\s*of|jvmToolchain)\s*\(\s*(?<value>[^()]*(?:\([^()]*\)[^()]*)*)\)")]
+    private static partial Regex ToolchainVersion();
+
+    [GeneratedRegex(@"\boptions\s*\.\s*release\s*(?:=\s*|\.\s*set\s*\(\s*)(?<value>[^\r\n;]+)")]
+    private static partial Regex CompilerRelease();
+
+    [GeneratedRegex(@"\b(?<which>source|target)Compatibility\s*=\s*(?<value>[^\r\n;]+)")]
+    private static partial Regex Compatibility();
+
+    [GeneratedRegex(@"['""]--enable-preview['""]")]
+    private static partial Regex EnablesPreview();
+
+    [GeneratedRegex(@"(?m)^\s*(?:def|val|var|ext\.)\s*(?<name>\w+)\s*(?::\s*\w+\s*)?=\s*(?<value>\d+)\s*$")]
+    private static partial Regex NumberVariable();
+
+    /// <summary>
+    /// The Java a project of a Gradle build compiles for, as the build says it: a toolchain's languageVersion - or Kotlin's
+    /// jvmToolchain - which is also the JDK it is built with; options.release; or sourceCompatibility; and --enable-preview
+    /// among the compiler's arguments. The project's own build file says it first, then the convention plugins it applies,
+    /// then what the build files above it give allprojects { } and subprojects { }. Null when none of them says.
+    /// </summary>
+    public static DeclaredJava? JavaOf(string projectFolder, GradleSettings.Build? build)
+    {
+        var folder = Path.GetFullPath(projectFolder).TrimEnd('\\', '/');
+        var buildFile = BuildFileIn(folder);
+        var top = build?.RootFolder ?? folder;
+        var ownPath = build?.PathOf(folder) ?? ":";
+        var ownText = TextOf(buildFile);
+
+        var above = build is null ? [] : GradleSettings.Build.Above(ownPath)
+            .Select(path => build.FolderOf(path))
+            .OfType<string>()
+            .Select(aboveFolder => (Folder: aboveFolder, File: BuildFileIn(aboveFolder)))
+            .Select(project => (project.Folder, project.File, Text: TextOf(project.File)))
+            .ToList();
+
+        var variables = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (aboveFolder, _, text) in above) AddVariables(variables, text, aboveFolder);
+        AddVariables(variables, ownText, folder);
+        foreach (var text in above.Select(project => project.Text).Append(ownText))
+            foreach (Match number in NumberVariable().Matches(text)) variables[number.Groups["name"].Value] = number.Groups["value"].Value;
+
+        var catalog = VersionCatalog.Read(Path.Combine(top, "gradle", "libs.versions.toml"));
+
+        // Nearest first: its own build file - without what it gives the projects below it - then its convention plugins, then
+        // what the projects above it give every project, the nearest of them first.
+        var said = new List<(string Text, string Where)>();
+        if (buildFile is not null) said.Add((WithoutBlock(ownText, "subprojects"), Path.GetFileName(buildFile)));
+        said.AddRange(ConventionPlugins(ownText, top, build).Select(plugin => (plugin.Text, $"the convention plugin {Path.GetFileName(plugin.File)}")));
+
+        foreach (var project in Enumerable.Reverse(above).Where(project => project.File is not null))
+        {
+            foreach (var shared in new[] { "subprojects", "allprojects" })
+                if (BlockNamed(project.Text, shared) is { } body) said.Add((body, $"the {shared} {{ }} of {Path.GetRelativePath(top, project.File!)}"));
+        }
+
+        int? FirstRelease(Regex pattern, out string? where, Func<Match, bool>? wanted = null)
+        {
+            foreach (var (text, place) in said)
+            {
+                foreach (Match match in pattern.Matches(text))
+                {
+                    if (wanted is not null && !wanted(match)) continue;
+                    if (JavaReleaseIn(match.Groups["value"].Value, variables, catalog) is not { } release) continue;
+
+                    where = place;
+                    return release;
+                }
+            }
+
+            where = null;
+            return null;
+        }
+
+        var toolchain = FirstRelease(ToolchainVersion(), out var toolchainWhere);
+        var release = FirstRelease(CompilerRelease(), out var releaseWhere);
+        var source = FirstRelease(Compatibility(), out var sourceWhere, match => match.Groups["which"].Value == "source")
+                     ?? FirstRelease(Compatibility(), out sourceWhere, match => match.Groups["which"].Value == "target");
+        var preview = said.Any(text => EnablesPreview().IsMatch(text.Text));
+
+        if (release is null && toolchain is null && source is null) return preview ? new DeclaredJava(null, StrictRelease: true, preview, "the Gradle build") : null;
+
+        // The toolchain is the JDK Gradle builds with; javac then compiles for the release options.release gives, else for
+        // the sourceCompatibility, else for the toolchain's own Java.
+        var declared = release is { } strict ? new DeclaredJava(strict, StrictRelease: true, preview, $"options.release in {releaseWhere}")
+            : source is { } level ? new DeclaredJava(level, StrictRelease: false, preview, $"sourceCompatibility in {sourceWhere}")
+            : new DeclaredJava(toolchain, StrictRelease: true, preview, $"the Java toolchain in {toolchainWhere}");
+
+        return toolchain is null ? declared : declared with { JdkVersion = toolchain, JdkSaidBy = $"the Java toolchain in {toolchainWhere}" };
+    }
+
+    [GeneratedRegex(@"(?:\.\s*get\s*\(\s*\)|\.\s*toInteger\s*\(\s*\)|\.\s*toInt\s*\(\s*\)|\.\s*asInt\s*\(\s*\)|\.\s*toString\s*\(\s*\)|\s+as\s+(?:int|Integer))")]
+    private static partial Regex Conversion();
+
+    [GeneratedRegex(@"^JavaVersion\s*\.\s*VERSION_(?:1_)?(?<release>\d+)$")]
+    private static partial Regex JavaVersionConstant();
+
+    [GeneratedRegex(@"^JavaVersion\s*\.\s*toVersion\s*\(\s*(?<inner>.+?)\s*\)$")]
+    private static partial Regex JavaVersionOf();
+
+    [GeneratedRegex(@"^libs\s*\.\s*versions\s*\.\s*(?<alias>[\w.]+)$")]
+    private static partial Regex CatalogVersion();
+
+    [GeneratedRegex(@"^(?:project\s*\.\s*)?(?:findProperty|property)\s*\(\s*['""](?<name>[\w.]+)['""]\s*\)$|^providers\s*\.\s*gradleProperty\s*\(\s*['""](?<name>[\w.]+)['""]\s*\)$")]
+    private static partial Regex PropertyLookup();
+
+    [GeneratedRegex(@"^(?:(?:project|rootProject|ext)\s*\.\s*)?(?<name>[A-Za-z_]\w*)$")]
+    private static partial Regex NamedValue();
+
+    /// <summary>
+    /// A Java release as a build file writes one - 21, '21', JavaVersion.VERSION_21, JavaVersion.toVersion(21) - or a name the
+    /// build or gradle.properties sets to one, or the version catalog's libs.versions.java. Null for anything else.
+    /// </summary>
+    private static int? JavaReleaseIn(string written, IReadOnlyDictionary<string, string> variables, VersionCatalog catalog, int depth = 0)
+    {
+        if (depth > 4) return null;
+
+        var value = Conversion().Replace(written.Trim(), "").Trim();
+        while (value.EndsWith(')') && value.Count(c => c == '(') < value.Count(c => c == ')')) value = value[..^1].TrimEnd();
+
+        if (value.Length > 1 && value[0] is '\'' or '"' && value[^1] == value[0]) value = value[1..^1].Trim();
+
+        if (DeclaredJava.ReleaseNumber(value) is { } number) return number;
+        if (JavaVersionConstant().Match(value) is { Success: true } constant) return DeclaredJava.ReleaseNumber(constant.Groups["release"].Value);
+        if (JavaVersionOf().Match(value) is { Success: true } converted) return JavaReleaseIn(converted.Groups["inner"].Value, variables, catalog, depth + 1);
+        if (CatalogVersion().Match(value) is { Success: true } fromCatalog) return DeclaredJava.ReleaseNumber(catalog.Version(fromCatalog.Groups["alias"].Value));
+
+        var name = PropertyLookup().Match(value) is { Success: true } lookup ? lookup.Groups["name"].Value
+            : NamedValue().Match(value) is { Success: true } named ? named.Groups["name"].Value
+            : null;
+
+        return name is not null && variables.TryGetValue(name, out var set) ? JavaReleaseIn(set, variables, catalog, depth + 1) : null;
+    }
+
+    /// <summary>A build file's text without the blocks of that name - its subprojects { }, which are not its own project's.</summary>
+    private static string WithoutBlock(string text, string name)
+    {
+        var kept = new StringBuilder(text.Length);
+        var from = 0;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (!IsWordAt(text, i) || !Starts(text, i, name) || !OpensBlock(text, i + name.Length, out var opening) || ClosingBrace(text, opening) is not (>= 0 and var close))
+                continue;
+
+            kept.Append(text, from, i - from);
+            from = close + 1;
+            i = close;
+        }
+
+        return kept.Append(text, from, text.Length - from).ToString();
+    }
+
     private static Declared Read(string? buildFile, string projectFolder, GradleSettings.Build? build)
     {
         var top = build?.RootFolder ?? projectFolder;

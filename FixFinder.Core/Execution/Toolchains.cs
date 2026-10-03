@@ -17,15 +17,6 @@ public static class Toolchains
         @"C:\Program Files (x86)\Microsoft Visual Studio",
     ];
 
-    private static readonly string[] JavaRoots =
-    [
-        @"C:\Program Files\Java",
-        @"C:\Program Files\Eclipse Adoptium",
-        @"C:\Program Files\Microsoft",
-        @"C:\Program Files\Amazon Corretto",
-        @"C:\Program Files\Zulu",
-    ];
-
     private static readonly Lazy<Toolchain?> Msvc = new(SearchForMsvc);
 
     public static Toolchain? FindMsvc() => Msvc.Value;
@@ -172,46 +163,31 @@ public static class Toolchains
         return null;
     }
 
-    public static Toolchain? FindJavac() => FindJavaTool("javac");
+    /// <summary>javac of the JDK in use: the program's own while it is checked, otherwise the default one.</summary>
+    public static Toolchain? FindJavac() => Jdks.InUse is { } jdk ? new Toolchain("javac", jdk.Javac) : null;
 
-    public static Toolchain? FindJava() => FindJavaTool("java");
-
-    private static Toolchain? FindJavaTool(string tool)
-    {
-        if (TargetFactory.FindOnPath(tool) is { } onPath) return new Toolchain(tool, onPath);
-
-        foreach (var root in JavaRoots)
-        {
-            if (!Directory.Exists(root)) continue;
-
-            string[] jdks;
-            try { jdks = Directory.GetDirectories(root); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
-
-            foreach (var jdk in jdks.OrderByDescending(d => d, StringComparer.Ordinal))
-            {
-                foreach (var candidate in new[]
-                {
-                    Path.Combine(jdk, "bin", tool + ".exe"),
-                    Path.Combine(jdk, "jbr", "bin", tool + ".exe"),
-                })
-                {
-                    if (File.Exists(candidate)) return new Toolchain(tool, candidate);
-                }
-            }
-        }
-
-        return null;
-    }
+    /// <summary>java of the same JDK as <see cref="FindJavac"/>, so what javac builds is always run by a java that can read it.</summary>
+    public static Toolchain? FindJava() => Jdks.InUse is { } jdk ? new Toolchain("java", jdk.Java) : null;
 
     public static IReadOnlyList<string> Describe() =>
     [
         $"Python     : {TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py") ?? "not found"}",
-        $"Java       : {FindJavac()?.Description ?? "no JDK found"}",
+        .. DescribeJdks(),
         $"C#         : {TargetFactory.FindOnPath("dotnet") ?? "not found"}",
         $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"JavaScript : {TargetFactory.FindOnPath("node") ?? "not found"}",
         $"Go         : {TargetFactory.FindOnPath("go") ?? "not found"}",
     ];
+
+    /// <summary>Each JDK found, one to a line, the one used unless a program asks for another marked as the default.</summary>
+    private static IEnumerable<string> DescribeJdks()
+    {
+        var installed = Jdks.Installed;
+        if (installed.Count == 0) return ["Java       : no JDK found"];
+
+        var usual = Jdks.Default;
+        return installed.Select((jdk, index) =>
+            $"{(index == 0 ? "Java       : " : "             ")}{jdk.Description}{(jdk == usual ? " - the default" : "")}: {jdk.Home}");
+    }
 }
