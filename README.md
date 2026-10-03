@@ -28,7 +28,18 @@ until the program prints what it should. FixFinder never changes your files.
    explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
    taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
    and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
-   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
+   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text, and **Save report…** saves
+   the whole report as a web page to keep, print or hand in: every finding with all the window shows of it - in the depth
+   the slider is at - the notes, how the program was built and run, what it printed, and how this check compares with the
+   last one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
+   anything taken from the program is shown as text, never run.
+   When a program is checked again, the report says how this check compares with the last one of it - how many of the
+   last check's findings are fixed, and how many of this check's are new or still there - and marks each finding **New**
+   or **Still there**. A finding is known again by what it is, its file and the code of its line, so lines put in above it
+   leave it the same finding, and changing its line fixes it or makes it another. A crash or a wrong answer is found only
+   by running the program, so when it did not run this time, those found last time are said not to have been looked
+   for, rather than fixed. FixFinder's history keeps a fingerprint of each finding - a hash, never the code - so the fixed
+   ones are named only for a check made since FixFinder was opened; after that, they are counted.
 5. **Optionally, tick Check on save.** FixFinder then reads the code again every time the program is saved - the logic
    patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
    press the language to do that. Code that does not read as its language at all is noted rather than reported as having
@@ -644,6 +655,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--format json` | Everything each finding says, for another program to use. |
 | `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
+| `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
 
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a

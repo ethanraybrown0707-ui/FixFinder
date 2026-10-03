@@ -234,6 +234,31 @@ public class CommandLineTests : IDisposable
         Assert.Contains("syntax:", errors.ToString(), StringComparison.Ordinal);
     }
 
+    /// <summary>The report saved as the window saves it, with the program's mistake in it, and the findings still printed as lines.</summary>
+    [Fact]
+    public async Task TheWholeReportCanBeSavedAsAWebPage()
+    {
+        if (PythonFrontend.FindInterpreter() is null) return;
+
+        var file = Path.Combine(_temp.Path, "share.py");
+        await File.WriteAllTextAsync(file, "def share(prize, winners):\n    return prize / winners\n\nprint(share(120, 0))\n");
+        var page = Path.Combine(_temp.Path, "report.html");
+
+        var output = new StringWriter();
+        var errors = new StringWriter();
+
+        var code = await CommandLine.RunAsync([file, "--html", page], output, errors);
+
+        Assert.Equal(CommandLine.FoundErrors, code);
+        Assert.NotEmpty(output.ToString().Trim());
+        Assert.Contains($"report: saved to {page}", errors.ToString(), StringComparison.Ordinal);
+
+        var html = await File.ReadAllTextAsync(page);
+        Assert.Contains("<title>FixFinder report - share.py</title>", html, StringComparison.Ordinal);
+        Assert.Contains("ZeroDivisionError", html, StringComparison.Ordinal);
+        Assert.Contains("share.py  ·  line 2", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AProgramWithNothingWrongExitsCleanly()
     {

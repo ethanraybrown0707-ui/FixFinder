@@ -1,7 +1,7 @@
 using System.ComponentModel;
-using System.IO;
 using FixFinder.Core.Checking;
-using FixFinder.Core.Execution;
+using FixFinder.Core.Engine;
+using FixFinder.Core.Reporting;
 
 namespace FixFinder.Gui;
 
@@ -36,27 +36,37 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string EvidenceText => Evidence.For(Finding);
 
-    public string KindText => Finding.Kind switch
-    {
-        FindingKind.Syntax => "Syntax",
-        FindingKind.Runtime => "Runtime",
-        FindingKind.Logic => "Logic",
-        FindingKind.Performance => "Efficiency",
-        _ => "Style",
-    };
+    public string KindText => FindingText.Kind(Finding);
 
     /// <summary>The file the finding is in: for a notebook's code, the notebook, not the script FixFinder checked it as.</summary>
-    public string FileName => Path.GetFileName(Finding.InNotebook?.Notebook ?? Finding.File);
+    public string FileName => FindingText.FileName(Finding);
 
-    public string LineText => Finding.InNotebook is { } place ? $"Cell {place.Cell}, line {place.Line}"
-        : Finding.Line is { } line ? $"Line {line}"
-        : "";
+    public string LineText => FindingText.Line(Finding);
 
-    public string LocationText => Finding.InNotebook is { } place ? $"{FileName}  ·  cell {place.Cell}, line {place.Line}"
-        : Finding.Line is { } line ? $"{FileName}  ·  line {line}"
-        : FileName;
+    public string LocationText => FindingText.Location(Finding);
 
     public string Title => Finding.Title;
+
+    /// <summary>Where this finding stands against the last check of the same program, or null when there was none to compare.</summary>
+    public SinceLastCheck? Status { get; init; }
+
+    public bool HasStatus => Status is not null;
+
+    public bool IsNew => Status == SinceLastCheck.New;
+
+    public string StatusText => Status switch
+    {
+        SinceLastCheck.New => "New",
+        SinceLastCheck.StillThere => "Still there",
+        _ => "",
+    };
+
+    public string StatusTooltip => Status switch
+    {
+        SinceLastCheck.New => "The last check of this program did not find this.",
+        SinceLastCheck.StillThere => "The last check of this program found this too.",
+        _ => "",
+    };
 
     private ExplanationLevel _level = ExplanationLevel.Student;
 
@@ -116,68 +126,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string ExampleLabel => Finding.ExampleIsFromYourCode ? "CORRECTED CODE  ·  FROM YOUR FILE" : "EXAMPLE OF CORRECTED CODE";
 
     /// <summary>The lines that decide the value that goes wrong, numbered, with their shared indent taken off.</summary>
-    public string SliceCode => _sliceCode ??= Render(Finding);
+    public string SliceCode => _sliceCode ??= FindingText.Slice(Finding);
 
     public bool HasSlice => SliceCode.Length > 0;
 
     private string? _sliceCode;
-
-    private static string Render(Finding finding)
-    {
-        if (finding.Slice is not { Count: > 1 } lines) return "";
-
-        var shown = LinesOf(finding, lines);
-        if (shown.Count < 2) return "";
-
-        var indent = shown.Where(s => s.Text.Length > 0).Select(s => s.Text.Length - s.Text.TrimStart().Length).DefaultIfEmpty(0).Min();
-        var width = shown.Max(s => s.Number).ToString().Length;
-
-        // In a notebook the lines are numbered in their cells, so a cell is named wherever the lines leave the finding's own.
-        var namesCells = shown.Any(s => s.Cell != finding.InNotebook?.Cell);
-        var rendered = new List<string>();
-        int? cellNamed = null;
-
-        foreach (var (cell, number, text) in shown)
-        {
-            if (namesCells && cell is { } current && current != cellNamed)
-            {
-                rendered.Add($"cell {current}");
-                cellNamed = current;
-            }
-
-            rendered.Add($"{number.ToString().PadLeft(width)}  {(text.Length >= indent ? text[indent..] : text.TrimStart())}");
-        }
-
-        return string.Join("\n", rendered);
-    }
-
-    /// <summary>
-    /// The slice's lines as the reader has them: numbered in the file - or, for a notebook's code, numbered in their cells
-    /// and written as the notebook has them, without any line FixFinder put in itself to run the notebook.
-    /// </summary>
-    private static List<(int? Cell, int Number, string Text)> LinesOf(Finding finding, IReadOnlyList<int> lines)
-    {
-        if (finding.InNotebook is not null && NotebookScript.Of(finding.File) is { } notebook)
-        {
-            return [.. lines
-                .Select(line => (Place: notebook.PlaceOf(line), Code: notebook.CodeOf(line)))
-                .Where(line => line.Place is not null && line.Code is not null)
-                .Select(line => ((int?)line.Place!.Cell, line.Place.Line, line.Code!.TrimEnd()))];
-        }
-
-        string[] source;
-        try
-        {
-            source = File.ReadAllLines(finding.File);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            return [];
-        }
-
-        return [.. lines.Where(line => line >= 1 && line <= source.Length).Select(line => ((int?)null, line, source[line - 1].TrimEnd()))];
-    }
-
     public string CheckedText => Finding.FixCheckedBy is { Length: > 0 } how ? how : "";
 
     public bool HasCheck => CheckedText.Length > 0;
@@ -193,33 +146,15 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool Follows => FollowsFrom is not null;
 
-    public string FollowsText => FollowsFrom is { } cause
-        ? $"Follows from the problem {Where(cause)} - fixing that one should remove this."
-        : "";
+    public string FollowsText => FollowsFrom is { } cause ? FindingText.Follows(cause) : "";
 
     public bool Explains => LeadsTo.Count > 0;
 
-    public string ExplainsText => LeadsTo.Count switch
-    {
-        0 => "",
-        1 => $"The problem {Where(LeadsTo[0])} looks like a consequence of this one, so fixing this may remove it too.",
-        _ when LeadsTo.All(consequence => consequence.InNotebook is null) =>
-            $"The problems on lines {string.Join(", ", LeadsTo.SkipLast(1).Select(consequence => consequence.Line))} and {LeadsTo[^1].Line} " +
-            "look like consequences of this one, so fixing this may remove them too.",
-        _ => $"The problems {string.Join(", ", LeadsTo.SkipLast(1).Select(Where))} and {Where(LeadsTo[^1])} " +
-             "look like consequences of this one, so fixing this may remove them too.",
-    };
-
-    /// <summary>Where a finding is, as the reader would look for it: a line of the file, or a line of a notebook's cell.</summary>
-    private static string Where(Finding finding) => finding.InNotebook is { } place
-        ? $"in cell {place.Cell} on line {place.Line}"
-        : $"on line {finding.Line}";
+    public string ExplainsText => FindingText.Explains(LeadsTo);
 
     public bool HasState => Finding.State is { Rows.Count: > 0 };
 
-    public string StateHeading => Finding.State is not { } state ? ""
-        : Finding.InNotebook is { } place ? $"WHAT LINE {state.Line} OF CELL {place.Cell} DID, EACH TIME IT RAN"
-        : $"WHAT LINE {state.Line} DID, EACH TIME IT RAN";
+    public string StateHeading => FindingText.StateHeading(Finding).ToUpperInvariant();
 
     public IReadOnlyList<string> StateColumns => Finding.State?.Columns ?? [];
 
@@ -232,27 +167,21 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>Where to read more about what this finding is about, on the language's own documentation.</summary>
     public bool HasFurtherReading => Finding.FurtherReading is not null;
 
-    public string FurtherReadingText => Finding.FurtherReading is { } reading
-        ? $"Search {reading.SiteName} for {reading.Term}"
-        : "";
+    public string FurtherReadingText => FindingText.FurtherReading(Finding) ?? "";
 
     public string FurtherReadingUrl => Finding.FurtherReading?.Url ?? "";
 
     /// <summary>The CWE entry this finding is an instance of, when one fits exactly.</summary>
     public bool HasWeakness => Finding.Weakness is not null;
 
-    public string WeaknessText => Finding.Weakness is { } weakness ? $"CWE-{weakness.Id}: {weakness.Title}" : "";
+    public string WeaknessText => FindingText.Weakness(Finding) ?? "";
 
     public string WeaknessUrl => Finding.Weakness?.Url ?? "";
 
     /// <summary>Where the fix came from, so it can be checked rather than taken on trust.</summary>
     public bool HasOrigin => Finding.CameFrom is not null && Finding.Fix is not null;
 
-    public string OriginText => Finding.CameFrom is { } came
-        ? came.HasLink ? $"Taken from {came.SourceName}: {came.Title}"
-        : came.IsTheLanguagesOwn ? $"Suggested by {came.SourceName} itself, in {came.Title}"
-        : $"Worked out by FixFinder's own rule `{came.Title}`"
-        : "";
+    public string OriginText => FindingText.Origin(Finding) ?? "";
 
     public bool HasOriginLink => Finding.CameFrom?.HasLink == true;
 
@@ -267,13 +196,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public IReadOnlyList<VerificationLine> VerificationLines => Finding.Verified.Steps
         .OrderBy(step => step.Stage)
         .Select(step => new VerificationLine(
-            step.Result switch
-            {
-                StageResult.Passed => "✓",
-                StageResult.Failed => "✕",
-                StageResult.Inconclusive => "?",
-                _ => "–",
-            },
+            FindingText.Mark(step.Result),
             step.Detail,
             step.Result == StageResult.Passed,
             step.Result == StageResult.Failed))
@@ -298,15 +221,15 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool HasFoundBy => Finding.FoundBy is not null;
 
-    public string FoundByText => Finding.FoundBy is { } technique ? $"Found by {technique}" : "";
+    public string FoundByText => FindingText.FoundBy(Finding) ?? "";
 
     public bool HasWitness => Finding.Witness is not null;
 
-    public string WitnessText => Finding.Witness is { } witness ? $"Fails when {witness}" : "";
+    public string WitnessText => FindingText.Witness(Finding) ?? "";
 
     public bool HasConfirmation => Finding.Confirmation is not null;
 
-    public string ConfirmationText => Finding.Confirmation is { } ran ? $"Confirmed: {ran}" : "";
+    public string ConfirmationText => FindingText.Confirmation(Finding) ?? "";
 
     /// <summary>What the fix changes in what the program does, from comparing it with the original path by path.</summary>
     public IReadOnlyList<string> FixChanges => Finding.FixChanges ?? [];

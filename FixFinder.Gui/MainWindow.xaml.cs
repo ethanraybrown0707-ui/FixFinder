@@ -12,6 +12,7 @@ using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Http;
 using FixFinder.Core.Logic;
+using FixFinder.Core.Reporting;
 using FixFinder.Core.Security;
 using FixFinder.Core.Sources;
 using Microsoft.Win32;
@@ -50,6 +51,21 @@ public partial class MainWindow : Window
 
     /// <summary>What was found the last few times, so a report can say whether things are getting better.</summary>
     private readonly CheckHistory _history = CheckHistory.Load();
+
+    /// <summary>
+    /// The last check of each program in this session, findings and all - the only place a fixed finding can be named from,
+    /// as the history on disk keeps no more than a fingerprint of each.
+    /// </summary>
+    private readonly Dictionary<string, (CheckRecord Record, IReadOnlyList<Finding> Findings)> _checkedThisSession = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>This check beside the last check of the same program, when there was one; null while a check runs.</summary>
+    private CheckComparison? _comparison;
+
+    /// <summary>The report on screen, as it finished, for saving: the summaries the lanes show, and whether it was only read.</summary>
+    private CheckReport? _shownReport;
+    private bool _shownReportOnlyRead;
+    private DateTimeOffset _shownReportAt;
+
     private Severity? _filter;
 
     /// <summary>
@@ -234,7 +250,12 @@ public partial class MainWindow : Window
 
                 // A program checked as part of a folder was still checked, so it counts: the next look at that file on
                 // its own has something to be compared with.
-                if (report is not null) _history.Record(CheckRecord.Of(row.Program.Entry, report.Findings));
+                if (report is not null)
+                {
+                    var record = CheckRecord.Of(row.Program.Entry, report.Findings, ran: report.Run is not null);
+                    _history.Record(record);
+                    _checkedThisSession[row.Program.Entry] = (record, report.Findings);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -640,6 +661,10 @@ public partial class MainWindow : Window
         EfficiencyIntro.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
         CopyReportButton.IsEnabled = false;
+        SaveReportButton.IsEnabled = false;
+        SinceLastPanel.Visibility = Visibility.Collapsed;
+        _comparison = null;
+        _shownReport = null;
 
         ReportSubtitleText.Text = $"{ProgramShown(launch.ShownFile ?? launch.Spec!.ExecutablePath)}  ·  {LanguageShown(finished: false)}  ·  checking…";
 
@@ -660,8 +685,9 @@ public partial class MainWindow : Window
 
         foreach (var note in report.Notes) _notes.Add(note);
 
-        ShowFindings(report.Findings);
+        // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
+        ShowFindings(report.Findings);
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary,
             report.Findings.Any(f => f.Severity == Severity.Error && f.Kind is FindingKind.Syntax or FindingKind.Runtime && f.FoundBy is null) ? LaneState.Failed : LaneState.Passed);
@@ -687,6 +713,7 @@ public partial class MainWindow : Window
         foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
 
         CopyReportButton.IsEnabled = report.Findings.Count > 0;
+        KeepForSaving(report, onlyRead: false);
     }
 
     private void OnFindingsChanged(IReadOnlyList<Finding> findings) => Dispatcher.BeginInvoke(() => ShowFindings(findings));
@@ -700,16 +727,90 @@ public partial class MainWindow : Window
     /// </remarks>
     private void RememberThisCheck(CheckReport report)
     {
+        _comparison = null;
+        SinceLastPanel.Visibility = Visibility.Collapsed;
         if (_chosenPath is not { Length: > 0 } file) return;
 
-        var now = CheckRecord.Of(file, report.Findings);
-        var said = CheckHistory.Since(_history.LastTime(file), now);
+        var ran = report.Run is not null;
+        var now = CheckRecord.Of(file, report.Findings, ran: ran);
+        var last = _history.LastTime(file);
+
+        // The last check's findings themselves are to hand only when it was made in this session, and only then is a fixed
+        // one named; the history on disk keeps no more than a fingerprint of each.
+        var lastFindings = last is not null && _checkedThisSession.TryGetValue(file, out var held) && held.Record.When == last.When ? held.Findings : null;
+
+        _comparison = CheckComparison.Of(last, report.Findings, ran, lastFindings);
+        var said = _comparison?.Summary(now.When) ?? CheckHistory.Since(last, now);
 
         SinceLastText.Text = said ?? "";
-        SinceLastText.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
+        FixedSinceLastList.ItemsSource = _comparison?.Fixed.Select(finding => new FixedRow(finding.Title, FindingText.Location(finding))).ToList();
+        SinceLastPanel.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
 
         // Recorded after the comparison, so this check is not compared with itself.
         _history.Record(now);
+        _checkedThisSession[file] = (now, report.Findings);
+    }
+
+    /// <summary>A finding the last check of this program found and this one did not, as the report names it.</summary>
+    private sealed record FixedRow(string Title, string Where);
+
+    /// <summary>Keeps the report on screen as it finished, so it can be saved as it stands.</summary>
+    private void KeepForSaving(CheckReport report, bool onlyRead)
+    {
+        _shownReport = report;
+        _shownReportOnlyRead = onlyRead;
+        _shownReportAt = DateTimeOffset.Now;
+        SaveReportButton.IsEnabled = true;
+    }
+
+    /// <summary>
+    /// Saves the report on screen as a web page: everything the window shows of each finding, in the explanation depth
+    /// chosen, with the comparison with the last check and what the program printed - to keep, print or hand in.
+    /// </summary>
+    private void SaveReportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_shownReport is not { } report) return;
+
+        var page = new ReportPage
+        {
+            Program = ProgramShown(_launch?.ShownFile ?? _chosenPath),
+            Language = LanguageShown(finished: true),
+            CheckedAt = _shownReportAt,
+            Level = _preferences.Explanations,
+            HowItRan = _shownReportOnlyRead ? "Read again as it was saved, and not compiled or run." : _launch?.Explanation,
+            SyntaxSummary = report.SyntaxSummary,
+            LogicSummary = report.LogicSummary,
+            Notes = [.. _notes],
+            Findings = [.. _findings.Select(row => row.Finding)],
+            SinceLastCheck = _comparison,
+            Output = [.. _output.Select(row => row.DisplayLine)],
+        };
+
+        // Beside the program, where the person will look for it - unless it was pasted, and lives in the temp folder.
+        var programFolder = _pasting ? null : Path.GetDirectoryName(_chosenPath);
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save the report",
+            Filter = "Web page (*.html)|*.html",
+            FileName = page.SuggestedFileName,
+            DefaultExt = ".html",
+            AddExtension = true,
+            OverwritePrompt = true,
+            InitialDirectory = programFolder is not null && Directory.Exists(programFolder) ? programFolder : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            File.WriteAllText(dialog.FileName, page.ToHtml(), new System.Text.UTF8Encoding(false));
+            Flash(SaveReportButton, "Saved");
+            _logger?.Write($"Report saved to {dialog.FileName}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, $"The report could not be saved there:\n\n{ex.Message}", "FixFinder", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>
@@ -769,19 +870,16 @@ public partial class MainWindow : Window
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var collapsed = _findings.Where(r => !r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
 
-        // Which findings follow from which is worked out in Core; the window only has to look them up, which it can do
-        // because it is the one place that can see the whole report at once.
-        var byId = findings.ToDictionary(f => f.Id, f => f, StringComparer.Ordinal);
-        var followers = findings.Where(f => f.CausedBy is not null && f.Line is > 0)
-            .GroupBy(f => f.CausedBy!.RootId, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<Finding>)[.. g.OrderBy(f => f.Line)], StringComparer.Ordinal);
+        // Which findings follow from which is worked out in Core, across the whole report, as a saved report works it out.
+        var links = FindingLinks.Of(findings);
 
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
             Level = _preferences.Explanations,
-            FollowsFrom = f.CausedBy is { } cause && byId.TryGetValue(cause.RootId, out var root) && root.Line is not null ? root : null,
-            LeadsTo = followers.GetValueOrDefault(f.Id, []),
+            FollowsFrom = links.FollowsFrom(f),
+            LeadsTo = links.LeadsTo(f),
+            Status = _comparison?.StatusOf(f),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -996,6 +1094,10 @@ public partial class MainWindow : Window
         _notes.Clear();
         foreach (var note in report.Notes) _notes.Add(note);
 
+        // Only read, so it is not set beside a check that compiled and ran the program.
+        _comparison = null;
+        SinceLastPanel.Visibility = Visibility.Collapsed;
+
         ShowFindings(report.Findings);
 
         if (report.Findings.Count == 0)
@@ -1011,6 +1113,7 @@ public partial class MainWindow : Window
 
         ReportSubtitleText.Text = $"{Path.GetFileName(_chosenPath ?? "")}  ·  read again as saved at {DateTime.Now:HH:mm:ss}  ·  not compiled or run";
         CopyReportButton.IsEnabled = report.Findings.Count > 0;
+        KeepForSaving(report, onlyRead: true);
 
         _logger?.WriteSection("Checked on save");
         foreach (var row in _findings) _logger?.Write(row.AsText() + Environment.NewLine);
@@ -1116,8 +1219,11 @@ public partial class MainWindow : Window
         // Nothing said of an earlier check stands beside the problem that stopped this one.
         _notes.Clear();
         _output.Clear();
-        SinceLastText.Visibility = Visibility.Collapsed;
+        SinceLastPanel.Visibility = Visibility.Collapsed;
+        _comparison = null;
+        _shownReport = null;
         CopyReportButton.IsEnabled = false;
+        SaveReportButton.IsEnabled = false;
         ReportSubtitleText.Text = "Not checked";
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, "Not checked", LaneState.Stopped);
         SetLane(LogicStatusText, LogicIcon, LogicProgress, "Not checked", LaneState.Stopped);

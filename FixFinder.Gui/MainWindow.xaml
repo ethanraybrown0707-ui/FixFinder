@@ -66,6 +66,34 @@
                                         BorderBrush="{DynamicResource CardBorderBrush}">
                                     <TextBlock Text="{Binding KindText}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                 </Border>
+                                <Border ToolTip="{Binding StatusTooltip}" AutomationProperties.AutomationId="FindingStatus"
+                                        Visibility="{Binding HasStatus, Converter={StaticResource Visible}}">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Pill}">
+                                            <Setter Property="Background" Value="{DynamicResource SubtleBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsNew}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding StatusText}" FontSize="11">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNew}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
                             </StackPanel>
                         </DockPanel>
 
@@ -671,6 +699,14 @@
                                 <TextBlock Text="Copy report"/>
                             </StackPanel>
                         </Button>
+                        <Button x:Name="SaveReportButton" AutomationProperties.AutomationId="SaveReportButton"
+                                Style="{StaticResource QuietButton}" IsEnabled="False" Click="SaveReportButton_Click" Margin="6,0,0,0"
+                                ToolTip="Saves the whole report - every finding, its fix and how it was checked - as a web page to keep, print or hand in.">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE74E;" FontSize="13" Margin="0,0,8,0"/>
+                                <TextBlock Text="Save report…"/>
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"
                                 Margin="8,0,0,0" Visibility="Collapsed" Click="StopButton_Click">
                             <StackPanel Orientation="Horizontal">
@@ -731,6 +767,32 @@
                 </Grid>
 
                 <StackPanel Grid.Row="2">
+                    <!-- This check beside the last one of the same program: what was fixed, what is new, what is still there. -->
+                    <Border x:Name="SinceLastPanel" AutomationProperties.AutomationId="SinceLastPanel" Visibility="Collapsed"
+                            Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock x:Name="SinceLastText" AutomationProperties.AutomationId="SinceLastText"
+                                       TextWrapping="Wrap" FontSize="12.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            <ItemsControl x:Name="FixedSinceLastList" AutomationProperties.AutomationId="FixedSinceLastList"
+                                          Margin="0,4,0,0" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                            <Border Style="{StaticResource Pill}" Background="{DynamicResource SuccessSoftBrush}"
+                                                    BorderBrush="{DynamicResource SuccessBorderBrush}">
+                                                <TextBlock Text="Fixed" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}"/>
+                                            </Border>
+                                            <TextBlock local:InlineCode.Text="{Binding Title}" FontSize="12.5" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Where}" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                       FontFamily="{StaticResource CodeFont}" Foreground="{DynamicResource HintBrush}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
                     <StackPanel x:Name="ViewTabs" Orientation="Horizontal" Margin="0,0,0,12" Visibility="Collapsed">
                         <RadioButton x:Name="ProblemsTab" AutomationProperties.AutomationId="ProblemsTab" GroupName="View"
                                      Style="{StaticResource ViewTab}" IsChecked="True" Checked="View_Checked"
@@ -750,9 +812,6 @@
                                          Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
                             <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
                                          Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
-                            <TextBlock x:Name="SinceLastText" AutomationProperties.AutomationId="SinceLastText"
-                                       VerticalAlignment="Center" Margin="0,0,0,0" FontSize="12" Visibility="Collapsed"
-                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>
 
                         <TextBlock Text="Explanations" VerticalAlignment="Center" Margin="18,0,10,0"

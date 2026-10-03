@@ -38,6 +38,8 @@ public static class CommandLine
           --language <name>           Python, Java, C#, C, C++, JavaScript or Go
                                       (default: worked out from the file)
           --expect <text>             what the program should print, to catch wrong answers
+          --html <file>               also save the whole report as a web page, to keep,
+                                      print or hand in
 
         The program is compiled and run, exactly as the FixFinder window does it.
         Exit code: 0 nothing wrong, 1 at least one error, 2 it could not be checked.
@@ -104,6 +106,8 @@ public static class CommandLine
 
         var level = asked.Level ?? preferences.Explanations;
 
+        if (asked.HtmlReport is { } html && !await SaveReportAsync(html, asked, launch, report, level, errors)) return CouldNotCheck;
+
         if (asked.Format == DiagnosticFormat.Json)
         {
             await output.WriteLineAsync(DiagnosticLines.Json(report.Findings, level));
@@ -116,16 +120,53 @@ public static class CommandLine
         return report.Findings.Any(f => f.Severity == Severity.Error) ? FoundErrors : NothingWrong;
     }
 
+    /// <summary>
+    /// Saves the report as the window's Save report saves it - every finding with its fix and how it was checked, and what
+    /// the program printed - and says where, or why it could not.
+    /// </summary>
+    private static async Task<bool> SaveReportAsync(string path, Asked asked, LaunchPlan launch, CheckReport report, ExplanationLevel level, TextWriter errors)
+    {
+        var page = new Reporting.ReportPage
+        {
+            Program = Path.GetFileName(launch.ShownFile ?? asked.File!),
+            Language = (asked.Language ?? CodeLanguage.Of(asked.File!))?.Name ?? "Worked out from the file",
+            CheckedAt = DateTimeOffset.Now,
+            Level = level,
+            HowItRan = launch.Explanation,
+            SyntaxSummary = report.SyntaxSummary,
+            LogicSummary = report.LogicSummary,
+            Notes = report.Notes,
+            Findings = report.Findings,
+            Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
+        };
+
+        try
+        {
+            await File.WriteAllTextAsync(path, page.ToHtml(), new System.Text.UTF8Encoding(false));
+            await errors.WriteLineAsync($"report: saved to {path}");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await errors.WriteLineAsync($"fixfinder: the report could not be saved to {path}: {ex.Message}");
+            return false;
+        }
+    }
+
     /// <summary>What was asked for on the command line.</summary>
     private sealed record Asked(
-        string? File, DiagnosticFormat Format, ExplanationLevel? Level, CodeLanguage? Language, string? Expect, string? Problem);
+        string? File, DiagnosticFormat Format, ExplanationLevel? Level, CodeLanguage? Language, string? Expect, string? Problem)
+    {
+        /// <summary>Where to save the report as a web page, when asked to.</summary>
+        public string? HtmlReport { get; init; }
+    }
 
     /// <summary>The command line read, or null when it asked for help rather than a check.</summary>
     private static Asked? Read(IReadOnlyList<string> args)
     {
         if (args.Count == 0 || args.Any(a => a is "--help" or "-h" or "/?")) return null;
 
-        string? file = null, expect = null;
+        string? file = null, expect = null, html = null;
         var format = DiagnosticFormat.MsBuild;
         ExplanationLevel? level = null;
         CodeLanguage? language = null;
@@ -168,12 +209,16 @@ public static class CommandLine
                     expect = value;
                     break;
 
+                case "--html":
+                    html = Path.GetFullPath(value);
+                    break;
+
                 default:
                     return Refused($"there is no option called {arg}");
             }
         }
 
-        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, level, language, expect, null);
+        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, level, language, expect, null) { HtmlReport = html };
     }
 
     /// <summary>A language by the name somebody would type for it.</summary>
