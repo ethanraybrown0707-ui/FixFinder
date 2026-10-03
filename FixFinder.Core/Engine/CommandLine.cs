@@ -40,6 +40,8 @@ public static class CommandLine
           --expect <text>             what the program should print, to catch wrong answers
           --html <file>               also save the whole report as a web page, to keep,
                                       print or hand in
+          --time-limit <seconds>      how long each run is given, from 1 to 3600
+                                      (default: your setting, else 60)
 
         The program is compiled and run, exactly as the FixFinder window does it.
         Exit code: 0 nothing wrong, 1 at least one error, 2 it could not be checked.
@@ -67,7 +69,9 @@ public static class CommandLine
         // command it hardly matters, but anything that calls this in-process would otherwise be left compiling under
         // somebody's saved Java 8 for good.
         var before = LanguageStandards.Current;
+        var limitBefore = TargetFactory.RunTimeLimit;
         LanguageStandards.Current = preferences.Standards;
+        TargetFactory.RunTimeLimit = asked.TimeLimit ?? preferences.RunTimeLimit;
 
         try
         {
@@ -76,6 +80,7 @@ public static class CommandLine
         finally
         {
             LanguageStandards.Current = before;
+            TargetFactory.RunTimeLimit = limitBefore;
         }
     }
 
@@ -159,6 +164,9 @@ public static class CommandLine
     {
         /// <summary>Where to save the report as a web page, when asked to.</summary>
         public string? HtmlReport { get; init; }
+
+        /// <summary>How long each run is given, when asked for on the command line.</summary>
+        public TimeSpan? TimeLimit { get; init; }
     }
 
     /// <summary>The command line read, or null when it asked for help rather than a check.</summary>
@@ -167,6 +175,7 @@ public static class CommandLine
         if (args.Count == 0 || args.Any(a => a is "--help" or "-h" or "/?")) return null;
 
         string? file = null, expect = null, html = null;
+        TimeSpan? timeLimit = null;
         var format = DiagnosticFormat.MsBuild;
         ExplanationLevel? level = null;
         CodeLanguage? language = null;
@@ -213,12 +222,18 @@ public static class CommandLine
                     html = Path.GetFullPath(value);
                     break;
 
+                case "--time-limit":
+                    if (!int.TryParse(value, out var seconds) || !TargetFactory.IsRunTimeLimit(TimeSpan.FromSeconds(seconds)))
+                        return Refused($"'{value}' is not a time limit - give a number of seconds from 1 to 3600");
+                    timeLimit = TimeSpan.FromSeconds(seconds);
+                    break;
+
                 default:
                     return Refused($"there is no option called {arg}");
             }
         }
 
-        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, level, language, expect, null) { HtmlReport = html };
+        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, level, language, expect, null) { HtmlReport = html, TimeLimit = timeLimit };
     }
 
     /// <summary>A language by the name somebody would type for it.</summary>

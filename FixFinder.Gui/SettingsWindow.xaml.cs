@@ -33,6 +33,10 @@ public partial class SettingsWindow : Window
         Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "Compiler's default" : choice.ToUpperInvariant());
         Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Replace("c++", "C++"));
         Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The project's own" : $"Java {choice}");
+
+        foreach (var limit in TargetFactory.RunTimeLimitChoices)
+            RunTimeLimitBox.Items.Add(new ComboBoxItem { Content = limit.TotalSeconds < 60 ? $"{limit.TotalSeconds:0} seconds" : limit.TotalMinutes == 1 ? "1 minute" : $"{limit.TotalMinutes:0} minutes", Tag = limit });
+        RunTimeLimitBox.SelectedIndex = Array.IndexOf(TargetFactory.RunTimeLimitChoices, _preferences.RunTimeLimit);
         _standardsReady = true;
 
         RefreshCredentialState();
@@ -96,6 +100,16 @@ public partial class SettingsWindow : Window
         _preferences.JavaRelease = Chosen(JavaReleaseBox);
 
         LanguageStandards.Current = _preferences.Standards;
+        _preferences.Save();
+    }
+
+    /// <summary>Takes effect for the next run, and is written down; a run already going keeps the time it was given.</summary>
+    private void RunTimeLimit_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_standardsReady || (RunTimeLimitBox.SelectedItem as ComboBoxItem)?.Tag is not TimeSpan chosen) return;
+
+        _preferences.RunSeconds = (int)chosen.TotalSeconds;
+        TargetFactory.RunTimeLimit = _preferences.RunTimeLimit;
         _preferences.Save();
     }
 

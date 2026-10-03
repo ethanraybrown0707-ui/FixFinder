@@ -65,6 +65,15 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
+**Let a program with a window run until I close it**, under the languages, keeps such a program open for you to use: it
+is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
+and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
+runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
+given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it keeps the usual time;
+**Stop** ends any run. How long a run is given is chosen in Settings - ten seconds to ten minutes, one minute unless
+chosen - and every run follows it: the program's own, and each copy a change is tried in. Go is always given six minutes
+for its first build, which compiles its standard library.
+
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
 beside their source, as a program built at a command line does; the rest start where the program is. When a file the
@@ -596,10 +605,11 @@ Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a ge
 
 Some limits are part of how FixFinder works:
 
-- **Time.** Each run of a program is given 60 seconds - six minutes for Go, whose first build compiles its standard
-  library - and is stopped when its time runs out. A program with a window, or a server, runs until it is closed or
-  stopped, so it is always stopped this way: what it did until then is checked, and what it would do when someone uses
-  the window, or something connects, is not.
+- **Time.** Each run of a program is given the time chosen in Settings - a minute unless chosen, and never less than six
+  minutes for Go, whose first build compiles its standard library - and is stopped when its time runs out. A server runs
+  until it is stopped, so it is always stopped this way, and so is a program with a window unless it is let run until it
+  is closed: what it did until then is checked, and what it would do when someone uses the window, or something
+  connects, is not.
 - **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
   in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
   downloads it.
@@ -656,6 +666,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
 | `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
+| `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |
 
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a

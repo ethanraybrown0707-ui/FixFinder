@@ -62,6 +62,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     public ExpectedBehaviour? Expected { get; init; }
 
+    /// <summary>Whether a program with a window runs until its window is closed, rather than for the time a run is given.</summary>
+    public bool WindowsRunUntilClosed { get; init; }
+
     /// <summary>
     /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
     /// could have changed. Null analyses everything every time.
@@ -228,13 +231,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     private async Task<SessionOutcome> RunAsync(LaunchPlan launch, CompilerReport report, CancellationToken cancellationToken)
     {
-        Progress?.Invoke(CheckLane.Syntax, $"Running {Path.GetFileName(launch.ChosenFile ?? launch.Spec!.ExecutablePath)}...");
+        var (spec, windowNote) = RunFor(launch, WindowsRunUntilClosed);
+        var shown = Path.GetFileName(launch.ShownFile ?? launch.ChosenFile ?? spec.ExecutablePath);
+
+        // The session says it is running the program by what it starts - python.exe, java.exe - so its words are said by the
+        // program's own name instead, and for a program with a window, that the run waits for its window to be closed.
+        var running = windowNote is null ? $"Running {shown}..." : $"Running {shown} until you close its window...";
+        var sessionSaysRunning = $"Running {Path.GetFileName(spec.ExecutablePath)}...";
+
+        if (windowNote is not null) Note(windowNote);
+        Progress?.Invoke(CheckLane.Syntax, running);
 
         var session = new FixFinderSession(http, sources) { Language = Language, SearchOnline = false, CheckLogic = false };
 
         void Relay(string message) => Log?.Invoke(message);
         void Forward(CapturedLine line) => LineCaptured?.Invoke(AsPrinted(line));
-        void Status(string message) => Progress?.Invoke(CheckLane.Syntax, message);
+        void Status(string message) => Progress?.Invoke(CheckLane.Syntax, message == sessionSaysRunning ? running : message);
 
         session.Log += Relay;
         session.LineCaptured += Forward;
@@ -243,8 +255,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         try
         {
             var outcome = report.Build is { } build
-                ? await session.RunAsync(launch.Spec!, null, cancellationToken, launch.SourceFolder, build.Lines, session.SanitizerFor(launch))
-                : await session.RunAsync(launch, null, cancellationToken);
+                ? await session.RunAsync(spec, null, cancellationToken, launch.SourceFolder, build.Lines, session.SanitizerFor(launch))
+                : await session.RunAsync(launch with { Spec = spec }, null, cancellationToken);
 
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
@@ -314,11 +326,34 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </summary>
     private sealed record RunsUntilStopped(string Is, string Like, string Until, string Unchecked)
     {
+        /// <summary>Whether it is a program with a window, which the person can close - rather than a server, which runs on.</summary>
+        public bool HasAWindow { get; init; }
+
         public static RunsUntilStopped Window(string toolkit) =>
-            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window");
+            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window")
+            {
+                HasAWindow = true,
+            };
 
         public static RunsUntilStopped Server(string how) =>
             new($"a server - it waits for connections with {how}", "a server", "it is stopped", "what it does when something connects");
+    }
+
+    /// <summary>
+    /// The run the program itself is given: as the launch says - or, for a program with a window when windows run until
+    /// they are closed, with no time limit, so it can be used before its window is closed and what it did is checked. Only
+    /// this run: the copies a change is tried in keep the time a run is given, as nobody is there to close their windows.
+    /// </summary>
+    internal static (TargetSpec Spec, string? WindowNote) RunFor(LaunchPlan launch, bool windowsRunUntilClosed)
+    {
+        if (!windowsRunUntilClosed || launch.ChosenFile is not { } chosen || RunsUntilStoppedOf(chosen) is not { HasAWindow: true } window)
+            return (launch.Spec!, null);
+
+        var name = Path.GetFileName(launch.ShownFile ?? chosen);
+        return (launch.Spec!.WithTimeout(Timeout.InfiniteTimeSpan),
+            $"{name} is {window.Is}, so it ran until its window was closed, as chosen, rather than for the time a run is given. What it " +
+            "printed and how it ended were checked; the copies FixFinder runs to try changes are still given that time, as nobody is " +
+            "there to close their windows.");
     }
 
     /// <summary>What a program is when it runs until it is stopped - a window program, or a server - or null for one meant to finish.</summary>

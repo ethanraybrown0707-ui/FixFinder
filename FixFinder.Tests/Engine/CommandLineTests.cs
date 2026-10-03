@@ -234,6 +234,39 @@ public class CommandLineTests : IDisposable
         Assert.Contains("syntax:", errors.ToString(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("3601")]
+    [InlineData("a minute")]
+    public async Task ATimeLimitThatIsNotOneIsRefused(string given)
+    {
+        var errors = new StringWriter();
+
+        var code = await CommandLine.RunAsync([Path.Combine(_temp.Path, "marks.py"), "--time-limit", given], new StringWriter(), errors);
+
+        Assert.Equal(CommandLine.CouldNotCheck, code);
+        Assert.Contains($"'{given}' is not a time limit - give a number of seconds from 1 to 3600", errors.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>A program stopped at the time given on the command line, and the time the window shares put back afterwards.</summary>
+    [Fact]
+    public async Task TheTimeLimitGivenStopsTheRunAndIsPutBack()
+    {
+        if (PythonFrontend.FindInterpreter() is null) return;
+
+        var file = Path.Combine(_temp.Path, "wait.py");
+        await File.WriteAllTextAsync(file, "import time\ntime.sleep(30)\nprint('done')\n");
+        var before = Core.Execution.TargetFactory.RunTimeLimit;
+
+        var output = new StringWriter();
+        var started = DateTime.UtcNow;
+        await CommandLine.RunAsync([file, "--time-limit", "2"], output, new StringWriter());
+
+        Assert.Contains("It was still running after 2 seconds", output.ToString(), StringComparison.Ordinal);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(25), "the run was not stopped at the time given");
+        Assert.Equal(before, Core.Execution.TargetFactory.RunTimeLimit);
+    }
+
     /// <summary>The report saved as the window saves it, with the program's mistake in it, and the findings still printed as lines.</summary>
     [Fact]
     public async Task TheWholeReportCanBeSavedAsAWebPage()

@@ -41,12 +41,37 @@ public static class TargetFactory
     /// </remarks>
     public static readonly TimeSpan FirstRunTimeout = TimeSpan.FromMinutes(6);
 
+    /// <summary>The times a person can give a run, in Settings: from a quick exercise's to a slow simulation's.</summary>
+    public static readonly TimeSpan[] RunTimeLimitChoices =
+        [TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30), DefaultTimeout, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10)];
+
+    /// <summary>The shortest and longest time a run can be given: long enough to start anything, short of leaving it all day.</summary>
+    public static readonly TimeSpan ShortestRunTimeLimit = TimeSpan.FromSeconds(1);
+
+    public static readonly TimeSpan LongestRunTimeLimit = TimeSpan.FromHours(1);
+
+    /// <summary>Whether a time can be given to a run: from a second to an hour.</summary>
+    public static bool IsRunTimeLimit(TimeSpan limit) => limit >= ShortestRunTimeLimit && limit <= LongestRunTimeLimit;
+
+    private static TimeSpan _runTimeLimit = DefaultTimeout;
+
+    /// <summary>
+    /// How long a run is given when the caller has not said - the program's own run, and every run of a copy a change is
+    /// tried in - as chosen in Settings or on the command line. A time outside a second to an hour counts as the default:
+    /// the value can come from a preferences file anybody can edit.
+    /// </summary>
+    public static TimeSpan RunTimeLimit
+    {
+        get => _runTimeLimit;
+        set => _runTimeLimit = IsRunTimeLimit(value) ? value : DefaultTimeout;
+    }
+
     private static readonly HashSet<string> CompileBeforeRunning =
         new(StringComparer.OrdinalIgnoreCase) { ".go" };
 
-    /// <summary>How long a file of this kind is given when the caller has not said.</summary>
+    /// <summary>How long a file of this kind is given when the caller has not said - never less than Go's first build takes.</summary>
     public static TimeSpan TimeoutFor(string extension) =>
-        CompileBeforeRunning.Contains(extension) ? FirstRunTimeout : DefaultTimeout;
+        CompileBeforeRunning.Contains(extension) && FirstRunTimeout > RunTimeLimit ? FirstRunTimeout : RunTimeLimit;
 
     private sealed record Runner(
         string? Interpreter, string ArgumentPrefix = "", params string[] Alternatives);
@@ -122,7 +147,7 @@ public static class TargetFactory
 
         if (CompiledLanguages.Handles(extension))
         {
-            var (built, problem) = CompiledLanguages.Prepare(full, timeout ?? DefaultTimeout);
+            var (built, problem) = CompiledLanguages.Prepare(full, timeout ?? RunTimeLimit);
 
             if (built is null) return LaunchPlan.Failed(problem!);
 
@@ -303,7 +328,7 @@ public static class TargetFactory
                 ["MPLBACKEND"] = "Agg",
                 ["PYTHONWARNINGS"] = warnings,
             },
-            Timeout = timeout ?? DefaultTimeout,
+            Timeout = timeout ?? RunTimeLimit,
         };
 
         var how = $"Running the code cells of {notebookName} in order, as Jupyter's Run All does, with " +
@@ -320,7 +345,7 @@ public static class TargetFactory
             Arguments = arguments,
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = launchViaDotnet,
-            Timeout = timeout ?? DefaultTimeout,
+            Timeout = timeout ?? RunTimeLimit,
         };
 
     private static string? Resolve(Runner runner)

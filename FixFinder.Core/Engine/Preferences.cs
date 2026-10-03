@@ -51,6 +51,20 @@ public sealed class Preferences
     [JsonIgnore]
     public LanguageStandards Standards => new() { C = CStandard, Cpp = CppStandard, Java = JavaRelease };
 
+    /// <summary>How many seconds a run is given, as chosen in Settings.</summary>
+    public int RunSeconds { get; set; } = (int)TargetFactory.DefaultTimeout.TotalSeconds;
+
+    /// <summary>The time a run is given: the seconds chosen, or the default for a number outside a second to an hour.</summary>
+    [JsonIgnore]
+    public TimeSpan RunTimeLimit =>
+        TargetFactory.IsRunTimeLimit(TimeSpan.FromSeconds(RunSeconds)) ? TimeSpan.FromSeconds(RunSeconds) : TargetFactory.DefaultTimeout;
+
+    /// <summary>
+    /// Whether a program with a window runs until its window is closed, rather than for the time a run is given - so it
+    /// can be used before FixFinder checks what it did.
+    /// </summary>
+    public bool WindowsRunUntilClosed { get; set; }
+
     public static Preferences Load(string? path = null)
     {
         var file = path ?? FilePath;

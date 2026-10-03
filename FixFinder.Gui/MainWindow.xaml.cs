@@ -46,8 +46,11 @@ public partial class MainWindow : Window
 
     private List<FindingRow> _findings = [];
 
-    /// <summary>What the person chose last time they used FixFinder, read once when the window opens.</summary>
-    private readonly Preferences _preferences = Preferences.Load();
+    /// <summary>
+    /// What the person chose last time they used FixFinder, read when the window opens - and again when Settings closes,
+    /// which writes each choice down as it is made, so saving these never puts back what Settings changed.
+    /// </summary>
+    private Preferences _preferences = Preferences.Load();
 
     /// <summary>What was found the last few times, so a report can say whether things are getting better.</summary>
     private readonly CheckHistory _history = CheckHistory.Load();
@@ -126,6 +129,7 @@ public partial class MainWindow : Window
 
         ExplanationDepthSlider.Value = (int)_preferences.Explanations;
         ExplanationDepthText.Text = DepthName(_preferences.Explanations);
+        WindowsRunUntilClosedBox.IsChecked = _preferences.WindowsRunUntilClosed;
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -610,6 +614,7 @@ public partial class MainWindow : Window
             Language = _language,
             Expected = expected.IsEmpty ? null : expected,
             Cache = _analysisCache,
+            WindowsRunUntilClosed = _preferences.WindowsRunUntilClosed,
         };
         checker.FindingsChanged += OnFindingsChanged;
         checker.Progress += OnProgress;
@@ -1334,12 +1339,29 @@ public partial class MainWindow : Window
         timer.Start();
     }
 
+    /// <summary>
+    /// Whether a program with a window runs until its window is closed - for the next check of one program, and written
+    /// down. A check already running keeps the run it started with.
+    /// </summary>
+    private void WindowsRunUntilClosed_Changed(object sender, RoutedEventArgs e)
+    {
+        var chosen = WindowsRunUntilClosedBox.IsChecked == true;
+        if (chosen == _preferences.WindowsRunUntilClosed) return;
+
+        _preferences.WindowsRunUntilClosed = chosen;
+        _preferences.Save();
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         var settings = new SettingsWindow(_http) { Owner = this };
         settings.ShowDialog();
 
         if (settings.Saved) _logger?.Write("Credentials updated.");
+
+        // Settings wrote down what it changed - the language versions, the time a run is given - so this window's copy is
+        // read again, or the next thing it saves would put the old ones back.
+        _preferences = Preferences.Load();
     }
 
     private void OpenLogButton_Click(object sender, RoutedEventArgs e)

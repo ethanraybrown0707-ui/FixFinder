@@ -96,6 +96,17 @@
                     </StackPanel>
                 </GroupBox>
 
+                <GroupBox Header="Runs" Margin="0,0,0,12">
+                    <StackPanel Margin="4">
+                        <TextBlock Style="{DynamicResource Hint}" Margin="0,0,0,8"
+                                   Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build. A program with a window can instead run until you close it: tick that under Check it as."/>
+                        <ComboBox x:Name="RunTimeLimitBox" Width="160" HorizontalAlignment="Left"
+                                  SelectionChanged="RunTimeLimit_Changed"
+                                  AutomationProperties.AutomationId="RunTimeLimitBox"
+                                  AutomationProperties.Name="How long a run is given"/>
+                    </StackPanel>
+                </GroupBox>
+
                 <GroupBox Header="Appearance" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock Text="Which colours FixFinder uses. It changes at once - nothing is checked again."

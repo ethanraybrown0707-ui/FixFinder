@@ -117,6 +117,9 @@ public sealed record CheckComparison(
     /// <summary>The comparison in a sentence: "Since the last check, 10 minutes ago: 2 fixed, 1 new and 3 still there."</summary>
     public string Summary(DateTimeOffset now)
     {
+        if (FixedCount + NewCount + StillThereCount + NotCheckedCount == 0)
+            return $"Since the last check, {CheckHistory.Ago(now - LastChecked)}: still nothing found.";
+
         var parts = new List<string> { $"{FixedCount} fixed", $"{NewCount} new", $"{StillThereCount} still there" };
         var said = $"Since the last check, {CheckHistory.Ago(now - LastChecked)}: {parts[0]}, {parts[1]} and {parts[2]}.";
 

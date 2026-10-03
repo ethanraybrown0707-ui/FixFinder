@@ -105,6 +105,15 @@ public class CheckComparisonTests : IDisposable
     }
 
     [Fact]
+    public void TwoChecksThatFoundNothingSaySo()
+    {
+        var file = Program("print(1 + 1)");
+        var last = CheckRecord.Of(file, [], Earlier, ran: true);
+
+        Assert.Equal("Since the last check, 12 minutes ago: still nothing found.", CheckComparison.Of(last, [], ranNow: true)!.Summary(Later));
+    }
+
+    [Fact]
     public void WithNoLastCheckThereIsNothingToCompare()
     {
         var file = Program("int x = 1;");

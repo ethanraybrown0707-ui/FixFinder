@@ -598,6 +598,12 @@
                             <Button x:Name="UseDetectedLanguageButton" AutomationProperties.AutomationId="UseDetectedLanguageButton"
                                     Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,12,0,0"
                                     Visibility="Collapsed" Click="UseDetectedLanguageButton_Click"/>
+
+                            <CheckBox x:Name="WindowsRunUntilClosedBox" AutomationProperties.AutomationId="WindowsRunUntilClosedBox"
+                                      Content="Let a program with a window run until I close it" Margin="0,16,0,0"
+                                      FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"
+                                      Checked="WindowsRunUntilClosed_Changed" Unchecked="WindowsRunUntilClosed_Changed"
+                                      ToolTip="A program with a window - JavaFX, Swing, tkinter, turtle, pygame and the like - stays open for you to use, and FixFinder checks what it did once you close its window. Otherwise it is stopped when the time a run is given is up. When a folder is checked, each program is given that time, so the folder is not held up."/>
                         </StackPanel>
                     </Border>
 
