@@ -138,8 +138,9 @@ maven-compiler-plugin in `annotationProcessorPaths`, or a Gradle build gives `an
 the build names none, any that the program's libraries hold, as javac did by default until JDK 23. As javac runs a
 processor only on the files it is given by name, every file of the program is then named, as a build names them - its
 tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
-path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
-to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
+path, as JavaFX's documentation runs one, since java before Java 27 will not start a JavaFX application from the class
+path - Java 27's starts one the JavaFX way only when JavaFX is among the modules it started with; with none to give it,
+and a java that will not start it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
 computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A Gradle build that applies the JavaFX plugin,
 `org.openjfx.javafxplugin`, has the modules its `javafx { }` block names, with those they need as the plugin's own list
 has them, each as the jar of it for this computer that Gradle downloaded - or from the `lib` folder of the JavaFX SDK the

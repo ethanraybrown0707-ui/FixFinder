@@ -1116,6 +1116,17 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         var report = await CheckAsync(app);
 
         Assert.Empty(report.Findings);
+
+        // From JDK 27 the java launcher starts an Application subclass the JavaFX way only when javafx.graphics is one of the
+        // modules it booted with (LauncherHelper, jdk-27-ga); otherwise it calls the class's main like any other, and the
+        // stand-in JavaFX on the class path starts the program.
+        if (Jdks.InUse is { Version: >= 27 })
+        {
+            Assert.DoesNotContain(report.Notes, note => note.StartsWith("Java would not start HelloApp.java", StringComparison.Ordinal));
+            Assert.Equal("It builds, and it runs to the end", report.SyntaxSummary);
+            return;
+        }
+
         Assert.Contains(report.Notes, note => note.StartsWith("Java would not start HelloApp.java: its class extends javafx.application.Application", StringComparison.Ordinal));
         Assert.Equal("It builds; Java would not start it without JavaFX", report.SyntaxSummary);
     }

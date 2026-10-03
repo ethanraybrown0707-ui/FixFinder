@@ -40,10 +40,16 @@ public sealed partial class JavaWeakerAccess : ILocalFixRule
     }
 }
 
-/// <summary><c>method does not override or implement a method from a supertype</c> - a misspelt <c>@Override</c>.</summary>
+/// <summary>
+/// <c>method does not override or implement a method from a supertype</c> - a misspelt <c>@Override</c>. From JDK 26 javac
+/// names the method and its class: <c>speek() in Dog does not override or implement a method from a supertype</c>.
+/// </summary>
 public sealed partial class JavaOverrideTypo : ILocalFixRule
 {
     public string Id => "java-override-typo";
+
+    [GeneratedRegex(@"^(?:method|\S+\(.*\) in \S+) does not override or implement a method from a supertype$")]
+    private static partial Regex Message();
 
     [GeneratedRegex(@"^\s*(?:(?:public|protected|private|static|final|synchronized|abstract|default)\s+)*(?:<[^>]+>\s+)?[\w$<>\[\],.? ]+?\s+(?<name>[\w$]+)\s*\(")]
     private static partial Regex Method();
@@ -65,7 +71,7 @@ public sealed partial class JavaOverrideTypo : ILocalFixRule
 
     public LocalFix? Propose(LocalFixContext context)
     {
-        if (context.Error.Message != "method does not override or implement a method from a supertype" || JavaCode.Locate(context) is not { } at) return null;
+        if (!Message().IsMatch(context.Error.Message ?? "") || JavaCode.Locate(context) is not { } at) return null;
 
         var (source, number, _) = at;
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);

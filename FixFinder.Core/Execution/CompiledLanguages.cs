@@ -280,8 +280,9 @@ public static partial class CompiledLanguages
             Path.GetDirectoryName(source)!,
             timeout);
 
-        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java will not start a class that
-        // extends javafx.application.Application from JavaFX on the class path.
+        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java before Java 27 will not start a
+        // class that extends javafx.application.Application from JavaFX on the class path, and Java 27's starts one the JavaFX
+        // way only when javafx.graphics is among the modules it started with.
         var javaFx = libraries.JavaFxModules;
         var modulePath = javaFx.Count > 0 ? $"--module-path \"{string.Join(Path.PathSeparator, javaFx)}\" --add-modules ALL-MODULE-PATH " : "";
 

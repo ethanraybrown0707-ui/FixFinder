@@ -460,7 +460,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return null;
         }
 
-        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which java starts only with " +
+        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which this java starts only with " +
                "JavaFX's modules, and none are among the program's libraries - FixFinder looks in its pom.xml or build.gradle, its IDE's " +
                "library settings and its lib folder. Naming JavaFX in one of those lets it run. The code was still read for mistakes.";
     }

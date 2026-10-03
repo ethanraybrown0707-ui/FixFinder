@@ -70,7 +70,7 @@ public sealed partial record JavaLibraries(
 
     /// <summary>
     /// JavaFX's own modules among the libraries - javafx.base, javafx.controls and the rest - which the program is run with on
-    /// the module path, as JavaFX's documentation runs one: java will not start a class that extends
+    /// the module path, as JavaFX's documentation runs one: java before Java 27 will not start a class that extends
     /// javafx.application.Application with JavaFX on the class path, and says its "runtime components are missing".
     /// </summary>
     public IReadOnlyList<string> JavaFxModules { get; init; } = [];

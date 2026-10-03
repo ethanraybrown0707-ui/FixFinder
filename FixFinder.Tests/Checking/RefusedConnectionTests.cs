@@ -119,8 +119,20 @@ public class RefusedConnectionTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(file, CodeLanguage.Java);
 
-        // Java gives no reason with it, so that the connection was refused is what is typical, not what was said.
+        var printed = report.Run?.Run?.Lines.Select(line => line.Text).ToList() ?? [];
+        foreach (var line in printed) output.WriteLine($"printed: {line}");
+
+        // Java 21's and 25's HTTP client give their ConnectException no reason; Java 27's says, under it, that the connection was
+        // refused. The finding goes by what this JDK said: certain when it said so, likely when it gave no reason.
         var refused = RefusalIn(report);
+        if (printed.Any(line => line.Contains("Connection refused", StringComparison.OrdinalIgnoreCase)))
+        {
+            Assert.Equal(Confidence.Certain, refused.Confidence);
+            Assert.Equal("It could not connect: the connection was refused", refused.Title);
+            return;
+        }
+
+        // Java gives no reason with it, so that the connection was refused is what is typical, not what was said.
         Assert.Equal(Confidence.Likely, refused.Confidence);
         Assert.Equal("It could not connect: ConnectException", refused.Title);
         Assert.StartsWith("Java could not make a connection the program asked for, and gave a ConnectException with no reason", refused.Explanation, StringComparison.Ordinal);
