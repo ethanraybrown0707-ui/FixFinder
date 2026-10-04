@@ -643,8 +643,12 @@ Some limits are part of how FixFinder works:
 - **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
   code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
-  is built with the other source files beside it only when its folder holds no more than 200 files and exactly one of
-  them has a `main`; otherwise it is built on its own.
+  is built as its Makefile or CMakeLists.txt builds it; without one, it is built with the other source files beside it
+  only when its folder holds no more than 200 files and exactly one of them has a `main`, and otherwise on its own.
+- **Build files.** A Makefile or CMakeLists.txt is read, never run, so what it would only know by running something -
+  `$(shell ...)`, `execute_process`, which CMake runs it, a package `find_package` looks for, a file a command writes while
+  it builds - is not known: how the program ran names each, and a program whose files depend on one is built as if
+  there were no build file. A program built from C and C++ files together is not built as one.
 - **Reading the code.** The values are followed through the code by its own language's parser - Python's, javac's, Go's -
   run by the program's own tools; when that cannot run, a note says the code was checked against the logic patterns
   alone.
