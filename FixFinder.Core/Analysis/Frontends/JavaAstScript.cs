@@ -36,6 +36,13 @@ internal static class JavaAstScript
                 for (String line : Files.readAllLines(Paths.get(args[1]), StandardCharsets.UTF_8))
                     if (!line.isEmpty()) files.add(line);
 
+                // javac's own options for the program, one to a line - --enable-preview, for a program built with its preview
+                // features - so its code is read as the program's build reads it.
+                List<String> options = new ArrayList<>(List.of("-proc:none"));
+                if (args.length > 2)
+                    for (String line : Files.readAllLines(Paths.get(args[2]), StandardCharsets.UTF_8))
+                        if (!line.isEmpty()) options.add(line);
+
                 JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
                 StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, StandardCharsets.UTF_8);
                 StringBuilder json = new StringBuilder("{\"files\":[");
@@ -45,7 +52,7 @@ internal static class JavaAstScript
                     json.append("{\"path\":").append(quote(files.get(i)));
 
                     DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-                    JavacTask task = (JavacTask) compiler.getTask(null, fileManager, diagnostics, List.of("-proc:none"), null,
+                    JavacTask task = (JavacTask) compiler.getTask(null, fileManager, diagnostics, options, null,
                         fileManager.getJavaFileObjects(files.get(i)));
                     Iterable<? extends CompilationUnitTree> units = task.parse();
 

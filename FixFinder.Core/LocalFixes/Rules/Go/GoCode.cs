@@ -134,21 +134,26 @@ internal static partial class GoCode
         _ => "nil",
     };
 
-    private static readonly Dictionary<string, IReadOnlyList<string>> Cache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<(string Go, string Path), IReadOnlyList<string>> Cache = new();
 
     [GeneratedRegex(@"^\s*(?:func|type|var|const)\s+(?:\([^)]*\)\s*)?(?<name>[A-Z]\w*)")]
     private static partial Regex Declared();
 
-    public static IReadOnlyList<string> ExportedNames(string path)
+    /// <summary>
+    /// What a standard package exports, as go doc lists it - of the Go the file is built with, as packages gain names from
+    /// one Go to the next, or of the Go on PATH when no file is named.
+    /// </summary>
+    public static IReadOnlyList<string> ExportedNames(string path, string? goFile = null)
     {
         if (!StandardPackages.ContainsValue(path)) return [];
 
+        var go = goFile is null ? GoToolchains.Usual?.Program : GoSetup.For(goFile)?.Go;
+        if (go is null) return [];
+
         lock (Cache)
         {
-            if (Cache.TryGetValue(path, out var known)) return known;
+            if (Cache.TryGetValue((go, path), out var known)) return known;
         }
-
-        if (TargetFactory.FindOnPath("go") is not { } go) return [];
 
         var output = Run(go, path) ?? Run(go, path);
         var names = (output ?? "").Split('\n').Select(l => Declared().Match(l)).Where(m => m.Success).Select(m => m.Groups["name"].Value).Distinct().ToList();
@@ -157,7 +162,7 @@ internal static partial class GoCode
 
         lock (Cache)
         {
-            Cache[path] = names;
+            Cache[(go, path)] = names;
         }
 
         return names;
@@ -174,6 +179,7 @@ internal static partial class GoCode
             };
 
             foreach (var argument in new[] { "doc", "-short", path }) start.ArgumentList.Add(argument);
+            foreach (var (name, value) in GoSetup.Environment) start.Environment[name] = value;
 
             using var process = Process.Start(start);
             if (process is null) return null;

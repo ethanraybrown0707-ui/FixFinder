@@ -73,7 +73,7 @@ public static partial class CompilerDiagnostics
         return extension switch
         {
             ".py" or ".pyw" => await PythonAsync(launch, files, log, cancellationToken),
-            ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(files, log, cancellationToken),
+            ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(chosen, files, log, cancellationToken),
             ".cs" => await CSharpAsync(chosen, log, cancellationToken),
             ".go" => await GoAsync(chosen, log, cancellationToken),
             _ => CompilerReport.NotChecked(),
@@ -110,6 +110,28 @@ public static partial class CompilerDiagnostics
         var folder = compile.WorkingDirectory;
         var errors = Resolved(Errors(registry, build.Lines), folder);
         var warnings = Resolved(WarningsIn(build.Lines), folder);
+
+        // A C or C++ program that does not build as the standard FixFinder gave it may be written to another: the compiler
+        // is asked which, and when it takes the program as one, the program is built as that.
+        if (errors.Count > 0 && launch.ChosenFile is { } chosen && Path.GetExtension(chosen).ToLowerInvariant() is ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" &&
+            await NativeStandards.FindAsync(chosen, compile, errors, lines => Errors(registry, lines), cancellationToken) is { } found)
+        {
+            var rebuild = new TargetSpec
+            {
+                ExecutablePath = compile.ExecutablePath,
+                Arguments = NativeStandards.WithStandard(compile.Arguments, found.Standard),
+                WorkingDirectory = compile.WorkingDirectory,
+                Timeout = compile.Timeout,
+                ExtraEnvironment = compile.ExtraEnvironment,
+            };
+
+            var rebuilt = await new TargetRunner(registry).RunAsync(rebuild, cancellationToken);
+            if (rebuilt.Outcome != RunOutcome.LaunchFailed)
+            {
+                NativeStandards.Remember(NativeBuild.For(chosen).Build?.Sources ?? ProgramLayout.NativeSources(chosen), found.Standard);
+                return new CompilerReport(true, Resolved(Errors(registry, rebuilt.Lines), folder), Resolved(WarningsIn(rebuilt.Lines), folder), rebuilt.Lines, rebuilt, found.Explained);
+            }
+        }
 
         return new CompilerReport(true, errors, warnings, build.Lines, build);
     }
@@ -204,9 +226,9 @@ public static partial class CompilerDiagnostics
         if (file is not null) yield return (file, chunk);
     }
 
-    private static async Task<CompilerReport> JavaScriptAsync(IReadOnlyList<string> files, Action<string>? log, CancellationToken cancellationToken)
+    private static async Task<CompilerReport> JavaScriptAsync(string chosen, IReadOnlyList<string> files, Action<string>? log, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("node") is not { } node) return CompilerReport.NotChecked("Node.js is not installed, so the code could not be checked.");
+        if (NodeSetup.For(chosen) is not { Node: var node }) return CompilerReport.NotChecked("Node.js is not installed, so the code could not be checked.");
 
         var errors = new List<ParsedError>();
         var output = new List<CapturedLine>();
@@ -267,7 +289,7 @@ public static partial class CompilerDiagnostics
 
     private static async Task<CompilerReport> GoAsync(string chosen, Action<string>? log, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("go") is not { } go) return CompilerReport.NotChecked("Go is not installed, so the code could not be checked.");
+        if (GoSetup.For(chosen) is not { Go: var go }) return CompilerReport.NotChecked("Go is not installed, so the code could not be checked.");
 
         var program = ProgramLayout.GoPackageOf(chosen);
         var folder = program.Module ?? Path.GetDirectoryName(chosen)!;
@@ -282,6 +304,7 @@ public static partial class CompilerDiagnostics
                 Arguments = $"build -o \"{binary}\" {targets}",
                 WorkingDirectory = folder,
                 Timeout = Timeout,
+                ExtraEnvironment = GoSetup.Environment,
             }, log, cancellationToken);
 
             if (build.Outcome is RunOutcome.LaunchFailed) return CompilerReport.NotChecked(build.LaunchError);
@@ -295,6 +318,7 @@ public static partial class CompilerDiagnostics
                 Arguments = $"vet {targets}",
                 WorkingDirectory = folder,
                 Timeout = Timeout,
+                ExtraEnvironment = GoSetup.Environment,
             }, log, cancellationToken);
 
             var warnings = Resolved(new GoCompileParser().ParseAll(vet.Lines), folder)

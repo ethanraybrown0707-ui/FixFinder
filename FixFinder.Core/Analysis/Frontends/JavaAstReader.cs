@@ -15,6 +15,12 @@ internal sealed class JavaAstReader(string file)
     /// <summary>The classes being read, innermost on top, for a lambda written in a field's initialiser rather than a method.</summary>
     private readonly Stack<string> _owners = new();
 
+    /// <summary>
+    /// The variables an instanceof pattern binds - instanceof String text - read in an expression, waiting to be declared
+    /// where the statement that tests them starts.
+    /// </summary>
+    private readonly List<Stmt> _patternVariables = [];
+
     public (IReadOnlyList<IrFunction> Functions, IReadOnlyList<IrClass> Classes) ReadUnit(JsonElement unit)
     {
         foreach (var declaration in Items(unit, "typeDecls").Where(IsTypeDeclaration))
@@ -124,7 +130,13 @@ internal sealed class JavaAstReader(string file)
     };
 
     private List<IrParameter> Parameters(JsonElement node) =>
-        Items(node, "parameters").Select(p => new IrParameter(Span(p), Text(p, "name"), TypeOf(Field(p, "type")))).ToList();
+        Items(node, "parameters").Select(p => new IrParameter(Span(p), VariableName(p), TypeOf(Field(p, "type")))).ToList();
+
+    /// <summary>
+    /// A variable's name, or _ for an unnamed one: javac gives the _ of Java 22's unnamed variables - for (var _ : list),
+    /// catch (Exception _), _ -> 0 - no name at all.
+    /// </summary>
+    private static string VariableName(JsonElement variable) => Text(variable, "name") is { Length: > 0 } name ? name : "_";
 
     /// <summary>
     /// A lambda as a function of its own, enclosed by the method it is written in - as the C# reader does. The code a
@@ -138,9 +150,13 @@ internal sealed class JavaAstReader(string file)
         var owner = enclosedBy ?? (_owners.Count > 0 ? _owners.Peek() : null);
 
         _enclosing.Push(owner is null ? name : $"{owner}.{name}");
+        var patternsBefore = _patternVariables.Count;
         IReadOnlyList<Stmt> body = Field(node, "body") is not { } written ? []
             : Kind(written) == "BLOCK" ? Block(written)
             : [new Return(Span(written), Expression(written))];
+
+        // A pattern in a lambda's expression - x -> x instanceof String s && s.isEmpty() - binds its variables in the lambda.
+        body = [.. TakePatternVariables(patternsBefore), .. body];
         _enclosing.Pop();
 
         var lambda = new IrFunction(span, name, owner, Parameters(node), IrType.Unknown, body) { EnclosedBy = enclosedBy };
@@ -161,7 +177,32 @@ internal sealed class JavaAstReader(string file)
 
     private IReadOnlyList<Stmt> Optional(JsonElement node, string name) => Field(node, name) is { } child ? Block(child) : [];
 
+    /// <summary>
+    /// The statements a node is, each after the variables an instanceof pattern in it binds - declared with the value the
+    /// pattern matched, which nothing more is known of. Statements written inside it declare their own.
+    /// </summary>
     private IEnumerable<Stmt> Statements(JsonElement node)
+    {
+        var patternsBefore = _patternVariables.Count;
+
+        foreach (var statement in StatementsOf(node))
+        {
+            foreach (var bound in TakePatternVariables(patternsBefore)) yield return bound;
+            yield return statement;
+        }
+    }
+
+    /// <summary>The pattern variables read since this many were waiting, taken off the list to be declared.</summary>
+    private List<Stmt> TakePatternVariables(int before)
+    {
+        if (_patternVariables.Count <= before) return [];
+
+        var taken = _patternVariables.GetRange(before, _patternVariables.Count - before);
+        _patternVariables.RemoveRange(before, taken.Count);
+        return taken;
+    }
+
+    private IEnumerable<Stmt> StatementsOf(JsonElement node)
     {
         var span = Span(node);
 
@@ -169,6 +210,11 @@ internal sealed class JavaAstReader(string file)
         {
             case "BLOCK":
                 foreach (var statement in Items(node, "statements").SelectMany(Statements)) yield return statement;
+                break;
+
+            // An unnamed variable, var _ = ..., keeps nothing: only what its initialiser does is left.
+            case "VARIABLE" when Text(node, "name").Length == 0:
+                if (Field(node, "initializer") is { } discarded) yield return new Evaluate(span, Expression(discarded));
                 break;
 
             case "VARIABLE":
@@ -197,8 +243,9 @@ internal sealed class JavaAstReader(string file)
 
             case "ENHANCED_FOR_LOOP":
                 var variable = Field(node, "variable")!.Value;
-                yield return new Declare(Span(variable), Text(variable, "name"), TypeOf(Field(variable, "type")), null);
-                yield return new ForEach(span, new Name(Span(variable), Text(variable, "name")), Expression(Field(node, "expression")!.Value),
+                var element = VariableName(variable);
+                yield return new Declare(Span(variable), element, TypeOf(Field(variable, "type")), null);
+                yield return new ForEach(span, new Name(Span(variable), element), Expression(Field(node, "expression")!.Value),
                     Optional(node, "statement"), []);
                 break;
 
@@ -295,22 +342,108 @@ internal sealed class JavaAstReader(string file)
             ? Items(caught, "typeAlternatives").Select(t => TypeOf(t).Name).ToList()
             : [TypeOf(type).Name];
 
-        return new Handler(Span(node), types, Text(parameter, "name"), Optional(node, "block"));
+        // catch (Exception _) keeps no variable.
+        return new Handler(Span(node), types, Text(parameter, "name") is { Length: > 0 } catchVariable ? catchVariable : null, Optional(node, "block"));
     }
 
+    /// <summary>
+    /// One case of a switch, as javac's labels give it: constants are compared with what is switched on; a pattern - case
+    /// Circle c, case Square(double side) - may or may not match, and its variables are declared at the start of what the
+    /// case runs, with its guard - when c.radius() > 10 - holding over it; default, alone or with case null, is the case
+    /// taken when no other is. From JDK 21 javac wraps each label in its kind; from 17 to 20 a label was the constant or the
+    /// pattern itself; before 17 there were only the constants, and none meant default.
+    /// </summary>
     private SwitchCase Case(JsonElement node)
     {
-        var labels = Items(node, "expressions").Select(Expression).ToList();
+        var labels = new List<Expr>();
+        var isDefault = false;
+        var patternVariables = new List<Stmt>();
 
-        if (Text(node, "caseKind") == "RULE")
+        if (Field(node, "labels") is { ValueKind: JsonValueKind.Array } written)
         {
-            var body = Field(node, "body") is { } rule
-                ? Kind(rule) is "BLOCK" or "THROW" or "EXPRESSION_STATEMENT" ? Block(rule) : [ExpressionStatement(rule)]
-                : [];
-            return new SwitchCase(labels, body, FallsThrough: false);
+            foreach (var label in written.EnumerateArray())
+            {
+                switch (Kind(label))
+                {
+                    case "DEFAULT_CASE_LABEL":
+                        isDefault = true;
+                        break;
+
+                    case "CONSTANT_CASE_LABEL":
+                        if (Field(label, "constantExpression") is { } constant) labels.Add(Expression(constant));
+                        break;
+
+                    case "PATTERN_CASE_LABEL":
+                        labels.Add(Pattern(Field(label, "pattern"), Span(label), patternVariables));
+                        break;
+
+                    case var kind when IsPattern(kind):
+                        labels.Add(Pattern(label, Span(label), patternVariables));
+                        break;
+
+                    default:
+                        labels.Add(Expression(label));
+                        break;
+                }
+            }
+        }
+        else
+        {
+            labels.AddRange(Items(node, "expressions").Select(Expression));
+            isDefault = labels.Count == 0;
         }
 
-        return new SwitchCase(labels, Items(node, "statements").SelectMany(Statements).ToList(), FallsThrough: true);
+        if (isDefault) labels.Clear();
+
+        IReadOnlyList<Stmt> body = Text(node, "caseKind") == "RULE"
+            ? Field(node, "body") is { } rule
+                ? Kind(rule) is "BLOCK" or "THROW" or "EXPRESSION_STATEMENT" ? Block(rule) : [ExpressionStatement(rule)]
+                : []
+            : Items(node, "statements").SelectMany(Statements).ToList();
+
+        if (Field(node, "guard") is { } guard)
+        {
+            var patternsBefore = _patternVariables.Count;
+            var holds = Expression(guard);
+            body = [.. TakePatternVariables(patternsBefore), new If(Span(guard), holds, body, [])];
+        }
+
+        return new SwitchCase(labels, [.. patternVariables, .. body], FallsThrough: Text(node, "caseKind") != "RULE");
+    }
+
+    /// <summary>Whether a tree is a pattern: what javac from 17 to 20 gave as a case's label, and what an instanceof tests from 16.</summary>
+    private static bool IsPattern(string kind) =>
+        kind is "BINDING_PATTERN" or "DECONSTRUCTION_PATTERN" or "RECORD_PATTERN" or "PARENTHESIZED_PATTERN" or "GUARDED_PATTERN" or "ANY_PATTERN";
+
+    /// <summary>
+    /// A pattern, as a test that may or may not match - nothing is known of what is switched on beyond its type - with each
+    /// variable it binds, however deep in a record pattern, added to <paramref name="variables"/> as declared with the value it
+    /// matched. The unnamed _ binds nothing.
+    /// </summary>
+    private Expr Pattern(JsonElement? pattern, SourceSpan span, List<Stmt> variables)
+    {
+        void Bind(JsonElement? node)
+        {
+            if (node is not { } inner) return;
+
+            switch (Kind(inner))
+            {
+                case "BINDING_PATTERN" when Field(inner, "variable") is { } variable && Text(variable, "name") is { Length: > 0 } name:
+                    variables.Add(new Declare(Span(variable), name, TypeOf(Field(variable, "type")), Opaque.Of(Span(inner), "the value the pattern matched")));
+                    break;
+
+                case "DECONSTRUCTION_PATTERN" or "RECORD_PATTERN":
+                    foreach (var nested in Items(inner, "nestedPatterns")) Bind(nested);
+                    break;
+
+                case "PARENTHESIZED_PATTERN" or "GUARDED_PATTERN":
+                    Bind(Field(inner, "pattern"));
+                    break;
+            }
+        }
+
+        Bind(pattern);
+        return Opaque.Of(span, "pattern");
     }
 
     private Expr Expression(JsonElement node)
@@ -403,7 +536,10 @@ internal sealed class JavaAstReader(string file)
                 return new Cast(span, TypeOf(Field(node, "type")), Expression(Field(node, "expression")!.Value));
 
             case "INSTANCE_OF":
-                return Opaque.Of(span, "instanceof", Expression(Field(node, "expression")!.Value));
+                // instanceof String text binds text where it matched; it is declared where the statement testing it starts.
+                var tested = Expression(Field(node, "expression")!.Value);
+                if (Field(node, "pattern") is { } pattern) Pattern(pattern, span, _patternVariables);
+                return Opaque.Of(span, "instanceof", tested);
 
             case "LAMBDA_EXPRESSION":
                 _functions.Add(Lambda(node));

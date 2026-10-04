@@ -91,7 +91,7 @@ public class IdiomaticProgramTests(ITestOutputHelper output) : IDisposable
         ".cs" => await CSharpFrontend.ReadAsync(files),
         ".js" or ".mjs" => await JavaScriptFrontend.ReadAsync(files),
         ".c" or ".cpp" => await CFrontend.ReadAsync(files),
-        ".go" => GoFrontend.FindGo() is { } go ? await GoFrontend.ReadAsync(files, go) : null,
+        ".go" => GoFrontend.FindGo(files[0]) is { } go ? await GoFrontend.ReadAsync(files, go) : null,
         var other => throw new ArgumentException($"no reader for {other} files"),
     };
 

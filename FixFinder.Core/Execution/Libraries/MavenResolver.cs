@@ -61,6 +61,54 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
         return Walk(versioned, new Dictionary<string, DeclaredDependency>(StringComparer.Ordinal), forced: null).Libraries;
     }
 
+    /// <summary>
+    /// The Java the project's build compiles for, as maven-compiler-plugin works it out: its release - javac's --release -
+    /// when one is set, else its source; each as the plugin is configured by this pom.xml or a parent, else as the
+    /// maven.compiler properties the plugin reads by default set it. Null when nothing says.
+    /// </summary>
+    public DeclaredJava? JavaOf(string pomPath)
+    {
+        if (PomFile.Read(pomPath) is not { } pom || Load(pom, pomPath, 0) is not { } project) return null;
+
+        var properties = project.Properties;
+        var compiler = project.Compiler;
+
+        // Where a value is set, for the explanation: on the plugin, or in a property - this pom.xml's own, or a parent's.
+        string Origin(string? onThePlugin, string property) =>
+            onThePlugin is not null ? $"maven-compiler-plugin's {property.Split('.')[^1]} in pom.xml"
+            : pom.Properties.ContainsKey(property) ? $"pom.xml's {property}"
+            : $"the {property} pom.xml's parent sets";
+
+        string? Setting(string? onThePlugin, string property) =>
+            onThePlugin is not null ? Fill(onThePlugin, properties) : properties.GetValueOrDefault(property) is { } value ? Fill(value, properties) : null;
+
+        var preview = string.Equals(Setting(compiler?.EnablePreview, "maven.compiler.enablePreview"), "true", StringComparison.OrdinalIgnoreCase) ||
+                      (compiler?.Arguments.Any(argument => Fill(argument, properties) == "--enable-preview") ?? false);
+
+        if (DeclaredJava.ReleaseNumber(Setting(compiler?.Release, "maven.compiler.release")) is { } release)
+            return new DeclaredJava(release, StrictRelease: true, preview, Origin(compiler?.Release, "maven.compiler.release"));
+
+        var source = Setting(compiler?.Source, "maven.compiler.source") ?? Setting(compiler?.Target, "maven.compiler.target");
+        if (DeclaredJava.ReleaseNumber(source) is { } level)
+        {
+            var said = compiler?.Source is not null || properties.ContainsKey("maven.compiler.source")
+                ? Origin(compiler?.Source, "maven.compiler.source")
+                : Origin(compiler?.Target, "maven.compiler.target");
+            return new DeclaredJava(level, StrictRelease: false, preview, said);
+        }
+
+        // Spring Boot's parent passes java.version to the compiler - as the release from Spring Boot 3, as the source and target
+        // before it - so a project whose parent has not been downloaded still says its Java there.
+        if (pom.Parent is { Group: "org.springframework.boot", Artifact: "spring-boot-starter-parent" } boot &&
+            DeclaredJava.ReleaseNumber(properties.GetValueOrDefault("java.version") is { } written ? Fill(written, properties) : null) is { } bootJava)
+        {
+            var fromBoot3 = int.TryParse(boot.Version.Split('.')[0], out var bootMajor) && bootMajor >= 3;
+            return new DeclaredJava(bootJava, StrictRelease: fromBoot3, preview, "pom.xml's java.version, which Spring Boot's parent passes to the compiler");
+        }
+
+        return preview ? new DeclaredJava(null, StrictRelease: true, preview, "pom.xml's maven-compiler-plugin") : null;
+    }
+
     /// <summary>The versions each of these BOMs sets, as one table - what a Gradle platform() brings in.</summary>
     public IReadOnlyDictionary<string, DeclaredDependency> ManagedBy(IEnumerable<LibraryName> boms)
     {
@@ -242,6 +290,7 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
             RawProcessorPaths = pom.ProcessorPaths is not { } ownPaths ? parent?.RawProcessorPaths
                 : pom.ProcessorPathsAdded ? [.. parent?.RawProcessorPaths ?? [], .. ownPaths]
                 : ownPaths,
+            Compiler = Inherited(pom.Compiler, parent?.Compiler),
         };
 
         var filledManaged = effective.RawManaged.Select(entry => Filled(entry, properties)).ToList();
@@ -325,6 +374,19 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
         return text;
     }
 
+    /// <summary>A plugin's configuration as Maven merges a child's with its parent's: each setting the child gives in place of the parent's.</summary>
+    private static PomCompiler? Inherited(PomCompiler? own, PomCompiler? parents)
+    {
+        if (own is null || parents is null) return own ?? parents;
+
+        return new PomCompiler(
+            own.Release ?? parents.Release,
+            own.Source ?? parents.Source,
+            own.Target ?? parents.Target,
+            own.EnablePreview ?? parents.EnablePreview,
+            own.Arguments.Count > 0 ? own.Arguments : parents.Arguments);
+    }
+
     /// <summary>A pom.xml with its parents' declarations, its properties, and the versions managed for it.</summary>
     private sealed class EffectivePom
     {
@@ -340,6 +402,9 @@ public sealed partial class MavenResolver(LibraryStore store, bool highestVersio
 
         /// <summary>The annotationProcessorPaths it gives maven-compiler-plugin, its own or its parents', or null for none.</summary>
         public IReadOnlyList<DeclaredDependency>? RawProcessorPaths { get; init; }
+
+        /// <summary>What it, or a parent, tells maven-compiler-plugin about the Java it compiles, unfilled.</summary>
+        public PomCompiler? Compiler { get; init; }
 
         public Dictionary<string, DeclaredDependency> Managed { get; } = new(StringComparer.Ordinal);
     }

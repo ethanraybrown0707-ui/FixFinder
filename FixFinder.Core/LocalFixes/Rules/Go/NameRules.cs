@@ -171,7 +171,7 @@ public sealed partial class GoPackageMember : ILocalFixRule
         var package = message.Groups["package"].Value;
         var name = message.Groups["name"].Value;
 
-        var exported = !message.Groups["have"].Success && GoCode.StandardPackages.TryGetValue(package, out var path) ? GoCode.ExportedNames(path) : [];
+        var exported = !message.Groups["have"].Success && GoCode.StandardPackages.TryGetValue(package, out var path) ? GoCode.ExportedNames(path, at.Source.Path) : [];
         var sameWord = exported.Where(e => e.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var right = message.Groups["have"].Success

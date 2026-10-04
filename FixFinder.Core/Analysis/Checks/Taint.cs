@@ -152,9 +152,13 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
         return (summary.ReturnsTainted, summary.ReturnsParameters.Count, summary.ParametersReachSinks.Count) != before;
     }
 
-    /// <summary>main's String[] args in Java and C# - what the program was started with, which whoever starts it controls.</summary>
+    /// <summary>
+    /// main's String[] args in Java and C# - what the program was started with, which whoever starts it controls. From Java
+    /// 25 a main need not be static: java makes an object of the class and calls its main, args and all.
+    /// </summary>
     private bool IsProgramArguments(IrFunction function, IrParameter parameter) =>
-        !IsPython && function.IsStatic && function.Name is "main" or "Main" && function.Parameters.Count == 1 && parameter.Type.Name is "array" or "String[]" or "string[]";
+        !IsPython && (function.IsStatic || Language == SourceLanguage.Java) && function.Name is "main" or "Main" &&
+        function.Parameters.Count == 1 && parameter.Type.Name is "array" or "String[]" or "string[]";
 
     private static Dictionary<string, HashSet<Origin>> Copy(Dictionary<string, HashSet<Origin>> state) =>
         state.ToDictionary(pair => pair.Key, pair => new HashSet<Origin>(pair.Value), StringComparer.Ordinal);
@@ -301,6 +305,8 @@ internal sealed class Taint(IrProgram program, CallTargets targets)
             new Origin("from the environment, read", environment.Span, SaysWhere: true),
         Call { Callee: Member { MemberName: "nextLine" or "next" or "readLine" }, Arguments.Count: 0 } read when !IsPython =>
             new Origin("read in", read.Span, SaysWhere: true),
+        Call { Callee: Member { Target: Name { Identifier: "IO" }, MemberName: "readln" } } typed when Language == SourceLanguage.Java =>
+            new Origin("the user typed", typed.Span, SaysWhere: true),
         Call { Callee: Member { Target: Name { Identifier: "Console" }, MemberName: "ReadLine" } } typed =>
             new Origin("the user typed", typed.Span, SaysWhere: true),
         Call { Callee: Member { Target: Name { Identifier: "System" }, MemberName: "getenv" } } environment =>

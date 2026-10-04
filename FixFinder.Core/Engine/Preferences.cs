@@ -38,8 +38,9 @@ public sealed class Preferences
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
 
     /// <summary>
-    /// Which version of C, C++ and Java the person's course uses. Kept as plain text so the file stays readable; what
-    /// reaches a compiler is checked against the listed versions first, so an edited file cannot pass anything else.
+    /// Which version of C, C++ and Java the person's course uses, or empty for the one each program's project gives. Kept
+    /// as plain text so the file stays readable; what reaches a compiler is checked against the listed versions first, so
+    /// an edited file cannot pass anything else.
     /// </summary>
     public string CStandard { get; set; } = LanguageStandards.Default.C;
 
@@ -51,6 +52,29 @@ public sealed class Preferences
     [JsonIgnore]
     public LanguageStandards Standards => new() { C = CStandard, Cpp = CppStandard, Java = JavaRelease };
 
+    /// <summary>How many seconds a run is given, as chosen in Settings.</summary>
+    public int RunSeconds { get; set; } = (int)TargetFactory.DefaultTimeout.TotalSeconds;
+
+    /// <summary>The time a run is given: the seconds chosen, or the default for a number outside a second to an hour.</summary>
+    [JsonIgnore]
+    public TimeSpan RunTimeLimit =>
+        TargetFactory.IsRunTimeLimit(TimeSpan.FromSeconds(RunSeconds)) ? TimeSpan.FromSeconds(RunSeconds) : TargetFactory.DefaultTimeout;
+
+    /// <summary>
+    /// Whether a program with a window runs until its window is closed, rather than for the time a run is given - so it
+    /// can be used before FixFinder checks what it did.
+    /// </summary>
+    public bool WindowsRunUntilClosed { get; set; }
+
+    /// <summary>
+    /// Which meaning the file's choices were written with. A file without it is older than C++ standards that a program's
+    /// build file could give: C++17 was then what anybody who had not chosen was given, so it is read as not choosing -
+    /// which still gives C++17 to every program whose build file names no standard.
+    /// </summary>
+    public int Version { get; set; } = CurrentVersion;
+
+    private const int CurrentVersion = 1;
+
     public static Preferences Load(string? path = null)
     {
         var file = path ?? FilePath;
@@ -59,7 +83,15 @@ public sealed class Preferences
         {
             if (!File.Exists(file)) return new Preferences();
 
-            return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file), JsonOptions.Default) ?? new Preferences();
+            var text = File.ReadAllText(file);
+            var preferences = JsonSerializer.Deserialize<Preferences>(text, JsonOptions.Default) ?? new Preferences();
+
+            using var written = JsonDocument.Parse(text);
+            if (!written.RootElement.TryGetProperty(nameof(Version), out _) && preferences.CppStandard == LanguageStandards.UsualCpp)
+                preferences.CppStandard = LanguageStandards.Default.Cpp;
+
+            preferences.Version = CurrentVersion;
+            return preferences;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

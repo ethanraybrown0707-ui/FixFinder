@@ -113,6 +113,35 @@ public class WorkingFolderTests : IDisposable
         Assert.Equal(Folder("coursework"), WorkingFolder.For(inSrc).Folder);
     }
 
+    /// <summary>make is run in the Makefile's folder, so a program its Makefile builds starts there.</summary>
+    [Fact]
+    public void ACProgramItsMakefileBuildsStartsWhereTheMakefileIs()
+    {
+        var file = Write(@"project\src\main.c", "int main(void) { return 0; }");
+        Write(@"project\Makefile", "app: src/main.c\n\tgcc -o app src/main.c\n");
+
+        var start = WorkingFolder.For(file);
+
+        Assert.Equal(Folder("project"), start.Folder);
+        Assert.Equal("Makefile", start.BuildFileName);
+        Assert.Equal(Folder("project"), WorkingFolder.CopyRoot(file));
+    }
+
+    /// <summary>A file the program opens that is only beside its source still decides - and the copy still holds the Makefile.</summary>
+    [Fact]
+    public void AFileTheProgramNamesBesideItsSourceStillDecidesWithAMakefileAbove()
+    {
+        var file = Write(@"project\src\main.c", "#include <stdio.h>\nint main(void) { FILE *marks = fopen(\"marks.txt\", \"r\"); return marks == NULL; }");
+        Write(@"project\src\marks.txt", "72");
+        Write(@"project\Makefile", "app: src/main.c\n\tgcc -o app src/main.c\n");
+
+        var start = WorkingFolder.For(file);
+
+        Assert.Equal(Folder(@"project\src"), start.Folder);
+        Assert.Equal("marks.txt", start.FileFound);
+        Assert.Equal(Folder("project"), WorkingFolder.CopyRoot(file));
+    }
+
     [Fact]
     public void TextThatIsNotARelativePathDecidesNothing()
     {

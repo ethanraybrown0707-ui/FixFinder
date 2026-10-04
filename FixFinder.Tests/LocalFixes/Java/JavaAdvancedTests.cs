@@ -69,6 +69,9 @@ public class JavaAdvancedTests : IDisposable
     [InlineData("java-override-typo", "class Animal {\n    String speak() {\n        return \"\";\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    String speek() {\n        return \"Woof\";\n    }\n}\n", 8, "method does not override or implement a method from a supertype", "", "    String speak() {")]
     [InlineData("java-override-typo", "class Point {\n    @Override\n    public String tostring() {\n        return \"\";\n    }\n}\n", 2, "method does not override or implement a method from a supertype", "", "    public String toString() {")]
     [InlineData("java-override-typo", "class Point {\n    @Override\n    public String describe() {\n        return \"\";\n    }\n}\n", 2, "method does not override or implement a method from a supertype", "", null)]
+    // From JDK 26 javac names the method and its class in the same message.
+    [InlineData("java-override-typo", "class Animal {\n    String speak() {\n        return \"\";\n    }\n}\n\nclass Dog extends Animal {\n    @Override\n    String speek() {\n        return \"Woof\";\n    }\n}\n", 8, "speek() in Dog does not override or implement a method from a supertype", "", "    String speak() {")]
+    [InlineData("java-override-typo", "class Point {\n    @Override\n    public String tostring() {\n        return \"\";\n    }\n}\n", 2, "tostring() in Point does not override or implement a method from a supertype", "", "    public String toString() {")]
     [InlineData("java-extends-implements", "class Animal {\n}\n\nclass Dog implements Animal {\n}\n", 4, "interface expected here", "", "class Dog extends Animal {")]
     [InlineData("java-extends-implements", "public class App extends Runnable {\n}\n", 1, "no interface expected here", "", "public class App implements Runnable {")]
     [InlineData("java-extends-implements", "class Dog implements Pet {\n}\n", 1, "interface expected here", "", null)]
@@ -142,6 +145,10 @@ public class JavaAdvancedTests : IDisposable
     public async Task TheConstructIsFixedLive(string construct, string source, string id, string expected)
     {
         if (!LocalFixLiveTests.Available("java")) return;
+
+        // javac refuses a statement before super(...) only up to Java 21; Java 22 to 24 call it a preview feature, and from Java
+        // 25 a constructor may give its own fields their values first (JEP 513), so this one compiles and there is nothing to fix.
+        if (construct == "super not first" && Jdks.InUse is { Version: > 21 }) return;
 
         using var temp = new TempFolder();
         var path = Path.Combine(temp.Path, "App.java");

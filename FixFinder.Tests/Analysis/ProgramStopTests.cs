@@ -44,8 +44,9 @@ public class ProgramStopTests : IDisposable
 
     private async Task<IReadOnlyList<AnalysisFinding>?> GoAsync(string code)
     {
-        if (GoFrontend.FindGo() is not { } go) return null;
-        return Mistakes(AbstractChecks.Run(await GoFrontend.ReadAsync([await WriteAsync("main.go", code)], go), new SourceText()));
+        var file = await WriteAsync("main.go", code);
+        if (GoFrontend.FindGo(file) is not { } go) return null;
+        return Mistakes(AbstractChecks.Run(await GoFrontend.ReadAsync([file], go), new SourceText()));
     }
 
     private async Task<IReadOnlyList<AnalysisFinding>> CSharpAsync(string code) =>

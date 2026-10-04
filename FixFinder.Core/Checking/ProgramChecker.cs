@@ -62,6 +62,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     public ExpectedBehaviour? Expected { get; init; }
 
+    /// <summary>Whether a program with a window runs until its window is closed, rather than for the time a run is given.</summary>
+    public bool WindowsRunUntilClosed { get; init; }
+
     /// <summary>
     /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
     /// could have changed. Null analyses everything every time.
@@ -78,6 +81,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be run."], "Not checked", "Not checked", null);
 
+        using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -105,6 +109,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         Task[] finishing;
         lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
         await Task.WhenAll(finishing);
+
+        // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
+        bool hadErrors;
+        lock (_gate) hadErrors = _findings.Any(finding => finding.Severity == Severity.Error);
+        if (hadErrors && launch.ChosenFile is { } checkedFile && ToolchainVersionErrors.NoteFor(checkedFile) is { } olderThanItsCodeNeeds) Note(olderThanItsCodeNeeds);
 
         lock (_gate)
         {
@@ -176,6 +185,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (sorted.Note is { } missingLibrary) Note(missingLibrary);
             var codeErrors = sorted.CodeErrors;
 
+            // Code newer than the Java it is built for: which Java it needs, and whether a JDK of it is on this computer.
+            if (JavaVersionErrors.NoteFor(codeErrors, chosen) is { } needsALaterJava) Note(needsALaterJava);
+
+            // A module that asks for a later Go than any here, or code newer than its go line: which Go, and what to change.
+            if (GoVersionErrors.NoteFor(codeErrors, report.Output, chosen) is { } needsALaterGo) Note(needsALaterGo);
+
+            // Code newer than the C# its project is built as, or a project or global.json asking for an SDK that is not here.
+            if (CSharpVersionErrors.NoteFor(report.Errors, report.Output, chosen) is { } needsALaterCSharp) Note(needsALaterCSharp);
+
             if (report.Errors.Count > 0)
             {
                 builds.TrySetResult(false);
@@ -224,13 +242,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     private async Task<SessionOutcome> RunAsync(LaunchPlan launch, CompilerReport report, CancellationToken cancellationToken)
     {
-        Progress?.Invoke(CheckLane.Syntax, $"Running {Path.GetFileName(launch.ChosenFile ?? launch.Spec!.ExecutablePath)}...");
+        var (spec, windowNote) = RunFor(launch, WindowsRunUntilClosed);
+        var shown = Path.GetFileName(launch.ShownFile ?? launch.ChosenFile ?? spec.ExecutablePath);
+
+        // The session says it is running the program by what it starts - python.exe, java.exe - so its words are said by the
+        // program's own name instead, and for a program with a window, that the run waits for its window to be closed.
+        var running = windowNote is null ? $"Running {shown}..." : $"Running {shown} until you close its window...";
+        var sessionSaysRunning = $"Running {Path.GetFileName(spec.ExecutablePath)}...";
+
+        if (windowNote is not null) Note(windowNote);
+        Progress?.Invoke(CheckLane.Syntax, running);
 
         var session = new FixFinderSession(http, sources) { Language = Language, SearchOnline = false, CheckLogic = false };
 
         void Relay(string message) => Log?.Invoke(message);
         void Forward(CapturedLine line) => LineCaptured?.Invoke(AsPrinted(line));
-        void Status(string message) => Progress?.Invoke(CheckLane.Syntax, message);
+        void Status(string message) => Progress?.Invoke(CheckLane.Syntax, message == sessionSaysRunning ? running : message);
 
         session.Log += Relay;
         session.LineCaptured += Forward;
@@ -239,8 +266,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         try
         {
             var outcome = report.Build is { } build
-                ? await session.RunAsync(launch.Spec!, null, cancellationToken, launch.SourceFolder, build.Lines, session.SanitizerFor(launch))
-                : await session.RunAsync(launch, null, cancellationToken);
+                ? await session.RunAsync(spec, null, cancellationToken, launch.SourceFolder, build.Lines, session.SanitizerFor(launch))
+                : await session.RunAsync(launch with { Spec = spec }, null, cancellationToken);
 
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
@@ -310,11 +337,34 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </summary>
     private sealed record RunsUntilStopped(string Is, string Like, string Until, string Unchecked)
     {
+        /// <summary>Whether it is a program with a window, which the person can close - rather than a server, which runs on.</summary>
+        public bool HasAWindow { get; init; }
+
         public static RunsUntilStopped Window(string toolkit) =>
-            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window");
+            new($"a program with a window - it uses {toolkit}", "a program with a window", "its window is closed", "what it does when someone uses its window")
+            {
+                HasAWindow = true,
+            };
 
         public static RunsUntilStopped Server(string how) =>
             new($"a server - it waits for connections with {how}", "a server", "it is stopped", "what it does when something connects");
+    }
+
+    /// <summary>
+    /// The run the program itself is given: as the launch says - or, for a program with a window when windows run until
+    /// they are closed, with no time limit, so it can be used before its window is closed and what it did is checked. Only
+    /// this run: the copies a change is tried in keep the time a run is given, as nobody is there to close their windows.
+    /// </summary>
+    internal static (TargetSpec Spec, string? WindowNote) RunFor(LaunchPlan launch, bool windowsRunUntilClosed)
+    {
+        if (!windowsRunUntilClosed || launch.ChosenFile is not { } chosen || RunsUntilStoppedOf(chosen) is not { HasAWindow: true } window)
+            return (launch.Spec!, null);
+
+        var name = Path.GetFileName(launch.ShownFile ?? chosen);
+        return (launch.Spec!.WithTimeout(Timeout.InfiniteTimeSpan),
+            $"{name} is {window.Is}, so it ran until its window was closed, as chosen, rather than for the time a run is given. What it " +
+            "printed and how it ended were checked; the copies FixFinder runs to try changes are still given that time, as nobody is " +
+            "there to close their windows.");
     }
 
     /// <summary>What a program is when it runs until it is stopped - a window program, or a server - or null for one meant to finish.</summary>
@@ -456,7 +506,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return null;
         }
 
-        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which java starts only with " +
+        return $"Java would not start {Path.GetFileName(chosen)}: its class extends javafx.application.Application, which this java starts only with " +
                "JavaFX's modules, and none are among the program's libraries - FixFinder looks in its pom.xml or build.gradle, its IDE's " +
                "library settings and its lib folder. Naming JavaFX in one of those lets it run. The code was still read for mistakes.";
     }
@@ -489,8 +539,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         return $"{Path.GetFileName(chosen)} has no main method, so there is nothing in it to run: Java starts a program at " +
-               "public static void main(String[] args). Choose the file of the program that has one. The code in this file was " +
-               "still read for mistakes.";
+               "public static void main(String[] args) - or, from Java 25, at a main that is not static or takes no arguments, " +
+               "such as void main(). Choose the file of the program that has one. The code in this file was still read for mistakes.";
     }
 
     /// <summary>The framework a file's tests are run with: for Python, pytest or unittest, whichever the file is written for; JUnit for Java.</summary>
@@ -1048,6 +1098,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (!launch.Ok || launch.Spec is null) return new CheckReport([], [launch.Problem ?? "That program cannot be read."], "Not checked", "Not checked", null);
 
+        using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
         _launch = launch;
@@ -1174,6 +1225,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? spec.ExecutablePath
             : PythonFrontend.FindInterpreter();
 
+    /// <summary>
+    /// For a Java program, the JDK it is built with is the one everything in the check uses - reading its code, checking a
+    /// fix compiles, asking javap about a class - until the check ends; nothing for any other program.
+    /// </summary>
+    private static IDisposable? UseTheProgramsJdk(LaunchPlan launch) =>
+        launch.ChosenFile is { } chosen && chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) && JavaSetup.For(chosen).Setup is { } setup
+            ? Jdks.Using(setup.Jdk)
+            : null;
+
     /// <summary>Reads the program with its own language's parser, or returns null when that language cannot be read yet.</summary>
     private static Task<IrProgram>? ReadProgramAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
@@ -1183,12 +1243,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return PythonInterpreter(launch) is { } interpreter ? PythonFrontend.ReadAsync(files, interpreter, cancellationToken) : null;
 
         if (AllEndIn(".java"))
+        {
+            if (launch.ChosenFile is { } chosen && JavaSetup.For(chosen).Setup is { } setup) return JavaFrontend.ReadAsync(files, setup, cancellationToken);
             return JavaFrontend.FindTools() is { } tools ? JavaFrontend.ReadAsync(files, tools.Javac, tools.Java, cancellationToken) : null;
+        }
 
         if (AllEndIn(".cs")) return CSharpFrontend.ReadAsync(files, cancellationToken);
 
         if (AllEndIn(".go"))
-            return GoFrontend.FindGo() is { } go ? GoFrontend.ReadAsync(files, go, cancellationToken) : null;
+            return GoFrontend.FindGo(launch.ChosenFile ?? files[0]) is { } go ? GoFrontend.ReadAsync(files, go, cancellationToken) : null;
 
         if (AllEndIn(".js", ".mjs", ".cjs")) return JavaScriptFrontend.ReadAsync(files, cancellationToken);
 

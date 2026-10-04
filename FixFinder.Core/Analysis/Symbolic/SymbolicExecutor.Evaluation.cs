@@ -573,6 +573,16 @@ public sealed partial class SymbolicExecutor
             return Lookup(call, new SymOther("memory"), null, path);
         }
 
+        // Java 25's IO: println and print show what they are given, as System.out's do; readln shows its prompt, if it is
+        // given one, and returns the line typed.
+        if (_language == SourceLanguage.Java && call.Callee is Member { Target: Name { Identifier: "IO" }, MemberName: var ioMethod } &&
+            ioMethod is "println" or "print" or "readln" && !path.Store.ContainsKey("IO") && !IsOwn("IO"))
+        {
+            var shown = call.Arguments.Select(a => Evaluate(a.Value, path)).ToList();
+            if (ioMethod != "readln" || shown.Count > 0) path.Printed = path.Printed.Add(new SymSequence(CollectionKind.Tuple, shown.Count, shown));
+            return ioMethod == "readln" ? Typed(call.Span.Line, path) : SymUnknown.Value;
+        }
+
         if (!IsPython && call.Callee is Member { Target: Name { Identifier: var type }, MemberName: var helper } && !path.Store.ContainsKey(type) && !IsOwn(type) &&
             StaticCall(type, helper, call, path) is { } helped)
             return helped;

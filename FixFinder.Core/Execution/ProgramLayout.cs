@@ -20,8 +20,14 @@ public static partial class ProgramLayout
     [GeneratedRegex(@"(?m)^\s*from\s+\.+[\w.]*\s+import\b")]
     private static partial Regex PythonRelativeImport();
 
+    /// <summary>
+    /// The C or C++ files a chosen file is built with: those its Makefile or CMakeLists.txt builds its program from, or,
+    /// with no build file to follow, the others of its kind beside it when exactly one of them all has a main.
+    /// </summary>
     public static IReadOnlyList<string> NativeSources(string chosen)
     {
+        if (NativeBuild.For(chosen).Build is { } build) return build.Sources;
+
         var extension = Path.GetExtension(chosen).ToLowerInvariant();
         string[] family = extension == ".c" ? [".c"] : [".cpp", ".cc", ".cxx", ".c++"];
 
@@ -34,8 +40,14 @@ public static partial class ProgramLayout
         return [chosen, .. others];
     }
 
+    /// <summary>
+    /// The sources of the program a header is part of: the program its build file builds from sources that include it, or,
+    /// with no build file, the one main beside it that includes it and the files built with that main.
+    /// </summary>
     public static IReadOnlyList<string> HeaderProgram(string header)
     {
+        if (NativeBuild.ForHeader(header) is { } build) return build.Sources;
+
         var folder = Path.GetDirectoryName(header)!;
         var name = Path.GetFileName(header);
 

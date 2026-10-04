@@ -197,6 +197,7 @@ public class OwnOutputTests(ITestOutputHelper output) : IDisposable
         Assert.EndsWith("it has no main method to run", report.SyntaxSummary, StringComparison.Ordinal);
     }
 
+    /// <summary>A main given one String rather than an array of them is no main to any Java, so java cannot start the class.</summary>
     [Fact]
     public async Task AJavaMainOfTheWrongShapeIsStillAMistakeJavaCouldNotStart()
     {
@@ -204,7 +205,7 @@ public class OwnOutputTests(ITestOutputHelper output) : IDisposable
 
         var file = Write("Greeter.java", """
             public class Greeter {
-                public void main(String[] args) {
+                public static void main(String args) {
                     System.out.println("Hello");
                 }
             }
@@ -214,5 +215,36 @@ public class OwnOutputTests(ITestOutputHelper output) : IDisposable
 
         var launch = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
         Assert.StartsWith("Java could not start it: Main method", launch.Title, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A main that is not static is a mistake java will not start before Java 25 - "Main method is not static" - and from Java
+    /// 25 it is a main like any other: java makes an object of the class and calls it (JEP 512).
+    /// </summary>
+    [Fact]
+    public async Task AMainThatIsNotStaticStartsOnlyFromJava25()
+    {
+        if (Toolchains.FindJavac() is null || Jdks.InUse is not { } jdk) return;
+
+        var file = Write("Welcome.java", """
+            public class Welcome {
+                public void main(String[] args) {
+                    System.out.println("Hello");
+                }
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Java);
+
+        if (jdk.Version >= 25)
+        {
+            Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+            Assert.Equal("It builds, and it runs to the end", report.SyntaxSummary);
+        }
+        else
+        {
+            var launch = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
+            Assert.StartsWith("Java could not start it: Main method is not static", launch.Title, StringComparison.Ordinal);
+        }
     }
 }

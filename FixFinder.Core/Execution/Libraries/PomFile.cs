@@ -22,6 +22,17 @@ public sealed record DeclaredDependency(
 /// <summary>The parent a pom.xml names, and where beside it the parent's own pom.xml is expected.</summary>
 public sealed record PomParent(string Group, string Artifact, string Version, string RelativePath);
 
+/// <summary>
+/// What a pom.xml gives maven-compiler-plugin about the Java it compiles, as written - a value may be a ${property} - with
+/// nothing inherited.
+/// </summary>
+/// <param name="Release">Its release: javac's --release.</param>
+/// <param name="Source">Its source: javac's -source.</param>
+/// <param name="Target">Its target: javac's -target.</param>
+/// <param name="EnablePreview">Its enablePreview, "true" to turn preview features on.</param>
+/// <param name="Arguments">Its compilerArgs and compilerArgument, where --enable-preview is often given instead.</param>
+public sealed record PomCompiler(string? Release, string? Source, string? Target, string? EnablePreview, IReadOnlyList<string> Arguments);
+
 /// <summary>What one pom.xml says, as written: nothing inherited from its parent, and no ${property} filled in.</summary>
 public sealed record PomFile(
     string? Group,
@@ -41,6 +52,9 @@ public sealed record PomFile(
 
     /// <summary>Whether those paths are added to the ones a parent gives, as combine.children="append" asks, not put in their place.</summary>
     public bool ProcessorPathsAdded { get; init; }
+
+    /// <summary>What this pom.xml tells maven-compiler-plugin about the Java it compiles, as written, or null when it says nothing.</summary>
+    public PomCompiler? Compiler { get; init; }
 
     /// <summary>The pom.xml at this path, or null when it cannot be read as one.</summary>
     public static PomFile? Read(string path)
@@ -72,6 +86,7 @@ public sealed record PomFile(
             properties[property.Name.LocalName] = property.Value.Trim();
 
         var (processorPaths, processorPathsAdded) = ProcessorPathsIn(Child(project, "build"));
+        var compiler = CompilerIn(Child(project, "build"));
 
         return new PomFile(
             Text(project, "groupId"),
@@ -85,6 +100,7 @@ public sealed record PomFile(
         {
             ProcessorPaths = processorPaths,
             ProcessorPathsAdded = processorPathsAdded,
+            Compiler = compiler,
         };
     }
 
@@ -182,6 +198,31 @@ public sealed record PomFile(
         }
 
         return (null, false);
+    }
+
+    /// <summary>
+    /// What maven-compiler-plugin is told about the Java it compiles - release, source, target, preview - on the plugin as
+    /// the build uses it, with what pluginManagement sets up filling in what that leaves unsaid; null when neither says.
+    /// </summary>
+    private static PomCompiler? CompilerIn(XElement? build)
+    {
+        var settings = new[] { Child(build, "plugins"), Child(Child(build, "pluginManagement"), "plugins") }
+            .SelectMany(plugins => plugins?.Elements() ?? [])
+            .Where(plugin => plugin.Name.LocalName == "plugin" && Text(plugin, "artifactId") == "maven-compiler-plugin")
+            .Select(plugin => Child(plugin, "configuration"))
+            .OfType<XElement>()
+            .ToList();
+
+        if (settings.Count == 0) return null;
+
+        string? First(string name) => settings.Select(setting => Text(setting, name)).FirstOrDefault(value => value is not null);
+
+        var arguments = settings
+            .SelectMany(setting => (Child(setting, "compilerArgs")?.Elements().Select(argument => argument.Value.Trim()) ?? [])
+                .Concat(Text(setting, "compilerArgument") is { } single ? single.Split(' ', StringSplitOptions.RemoveEmptyEntries) : []))
+            .ToList();
+
+        return new PomCompiler(First("release"), First("source"), First("target"), First("enablePreview"), arguments);
     }
 
     /// <summary>Each library listed in this element, one to a child named <paramref name="entry"/> - a dependency, or a processor's path.</summary>

@@ -11,10 +11,10 @@ public static partial class LineCoverage
     public static bool Supports(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
         ".py" => true,
-        ".js" or ".mjs" or ".cjs" => TargetFactory.FindOnPath("node") is not null,
+        ".js" or ".mjs" or ".cjs" => NodeSetup.For(file) is not null,
         ".c" => Toolchains.FindGnu(cpp: false) is not null && TargetFactory.FindOnPath("gcov") is not null,
         ".cpp" or ".cc" or ".cxx" or ".c++" => Toolchains.FindGnu(cpp: true) is not null && TargetFactory.FindOnPath("gcov") is not null,
-        ".go" => TargetFactory.FindOnPath("go") is not null,
+        ".go" => GoSetup.For(file) is not null,
         _ => false,
     };
 
@@ -160,22 +160,23 @@ public static partial class LineCoverage
         var cpp = !Path.GetExtension(file).Equals(".c", StringComparison.OrdinalIgnoreCase);
         if (Toolchains.FindGnu(cpp) is not { } gnu || TargetFactory.FindOnPath("gcov") is not { } gcov) return null;
 
-        var sources = ProgramLayout.NativeSources(file);
+        var build = NativeBuild.For(file).Build;
+        var sources = build?.Sources ?? ProgramLayout.NativeSources(file);
         var objects = new List<string>();
         // The same standard the program is built and its fixes checked with, so a repair is never searched for under a
-        // different version of the language than the one the person chose.
-        var standard = LanguageStandards.Current.Gnu(cpp);
+        // different version of the language than the one the person chose - or than its build file gives it.
+        var standard = LanguageStandards.Current.Gnu(cpp, build?.Standard ?? NativeStandards.RememberedFor(file));
 
         foreach (var (source, index) in sources.Select((s, i) => (s, i)))
         {
             var obj = Path.Combine(folder, $"{index}-{Path.GetFileNameWithoutExtension(source)}.o");
-            var compile = await RunAsync(Spec(gnu.Program, $"-c -g -O0 --coverage {standard}-I \"{Path.GetDirectoryName(file)}\" -o \"{obj}\" \"{source}\"", folder, timeout), cancellationToken);
+            var compile = await RunAsync(Spec(gnu.Program, $"-c -g -O0 --coverage {standard}-I \"{Path.GetDirectoryName(file)}\" {build?.GnuCompileFlags}-o \"{obj}\" \"{source}\"", folder, timeout), cancellationToken);
             if (compile.ExitCode != 0) return null;
             objects.Add(obj);
         }
 
         var exe = Path.Combine(folder, "covered.exe");
-        var link = await RunAsync(Spec(gnu.Program, $"--coverage -o \"{exe}\" {string.Join(" ", objects.Select(o => $"\"{o}\""))}", folder, timeout), cancellationToken);
+        var link = await RunAsync(Spec(gnu.Program, $"--coverage -o \"{exe}\" {string.Join(" ", objects.Select(o => $"\"{o}\""))}{build?.GnuLinkFlags}", folder, timeout), cancellationToken);
         if (link.ExitCode != 0) return null;
 
         var ran = await RunAsync(Spec(exe, "", folder, timeout).WithArguments(arguments).WithInput(input), cancellationToken);
@@ -209,16 +210,17 @@ public static partial class LineCoverage
     private static async Task<IReadOnlySet<int>?> GoAsync(
         string file, string? input, string? arguments, TimeSpan timeout, string folder, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("go") is not { } go) return null;
+        if (GoSetup.For(file) is not { Go: var go }) return null;
 
         var program = ProgramLayout.GoPackageOf(file);
         var exe = Path.Combine(folder, "covered.exe");
         var data = Path.Combine(folder, "data");
         Directory.CreateDirectory(data);
 
-        var build = program.Module is { } module
+        var build = (program.Module is { } module
             ? Spec(go, $"build -cover -o \"{exe}\" .", module, timeout)
-            : Spec(go, $"build -cover -o \"{exe}\" {string.Join(" ", program.Files.Select(f => $"\"{f}\""))}", Path.GetDirectoryName(file)!, timeout);
+            : Spec(go, $"build -cover -o \"{exe}\" {string.Join(" ", program.Files.Select(f => $"\"{f}\""))}", Path.GetDirectoryName(file)!, timeout))
+            .WithEnvironment(GoSetup.Environment);
 
         if ((await RunAsync(build, cancellationToken)).ExitCode != 0) return null;
 
@@ -229,7 +231,8 @@ public static partial class LineCoverage
         if (ran.Outcome == RunOutcome.LaunchFailed) return null;
 
         var text = Path.Combine(folder, "coverage.txt");
-        if ((await RunAsync(Spec(go, $"tool covdata textfmt -i=\"{data}\" -o=\"{text}\"", folder, timeout), cancellationToken)).ExitCode != 0 || !File.Exists(text)) return null;
+        var report = Spec(go, $"tool covdata textfmt -i=\"{data}\" -o=\"{text}\"", folder, timeout).WithEnvironment(GoSetup.Environment);
+        if ((await RunAsync(report, cancellationToken)).ExitCode != 0 || !File.Exists(text)) return null;
 
         var name = Path.GetFileName(file);
         var lines = new HashSet<int>();

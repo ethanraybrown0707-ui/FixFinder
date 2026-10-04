@@ -34,7 +34,7 @@ public sealed class LogicRepair
         Progress?.Invoke("Checking every run against the output you expected...");
 
         var root = ProgramCopy.RootOf(chosenFile);
-        var baseline = await EvaluateAsync(chosenFile, expected, runTimeout, stopAtFirstWrong: false, cancellationToken);
+        var baseline = await EvaluateAsync(chosenFile, expected, runTimeout, runTimeout, stopAtFirstWrong: false, cancellationToken);
         if (baseline is null) return null;
 
         if (baseline.Results.Any(r => r.Outcome == RunOutcome.LaunchFailed))
@@ -165,7 +165,7 @@ public sealed class LogicRepair
                 var slice = candidates.Skip(batch).Take(workers.Count).ToList();
                 Progress?.Invoke($"Trying changes {batch + 1}-{batch + slice.Count} of {candidates.Count}...");
 
-                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, wrong.Select(w => w.Index).ToList(), cancellationToken)));
+                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrong.Select(w => w.Index).ToList(), cancellationToken)));
                 tried += slice.Count;
 
                 for (var i = 0; i < slice.Count; i++)
@@ -193,8 +193,13 @@ public sealed class LogicRepair
 
     private sealed record Evaluation(TargetSpec? Spec, IReadOnlyList<RunVerdict> Results);
 
+    /// <summary>
+    /// Builds the program and runs it for each expected run. The build is given the whole run time limit, as the program's
+    /// own build is: how long the program took to run says nothing of how long javac or gcc take to build it, and on a busy
+    /// machine a build held to the time of a run timed out, so a change that was right was taken for one that was not.
+    /// </summary>
     private async Task<Evaluation?> EvaluateAsync(
-        string file, ExpectedBehaviour expected, TimeSpan timeout, bool stopAtFirstWrong, CancellationToken cancellationToken,
+        string file, ExpectedBehaviour expected, TimeSpan timeout, TimeSpan buildTimeout, bool stopAtFirstWrong, CancellationToken cancellationToken,
         IReadOnlyList<int>? order = null)
     {
         var plan = TargetFactory.FromFile(file, timeout);
@@ -204,7 +209,7 @@ public sealed class LogicRepair
 
         if (plan.Compile is { } compile)
         {
-            var built = await runner.RunAsync(compile, cancellationToken);
+            var built = await runner.RunAsync(compile.WithTimeout(buildTimeout), cancellationToken);
             if (built.ExitCode != 0 || built.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut) return new Evaluation(plan.Spec, []);
         }
 
@@ -232,8 +237,8 @@ public sealed class LogicRepair
     }
 
     private async Task<bool> TryAsync(
-        Workspace workspace, SourceFile source, LocalFix fix, ExpectedBehaviour expected, TimeSpan perRun, IReadOnlyList<int> wrongFirst,
-        CancellationToken cancellationToken)
+        Workspace workspace, SourceFile source, LocalFix fix, ExpectedBehaviour expected, TimeSpan perRun, TimeSpan buildTimeout,
+        IReadOnlyList<int> wrongFirst, CancellationToken cancellationToken)
     {
         if (fix.ApplyTo(source) is not { } lines) return false;
 
@@ -241,7 +246,7 @@ public sealed class LogicRepair
         {
             await File.WriteAllBytesAsync(workspace.File, source.Render(lines), cancellationToken);
 
-            var evaluation = await EvaluateAsync(workspace.File, expected, perRun, stopAtFirstWrong: true, cancellationToken, wrongFirst);
+            var evaluation = await EvaluateAsync(workspace.File, expected, perRun, buildTimeout, stopAtFirstWrong: true, cancellationToken, wrongFirst);
 
             return evaluation is { Results.Count: > 0 } && evaluation.Results.Count == expected.Runs.Count && evaluation.Results.All(r => r.Mismatch is null);
         }

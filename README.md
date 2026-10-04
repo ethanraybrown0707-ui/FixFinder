@@ -28,7 +28,18 @@ until the program prints what it should. FixFinder never changes your files.
    explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
    taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
    and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
-   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text.
+   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text, and **Save report…** saves
+   the whole report as a web page to keep, print or hand in: every finding with all the window shows of it - in the depth
+   the slider is at - the notes, how the program was built and run, what it printed, and how this check compares with the
+   last one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
+   anything taken from the program is shown as text, never run.
+   When a program is checked again, the report says how this check compares with the last one of it - how many of the
+   last check's findings are fixed, and how many of this check's are new or still there - and marks each finding **New**
+   or **Still there**. A finding is known again by what it is, its file and the code of its line, so lines put in above it
+   leave it the same finding, and changing its line fixes it or makes it another. A crash or a wrong answer is found only
+   by running the program, so when it did not run this time, those found last time are said not to have been looked
+   for, rather than fixed. FixFinder's history keeps a fingerprint of each finding - a hash, never the code - so the fixed
+   ones are named only for a check made since FixFinder was opened; after that, they are counted.
 5. **Optionally, tick Check on save.** FixFinder then reads the code again every time the program is saved - the logic
    patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
    press the language to do that. Code that does not read as its language at all is noted rather than reported as having
@@ -41,9 +52,10 @@ with it, and a note says so. Check on save watches a file chosen from disk; for 
 check it after a change. The saved copy is removed when the window closes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
-Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
-headers beside them. A Java folder of exercises, each with its own `main`, holds several programs: one the chosen file's
-code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
+Java is compiled from its source root, C# from its project, Go as its package, and C and C++ as their Makefile or
+CMakeLists.txt builds them - or, without one, with the other files and headers beside them. A Java folder of exercises,
+each with its own `main`, holds several programs: one the chosen file's code does not reach is another program, and
+neither it nor what only it uses is read as part of the one checked.
 
 A program with a window - one written with JavaFX or Swing, in the file chosen or one it names, or in Python with tkinter,
 turtle, pygame, PyQt or PySide, wxPython, Kivy, or matplotlib's `show()` - runs until its window is closed, and a server -
@@ -54,9 +66,19 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
+**Let a program with a window run until I close it**, under the languages, keeps such a program open for you to use: it
+is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
+and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
+runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
+given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it keeps the usual time;
+**Stop** ends any run. How long a run is given is chosen in Settings - ten seconds to ten minutes, one minute unless
+chosen - and every run follows it: the program's own, and each copy a change is tried in. Go is always given six minutes
+for its first build, which compiles its standard library.
+
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
-beside their source, as a program built at a command line does; the rest start where the program is. When a file the
+beside their source, as a program built at a command line does, or, built by a Makefile or CMakeLists.txt, in that file's
+folder, where make is run; the rest start where the program is. When a file the
 program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
 The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
@@ -95,6 +117,148 @@ An environment whose Python has since been uninstalled is passed over, and one a
 computer is not guessed at: the Python on PATH is used instead. How the program is run says which Python it is, and the
 copies changes are tried in run with the same one.
 
+With no environment of its own, a program runs with the Python on PATH when that is **new enough** for it, and otherwise
+with the oldest Python on the computer that is. New enough means what the project declares - `pyproject.toml`'s
+`requires-python` or Poetry's `python`, `.python-version`, a Pipfile's `python_version`, `python_requires` in `setup.cfg`
+or `setup.py`, `runtime.txt`, or the python in conda's `environment.yml` - and what the code itself uses: `:=` and
+positional-only parameters are Python 3.8's, a built-in collection as a generic such as `list[int]` in an annotation 3.9's,
+a `match` statement and a union written `int | None` 3.10's, `except*` and `tomllib` 3.11's, a `type` statement, type
+parameters in brackets and an f-string with its own quotes inside its braces 3.12's, `copy.replace` and type parameter
+defaults 3.13's, and a template string `t"..."` 3.14's, each from the What's New pages of docs.python.org. Nothing older
+than 3.8 is looked for, as every Python still in use has it, nor what a Python only stopped forbidding - `except A, B:`
+without brackets, which 3.14 allows and every Python 3 before it reports as a mistake. The Pythons on the computer are the
+ones registered with Windows - the Microsoft Store's among them - those python.org's installer puts in the user's Programs
+or Program Files, and those pyenv, uv, the Python install manager and Anaconda keep; each is known by its own files where
+they say its version, and only otherwise asked. How it ran says which Python the code needs and why, with the file and
+line; and when the program has errors and no Python here is new enough for it, a note says so and which to install, so
+those errors are not read as mistakes in the code. A project's own environment is used as it is - it holds the project's
+packages - and how it ran says when it is older than the code needs.
+
+A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
+computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
+those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, BellSoft's, IBM Semeru's, SAP's and Red
+Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with it
+- and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
+program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the one
+JDK. The Java it is compiled for is the one chosen in Settings, else the one its project names: `pom.xml`'s
+`maven.compiler.release`, or its source and target - as properties or as maven-compiler-plugin's own settings, from the
+`pom.xml` or a parent - or Spring Boot's `java.version`; a Gradle build's toolchain, `options.release` or
+`sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
+IntelliJ's language level; or Eclipse's compliance level. Preview features are on when the build turns them on. The JDK
+is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
+is here; else the usual one, when it is new enough; else the oldest that is.
+
+The Java **the code itself** is written in is **detected** as well - which is what Settings' "Detect automatically" means.
+FixFinder reads the program's files for the newest part of the language or of Java's library they use: `var` is Java 10's,
+a switch with `case ... ->` Java 14's, a text block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed
+class Java 17's, a record pattern, a type pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_`
+Java 22's, stream gatherers Java 24's, `IO.println`, `import module`, a compact source file with no class around its
+methods and a `void main()` that is not static Java 25's, and HTTP/3 in the HTTP client Java 26's
+- each as that release's JEPs at openjdk.org record it, and those of Java 21 to 25 as javac 21 and 25 compile them. The
+code then needs a JDK of at least that Java, and how it ran says which Java the code needs and why, with the file and
+line. A **preview** the code uses - primitive types in patterns, which Java 23 to 27 have as a preview, lazy constants
+(Java 26 and 27), `StableValue` (Java 25), structured concurrency, or a string template (Java 21 and 22, then taken out) -
+is turned on for it, with the JDK the program is usually built with when that one has the preview, else the newest one
+here that does, unless the project already says whether preview features are on, or the project or Settings names a Java
+without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
+so what makes code Java 27's is a preview Java 27 has.
+Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
+Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
+`static`: before Java 25 those are mistakes, so they say nothing of which Java the code is for, and they are still reported
+as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet needs Java 25 or earlier, as Java 26 took the Applet API out,
+and a Lombok works only with the Java releases it supports, as Lombok's changelog records them. A project that names a
+later Java than any JDK here has is not built, and the report says which to install; code that needs a JDK that is not
+here is built with the nearest, and the run explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
+Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
+it is on this computer.
+
+A Go program is built and run with **a Go new enough for it**. FixFinder finds every Go on the computer - the one on PATH,
+the one `GOROOT` names, the one Go's installer puts in Program Files or `C:\Go`, those golang.org/dl downloads to the `sdk`
+folder in the user's home, and those the go command has downloaded into its module cache - and knows each by the `VERSION`
+file at the top of it, asking it only when there is none; Settings lists them. New enough means what the module declares -
+`go.mod`'s go line, as every Go from 1.21 on refuses a module whose go line names a later Go than itself (a go line can
+name a patch, as `go mod init` writes it, and an earlier patch will not do), and `go.work`'s, in a workspace - and what
+the code itself uses: type parameters are Go 1.18's, the built-in `min`, `max` and `clear` and the `slices`, `maps`,
+`cmp` and `log/slog` packages Go 1.21's, ranging over an integer and `math/rand/v2` Go 1.22's, ranging over a function and
+the `iter` package Go 1.23's, a generic type alias and `strings.Lines` Go 1.24's, a `sync.WaitGroup`'s `Go` method Go
+1.25's, `new` given a value and `errors.AsType` Go 1.26's, and a generic method, `encoding/json/v2`, `uuid` and
+`strings.CutLast` Go 1.27's - the language from the release notes at go.dev/doc, the library from the `api/go1.N.txt`
+files every Go comes with. Only what is certainly Go's own counts: a `max` of the program's own, or `maps` from
+`golang.org/x/exp`, is not. The Go on PATH builds the program when it is new enough, else the oldest Go here that is - or,
+when go.mod's toolchain line names a later Go than the one on PATH and one is here, that one, as the go command itself
+would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`, so the Go
+chosen is the Go that runs and nothing is downloaded: left to itself, the go command downloads a later Go when a module
+asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
+database - and FixFinder never downloads. A module the program needs that is not in the module cache is said once in a
+note, naming it and saying that `go mod download` in the module's folder downloads it, and go's errors about it are not
+reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for a later Go than any here, a note says which Go to
+install; when the code uses part of the language newer than its go line - Go then builds the module as that older Go's
+code, and says so: `requires go1.22 or later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line;
+and when the code needs a later Go than any here, a note says so and how to install one.
+
+A JavaScript program runs with **a Node.js new enough for it**. FixFinder finds every Node.js on the computer - the one on
+PATH, the one Node.js's installer puts in Program Files, and those nvm for Windows keeps - and knows each by the version
+its own `node.exe` gives, so none is started to ask; Settings lists them. New enough means what the project declares -
+`.nvmrc` or `.node-version`, a `volta` pin in `package.json`, or its `engines` range, read as npm's semver writes it - and
+what the code itself uses: `?.` and `??` are Node.js 14's, `??=`, `||=` and `&&=` 15's, `Object.hasOwn` 16.9's,
+`structuredClone` 17's, an array's `findLast` and the global `fetch` 18's, an array's `toSorted`, `toReversed` and
+`toSpliced` 20's, `Object.groupBy` and `Map.groupBy` 21's, `Promise.withResolvers`, `Array.fromAsync` and `Iterator.from`
+22's, `Promise.try` 23's, and `RegExp.escape` and `Error.isError` 24's - each the release MDN's browser compatibility data
+gives for Node.js. The code is read with FixFinder's own JavaScript reader, so text, comments and regular expressions are
+never taken for code, and only what is certainly JavaScript's own counts: a `fetch` the program requires from
+`node-fetch`, or lodash's `_.findLast`, is not. A name only a version manager can turn into a release, such as
+`lts/iron`, is not guessed at. The Node.js on PATH runs the program when it is new enough, else the oldest one here that
+is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
+so and how to install one.
+
+A C# program is built with **the .NET SDK dotnet chooses** - the newest here, unless a `global.json` above it asks for
+another, which dotnet itself is asked - and how it ran says which SDK, the C# its project is built as, and the C# its
+code needs; Settings lists the SDKs. The C# a project is built as is its `LangVersion`, when it sets one as a number,
+else the C# its target framework comes with, from Microsoft's table: C# 14 for .NET 10, 13 for .NET 9, 12 for .NET 8,
+and so on back to 9 for .NET 5, 8 for .NET Core 3 and .NET Standard 2.1, and 7.3 for anything older, .NET Framework
+among them - read from its `.csproj` and the `Directory.Build.props` above it. The C# its code needs is worked out by
+the C# compiler FixFinder carries: the program is compiled as C# 7.3, 8 and so on to 13, and the oldest that compiles
+it with no error the newest C# would not also report is the C# it needs, named in the compiler's own words - "uses
+primary constructors at line 3, which C# 12 added". The oldest rather than what C# 7.3 asks for, as older C# reads some
+newer code as something else: a record struct read as C# 7.3 looks like a primary constructor, which is C# 12's, though
+record structs are C# 10's. What this compiler has only as a preview, such as C# 14's null-conditional assignment, is
+said as needing a C# later than 13. When the compiler says the code uses what a later C# added than the project is
+built as, a note says which .NET to target - C# 13 is supported on .NET 9 and later - and whether an SDK here builds
+for it, or to raise the `LangVersion` that decides; when a project targets a later .NET than the SDK can build for, or
+its `global.json` asks for an SDK that is not here, or the code needs a C# no SDK here builds for, a note says so and
+what to install or change.
+
+A C or C++ program is built **the way its Makefile or CMakeLists.txt says**, when one beside it, or in a folder up to four
+above it, builds it: from the files the build file builds it from, with its headers looked for in the folders it names,
+and with what it defines, the libraries it links and the standard it is written to. FixFinder reads the build file and
+builds the program itself, with the compiler it found - it never runs make or CMake, or anything they would run. A
+Makefile is read as GNU make reads it: its variables, `$(wildcard)`, `$(patsubst)` and make's other functions, `ifeq` and
+`ifdef`, the files it includes, pattern and suffix rules, `vpath`, rules a template makes with `$(eval)`, and make's own
+rules for a target with no recipe of its own. A CMake project is read from its highest CMakeLists.txt as CMake runs it -
+variables and lists, `if`, `foreach` and functions, `file(GLOB)` and `add_subdirectory` - and from its targets:
+`add_executable`, `add_library`, and the `target_` commands that give them sources, include folders, definitions,
+standards and libraries, with what a library passes on to whatever links it. It is read as an IDE configures a project for
+debugging, which is how FixFinder builds; with `CMAKE_C_STANDARD 11`, CMake gives gcc `-std=gnu11`, as its extensions are
+on unless the project turns them off, and so does FixFinder. So a project with its sources in `src` and its headers in
+`include` builds with its headers found, and a folder of exercises, each with its own `main`, builds the one the chosen
+file belongs to - and a header's fix is checked by building that program with the changed header. What only running
+something could say - `$(shell ...)`, `execute_process`, a header `configure_file` would write, a package `find_package`
+would look for - is not guessed at: how the program ran names it. A file the build file builds into more than one program
+is built as the one of them built by default - by plain `make`, or CMake's `all` - that is not a test, or else the one
+that is not a test, or else the one built by default. When two are as likely as each other, as for a helper two
+exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
+is a program whose files the build file names in a way FixFinder cannot follow, or that it builds from C and C++ files
+together. With no build file, C and C++ are built with the other files of their language beside them when exactly one of
+them all has a `main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is
+built to the compiler's own standard and C++ to C++17 - and when the program **does not build as that**, the compiler is
+asked which standard its code is written to. gcc or clang compiles it, for its syntax only, as the standards either side:
+C++20 and C++23, then C++14 for code that uses what C++17 took out; C23, then C17. The first the compiler takes it as,
+with fewer errors and none it did not already give, is the one it is written to: it is built as that, its fixes are
+checked as that, and a note says so in the compiler's own words - g++ 13.2 says of a concept read as C++17 "'concept'
+does not name a type; did you mean 'const'?", and the note quotes it. A mistake of the program's own is wrong as every
+standard, so it changes nothing. FixFinder keeps no list of which feature came in which standard of C or C++: the
+compiler is the one that knows. A program built with MSVC keeps to the standard it was given.
+
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and
 each library's own dependencies, the nearest declaration winning as in Maven; a Gradle build file's `implementation` and
@@ -117,8 +281,9 @@ maven-compiler-plugin in `annotationProcessorPaths`, or a Gradle build gives `an
 the build names none, any that the program's libraries hold, as javac did by default until JDK 23. As javac runs a
 processor only on the files it is given by name, every file of the program is then named, as a build names them - its
 tests' own only when the file checked is one of them. A **JavaFX** program is run with JavaFX's modules on the module
-path, as JavaFX's documentation runs one, since java will not start a JavaFX application from the class path; with none
-to give it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
+path, as JavaFX's documentation runs one, since java before Java 27 will not start a JavaFX application from the class
+path - Java 27's starts one the JavaFX way only when JavaFX is among the modules it started with; with none to give it,
+and a java that will not start it, a note says so rather than a finding. A `pom.xml`'s profiles are read as Maven would switch them on for this
 computer, which is how JavaFX's own `pom.xml` picks the jars for Windows. A Gradle build that applies the JavaFX plugin,
 `org.openjfx.javafxplugin`, has the modules its `javafx { }` block names, with those they need as the plugin's own list
 has them, each as the jar of it for this computer that Gradle downloaded - or from the `lib` folder of the JavaFX SDK the
@@ -563,18 +728,23 @@ Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a ge
 
 Some limits are part of how FixFinder works:
 
-- **Time.** Each run of a program is given 60 seconds - six minutes for Go, whose first build compiles its standard
-  library - and is stopped when its time runs out. A program with a window, or a server, runs until it is closed or
-  stopped, so it is always stopped this way: what it did until then is checked, and what it would do when someone uses
-  the window, or something connects, is not.
+- **Time.** Each run of a program is given the time chosen in Settings - a minute unless chosen, and never less than six
+  minutes for Go, whose first build compiles its standard library - and is stopped when its time runs out. A server runs
+  until it is stopped, so it is always stopped this way, and so is a program with a window unless it is let run until it
+  is closed: what it did until then is checked, and what it would do when someone uses the window, or something
+  connects, is not.
 - **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
   in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
   downloads it.
 - **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
   code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
-  is built with the other source files beside it only when its folder holds no more than 200 files and exactly one of
-  them has a `main`; otherwise it is built on its own.
+  is built as its Makefile or CMakeLists.txt builds it; without one, it is built with the other source files beside it
+  only when its folder holds no more than 200 files and exactly one of them has a `main`, and otherwise on its own.
+- **Build files.** A Makefile or CMakeLists.txt is read, never run, so what it would only know by running something -
+  `$(shell ...)`, `execute_process`, which CMake runs it, a package `find_package` looks for, a file a command writes while
+  it builds - is not known: how the program ran names each, and a program whose files depend on one is built as if
+  there were no build file. A program built from C and C++ files together is not built as one.
 - **Reading the code.** The values are followed through the code by its own language's parser - Python's, javac's, Go's -
   run by the program's own tools; when that cannot run, a note says the code was checked against the logic patterns
   alone.
@@ -622,6 +792,8 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--format json` | Everything each finding says, for another program to use. |
 | `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
+| `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
+| `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |
 
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a

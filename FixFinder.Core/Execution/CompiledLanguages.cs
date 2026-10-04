@@ -56,30 +56,31 @@ public static partial class CompiledLanguages
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
         var start = WorkingFolder.For(source);
 
-        var sources = ProgramLayout.NativeSources(source);
+        var lookup = NativeBuild.For(source);
+        var build = lookup.Build;
+        var sources = build?.Sources ?? ProgramLayout.NativeSources(source);
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = GnuWarnings(cpp);
+            // The standard its build file gives, else the one its code was found to build as when it last did not build as C++17 or the compiler's own C.
+            var standard = GnuWarnings(cpp, build?.Standard ?? NativeStandards.RememberedFor(source));
 
             var compile = Spec(
                 gnu.Program,
-                $"-g -O0 -Wformat -fdiagnostics-parseable-fixits {standard}-o \"{exe}\" {Quoted(sources)}",
+                $"-g -O0 -Wformat -fdiagnostics-parseable-fixits {standard}{build?.GnuCompileFlags}-o \"{exe}\" {Quoted(sources)}{build?.GnuLinkFlags}",
                 Path.GetDirectoryName(source)!,
                 timeout);
 
-            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
-                $"Building it{Along(sources)} with {gnu.Name}, then running the result{StartsFrom(start, source)}."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout), NativeExplanation(gnu.Name, source, sources, lookup, cpp, start)), null);
         }
 
         if (Toolchains.FindMsvc() is { SetupScript: { } script } msvc)
         {
-            var batch = WriteMsvcBatch(sources, exe, output, script, cpp);
+            var batch = WriteMsvcBatch(sources, exe, output, script, cpp, build);
 
             var compile = Spec("cmd.exe", $"/c \"{batch}\"", output, timeout);
 
-            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout),
-                $"Building it{Along(sources)} with {msvc.Name}, then running the result{StartsFrom(start, source)}."), null);
+            return (new BuildAndRun(compile, Run(exe, start.Folder, timeout), NativeExplanation(msvc.Name, source, sources, lookup, cpp, start)), null);
         }
 
         return (null,
@@ -91,9 +92,43 @@ public static partial class CompiledLanguages
             "FixFinder finds Visual Studio automatically, so it does not need to be on PATH.");
     }
 
-    private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp)
+    /// <summary>
+    /// What "how it ran" says of building a C or C++ program: with what and how - as its build file builds it, with the
+    /// flags that gives it and what it does that FixFinder did not, or, without one to follow, why not when that is known.
+    /// </summary>
+    private static string NativeExplanation(string compiler, string source, IReadOnlyList<string> sources, NativeBuild.Lookup lookup, bool cpp, WorkingFolder.Choice start)
     {
-        var flags = MsvcFlags(cpp, debugInfo: true);
+        if (lookup.Build is not { } build)
+        {
+            var writtenTo = !LanguageStandards.Current.Chooses(cpp) && NativeStandards.RememberedFor(source) is { Length: > 0 } found
+                ? $" as {NativeStandards.Shown(found, compiler)}, the standard its code was found to be written to,"
+                : "";
+
+            return $"Building it{Along(sources)}{writtenTo} with {compiler}, then running the result{StartsFrom(start, source)}.{(lookup.Note is { } note ? " " + note : "")}";
+        }
+
+        var standards = LanguageStandards.Current;
+        var language = cpp ? "C++" : "C";
+
+        var given = new List<string>();
+        if (!standards.Chooses(cpp) && build.Standard is { } own) given.Add($"-std={own}");
+        if (build.FlagsShown.Length > 0) given.Add(build.FlagsShown);
+
+        var settingsHold = standards.Chooses(cpp) && build.Standard is { } overruled
+            ? $" It is held to the {language} standard chosen in Settings rather than the -std={overruled} its {build.BuildFileName} gives."
+            : "";
+
+        var notFollowed = build.NotFollowed.Count > 0
+            ? $" What its {build.BuildFileName} does that FixFinder did not: {string.Join("; ", build.NotFollowed)}."
+            : "";
+
+        return $"Building it as its {build.BuildFileName} builds {build.Program}{(sources.Count > 1 ? "," : "")}{Along(sources)}" +
+               $"{(given.Count > 0 ? ", given " + string.Join(" ", given) : "")}, using {compiler}, then running the result{StartsFrom(start, source)}.{settingsHold}{notFollowed}";
+    }
+
+    private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp, NativeBuild? build)
+    {
+        var flags = MsvcFlags(cpp, debugInfo: true, build?.Standard) + build?.MsvcCompileFlags;
 
         var batch = Path.Combine(output, "build.cmd");
 
@@ -104,7 +139,7 @@ public static partial class CompiledLanguages
             $"call \"{vcvarsall}\" x64 >nul",
             "if errorlevel 1 (echo FixFinder: could not set up the MSVC environment & exit /b 1)",
             $"cd /d \"{output.TrimEnd(Path.DirectorySeparatorChar)}\"",
-            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" {Quoted(sources)}",
+            $"cl {flags} /Fe:\"{Path.GetFileName(exe)}\" {Quoted(sources)}{build?.MsvcLinkFlags}",
             "exit /b %errorlevel%",
             "",
         ]);
@@ -116,15 +151,16 @@ public static partial class CompiledLanguages
 
     /// <summary>
     /// The standard the program is held to, then the warnings. Used both to build the program and to check every fix,
-    /// so a fix that needs a later standard than the one chosen fails its check and is never offered.
+    /// so a fix that needs a later standard than the one chosen - or than the one its build file gives - fails its check
+    /// and is never offered.
     /// </summary>
-    internal static string GnuWarnings(bool cpp) => LanguageStandards.Current.Gnu(cpp) + (cpp
+    internal static string GnuWarnings(bool cpp, string? projectStandard = null) => LanguageStandards.Current.Gnu(cpp, projectStandard) + (cpp
         ? "-Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
         : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ");
 
     /// <summary>MSVC's flags, with the standard the program is held to where MSVC has a flag for it.</summary>
-    internal static string MsvcFlags(bool cpp, bool debugInfo) =>
-        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Current.Msvc(cpp);
+    internal static string MsvcFlags(bool cpp, bool debugInfo, string? projectStandard = null) =>
+        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Current.Msvc(cpp, projectStandard);
 
     internal const string JavaLint = "-Xlint:cast,divzero,empty,fallthrough,finally,overrides,rawtypes,static,unchecked,deprecation";
 
@@ -141,10 +177,11 @@ public static partial class CompiledLanguages
         Directory.CreateDirectory(output);
 
         var exe = Path.Combine(output, Path.GetFileNameWithoutExtension(source) + ".exe");
-        var flags = MsvcFlags(cpp, debugInfo: true);
+        var build = NativeBuild.For(source).Build;
+        var flags = MsvcFlags(cpp, debugInfo: true, build?.Standard) + build?.MsvcCompileFlags;
         var batch = Path.Combine(output, "build.cmd");
 
-        var sources = Quoted(ProgramLayout.NativeSources(source));
+        var sources = Quoted(build?.Sources ?? ProgramLayout.NativeSources(source));
 
         if (cpp)
         {
@@ -163,11 +200,11 @@ public static partial class CompiledLanguages
             "where clang_rt.asan_dynamic-x86_64.dll >nul 2>nul",
             "if errorlevel 1 goto without_sanitizer",
             "for /f \"delims=\" %%d in ('where clang_rt.asan_dynamic-x86_64.dll') do copy /y \"%%d\" . >nul",
-            $"cl {flags} /fsanitize=address /Fe:\"{Path.GetFileName(exe)}\" {sources}",
+            $"cl {flags} /fsanitize=address /Fe:\"{Path.GetFileName(exe)}\" {sources}{build?.MsvcLinkFlags}",
             "exit /b %errorlevel%",
             ":without_sanitizer",
             cpp
-                ? $"rem No AddressSanitizer here: the terminate handler alone can still say what ended a C++ program.\r\ncl {flags} /Fe:\"{Path.GetFileName(exe)}\" {sources}\r\nexit /b %errorlevel%"
+                ? $"rem No AddressSanitizer here: the terminate handler alone can still say what ended a C++ program.\r\ncl {flags} /Fe:\"{Path.GetFileName(exe)}\" {sources}{build?.MsvcLinkFlags}\r\nexit /b %errorlevel%"
                 : "echo FixFinder: the AddressSanitizer runtime was not found & exit /b 1",
             "",
         ]), new UTF8Encoding(false));
@@ -247,19 +284,9 @@ public static partial class CompiledLanguages
 
     private static (BuildAndRun?, string?) Java(string source, string output, TimeSpan timeout)
     {
-        var javac = Toolchains.FindJavac();
-        var java = Toolchains.FindJava();
-
-        if (javac is null || java is null)
-        {
-            return (null,
-                $"{Path.GetFileName(source)} is Java, which has to be compiled before it can run, " +
-                "and no JDK was found.\n\n" +
-                "Install one - for example:\n" +
-                "  winget install Microsoft.OpenJDK.21\n\n" +
-                "FixFinder looks on PATH and in the usual Program Files locations, so it does not " +
-                "need to be on PATH.");
-        }
+        // The JDK and the Java it compiles for are the ones the program's project, its own code or Settings ask for.
+        var (setup, problem) = JavaSetup.For(source);
+        if (setup is null) return (null, problem);
 
         var libraries = JavaLibraries.For(source);
 
@@ -285,13 +312,14 @@ public static partial class CompiledLanguages
         var namedSources = string.Concat(libraries.SourcesToName(source).Select(file => $" \"{file}\""));
 
         var compile = Spec(
-            javac.Program,
-            ShortEnough($"-g {LanguageStandards.Current.JavaRelease}{JavaLint} -d \"{output}\"{processorPath}{sourceAndLibraries} \"{source}\"{namedSources}{launcherSource}", output, "javac"),
+            setup.Jdk.Javac,
+            ShortEnough($"-g {setup.CompilerArguments}{JavaLint} -d \"{output}\"{processorPath}{sourceAndLibraries} \"{source}\"{namedSources}{launcherSource}", output, "javac"),
             Path.GetDirectoryName(source)!,
             timeout);
 
-        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java will not start a class that
-        // extends javafx.application.Application from JavaFX on the class path.
+        // JavaFX's modules go on the module path, as JavaFX's documentation runs a program: java before Java 27 will not start a
+        // class that extends javafx.application.Application from JavaFX on the class path, and Java 27's starts one the JavaFX
+        // way only when javafx.graphics is among the modules it started with.
         var javaFx = libraries.JavaFxModules;
         var modulePath = javaFx.Count > 0 ? $"--module-path \"{string.Join(Path.PathSeparator, javaFx)}\" --add-modules ALL-MODULE-PATH " : "";
 
@@ -301,8 +329,8 @@ public static partial class CompiledLanguages
         var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherFullName} {MainClass(source)}";
 
         var run = Spec(
-            java.Program,
-            ShortEnough($"{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
+            setup.Jdk.Java,
+            ShortEnough($"{setup.RunArguments}{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
             start.Folder,
             timeout);
 
@@ -316,7 +344,8 @@ public static partial class CompiledLanguages
             : "running it with java";
 
         return (new BuildAndRun(compile, run,
-            $"Building it with {javac.Name}{with}{projects}{asModule}, then {then}{StartsFrom(start, source)}."), null);
+            $"Building it with the javac of {setup.JdkExplained}{with}{projects}{asModule}{(setup.HowCompiled is { } how ? $", {how}" : "")}, " +
+            $"then {then}{StartsFrom(start, source)}.{(setup.CodeNeeds is { } needs ? " " + needs : "")}"), null);
     }
 
     /// <summary>
@@ -353,6 +382,7 @@ public static partial class CompiledLanguages
 
         var folder = Path.GetFileName(start.Folder);
         if (start.FileFound is { } file) return $" from {folder}, where {file} is";
+        if (start.BuildFileName is { } buildFile) return $" from {folder}, where its {buildFile} is";
 
         return start.IsProjectFolder ? $" from {folder}, the folder that holds src, as an IDE runs it" : $" from {folder}";
     }
