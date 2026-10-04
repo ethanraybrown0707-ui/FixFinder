@@ -11,7 +11,7 @@ public static partial class LineCoverage
     public static bool Supports(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
         ".py" => true,
-        ".js" or ".mjs" or ".cjs" => TargetFactory.FindOnPath("node") is not null,
+        ".js" or ".mjs" or ".cjs" => NodeSetup.For(file) is not null,
         ".c" => Toolchains.FindGnu(cpp: false) is not null && TargetFactory.FindOnPath("gcov") is not null,
         ".cpp" or ".cc" or ".cxx" or ".c++" => Toolchains.FindGnu(cpp: true) is not null && TargetFactory.FindOnPath("gcov") is not null,
         ".go" => GoSetup.For(file) is not null,

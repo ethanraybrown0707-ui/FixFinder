@@ -73,7 +73,7 @@ public static partial class CompilerDiagnostics
         return extension switch
         {
             ".py" or ".pyw" => await PythonAsync(launch, files, log, cancellationToken),
-            ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(files, log, cancellationToken),
+            ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(chosen, files, log, cancellationToken),
             ".cs" => await CSharpAsync(chosen, log, cancellationToken),
             ".go" => await GoAsync(chosen, log, cancellationToken),
             _ => CompilerReport.NotChecked(),
@@ -204,9 +204,9 @@ public static partial class CompilerDiagnostics
         if (file is not null) yield return (file, chunk);
     }
 
-    private static async Task<CompilerReport> JavaScriptAsync(IReadOnlyList<string> files, Action<string>? log, CancellationToken cancellationToken)
+    private static async Task<CompilerReport> JavaScriptAsync(string chosen, IReadOnlyList<string> files, Action<string>? log, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("node") is not { } node) return CompilerReport.NotChecked("Node.js is not installed, so the code could not be checked.");
+        if (NodeSetup.For(chosen) is not { Node: var node }) return CompilerReport.NotChecked("Node.js is not installed, so the code could not be checked.");
 
         var errors = new List<ParsedError>();
         var output = new List<CapturedLine>();

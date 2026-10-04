@@ -184,10 +184,12 @@ public static class TargetFactory
         var environment = isPython ? PythonEnvironment.For(ProgramCopy.OriginalOf(full), windowed) : null;
 
         // The Python is the one the project's environment, the project's declared Python and the code's own needs ask for;
-        // the Go, the one the module's go.mod and the code's own needs ask for.
+        // the Go, the one the module's go.mod and the code's own needs ask for; the Node.js, the one the project's files and
+        // the code's own needs ask for.
         var python = isPython ? PythonSetup.For(full, environment, windowed) : null;
         var go = extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ? GoSetup.For(full) : null;
-        var found = python?.Interpreter ?? go?.Go ?? environment?.Interpreter ?? Resolve(runner);
+        var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" ? NodeSetup.For(full) : null;
+        var found = python?.Interpreter ?? go?.Go ?? node?.Node ?? environment?.Interpreter ?? Resolve(runner);
 
         if (found is null)
         {
@@ -263,10 +265,10 @@ public static class TargetFactory
             ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
         };
 
-        var interpreterNamed = python?.Explained ?? go?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds) is { } needs ? " " + needs : "");
+            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds) is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

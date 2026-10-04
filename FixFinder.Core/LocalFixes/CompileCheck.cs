@@ -374,7 +374,7 @@ public static class CompileCheck
             }
 
             case ".js" or ".mjs" or ".cjs":
-                if (TargetFactory.FindOnPath("node") is not { } node) return null;
+                if (NodeSetup.For(original) is not { Node: var node }) return null;
 
                 return Spec(node, $"--check \"{copy}\"", folder);
 

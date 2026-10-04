@@ -47,10 +47,15 @@ public readonly partial record struct LanguageVersion(int Major, int Minor = -1,
     /// <summary>The same version without its patch - the release whose language it is: 1.27 for 1.27.3.</summary>
     public LanguageVersion Release => new(Major, Minor);
 
+    /// <summary>
+    /// Compares the numbers both versions have: a whole major release - Node.js 20 - is met by any release of it, as a
+    /// release without its patch is met by any patch of it, so a Node.js of at most 20 lets in 20.11 and 20.19 alike.
+    /// </summary>
     public int CompareTo(LanguageVersion other)
     {
         if (Major != other.Major) return Major.CompareTo(other.Major);
-        if (Math.Max(Minor, 0) != Math.Max(other.Minor, 0)) return Math.Max(Minor, 0).CompareTo(Math.Max(other.Minor, 0));
+        if (Minor < 0 || other.Minor < 0) return 0;
+        if (Minor != other.Minor) return Minor.CompareTo(other.Minor);
 
         return Patch < 0 || other.Patch < 0 ? 0 : Patch.CompareTo(other.Patch);
     }

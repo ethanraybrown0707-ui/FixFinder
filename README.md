@@ -193,6 +193,21 @@ install; when the code uses part of the language newer than its go line - Go the
 code, and says so: `requires go1.22 or later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line;
 and when the code needs a later Go than any here, a note says so and how to install one.
 
+A JavaScript program runs with **a Node.js new enough for it**. FixFinder finds every Node.js on the computer - the one on
+PATH, the one Node.js's installer puts in Program Files, and those nvm for Windows keeps - and knows each by the version
+its own `node.exe` gives, so none is started to ask; Settings lists them. New enough means what the project declares -
+`.nvmrc` or `.node-version`, a `volta` pin in `package.json`, or its `engines` range, read as npm's semver writes it - and
+what the code itself uses: `?.` and `??` are Node.js 14's, `??=`, `||=` and `&&=` 15's, `Object.hasOwn` 16.9's,
+`structuredClone` 17's, an array's `findLast` and the global `fetch` 18's, an array's `toSorted`, `toReversed` and
+`toSpliced` 20's, `Object.groupBy` and `Map.groupBy` 21's, `Promise.withResolvers`, `Array.fromAsync` and `Iterator.from`
+22's, `Promise.try` 23's, and `RegExp.escape` and `Error.isError` 24's - each the release MDN's browser compatibility data
+gives for Node.js. The code is read with FixFinder's own JavaScript reader, so text, comments and regular expressions are
+never taken for code, and only what is certainly JavaScript's own counts: a `fetch` the program requires from
+`node-fetch`, or lodash's `_.findLast`, is not. A name only a version manager can turn into a release, such as
+`lts/iron`, is not guessed at. The Node.js on PATH runs the program when it is new enough, else the oldest one here that
+is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
+so and how to install one.
+
 A C or C++ program is built **the way its Makefile or CMakeLists.txt says**, when one beside it, or in a folder up to four
 above it, builds it: from the files the build file builds it from, with its headers looked for in the folders it names,
 and with what it defines, the libraries it links and the standard it is written to. FixFinder reads the build file and

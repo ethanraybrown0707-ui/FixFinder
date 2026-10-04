@@ -39,6 +39,13 @@ public static class ToolchainVersionErrors
                 return Note("Go", used, needs, GoToolchains.Installed, projectsOwn: false, GoVersionErrors.InstallAdvice, built: true);
             }
 
+            case ".js" or ".mjs" or ".cjs":
+            {
+                if (NodeSetup.For(chosen) is not { Toolchain: var used } || JavaScriptFeaturesUsed.For(chosen) is not { } needs) return null;
+
+                return Note("Node.js", used, needs, Nodes.Installed, projectsOwn: false, NodeSetup.InstallAdvice(needs.Version));
+            }
+
             default:
                 return null;
         }

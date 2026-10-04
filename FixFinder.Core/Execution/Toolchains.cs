@@ -176,17 +176,17 @@ public static class Toolchains
         $"C#         : {TargetFactory.FindOnPath("dotnet") ?? "not found"}",
         $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
-        $"JavaScript : {TargetFactory.FindOnPath("node") ?? "not found"}",
-        .. DescribeGos(),
+        .. Described("JavaScript : ", "Node.js", Nodes.Installed),
+        .. Described("Go         : ", "Go", GoToolchains.Installed),
     ];
 
-    /// <summary>Each Go found, one to a line, newest first, with where it was found: the one on PATH is the one used unless a program needs another.</summary>
-    private static IEnumerable<string> DescribeGos()
+    /// <summary>Each toolchain of a language found, one to a line, newest first, with where it was found: the one on PATH is used unless a program needs another.</summary>
+    private static IEnumerable<string> Described(string heading, string language, IReadOnlyList<Versions.VersionedToolchain> installed)
     {
-        var installed = GoToolchains.Installed;
-        if (installed.Count == 0) return ["Go         : not found"];
+        if (installed.Count == 0) return [$"{heading}not found"];
 
-        return installed.Select((go, index) => $"{(index == 0 ? "Go         : " : "             ")}Go {go.VersionText} ({go.FoundIn}): {go.Program}");
+        var indent = new string(' ', heading.Length);
+        return installed.Select((toolchain, index) => $"{(index == 0 ? heading : indent)}{language} {toolchain.VersionText} ({toolchain.FoundIn}): {toolchain.Program}");
     }
 
     /// <summary>Each JDK found, one to a line, the one used unless a program asks for another marked as the default.</summary>
