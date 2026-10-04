@@ -14,7 +14,7 @@ public static partial class LineCoverage
         ".js" or ".mjs" or ".cjs" => TargetFactory.FindOnPath("node") is not null,
         ".c" => Toolchains.FindGnu(cpp: false) is not null && TargetFactory.FindOnPath("gcov") is not null,
         ".cpp" or ".cc" or ".cxx" or ".c++" => Toolchains.FindGnu(cpp: true) is not null && TargetFactory.FindOnPath("gcov") is not null,
-        ".go" => TargetFactory.FindOnPath("go") is not null,
+        ".go" => GoSetup.For(file) is not null,
         _ => false,
     };
 
@@ -210,16 +210,17 @@ public static partial class LineCoverage
     private static async Task<IReadOnlySet<int>?> GoAsync(
         string file, string? input, string? arguments, TimeSpan timeout, string folder, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("go") is not { } go) return null;
+        if (GoSetup.For(file) is not { Go: var go }) return null;
 
         var program = ProgramLayout.GoPackageOf(file);
         var exe = Path.Combine(folder, "covered.exe");
         var data = Path.Combine(folder, "data");
         Directory.CreateDirectory(data);
 
-        var build = program.Module is { } module
+        var build = (program.Module is { } module
             ? Spec(go, $"build -cover -o \"{exe}\" .", module, timeout)
-            : Spec(go, $"build -cover -o \"{exe}\" {string.Join(" ", program.Files.Select(f => $"\"{f}\""))}", Path.GetDirectoryName(file)!, timeout);
+            : Spec(go, $"build -cover -o \"{exe}\" {string.Join(" ", program.Files.Select(f => $"\"{f}\""))}", Path.GetDirectoryName(file)!, timeout))
+            .WithEnvironment(GoSetup.Environment);
 
         if ((await RunAsync(build, cancellationToken)).ExitCode != 0) return null;
 
@@ -230,7 +231,8 @@ public static partial class LineCoverage
         if (ran.Outcome == RunOutcome.LaunchFailed) return null;
 
         var text = Path.Combine(folder, "coverage.txt");
-        if ((await RunAsync(Spec(go, $"tool covdata textfmt -i=\"{data}\" -o=\"{text}\"", folder, timeout), cancellationToken)).ExitCode != 0 || !File.Exists(text)) return null;
+        var report = Spec(go, $"tool covdata textfmt -i=\"{data}\" -o=\"{text}\"", folder, timeout).WithEnvironment(GoSetup.Environment);
+        if ((await RunAsync(report, cancellationToken)).ExitCode != 0 || !File.Exists(text)) return null;
 
         var name = Path.GetFileName(file);
         var lines = new HashSet<int>();

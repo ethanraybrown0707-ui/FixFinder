@@ -181,6 +181,7 @@ internal static partial class GoDirectBuild
                 Arguments = $"build -n -o \"{Path.Combine(probeFolder, "check.exe")}\" \"{probe}\"",
                 WorkingDirectory = probeFolder,
                 Timeout = TimeSpan.FromMinutes(2),
+                ExtraEnvironment = GoSetup.Environment,
             };
 
             var run = await new TargetRunner(new ParserRegistry()).RunAsync(spec, CancellationToken.None);

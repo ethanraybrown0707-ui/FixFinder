@@ -183,9 +183,11 @@ public static class TargetFactory
         var windowed = extension.Equals(".pyw", StringComparison.OrdinalIgnoreCase);
         var environment = isPython ? PythonEnvironment.For(ProgramCopy.OriginalOf(full), windowed) : null;
 
-        // The Python is the one the project's environment, the project's declared Python and the code's own needs ask for.
+        // The Python is the one the project's environment, the project's declared Python and the code's own needs ask for;
+        // the Go, the one the module's go.mod and the code's own needs ask for.
         var python = isPython ? PythonSetup.For(full, environment, windowed) : null;
-        var found = python?.Interpreter ?? environment?.Interpreter ?? Resolve(runner);
+        var go = extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ? GoSetup.For(full) : null;
+        var found = python?.Interpreter ?? go?.Go ?? environment?.Interpreter ?? Resolve(runner);
 
         if (found is null)
         {
@@ -258,12 +260,13 @@ public static class TargetFactory
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = viaDotnet,
             Timeout = timeout ?? TimeoutFor(extension),
+            ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
         };
 
-        var interpreterNamed = python?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        var interpreterNamed = python?.Explained ?? go?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.") + (python?.CodeNeeds is { } needs ? " " + needs : "");
+            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds) is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

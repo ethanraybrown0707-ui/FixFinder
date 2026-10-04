@@ -224,6 +224,25 @@ public class PythonVersionTests : IDisposable
     }
 
     /// <summary>
+    /// When none is new enough, the usual Python runs - which need not be the newest here - and the note names the newest,
+    /// not the one that ran, as the newest on this computer.
+    /// </summary>
+    [Fact]
+    public void TheNoteNamesTheNewestPythonHereWhenAnOlderOneRan()
+    {
+        var usual = FakePython(@"Program Files\Python39", 9);
+        FakePython(@"home\AppData\Local\Programs\Python\Python311", 11);
+        using var computer = Computer(onPath: usual);
+        var app = Write(@"olderRan\app.py", "type Point = tuple[float, float]\n");
+
+        Assert.Equal(usual, PythonSetup.For(app, environment: null)!.Interpreter);
+        Assert.Equal("app.py uses a type statement at line 1, which Python 3.12 added - and it ran with Python 3.9 (on PATH), and the newest Python on this " +
+                     "computer is 3.11 (installed for this user), so that part of it cannot run, which is not a mistake in the code. Installing Python 3.12 or " +
+                     "later runs it - for example:\n  winget install Python.Python.3.14",
+                     ToolchainVersionErrors.NoteFor(app));
+    }
+
+    /// <summary>
     /// A need some Python here meets, but none together with the rest - the code needs 3.12 and the project rules out
     /// anything after 3.11 - is said as that, not as there being no such Python.
     /// </summary>

@@ -49,7 +49,7 @@ public static class FixDiffs
             ".py" when python is not null => await PythonFrontend.ReadAsync([file], python, cancellationToken),
             ".java" when JavaFrontend.FindTools(file) is { } tools => await JavaFrontend.ReadAsync([file], tools.Javac, tools.Java, cancellationToken),
             ".cs" => await CSharpFrontend.ReadAsync([file], cancellationToken),
-            ".go" when GoFrontend.FindGo() is { } go => await GoFrontend.ReadAsync([file], go, cancellationToken),
+            ".go" when GoFrontend.FindGo(file) is { } go => await GoFrontend.ReadAsync([file], go, cancellationToken),
             ".js" or ".mjs" => await JavaScriptFrontend.ReadAsync([file], cancellationToken),
             ".c" or ".cpp" or ".cc" or ".h" or ".hpp" => await CFrontend.ReadAsync([file], cancellationToken),
             _ => null,

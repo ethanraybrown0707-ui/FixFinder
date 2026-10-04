@@ -19,10 +19,10 @@ public class GoAnalysisTests(ITestOutputHelper output) : IDisposable
 
     private async Task<(IrProgram Program, IReadOnlyList<AnalysisFinding> Findings)?> CheckAsync(string code, string name = "main.go")
     {
-        if (GoFrontend.FindGo() is not { } go) return null;
-
         var path = Path.Combine(_temp.Path, name);
         await File.WriteAllTextAsync(path, code.ReplaceLineEndings("\n"));
+
+        if (GoFrontend.FindGo(path) is not { } go) return null;
 
         var program = await GoFrontend.ReadAsync([path], go);
         foreach (var problem in program.Problems) output.WriteLine($"problem: {problem}");

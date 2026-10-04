@@ -177,8 +177,17 @@ public static class Toolchains
         $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"JavaScript : {TargetFactory.FindOnPath("node") ?? "not found"}",
-        $"Go         : {TargetFactory.FindOnPath("go") ?? "not found"}",
+        .. DescribeGos(),
     ];
+
+    /// <summary>Each Go found, one to a line, newest first, with where it was found: the one on PATH is the one used unless a program needs another.</summary>
+    private static IEnumerable<string> DescribeGos()
+    {
+        var installed = GoToolchains.Installed;
+        if (installed.Count == 0) return ["Go         : not found"];
+
+        return installed.Select((go, index) => $"{(index == 0 ? "Go         : " : "             ")}Go {go.VersionText} ({go.FoundIn}): {go.Program}");
+    }
 
     /// <summary>Each JDK found, one to a line, the one used unless a program asks for another marked as the default.</summary>
     private static IEnumerable<string> DescribeJdks()

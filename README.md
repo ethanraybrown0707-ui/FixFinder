@@ -131,8 +131,8 @@ ones registered with Windows - the Microsoft Store's among them - those python.o
 or Program Files, and those pyenv, uv, the Python install manager and Anaconda keep; each is known by its own files where
 they say its version, and only otherwise asked. How it ran says which Python the code needs and why, with the file and
 line; and when the program has errors and no Python here is new enough for it, a note says so and which to install, so
-those errors are not read as mistakes in the code. A project's own environment is used as it is - it holds the project's packages - and how it ran
-says when it is older than the code needs.
+those errors are not read as mistakes in the code. A project's own environment is used as it is - it holds the project's
+packages - and how it ran says when it is older than the code needs.
 
 A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
 computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
@@ -171,6 +171,27 @@ later Java than any JDK here has is not built, and the report says which to inst
 here is built with the nearest, and the run explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
 Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
 it is on this computer.
+
+A Go program is built and run with **a Go new enough for it**. FixFinder finds every Go on the computer - the one on PATH,
+the one `GOROOT` names, the one Go's installer puts in Program Files or `C:\Go`, those golang.org/dl downloads to the `sdk`
+folder in the user's home, and those the go command has downloaded into its module cache - and knows each by the `VERSION`
+file at the top of it, asking it only when there is none; Settings lists them. New enough means what the module declares -
+`go.mod`'s go line, as every Go from 1.21 on refuses a module whose go line names a later Go than itself (a go line can
+name a patch, as `go mod init` writes it, and an earlier patch will not do), and `go.work`'s, in a workspace - and what
+the code itself uses: type parameters are Go 1.18's, the built-in `min`, `max` and `clear` and the `slices`, `maps`,
+`cmp` and `log/slog` packages Go 1.21's, ranging over an integer and `math/rand/v2` Go 1.22's, ranging over a function and
+the `iter` package Go 1.23's, a generic type alias and `strings.Lines` Go 1.24's, a `sync.WaitGroup`'s `Go` method Go
+1.25's, `new` given a value and `errors.AsType` Go 1.26's, and a generic method, `encoding/json/v2`, `uuid` and
+`strings.CutLast` Go 1.27's - the language from the release notes at go.dev/doc, the library from the `api/go1.N.txt`
+files every Go comes with. Only what is certainly Go's own counts: a `max` of the program's own, or `maps` from
+`golang.org/x/exp`, is not. The Go on PATH builds the program when it is new enough, else the oldest Go here that is - or,
+when go.mod's toolchain line names a later Go than the one on PATH and one is here, that one, as the go command itself
+would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, so the Go chosen is the Go that runs: left
+to itself, the go command downloads a later Go when a module asks for one, and FixFinder never downloads. How it ran says
+which Go and why. When Go will not build a module because it asks for a later Go than any here, a note says which Go to
+install; when the code uses part of the language newer than its go line - Go then builds the module as that older Go's
+code, and says so: `requires go1.22 or later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line;
+and when the code needs a later Go than any here, a note says so and how to install one.
 
 A C or C++ program is built **the way its Makefile or CMakeLists.txt says**, when one beside it, or in a folder up to four
 above it, builds it: from the files the build file builds it from, with its headers looked for in the folders it names,

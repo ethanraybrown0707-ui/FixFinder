@@ -188,6 +188,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             // Code newer than the Java it is built for: which Java it needs, and whether a JDK of it is on this computer.
             if (JavaVersionErrors.NoteFor(codeErrors, chosen) is { } needsALaterJava) Note(needsALaterJava);
 
+            // A module that asks for a later Go than any here, or code newer than its go line: which Go, and what to change.
+            if (GoVersionErrors.NoteFor(codeErrors, report.Output, chosen) is { } needsALaterGo) Note(needsALaterGo);
+
             if (report.Errors.Count > 0)
             {
                 builds.TrySetResult(false);
@@ -1245,7 +1248,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (AllEndIn(".cs")) return CSharpFrontend.ReadAsync(files, cancellationToken);
 
         if (AllEndIn(".go"))
-            return GoFrontend.FindGo() is { } go ? GoFrontend.ReadAsync(files, go, cancellationToken) : null;
+            return GoFrontend.FindGo(launch.ChosenFile ?? files[0]) is { } go ? GoFrontend.ReadAsync(files, go, cancellationToken) : null;
 
         if (AllEndIn(".js", ".mjs", ".cjs")) return JavaScriptFrontend.ReadAsync(files, cancellationToken);
 

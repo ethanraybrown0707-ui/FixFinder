@@ -15,7 +15,8 @@ public static class GoFrontend
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
     private static readonly SemaphoreSlim Building = new(1, 1);
 
-    public static string? FindGo() => TargetFactory.FindOnPath("go");
+    /// <summary>The Go the file is built with, whose own parser can read everything that Go builds.</summary>
+    public static string? FindGo(string goFile) => GoSetup.For(goFile)?.Go;
 
     public static async Task<IrProgram> ReadAsync(IReadOnlyList<string> files, string go, CancellationToken cancellationToken = default)
     {
@@ -52,11 +53,15 @@ public static class GoFrontend
         }
     }
 
-    /// <summary>Builds the helper into a folder named after its source, so a changed helper is built afresh.</summary>
+    /// <summary>
+    /// Builds the helper into a folder named after its source and the Go that builds it, so a changed helper - or one a
+    /// later Go builds, whose parser reads what that Go added - is built afresh.
+    /// </summary>
     private static async Task<(string Program, string? Problem)> HelperAsync(string go, CancellationToken cancellationToken)
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(GoAstScript.Source)))[..12];
-        var folder = Path.Combine(Path.GetTempPath(), "FixFinder-analysis", $"go-ast-{hash}");
+        var builtBy = GoToolchains.At(go, "")?.VersionText ?? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(go)))[..8];
+        var folder = Path.Combine(Path.GetTempPath(), "FixFinder-analysis", $"go-ast-{hash}-go{builtBy}");
         var program = Path.Combine(folder, OperatingSystem.IsWindows() ? "fixfinder-go-ast.exe" : "fixfinder-go-ast");
 
         await Building.WaitAsync(cancellationToken);
@@ -74,6 +79,7 @@ public static class GoFrontend
                 Arguments = $"build -o \"{program}\" \"{source}\"",
                 WorkingDirectory = folder,
                 Timeout = BuildTimeout,
+                ExtraEnvironment = GoSetup.Environment,
             }, cancellationToken);
 
             if (File.Exists(program)) return (program, null);

@@ -267,7 +267,7 @@ public static partial class CompilerDiagnostics
 
     private static async Task<CompilerReport> GoAsync(string chosen, Action<string>? log, CancellationToken cancellationToken)
     {
-        if (TargetFactory.FindOnPath("go") is not { } go) return CompilerReport.NotChecked("Go is not installed, so the code could not be checked.");
+        if (GoSetup.For(chosen) is not { Go: var go }) return CompilerReport.NotChecked("Go is not installed, so the code could not be checked.");
 
         var program = ProgramLayout.GoPackageOf(chosen);
         var folder = program.Module ?? Path.GetDirectoryName(chosen)!;
@@ -282,6 +282,7 @@ public static partial class CompilerDiagnostics
                 Arguments = $"build -o \"{binary}\" {targets}",
                 WorkingDirectory = folder,
                 Timeout = Timeout,
+                ExtraEnvironment = GoSetup.Environment,
             }, log, cancellationToken);
 
             if (build.Outcome is RunOutcome.LaunchFailed) return CompilerReport.NotChecked(build.LaunchError);
@@ -295,6 +296,7 @@ public static partial class CompilerDiagnostics
                 Arguments = $"vet {targets}",
                 WorkingDirectory = folder,
                 Timeout = Timeout,
+                ExtraEnvironment = GoSetup.Environment,
             }, log, cancellationToken);
 
             var warnings = Resolved(new GoCompileParser().ParseAll(vet.Lines), folder)

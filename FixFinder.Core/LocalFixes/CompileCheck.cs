@@ -153,7 +153,7 @@ public static class CompileCheck
             var name = Path.GetFileName(source.Path);
 
             if (ProgramLayout.GoPackageOf(source.Path).IsSingleFile &&
-                TargetFactory.FindOnPath("go") is { } go && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
+                GoSetup.For(source.Path) is { Go: var go } && GoDirectBuild.KeyFor(name, Encoding.UTF8.GetString(content)) is { } key)
                 _ = GoDirectBuild.PlanFor(go, key, name, content);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -379,17 +379,17 @@ public static class CompileCheck
                 return Spec(node, $"--check \"{copy}\"", folder);
 
             case ".go":
-                if (TargetFactory.FindOnPath("go") is not { } go) return null;
+                if (GoSetup.For(original) is not { Go: var go }) return null;
 
                 var program = ProgramLayout.GoPackageOf(original);
-                if (program.IsSingleFile) return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder);
+                if (program.IsSingleFile) return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" \"{copy}\"", folder).WithEnvironment(GoSetup.Environment);
 
                 if (program.Module is not null)
                 {
                     var module = Path.Combine(folder, "module");
                     if (!CopyTree(program.Module, module, original, copy)) return null;
 
-                    return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" .", module);
+                    return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" .", module).WithEnvironment(GoSetup.Environment);
                 }
 
                 var files = new List<string> { copy };
@@ -401,7 +401,8 @@ public static class CompileCheck
                     files.Add(target);
                 }
 
-                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" {string.Join(" ", files.Select(f => $"\"{f}\""))}", folder);
+                return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" {string.Join(" ", files.Select(f => $"\"{f}\""))}", folder)
+                    .WithEnvironment(GoSetup.Environment);
 
             case ".cs":
                 if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;

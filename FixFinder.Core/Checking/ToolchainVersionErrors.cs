@@ -26,7 +26,17 @@ public static class ToolchainVersionErrors
                 var environment = PythonEnvironment.For(ProgramCopy.OriginalOf(chosen), windowed);
                 if (PythonSetup.For(chosen, environment, windowed) is not { Toolchain: { } used } || PythonFeaturesUsed.For(chosen) is not { } needs) return null;
 
-                return Note("Python", used, needs, Pythons.Installed, environment is not null, $"winget install Python.Python.3.{Math.Max(needs.Version.Minor, 14)}");
+                return Note("Python", used, needs, Pythons.Installed, environment is not null, $"for example:\n  winget install Python.Python.3.{Math.Max(needs.Version.Minor, 14)}");
+            }
+
+            case ".go":
+            {
+                if (GoSetup.For(chosen) is not { Toolchain: var used } || GoFeaturesUsed.For(chosen) is not { } needs) return null;
+
+                // A Go older than the module's go line does not build it at all, which GoVersionErrors says from what go said.
+                if (DeclaredGo.Of(ProgramCopy.OriginalOf(chosen))?.AtLeast.Any(declared => used.Version < declared.Version) == true) return null;
+
+                return Note("Go", used, needs, GoToolchains.Installed, projectsOwn: false, GoVersionErrors.InstallAdvice, built: true);
             }
 
             default:
@@ -35,26 +45,37 @@ public static class ToolchainVersionErrors
     }
 
     /// <summary>The words of the note: what needs which version, what ran, and what to do about it.</summary>
-    internal static string? Note(string language, VersionedToolchain used, ToolchainChoice.AtLeast needs, IReadOnlyList<VersionedToolchain> installed, bool projectsOwn, string install)
+    /// <param name="install">How to install a later version, after "Installing Python 3.12 or later runs it - ".</param>
+    /// <param name="built">Whether the language builds the program before it runs, so it is the build that fails.</param>
+    internal static string? Note(
+        string language, VersionedToolchain used, ToolchainChoice.AtLeast needs, IReadOnlyList<VersionedToolchain> installed, bool projectsOwn, string install,
+        bool built = false)
     {
         if (used.Version >= needs.Version) return null;
 
         // It starts with the file's name, which keeps its own case.
         var because = needs.Because;
+        var (cannot, makesItWork) = built ? ("cannot be built", "builds it") : ("cannot run", "runs it");
 
         if (projectsOwn)
         {
-            return $"{because} - and the project's own environment is {language} {used.VersionText}, so that part of it cannot run there, which is " +
-                   $"not a mistake in the code. Making the environment again with {language} {needs.Version} or later runs it.";
+            return $"{because} - and the project's own environment is {language} {used.VersionText}, so that part of it {cannot} there, which is " +
+                   $"not a mistake in the code. Making the environment again with {language} {needs.Version} or later {makesItWork}.";
         }
 
         if (installed.FirstOrDefault(toolchain => toolchain.Version >= needs.Version) is { } newer)
         {
             return $"{because} - and it ran with {language} {used.VersionText} ({used.FoundIn}), as what its project declares rules out " +
-                   $"{language} {newer.VersionText} ({newer.FoundIn}), so that part of it cannot run, which is not a mistake in the code.";
+                   $"{language} {newer.VersionText} ({newer.FoundIn}), so that part of it {cannot}, which is not a mistake in the code.";
         }
 
-        return $"{because} - and {language} {used.VersionText} ({used.FoundIn}) is the newest {language} on this computer, so that part of it cannot run, " +
-               $"which is not a mistake in the code. Installing {language} {needs.Version} or later runs it - for example:\n  {install}";
+        // The newest here may not be the one that ran - the usual one runs when none is new enough.
+        var newest = installed.Count > 0 && installed[0].Version > used.Version ? installed[0] : null;
+        var whatIsHere = newest is null
+            ? $"{language} {used.VersionText} ({used.FoundIn}) is the newest {language} on this computer"
+            : $"it ran with {language} {used.VersionText} ({used.FoundIn}), and the newest {language} on this computer is {newest.VersionText} ({newest.FoundIn})";
+
+        return $"{because} - and {whatIsHere}, so that part of it {cannot}, which is not a mistake in the code. " +
+               $"Installing {language} {needs.Version} or later {makesItWork} - {install}";
     }
 }
