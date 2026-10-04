@@ -407,14 +407,17 @@ public static class CompileCheck
             case ".cs":
                 if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;
 
+                // A copy is built with the .NET SDK the program is: the global.json that chooses it comes with the copy.
                 if (ProgramLayout.CSharpProject(original) is { } project)
                 {
                     var copied = Path.Combine(folder, "project");
                     if (!CopyTree(Path.GetDirectoryName(project)!, copied, original, copy)) return null;
+                    ProgramCopy.KeepDotnetSdkChoice(Path.GetDirectoryName(project)!, copied);
 
                     return Spec(dotnet, $"build \"{Path.Combine(copied, Path.GetFileName(project))}\" -nologo -v q", copied);
                 }
 
+                ProgramCopy.KeepDotnetSdkChoice(originalFolder, folder);
                 return Spec(dotnet, $"build \"{copy}\" -nologo -v q", folder);
 
             default:

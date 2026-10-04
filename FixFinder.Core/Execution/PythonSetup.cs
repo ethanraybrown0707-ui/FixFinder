@@ -17,7 +17,9 @@ public sealed record PythonSetup(string Interpreter, string Explained, string? C
 
     public static PythonSetup? For(string pythonFile, PythonEnvironment.Found? environment, bool windowed = false)
     {
-        var codeNeeds = PythonFeaturesUsed.For(pythonFile);
+        // A copy made to try a fix in runs with the Python the program itself runs with: what the program's own code needs
+        // decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
+        var codeNeeds = PythonFeaturesUsed.For(ProgramCopy.OriginalOf(pythonFile));
 
         // The project's own environment is what its IDE runs it with, and what has its packages installed: it is used as it is.
         if (environment is not null)

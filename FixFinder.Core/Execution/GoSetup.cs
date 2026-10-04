@@ -32,7 +32,9 @@ public sealed record GoSetup(string Go, string Explained, string? CodeNeeds, Ver
 
     public static GoSetup? For(string goFile)
     {
-        var codeNeeds = GoFeaturesUsed.For(goFile);
+        // A copy made to try a fix in is built with the Go the program itself is built with: what the program's own code
+        // needs decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
+        var codeNeeds = GoFeaturesUsed.For(ProgramCopy.OriginalOf(goFile));
 
         // A copy of the program made to try a change in has the change; its module's files are read where it came from.
         var declared = DeclaredGo.Of(ProgramCopy.OriginalOf(goFile));

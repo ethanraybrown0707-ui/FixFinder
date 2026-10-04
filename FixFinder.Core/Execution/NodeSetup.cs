@@ -16,7 +16,9 @@ public sealed record NodeSetup(string Node, string Explained, string? CodeNeeds,
 
     public static NodeSetup? For(string javaScriptFile)
     {
-        var codeNeeds = JavaScriptFeaturesUsed.For(javaScriptFile);
+        // A copy made to try a fix in runs with the Node.js the program itself runs with: what the program's own code needs
+        // decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
+        var codeNeeds = JavaScriptFeaturesUsed.For(ProgramCopy.OriginalOf(javaScriptFile));
 
         // A copy of the program made to try a change in has the change; its project's files are read where it came from.
         var declared = DeclaredNode.Of(ProgramCopy.OriginalOf(javaScriptFile));

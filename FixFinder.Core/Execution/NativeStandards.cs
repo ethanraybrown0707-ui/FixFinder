@@ -35,10 +35,13 @@ public static partial class NativeStandards
 
     private static readonly ConcurrentDictionary<string, (string Standard, DateTime Written)> Remembered = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The standard a source of the program was found to build as, while the source is as it was then - or null.</summary>
+    /// <summary>
+    /// The standard a source of the program was found to build as, while the source is as it was then - or null. A copy
+    /// of the program made to try a fix in is built as the program is, so its sources answer for the program's own.
+    /// </summary>
     public static string? RememberedFor(string source)
     {
-        var path = Path.GetFullPath(source);
+        var path = Path.GetFullPath(ProgramCopy.OriginalOf(Path.GetFullPath(source)));
         return Remembered.TryGetValue(path, out var known) && known.Written == WrittenAt(path) ? known.Standard : null;
     }
 

@@ -132,7 +132,26 @@ public static class ProgramCopy
             File.Copy(file, target, overwrite: true);
         }
 
+        if (Directory.EnumerateFiles(root, "*.csproj").Any()) KeepDotnetSdkChoice(root, destination);
+
         Remember(destination, root);
         return true;
+    }
+
+    /// <summary>
+    /// The global.json that chooses the .NET SDK a C# program is built with - in its folder or one above it - put at the
+    /// top of a copy of it, so the copy is built with the SDK the program is, as dotnet looks for one above where it builds.
+    /// </summary>
+    public static void KeepDotnetSdkChoice(string programFolder, string copyFolder)
+    {
+        if (DotnetSdks.GlobalJsonAbove(programFolder) is not { } globalJson) return;
+
+        try
+        {
+            File.Copy(globalJson, Path.Combine(copyFolder, "global.json"), overwrite: false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 }
