@@ -245,10 +245,16 @@ is built as the one of them built by default - by plain `make`, or CMake's `all`
 that is not a test, or else the one built by default. When two are as likely as each other, as for a helper two
 exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
 is a program whose files the build file names in a way FixFinder cannot follow, or that it builds from C and C++ files
-together. With
-no build file, C and C++ are built with the other files of their language beside them when exactly one of them all has a
-`main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is built to the
-compiler's own standard and C++ to C++17.
+together. With no build file, C and C++ are built with the other files of their language beside them when exactly one of
+them all has a `main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is
+built to the compiler's own standard and C++ to C++17 - and when the program **does not build as that**, the compiler is
+asked which standard its code is written to. gcc or clang compiles it, for its syntax only, as the standards either side:
+C++20 and C++23, then C++14 for code that uses what C++17 took out; C23, then C17. The first the compiler takes it as,
+with fewer errors and none it did not already give, is the one it is written to: it is built as that, its fixes are
+checked as that, and a note says so in the compiler's own words - g++ 13.2 says of a concept read as C++17 "'concept'
+does not name a type; did you mean 'const'?", and the note quotes it. A mistake of the program's own is wrong as every
+standard, so it changes nothing. FixFinder keeps no list of which feature came in which standard of C or C++: the
+compiler is the one that knows. A program built with MSVC keeps to the standard it was given.
 
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and

@@ -165,7 +165,7 @@ public static partial class LineCoverage
         var objects = new List<string>();
         // The same standard the program is built and its fixes checked with, so a repair is never searched for under a
         // different version of the language than the one the person chose - or than its build file gives it.
-        var standard = LanguageStandards.Current.Gnu(cpp, build?.Standard);
+        var standard = LanguageStandards.Current.Gnu(cpp, build?.Standard ?? NativeStandards.RememberedFor(file));
 
         foreach (var (source, index) in sources.Select((s, i) => (s, i)))
         {

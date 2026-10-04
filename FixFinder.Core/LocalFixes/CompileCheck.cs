@@ -435,7 +435,7 @@ public static class CompileCheck
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = CompiledLanguages.GnuWarnings(cpp, build?.Standard);
+            var standard = CompiledLanguages.GnuWarnings(cpp, build?.Standard ?? NativeStandards.RememberedFor(Path.Combine(originalFolder, Path.GetFileName(copy))));
             return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" {build?.GnuCompileFlags}-o \"{exe}\" \"{copy}\"{rest}{build?.GnuLinkFlags}", folder);
         }
 

@@ -62,7 +62,8 @@ public static partial class CompiledLanguages
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = GnuWarnings(cpp, build?.Standard);
+            // The standard its build file gives, else the one its code was found to build as when it last did not build as C++17 or the compiler's own C.
+            var standard = GnuWarnings(cpp, build?.Standard ?? NativeStandards.RememberedFor(source));
 
             var compile = Spec(
                 gnu.Program,
@@ -98,7 +99,13 @@ public static partial class CompiledLanguages
     private static string NativeExplanation(string compiler, string source, IReadOnlyList<string> sources, NativeBuild.Lookup lookup, bool cpp, WorkingFolder.Choice start)
     {
         if (lookup.Build is not { } build)
-            return $"Building it{Along(sources)} with {compiler}, then running the result{StartsFrom(start, source)}.{(lookup.Note is { } note ? " " + note : "")}";
+        {
+            var writtenTo = !LanguageStandards.Current.Chooses(cpp) && NativeStandards.RememberedFor(source) is { Length: > 0 } found
+                ? $" as {NativeStandards.Shown(found, compiler)}, the standard its code was found to be written to,"
+                : "";
+
+            return $"Building it{Along(sources)}{writtenTo} with {compiler}, then running the result{StartsFrom(start, source)}.{(lookup.Note is { } note ? " " + note : "")}";
+        }
 
         var standards = LanguageStandards.Current;
         var language = cpp ? "C++" : "C";

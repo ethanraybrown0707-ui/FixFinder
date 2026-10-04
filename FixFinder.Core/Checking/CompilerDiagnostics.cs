@@ -111,6 +111,28 @@ public static partial class CompilerDiagnostics
         var errors = Resolved(Errors(registry, build.Lines), folder);
         var warnings = Resolved(WarningsIn(build.Lines), folder);
 
+        // A C or C++ program that does not build as the standard FixFinder gave it may be written to another: the compiler
+        // is asked which, and when it takes the program as one, the program is built as that.
+        if (errors.Count > 0 && launch.ChosenFile is { } chosen && Path.GetExtension(chosen).ToLowerInvariant() is ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" &&
+            await NativeStandards.FindAsync(chosen, compile, errors, lines => Errors(registry, lines), cancellationToken) is { } found)
+        {
+            var rebuild = new TargetSpec
+            {
+                ExecutablePath = compile.ExecutablePath,
+                Arguments = NativeStandards.WithStandard(compile.Arguments, found.Standard),
+                WorkingDirectory = compile.WorkingDirectory,
+                Timeout = compile.Timeout,
+                ExtraEnvironment = compile.ExtraEnvironment,
+            };
+
+            var rebuilt = await new TargetRunner(registry).RunAsync(rebuild, cancellationToken);
+            if (rebuilt.Outcome != RunOutcome.LaunchFailed)
+            {
+                NativeStandards.Remember(NativeBuild.For(chosen).Build?.Sources ?? ProgramLayout.NativeSources(chosen), found.Standard);
+                return new CompilerReport(true, Resolved(Errors(registry, rebuilt.Lines), folder), Resolved(WarningsIn(rebuilt.Lines), folder), rebuilt.Lines, rebuilt, found.Explained);
+            }
+        }
+
         return new CompilerReport(true, errors, warnings, build.Lines, build);
     }
 
