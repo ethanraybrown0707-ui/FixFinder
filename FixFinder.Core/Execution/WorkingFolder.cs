@@ -12,7 +12,8 @@ namespace FixFinder.Core.Execution;
 /// always did; only the folder the program starts from changes.
 ///
 /// Java starts from the project's folder - the one holding src, or src/main/java - because that is where an IDE or a
-/// build tool starts it. C and C++ start beside their source, as a program built at a command line does. Either way, a
+/// build tool starts it. C and C++ start beside their source, as a program built at a command line does - or, built by a
+/// Makefile or CMakeLists.txt, in that file's folder, where make is run. Either way, a
 /// file the program names in quotes settles it: if it is not in that folder but is in one of the others the program
 /// could have been started from, the program starts where the file is.
 /// </remarks>
@@ -20,8 +21,8 @@ public static partial class WorkingFolder
 {
     private const int MostSourcesRead = 200;
 
-    /// <summary>Where the program starts, and the file it names that decided it, if one did.</summary>
-    public sealed record Choice(string Folder, string? FileFound, bool IsProjectFolder);
+    /// <summary>Where the program starts, and the file it names that decided it, if one did - or else the build file in that folder, if it starts there for that.</summary>
+    public sealed record Choice(string Folder, string? FileFound, bool IsProjectFolder, string? BuildFileName = null);
 
     [GeneratedRegex(@"""(?<text>(?:[^""\\\r\n]|\\.){3,200})""")]
     private static partial Regex QuotedText();
@@ -35,7 +36,8 @@ public static partial class WorkingFolder
     public static Choice For(string chosen)
     {
         var file = Path.GetFullPath(chosen);
-        var folders = FoldersToStartFrom(file);
+        var build = IsJava(file) ? null : NativeBuild.For(file).Build;
+        var folders = FoldersToStartFrom(file, build);
         var named = FilesNamedIn(SourcesOf(file));
 
         foreach (var folder in folders)
@@ -46,33 +48,49 @@ public static partial class WorkingFolder
             }
         }
 
-        return new Choice(folders[0], null, IsProject(folders[0], file));
+        return IsBuildFolder(folders[0], build, file)
+            ? new Choice(folders[0], null, IsProjectFolder: false, build!.BuildFileName)
+            : new Choice(folders[0], null, IsProject(folders[0], file));
     }
 
     /// <summary>
-    /// The folder a copy of the program has to start from to hold everything it uses: its source, and the folder it
-    /// starts in, with the files there.
+    /// The folder a copy of the program has to start from to hold everything it uses: its source, the folder it starts
+    /// in, with the files there - and, for a C or C++ program with a build file, the build file's folder, so the copy is
+    /// built the way the program is.
     /// </summary>
     public static string CopyRoot(string chosen)
     {
         var file = Path.GetFullPath(chosen);
         var start = For(file).Folder;
         var sourceRoot = SourceRoot(file);
+        var root = IsInside(sourceRoot, start) ? start : sourceRoot;
 
-        return IsInside(sourceRoot, start) ? start : sourceRoot;
+        if (IsJava(file) || NativeBuild.For(file).Build is not { } build) return root;
+
+        while (!IsInside(build.Folder, root) && Path.GetDirectoryName(root) is { } parent) root = parent;
+        return root;
     }
 
-    /// <summary>The folders the program could have been started from, the most likely first.</summary>
-    private static IReadOnlyList<string> FoldersToStartFrom(string file)
+    /// <summary>
+    /// The folders the program could have been started from, the most likely first. A C or C++ program built by a build
+    /// file starts in that file's folder first, as make, and a build started at a command line, run it.
+    /// </summary>
+    private static IReadOnlyList<string> FoldersToStartFrom(string file, NativeBuild? build)
     {
         var beside = Path.GetDirectoryName(file)!;
 
         IEnumerable<string> folders = IsJava(file)
             ? [JavaProjectFolder(ProgramLayout.JavaSourceRoot(file)), ProgramLayout.JavaSourceRoot(file), beside]
+            : build is not null ? [build.Folder, beside, FolderHoldingSrc(beside) ?? beside]
             : [beside, FolderHoldingSrc(beside) ?? beside];
 
         return folders.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
+
+    private static bool IsBuildFolder(string folder, NativeBuild? build, string file) =>
+        build is not null &&
+        string.Equals(Path.GetFullPath(build.Folder), folder, StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(folder, Path.GetDirectoryName(file), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// The folder an IDE or a build tool starts a Java program from: the one holding src/main/java or src/test/java in a

@@ -214,9 +214,15 @@ public static partial class ProgramFiles
         return ([.. reached, .. others.Where(file => !reachedFiles.Contains(file))], lookedAtAll);
     }
 
+    /// <summary>
+    /// A C or C++ program's files: its sources, then the headers they include in quotes - found beside the file that
+    /// includes them, or in the include folders its build file names, as the compiler finds them.
+    /// </summary>
     private static IReadOnlyList<string> NativeFiles(string chosen)
     {
-        var sources = ProgramLayout.NativeSources(chosen);
+        var build = NativeBuild.For(chosen).Build;
+        var sources = build?.Sources ?? ProgramLayout.NativeSources(chosen);
+        var includeFolders = build?.IncludeFolders ?? [];
         var headers = new List<string>();
 
         foreach (var source in sources)
@@ -225,8 +231,12 @@ public static partial class ProgramFiles
 
             foreach (Match include in LocalInclude().Matches(text))
             {
-                var header = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, include.Groups["header"].Value));
-                if (File.Exists(header)) headers.Add(header);
+                var name = include.Groups["header"].Value;
+                var header = includeFolders.Prepend(Path.GetDirectoryName(source)!)
+                    .Select(folder => Path.GetFullPath(Path.Combine(folder, name)))
+                    .FirstOrDefault(File.Exists);
+
+                if (header is not null && !headers.Contains(header, StringComparer.OrdinalIgnoreCase)) headers.Add(header);
             }
         }
 

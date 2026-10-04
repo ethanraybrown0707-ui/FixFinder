@@ -248,12 +248,30 @@ public static class CompileCheck
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
 
-            var around = extension == ".java" ? ProgramLayout.JavaSourceRoot(original) : Path.GetDirectoryName(original)!;
-            if (Neighbours(around) is not { } listing) return null;
-            key.Append(listing);
+            foreach (var around in FoldersReadFrom(original, extension))
+            {
+                if (Neighbours(around) is not { } listing) return null;
+                key.Append(listing);
+            }
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key.ToString())));
+    }
+
+    /// <summary>
+    /// The folders whose files a compile can read, so a change to any of them is a different check: Java's source root; a
+    /// Go file's folder; a C or C++ file's folder - and, built by a build file, that file's folder and the include folders
+    /// it names.
+    /// </summary>
+    private static IEnumerable<string> FoldersReadFrom(string original, string extension)
+    {
+        if (extension == ".java") return [ProgramLayout.JavaSourceRoot(original)];
+        if (extension == ".go") return [Path.GetDirectoryName(original)!];
+
+        var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
+        IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
+
+        return folders.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string? Neighbours(string folder)
@@ -328,7 +346,18 @@ public static class CompileCheck
                     folder);
 
             case ".c" or ".cpp" or ".cc" or ".cxx" or ".c++":
-                return Native(copy, originalFolder, folder, others: ProgramLayout.NativeSources(original).Skip(1).ToList());
+                return Native(copy, originalFolder, folder, others: ProgramLayout.NativeSources(original).Skip(1).ToList(), build: NativeBuild.For(original).Build);
+
+            case ".h" or ".hpp" or ".hh" or ".hxx" when NativeBuild.ForHeader(original) is { } headerBuild:
+            {
+                // The program is copied whole, laid out as it is, with the header changed: its sources may be in another
+                // folder from the header, and only in a copy of the whole is each of them sure to read the changed one.
+                var copiedProgram = Path.Combine(folder, "program");
+                if (!IsInside(original, headerBuild.Folder) || !CopyTree(headerBuild.Folder, copiedProgram, original, copy)) return null;
+
+                var moved = headerBuild.MovedTo(headerBuild.Folder, copiedProgram);
+                return Native(moved.Sources[0], Path.GetDirectoryName(moved.Sources[0])!, folder, others: moved.Sources.Skip(1).ToList(), build: moved);
+            }
 
             case ".h" or ".hpp" or ".hh" or ".hxx":
             {
@@ -392,7 +421,12 @@ public static class CompileCheck
         }
     }
 
-    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true, IReadOnlyList<string>? others = null)
+    /// <summary>
+    /// Compiling a changed copy of a C or C++ file with the rest of its program: the copy's own folder holds nothing else,
+    /// so its headers are found in the original's folder - and in the include folders its build file names, given with the
+    /// definitions, standard and libraries the program is built with.
+    /// </summary>
+    internal static TargetSpec? Native(string copy, string originalFolder, string folder, bool reuseMsvcEnvironment = true, IReadOnlyList<string>? others = null, NativeBuild? build = null)
     {
         var cpp = !Path.GetExtension(copy).Equals(".c", StringComparison.OrdinalIgnoreCase);
         var exe = Path.Combine(folder, "check.exe");
@@ -400,14 +434,15 @@ public static class CompileCheck
 
         if (Toolchains.FindGnu(cpp) is { } gnu)
         {
-            var standard = CompiledLanguages.GnuWarnings(cpp);
-            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" -o \"{exe}\" \"{copy}\"{rest}", folder);
+            var standard = CompiledLanguages.GnuWarnings(cpp, build?.Standard);
+            return Spec(gnu.Program, $"{standard}-Wformat -I \"{originalFolder}\" {build?.GnuCompileFlags}-o \"{exe}\" \"{copy}\"{rest}{build?.GnuLinkFlags}", folder);
         }
 
         if (Toolchains.FindMsvc() is not { SetupScript: { } vcvarsall }) return null;
 
-        var flags = CompiledLanguages.MsvcFlags(cpp, debugInfo: false);
-        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{Path.GetFileName(copy)}\"{rest}";
+        var flags = CompiledLanguages.MsvcFlags(cpp, debugInfo: false, build?.Standard) + build?.MsvcCompileFlags;
+        var named = string.Equals(Path.GetDirectoryName(copy), folder, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(copy) : copy;
+        var compile = $"{flags} /I \"{originalFolder}\" /Fe:check.exe \"{named}\"{rest}{build?.MsvcLinkFlags}";
 
         if (reuseMsvcEnvironment && Toolchains.MsvcEnvironment() is { } environment && Toolchains.ClIn(environment) is { } cl)
         {
@@ -439,6 +474,12 @@ public static class CompileCheck
 
     private static readonly HashSet<string> NotCopied = new(StringComparer.OrdinalIgnoreCase) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
 
+    private static bool IsInside(string path, string folder)
+    {
+        var relative = Path.GetRelativePath(folder, path);
+        return !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+    }
+
     private const int MostProjectFiles = 500;
 
     private static bool CopyTree(string from, string to, string original, string changed)
@@ -451,7 +492,7 @@ public static class CompileCheck
             var directory = pending.Pop();
 
             foreach (var sub in Directory.EnumerateDirectories(directory))
-                if (!NotCopied.Contains(Path.GetFileName(sub))) pending.Push(sub);
+                if (!NotCopied.Contains(Path.GetFileName(sub)) && ProgramCopy.IsCopied(Path.GetFileName(sub))) pending.Push(sub);
 
             files.AddRange(Directory.EnumerateFiles(directory));
             if (files.Count > MostProjectFiles) return false;

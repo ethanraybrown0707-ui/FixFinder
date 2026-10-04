@@ -30,8 +30,8 @@ public partial class SettingsWindow : Window
 
         AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
 
-        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "Compiler's default" : choice.ToUpperInvariant());
-        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Replace("c++", "C++"));
+        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "The project's own" : choice.ToUpperInvariant());
+        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Length == 0 ? "The project's own" : choice.Replace("c++", "C++"));
         Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The project's own" : $"Java {choice}");
 
         foreach (var limit in TargetFactory.RunTimeLimitChoices)

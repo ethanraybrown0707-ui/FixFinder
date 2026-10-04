@@ -23,14 +23,55 @@ public class LanguageStandardsTests
         Assert.Equal("", standards.JavaRelease);
     }
 
+    /// <summary>C23 goes to gcc as c2x: gcc 9 to 13 know it by no other name - -std=c23 is refused by gcc 13.2 - and gcc 14 and 15 still take it.</summary>
     [Theory]
     [InlineData("c89", "-std=c89 ")]
     [InlineData("c99", "-std=c99 ")]
     [InlineData("c11", "-std=c11 ")]
-    [InlineData("c23", "-std=c23 ")]
+    [InlineData("c23", "-std=c2x ")]
     public void ACStandardReachesGccAsItsFlag(string chosen, string expected)
     {
         Assert.Equal(expected, new LanguageStandards { C = chosen }.Gnu(cpp: false));
+    }
+
+    /// <summary>With nothing chosen, a program is built with the standard its Makefile or CMakeLists.txt gives it.</summary>
+    [Theory]
+    [InlineData(false, "gnu11", "-std=gnu11 ", " /std:c11")]
+    [InlineData(false, "c99", "-std=c99 ", "")]
+    [InlineData(true, "gnu++20", "-std=gnu++20 ", " /std:c++20")]
+    [InlineData(true, "c++2b", "-std=c++2b ", " /std:c++latest")]
+    public void WithNoneChosenTheProjectsOwnStandardIsUsed(bool cpp, string projects, string gnu, string msvc)
+    {
+        var standards = LanguageStandards.Default;
+
+        Assert.False(standards.Chooses(cpp));
+        Assert.Equal(gnu, standards.Gnu(cpp, projects));
+        Assert.Equal(msvc, standards.Msvc(cpp, projects));
+    }
+
+    /// <summary>A standard chosen in Settings is the course's, and holds over the one a program's build file gives.</summary>
+    [Fact]
+    public void AStandardChosenInSettingsHoldsOverTheProjects()
+    {
+        var standards = new LanguageStandards { C = "c99", Cpp = "c++14" };
+
+        Assert.True(standards.Chooses(cpp: false));
+        Assert.Equal("-std=c99 ", standards.Gnu(cpp: false, "gnu11"));
+        Assert.Equal("-std=c++14 ", standards.Gnu(cpp: true, "gnu++20"));
+    }
+
+    /// <summary>
+    /// A build file's -std= reaches a command line only when it is a standard of the program's own language - so nothing
+    /// else written after -std= in a Makefile can get through, and a C standard is never given to a C++ program.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "c11; del *")]
+    [InlineData(false, "gnu++17")]
+    [InlineData(true, "c11")]
+    [InlineData(true, "c++17 -o elsewhere")]
+    public void AProjectStandardThatIsNotOneForTheLanguageIsNotGiven(bool cpp, string projects)
+    {
+        Assert.Equal(cpp ? "-std=c++17 " : "", LanguageStandards.Default.Gnu(cpp, projects));
     }
 
     [Theory]
@@ -87,6 +128,37 @@ public class LanguageStandardsTests
         var read = Preferences.Load(file);
 
         Assert.Equal(new LanguageStandards { C = "c99", Cpp = "c++20", Java = "8" }, read.Standards);
+    }
+
+    /// <summary>
+    /// A preferences file from before "the project's own" was a C++ choice holds C++17 only because nobody chose: it is
+    /// read as nobody choosing, which still gives C++17 to a program whose build file names no standard. A file written
+    /// since keeps C++17 as the choice it then is.
+    /// </summary>
+    [Fact]
+    public void AnOlderFilesCpp17IsReadAsNoChoiceAndANewerOnesAsAChoice()
+    {
+        using var temp = new TempFolder();
+        var older = Path.Combine(temp.Path, "older.json");
+        var newer = Path.Combine(temp.Path, "newer.json");
+
+        File.WriteAllText(older, "{ \"Explanations\": 1, \"CStandard\": \"\", \"CppStandard\": \"c\\u002B\\u002B17\", \"JavaRelease\": \"\" }");
+        new Preferences { CppStandard = "c++17" }.Save(newer);
+
+        Assert.Equal("", Preferences.Load(older).CppStandard);
+        Assert.Equal("c++17", Preferences.Load(newer).CppStandard);
+    }
+
+    /// <summary>An older file's C++ choice other than C++17 was somebody choosing, and stays.</summary>
+    [Fact]
+    public void AnOlderFilesOtherCppChoiceStays()
+    {
+        using var temp = new TempFolder();
+        var older = Path.Combine(temp.Path, "older.json");
+
+        File.WriteAllText(older, "{ \"CppStandard\": \"c++20\" }");
+
+        Assert.Equal("c++20", Preferences.Load(older).CppStandard);
     }
 
     /// <summary>The worked-out value is not written into the file as well, where it could disagree with the three it comes from.</summary>

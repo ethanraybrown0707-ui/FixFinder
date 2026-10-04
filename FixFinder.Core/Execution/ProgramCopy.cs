@@ -19,6 +19,10 @@ public static class ProgramCopy
         "bin", "obj", ".git", ".vs", ".idea", "node_modules", "__pycache__", ".venv", "venv", "target", "build", "out",
     };
 
+    /// <summary>Whether a folder of the program is copied: not one of those, nor a cmake-build-debug or other folder CLion builds in.</summary>
+    public static bool IsCopied(string folderName) =>
+        !NotCopied.Contains(folderName) && !folderName.StartsWith("cmake-build-", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>More files than this is more than a program's worth - a whole Documents folder, say - and is not copied.</summary>
     public const int MostFiles = 300;
 
@@ -111,7 +115,7 @@ public static class ProgramCopy
             var directory = pending.Pop();
 
             foreach (var sub in Directory.EnumerateDirectories(directory))
-                if (!NotCopied.Contains(Path.GetFileName(sub))) pending.Push(sub);
+                if (IsCopied(Path.GetFileName(sub))) pending.Push(sub);
 
             foreach (var file in Directory.EnumerateFiles(directory))
             {

@@ -52,9 +52,10 @@ with it, and a note says so. Check on save watches a file chosen from disk; for 
 check it after a change. The saved copy is removed when the window closes.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
-Java is compiled from its source root, C# from its project, Go as its package, and C and C++ with the other files and
-headers beside them. A Java folder of exercises, each with its own `main`, holds several programs: one the chosen file's
-code does not reach is another program, and neither it nor what only it uses is read as part of the one checked.
+Java is compiled from its source root, C# from its project, Go as its package, and C and C++ as their Makefile or
+CMakeLists.txt builds them - or, without one, with the other files and headers beside them. A Java folder of exercises,
+each with its own `main`, holds several programs: one the chosen file's code does not reach is another program, and
+neither it nor what only it uses is read as part of the one checked.
 
 A program with a window - one written with JavaFX or Swing, in the file chosen or one it names, or in Python with tkinter,
 turtle, pygame, PyQt or PySide, wxPython, Kivy, or matplotlib's `show()` - runs until its window is closed, and a server -
@@ -76,7 +77,8 @@ for its first build, which compiles its standard library.
 
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
-beside their source, as a program built at a command line does; the rest start where the program is. When a file the
+beside their source, as a program built at a command line does, or, built by a Makefile or CMakeLists.txt, in that file's
+folder, where make is run; the rest start where the program is. When a file the
 program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
 The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
 a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
@@ -135,6 +137,31 @@ built, and the report says which to install; code that needs a JDK that is not h
 explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
 Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
 it is on this computer.
+
+A C or C++ program is built **the way its Makefile or CMakeLists.txt says**, when one beside it, or in a folder up to four
+above it, builds it: from the files the build file builds it from, with its headers looked for in the folders it names,
+and with what it defines, the libraries it links and the standard it is written to. FixFinder reads the build file and
+builds the program itself, with the compiler it found - it never runs make or CMake, or anything they would run. A
+Makefile is read as GNU make reads it: its variables, `$(wildcard)`, `$(patsubst)` and make's other functions, `ifeq` and
+`ifdef`, the files it includes, pattern and suffix rules, `vpath`, rules a template makes with `$(eval)`, and make's own
+rules for a target with no recipe of its own. A CMake project is read from its highest CMakeLists.txt as CMake runs it -
+variables and lists, `if`, `foreach` and functions, `file(GLOB)` and `add_subdirectory` - and from its targets:
+`add_executable`, `add_library`, and the `target_` commands that give them sources, include folders, definitions,
+standards and libraries, with what a library passes on to whatever links it. It is read as an IDE configures a project for
+debugging, which is how FixFinder builds; with `CMAKE_C_STANDARD 11`, CMake gives gcc `-std=gnu11`, as its extensions are
+on unless the project turns them off, and so does FixFinder. So a project with its sources in `src` and its headers in
+`include` builds with its headers found, and a folder of exercises, each with its own `main`, builds the one the chosen
+file belongs to - and a header's fix is checked by building that program with the changed header. What only running
+something could say - `$(shell ...)`, `execute_process`, a header `configure_file` would write, a package `find_package`
+would look for - is not guessed at: how the program ran names it. A file the build file builds into more than one program
+is built as the one of them built by default - by plain `make`, or CMake's `all` - that is not a test, or else the one
+that is not a test, or else the one built by default. When two are as likely as each other, as for a helper two
+exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
+is a program whose files the build file names in a way FixFinder cannot follow, or that it builds from C and C++ files
+together. With
+no build file, C and C++ are built with the other files of their language beside them when exactly one of them all has a
+`main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is built to the
+compiler's own standard and C++ to C++17.
 
 A Java program is built and run with the **libraries** its project names, found as its own tools find them: a Maven
 project's `pom.xml`, with its parents, its properties, the versions its dependencyManagement and imported BOMs set, and

@@ -160,22 +160,23 @@ public static partial class LineCoverage
         var cpp = !Path.GetExtension(file).Equals(".c", StringComparison.OrdinalIgnoreCase);
         if (Toolchains.FindGnu(cpp) is not { } gnu || TargetFactory.FindOnPath("gcov") is not { } gcov) return null;
 
-        var sources = ProgramLayout.NativeSources(file);
+        var build = NativeBuild.For(file).Build;
+        var sources = build?.Sources ?? ProgramLayout.NativeSources(file);
         var objects = new List<string>();
         // The same standard the program is built and its fixes checked with, so a repair is never searched for under a
-        // different version of the language than the one the person chose.
-        var standard = LanguageStandards.Current.Gnu(cpp);
+        // different version of the language than the one the person chose - or than its build file gives it.
+        var standard = LanguageStandards.Current.Gnu(cpp, build?.Standard);
 
         foreach (var (source, index) in sources.Select((s, i) => (s, i)))
         {
             var obj = Path.Combine(folder, $"{index}-{Path.GetFileNameWithoutExtension(source)}.o");
-            var compile = await RunAsync(Spec(gnu.Program, $"-c -g -O0 --coverage {standard}-I \"{Path.GetDirectoryName(file)}\" -o \"{obj}\" \"{source}\"", folder, timeout), cancellationToken);
+            var compile = await RunAsync(Spec(gnu.Program, $"-c -g -O0 --coverage {standard}-I \"{Path.GetDirectoryName(file)}\" {build?.GnuCompileFlags}-o \"{obj}\" \"{source}\"", folder, timeout), cancellationToken);
             if (compile.ExitCode != 0) return null;
             objects.Add(obj);
         }
 
         var exe = Path.Combine(folder, "covered.exe");
-        var link = await RunAsync(Spec(gnu.Program, $"--coverage -o \"{exe}\" {string.Join(" ", objects.Select(o => $"\"{o}\""))}", folder, timeout), cancellationToken);
+        var link = await RunAsync(Spec(gnu.Program, $"--coverage -o \"{exe}\" {string.Join(" ", objects.Select(o => $"\"{o}\""))}{build?.GnuLinkFlags}", folder, timeout), cancellationToken);
         if (link.ExitCode != 0) return null;
 
         var ran = await RunAsync(Spec(exe, "", folder, timeout).WithArguments(arguments).WithInput(input), cancellationToken);

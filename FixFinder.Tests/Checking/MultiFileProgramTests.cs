@@ -41,8 +41,37 @@ public class MultiFileProgramTests
         return await new FixFinderSession(http, new FixSourceRegistry()).RunAsync(plan, new SearchBudget(Cache: CacheMode.CacheOnly));
     }
 
+    /// <summary>A course's src/include project: its Makefile says the sources are in src and the headers in include.</summary>
+    private static Dictionary<string, string> SrcIncludeProject(string listSource) => new()
+    {
+        ["Makefile"] = "CFLAGS = -Wall -std=c11 -Iinclude\nSRC = $(wildcard src/*.c)\nOBJ = $(SRC:src/%.c=obj/%.o)\n\napp: $(OBJ)\n\t$(CC) $^ -o $@\n\nobj/%.o: src/%.c\n\t$(CC) $(CFLAGS) -c $< -o $@\n",
+        ["include/list.h"] = "int sum(const int *values, int count);\n",
+        ["src/list.c"] = listSource,
+        ["src/main.c"] = "#include <stdio.h>\n#include \"list.h\"\n\nint main(void) {\n    int marks[] = {1, 2, 3};\n    printf(\"%d\\n\", sum(marks, 3));\n    return 0;\n}\n",
+    };
+
+    private const string ListSource = "#include \"list.h\"\n\nint sum(const int *values, int count) {\n    int total = 0;\n    for (int i = 0; i < count; i++) total += values[i];\n    return total;\n}\n";
+
     public static TheoryData<string, Dictionary<string, string>, string, string> Working => new()
     {
+        {
+            "c",
+            SrcIncludeProject(ListSource),
+            "src/main.c", "6"
+        },
+        {
+            // Two labs in one folder, each with a main: the CMakeLists.txt says which files make which - and asks for
+            // C++20, which consteval needs.
+            "cpp",
+            new()
+            {
+                ["CMakeLists.txt"] = "cmake_minimum_required(VERSION 3.20)\nproject(labs CXX)\nset(CMAKE_CXX_STANDARD 20)\nadd_executable(lab1 lab1.cpp)\nadd_executable(lab2 lab2.cpp shapes.cpp)\n",
+                ["lab1.cpp"] = "#include <iostream>\n\nint main() {\n    std::cout << \"lab one\\n\";\n}\n",
+                ["lab2.cpp"] = "#include <iostream>\n\nint area(int width, int height);\n\nconsteval int doubled(int value) { return value * 2; }\n\nint main() {\n    std::cout << area(doubled(3), 7) << '\\n';\n}\n",
+                ["shapes.cpp"] = "int area(int width, int height) { return width * height; }\n",
+            },
+            "lab2.cpp", "42"
+        },
         {
             "c",
             new() { ["main.c"] = "#include <stdio.h>\n#include \"util.h\"\n\nint main(void) {\n    printf(\"%d\\n\", add(2, 3));\n    return 0;\n}\n", ["util.h"] = "int add(int a, int b);\n", ["util.c"] = "#include \"util.h\"\n\nint add(int a, int b) {\n    return a + b;\n}\n" },
@@ -93,6 +122,12 @@ public class MultiFileProgramTests
 
     public static TheoryData<string, Dictionary<string, string>, string, string, string> Broken => new()
     {
+        {
+            // The mistake is in src/list.c, whose header is in include: the fix compiles only given the Makefile's -Iinclude.
+            "c",
+            SrcIncludeProject(ListSource.Replace("return total;", "return total", StringComparison.Ordinal)),
+            "src/main.c", "c-compiler-fix-it|c-missing-semicolon", "return total;"
+        },
         {
             "c",
             new() { ["main.c"] = "#include <stdio.h>\n#include \"util.h\"\n\nint main(void) {\n    printf(\"%d\\n\", add(2, 3));\n    return 0;\n}\n", ["util.h"] = "int add(int a, int b);\n", ["util.c"] = "#include \"util.h\"\n\nint add(int a, int b) {\n    return a + b\n}\n" },
