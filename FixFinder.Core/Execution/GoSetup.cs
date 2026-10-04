@@ -16,10 +16,19 @@ public sealed record GoSetup(string Go, string Explained, string? CodeNeeds, Ver
     private const string Language = "Go";
 
     /// <summary>
-    /// What every go command FixFinder starts is given: GOTOOLCHAIN=local, so the Go chosen is the Go that runs - a go
-    /// command left to itself downloads and runs a later Go when the module asks for one, and FixFinder never downloads.
+    /// What every go command FixFinder starts is given, as FixFinder never downloads anything: GOTOOLCHAIN=local, so the
+    /// Go chosen is the Go that runs - a go command left to itself downloads and runs a later Go when the module asks for
+    /// one; GOPROXY=off, so a module its go.mod requires that is not in Go's module cache is not downloaded, from a proxy
+    /// or - for a private one - from where its code is kept; and GOSUMDB=off, as with no proxy the go command would reach
+    /// the checksum database directly whenever it adds a module's checksum to go.sum. A build never adds one unless GOFLAGS
+    /// asks for -mod=mod, and the modules it could add one for are only those already in the cache.
     /// </summary>
-    public static IReadOnlyDictionary<string, string> Environment { get; } = new Dictionary<string, string> { ["GOTOOLCHAIN"] = "local" };
+    public static IReadOnlyDictionary<string, string> Environment { get; } = new Dictionary<string, string>
+    {
+        ["GOTOOLCHAIN"] = "local",
+        ["GOPROXY"] = "off",
+        ["GOSUMDB"] = "off",
+    };
 
     public static GoSetup? For(string goFile)
     {

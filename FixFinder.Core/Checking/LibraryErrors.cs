@@ -85,6 +85,9 @@ public static partial class LibraryErrors
 
     public static Sorted Sort(IReadOnlyList<ParsedError> errors, string chosen)
     {
+        // A Go module that is not in Go's module cache - which FixFinder never downloads - is a library not here too.
+        if (chosen.EndsWith(".go", StringComparison.OrdinalIgnoreCase)) return GoModuleErrors.Sort(errors, chosen);
+
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || errors.Count == 0) return new Sorted(errors, null, 0);
 
         var libraries = JavaLibraries.For(chosen);

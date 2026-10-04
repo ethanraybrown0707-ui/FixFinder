@@ -186,9 +186,12 @@ the `iter` package Go 1.23's, a generic type alias and `strings.Lines` Go 1.24's
 files every Go comes with. Only what is certainly Go's own counts: a `max` of the program's own, or `maps` from
 `golang.org/x/exp`, is not. The Go on PATH builds the program when it is new enough, else the oldest Go here that is - or,
 when go.mod's toolchain line names a later Go than the one on PATH and one is here, that one, as the go command itself
-would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, so the Go chosen is the Go that runs: left
-to itself, the go command downloads a later Go when a module asks for one, and FixFinder never downloads. How it ran says
-which Go and why. When Go will not build a module because it asks for a later Go than any here, a note says which Go to
+would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`, so the Go
+chosen is the Go that runs and nothing is downloaded: left to itself, the go command downloads a later Go when a module
+asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
+database - and FixFinder never downloads. A module the program needs that is not in the module cache is said once in a
+note, naming it and saying that `go mod download` in the module's folder downloads it, and go's errors about it are not
+reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for a later Go than any here, a note says which Go to
 install; when the code uses part of the language newer than its go line - Go then builds the module as that older Go's
 code, and says so: `requires go1.22 or later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line;
 and when the code needs a later Go than any here, a note says so and how to install one.
