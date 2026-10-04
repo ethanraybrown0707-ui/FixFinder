@@ -223,6 +223,23 @@ public class PythonVersionTests : IDisposable
                      ToolchainVersionErrors.NoteFor(app));
     }
 
+    /// <summary>
+    /// A need some Python here meets, but none together with the rest - the code needs 3.12 and the project rules out
+    /// anything after 3.11 - is said as that, not as there being no such Python.
+    /// </summary>
+    [Fact]
+    public void NeedsNoOnePythonMeetsTogetherAreSaidAsThat()
+    {
+        var usual = FakePython(@"Program Files\Python311", 11);
+        FakePython(@"home\AppData\Local\Programs\Python\Python313", 13);
+        using var computer = Computer(onPath: usual);
+        Write(@"conflict\pyproject.toml", "[project]\nrequires-python = \"<3.12\"\n");
+        var app = Write(@"conflict\app.py", "type Point = tuple[float, float]\n");
+
+        Assert.Equal("Python 3.11 (on PATH), though app.py uses a type statement at line 1, which Python 3.12 added, and no Python on this computer meets " +
+                     "that and the rest of what it needs", PythonSetup.For(app, environment: null)!.Explained);
+    }
+
     /// <summary>The project's own environment is used as it is - it holds the project's packages - and how it ran says what the code needs of it.</summary>
     [Fact]
     public void TheProjectsOwnEnvironmentIsUsedAsItIs()

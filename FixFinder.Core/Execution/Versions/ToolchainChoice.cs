@@ -59,10 +59,20 @@ public static class ToolchainChoice
             explained += $", as {neededEarlier.Because}";
         }
 
+        // A need no toolchain here meets is said as that; one that some toolchain meets, but none together with the rest, as that.
         foreach (var need in atLeast.Where(need => toolchain.Version < need.Version && said.Add(need.Because)))
-            explained += $", though {need.Because}, and no {language} of {need.Version} or later is on this computer";
+        {
+            explained += installed.Any(other => other.Version >= need.Version)
+                ? $", though {need.Because}, and no {language} on this computer meets that and the rest of what it needs"
+                : $", though {need.Because}, and no {language} of {need.Version} or later is on this computer";
+        }
+
         foreach (var limit in atMost.Where(limit => toolchain.Version > limit.Version && said.Add(limit.Because)))
-            explained += $", though {limit.Because}, and no {language} of {limit.Version} or earlier is on this computer";
+        {
+            explained += installed.Any(other => other.Version <= limit.Version)
+                ? $", though {limit.Because}, and no {language} on this computer meets that and the rest of what it needs"
+                : $", though {limit.Because}, and no {language} of {limit.Version} or earlier is on this computer";
+        }
 
         var codeNeedsSentence = codeNeeds is not null && !said.Contains(codeNeeds.Because)
             ? $"Its code needs {language} {codeNeeds.Version} or later: {codeNeeds.Because}."
