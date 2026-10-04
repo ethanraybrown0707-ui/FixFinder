@@ -6,10 +6,15 @@ namespace FixFinder.Core.Execution.BuildFiles;
 /// <summary>The commands that set variables, read folders and files, and bring in other CMake files.</summary>
 internal sealed partial class CMakeProject
 {
-    /// <summary>Commands that would download something - which FixFinder never does - with what they are named in a note.</summary>
-    private static readonly HashSet<string> Downloads = new(StringComparer.Ordinal)
+    /// <summary>Commands that would download something - which FixFinder never does - with the name a CMakeLists.txt writes each by.</summary>
+    private static readonly Dictionary<string, string> Downloads = new(StringComparer.Ordinal)
     {
-        "fetchcontent_declare", "fetchcontent_makeavailable", "fetchcontent_populate", "externalproject_add", "cpmaddpackage", "cpmfindpackage",
+        ["fetchcontent_declare"] = "FetchContent_Declare",
+        ["fetchcontent_makeavailable"] = "FetchContent_MakeAvailable",
+        ["fetchcontent_populate"] = "FetchContent_Populate",
+        ["externalproject_add"] = "ExternalProject_Add",
+        ["cpmaddpackage"] = "CPMAddPackage",
+        ["cpmfindpackage"] = "CPMFindPackage",
     };
 
     /// <summary>Commands a test framework's CMake module gives, whose first argument is the target of a test program.</summary>
@@ -56,7 +61,12 @@ internal sealed partial class CMakeProject
             case "add_test": AddTest(arguments); break;
             default:
                 if (RunTargetCommand(command.Name, arguments, frame)) break;
-                if (Downloads.Contains(command.Name) && arguments.Count > 0) NotFollowed($"it downloads {arguments[0]} with {command.Name}(), which FixFinder never does");
+                // FetchContent_MakeAvailable fetches what FetchContent_Declare named, which is said already.
+                if (Downloads.TryGetValue(command.Name, out var download) && arguments.Count > 0 && command.Name != "fetchcontent_makeavailable")
+                {
+                    var downloaded = arguments[0] == "NAME" && arguments.Count > 1 ? arguments[1] : arguments[0];
+                    NotFollowed($"it downloads {downloaded} with {download}, which FixFinder never does");
+                }
                 if (TestDiscovery.Contains(command.Name) && arguments.Count > 0) _testPrograms.Add(arguments[0]);
                 break;
         }

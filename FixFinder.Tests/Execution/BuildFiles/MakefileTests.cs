@@ -282,6 +282,60 @@ public class MakefileTests : IDisposable
         Assert.False(programs.Single(program => program.Name == "test_runner").MadeByDefault);
     }
 
+    /// <summary>
+    /// The way many tutorials write one: a pattern rule whose prerequisites include the headers, and -I. so the headers
+    /// beside the Makefile are found - the headers are prerequisites, not sources.
+    /// </summary>
+    [Fact]
+    public void APatternRuleWithHeadersAmongItsPrerequisitesCompilesTheSources()
+    {
+        Source("hellomake.c");
+        Source("hellofunc.c");
+        Write("hellomake.h", "void myPrintHelloMake(void);");
+
+        var program = Assert.Single(ProgramsOf(
+            "CC=gcc",
+            "CFLAGS=-I.",
+            "DEPS = hellomake.h",
+            "OBJ = hellomake.o hellofunc.o ",
+            "",
+            "%.o: %.c $(DEPS)",
+            "\t$(CC) -c -o $@ $< $(CFLAGS)",
+            "",
+            "hellomake: $(OBJ)",
+            "\t$(CC) -o $@ $^ $(CFLAGS)"));
+
+        Assert.Equal("hellomake", program.Name);
+        Assert.Equal([At("hellomake.c"), At("hellofunc.c")], program.Sources);
+        Assert.Equal([Path.GetFullPath(_temp.Path)], program.IncludeFolders);
+    }
+
+    /// <summary>make takes the environment's variables as its own, so a Makefile's check of OS on Windows sees Windows_NT.</summary>
+    [Fact]
+    public void AConditionOnTheEnvironmentsOsIsReadAsMakeReadsIt()
+    {
+        if (Environment.GetEnvironmentVariable("OS") != "Windows_NT") return;
+
+        Source("calc.c");
+
+        var program = Assert.Single(ProgramsOf(
+            "ifeq ($(OS),Windows_NT)",
+            "    EXE = .exe",
+            "    RM = del /Q",
+            "else",
+            "    EXE =",
+            "    RM = rm -f",
+            "endif",
+            "TARGET = calc$(EXE)",
+            "$(TARGET): calc.c",
+            "\tgcc -o $@ calc.c",
+            "clean:",
+            "\t$(RM) $(TARGET)"));
+
+        Assert.Equal("calc", program.Name);
+        Assert.True(program.MadeByDefault);
+    }
+
     [Fact]
     public void AProgramOfCAndCppTogetherIsNotBuiltAsOne()
     {

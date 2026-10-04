@@ -358,6 +358,38 @@ public class CMakeProjectTests : IDisposable
         Assert.Equal(["DEBUG_BUILD"], program.Definitions);
     }
 
+    /// <summary>
+    /// A test program built with a test framework the project downloads: the download and the target it gives are named,
+    /// and the program is still a test - the one checking a file of the project's own is the program, not this.
+    /// </summary>
+    [Fact]
+    public void ATestFrameworkTheProjectDownloadsIsNamedNotGuessed()
+    {
+        Source("hello_test.cc");
+
+        var program = Assert.Single(ProgramsOf(
+            "cmake_minimum_required(VERSION 3.14)",
+            "project(my_project)",
+            "set(CMAKE_CXX_STANDARD 14)",
+            "set(CMAKE_CXX_STANDARD_REQUIRED ON)",
+            "include(FetchContent)",
+            "FetchContent_Declare(",
+            "  googletest",
+            "  URL https://github.com/google/googletest/archive/refs/heads/main.zip",
+            ")",
+            "FetchContent_MakeAvailable(googletest)",
+            "enable_testing()",
+            "add_executable(hello_test hello_test.cc)",
+            "target_link_libraries(hello_test GTest::gtest_main)",
+            "include(GoogleTest)",
+            "gtest_discover_tests(hello_test)"));
+
+        Assert.True(program.IsATest);
+        Assert.Equal("gnu++14", program.Standards[At("hello_test.cc")]);
+        Assert.Contains("it downloads googletest with FetchContent_Declare, which FixFinder never does", program.NotFollowed);
+        Assert.Contains(program.NotFollowed, note => note.Contains("GTest::gtest_main", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void WhatExecuteProcessWouldGetIsNotKnown()
     {
