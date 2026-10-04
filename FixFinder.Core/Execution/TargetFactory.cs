@@ -179,10 +179,13 @@ public static class TargetFactory
 
         // A Python project with an environment of its own runs in it, with what is installed there, as its IDE runs it - and
         // so does a copy of the project made to try a change in, which leaves the environment behind.
-        var environment = extension.ToLowerInvariant() is ".py" or ".pyw"
-            ? PythonEnvironment.For(ProgramCopy.OriginalOf(full), windowed: extension.Equals(".pyw", StringComparison.OrdinalIgnoreCase))
-            : null;
-        var found = environment?.Interpreter ?? Resolve(runner);
+        var isPython = extension.ToLowerInvariant() is ".py" or ".pyw";
+        var windowed = extension.Equals(".pyw", StringComparison.OrdinalIgnoreCase);
+        var environment = isPython ? PythonEnvironment.For(ProgramCopy.OriginalOf(full), windowed) : null;
+
+        // The Python is the one the project's environment, the project's declared Python and the code's own needs ask for.
+        var python = isPython ? PythonSetup.For(full, environment, windowed) : null;
+        var found = python?.Interpreter ?? environment?.Interpreter ?? Resolve(runner);
 
         if (found is null)
         {
@@ -257,10 +260,10 @@ public static class TargetFactory
             Timeout = timeout ?? TimeoutFor(extension),
         };
 
-        var interpreterNamed = environment?.Described ?? Path.GetFileNameWithoutExtension(found);
-        var how = testsRunBy is not null
+        var interpreterNamed = python?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.";
+            : $"Running it{together} with {interpreterNamed}.") + (python?.CodeNeeds is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

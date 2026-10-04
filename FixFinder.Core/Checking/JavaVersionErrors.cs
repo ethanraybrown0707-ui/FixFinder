@@ -106,7 +106,7 @@ public static partial class JavaVersionErrors
         if (setup is { Jdk.Version: >= 26 } && JavaFeaturesUsed.For(chosen) is { AtMost: { } atMost, AtMostBecause: { } because } &&
             errors.Any(error => AppletMissing().IsMatch(error.Message ?? "")))
         {
-            return $"{Capitalised(because)} - so javac, of {built}, cannot find the applet's classes. No JDK of Java {atMost} or earlier is on " +
+            return $"{because} - so javac, of {built}, cannot find the applet's classes. No JDK of Java {atMost} or earlier is on " +
                    "this computer to build it with; the applet has to be written as another kind of program - a Swing JFrame, say - to run on a later Java.";
         }
 
@@ -115,14 +115,14 @@ public static partial class JavaVersionErrors
         {
             if (used is { AtLeast: { } needed, AtLeastBecause: { } neededBecause } && setup.Jdk.Version < needed && Jdks.AtLeast(needed) is null)
             {
-                return $"{Capitalised(neededBecause)} - and {built} is the newest JDK on this computer, so javac cannot build that part of it, which is " +
+                return $"{neededBecause} - and {built} is the newest JDK on this computer, so javac cannot build that part of it, which is " +
                        $"not a mistake in the code. Installing a JDK of Java {needed} or later builds it - {JavaSetup.InstallAdvice(needed)}";
             }
 
             if (used.Preview is { } preview && !setup.Preview && !Jdks.Installed.Any(jdk => jdk.Version >= preview.From && jdk.Version <= preview.Until))
             {
                 var javas = preview.From == preview.Until ? $"Java {preview.From}" : $"Java {preview.From} to {preview.Until}";
-                return $"{Capitalised(preview.Because)} - and no JDK of {javas} is on this computer, so javac cannot build that part of it, which is " +
+                return $"{preview.Because} - and no JDK of {javas} is on this computer, so javac cannot build that part of it, which is " +
                        $"not a mistake in the code. Installing a JDK of {javas} builds it, with its preview features on - {PreviewInstallAdvice(preview.From, preview.Until)}";
             }
         }

@@ -191,13 +191,12 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
 
         // The Java the code was found to need, said even when the usual JDK was new enough for it - unless it was said already.
         var codeNeedsSentence = needs is { AtLeast: { } found, AtLeastBecause: { } foundBecause } && !said.Contains(foundBecause)
-            ? $"Its code needs Java {found} or later: {Capitalised(foundBecause)}."
+            ? $"Its code needs Java {found} or later: {foundBecause}."
             : null;
 
         return (new JavaSetup(jdk, release, strict, withPreview, parts[0], parts.Count > 1 ? string.Join(", ", parts.Skip(1)) : null, codeNeedsSentence), null);
     }
 
-    private static string Capitalised(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
     /// The first Lombok that works with each Java, as Lombok's changelog records adding it: Lombok reaches into javac's own

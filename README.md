@@ -117,6 +117,23 @@ An environment whose Python has since been uninstalled is passed over, and one a
 computer is not guessed at: the Python on PATH is used instead. How the program is run says which Python it is, and the
 copies changes are tried in run with the same one.
 
+With no environment of its own, a program runs with the Python on PATH when that is **new enough** for it, and otherwise
+with the oldest Python on the computer that is. New enough means what the project declares - `pyproject.toml`'s
+`requires-python` or Poetry's `python`, `.python-version`, a Pipfile's `python_version`, `python_requires` in `setup.cfg`
+or `setup.py`, `runtime.txt`, or the python in conda's `environment.yml` - and what the code itself uses: `:=` and
+positional-only parameters are Python 3.8's, a built-in collection as a generic such as `list[int]` in an annotation 3.9's,
+a `match` statement and a union written `int | None` 3.10's, `except*` and `tomllib` 3.11's, a `type` statement, type
+parameters in brackets and an f-string with its own quotes inside its braces 3.12's, `copy.replace` and type parameter
+defaults 3.13's, and a template string `t"..."` 3.14's, each from the What's New pages of docs.python.org. Nothing older
+than 3.8 is looked for, as every Python still in use has it, nor what a Python only stopped forbidding - `except A, B:`
+without brackets, which 3.14 allows and every Python 3 before it reports as a mistake. The Pythons on the computer are the
+ones registered with Windows - the Microsoft Store's among them - those python.org's installer puts in the user's Programs
+or Program Files, and those pyenv, uv, the Python install manager and Anaconda keep; each is known by its own files where
+they say its version, and only otherwise asked. How it ran says which Python the code needs and why, with the file and
+line; and when the program has errors and no Python here is new enough for it, a note says so and which to install, so
+those errors are not read as mistakes in the code. A project's own environment is used as it is - it holds the project's packages - and how it ran
+says when it is older than the code needs.
+
 A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
 computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
 those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, BellSoft's, IBM Semeru's, SAP's and Red

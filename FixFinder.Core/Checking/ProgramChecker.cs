@@ -110,6 +110,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
         await Task.WhenAll(finishing);
 
+        // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
+        bool hadErrors;
+        lock (_gate) hadErrors = _findings.Any(finding => finding.Severity == Severity.Error);
+        if (hadErrors && launch.ChosenFile is { } checkedFile && ToolchainVersionErrors.NoteFor(checkedFile) is { } olderThanItsCodeNeeds) Note(olderThanItsCodeNeeds);
+
         lock (_gate)
         {
             var logicSummary = logic.Result;
