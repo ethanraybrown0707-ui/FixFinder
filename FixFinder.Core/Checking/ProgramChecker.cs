@@ -191,6 +191,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             // A module that asks for a later Go than any here, or code newer than its go line: which Go, and what to change.
             if (GoVersionErrors.NoteFor(codeErrors, report.Output, chosen) is { } needsALaterGo) Note(needsALaterGo);
 
+            // Code newer than the C# its project is built as, or a project or global.json asking for an SDK that is not here.
+            if (CSharpVersionErrors.NoteFor(report.Errors, report.Output, chosen) is { } needsALaterCSharp) Note(needsALaterCSharp);
+
             if (report.Errors.Count > 0)
             {
                 builds.TrySetResult(false);

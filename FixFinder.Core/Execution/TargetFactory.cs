@@ -191,6 +191,9 @@ public static class TargetFactory
         var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" ? NodeSetup.For(full) : null;
         var found = python?.Interpreter ?? go?.Go ?? node?.Node ?? environment?.Interpreter ?? Resolve(runner);
 
+        // dotnet chooses the .NET SDK itself; which one, and the C# it builds the program as, are said.
+        var csharp = extension.ToLowerInvariant() is ".cs" or ".csproj" ? CSharpSetup.For(full) : null;
+
         if (found is null)
         {
             var names = string.Join(" or ", new[] { runner.Interpreter }.Concat(runner.Alternatives).Distinct());
@@ -265,10 +268,10 @@ public static class TargetFactory
             ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
         };
 
-        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds) is { } needs ? " " + needs : "");
+            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

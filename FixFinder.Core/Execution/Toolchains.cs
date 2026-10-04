@@ -173,7 +173,7 @@ public static class Toolchains
     [
         $"Python     : {TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py") ?? "not found"}",
         .. DescribeJdks(),
-        $"C#         : {TargetFactory.FindOnPath("dotnet") ?? "not found"}",
+        .. Described("C#         : ", ".NET SDK", DotnetSdks.Installed),
         $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         .. Described("JavaScript : ", "Node.js", Nodes.Installed),

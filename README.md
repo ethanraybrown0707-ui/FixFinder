@@ -208,6 +208,23 @@ never taken for code, and only what is certainly JavaScript's own counts: a `fet
 is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
 so and how to install one.
 
+A C# program is built with **the .NET SDK dotnet chooses** - the newest here, unless a `global.json` above it asks for
+another, which dotnet itself is asked - and how it ran says which SDK, the C# its project is built as, and the C# its
+code needs; Settings lists the SDKs. The C# a project is built as is its `LangVersion`, when it sets one as a number,
+else the C# its target framework comes with, from Microsoft's table: C# 14 for .NET 10, 13 for .NET 9, 12 for .NET 8,
+and so on back to 9 for .NET 5, 8 for .NET Core 3 and .NET Standard 2.1, and 7.3 for anything older, .NET Framework
+among them - read from its `.csproj` and the `Directory.Build.props` above it. The C# its code needs is worked out by
+the C# compiler FixFinder carries: the program is compiled as C# 7.3, 8 and so on to 13, and the oldest that compiles
+it with no error the newest C# would not also report is the C# it needs, named in the compiler's own words - "uses
+primary constructors at line 3, which C# 12 added". The oldest rather than what C# 7.3 asks for, as older C# reads some
+newer code as something else: a record struct read as C# 7.3 looks like a primary constructor, which is C# 12's, though
+record structs are C# 10's. What this compiler has only as a preview, such as C# 14's null-conditional assignment, is
+said as needing a C# later than 13. When the compiler says the code uses what a later C# added than the project is
+built as, a note says which .NET to target - C# 13 is supported on .NET 9 and later - and whether an SDK here builds
+for it, or to raise the `LangVersion` that decides; when a project targets a later .NET than the SDK can build for, or
+its `global.json` asks for an SDK that is not here, or the code needs a C# no SDK here builds for, a note says so and
+what to install or change.
+
 A C or C++ program is built **the way its Makefile or CMakeLists.txt says**, when one beside it, or in a folder up to four
 above it, builds it: from the files the build file builds it from, with its headers looked for in the folders it names,
 and with what it defines, the libraries it links and the standard it is written to. FixFinder reads the build file and
