@@ -390,6 +390,23 @@ public class CMakeProjectTests : IDisposable
         Assert.Contains(program.NotFollowed, note => note.Contains("GTest::gtest_main", StringComparison.Ordinal));
     }
 
+    /// <summary>Which CMake would run the project is not known, so a test of its version is not taken to hold - and is named.</summary>
+    [Fact]
+    public void ACheckOfTheCMakeVersionIsNotGuessed()
+    {
+        Source("main.c");
+
+        var project = Read(NativeCompilerKind.Gnu,
+            "if(CMAKE_VERSION VERSION_LESS 4.0)",
+            "    message(FATAL_ERROR \"This project needs CMake 4\")",
+            "endif()",
+            "add_executable(app main.c)");
+
+        var program = Assert.Single(project.Programs());
+        Assert.Null(project.StoppedBecause);
+        Assert.Contains(program.NotFollowed, note => note.Contains("the version of CMake", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void WhatExecuteProcessWouldGetIsNotKnown()
     {

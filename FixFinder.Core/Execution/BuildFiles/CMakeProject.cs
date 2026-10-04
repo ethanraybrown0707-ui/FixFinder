@@ -19,8 +19,8 @@ internal enum NativeCompilerKind
 /// <remarks>
 /// It is read as an IDE configures a project for debugging - CMAKE_BUILD_TYPE Debug, with the compiler FixFinder builds
 /// with - because that is how FixFinder builds: with debugging information and without optimisation. What only running
-/// something could say - execute_process, the folder CMake builds in, a package find_package looks for - is kept as not
-/// known rather than guessed, and named wherever it matters to a program.
+/// something could say - execute_process, the folder CMake builds in, the version of the CMake that would run it, a
+/// package find_package looks for - is kept as not known rather than guessed, and named wherever it matters to a program.
 /// </remarks>
 internal sealed partial class CMakeProject
 {
@@ -29,11 +29,11 @@ internal sealed partial class CMakeProject
     private const int MostLoopTurns = 10_000;
     private const int MostCommandsRun = 500_000;
 
-    /// <summary>The version of CMake whose commands this reads as: a project asking for an older one still reads the same way.</summary>
-    private const string ReadAsVersion = "3.31.0";
-
     /// <summary>The folder CMake would build in, which FixFinder does not make.</summary>
     private static readonly string BuildFolder = Unknowable.Mark("the folder CMake builds in");
+
+    /// <summary>Which CMake would run the project - and so its version - is not known without running one.</summary>
+    private static readonly string CMakeVersion = Unknowable.Mark("the version of CMake");
 
     private readonly NativeCompilerKind _compiler;
     private readonly Dictionary<string, string> _cache = new(StringComparer.Ordinal);
@@ -143,10 +143,10 @@ internal sealed partial class CMakeProject
             ["CMAKE_SYSTEM_PROCESSOR"] = "AMD64",
             ["CMAKE_SIZEOF_VOID_P"] = "8",
             ["CMAKE_BUILD_TYPE"] = "Debug",
-            ["CMAKE_VERSION"] = ReadAsVersion,
-            ["CMAKE_MAJOR_VERSION"] = ReadAsVersion.Split('.')[0],
-            ["CMAKE_MINOR_VERSION"] = ReadAsVersion.Split('.')[1],
-            ["CMAKE_PATCH_VERSION"] = ReadAsVersion.Split('.')[2],
+            ["CMAKE_VERSION"] = CMakeVersion,
+            ["CMAKE_MAJOR_VERSION"] = CMakeVersion,
+            ["CMAKE_MINOR_VERSION"] = CMakeVersion,
+            ["CMAKE_PATCH_VERSION"] = CMakeVersion,
             ["CMAKE_C_COMPILER_ID"] = compilerId,
             ["CMAKE_CXX_COMPILER_ID"] = compilerId,
             ["CMAKE_C_COMPILER_VERSION"] = Unknowable.Mark("the compiler's version"),
