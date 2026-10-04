@@ -129,12 +129,29 @@ JDK. The Java it is compiled for is the one chosen in Settings, else the one its
 `sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
 IntelliJ's language level; or Eclipse's compliance level. Preview features are on when the build turns them on. The JDK
 is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
-is here; else the usual one, when it is new enough; else the oldest that is. The code itself can need a later Java - a
-compact source file, with no class around its methods, and `import module` need Java 25, an unnamed `_` Java 22 - or an
-earlier one: an applet needs Java 25 or earlier, as Java 26 took the Applet API out, and a Lombok works only with the Java
-releases it supports, as Lombok's changelog records them. A project that names a later Java than any JDK here has is not
-built, and the report says which to install; code that needs a JDK that is not here is built with the nearest, and the run
-explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
+is here; else the usual one, when it is new enough; else the oldest that is.
+
+The Java **the code itself** is written in is **detected** as well - which is what Settings' "Detect automatically" means.
+FixFinder reads the program's files for the newest part of the language or of Java's library they use: `var` is Java 10's,
+a switch with `case ... ->` Java 14's, a text block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed
+class Java 17's, a record pattern, a type pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_`
+Java 22's, stream gatherers Java 24's, `IO.println`, `import module`, a compact source file with no class around its
+methods and a `void main()` that is not static Java 25's, and HTTP/3 in the HTTP client Java 26's
+- each as that release's JEPs at openjdk.org record it, and those of Java 21 to 25 as javac 21 and 25 compile them. The
+code then needs a JDK of at least that Java, and how it ran says which Java the code needs and why, with the file and
+line. A **preview** the code uses - primitive types in patterns, which Java 23 to 27 have as a preview, lazy constants
+(Java 26 and 27), `StableValue` (Java 25), structured concurrency, or a string template (Java 21 and 22, then taken out) -
+is turned on for it, with the JDK the program is usually built with when that one has the preview, else the newest one
+here that does, unless the project already says whether preview features are on, or the project or Settings names a Java
+without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
+so what makes code Java 27's is a preview Java 27 has.
+Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
+Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
+`static`: before Java 25 those are mistakes, so they say nothing of which Java the code is for, and they are still reported
+as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet needs Java 25 or earlier, as Java 26 took the Applet API out,
+and a Lombok works only with the Java releases it supports, as Lombok's changelog records them. A project that names a
+later Java than any JDK here has is not built, and the report says which to install; code that needs a JDK that is not
+here is built with the nearest, and the run explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
 Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
 it is on this computer.
 

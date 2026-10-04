@@ -103,10 +103,61 @@ public class JavaVersionLiveTests(ITestOutputHelper output) : IDisposable
             }
             """);
 
-        var (report, _) = await CheckAsync(shapes, expected: "a big circle\na circle\na square of side 2.0");
+        var (report, explanation) = await CheckAsync(shapes, expected: "a big circle\na circle\na square of side 2.0");
 
         Assert.Empty(report.Findings);
         Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("which Java 21 made part of the language", explanation, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Primitive patterns are a preview in Java 23 to 27: the code using one is built and run with a JDK of those, with its
+    /// preview features on, rather than refused for the preview being off.
+    /// </summary>
+    [Fact]
+    public async Task APreviewTheCodeUsesIsTurnedOnAndTheProgramRuns()
+    {
+        if (!Jdks.Installed.Any(jdk => jdk.Version is >= 23 and <= 27)) return;
+
+        var bytes = Write(@"preview\Bytes.java", """
+            public class Bytes {
+                static String describe(int value) {
+                    return value instanceof byte small ? "fits in a byte: " + small : "too big for a byte";
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(describe(100));
+                    System.out.println(describe(1000));
+                }
+            }
+            """);
+
+        var (report, explanation) = await CheckAsync(bytes, expected: "fits in a byte: 100\ntoo big for a byte");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("preview features on, as Bytes.java uses a primitive type in a pattern at line 3, which Java 23 to 27 have as a preview feature", explanation, StringComparison.Ordinal);
+    }
+
+    /// <summary>IO.println in an ordinary class is Java 25's library: it is built with a JDK of 25 or later, not reported as a name nobody declared.</summary>
+    [Fact]
+    public async Task JavasIoInAClassIsBuiltWithAJdkThatHasIt()
+    {
+        if (Jdks.AtLeast(25) is null) return;
+
+        var main = Write(@"io\Main.java", """
+            public class Main {
+                public static void main(String[] args) {
+                    IO.println("hello from IO");
+                }
+            }
+            """);
+
+        var (report, explanation) = await CheckAsync(main, expected: "hello from IO");
+
+        Assert.Empty(report.Findings);
+        Assert.Equal("It printed what you expected", report.LogicSummary);
+        Assert.Contains("Main.java uses java.lang.IO at line 3, which Java 25 added", explanation, StringComparison.Ordinal);
     }
 
     /// <summary>

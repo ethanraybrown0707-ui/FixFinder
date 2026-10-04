@@ -13,7 +13,11 @@ namespace FixFinder.Core.Execution;
 /// <param name="Preview">Whether preview features are on, for javac and for java alike.</param>
 /// <param name="JdkExplained">Which JDK, and why that one when it is not the default: "Java 25.0.4.1 (Eclipse's own Java), as ...".</param>
 /// <param name="HowCompiled">The Java it is compiled for and preview features, as a run explanation says them, or null for neither.</param>
-public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease, bool Preview, string JdkExplained, string? HowCompiled)
+/// <param name="CodeNeeds">
+/// The Java the code was found to need, as a sentence of its own, when nothing else said it already: "Its code needs Java
+/// 21 or later: Shapes.java uses a record pattern at line 12, which Java 21 made part of the language."
+/// </param>
+public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease, bool Preview, string JdkExplained, string? HowCompiled, string? CodeNeeds = null)
 {
     /// <summary>Both together, as one clause of a sentence.</summary>
     public string Explained => HowCompiled is null ? JdkExplained : $"{JdkExplained}, {HowCompiled}";
@@ -100,6 +104,16 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
         if (needs is { AtMost: { } codeLimit, AtMostBecause: { } codeLimitBecause }) atMost.Add((codeLimit, codeLimitBecause));
         if (LombokLimit(javaFile) is { } lombok) atMost.Add(lombok);
 
+        // A preview the code uses is turned on for it, with a JDK that has it - unless the project already says whether
+        // preview features are on, or Settings or the project names a Java that does not have that preview.
+        var codePreview = !preview && needs.Preview is { } used && (release is not { } releaseAsked || (releaseAsked >= used.From && releaseAsked <= used.Until)) ? needs.Preview : null;
+
+        if (codePreview is not null)
+        {
+            atLeast.Add((codePreview.From, codePreview.Because));
+            atMost.Add((codePreview.Until, codePreview.Because));
+        }
+
         var lowest = atLeast.Select(each => each.Version).Append(release ?? 0).Max();
         var highest = atMost.Select(each => each.Version).Append(int.MaxValue).Min();
         var newest = installed[0];
@@ -133,23 +147,31 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
                 chosenByProject,
                 declared?.JdkVersion is { } jdkVersion ? fitting.FirstOrDefault(each => each.Version == jdkVersion && FitsPreview(each)) : null,
                 Jdks.Default is { } usual && Fits(usual) && FitsPreview(usual) ? usual : null,
+                // A preview changes from one Java to the next, so the newest JDK that has it has the one written about today.
+                codePreview is not null ? fitting.Where(FitsPreview).OrderByDescending(each => each.Version).FirstOrDefault() : null,
                 fitting.Where(FitsPreview).OrderBy(each => each.Version).FirstOrDefault(),
                 fitting.OrderBy(each => each.Version).FirstOrDefault(),
             }
             .FirstOrDefault(candidate => candidate is not null)
             ?? Jdks.Default ?? newest;
 
-        var withPreview = preview && (release is not { } previewRelease || previewRelease == jdk.Version);
+        var previewFromCode = codePreview is not null && jdk.Version >= codePreview.From && jdk.Version <= codePreview.Until && FitsPreview(jdk);
+        var withPreview = previewFromCode || (preview && (release is not { } previewRelease || previewRelease == jdk.Version));
 
         // How it was chosen: the JDK, and why that one when it is not the default; the Java it compiles for; preview features.
         var parts = new List<string> { $"Java {jdk.VersionText} ({jdk.FoundIn})" };
 
         var usualVersion = Jdks.Default?.Version;
 
+        // Each reason is said once: why this JDK, what it compiles for, preview features, and what no JDK here can give.
+        var said = new HashSet<string>(StringComparer.Ordinal);
+
         if (jdk == chosenByProject && declared?.JdkSaidBy is { } chosenBy) parts[0] += $", {chosenBy}";
         else if (declared?.JdkVersion == jdk.Version && declared.JdkSaidBy is { } askedBy && jdk != Jdks.Default) parts[0] += $", as {askedBy} asks";
-        else if (atLeast.Where(each => jdk.Version >= each.Version && usualVersion < each.Version).Select(each => each.Because).FirstOrDefault() is { } needsLater) parts[0] += $", as {needsLater}";
-        else if (atMost.Where(each => jdk.Version <= each.Version && usualVersion > each.Version).Select(each => each.Because).FirstOrDefault() is { } needsEarlier) parts[0] += $", as {needsEarlier}";
+        else if (atLeast.Where(each => jdk.Version >= each.Version && usualVersion < each.Version && !(previewFromCode && each.Because == codePreview!.Because))
+                     .Select(each => each.Because).FirstOrDefault() is { } needsLater && said.Add(needsLater)) parts[0] += $", as {needsLater}";
+        else if (atMost.Where(each => jdk.Version <= each.Version && usualVersion > each.Version && !(previewFromCode && each.Because == codePreview!.Because))
+                     .Select(each => each.Because).FirstOrDefault() is { } needsEarlier && said.Add(needsEarlier)) parts[0] += $", as {needsEarlier}";
 
         if (release is { } compiledFor && !withPreview)
         {
@@ -158,16 +180,24 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
                 : $"compiling it for Java {compiledFor} {releaseSaidBy}");
         }
 
-        if (withPreview) parts.Add($"with Java {jdk.Version}'s preview features on, as {declared!.SaidBy} turns them on");
+        if (previewFromCode && said.Add(codePreview!.Because)) parts.Add($"with Java {jdk.Version}'s preview features on, as {codePreview.Because}");
+        else if (withPreview && !previewFromCode) parts.Add($"with Java {jdk.Version}'s preview features on, as {declared!.SaidBy} turns them on");
         else if (preview) parts.Add($"with preview features off: {declared!.SaidBy} turns them on, and they need a JDK of exactly Java {release}, which is not on this computer");
 
-        foreach (var (needed, because) in atLeast.Where(each => jdk.Version < each.Version))
+        foreach (var (needed, because) in atLeast.Where(each => jdk.Version < each.Version && said.Add(each.Because)))
             parts.Add($"though {because}, and no JDK of Java {needed} or later is on this computer");
-        foreach (var (limit, because) in atMost.Where(each => jdk.Version > each.Version))
+        foreach (var (limit, because) in atMost.Where(each => jdk.Version > each.Version && said.Add(each.Because)))
             parts.Add($"though {because}, and no JDK of Java {limit} or earlier is on this computer");
 
-        return (new JavaSetup(jdk, release, strict, withPreview, parts[0], parts.Count > 1 ? string.Join(", ", parts.Skip(1)) : null), null);
+        // The Java the code was found to need, said even when the usual JDK was new enough for it - unless it was said already.
+        var codeNeedsSentence = needs is { AtLeast: { } found, AtLeastBecause: { } foundBecause } && !said.Contains(foundBecause)
+            ? $"Its code needs Java {found} or later: {Capitalised(foundBecause)}."
+            : null;
+
+        return (new JavaSetup(jdk, release, strict, withPreview, parts[0], parts.Count > 1 ? string.Join(", ", parts.Skip(1)) : null, codeNeedsSentence), null);
     }
+
+    private static string Capitalised(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
     /// <summary>
     /// The first Lombok that works with each Java, as Lombok's changelog records adding it: Lombok reaches into javac's own

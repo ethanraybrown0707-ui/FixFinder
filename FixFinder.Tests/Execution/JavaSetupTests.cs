@@ -289,6 +289,98 @@ public class JavaSetupTests : IDisposable
         Assert.Equal("Java 25.0.4 (installed in Program Files), as Hello.java is a compact source file - methods with no class around them - which Java 25 made part of the language", setup.JdkExplained);
     }
 
+    /// <summary>The usual JDK is new enough for a record pattern and builds it - and how it ran still says the code needs Java 21.</summary>
+    [Fact]
+    public void TheJavaTheCodeNeedsIsSaidEvenWhenTheUsualJdkHasIt()
+    {
+        using var computer = ThisComputer();
+        var shapes = Write(@"needs21\Shapes.java",
+            "public class Shapes {\n    record Point(int x, int y) {}\n    static int sum(Object o) {\n        if (o instanceof Point(int x, int y)) return x + y;\n" +
+            "        return 0;\n    }\n    public static void main(String[] args) {}\n}\n");
+
+        var setup = Setup(shapes);
+
+        Assert.Equal(21, setup.Jdk.Version);
+        Assert.Equal("Java 21.0.12.1 (on PATH)", setup.JdkExplained);
+        Assert.Equal("Its code needs Java 21 or later: Shapes.java uses a record pattern at line 4, which Java 21 made part of the language.", setup.CodeNeeds);
+    }
+
+    /// <summary>IO.println is Java 25's library, which the JDK of 21 does not have, so the JDK of 25 here builds it.</summary>
+    [Fact]
+    public void JavasIoIsBuiltWithAJdkOfJava25()
+    {
+        using var computer = ThisComputer();
+        var main = Write(@"io\Main.java", "public class Main {\n    public static void main(String[] args) {\n        IO.println(\"hi\");\n    }\n}\n");
+
+        var setup = Setup(main);
+
+        Assert.Equal(25, setup.Jdk.Version);
+        Assert.Equal("Java 25.0.4 (installed in Program Files), as Main.java uses java.lang.IO at line 3, which Java 25 added", setup.JdkExplained);
+        Assert.Null(setup.CodeNeeds);
+    }
+
+    private const string PrimitivePattern = "public class Main {\n    static boolean small(int x) {\n        return x instanceof byte b;\n    }\n    public static void main(String[] args) {}\n}\n";
+
+    /// <summary>A preview the code uses is turned on with the newest JDK that has it: primitive patterns are a preview in Java 23 to 27.</summary>
+    [Fact]
+    public void APreviewTheCodeUsesIsTurnedOnWithTheNewestJdkThatHasIt()
+    {
+        JdksTests.FakeJdk(Path.Combine(_temp.Path, "Program Files", "Eclipse Adoptium", "jdk-27+36"), "27");
+        JdksTests.FakeJdk(Path.Combine(_temp.Path, "Program Files", "Eclipse Adoptium", "jdk-23.0.2+7"), "23.0.2");
+        using var computer = ThisComputer();
+        var main = Write(@"primitive\Main.java", PrimitivePattern);
+
+        var setup = Setup(main);
+
+        Assert.Equal(27, setup.Jdk.Version);
+        Assert.Equal(["--enable-preview", "--release", "27"], setup.CompilerOptions);
+        Assert.Equal(["--enable-preview"], setup.RunOptions);
+        Assert.Equal("with Java 27's preview features on, as Main.java uses a primitive type in a pattern at line 3, which Java 23 to 27 have as a preview feature", setup.HowCompiled);
+    }
+
+    /// <summary>When the usual JDK has the preview, it is the one: it is the Java the person builds with.</summary>
+    [Fact]
+    public void AUsualJdkThatHasThePreviewIsTheOneUsed()
+    {
+        using var temp = new TempFolder();
+        var java25 = JdksTests.FakeJdk(Path.Combine(temp.Path, "Program Files", "Eclipse Adoptium", "jdk-25.0.4+7"), "25.0.4");
+        JdksTests.FakeJdk(Path.Combine(temp.Path, "Program Files", "Eclipse Adoptium", "jdk-27+36"), "27");
+        using var computer = Jdks.LookingIn(JdksTests.PlacesIn(temp.Path, jdkOnPath: java25));
+
+        var setup = Setup(Write(@"usualPreview\Main.java", PrimitivePattern));
+
+        Assert.Equal(25, setup.Jdk.Version);
+        Assert.Equal(["--enable-preview", "--release", "25"], setup.CompilerOptions);
+    }
+
+    /// <summary>A Java the project names that does not have the preview leaves preview features off: the project is built as it says, and javac then names what it cannot take.</summary>
+    [Fact]
+    public void AJavaTheProjectNamesWithoutThePreviewLeavesItOff()
+    {
+        JdksTests.FakeJdk(Path.Combine(_temp.Path, "Program Files", "Eclipse Adoptium", "jdk-27+36"), "27");
+        using var computer = ThisComputer();
+        MavenProject("release21preview", "<maven.compiler.release>21</maven.compiler.release>");
+        var main = Write(@"release21preview\src\main\java\Main.java", PrimitivePattern);
+
+        var setup = Setup(main);
+
+        Assert.False(setup.Preview);
+        Assert.Equal(["--release", "21"], setup.CompilerOptions);
+    }
+
+    /// <summary>With no JDK that has the preview, how it ran says which Java it needs.</summary>
+    [Fact]
+    public void APreviewNoJdkHereHasIsSaid()
+    {
+        using var computer = ThisComputer();
+        var main = Write(@"lazySet\Main.java", "import java.util.*;\n\npublic class Main {\n    Set<String> names = Set.ofLazy(Set.of(\"a\"), key -> key);\n    public static void main(String[] args) {}\n}\n");
+
+        var setup = Setup(main);
+
+        Assert.False(setup.Preview);
+        Assert.Equal("though Main.java uses Set.ofLazy at line 4, which Java 27 has as a preview feature, and no JDK of Java 27 or later is on this computer", setup.HowCompiled);
+    }
+
     [Fact]
     public void AnUnnamedVariableIsBuiltWithTheOldestJdkThatHasIt()
     {

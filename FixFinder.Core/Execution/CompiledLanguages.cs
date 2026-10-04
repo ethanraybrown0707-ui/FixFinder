@@ -338,7 +338,7 @@ public static partial class CompiledLanguages
 
         return (new BuildAndRun(compile, run,
             $"Building it with the javac of {setup.JdkExplained}{with}{projects}{asModule}{(setup.HowCompiled is { } how ? $", {how}" : "")}, " +
-            $"then {then}{StartsFrom(start, source)}."), null);
+            $"then {then}{StartsFrom(start, source)}.{(setup.CodeNeeds is { } needs ? " " + needs : "")}"), null);
     }
 
     /// <summary>

@@ -124,6 +124,37 @@ public class JavaVersionErrorsTests : IDisposable
         Assert.Contains("winget install Microsoft.OpenJDK.25", note, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Code written for a later Java than any JDK here has: javac 21 says it cannot find IO, which is the JDK being too old
+    /// rather than a mistake - and the note says so, with the Java to install.
+    /// </summary>
+    [Fact]
+    public void CodeForALaterJavaThanAnyJdkHereSaysWhichToInstall()
+    {
+        using var computer = Computer(withJava25: false);
+        var main = Write(@"later\Main.java", "public class Main {\n    public static void main(String[] args) {\n        IO.println(\"hi\");\n    }\n}\n");
+
+        var note = JavaVersionErrors.NoteFor([CompileError(main, 3, "cannot find symbol", "  symbol:   variable IO")], main);
+
+        Assert.Equal("Main.java uses java.lang.IO at line 3, which Java 25 added - and Java 21.0.5 (on PATH) is the newest JDK on this computer, so javac " +
+                     "cannot build that part of it, which is not a mistake in the code. Installing a JDK of Java 25 or later builds it - for example:\n" +
+                     "  winget install Microsoft.OpenJDK.25", note);
+    }
+
+    /// <summary>A preview the code uses that no JDK here has: javac 21 calls a primitive pattern an unexpected type, and the note says which Javas have it.</summary>
+    [Fact]
+    public void APreviewTheCodeUsesThatNoJdkHereHasSaysWhichToInstall()
+    {
+        using var computer = Computer(withJava25: false);
+        var main = Write(@"preview\Main.java", "public class Main {\n    static boolean small(int x) {\n        return x instanceof byte b;\n    }\n}\n");
+
+        var note = JavaVersionErrors.NoteFor([CompileError(main, 3, "unexpected type", "  required: class or array", "  found:    byte")], main);
+
+        Assert.Equal("Main.java uses a primitive type in a pattern at line 3, which Java 23 to 27 have as a preview feature - and no JDK of Java 23 to 27 is on " +
+                     "this computer, so javac cannot build that part of it, which is not a mistake in the code. Installing a JDK of Java 23 to 27 builds it, " +
+                     "with its preview features on - for example:\n  winget install Microsoft.OpenJDK.25", note);
+    }
+
     [Fact]
     public void AnythingElseJavacSaysHasNoNote()
     {

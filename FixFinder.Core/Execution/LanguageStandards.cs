@@ -38,7 +38,10 @@ public sealed partial record LanguageStandards
     /// <summary>The C++ standard, or empty for the one the program's Makefile or CMakeLists.txt gives - or, when it gives none, C++17.</summary>
     public string Cpp { get; init; } = "";
 
-    /// <summary>The Java release, or empty for the one the program's project names - or, when it names none, its JDK's own.</summary>
+    /// <summary>
+    /// The Java release, or empty to detect it: the one the program's project names - or, when it names none, the JDK's own,
+    /// with a JDK of the Java its code needs and the preview features it uses turned on.
+    /// </summary>
     public string Java { get; init; } = "";
 
     /// <summary>

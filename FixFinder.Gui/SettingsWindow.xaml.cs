@@ -30,9 +30,9 @@ public partial class SettingsWindow : Window
 
         AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
 
-        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? "The project's own" : choice.ToUpperInvariant());
-        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Length == 0 ? "The project's own" : choice.Replace("c++", "C++"));
-        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? "The project's own" : $"Java {choice}");
+        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.ToUpperInvariant());
+        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.Replace("c++", "C++"));
+        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? DetectAutomatically : $"Java {choice}");
 
         foreach (var limit in TargetFactory.RunTimeLimitChoices)
             RunTimeLimitBox.Items.Add(new ComboBoxItem { Content = limit.TotalSeconds < 60 ? $"{limit.TotalSeconds:0} seconds" : limit.TotalMinutes == 1 ? "1 minute" : $"{limit.TotalMinutes:0} minutes", Tag = limit });
@@ -75,6 +75,9 @@ public partial class SettingsWindow : Window
 
     /// <summary>Set once the boxes are filled, so filling them is not mistaken for somebody choosing.</summary>
     private bool _standardsReady;
+
+    /// <summary>What a version box says when nothing is chosen: each program's version is worked out from its project and its code.</summary>
+    private const string DetectAutomatically = "Detect automatically";
 
     /// <summary>One version box: every listed choice, named for a reader, with the saved one selected.</summary>
     private static void Fill(ComboBox box, string[] choices, string saved, Func<string, string> named)

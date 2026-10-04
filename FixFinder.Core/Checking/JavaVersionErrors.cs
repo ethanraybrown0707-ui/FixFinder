@@ -110,7 +110,39 @@ public static partial class JavaVersionErrors
                    "this computer to build it with; the applet has to be written as another kind of program - a Swing JFrame, say - to run on a later Java.";
         }
 
+        // Code written for a later Java than any JDK here: javac's errors about it come from the JDK being older, not from a mistake.
+        if (setup is not null && JavaFeaturesUsed.For(chosen) is var used)
+        {
+            if (used is { AtLeast: { } needed, AtLeastBecause: { } neededBecause } && setup.Jdk.Version < needed && Jdks.AtLeast(needed) is null)
+            {
+                return $"{Capitalised(neededBecause)} - and {built} is the newest JDK on this computer, so javac cannot build that part of it, which is " +
+                       $"not a mistake in the code. Installing a JDK of Java {needed} or later builds it - {JavaSetup.InstallAdvice(needed)}";
+            }
+
+            if (used.Preview is { } preview && !setup.Preview && !Jdks.Installed.Any(jdk => jdk.Version >= preview.From && jdk.Version <= preview.Until))
+            {
+                var javas = preview.From == preview.Until ? $"Java {preview.From}" : $"Java {preview.From} to {preview.Until}";
+                return $"{Capitalised(preview.Because)} - and no JDK of {javas} is on this computer, so javac cannot build that part of it, which is " +
+                       $"not a mistake in the code. Installing a JDK of {javas} builds it, with its preview features on - {PreviewInstallAdvice(preview.From, preview.Until)}";
+            }
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// How to install a JDK that has a preview: the Microsoft Build of OpenJDK 25 or 21 - the releases with long-term
+    /// support - when the preview is in one of them, and otherwise Eclipse Temurin's JDK of one of those Javas.
+    /// </summary>
+    private static string PreviewInstallAdvice(int from, int until)
+    {
+        foreach (var longTermSupport in new[] { 25, 21 })
+        {
+            if (longTermSupport >= from && longTermSupport <= until) return $"for example:\n  winget install Microsoft.OpenJDK.{longTermSupport}";
+        }
+
+        var javas = from == until ? $"Java {from}" : $"Java {from} to {until}";
+        return $"Eclipse Temurin's JDKs are at adoptium.net, and winget lists the ones it can install with:\n  winget search Temurin\n\nOne of {javas} will do.";
     }
 
     /// <summary>A feature that is only a preview in the JDK the program was built with: which Java made it standard, and whether a JDK of it is here.</summary>
