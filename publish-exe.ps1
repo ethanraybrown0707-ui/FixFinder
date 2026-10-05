@@ -20,11 +20,19 @@
   Which certificate to sign with, for example "CN=Your Name". Defaults to the
   FIXFINDER_CERT_SUBJECT environment variable, and failing that to the newest code-signing
   certificate in the personal store - so a fresh clone works without editing anything.
+
+.PARAMETER Version
+  The release being built, for example 2.4.1: the exe's file version, and the version a report
+  saved as a web page names at its foot, with the commit after it. Left out, the build is numbered
+  1.0.0, as .NET numbers a build nobody has given a version.
 #>
 [CmdletBinding()]
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
+
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
 
     # Skip the runtime bundle: much smaller, but requires the .NET 8 desktop runtime installed.
     [switch]$FrameworkDependent,
@@ -66,6 +74,8 @@ $arguments = @(
     "-p:DebugType=embedded",
     "-p:SatelliteResourceLanguages=en"
 )
+
+if ($Version) { $arguments += "-p:Version=$Version" }
 
 if ($FrameworkDependent) {
     $arguments += "--self-contained:false"
