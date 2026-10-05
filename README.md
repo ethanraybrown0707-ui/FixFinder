@@ -129,10 +129,10 @@ than 3.8 is looked for, as every Python still in use has it, nor what a Python o
 without brackets, which 3.14 allows and every Python 3 before it reports as a mistake. The Pythons on the computer are the
 ones registered with Windows - the Microsoft Store's among them - those python.org's installer puts in the user's Programs
 or Program Files, and those pyenv, uv, the Python install manager and Anaconda keep; each is known by its own files where
-they say its version, and only otherwise asked. How it ran says which Python the code needs and why, with the file and
-line; and when the program has errors and no Python here is new enough for it, a note says so and which to install, so
-those errors are not read as mistakes in the code. A project's own environment is used as it is - it holds the project's
-packages - and how it ran says when it is older than the code needs.
+they say its version, and only otherwise asked; Settings lists them. How it ran says which Python the code needs and why,
+with the file and line; and when the program has errors and no Python here is new enough for it, a note says so and which
+to install, so those errors are not read as mistakes in the code. A project's own environment is used as it is - it
+holds the project's packages - and how it ran says when it is older than the code needs.
 
 A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
 computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
@@ -165,12 +165,13 @@ so what makes code Java 27's is a preview Java 27 has.
 Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
 Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
 `static`: before Java 25 those are mistakes, so they say nothing of which Java the code is for, and they are still reported
-as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet needs Java 25 or earlier, as Java 26 took the Applet API out,
-and a Lombok works only with the Java releases it supports, as Lombok's changelog records them. A project that names a
-later Java than any JDK here has is not built, and the report says which to install; code that needs a JDK that is not
-here is built with the nearest, and the run explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the
-Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of
-it is on this computer.
+as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet needs Java
+25 or earlier, as Java 26 took the Applet API out, and a Lombok works only with the Java releases it supports, as
+Lombok's changelog records them. A project that names a later Java than any JDK here has is not built, and the report
+says which to install; code that needs a JDK that is not here is built with the nearest, and the run explanation says
+what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the Java it is
+compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of it is
+on this computer.
 
 A Go program is built and run with **a Go new enough for it**. FixFinder finds every Go on the computer - the one on PATH,
 the one `GOROOT` names, the one Go's installer puts in Program Files or `C:\Go`, those golang.org/dl downloads to the `sdk`
@@ -191,10 +192,11 @@ chosen is the Go that runs and nothing is downloaded: left to itself, the go com
 asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
 database - and FixFinder never downloads. A module the program needs that is not in the module cache is said once in a
 note, naming it and saying that `go mod download` in the module's folder downloads it, and go's errors about it are not
-reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for a later Go than any here, a note says which Go to
-install; when the code uses part of the language newer than its go line - Go then builds the module as that older Go's
-code, and says so: `requires go1.22 or later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line;
-and when the code needs a later Go than any here, a note says so and how to install one.
+reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for
+a later Go than any here, a note says which Go to install; when the code uses part of the language newer than its go
+line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or later (-lang was set to
+go1.21; check go.mod)` - a note says to raise the go line; and when the code needs a later Go than any here, a note says
+so and how to install one.
 
 A JavaScript program runs with **a Node.js new enough for it**. FixFinder finds every Node.js on the computer - the one on
 PATH, the one Node.js's installer puts in Program Files, and those nvm for Windows keeps - and knows each by the version
@@ -210,6 +212,15 @@ never taken for code, and only what is certainly JavaScript's own counts: a `fet
 `lts/iron`, is not guessed at. The Node.js on PATH runs the program when it is new enough, else the oldest one here that
 is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
 so and how to install one.
+
+For Python, Go and JavaScript, Settings can also **choose the version** instead - Python 3.8 to 3.14, Go 1.21 to 1.27,
+Node.js 18, 20, 22, 24 or 26 - as it can choose one for C, C++ and Java. These languages have no setting that holds them
+to an older version, so the choice is the Python, Go or Node.js that runs the program, checks its fixes and tries them:
+the one a terminal runs when it is of that release, else the newest of it on this computer - and for Python, the
+project's own environment when that is of that release; when it is not, how it ran says that what is installed only
+there is not found. A release chosen that is not on this computer is said to be so, with how to install it, and the
+program is not run with another one instead. How it ran says that the version was chosen in Settings, and a note says
+when the code needs a later one.
 
 A C# program is built with **the .NET SDK dotnet chooses** - the newest here, unless a `global.json` above it asks for
 another, which dotnet itself is asked - and how it ran says which SDK, the C# its project is built as, and the C# its

@@ -26,7 +26,8 @@ public static class ToolchainVersionErrors
                 var environment = PythonEnvironment.For(ProgramCopy.OriginalOf(chosen), windowed);
                 if (PythonSetup.For(chosen, environment, windowed) is not { Toolchain: { } used } || PythonFeaturesUsed.For(chosen) is not { } needs) return null;
 
-                return Note("Python", used, needs, Pythons.Installed, environment is not null, $"for example:\n  winget install Python.Python.3.{Math.Max(needs.Version.Minor, 14)}");
+                return Note("Python", used, needs, Pythons.Installed, environment is not null, $"for example:\n  winget install Python.Python.3.{Math.Max(needs.Version.Minor, 14)}",
+                            chosenInSettings: LanguageStandards.Current.PythonRelease);
             }
 
             case ".go":
@@ -36,14 +37,16 @@ public static class ToolchainVersionErrors
                 // A Go older than the module's go line does not build it at all, which GoVersionErrors says from what go said.
                 if (DeclaredGo.Of(ProgramCopy.OriginalOf(chosen))?.AtLeast.Any(declared => used.Version < declared.Version) == true) return null;
 
-                return Note("Go", used, needs, GoToolchains.Installed, projectsOwn: false, GoVersionErrors.InstallAdvice, built: true);
+                return Note("Go", used, needs, GoToolchains.Installed, projectsOwn: false, GoVersionErrors.InstallAdvice, built: true,
+                            chosenInSettings: LanguageStandards.Current.GoRelease);
             }
 
             case ".js" or ".mjs" or ".cjs":
             {
                 if (NodeSetup.For(chosen) is not { Toolchain: var used } || JavaScriptFeaturesUsed.For(chosen) is not { } needs) return null;
 
-                return Note("Node.js", used, needs, Nodes.Installed, projectsOwn: false, NodeSetup.InstallAdvice(needs.Version));
+                return Note("Node.js", used, needs, Nodes.Installed, projectsOwn: false, NodeSetup.InstallAdvice(needs.Version),
+                            chosenInSettings: LanguageStandards.Current.NodeRelease);
             }
 
             default:
@@ -54,15 +57,27 @@ public static class ToolchainVersionErrors
     /// <summary>The words of the note: what needs which version, what ran, and what to do about it.</summary>
     /// <param name="install">How to install a later version, after "Installing Python 3.12 or later runs it - ".</param>
     /// <param name="built">Whether the language builds the program before it runs, so it is the build that fails.</param>
+    /// <param name="chosenInSettings">The release chosen in Settings, which is then why the one that ran did.</param>
     internal static string? Note(
         string language, VersionedToolchain used, ToolchainChoice.AtLeast needs, IReadOnlyList<VersionedToolchain> installed, bool projectsOwn, string install,
-        bool built = false)
+        bool built = false, LanguageVersion? chosenInSettings = null)
     {
         if (used.Version >= needs.Version) return null;
 
         // It starts with the file's name, which keeps its own case.
         var because = needs.Because;
         var (cannot, makesItWork) = built ? ("cannot be built", "builds it") : ("cannot run", "runs it");
+
+        // A release chosen in Settings is why it ran with that one - the project's own environment included - so the choice is what to change.
+        if (chosenInSettings is { } chosen)
+        {
+            var newerHere = installed.FirstOrDefault(toolchain => toolchain.Version >= needs.Version);
+            return $"{because} - and it ran with {language} {used.VersionText} ({used.FoundIn}), as {language} {chosen} is chosen in Settings, so that part of " +
+                   $"it {cannot}, which is not a mistake in the code. Choosing {language} {needs.Version} or later in Settings, or Detect automatically, " +
+                   (newerHere is not null
+                       ? $"{makesItWork} with {language} {newerHere.VersionText} ({newerHere.FoundIn}), which is on this computer."
+                       : $"{makesItWork} once one is installed - {install}");
+        }
 
         if (projectsOwn)
         {

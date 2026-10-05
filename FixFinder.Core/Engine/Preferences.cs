@@ -48,9 +48,19 @@ public sealed class Preferences
 
     public string JavaRelease { get; set; } = LanguageStandards.Default.Java;
 
-    /// <summary>The versions chosen here, as the compilers are given them. Worked out, so not written down twice.</summary>
+    /// <summary>Which release of Python, Go and Node.js runs a program, or empty for the one its project and code ask for.</summary>
+    public string PythonVersion { get; set; } = LanguageStandards.Default.Python;
+
+    public string GoVersion { get; set; } = LanguageStandards.Default.Go;
+
+    public string NodeVersion { get; set; } = LanguageStandards.Default.Node;
+
+    /// <summary>The versions chosen here, as the compilers and toolchains are given them. Worked out, so not written down twice.</summary>
     [JsonIgnore]
-    public LanguageStandards Standards => new() { C = CStandard, Cpp = CppStandard, Java = JavaRelease };
+    public LanguageStandards Standards => new()
+    {
+        C = CStandard, Cpp = CppStandard, Java = JavaRelease, Python = PythonVersion, Go = GoVersion, Node = NodeVersion,
+    };
 
     /// <summary>How many seconds a run is given, as chosen in Settings.</summary>
     public int RunSeconds { get; set; } = (int)TargetFactory.DefaultTimeout.TotalSeconds;

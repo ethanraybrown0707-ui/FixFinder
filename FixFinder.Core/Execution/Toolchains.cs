@@ -171,7 +171,7 @@ public static class Toolchains
 
     public static IReadOnlyList<string> Describe() =>
     [
-        $"Python     : {TargetFactory.FindOnPath("python") ?? TargetFactory.FindOnPath("py") ?? "not found"}",
+        .. Described("Python     : ", "Python", Pythons.Installed),
         .. DescribeJdks(),
         .. Described("C#         : ", ".NET SDK", DotnetSdks.Installed),
         $"C          : {FindGnu(false)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",

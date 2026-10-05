@@ -33,6 +33,9 @@ public partial class SettingsWindow : Window
         Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.ToUpperInvariant());
         Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.Replace("c++", "C++"));
         Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? DetectAutomatically : $"Java {choice}");
+        Fill(PythonVersionBox, LanguageStandards.PythonChoices, _preferences.PythonVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Python {choice}");
+        Fill(GoVersionBox, LanguageStandards.GoChoices, _preferences.GoVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Go {choice}");
+        Fill(NodeVersionBox, LanguageStandards.NodeChoices, _preferences.NodeVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Node.js {choice}");
 
         foreach (var limit in TargetFactory.RunTimeLimitChoices)
             RunTimeLimitBox.Items.Add(new ComboBoxItem { Content = limit.TotalSeconds < 60 ? $"{limit.TotalSeconds:0} seconds" : limit.TotalMinutes == 1 ? "1 minute" : $"{limit.TotalMinutes:0} minutes", Tag = limit });
@@ -101,6 +104,9 @@ public partial class SettingsWindow : Window
         _preferences.CStandard = Chosen(CStandardBox);
         _preferences.CppStandard = Chosen(CppStandardBox);
         _preferences.JavaRelease = Chosen(JavaReleaseBox);
+        _preferences.PythonVersion = Chosen(PythonVersionBox);
+        _preferences.GoVersion = Chosen(GoVersionBox);
+        _preferences.NodeVersion = Chosen(NodeVersionBox);
 
         LanguageStandards.Current = _preferences.Standards;
         _preferences.Save();
