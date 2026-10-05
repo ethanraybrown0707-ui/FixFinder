@@ -60,14 +60,17 @@
                 <GroupBox Header="Language versions" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock Style="{DynamicResource Hint}" Margin="0,0,0,10"
-                                   Text="The version your course uses. Programs are built with it, and every fix is compiled with it before it is offered - so a fix that needs a later version is never shown. Python, JavaScript and Go run on whatever is installed."/>
+                                   Text="The version your course uses. Programs are built and run with it, and every fix is checked with it before it is offered - so a fix that needs a later version is never shown."/>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="80"/>
                                 <ColumnDefinition Width="170"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
                                 <RowDefinition/>
                                 <RowDefinition/>
                                 <RowDefinition/>
@@ -84,17 +87,34 @@
                                       AutomationProperties.AutomationId="CppStandardBox" AutomationProperties.Name="C++ version"/>
 
                             <TextBlock Grid.Row="2" Text="Java" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="JavaReleaseBox" Grid.Row="2" Grid.Column="1"
+                            <ComboBox x:Name="JavaReleaseBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"
                                       SelectionChanged="Standard_Changed"
                                       AutomationProperties.AutomationId="JavaReleaseBox" AutomationProperties.Name="Java version"/>
+
+                            <TextBlock Grid.Row="3" Text="Python" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="PythonVersionBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="PythonVersionBox" AutomationProperties.Name="Python version"/>
+
+                            <TextBlock Grid.Row="4" Text="Go" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="GoVersionBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,6"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="GoVersionBox" AutomationProperties.Name="Go version"/>
+
+                            <TextBlock Grid.Row="5" Text="JavaScript" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="NodeVersionBox" Grid.Row="5" Grid.Column="1"
+                                      SelectionChanged="Standard_Changed"
+                                      AutomationProperties.AutomationId="NodeVersionBox" AutomationProperties.Name="JavaScript version"/>
                         </Grid>
 
                         <TextBlock Style="{DynamicResource Hint}" Margin="0,8,0,0"
-                                   Text="For C and C++, &quot;Detect automatically&quot; builds a program with the standard its Makefile or CMakeLists.txt gives it. A program with no build file, or one that gives no standard, gets the compiler's own for C and C++17 for C++."/>
+                                   Text="For C and C++, &quot;Detect automatically&quot; builds a program with the standard its Makefile or CMakeLists.txt gives it. A program with no build file, or one that gives no standard, gets the compiler's own for C and C++17 for C++ - and when it does not build as that, gcc or clang is asked which standard either side it builds as, and it is built as that."/>
                         <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
                                    Text="With Microsoft's compiler, C89, C99, C23 and C++11 have no setting of their own, so it uses its default for those. gcc and clang follow every choice."/>
                         <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
                                    Text="For Java, &quot;Detect automatically&quot; builds a program for the Java its pom.xml, Gradle build or IDE settings name, with the JDK they ask for when it is on this computer. It also works out the Java the code itself needs - Java 21 for a record pattern, 25 for IO.println, the Javas that have a preview such as primitive patterns, with preview features on - and builds it with a JDK of that Java when one is here. How the program ran says which Java it found and why. The JDKs found are listed below."/>
+                        <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
+                                   Text="For Python, Go and JavaScript, &quot;Detect automatically&quot; runs a program with the Python, Go or Node.js its project asks for - pyproject.toml or .python-version, go.mod, .nvmrc or package.json - and its code needs, from those on this computer. These languages have no setting that holds them to an older version, so a version chosen here is the Python, Go or Node.js that runs the program: it has to be on this computer, and a program is not run with another one instead - how to install it is said. Those found are listed below."/>
                     </StackPanel>
                 </GroupBox>
 
@@ -202,7 +222,7 @@
                                    AutomationProperties.AutomationId="ToolchainsText"
                                    FontFamily="{StaticResource CodeFont}" FontSize="11" TextWrapping="Wrap"/>
                         <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                   Text="Python and JavaScript need only their interpreter. C, C++, Java, C# and Go are compiled first, so they need a compiler - FixFinder finds Visual Studio and a JDK by itself, so neither has to be on PATH."/>
+                                   Text="Python and JavaScript need only their interpreter. C, C++, Java, C# and Go are compiled first, so they need a compiler. FixFinder finds Visual Studio, the JDKs, and the Pythons, Gos and Node.js installs in the places their installers put them by itself, so those do not have to be on PATH; the .NET SDK's dotnet does."/>
                     </StackPanel>
                 </GroupBox>
 

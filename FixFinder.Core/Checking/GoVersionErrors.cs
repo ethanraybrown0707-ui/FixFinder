@@ -53,6 +53,17 @@ public static partial class GoVersionErrors
         var itsOwnFile = Path.GetFileName(who) is "go.mod" or "go.work";
         var asking = itsOwnFile ? $"Its {Path.GetFileName(who)} says go {needed}" : $"{who}, which it uses, needs Go {needed} or later";
 
+        // A Go chosen in Settings is why it was built with that one, so the choice is what to change.
+        if (LanguageStandards.Current.GoRelease is { } chosen)
+        {
+            var newerHere = GoToolchains.Installed.FirstOrDefault(toolchain => toolchain.Version >= needed);
+            return $"{asking}, and it was built with Go {running}, as Go {chosen} is chosen in Settings, which will not build it - so it was not built, " +
+                   $"which is not a mistake in the code. Choosing Go {needed.Release} or later in Settings, or Detect automatically, builds it " +
+                   (newerHere is not null
+                       ? $"with Go {newerHere.VersionText} ({newerHere.FoundIn}), which is on this computer."
+                       : $"once one is installed - {InstallAdvice}");
+        }
+
         if (GoToolchains.Installed.FirstOrDefault(toolchain => toolchain.Version >= needed) is { } newer)
         {
             return $"{asking}, and it was built with Go {running}, which will not build it - so it was not built, which is not a mistake in the code. " +

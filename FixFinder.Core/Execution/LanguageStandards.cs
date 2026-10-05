@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 namespace FixFinder.Core.Execution;
 
 /// <summary>
-/// Which version of C, C++ and Java a program is written to, and the compiler flags that hold the compiler to it.
+/// Which version of each language a program is written to: for C, C++ and Java the compiler flags that hold the compiler
+/// to it, and for Python, Go and JavaScript the release of the toolchain that runs it.
 /// </summary>
 /// <remarks>
 /// A course that says "Java 8" or "C99" makes any fix using a later feature simply wrong for the student who follows it.
@@ -11,9 +12,10 @@ namespace FixFinder.Core.Execution;
 /// compiler knows. Every fix is compiled before it is offered, so under Java 8 a fix written with <c>var</c> fails that
 /// check and is never shown - the version is enforced by the one thing that is certainly right about it.
 /// <para>
-/// Only these three, because only for these does a compiler flag decide the version. Python, JavaScript and Go run on
-/// whichever interpreter or toolchain is installed, and choosing a version for them here would be a promise nothing
-/// keeps.
+/// Python, Go and JavaScript have no flag that holds them to an older release, so for them a version chosen here is the
+/// toolchain itself: a Python, Go or Node.js of that release on this computer runs the program, checks its fixes and
+/// tries them. With none of it here, the program is not run with another one instead - that would be a promise nothing
+/// keeps - and how to install it is said.
 /// </para>
 /// </remarks>
 public sealed partial record LanguageStandards
@@ -25,6 +27,15 @@ public sealed partial record LanguageStandards
     /// in, and javac from 21 to 27 compiles for any of them up to its own.
     /// </summary>
     public static readonly string[] JavaChoices = ["", "8", "11", "17", "21", "22", "23", "24", "25", "26", "27"];
+
+    /// <summary>Python's releases from 3.8 to 3.14, each a release a course may be taught in.</summary>
+    public static readonly string[] PythonChoices = ["", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"];
+
+    /// <summary>Go's releases from 1.21 - since when every Go holds to a module's go line - to 1.27.</summary>
+    public static readonly string[] GoChoices = ["", "1.21", "1.22", "1.23", "1.24", "1.25", "1.26", "1.27"];
+
+    /// <summary>Node.js's even-numbered releases from 18 to 26: the ones that are given long-term support.</summary>
+    public static readonly string[] NodeChoices = ["", "18", "20", "22", "24", "26"];
 
     /// <summary>What the compilers have always been given, so nothing changes until somebody chooses otherwise.</summary>
     public static readonly LanguageStandards Default = new();
@@ -43,6 +54,30 @@ public sealed partial record LanguageStandards
     /// with a JDK of the Java its code needs and the preview features it uses turned on.
     /// </summary>
     public string Java { get; init; } = "";
+
+    /// <summary>
+    /// The Python release, or empty to detect it: the one the program's project asks for and its code needs, from the
+    /// Pythons on this computer.
+    /// </summary>
+    public string Python { get; init; } = "";
+
+    /// <summary>The Go release, or empty to detect it: the one the program's go.mod asks for and its code needs.</summary>
+    public string Go { get; init; } = "";
+
+    /// <summary>The Node.js release, or empty to detect it: the one the program's project files ask for and its code needs.</summary>
+    public string Node { get; init; } = "";
+
+    /// <summary>The Python release chosen - 3.12 - or null when it is to be detected.</summary>
+    public Versions.LanguageVersion? PythonRelease => Release(Python, PythonChoices);
+
+    /// <summary>The Go release chosen - 1.24 - or null when it is to be detected.</summary>
+    public Versions.LanguageVersion? GoRelease => Release(Go, GoChoices);
+
+    /// <summary>The Node.js release chosen - 22 - or null when it is to be detected.</summary>
+    public Versions.LanguageVersion? NodeRelease => Release(Node, NodeChoices);
+
+    private static Versions.LanguageVersion? Release(string value, string[] choices) =>
+        Allowed(value, choices, "") is { Length: > 0 } chosen ? Versions.LanguageVersion.Find(chosen) : null;
 
     /// <summary>
     /// The standards every build and every fix check uses. One setting for the whole application, because it belongs
