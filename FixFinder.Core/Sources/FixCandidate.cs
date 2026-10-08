@@ -84,6 +84,9 @@ public sealed class FixCandidate
 
     public IReadOnlyList<ScoreComponent> ScoreComponents { get; set; } = [];
 
+    /// <summary>Why it is shown - what in it matches the error - once the search has judged it; null before then.</summary>
+    public Ranking.Relevance? Relevance { get; set; }
+
     public string Display
     {
         get

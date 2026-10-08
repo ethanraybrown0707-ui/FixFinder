@@ -58,6 +58,12 @@ public sealed record SessionOutcome
 
     public InstalledPackage? Dependency { get; init; }
 
+    /// <summary>
+    /// How many search results came back about a different error, or another language, and were left out rather than shown
+    /// as if they were about this one.
+    /// </summary>
+    public int LeftOutAsUnrelated { get; init; }
+
     public bool FailedToCompile { get; init; }
 
     public bool CanApply => Plan is { CanApply: true };
@@ -549,20 +555,34 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
 
         foreach (var failure in search.Failures) warnings.Add(failure);
 
-        var ranked = CandidateRanker.Rank(search.Candidates, fingerprint);
+        // Only what is about this very error is shown: a result about another error, or another language, would be
+        // somebody else's fix, and offered as this one it makes the real problem harder to understand.
+        var judged = CandidateRanker.Rank(search.Candidates, fingerprint);
+        foreach (var candidate in judged) candidate.Relevance = RelevanceCheck.Of(candidate, fingerprint);
+
+        IReadOnlyList<FixCandidate> ranked = [.. judged.Where(candidate => candidate.Relevance!.IsAboutThisProblem)];
+        var leftOut = judged.Count - ranked.Count;
+        if (leftOut > 0) Log?.Invoke($"Left out {leftOut} of {judged.Count} results as about a different error or another language.");
+
+        // FixFinder's own fixes are worked out from this program, so they are about it, and they come first.
+        FixCandidate Own(FixCandidate candidate)
+        {
+            candidate.Relevance = RelevanceCheck.Of(candidate, fingerprint);
+            return candidate;
+        }
 
         if (suggestion is not null)
         {
             Log?.Invoke($"{error.LanguageId} suggested a correction itself: {suggestion.Title}");
 
-            ranked = [suggestion, .. ranked];
+            ranked = [Own(suggestion), .. ranked];
         }
 
         else if (await localFix is { } local)
         {
             Log?.Invoke($"Worked out a fix from the code itself: {local.Candidate.Title}");
 
-            ranked = [local.Candidate, .. ranked];
+            ranked = [Own(local.Candidate), .. ranked];
 
             if (!stackFiles.Contains(local.File, StringComparer.OrdinalIgnoreCase)) stackFiles = [.. stackFiles, local.File];
         }
@@ -571,14 +591,14 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         {
             Log?.Invoke($"The interpreter is missing a package: {install.Command}");
 
-            ranked = [install, .. ranked];
+            ranked = [Own(install), .. ranked];
         }
 
         else if (MissingDependency.For(error, spec) is { } dependencyInstall)
         {
             Log?.Invoke($"A dependency is missing: {dependencyInstall.Title}");
 
-            ranked = [dependencyInstall, .. ranked];
+            ranked = [Own(dependencyInstall), .. ranked];
         }
 
         if (ranked.Count == 0)
@@ -591,10 +611,11 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                     : ranWithoutFailing ? $"It ran, but: {error.Summary}"
                     : $"It crashed: {error.Summary}",
                 Detail = searchWeb
-                    ? NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache)
+                    ? NothingFoundDetail(fingerprint, search.Failures, (budget ?? SearchBudget.Default).Cache, leftOut)
                     : $"FixFinder found this in the code but could not work out a change it could check: {error.Message}.",
                 Spec = spec, Run = run, Error = error, Fingerprint = fingerprint, FailedToCompile = failedToCompile,
                 SourceRoot = sourceRoot, StackTraceFiles = stackFiles, Warnings = warnings, Dependency = dependency,
+                LeftOutAsUnrelated = leftOut,
             };
         }
 
@@ -670,6 +691,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest, Plan = bestPlan,
                 SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
+                LeftOutAsUnrelated = leftOut,
             };
         }
 
@@ -692,6 +714,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
                 Candidates = ranked, Best = best, Harvest = bestHarvest,
                 SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
+                LeftOutAsUnrelated = leftOut,
             };
         }
 
@@ -716,6 +739,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
                 FailedToCompile = failedToCompile,
             Candidates = ranked, Best = best, Harvest = bestHarvest,
             SourceRoot = common.SourceRoot, StackTraceFiles = common.StackFiles, Warnings = warnings, Dependency = dependency,
+            LeftOutAsUnrelated = leftOut,
         };
     }
 
@@ -948,8 +972,17 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
     }
 
     private static string NothingFoundDetail(
-        ErrorFingerprint fingerprint, IReadOnlyList<string> failures, CacheMode cache)
+        ErrorFingerprint fingerprint, IReadOnlyList<string> failures, CacheMode cache, int leftOut)
     {
+        if (leftOut > 0)
+        {
+            return
+                $"{(leftOut == 1 ? "One result" : $"{leftOut} results")} came back, but {(leftOut == 1 ? "it was" : "each was")} about a " +
+                "different error, or another language, rather than this one - so nothing is shown: somebody else's fix for " +
+                "another problem would only make this one harder to follow. The explanation and the fix in FixFinder's " +
+                "report are about your own code.";
+        }
+
         if (cache == CacheMode.CacheOnly && failures.Count > 0)
         {
             return

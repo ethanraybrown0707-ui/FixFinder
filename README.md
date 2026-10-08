@@ -771,6 +771,14 @@ how much of the message it shares (0.22), whether the query is in the title (0.1
 votes (0.08, capped so one famous answer cannot drown a precise one), age (0.06), language (0.06) and whether a patch is
 attached (0.08). A patch from GitHub is shown as the code it should end up as, never as a diff to paste.
 
+Only results about this very error are shown, as `RelevanceCheck` decides: one that does not name the error's type or
+code, is tagged only with other languages, or shares less than a quarter of the error's own distinctive words - half,
+for a compiler message with no type or code to be named by - is somebody else's problem, and is left out; the window
+says how many were. Each result shown says why it is - what in it matches the error. **Copy the fix** is offered only
+for FixFinder's own fix, a command that installs what is missing, or a patch that applies to the program's own files:
+code from somebody else's answer is written for their program, so it is shown to read, marked as theirs, and never
+offered as the fix.
+
 Without a key, Stack Overflow allows 300 requests a day and GitHub 10 searches a minute. A GitHub token with **no
 permissions selected** raises those limits; FixFinder only reads public data, so do not give it more. Tokens are stored
 encrypted with Windows DPAPI under your account, and responses are cached as plain JSON under
