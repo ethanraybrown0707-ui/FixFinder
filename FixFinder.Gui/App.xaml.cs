@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 
 using FixFinder.Core.Engine;
+using FixFinder.Desktop;
 
 namespace FixFinder.Gui;
 

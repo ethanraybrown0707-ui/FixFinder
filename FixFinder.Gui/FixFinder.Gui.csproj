@@ -36,6 +36,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FixFinder.Core\FixFinder.Core.csproj" />
+    <ProjectReference Include="..\FixFinder.Desktop\FixFinder.Desktop.csproj" />
   </ItemGroup>
 
   <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">

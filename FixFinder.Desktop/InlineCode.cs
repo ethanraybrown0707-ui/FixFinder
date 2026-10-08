@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 
-namespace FixFinder.Gui;
+namespace FixFinder.Desktop;
 
 /// <summary>Shows text in a TextBlock with anything between backticks in the code font, the way the findings write names from the
 /// code.</summary>

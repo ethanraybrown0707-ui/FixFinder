@@ -5,6 +5,7 @@ using FixFinder.Core.Engine;
 using FixFinder.Core.Http;
 using FixFinder.Core.Patching;
 using FixFinder.Core.Sources;
+using FixFinder.Desktop;
 
 using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 
@@ -25,6 +26,7 @@ public partial class FixFoundWindow : Window
     public FixFoundWindow(FixFoundContext context)
     {
         InitializeComponent();
+        ScreenFit.Apply(this);
 
         _context = context;
         ContentListBox.ItemsSource = _rows;

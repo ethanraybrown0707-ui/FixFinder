@@ -15,6 +15,7 @@ using FixFinder.Core.Logic;
 using FixFinder.Core.Reporting;
 using FixFinder.Core.Security;
 using FixFinder.Core.Sources;
+using FixFinder.Desktop;
 using Microsoft.Win32;
 
 namespace FixFinder.Gui;
@@ -117,6 +118,7 @@ public partial class MainWindow : Window
     public MainWindow(string? initialFile = null)
     {
         InitializeComponent();
+        ScreenFit.Apply(this);
 
         OutputListBox.ItemsSource = _output;
         ExtraRunsList.ItemsSource = _extraRuns;

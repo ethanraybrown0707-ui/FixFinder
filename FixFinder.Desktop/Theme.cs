@@ -3,15 +3,16 @@ using System.Windows;
 using Microsoft.Win32;
 using FixFinder.Core.Engine;
 
-namespace FixFinder.Gui;
+namespace FixFinder.Desktop;
 
 /// <summary>
-/// Swaps the window's colours without restarting it.
+/// Swaps the windows' colours without restarting the program.
 /// </summary>
 /// <remarks>
 /// Every colour lives in one of two dictionaries with the same keys in both, and changing theme replaces the one that
 /// is merged in. That only reaches the window because the XAML asks for brushes with DynamicResource: a StaticResource
-/// is looked up once when the control is built and would keep the colour it was born with.
+/// is looked up once when the control is built and would keep the colour it was born with. The dictionaries live in this
+/// library, so FixFinder and FixFinder Learn are painted from the same ones.
 /// </remarks>
 public static class Theme
 {
@@ -31,7 +32,7 @@ public static class Theme
 
         var wanted = new ResourceDictionary
         {
-            Source = new Uri($"pack://application:,,,/Themes/{(dark ? "Dark" : "Light")}.xaml", UriKind.Absolute),
+            Source = new Uri($"pack://application:,,,/FixFinder.Desktop;component/Themes/{(dark ? "Dark" : "Light")}.xaml", UriKind.Absolute),
         };
 
         var merged = Application.Current.Resources.MergedDictionaries;

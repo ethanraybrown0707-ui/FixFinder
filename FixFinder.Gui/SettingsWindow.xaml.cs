@@ -7,6 +7,7 @@ using FixFinder.Core.Security;
 using System.Windows.Controls;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Desktop;
 
 namespace FixFinder.Gui;
 
@@ -21,6 +22,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(FixFinderHttpClient http)
     {
         InitializeComponent();
+        ScreenFit.Apply(this);
 
         _http = http;
         _stored = TokenStore.Load();

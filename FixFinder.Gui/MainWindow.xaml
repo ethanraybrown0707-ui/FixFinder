@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:FixFinder.Gui"
+        xmlns:desktop="clr-namespace:FixFinder.Desktop;assembly=FixFinder.Desktop"
         Title="FixFinder" Height="880" Width="1260" MinHeight="640" MinWidth="1000"
         Icon="Assets/FixFinder.ico"
         FontFamily="Segoe UI" FontSize="13"
@@ -97,18 +98,18 @@
                             </StackPanel>
                         </DockPanel>
 
-                        <TextBlock local:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
                         <TextBlock Text="{Binding FoundByText}" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"
                                    Visibility="{Binding HasFoundBy, Converter={StaticResource Visible}}"/>
-                        <TextBlock local:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
+                        <TextBlock desktop:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
-                        <TextBlock local:InlineCode.Text="{Binding ConfirmationText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
+                        <TextBlock desktop:InlineCode.Text="{Binding ConfirmationText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
                                    Visibility="{Binding HasConfirmation, Converter={StaticResource Visible}}"/>
 
                         <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
-                        <TextBlock local:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
 
                         <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}">
                             <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
@@ -128,11 +129,11 @@
                             </Border>
 
                             <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
-                            <TextBlock local:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
+                            <TextBlock desktop:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
                                        AutomationProperties.AutomationId="FindingEvidence"/>
 
                             <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
-                            <TextBlock local:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
 
                             <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
                                 <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
@@ -141,7 +142,7 @@
                             </StackPanel>
 
                             <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
-                            <TextBlock local:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 
                             <StackPanel Visibility="{Binding HasState, Converter={StaticResource Visible}}">
                                 <TextBlock Text="{Binding StateHeading}" Style="{StaticResource Label}"/>
@@ -223,7 +224,7 @@
 
                             <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
                                 <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
-                                <TextBlock local:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"
+                                <TextBlock desktop:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"
                                            AutomationProperties.AutomationId="FindingOrigin"/>
                                 <Button Content="{Binding OriginUrl}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                         Tag="{Binding}" Click="OpenOrigin_Click" Margin="0,2,0,0"
@@ -333,7 +334,7 @@
                                               AutomationProperties.Name="What the fix changes" AutomationProperties.AutomationId="FindingFixChanges">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock local:InlineCode.Text="{Binding}" Style="{StaticResource Body}"/>
+                                            <TextBlock desktop:InlineCode.Text="{Binding}" Style="{StaticResource Body}"/>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -789,7 +790,7 @@
                                                     BorderBrush="{DynamicResource SuccessBorderBrush}">
                                                 <TextBlock Text="Fixed" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}"/>
                                             </Border>
-                                            <TextBlock local:InlineCode.Text="{Binding Title}" FontSize="12.5" VerticalAlignment="Center"/>
+                                            <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="12.5" VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding Where}" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
                                                        FontFamily="{StaticResource CodeFont}" Foreground="{DynamicResource HintBrush}"/>
                                         </StackPanel>
