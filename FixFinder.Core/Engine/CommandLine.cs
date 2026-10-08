@@ -63,27 +63,22 @@ public static class CommandLine
 
         var preferences = Preferences.Load();
 
-        // The course's language versions apply to this check, and the shared setting is put back afterwards: as a
-        // command it hardly matters, but anything that calls this in-process would otherwise be left compiling under
-        // somebody's saved Java 8 for good.
-        var before = LanguageStandards.Current;
+        // The time a run is given applies to this check, and the shared setting is put back afterwards: as a command it
+        // hardly matters, but anything that calls this in-process would otherwise be left with somebody's time for good.
         var limitBefore = TargetFactory.RunTimeLimit;
-        LanguageStandards.Current = preferences.Standards;
         TargetFactory.RunTimeLimit = asked.TimeLimit ?? preferences.RunTimeLimit;
 
         try
         {
-            return await CheckAsync(asked, preferences, output, errors, cancellationToken);
+            return await CheckAsync(asked, output, errors, cancellationToken);
         }
         finally
         {
-            LanguageStandards.Current = before;
             TargetFactory.RunTimeLimit = limitBefore;
         }
     }
 
-    private static async Task<int> CheckAsync(
-        Asked asked, Preferences preferences, TextWriter output, TextWriter errors, CancellationToken cancellationToken)
+    private static async Task<int> CheckAsync(Asked asked, TextWriter output, TextWriter errors, CancellationToken cancellationToken)
     {
         var launch = TargetFactory.FromFile(asked.File!);
         if (!launch.Ok)

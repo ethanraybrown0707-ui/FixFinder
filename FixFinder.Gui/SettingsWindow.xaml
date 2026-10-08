@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FixFinder settings" Width="700" Height="820" MinHeight="480"
+        Title="FixFinder settings" Width="700" Height="760" MinHeight="420" MinWidth="520"
         Icon="Assets/FixFinder.ico"
         FontFamily="Segoe UI" FontSize="13"
         Background="{DynamicResource PageBrush}" Foreground="{DynamicResource TextBrush}"
@@ -15,12 +15,6 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
             <Setter Property="Margin" Value="0,0,6,0"/>
-        </Style>
-        <Style x:Key="Hint" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource HintBrush}"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
         <Style TargetType="GroupBox">
             <Setter Property="Template">
@@ -57,82 +51,27 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,18,18,0">
 
-                <GroupBox Header="Language versions" Margin="0,0,0,12">
-                    <StackPanel Margin="4">
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,0,0,10"
-                                   Text="The version your course uses. Programs are built and run with it, and every fix is checked with it before it is offered - so a fix that needs a later version is never shown."/>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="80"/>
-                                <ColumnDefinition Width="170"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                                <RowDefinition/>
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Text="C" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="CStandardBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,6"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="CStandardBox" AutomationProperties.Name="C version"/>
-
-                            <TextBlock Grid.Row="1" Text="C++" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="CppStandardBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="CppStandardBox" AutomationProperties.Name="C++ version"/>
-
-                            <TextBlock Grid.Row="2" Text="Java" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="JavaReleaseBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="JavaReleaseBox" AutomationProperties.Name="Java version"/>
-
-                            <TextBlock Grid.Row="3" Text="Python" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="PythonVersionBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="PythonVersionBox" AutomationProperties.Name="Python version"/>
-
-                            <TextBlock Grid.Row="4" Text="Go" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="GoVersionBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,6"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="GoVersionBox" AutomationProperties.Name="Go version"/>
-
-                            <TextBlock Grid.Row="5" Text="JavaScript" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="NodeVersionBox" Grid.Row="5" Grid.Column="1"
-                                      SelectionChanged="Standard_Changed"
-                                      AutomationProperties.AutomationId="NodeVersionBox" AutomationProperties.Name="JavaScript version"/>
-                        </Grid>
-
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,8,0,0"
-                                   Text="For C and C++, &quot;Detect automatically&quot; builds a program with the standard its Makefile or CMakeLists.txt gives it. A program with no build file, or one that gives no standard, gets the compiler's own for C and C++17 for C++ - and when it does not build as that, gcc or clang is asked which standard either side it builds as, and it is built as that."/>
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
-                                   Text="With Microsoft's compiler, C89, C99, C23 and C++11 have no setting of their own, so it uses its default for those. gcc and clang follow every choice."/>
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
-                                   Text="For Java, &quot;Detect automatically&quot; builds a program for the Java its pom.xml, Gradle build or IDE settings name, with the JDK they ask for when it is on this computer. It also works out the Java the code itself needs - Java 21 for a record pattern, 25 for IO.println, the Javas that have a preview such as primitive patterns, with preview features on - and builds it with a JDK of that Java when one is here. How the program ran says which Java it found and why. The JDKs found are listed below."/>
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,6,0,0"
-                                   Text="For Python, Go and JavaScript, &quot;Detect automatically&quot; runs a program with the Python, Go or Node.js its project asks for - pyproject.toml or .python-version, go.mod, .nvmrc or package.json - and its code needs, from those on this computer. These languages have no setting that holds them to an older version, so a version chosen here is the Python, Go or Node.js that runs the program: it has to be on this computer, and a program is not run with another one instead - how to install it is said. Those found are listed below."/>
-                    </StackPanel>
-                </GroupBox>
-
                 <GroupBox Header="Runs" Margin="0,0,0,12">
                     <StackPanel Margin="4">
-                        <TextBlock Style="{DynamicResource Hint}" Margin="0,0,0,8"
-                                   Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build. A program with a window can instead run until you close it: tick that under Check it as."/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                   Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build."/>
                         <ComboBox x:Name="RunTimeLimitBox" Width="160" HorizontalAlignment="Left"
                                   SelectionChanged="RunTimeLimit_Changed"
                                   AutomationProperties.AutomationId="RunTimeLimitBox"
                                   AutomationProperties.Name="How long a run is given"/>
+
+                        <CheckBox x:Name="WindowsRunUntilClosedBox" AutomationProperties.AutomationId="WindowsRunUntilClosedBox"
+                                  Content="Let a program with a window run until I close it" Margin="0,14,0,0"
+                                  Checked="WindowsRunUntilClosed_Changed" Unchecked="WindowsRunUntilClosed_Changed"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                   Text="A program with a window - JavaFX, Swing, tkinter, turtle, pygame and the like - then stays open for you to use, and FixFinder checks what it did once you close it. Otherwise it is stopped when its time is up. A folder's programs are each given the usual time, so the folder is not held up."/>
                     </StackPanel>
                 </GroupBox>
 
                 <GroupBox Header="Appearance" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock Text="Which colours FixFinder uses. It changes at once - nothing is checked again."
-                                   Style="{DynamicResource Hint}" Margin="0,0,0,8"/>
+                                   Style="{StaticResource Hint}" Margin="0,0,0,8"/>
                         <ComboBox x:Name="AppearanceBox" Width="160" HorizontalAlignment="Left"
                                   SelectionChanged="Appearance_Changed"
                                   AutomationProperties.AutomationId="AppearanceBox"
@@ -144,64 +83,81 @@
                     </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="API credentials (both optional)" Margin="0,0,0,12">
-                    <Grid Margin="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="GitHub token" Style="{StaticResource FieldLabel}"/>
-                        <PasswordBox Grid.Row="0" Grid.Column="1" x:Name="GitHubTokenBox"
-                                     AutomationProperties.AutomationId="GitHubTokenBox"
-                                     AutomationProperties.Name="GitHub personal access token"
-                                     Margin="0,2" Padding="2,1"/>
-                        <Button    Grid.Row="0" Grid.Column="2" x:Name="ClearGitHubTokenButton"
-                                   AutomationProperties.AutomationId="ClearGitHubTokenButton"
-                                   Content="Clear" Padding="10,4" Margin="8,2,0,2"
-                                   Click="ClearGitHubTokenButton_Click"/>
-
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="GitHubTokenStateText"
-                                   AutomationProperties.AutomationId="GitHubTokenStateText"
-                                   Style="{StaticResource Hint}"/>
-
-                        <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,4,0,8"
-                                   Text="Create a fine-grained token with NO permissions selected at all. FixFinder only reads public issues, and a token with no scopes still raises search from 10 requests a minute to 30, and everything else from 60 an hour to 5000. Do not paste a token with repo access - it would grant far more than this tool needs."/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Stack Apps key" Style="{StaticResource FieldLabel}"/>
-                        <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="StackExchangeKeyBox"
-                                     AutomationProperties.AutomationId="StackExchangeKeyBox"
-                                     AutomationProperties.Name="Stack Exchange application key"
-                                     Margin="0,2" Padding="2,1"/>
-                        <Button    Grid.Row="3" Grid.Column="2" x:Name="ClearStackExchangeKeyButton"
-                                   AutomationProperties.AutomationId="ClearStackExchangeKeyButton"
-                                   Content="Clear" Padding="10,4" Margin="8,2,0,2"
-                                   Click="ClearStackExchangeKeyButton_Click"/>
-
-                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="StackExchangeKeyStateText"
-                                   AutomationProperties.AutomationId="StackExchangeKeyStateText"
-                                   Style="{StaticResource Hint}"/>
-
-                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Hint}"
-                                   Text="A free key from stackapps.com raises the daily allowance from 300 requests to 10,000. It is not a login and grants no access to any account."/>
-                    </Grid>
+                <GroupBox Header="Languages it can run here" Margin="0,0,0,12">
+                    <StackPanel Margin="4">
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                   Text="Which version of a language a program is written for is worked out from its project and its own code, and it is run with one of these that is new enough for it - how the program ran says which, and why."/>
+                        <TextBlock x:Name="ToolchainsText"
+                                   AutomationProperties.AutomationId="ToolchainsText"
+                                   FontFamily="{StaticResource CodeFont}" FontSize="11" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                   Text="Python and JavaScript need only their interpreter. C, C++, Java, C# and Go are compiled first, so they need a compiler. FixFinder finds Visual Studio, the JDKs, and the Pythons, Gos and Node.js installs in the places their installers put them by itself, so those do not have to be on PATH; the .NET SDK's dotnet does."/>
+                    </StackPanel>
                 </GroupBox>
 
-                <GroupBox Header="Where things are stored" Margin="0,0,0,12">
+                <GroupBox Header="Search online (optional)">
                     <StackPanel Margin="4">
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
+                                   Text="Nothing is sent while a program is checked. Only when you press Search online on a finding is the normalised text of that error - the exception type, the message with paths, addresses and timestamps stripped out, and the quoted values from it - sent to these two services:"/>
+                        <TextBlock FontFamily="{StaticResource CodeFont}" FontSize="11" Margin="8,0,0,0"
+                                   Text="api.stackexchange.com&#x0a;api.github.com&#x0a;github.com  (only when fetching a .patch or .diff)"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,12"
+                                   Text="It never sends your source code, your file paths, your machine name, or anything you have not run. A search that was made before is answered from the cache without any network request. A key or token below only raises how many searches the services allow."/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="GitHub token" Style="{StaticResource FieldLabel}"/>
+                            <PasswordBox Grid.Row="0" Grid.Column="1" x:Name="GitHubTokenBox"
+                                         AutomationProperties.AutomationId="GitHubTokenBox"
+                                         AutomationProperties.Name="GitHub personal access token"
+                                         Margin="0,2" Padding="2,1"/>
+                            <Button    Grid.Row="0" Grid.Column="2" x:Name="ClearGitHubTokenButton"
+                                       AutomationProperties.AutomationId="ClearGitHubTokenButton"
+                                       Content="Clear" Padding="10,4" Margin="8,2,0,2"
+                                       Click="ClearGitHubTokenButton_Click"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="GitHubTokenStateText"
+                                       AutomationProperties.AutomationId="GitHubTokenStateText"
+                                       Style="{StaticResource Hint}"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,4,0,8"
+                                       Text="Create a fine-grained token with NO permissions selected at all. FixFinder only reads public issues, and a token with no scopes still raises search from 10 requests a minute to 30, and everything else from 60 an hour to 5000. Do not paste a token with repo access - it would grant far more than this tool needs."/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Stack Apps key" Style="{StaticResource FieldLabel}"/>
+                            <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="StackExchangeKeyBox"
+                                         AutomationProperties.AutomationId="StackExchangeKeyBox"
+                                         AutomationProperties.Name="Stack Exchange application key"
+                                         Margin="0,2" Padding="2,1"/>
+                            <Button    Grid.Row="3" Grid.Column="2" x:Name="ClearStackExchangeKeyButton"
+                                       AutomationProperties.AutomationId="ClearStackExchangeKeyButton"
+                                       Content="Clear" Padding="10,4" Margin="8,2,0,2"
+                                       Click="ClearStackExchangeKeyButton_Click"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="StackExchangeKeyStateText"
+                                       AutomationProperties.AutomationId="StackExchangeKeyStateText"
+                                       Style="{StaticResource Hint}"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Hint}"
+                                       Text="A free key from stackapps.com raises the daily allowance from 300 requests to 10,000. It is not a login and grants no access to any account."/>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,14,0,2" Text="Where they are kept:"/>
                         <TextBlock x:Name="CredentialPathText"
                                    AutomationProperties.AutomationId="CredentialPathText"
                                    Style="{StaticResource Hint}" FontFamily="{StaticResource CodeFont}"/>
-
                         <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,6"
                                    Text="Encrypted with Windows DPAPI under your account, with extra entropy. It cannot be read by another user, on another machine, or by another program running as you."/>
 
@@ -213,27 +169,6 @@
                             <Button x:Name="ClearCacheButton" AutomationProperties.AutomationId="ClearCacheButton"
                                     Content="Clear cache" Padding="10,4" Margin="8,0,0,0" Click="ClearCacheButton_Click"/>
                         </StackPanel>
-                    </StackPanel>
-                </GroupBox>
-
-                <GroupBox Header="Languages it can run here" Margin="0,0,0,12">
-                    <StackPanel Margin="4">
-                        <TextBlock x:Name="ToolchainsText"
-                                   AutomationProperties.AutomationId="ToolchainsText"
-                                   FontFamily="{StaticResource CodeFont}" FontSize="11" TextWrapping="Wrap"/>
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                   Text="Python and JavaScript need only their interpreter. C, C++, Java, C# and Go are compiled first, so they need a compiler. FixFinder finds Visual Studio, the JDKs, and the Pythons, Gos and Node.js installs in the places their installers put them by itself, so those do not have to be on PATH; the .NET SDK's dotnet does."/>
-                    </StackPanel>
-                </GroupBox>
-
-                <GroupBox Header="What Search online sends, and where">
-                    <StackPanel Margin="4">
-                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
-                                   Text="Nothing is sent while a program is checked. Only when you press Search online on a finding is the normalised text of that error - the exception type, the message with paths, addresses and timestamps stripped out, and the quoted values from it - sent to these two services:"/>
-                        <TextBlock FontFamily="{StaticResource CodeFont}" FontSize="11" Margin="8,0,0,0"
-                                   Text="api.stackexchange.com&#x0a;api.github.com&#x0a;github.com  (only when fetching a .patch or .diff)"/>
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                   Text="It never sends your source code, your file paths, your machine name, or anything you have not run. A search that was made before is answered from the cache without any network request."/>
                     </StackPanel>
                 </GroupBox>
 

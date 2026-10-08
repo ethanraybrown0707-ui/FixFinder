@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using FixFinder.Core.Checking;
 using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Engine;
@@ -34,31 +33,6 @@ public sealed class Preferences
     /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
 
-    /// <summary>
-    /// Which version of C, C++ and Java the person's course uses, or empty for the one each program's project gives. Kept
-    /// as plain text so the file stays readable; what reaches a compiler is checked against the listed versions first, so
-    /// an edited file cannot pass anything else.
-    /// </summary>
-    public string CStandard { get; set; } = LanguageStandards.Default.C;
-
-    public string CppStandard { get; set; } = LanguageStandards.Default.Cpp;
-
-    public string JavaRelease { get; set; } = LanguageStandards.Default.Java;
-
-    /// <summary>Which release of Python, Go and Node.js runs a program, or empty for the one its project and code ask for.</summary>
-    public string PythonVersion { get; set; } = LanguageStandards.Default.Python;
-
-    public string GoVersion { get; set; } = LanguageStandards.Default.Go;
-
-    public string NodeVersion { get; set; } = LanguageStandards.Default.Node;
-
-    /// <summary>The versions chosen here, as the compilers and toolchains are given them. Worked out, so not written down twice.</summary>
-    [JsonIgnore]
-    public LanguageStandards Standards => new()
-    {
-        C = CStandard, Cpp = CppStandard, Java = JavaRelease, Python = PythonVersion, Go = GoVersion, Node = NodeVersion,
-    };
-
     /// <summary>How many seconds a run is given, as chosen in Settings.</summary>
     public int RunSeconds { get; set; } = (int)TargetFactory.DefaultTimeout.TotalSeconds;
 
@@ -74,14 +48,10 @@ public sealed class Preferences
     public bool WindowsRunUntilClosed { get; set; }
 
     /// <summary>
-    /// Which meaning the file's choices were written with. A file without it is older than C++ standards that a program's
-    /// build file could give: C++17 was then what anybody who had not chosen was given, so it is read as not choosing -
-    /// which still gives C++17 to every program whose build file names no standard.
+    /// The preferences written down last time. What earlier versions of FixFinder wrote and this one no longer asks - a
+    /// depth of explanation, a version of each language - is passed over, as each program's version is now worked out
+    /// from its project and its code.
     /// </summary>
-    public int Version { get; set; } = CurrentVersion;
-
-    private const int CurrentVersion = 1;
-
     public static Preferences Load(string? path = null)
     {
         var file = path ?? FilePath;
@@ -90,15 +60,7 @@ public sealed class Preferences
         {
             if (!File.Exists(file)) return new Preferences();
 
-            var text = File.ReadAllText(file);
-            var preferences = JsonSerializer.Deserialize<Preferences>(text, JsonOptions.Default) ?? new Preferences();
-
-            using var written = JsonDocument.Parse(text);
-            if (!written.RootElement.TryGetProperty(nameof(Version), out _) && preferences.CppStandard == LanguageStandards.UsualCpp)
-                preferences.CppStandard = LanguageStandards.Default.Cpp;
-
-            preferences.Version = CurrentVersion;
-            return preferences;
+            return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file), JsonOptions.Default) ?? new Preferences();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

@@ -45,9 +45,8 @@ public static partial class NativeStandards
         return Remembered.TryGetValue(path, out var known) && known.Written == WrittenAt(path) ? known.Standard : null;
     }
 
-    /// <summary>Whether a build's standard is FixFinder's own choice - none chosen in Settings, and none given by a build file - and so may be worked out.</summary>
-    public static bool IsFixFindersChoice(string chosen, bool cpp) =>
-        !LanguageStandards.Current.Chooses(cpp) && NativeBuild.For(chosen).Build?.Standard is null;
+    /// <summary>Whether a build's standard is FixFinder's own choice - none given by a build file - and so may be worked out.</summary>
+    public static bool IsFixFindersChoice(string chosen, bool cpp) => NativeBuild.For(chosen).Build?.Standard is null;
 
     /// <summary>
     /// The standard, other than the one the build used, that the compiler takes the program as with fewer errors and no

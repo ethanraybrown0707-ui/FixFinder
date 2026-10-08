@@ -100,30 +100,23 @@ public static partial class CompiledLanguages
     {
         if (lookup.Build is not { } build)
         {
-            var writtenTo = !LanguageStandards.Current.Chooses(cpp) && NativeStandards.RememberedFor(source) is { Length: > 0 } found
+            var writtenTo = NativeStandards.RememberedFor(source) is { Length: > 0 } found
                 ? $" as {NativeStandards.Shown(found, compiler)}, the standard its code was found to be written to,"
                 : "";
 
             return $"Building it{Along(sources)}{writtenTo} with {compiler}, then running the result{StartsFrom(start, source)}.{(lookup.Note is { } note ? " " + note : "")}";
         }
 
-        var standards = LanguageStandards.Current;
-        var language = cpp ? "C++" : "C";
-
         var given = new List<string>();
-        if (!standards.Chooses(cpp) && build.Standard is { } own) given.Add($"-std={own}");
+        if (build.Standard is { } own) given.Add($"-std={own}");
         if (build.FlagsShown.Length > 0) given.Add(build.FlagsShown);
-
-        var settingsHold = standards.Chooses(cpp) && build.Standard is { } overruled
-            ? $" It is held to the {language} standard chosen in Settings rather than the -std={overruled} its {build.BuildFileName} gives."
-            : "";
 
         var notFollowed = build.NotFollowed.Count > 0
             ? $" What its {build.BuildFileName} does that FixFinder did not: {string.Join("; ", build.NotFollowed)}."
             : "";
 
         return $"Building it as its {build.BuildFileName} builds {build.Program}{(sources.Count > 1 ? "," : "")}{Along(sources)}" +
-               $"{(given.Count > 0 ? ", given " + string.Join(" ", given) : "")}, using {compiler}, then running the result{StartsFrom(start, source)}.{settingsHold}{notFollowed}";
+               $"{(given.Count > 0 ? ", given " + string.Join(" ", given) : "")}, using {compiler}, then running the result{StartsFrom(start, source)}.{notFollowed}";
     }
 
     private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp, NativeBuild? build)
@@ -151,16 +144,15 @@ public static partial class CompiledLanguages
 
     /// <summary>
     /// The standard the program is held to, then the warnings. Used both to build the program and to check every fix,
-    /// so a fix that needs a later standard than the one chosen - or than the one its build file gives - fails its check
-    /// and is never offered.
+    /// so a fix that needs a later standard than the one its build file gives fails its check and is never offered.
     /// </summary>
-    internal static string GnuWarnings(bool cpp, string? projectStandard = null) => LanguageStandards.Current.Gnu(cpp, projectStandard) + (cpp
+    internal static string GnuWarnings(bool cpp, string? projectStandard = null) => LanguageStandards.Gnu(cpp, projectStandard) + (cpp
         ? "-Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
         : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ");
 
     /// <summary>MSVC's flags, with the standard the program is held to where MSVC has a flag for it.</summary>
     internal static string MsvcFlags(bool cpp, bool debugInfo, string? projectStandard = null) =>
-        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Current.Msvc(cpp, projectStandard);
+        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Msvc(cpp, projectStandard);
 
     internal const string JavaLint = "-Xlint:cast,divzero,empty,fallthrough,finally,overrides,rawtypes,static,unchecked,deprecation";
 

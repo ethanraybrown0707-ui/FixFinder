@@ -228,12 +228,10 @@ public static class CompileCheck
 
         if (extension == ".cs" && ProgramLayout.CSharpProject(original) is not null) return null;
 
-        // The chosen language versions are part of what was checked, and a result remembered under one must never answer
-        // for another - a "compiles" from Java 17 would pass a fix written with var that Java 8 rejects. Today the version
-        // already reaches the key through the compiler's arguments below; it is stated here as well so that stays true
-        // for any way of compiling that does not happen to put the version on its command line.
+        // The language version a program is built for is part of what was checked, and a result remembered under one must
+        // never answer for another - a "compiles" from Java 17 would pass a fix written with var that Java 8 rejects. The
+        // version reaches the key through the compiler and its arguments: the JDK, the -std or --release it is given.
         var key = new StringBuilder()
-            .Append(LanguageStandards.Current).Append('\n')
             .Append(spec.ExecutablePath).Append('\n')
             .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
             .Append(spec.LaunchViaDotnet).Append('\n')

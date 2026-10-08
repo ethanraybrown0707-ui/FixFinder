@@ -41,9 +41,7 @@ public partial class App : Application
         var preferences = Preferences.Load();
         Theme.Apply(preferences.Appearance);
 
-        // Before anything is compiled, so the first build and the first fix checked are both held to the course's version, and
-        // every run is given the time chosen.
-        Core.Execution.LanguageStandards.Current = preferences.Standards;
+        // Before anything is run, so every run is given the time chosen.
         Core.Execution.TargetFactory.RunTimeLimit = preferences.RunTimeLimit;
 
         var window = new MainWindow(e.Args.FirstOrDefault(a => !a.StartsWith('-') && !a.StartsWith('/')));

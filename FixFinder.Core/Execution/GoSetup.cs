@@ -36,20 +36,6 @@ public sealed record GoSetup(string Go, string Explained, string? CodeNeeds, Ver
         // needs decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
         var codeNeeds = GoFeaturesUsed.For(ProgramCopy.OriginalOf(goFile));
 
-        // A Go chosen in Settings holds over the rest: the one a terminal runs when it is of that release, else the newest of
-        // it here - and with none of it here, nothing, as the program is then not built with another.
-        if (LanguageStandards.Current.GoRelease is { } chosenInSettings)
-        {
-            bool IsOf(VersionedToolchain go) => go.Version.Major == chosenInSettings.Major && go.Version.Minor == chosenInSettings.Minor;
-
-            var usualGo = GoToolchains.Usual;
-            var chosenGo = usualGo is not null && IsOf(usualGo) ? usualGo : GoToolchains.Installed.FirstOrDefault(IsOf);
-
-            return chosenGo is null ? null
-                : new GoSetup(chosenGo.Program, $"Go {chosenGo.VersionText} ({chosenGo.FoundIn}), as Go {chosenInSettings} is chosen in Settings",
-                              ToolchainChoice.Said(Language, chosenGo, codeNeeds), chosenGo);
-        }
-
         // A copy of the program made to try a change in has the change; its module's files are read where it came from.
         var declared = DeclaredGo.Of(ProgramCopy.OriginalOf(goFile));
         var atLeast = (declared?.AtLeast ?? []).Concat(codeNeeds is null ? [] : [codeNeeds]).ToList();

@@ -21,9 +21,6 @@ public sealed record PythonSetup(string Interpreter, string Explained, string? C
         // decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
         var codeNeeds = PythonFeaturesUsed.For(ProgramCopy.OriginalOf(pythonFile));
 
-        // A Python chosen in Settings holds over the rest, as a standard chosen there does for C, C++ and Java.
-        if (LanguageStandards.Current.PythonRelease is { } chosenInSettings) return ChosenInSettings(chosenInSettings, codeNeeds, environment, windowed);
-
         // The project's own environment is what its IDE runs it with, and what has its packages installed: it is used as it is.
         if (environment is not null)
         {
@@ -46,32 +43,6 @@ public sealed record PythonSetup(string Interpreter, string Explained, string? C
 
         return new PythonSetup(Windowed(chosen.Toolchain.Program, windowed), chosen.Explained, chosen.CodeNeeds, chosen.Toolchain);
     }
-
-    /// <summary>
-    /// The Python of the release chosen in Settings: the project's own environment when it is of that release, as it has
-    /// the project's packages; else the one a terminal runs when it is; else the newest of that release here - or null
-    /// when no Python of it is on this computer, as the program is then not run with another.
-    /// </summary>
-    internal static PythonSetup? ChosenInSettings(LanguageVersion chosen, ToolchainChoice.AtLeast? codeNeeds, PythonEnvironment.Found? environment, bool windowed)
-    {
-        var own = environment is null ? null : Pythons.At(environment.Interpreter, "the project's own");
-        if (environment is not null && own is not null && IsOf(own, chosen))
-            return new PythonSetup(environment.Interpreter, environment.Described, ToolchainChoice.Said(Language, own, codeNeeds), own);
-
-        var usual = Pythons.Usual;
-        var python = usual is not null && IsOf(usual, chosen) ? usual : Pythons.Installed.FirstOrDefault(each => IsOf(each, chosen));
-        if (python is null) return null;
-
-        // Another Python than the project's own environment's does not have what is installed only there, which is said.
-        var notTheProjects = environment is null ? ""
-            : $" - not {environment.Described}{(own is null ? "" : $", which is Python {own.VersionText}")}, so what is installed only there is not found";
-
-        return new PythonSetup(
-            Windowed(python.Program, windowed), $"Python {python.VersionText} ({python.FoundIn}), as Python {chosen} is chosen in Settings{notTheProjects}",
-            ToolchainChoice.Said(Language, python, codeNeeds), python);
-    }
-
-    private static bool IsOf(VersionedToolchain python, LanguageVersion release) => python.Version.Major == release.Major && python.Version.Minor == release.Minor;
 
     /// <summary>pythonw beside python, for a program with a window, so no console opens: pythonw.exe, or the Store's pythonw3.13.exe.</summary>
     private static string Windowed(string interpreter, bool windowed)

@@ -129,7 +129,6 @@ public partial class MainWindow : Window
         UpdateFilterCounts();
         _saveSettling.Tick += SaveSettled_Tick;
 
-        WindowsRunUntilClosedBox.IsChecked = _preferences.WindowsRunUntilClosed;
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -1304,19 +1303,6 @@ public partial class MainWindow : Window
         timer.Start();
     }
 
-    /// <summary>
-    /// Whether a program with a window runs until its window is closed - for the next check of one program, and written
-    /// down. A check already running keeps the run it started with.
-    /// </summary>
-    private void WindowsRunUntilClosed_Changed(object sender, RoutedEventArgs e)
-    {
-        var chosen = WindowsRunUntilClosedBox.IsChecked == true;
-        if (chosen == _preferences.WindowsRunUntilClosed) return;
-
-        _preferences.WindowsRunUntilClosed = chosen;
-        _preferences.Save();
-    }
-
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         var settings = new SettingsWindow(_http) { Owner = this };
@@ -1324,8 +1310,8 @@ public partial class MainWindow : Window
 
         if (settings.Saved) _logger?.Write("Credentials updated.");
 
-        // Settings wrote down what it changed - the language versions, the time a run is given - so this window's copy is
-        // read again, or the next thing it saves would put the old ones back.
+        // Settings wrote down what it changed - the time a run is given, whether a program with a window runs until it is
+        // closed - so this window's copy is read again, and the next check runs as was chosen.
         _preferences = Preferences.Load();
     }
 

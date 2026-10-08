@@ -5,7 +5,7 @@ namespace FixFinder.Core.Execution;
 
 /// <summary>
 /// How a Java program is built and run: with which JDK, for which Java, with preview features on or off - each as its
-/// project, its own code or Settings asks - and the words that say so.
+/// project or its own code asks - and the words that say so.
 /// </summary>
 /// <param name="Jdk">The JDK whose javac builds it, whose java runs it, and whose javap and tree reader read it.</param>
 /// <param name="Release">The Java it is compiled for, or null for the JDK's own.</param>
@@ -57,8 +57,8 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
     public string RunArguments => RunOptions.Count == 0 ? "" : string.Join(" ", RunOptions) + " ";
 
     /// <summary>
-    /// How this Java file's program is built: the JDK and Java Settings, its project and its code ask for, or why it cannot
-    /// be built - no JDK at all, or none new enough for the Java its project or Settings names.
+    /// How this Java file's program is built: the JDK and Java its project and its code ask for, or why it cannot be built -
+    /// no JDK at all, or none new enough for the Java its project names.
     /// </summary>
     public static (JavaSetup? Setup, string? Problem) For(string javaFile)
     {
@@ -78,22 +78,10 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
         var declared = DeclaredJava.Of(javaFile);
         var needs = JavaFeaturesUsed.For(javaFile);
 
-        // Settings is the person's own choice, for their course, so it wins over what the project says.
-        int? release = null;
-        var strict = true;
-        string? releaseSaidBy = null;
-
-        if (int.TryParse(LanguageStandards.Current.JavaReleaseNumber, out var chosen))
-        {
-            release = chosen;
-            releaseSaidBy = "as chosen in Settings";
-        }
-        else if (declared?.Release is { } projects)
-        {
-            release = projects;
-            strict = declared.StrictRelease;
-            releaseSaidBy = $"as {declared.SaidBy} says";
-        }
+        // The Java the project is written for, when it names one.
+        var release = declared?.Release;
+        var strict = declared?.StrictRelease ?? true;
+        var releaseSaidBy = declared?.Release is not null ? $"as {declared.SaidBy} says" : null;
 
         var preview = declared?.Preview ?? false;
 
@@ -105,7 +93,7 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
         if (LombokLimit(javaFile) is { } lombok) atMost.Add(lombok);
 
         // A preview the code uses is turned on for it, with a JDK that has it - unless the project already says whether
-        // preview features are on, or Settings or the project names a Java that does not have that preview.
+        // preview features are on, or the project names a Java that does not have that preview.
         var codePreview = !preview && needs.Preview is { } used && (release is not { } releaseAsked || (releaseAsked >= used.From && releaseAsked <= used.Until)) ? needs.Preview : null;
 
         if (codePreview is not null)
@@ -120,15 +108,10 @@ public sealed partial record JavaSetup(Jdk Jdk, int? Release, bool StrictRelease
 
         if (release is { } wanted && wanted > newest.Version)
         {
-            var asked = releaseSaidBy == "as chosen in Settings"
-                ? $"Settings asks for {name} to be compiled for Java {wanted}"
-                : $"{name}'s project is written for Java {wanted} - {declared!.SaidBy} says so";
-            var orElse = releaseSaidBy == "as chosen in Settings" ? "\n\nOr choose an earlier Java in Settings." : "";
-
             return (null,
-                $"{asked} - and the newest JDK on this computer is Java {newest.VersionText} ({newest.FoundIn}, {newest.Home}). " +
+                $"{name}'s project is written for Java {wanted} - {declared!.SaidBy} says so - and the newest JDK on this computer is Java {newest.VersionText} ({newest.FoundIn}, {newest.Home}). " +
                 $"A JDK cannot compile for a later Java than its own.\n\n" +
-                $"Install a JDK of Java {wanted} or later - {InstallAdvice(wanted)}{orElse}");
+                $"Install a JDK of Java {wanted} or later - {InstallAdvice(wanted)}");
         }
 
         bool Fits(Jdk jdk) => jdk.Version >= lowest && jdk.Version <= highest;

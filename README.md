@@ -64,7 +64,7 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
-**Let a program with a window run until I close it**, under the languages, keeps such a program open for you to use: it
+**Let a program with a window run until I close it**, in Settings, keeps such a program open for you to use: it
 is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
 and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
 runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
@@ -138,7 +138,7 @@ those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, 
 Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with it
 - and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
 program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the one
-JDK. The Java it is compiled for is the one chosen in Settings, else the one its project names: `pom.xml`'s
+JDK. The Java it is compiled for is the one its project names: `pom.xml`'s
 `maven.compiler.release`, or its source and target - as properties or as maven-compiler-plugin's own settings, from the
 `pom.xml` or a parent - or Spring Boot's `java.version`; a Gradle build's toolchain, `options.release` or
 `sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
@@ -146,7 +146,7 @@ IntelliJ's language level; or Eclipse's compliance level. Preview features are o
 is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
 is here; else the usual one, when it is new enough; else the oldest that is.
 
-The Java **the code itself** is written in is **detected** as well - which is what Settings' "Detect automatically" means.
+The Java **the code itself** is written in is **detected** as well.
 FixFinder reads the program's files for the newest part of the language or of Java's library they use: `var` is Java 10's,
 a switch with `case ... ->` Java 14's, a text block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed
 class Java 17's, a record pattern, a type pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_`
@@ -157,8 +157,7 @@ code then needs a JDK of at least that Java, and how it ran says which Java the 
 line. A **preview** the code uses - primitive types in patterns, which Java 23 to 27 have as a preview, lazy constants
 (Java 26 and 27), `StableValue` (Java 25), structured concurrency, or a string template (Java 21 and 22, then taken out) -
 is turned on for it, with the JDK the program is usually built with when that one has the preview, else the newest one
-here that does, unless the project already says whether preview features are on, or the project or Settings names a Java
-without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
+here that does, unless the project already says whether preview features are on, or names a Java without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
 so what makes code Java 27's is a preview Java 27 has.
 Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
 Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
@@ -211,14 +210,8 @@ never taken for code, and only what is certainly JavaScript's own counts: a `fet
 is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
 so and how to install one.
 
-For Python, Go and JavaScript, Settings can also **choose the version** instead - Python 3.8 to 3.14, Go 1.21 to 1.27,
-Node.js 18, 20, 22, 24 or 26 - as it can choose one for C, C++ and Java. These languages have no setting that holds them
-to an older version, so the choice is the Python, Go or Node.js that runs the program, checks its fixes and tries them:
-the one a terminal runs when it is of that release, else the newest of it on this computer - and for Python, the
-project's own environment when that is of that release; when it is not, how it ran says that what is installed only
-there is not found. A release chosen that is not on this computer is said to be so, with how to install it, and the
-program is not run with another one instead. How it ran says that the version was chosen in Settings, and a note says
-when the code needs a later one.
+None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
+is checked, and how it ran says which version that was and why.
 
 A C# program is built with **the .NET SDK dotnet chooses** - the newest here, unless a `global.json` above it asks for
 another, which dotnet itself is asked - and how it ran says which SDK, the C# its project is built as, and the C# its
@@ -258,7 +251,7 @@ that is not a test, or else the one built by default. When two are as likely as 
 exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
 is a program whose files the build file names in a way FixFinder cannot follow, or that it builds from C and C++ files
 together. With no build file, C and C++ are built with the other files of their language beside them when exactly one of
-them all has a `main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is
+them all has a `main`. The standard is the one the build file gives; without one, C is
 built to the compiler's own standard and C++ to C++17 - and when the program **does not build as that**, the compiler is
 asked which standard its code is written to. gcc or clang compiles it, for its syntax only, as the standards either side:
 C++20 and C++23, then C++14 for code that uses what C++17 took out; C23, then C17. The first the compiler takes it as,
@@ -806,7 +799,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a
 problem. It exits with 0 when nothing is wrong, 1 when there is at least one error - so a build step can stop on it - and
-2 when the program could not be checked at all. The language versions chosen in Settings apply here too.
+2 when the program could not be checked at all.
 
 **VS Code:** copy `Editors/vscode-tasks.json` into your project's `.vscode/tasks.json` and change the path to
 `fixfinder.dll`. *Terminal → Run Task → FixFinder: check this file* checks whatever file is open.

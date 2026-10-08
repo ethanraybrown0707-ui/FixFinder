@@ -190,10 +190,6 @@ public static class TargetFactory
         var go = extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ? GoSetup.For(full) : null;
         var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" ? NodeSetup.For(full) : null;
 
-        // A release chosen in Settings that is not on this computer: the program is not run with another one instead.
-        if (ChosenReleaseNotHere(Path.GetFileName(full), extension, python is not null || go is not null || node is not null) is { } notHere)
-            return LaunchPlan.Failed(notHere);
-
         var found = python?.Interpreter ?? go?.Go ?? node?.Node ?? environment?.Interpreter ?? Resolve(runner);
 
         // dotnet chooses the .NET SDK itself; which one, and the C# it builds the program as, are said.
@@ -281,35 +277,6 @@ public static class TargetFactory
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }
 
-    /// <summary>
-    /// What is said of a program whose language has a release chosen in Settings that is not on this computer - or null
-    /// when none is chosen for it, or one of it was found.
-    /// </summary>
-    private static string? ChosenReleaseNotHere(string name, string extension, bool found)
-    {
-        if (found) return null;
-
-        var standards = LanguageStandards.Current;
-
-        return extension.ToLowerInvariant() switch
-        {
-            ".py" or ".pyw" when standards.PythonRelease is { } python => PythonNotHere(name, python),
-            ".go" when standards.GoRelease is { } go =>
-                $"{name} is Go, and Go {go} is chosen in Settings, which is not on this computer, so it was not built with another Go.\n\n" +
-                "go.dev/dl has every Go release. Or choose Detect automatically in Settings, to build it with a Go that is here.",
-            ".js" or ".mjs" or ".cjs" when standards.NodeRelease is { } node =>
-                $"{name} is JavaScript, and Node.js {node} is chosen in Settings, which is not on this computer, so it was not run with another Node.js.\n\n" +
-                (node.Major <= 23 ? $"Install it - for example:\n\n  winget install OpenJS.NodeJS.{node.Major}\n\n" : "nodejs.org has every release. ") +
-                "Or choose Detect automatically in Settings, to run it with a Node.js that is here.",
-            _ => null,
-        };
-    }
-
-    /// <summary>What is said when the Python chosen in Settings is not on this computer: winget has every Python 3 release.</summary>
-    private static string PythonNotHere(string name, Versions.LanguageVersion python) =>
-        $"{name} is Python, and Python {python} is chosen in Settings, which is not on this computer, so it was not run with another Python.\n\n" +
-        $"Install it - for example:\n\n  winget install Python.Python.{python}\n\nOr choose Detect automatically in Settings, to run it with a Python that is here.";
-
     /// <summary>The warning filter, in Python's own form, for the warning matplotlib gives when a plot is made with no window.</summary>
     private const string PlotNotShown = "ignore:FigureCanvasAgg is non-interactive:UserWarning";
 
@@ -340,15 +307,7 @@ public static class TargetFactory
         var notebook = NotebookScript.Of(script)?.Notebook ?? (original.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ? original[..^3] : original);
         var environment = JupyterKernels.Named(NotebookScript.KernelNameIn(notebook), PythonEnvironment.Current) ?? PythonEnvironment.For(notebook);
 
-        // A Python chosen in Settings runs a notebook too: its kernel's or its project's own when that is of that release.
-        var chosenInSettings = LanguageStandards.Current.PythonRelease is { } chosenRelease
-            ? PythonSetup.ChosenInSettings(chosenRelease, codeNeeds: null, environment, windowed: false)
-            : null;
-
-        if (chosenInSettings is null && LanguageStandards.Current.PythonRelease is { } notHereRelease)
-            return LaunchPlan.Failed(PythonNotHere(Path.GetFileName(notebook), notHereRelease));
-
-        var python = chosenInSettings?.Interpreter ?? environment?.Interpreter ?? Resolve(ByExtension[".py"]);
+        var python = environment?.Interpreter ?? Resolve(ByExtension[".py"]);
 
         if (python is null)
         {
@@ -386,7 +345,7 @@ public static class TargetFactory
         };
 
         var how = $"Running the code cells of {notebookName} in order, as Jupyter's Run All does, with " +
-                  $"{chosenInSettings?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(python)}. Plots are made without opening a window.";
+                  $"{environment?.Described ?? Path.GetFileNameWithoutExtension(python)}. Plots are made without opening a window.";
 
         return new LaunchPlan(spec, null, how) { ChosenFile = script, SourceFolder = folder };
     }

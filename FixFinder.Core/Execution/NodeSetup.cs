@@ -20,20 +20,6 @@ public sealed record NodeSetup(string Node, string Explained, string? CodeNeeds,
         // decides, so a fix is tried on the version it will run on, never on a later one it would ask for itself.
         var codeNeeds = JavaScriptFeaturesUsed.For(ProgramCopy.OriginalOf(javaScriptFile));
 
-        // A Node.js chosen in Settings holds over the rest: the one a terminal runs when it is of that release, else the
-        // newest of it here - and with none of it here, nothing, as the program is then not run with another.
-        if (LanguageStandards.Current.NodeRelease is { } chosenInSettings)
-        {
-            var usualNode = Nodes.Usual;
-            var chosenNode = usualNode is not null && usualNode.Version.Major == chosenInSettings.Major
-                ? usualNode
-                : Nodes.Installed.FirstOrDefault(each => each.Version.Major == chosenInSettings.Major);
-
-            return chosenNode is null ? null
-                : new NodeSetup(chosenNode.Program, $"Node.js {chosenNode.VersionText} ({chosenNode.FoundIn}), as Node.js {chosenInSettings} is chosen in Settings",
-                                ToolchainChoice.Said(Language, chosenNode, codeNeeds), chosenNode);
-        }
-
         // A copy of the program made to try a change in has the change; its project's files are read where it came from.
         var declared = DeclaredNode.Of(ProgramCopy.OriginalOf(javaScriptFile));
         var atLeast = new[] { declared?.AtLeast, codeNeeds }.OfType<ToolchainChoice.AtLeast>().ToList();
