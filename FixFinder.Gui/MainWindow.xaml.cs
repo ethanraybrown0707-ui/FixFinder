@@ -21,22 +21,11 @@ using Microsoft.Win32;
 
 namespace FixFinder.Gui;
 
-/// <summary>Pick a program, press its language, and read the report.</summary>
+/// <summary>Pick a program - it is checked straight away, in the language its name says - and read the report.</summary>
 public partial class MainWindow : Window
 {
-    private sealed record LanguageBadge(string Short, string Colour, string TextColour = "#FFFFFF");
-
-    private static readonly Dictionary<string, LanguageBadge> Badges = new()
-    {
-        ["Python"] = new("Py", "#3776AB"),
-        ["Java"] = new("Java", "#E76F00"),
-        ["C#"] = new("C#", "#7B3FB8"),
-        ["C"] = new("C", "#5C6BC0"),
-        ["C++"] = new("C++", "#00599C"),
-        ["JavaScript"] = new("JS", "#F7DF1E", "#2B2B2B"),
-        ["Go"] = new("Go", "#00ADD8"),
-        ["Any language"] = new("Auto", "#5B6679"),
-    };
+    /// <summary>What the language box for pasted code offers first: working the language out from the code.</summary>
+    private const string WorkItOut = "Work the language out from the code";
 
     private readonly ObservableCollection<OutputRow> _output = [];
     private readonly ObservableCollection<ExpectedRunRow> _extraRuns = [];
@@ -129,10 +118,9 @@ public partial class MainWindow : Window
         FindingsList.ItemsSource = _visibleFindings;
         NotesList.ItemsSource = _notes;
 
-        AddLanguageTiles();
+        FillPastedLanguageBox();
         UpdateFilterCounts();
         _saveSettling.Tick += SaveSettled_Tick;
-
 
         var stored = TokenStore.Load();
         _http.SetGitHubToken(stored.GitHubToken);
@@ -312,9 +300,8 @@ public partial class MainWindow : Window
         ShowChosen(row.Program.Entry);
         _chosenPath = row.Program.Entry;
 
-        // Check on save follows one program; a folder's programs were each checked once, as they were.
-        CheckOnSaveBox.IsChecked = false;
-        CheckOnSaveBox.IsEnabled = false;
+        // Saves are followed for one program checked on its own; a folder's programs were each checked once, as they were.
+        StopWatchingForSaves();
 
         ShowFindings(row.Findings ?? []);
 
@@ -327,19 +314,16 @@ public partial class MainWindow : Window
 
     private void ChooseFileButton_Click(object sender, RoutedEventArgs e) => PickFile();
 
-    private bool PickFile()
+    private void PickFile()
     {
         var dialog = new OpenFileDialog
         {
-            Title = _language.IsAny ? "Choose the program to check" : $"Choose the {_language.Name} program to check",
-            Filter = _language.FileDialogFilter(TargetFactory.FileDialogFilter),
+            Title = "Choose the program to check",
+            Filter = TargetFactory.FileDialogFilter,
             CheckFileExists = true,
         };
 
-        if (dialog.ShowDialog(this) != true) return false;
-
-        Choose(dialog.FileName);
-        return true;
+        if (dialog.ShowDialog(this) == true) Choose(dialog.FileName);
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -354,6 +338,10 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Takes a program to check, and checks it straight away: in the language its file's name says, or - for a file whose
+    /// name says none - with everything FixFinder knows, as Auto-detect did.
+    /// </summary>
     private void Choose(string path)
     {
         _pasting = false;
@@ -361,29 +349,24 @@ public partial class MainWindow : Window
         PastePanel.Visibility = Visibility.Collapsed;
 
         _chosenPath = path;
+        _language = CodeLanguage.Of(path) ?? CodeLanguage.Any;
         _launch = TargetFactory.FromFile(path);
 
-        // Watching follows the file: saves to the one chosen before mean nothing now.
-        CheckOnSaveBox.IsEnabled = _launch.Ok;
-        if (CheckOnSaveBox.IsChecked == true)
-        {
-            if (_launch.Ok) WatchForSaves();
-            else CheckOnSaveBox.IsChecked = false;
-        }
+        // Saves to the program chosen before mean nothing now; this one is followed once it has been checked.
+        StopWatchingForSaves();
 
         NothingChosenPanel.Visibility = Visibility.Collapsed;
+        FolderPanel.Visibility = Visibility.Collapsed;
         ChosenPanel.Visibility = Visibility.Visible;
 
         ShowChosen(_launch.ShownFile ?? path);
+        ChosenLanguageText.Text = _language.IsAny
+            ? "Its name says no language FixFinder checks, so it is run as its kind of file is run."
+            : $"{_language.Name}, from the file's name.";
         HowItRunsText.Text = _launch.Ok ? _launch.Explanation : _launch.Problem ?? "";
         HowItRunsText.Foreground = (Brush)FindResource(_launch.Ok ? "HintBrush" : "ErrorBrush");
 
-        var detected = CodeLanguage.Of(path);
-        UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
-
-        LanguageHintText.Text = detected is null
-            ? "Press the language it was written in, or Auto to let FixFinder work it out."
-            : $"This looks like {detected.Name}. Press {detected.Name} to check its syntax and logic together.";
+        _ = CheckAsync();
     }
 
     private void ShowChosen(string path)
@@ -394,75 +377,32 @@ public partial class MainWindow : Window
         ChosenFolderText.ToolTip = path;
     }
 
-    private void AddLanguageTiles()
+    /// <summary>Checks the chosen program again - after it was changed, or given input and what it should print.</summary>
+    private async void CheckAgainButton_Click(object sender, RoutedEventArgs e)
     {
-        var order = new[] { CodeLanguage.Python, CodeLanguage.Java, CodeLanguage.CSharp, CodeLanguage.C, CodeLanguage.Cpp, CodeLanguage.JavaScript, CodeLanguage.Go };
+        if (_cancellation is not null || _chosenPath is null) return;
 
-        foreach (var language in order.Concat(CodeLanguage.All.Except(order)))
-        {
-            var badge = Badges.GetValueOrDefault(language.Name) ?? new LanguageBadge(language.Name[..1], "#5B6679");
-            var name = language.IsAny ? "Auto-detect" : language.Name;
-
-            var tile = new RadioButton
-            {
-                GroupName = "Language",
-                Tag = language,
-                Style = (Style)FindResource("LanguageTile"),
-                ToolTip = language.IsAny
-                    ? "Work out the language from the file, and check it with everything FixFinder knows."
-                    : $"Check it as {language.Name}: compile and run it, and read it for logic mistakes, at the same time.",
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                    {
-                        new Border
-                        {
-                            Width = 34, Height = 26, CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 10, 0),
-                            Background = (Brush)new BrushConverter().ConvertFromString(badge.Colour)!,
-                            Child = new TextBlock
-                            {
-                                Text = badge.Short, FontSize = 11, FontWeight = FontWeights.Bold,
-                                Foreground = (Brush)new BrushConverter().ConvertFromString(badge.TextColour)!,
-                                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                            },
-                        },
-                        new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center },
-                    },
-                },
-            };
-
-            var id = language.Name.Replace("C#", "CSharp").Replace("C++", "Cpp");
-            AutomationProperties.SetAutomationId(tile, "Language" + new string(id.Where(char.IsLetterOrDigit).ToArray()));
-            AutomationProperties.SetName(tile, $"Check as {name}");
-
-            tile.Click += LanguageTile_Click;
-            LanguagePanel.Children.Add(tile);
-        }
+        await CheckAsync();
     }
 
-    private async void LanguageTile_Click(object sender, RoutedEventArgs e)
+    /// <summary>The languages pasted code can be checked as, after the choice to work it out from the code.</summary>
+    private void FillPastedLanguageBox()
     {
-        if (sender is not RadioButton { Tag: CodeLanguage language } || _cancellation is not null) return;
+        PastedLanguageBox.Items.Add(new ComboBoxItem { Content = WorkItOut, Tag = CodeLanguage.Any });
 
-        _language = language;
+        foreach (var language in CodeLanguage.All.Where(language => !language.IsAny))
+            PastedLanguageBox.Items.Add(new ComboBoxItem { Content = language.Name, Tag = language });
 
-        if (_pasting)
-        {
-            if (!SavePastedCode()) return;
-        }
-        else
-        {
-            if (_chosenPath is null && !PickFile()) return;
+        PastedLanguageBox.SelectedIndex = 0;
+    }
 
-            if (_language.Refuses(_chosenPath!) is { } refusal)
-            {
-                var detected = CodeLanguage.Of(_chosenPath!);
-                ShowProblem("That file is in a different language.", $"{refusal} Press {detected!.Name} instead, or choose a {_language.Name} file.");
-                OfferLanguage(detected);
-                return;
-            }
-        }
+    /// <summary>Checks the pasted code: as the language chosen for it, or the one the code shows it is written in.</summary>
+    private async void CheckPastedButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cancellation is not null) return;
+
+        _language = (PastedLanguageBox.SelectedItem as ComboBoxItem)?.Tag as CodeLanguage ?? CodeLanguage.Any;
+        if (!SavePastedCode()) return;
 
         await CheckAsync();
     }
@@ -474,9 +414,7 @@ public partial class MainWindow : Window
         _chosenPath = null;
         _launch = null;
 
-        // Pasted code has no file of the person's to watch for saves: pressing the language again checks it again.
-        CheckOnSaveBox.IsChecked = false;
-        CheckOnSaveBox.IsEnabled = false;
+        // Pasted code has no file of the person's to follow for saves: Check this code checks it again.
         StopWatchingForSaves();
 
         NothingChosenPanel.Visibility = Visibility.Collapsed;
@@ -484,9 +422,7 @@ public partial class MainWindow : Window
         FolderPanel.Visibility = Visibility.Collapsed;
         PastePanel.Visibility = Visibility.Visible;
         PastedSavedAsText.Visibility = Visibility.Collapsed;
-        UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
 
-        LanguageHintText.Text = "Press the language the pasted code is written in, or Auto-detect to let FixFinder work it out from the code.";
         PastedCodeBox.Focus();
     }
 
@@ -498,8 +434,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Saves the pasted code as the file its language needs, for the check to read: as the language pressed, or - for
-    /// Auto-detect - the one the code shows it is written in; and says why not, when it cannot be.
+    /// Saves the pasted code as the file its language needs, for the check to read: as the language chosen, or the one
+    /// the code shows it is written in; and says why not, when it cannot be.
     /// </summary>
     private bool SavePastedCode()
     {
@@ -510,7 +446,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(code))
         {
-            ShowProblem("There is no code to check.", "Paste the program's code into the box, then press the language it is written in.");
+            ShowProblem("There is no code to check.", "Paste the program's code into the box, then press Check this code.");
             return false;
         }
 
@@ -518,7 +454,7 @@ public partial class MainWindow : Window
         if (language is null)
         {
             ShowProblem("FixFinder cannot tell which language this is.",
-                "The code does not show clearly enough which language it is written in. Press that language, and it is checked as that.");
+                "The code does not show clearly enough which language it is written in. Choose it in the box beside Check this code, and it is checked as that.");
             return false;
         }
 
@@ -542,35 +478,11 @@ public partial class MainWindow : Window
     /// <summary>What the report calls the program: its file's name, or pasted code.</summary>
     private string ProgramShown(string? path) => _pasting ? "Pasted code" : Path.GetFileName(path ?? "");
 
-    /// <summary>What the report calls the language: the one pressed, or the one worked out, and how.</summary>
+    /// <summary>What the report calls the language: the one its name or the box gave, or the one worked out, and how.</summary>
     private string LanguageShown(bool finished) =>
         !_language.IsAny ? _language.Name
         : _pastedLanguage is { } workedOut ? $"{workedOut.Name}, worked out from the code"
         : finished ? "Auto-detected" : "language worked out automatically";
-
-    private void OfferLanguage(CodeLanguage? detected)
-    {
-        if (detected is null || detected == _language)
-        {
-            UseDetectedLanguageButton.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        UseDetectedLanguageButton.Content = $"This looks like {detected.Name} - check it as {detected.Name}";
-        UseDetectedLanguageButton.Tag = detected;
-        UseDetectedLanguageButton.Visibility = Visibility.Visible;
-    }
-
-    private void UseDetectedLanguageButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (UseDetectedLanguageButton.Tag is not CodeLanguage detected) return;
-
-        var tile = LanguagePanel.Children.OfType<RadioButton>().FirstOrDefault(t => t.Tag is CodeLanguage language && language == detected);
-        if (tile is null) return;
-
-        tile.IsChecked = true;
-        tile.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, tile));
-    }
 
     private void AddRunButton_Click(object sender, RoutedEventArgs e) => _extraRuns.Add(new ExpectedRunRow());
 
@@ -724,6 +636,9 @@ public partial class MainWindow : Window
         CopyReportButton.IsEnabled = report.Findings.Count > 0;
         KeepForSaving(report, onlyRead: false);
         KeepForLearn(report.Findings);
+
+        // From now on every save of a program chosen as a file is read again at once - no box to tick for it.
+        if (!_pasting && _launch is { Ok: true }) WatchForSaves();
     }
 
     /// <summary>
@@ -987,18 +902,6 @@ public partial class MainWindow : Window
         ApplyFilter();
     }
 
-    private async void CheckOnSave_Changed(object sender, RoutedEventArgs e)
-    {
-        if (CheckOnSaveBox.IsChecked != true)
-        {
-            StopWatchingForSaves();
-            return;
-        }
-
-        WatchForSaves();
-        await CheckCodeAgainAsync();
-    }
-
     private void WatchForSaves()
     {
         StopWatchingForSaves();
@@ -1094,7 +997,7 @@ public partial class MainWindow : Window
         {
             EmptyState.Visibility = Visibility.Visible;
             EmptyTitleText.Text = "No mistakes found in the code";
-            EmptyBodyText.Text = "It was read again as it was saved, but not compiled or run. Press its language to check what it does when it runs.";
+            EmptyBodyText.Text = "It was read again as it was saved, but not compiled or run. Press Check again to check what it does when it runs.";
         }
 
         SetLane(SyntaxStatusText, SyntaxIcon, SyntaxProgress, report.SyntaxSummary, LaneState.Stopped);
@@ -1160,7 +1063,9 @@ public partial class MainWindow : Window
         StopButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         StopButton.IsEnabled = busy;
 
-        LanguagePanel.IsEnabled = !busy;
+        CheckAgainButton.IsEnabled = !busy;
+        CheckPastedButton.IsEnabled = !busy;
+        PastedLanguageBox.IsEnabled = !busy;
         ChooseFileButton.IsEnabled = !busy;
         ChooseAnotherButton.IsEnabled = !busy;
         ChooseFolderButton.IsEnabled = !busy;
@@ -1170,7 +1075,6 @@ public partial class MainWindow : Window
         ChooseFileInsteadButton.IsEnabled = !busy;
         ClearPastedCodeButton.IsEnabled = !busy;
         SettingsButton.IsEnabled = !busy;
-        UseDetectedLanguageButton.IsEnabled = !busy;
         AllowDrop = !busy;
     }
 

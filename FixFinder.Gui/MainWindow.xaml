@@ -505,7 +505,7 @@
                                             <Button x:Name="PasteCodeButton" AutomationProperties.AutomationId="PasteCodeButton"
                                                     AutomationProperties.Name="Paste code" Style="{StaticResource SourceTile}"
                                                     Click="PasteCodeButton_Click"
-                                                    ToolTip="For code that is hard to find as a file: paste it in, and press its language.">
+                                                    ToolTip="For code that is hard to find as a file: paste it in, and press Check this code.">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SourceTileIcon}" Text="&#xE77F;"/>
                                                     <TextBlock Style="{StaticResource SourceTileLabel}" Text="Paste code"/>
@@ -524,9 +524,15 @@
                                         </DockPanel>
                                         <TextBlock x:Name="ChosenFolderText" AutomationProperties.AutomationId="ChosenFolderText"
                                                    Style="{StaticResource Hint}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
+                                        <TextBlock x:Name="ChosenLanguageText" AutomationProperties.AutomationId="ChosenLanguageText"
                                                    Style="{StaticResource Hint}" Margin="0,6,0,0"/>
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <TextBlock x:Name="HowItRunsText" AutomationProperties.AutomationId="HowItRunsText"
+                                                   Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Button x:Name="CheckAgainButton" AutomationProperties.AutomationId="CheckAgainButton"
+                                                    Content="Check again" Style="{StaticResource PrimaryButton}" Margin="0,0,8,6" Padding="12,4"
+                                                    Click="CheckAgainButton_Click"
+                                                    ToolTip="Compiles and runs it again, and reads its code again - after you change it, or give it input and what it should print."/>
                                             <Button x:Name="ChooseAnotherButton" AutomationProperties.AutomationId="ChooseAnotherButton"
                                                     AutomationProperties.Name="Choose another file" Style="{StaticResource SmallButton}"
                                                     Click="ChooseFileButton_Click">
@@ -543,7 +549,7 @@
                                                     <TextBlock Text="Paste code"/>
                                                 </StackPanel>
                                             </Button>
-                                        </StackPanel>
+                                        </WrapPanel>
                                     </StackPanel>
 
                                     <StackPanel x:Name="PastePanel" Margin="14,12" Visibility="Collapsed">
@@ -553,7 +559,7 @@
                                             <TextBlock Text="Paste the program's code" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                         </DockPanel>
                                         <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,8"
-                                                   Text="Then press the language it is written in, below - or Auto-detect. It is saved as a file of its own and checked like any program; press the language again to check it after a change."/>
+                                                   Text="Then press Check this code. Its language is worked out from the code - or choose it, when the code does not show which it is. It is saved as a file of its own and checked like any program."/>
                                         <TextBox x:Name="PastedCodeBox" AutomationProperties.AutomationId="PastedCodeBox"
                                                  AutomationProperties.Name="Pasted code" Style="{StaticResource InputBox}"
                                                  FontSize="12.5" Height="260" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
@@ -561,6 +567,13 @@
                                                  SpellCheck.IsEnabled="False"/>
                                         <TextBlock x:Name="PastedSavedAsText" AutomationProperties.AutomationId="PastedSavedAsText"
                                                    Style="{StaticResource Hint}" Margin="0,6,0,0" Visibility="Collapsed"/>
+                                        <DockPanel Margin="0,10,0,0">
+                                            <Button DockPanel.Dock="Right" x:Name="CheckPastedButton" AutomationProperties.AutomationId="CheckPastedButton"
+                                                    Content="Check this code" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Padding="12,4"
+                                                    Click="CheckPastedButton_Click"/>
+                                            <ComboBox x:Name="PastedLanguageBox" AutomationProperties.AutomationId="PastedLanguageBox"
+                                                      AutomationProperties.Name="Language of the pasted code" VerticalAlignment="Center"/>
+                                        </DockPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                             <Button x:Name="ClearPastedCodeButton" AutomationProperties.AutomationId="ClearPastedCodeButton"
                                                     AutomationProperties.Name="Clear" Style="{StaticResource SmallButton}"
@@ -617,20 +630,6 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource Card}">
-                        <StackPanel>
-                            <TextBlock Text="Check it as" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock x:Name="LanguageHintText" AutomationProperties.AutomationId="LanguageHintText"
-                                       Style="{StaticResource Hint}" Margin="0,4,0,12"
-                                       Text="Press the language it is written in. Its syntax and its logic are checked at the same time."/>
-
-                            <UniformGrid x:Name="LanguagePanel" AutomationProperties.AutomationId="LanguagePanel" Columns="2" Margin="0,0,-8,-8"/>
-
-                            <Button x:Name="UseDetectedLanguageButton" AutomationProperties.AutomationId="UseDetectedLanguageButton"
-                                    Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,12,0,0"
-                                    Visibility="Collapsed" Click="UseDetectedLanguageButton_Click"/>
-                        </StackPanel>
-                    </Border>
 
                     <Border Style="{StaticResource Card}">
                         <Expander x:Name="OptionsExpander" AutomationProperties.AutomationId="OptionsExpander" IsExpanded="False">
@@ -716,11 +715,6 @@
                             </StackPanel>
                         </Border>
 
-                        <CheckBox x:Name="CheckOnSaveBox" AutomationProperties.AutomationId="CheckOnSaveBox"
-                                  Content="Check on save" VerticalAlignment="Center" Margin="0,0,14,0" IsEnabled="False"
-                                  FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"
-                                  Checked="CheckOnSave_Changed" Unchecked="CheckOnSave_Changed"
-                                  ToolTip="Reads the code again every time the program is saved, and updates the report. The program is not compiled or run - press its language to do that."/>
 
                         <Button x:Name="CopyReportButton" AutomationProperties.AutomationId="CopyReportButton"
                                 Style="{StaticResource QuietButton}" IsEnabled="False" Click="CopyReportButton_Click"
@@ -886,7 +880,7 @@
                                    Text="Check a program" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,14,0,6"/>
                         <TextBlock x:Name="EmptyBodyText" AutomationProperties.AutomationId="EmptyBodyText"
                                    Style="{StaticResource Body}" TextAlignment="Center"
-                                   Text="Choose a file - or paste its code in - then press the language it is written in. FixFinder compiles and runs it while it reads the code for logic mistakes, and lists every problem with how sure it is, where it is, why it matters and how to fix it."/>
+                                   Text="Choose a file - or paste its code in. FixFinder works out its language, compiles and runs it while it reads the code for logic mistakes, and lists every problem with how sure it is, where it is, why it matters and how to fix it."/>
                     </StackPanel>
                 </Grid>
 
