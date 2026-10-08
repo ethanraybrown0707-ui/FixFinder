@@ -2,15 +2,24 @@ using System.ComponentModel;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Reporting;
+using FixFinder.Core.Teaching;
 
 namespace FixFinder.Gui;
 
 /// <summary>One finding as the report shows it.</summary>
+/// <remarks>
+/// A card says what is wrong, why it matters and how to fix it in words first; the corrected code waits behind a button,
+/// so the reader can try the fix themselves before seeing it; and what lies behind the finding - the evidence, the
+/// verification, where the fix came from - waits under More detail.
+/// </remarks>
 public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 {
-    private bool _isExpanded = finding.Severity == Severity.Error;
-
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Changed(params string[] properties)
+    {
+        foreach (var property in properties) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    }
 
     public Finding Finding { get; } = finding;
 
@@ -70,42 +79,51 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string Explanation => Finding.Explanation;
 
+    public string WhyItMatters => Finding.WhyItMatters;
+
+    public string SuggestedFix => Finding.SuggestedFix;
+
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
 
     public bool HasChange => ChangeLines.Count > 0;
 
-    public string ChangeSummary => Finding.Change?.Summary ?? "";
-
-    private bool ChangeIsLong => Finding.Change?.IsLong == true;
-
-    private bool? _changeShown;
-
-    /// <summary>A short change is open; a long one waits to be asked for, so the card stays readable.</summary>
-    public bool ChangeShown
-    {
-        get => _changeShown ?? !ChangeIsLong;
-        set
-        {
-            if (ChangeShown == value) return;
-
-            _changeShown = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ChangeShown)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ChangeToggleText)));
-        }
-    }
-
-    public string ChangeToggleText => ChangeShown ? "Hide the change" : $"Show the change  ·  {ChangeSummary}";
-
-    public string WhyItMatters => Finding.WhyItMatters;
-
-    public string SuggestedFix => Finding.SuggestedFix;
-
     public string CorrectedExample => Finding.CorrectedExample;
 
     public bool HasExample => Finding.CorrectedExample.Trim().Length > 0;
 
-    public string ExampleLabel => Finding.ExampleIsFromYourCode ? "CORRECTED CODE  ·  FROM YOUR FILE" : "EXAMPLE OF CORRECTED CODE";
+    /// <summary>
+    /// What the corrected code is: the reader's own lines put right, or - where FixFinder could not work the fix out from
+    /// them - a small example of its own, which is said plainly so it is not taken for a change to the reader's program.
+    /// </summary>
+    public string ExampleLabel => Finding.ExampleIsFromYourCode
+        ? "CORRECTED CODE  ·  FROM YOUR FILE"
+        : "A SMALL EXAMPLE OF THIS KIND OF FIX  ·  NOT YOUR CODE";
+
+    /// <summary>Whether there is corrected code to show at all - the reader's own lines put right, or an example.</summary>
+    public bool HasCorrection => HasChange || HasExample;
+
+    private bool _correctionShown;
+
+    /// <summary>
+    /// Whether the corrected code is showing. It starts hidden: working the fix out from what is wrong and how to fix it is
+    /// how the idea goes in, and the answer is one press away for whoever wants it.
+    /// </summary>
+    public bool CorrectionShown
+    {
+        get => _correctionShown;
+        set
+        {
+            if (_correctionShown == value) return;
+
+            _correctionShown = value;
+            Changed(nameof(CorrectionShown), nameof(CorrectionToggleText));
+        }
+    }
+
+    public string CorrectionToggleText => CorrectionShown
+        ? "Hide the corrected code"
+        : Finding.ExampleIsFromYourCode || HasChange ? "Show the corrected code" : "Show a small example of the fix";
 
     /// <summary>The lines that decide the value that goes wrong, numbered, with their shared indent taken off.</summary>
     public string SliceCode => _sliceCode ??= FindingText.Slice(Finding);
@@ -186,6 +204,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool CanSearch => Finding.Error is not null && Finding.Kind is FindingKind.Syntax or FindingKind.Runtime;
 
+    private bool _isExpanded;
+
+    /// <summary>Whether More detail is open: the evidence behind the finding, and how its fix was checked.</summary>
     public bool IsExpanded
     {
         get => _isExpanded;
@@ -194,12 +215,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             if (_isExpanded == value) return;
 
             _isExpanded = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExpanded)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToggleText)));
+            Changed(nameof(IsExpanded));
         }
     }
-
-    public string ToggleText => IsExpanded ? "Hide details" : "Show details";
 
     public bool HasFoundBy => Finding.FoundBy is not null;
 
@@ -213,10 +231,24 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ConfirmationText => FindingText.Confirmation(Finding) ?? "";
 
-    /// <summary>What the fix changes in what the program does, from comparing it with the original path by path.</summary>
+    /// <summary>What the proposed fix changes in what the program does, from comparing it with the original path by path.</summary>
     public IReadOnlyList<string> FixChanges => Finding.FixChanges ?? [];
 
     public bool HasFixChanges => FixChanges.Count > 0;
+
+    /// <summary>The idea this finding is an example of, which FixFinder Learn teaches.</summary>
+    public Concept Concept { get; } = ConceptMap.Of(finding);
+
+    public string IdeaTitle => $"The idea behind it: {Concept.Title}";
+
+    public string Idea => Concept.Idea;
+
+    /// <summary>The code that opens this problem in FixFinder Learn, or null for a file of no language it teaches.</summary>
+    public ProblemCode? ProblemCode { get; } = ProblemStore.CodeFor(finding);
+
+    public bool HasProblemCode => ProblemCode is not null;
+
+    public string ProblemCodeText => ProblemCode?.Text ?? "";
 
     public string AsText()
     {
@@ -242,7 +274,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
         if (HasExample)
         {
-            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "Example:");
+            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "A small example of this kind of fix (not your code):");
             lines.AddRange(CorrectedExample.Split('\n').Select(line => "    " + line));
         }
 
@@ -253,6 +285,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             lines.Add("What the fix changes:");
             lines.AddRange(FixChanges.Select(change => "    " + change));
         }
+
+        lines.Add($"The idea behind it: {Concept.Title}" + (HasProblemCode ? $" - problem code {ProblemCodeText}, for FixFinder Learn" : ""));
 
         return string.Join(Environment.NewLine, lines);
     }

@@ -32,6 +32,11 @@
             </Setter>
         </Style>
 
+        <!--
+            A finding as a card. What is wrong, why it matters and how to fix it come first, in words; the corrected code
+            waits behind a button, so the fix can be tried before it is seen; the idea behind the mistake and the code that
+            opens it in FixFinder Learn follow; and the evidence behind the finding waits under More detail.
+        -->
         <DataTemplate x:Key="FindingTemplate" DataType="{x:Type local:FindingRow}">
             <Border x:Name="Card" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1" CornerRadius="12" Margin="0,0,0,12"
@@ -99,8 +104,6 @@
                         </DockPanel>
 
                         <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding FoundByText}" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"
-                                   Visibility="{Binding HasFoundBy, Converter={StaticResource Visible}}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
@@ -111,178 +114,21 @@
                         <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
 
-                        <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}">
-                            <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
-                                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
-                                    Visibility="{Binding Explains, Converter={StaticResource Visible}}">
-                                <TextBlock Text="{Binding ExplainsText}" TextWrapping="Wrap" FontSize="12.5"
-                                           Foreground="{DynamicResource SecondaryTextBrush}"
-                                           AutomationProperties.AutomationId="FindingExplains"/>
-                            </Border>
+                        <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
 
-                            <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
-                                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,0,10"
-                                    Visibility="{Binding Follows, Converter={StaticResource Visible}}">
-                                <TextBlock Text="{Binding FollowsText}" TextWrapping="Wrap" FontSize="12.5"
-                                           Foreground="{DynamicResource SecondaryTextBrush}"
-                                           AutomationProperties.AutomationId="FindingFollows"/>
-                            </Border>
+                        <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 
-                            <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
-                            <TextBlock desktop:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
-                                       AutomationProperties.AutomationId="FindingEvidence"/>
+                        <StackPanel Visibility="{Binding HasCorrection, Converter={StaticResource Visible}}">
+                            <Button Content="{Binding CorrectionToggleText}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
+                                    Margin="0,10,0,0" Tag="{Binding}" Click="ToggleCorrection_Click"
+                                    AutomationProperties.AutomationId="FindingCorrectionToggle"
+                                    ToolTip="Try the fix yourself first, from how to fix it above - then compare."/>
 
-                            <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
-                            <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
-
-                            <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
-                                <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
-                                <TextBox Text="{Binding SliceCode, Mode=OneWay}" Style="{StaticResource CodeBlock}"
-                                         AutomationProperties.Name="The lines that decide it" AutomationProperties.AutomationId="FindingSlice"/>
-                            </StackPanel>
-
-                            <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
-                            <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
-
-                            <StackPanel Visibility="{Binding HasState, Converter={StaticResource Visible}}">
-                                <TextBlock Text="{Binding StateHeading}" Style="{StaticResource Label}"/>
-
-                                <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
-                                        BorderThickness="1" CornerRadius="6" Padding="8,6"
-                                        AutomationProperties.AutomationId="FindingState" AutomationProperties.Name="What the line did">
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                                            <TextBlock Text="#" Width="34" FontFamily="{StaticResource CodeFont}" FontSize="12"
-                                                       Foreground="{DynamicResource HintBrush}"/>
-                                            <ItemsControl ItemsSource="{Binding StateColumns}" Focusable="False">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12"
-                                                                   Foreground="{DynamicResource HintBrush}"/>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-
-                                        <ItemsControl ItemsSource="{Binding StateRows}" Focusable="False">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border x:Name="StateRow" CornerRadius="3" Padding="0,1">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Number}" Width="34"
-                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
-                                                            <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
-                                                                <ItemsControl.ItemsPanel>
-                                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                                                                </ItemsControl.ItemsPanel>
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
-                                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                                   Foreground="{DynamicResource TextBrush}"/>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </StackPanel>
-                                                    </Border>
-                                                    <DataTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding IsWhereItFailed}" Value="True">
-                                                            <Setter TargetName="StateRow" Property="Background" Value="{DynamicResource ErrorSoftBrush}"/>
-                                                        </DataTrigger>
-                                                    </DataTemplate.Triggers>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                        <TextBlock Text="{Binding StateCutNote}" Margin="34,4,0,0" FontSize="11.5"
-                                                   Foreground="{DynamicResource HintBrush}"
-                                                   Visibility="{Binding StateWasCut, Converter={StaticResource Visible}}"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <StackPanel Visibility="{Binding HasFurtherReading, Converter={StaticResource Visible}}">
-                                <TextBlock Text="READ MORE ABOUT THIS" Style="{StaticResource Label}"/>
-                                <Button Content="{Binding FurtherReadingText}" Style="{StaticResource LinkButton}"
-                                        HorizontalAlignment="Left" Tag="{Binding}" Click="OpenFurtherReading_Click"
-                                        AutomationProperties.AutomationId="FindingFurtherReading"
-                                        ToolTip="{Binding FurtherReadingUrl}"/>
-                            </StackPanel>
-
-                            <StackPanel Visibility="{Binding HasWeakness, Converter={StaticResource Visible}}">
-                                <TextBlock Text="CLASSIFIED AS (MITRE CWE)" Style="{StaticResource Label}"/>
-                                <Button Content="{Binding WeaknessText}" Style="{StaticResource LinkButton}"
-                                        HorizontalAlignment="Left" Tag="{Binding}" Click="OpenWeakness_Click"
-                                        AutomationProperties.AutomationId="FindingWeakness"
-                                        ToolTip="{Binding WeaknessUrl}"/>
-                            </StackPanel>
-
-                            <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
-                                <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
-                                <TextBlock desktop:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"
-                                           AutomationProperties.AutomationId="FindingOrigin"/>
-                                <Button Content="{Binding OriginUrl}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
-                                        Tag="{Binding}" Click="OpenOrigin_Click" Margin="0,2,0,0"
-                                        AutomationProperties.AutomationId="FindingOriginLink"
-                                        ToolTip="Opens the page this fix was taken from, so you can judge it yourself."
-                                        Visibility="{Binding HasOriginLink, Converter={StaticResource Visible}}"/>
-                            </StackPanel>
-
-                            <StackPanel Visibility="{Binding HasVerification, Converter={StaticResource Visible}}">
-                                <TextBlock Text="VERIFICATION" Style="{StaticResource Label}"/>
-                                <ItemsControl ItemsSource="{Binding VerificationLines}" Focusable="False"
-                                              AutomationProperties.Name="Verification"
-                                              AutomationProperties.AutomationId="FindingVerification">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                                <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="18"
-                                                           FontSize="12.5" Foreground="{DynamicResource HintBrush}"/>
-                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12.5"
-                                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
-                                            </StackPanel>
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding Passed}" Value="True">
-                                                    <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Failed}" Value="True">
-                                                    <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <TextBlock x:Name="VerdictText" Text="{Binding VerificationSummary}" Margin="18,4,0,0"
-                                           FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"
-                                           AutomationProperties.AutomationId="FindingVerificationSummary">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsVerified}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-
-                            <StackPanel Visibility="{Binding HasChange, Converter={StaticResource Visible}}">
-                                <TextBlock Text="WHAT CHANGES" Style="{StaticResource Label}"/>
-
-                                <CheckBox IsChecked="{Binding ChangeShown, Mode=TwoWay}" Content="{Binding ChangeToggleText}"
-                                          Margin="0,0,0,6" Focusable="True"
-                                          AutomationProperties.AutomationId="FindingChangeToggle"
-                                          AutomationProperties.Name="{Binding ChangeToggleText}"/>
-
-                                <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6"
-                                        Visibility="{Binding ChangeShown, Converter={StaticResource Visible}}">
+                            <StackPanel Visibility="{Binding CorrectionShown, Converter={StaticResource Visible}}">
+                                <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6" Margin="0,8,0,0"
+                                        Visibility="{Binding HasChange, Converter={StaticResource Visible}}">
                                     <ItemsControl ItemsSource="{Binding ChangeLines}" Focusable="False"
                                                   AutomationProperties.Name="What changes"
                                                   AutomationProperties.AutomationId="FindingChange">
@@ -320,46 +166,230 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </Border>
-                            </StackPanel>
 
-                            <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
-                                <TextBlock Text="{Binding ExampleLabel}" Style="{StaticResource Label}"/>
-                                <TextBox Text="{Binding CorrectedExample, Mode=OneWay}" Style="{StaticResource CodeBlock}"
-                                         AutomationProperties.Name="Corrected code"/>
-                            </StackPanel>
+                                <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="{Binding ExampleLabel}" Style="{StaticResource Label}"/>
+                                    <TextBox Text="{Binding CorrectedExample, Mode=OneWay}" Style="{StaticResource CodeBlock}"
+                                             AutomationProperties.Name="Corrected code"/>
+                                    <Button Content="Copy corrected code" Style="{StaticResource SmallButton}" Tag="{Binding}"
+                                            HorizontalAlignment="Left" Margin="0,8,0,0" Click="CopyExample_Click"/>
+                                </StackPanel>
 
-                            <StackPanel Visibility="{Binding HasFixChanges, Converter={StaticResource Visible}}">
-                                <TextBlock Text="WHAT THE FIX CHANGES" Style="{StaticResource Label}"/>
-                                <ItemsControl ItemsSource="{Binding FixChanges}" Focusable="False"
-                                              AutomationProperties.Name="What the fix changes" AutomationProperties.AutomationId="FindingFixChanges">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock desktop:InlineCode.Text="{Binding}" Style="{StaticResource Body}"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <Border Visibility="{Binding HasCheck, Converter={StaticResource Visible}}"
+                                        Background="{DynamicResource SuccessSoftBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                        BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,10,0,0">
+                                    <DockPanel>
+                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="13"
+                                                   Foreground="{DynamicResource SuccessBrush}" Margin="0,1,8,0" VerticalAlignment="Top"/>
+                                        <TextBlock Text="{Binding CheckedText}" TextWrapping="Wrap" FontSize="12"
+                                                   Foreground="{DynamicResource SuccessBrush}"/>
+                                    </DockPanel>
+                                </Border>
                             </StackPanel>
-
-                            <Border Visibility="{Binding HasCheck, Converter={StaticResource Visible}}"
-                                    Background="{DynamicResource SuccessSoftBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}"
-                                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,12,0,0">
-                                <DockPanel>
-                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="13"
-                                               Foreground="{DynamicResource SuccessBrush}" Margin="0,1,8,0" VerticalAlignment="Top"/>
-                                    <TextBlock Text="{Binding CheckedText}" TextWrapping="Wrap" FontSize="12"
-                                               Foreground="{DynamicResource SuccessBrush}"/>
-                                </DockPanel>
-                            </Border>
                         </StackPanel>
 
-                        <WrapPanel Margin="0,14,0,0">
-                            <Button Content="{Binding ToggleText}" Style="{StaticResource SmallButton}" Tag="{Binding}"
-                                    Click="ToggleDetails_Click"/>
-                            <Button Content="Copy corrected code" Style="{StaticResource SmallButton}" Tag="{Binding}"
-                                    Visibility="{Binding HasExample, Converter={StaticResource Visible}}" Click="CopyExample_Click"/>
+                        <!-- The idea behind the mistake, and the code that opens it in FixFinder Learn. -->
+                        <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,14,0,0"
+                                AutomationProperties.AutomationId="FindingIdea">
+                            <StackPanel>
+                                <TextBlock Text="{Binding IdeaTitle}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Idea}" Style="{StaticResource Body}" FontSize="12.5" Margin="0,4,0,0"/>
+                                <WrapPanel Margin="0,10,0,0" Visibility="{Binding HasProblemCode, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="Problem code" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <TextBox Text="{Binding ProblemCodeText, Mode=OneWay}" IsReadOnly="True" BorderThickness="0"
+                                             Background="Transparent" Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"
+                                             FontFamily="{StaticResource CodeFont}" FontSize="12.5" Margin="0,0,10,0"
+                                             AutomationProperties.AutomationId="FindingProblemCode" AutomationProperties.Name="Problem code"/>
+                                    <Button Content="Copy" Style="{StaticResource SmallButton}" Tag="{Binding}" Click="CopyProblemCode_Click"
+                                            ToolTip="Copies the code, to paste into FixFinder Learn."/>
+                                    <Button Content="Learn about this" Style="{StaticResource SmallButton}" Tag="{Binding}" Click="OpenInLearn_Click"
+                                            AutomationProperties.AutomationId="FindingOpenInLearn"
+                                            ToolTip="Opens this problem in FixFinder Learn: the idea behind it, examples to run, a fix to try and questions."/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Expander Header="More detail" Margin="0,12,0,0" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                  Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingMoreDetail">
+                            <StackPanel Margin="0,4,0,0">
+                                <TextBlock Text="{Binding FoundByText}" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0"
+                                           TextWrapping="Wrap" Visibility="{Binding HasFoundBy, Converter={StaticResource Visible}}"/>
+
+                                <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
+                                        BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,8,0,0"
+                                        Visibility="{Binding Explains, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="{Binding ExplainsText}" TextWrapping="Wrap" FontSize="12.5"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"
+                                               AutomationProperties.AutomationId="FindingExplains"/>
+                                </Border>
+
+                                <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                        BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,8,0,0"
+                                        Visibility="{Binding Follows, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="{Binding FollowsText}" TextWrapping="Wrap" FontSize="12.5"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"
+                                               AutomationProperties.AutomationId="FindingFollows"/>
+                                </Border>
+
+                                <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
+                                <TextBlock desktop:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
+                                           AutomationProperties.AutomationId="FindingEvidence"/>
+
+                                <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
+                                    <TextBox Text="{Binding SliceCode, Mode=OneWay}" Style="{StaticResource CodeBlock}"
+                                             AutomationProperties.Name="The lines that decide it" AutomationProperties.AutomationId="FindingSlice"/>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasState, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="{Binding StateHeading}" Style="{StaticResource Label}"/>
+
+                                    <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                            BorderThickness="1" CornerRadius="6" Padding="8,6"
+                                            AutomationProperties.AutomationId="FindingState" AutomationProperties.Name="What the line did">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                <TextBlock Text="#" Width="34" FontFamily="{StaticResource CodeFont}" FontSize="12"
+                                                           Foreground="{DynamicResource HintBrush}"/>
+                                                <ItemsControl ItemsSource="{Binding StateColumns}" Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12"
+                                                                       Foreground="{DynamicResource HintBrush}"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <ItemsControl ItemsSource="{Binding StateRows}" Focusable="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border x:Name="StateRow" CornerRadius="3" Padding="0,1">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Number}" Width="34"
+                                                                           FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                                <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <TextBlock Text="{Binding}" MinWidth="110" Margin="0,0,12,0"
+                                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                                       Foreground="{DynamicResource TextBrush}"/>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <DataTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsWhereItFailed}" Value="True">
+                                                                <Setter TargetName="StateRow" Property="Background" Value="{DynamicResource ErrorSoftBrush}"/>
+                                                            </DataTrigger>
+                                                        </DataTemplate.Triggers>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="{Binding StateCutNote}" Margin="34,4,0,0" FontSize="11.5"
+                                                       Foreground="{DynamicResource HintBrush}"
+                                                       Visibility="{Binding StateWasCut, Converter={StaticResource Visible}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasVerification, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="VERIFICATION" Style="{StaticResource Label}"/>
+                                    <ItemsControl ItemsSource="{Binding VerificationLines}" Focusable="False"
+                                                  AutomationProperties.Name="Verification"
+                                                  AutomationProperties.AutomationId="FindingVerification">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                                    <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="18"
+                                                               FontSize="12.5" Foreground="{DynamicResource HintBrush}"/>
+                                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="12.5"
+                                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                </StackPanel>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding Passed}" Value="True">
+                                                        <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Failed}" Value="True">
+                                                        <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock x:Name="VerdictText" Text="{Binding VerificationSummary}" Margin="18,4,0,0"
+                                               FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"
+                                               AutomationProperties.AutomationId="FindingVerificationSummary">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsVerified}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasFixChanges, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="WHAT THE FIX CHANGES" Style="{StaticResource Label}"/>
+                                    <ItemsControl ItemsSource="{Binding FixChanges}" Focusable="False"
+                                                  AutomationProperties.Name="What the fix changes" AutomationProperties.AutomationId="FindingFixChanges">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock desktop:InlineCode.Text="{Binding}" Style="{StaticResource Body}"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasOrigin, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="WHERE THIS FIX CAME FROM" Style="{StaticResource Label}"/>
+                                    <TextBlock desktop:InlineCode.Text="{Binding OriginText}" Style="{StaticResource Body}"
+                                               AutomationProperties.AutomationId="FindingOrigin"/>
+                                    <Button Content="{Binding OriginUrl}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
+                                            Tag="{Binding}" Click="OpenOrigin_Click" Margin="0,2,0,0"
+                                            AutomationProperties.AutomationId="FindingOriginLink"
+                                            ToolTip="Opens the page this fix was taken from, so you can judge it yourself."
+                                            Visibility="{Binding HasOriginLink, Converter={StaticResource Visible}}"/>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasFurtherReading, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="READ MORE ABOUT THIS" Style="{StaticResource Label}"/>
+                                    <Button Content="{Binding FurtherReadingText}" Style="{StaticResource LinkButton}"
+                                            HorizontalAlignment="Left" Tag="{Binding}" Click="OpenFurtherReading_Click"
+                                            AutomationProperties.AutomationId="FindingFurtherReading"
+                                            ToolTip="{Binding FurtherReadingUrl}"/>
+                                </StackPanel>
+
+                                <StackPanel Visibility="{Binding HasWeakness, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="CLASSIFIED AS (MITRE CWE)" Style="{StaticResource Label}"/>
+                                    <Button Content="{Binding WeaknessText}" Style="{StaticResource LinkButton}"
+                                            HorizontalAlignment="Left" Tag="{Binding}" Click="OpenWeakness_Click"
+                                            AutomationProperties.AutomationId="FindingWeakness"
+                                            ToolTip="{Binding WeaknessUrl}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Expander>
+
+                        <WrapPanel Margin="0,12,0,0">
                             <Button Content="Search online" Style="{StaticResource SmallButton}" Tag="{Binding}"
                                     Visibility="{Binding CanSearch, Converter={StaticResource Visible}}" Click="SearchOnline_Click"
-                                    ToolTip="Look this error up on GitHub and Stack Overflow. Only the error's text is sent."/>
+                                    ToolTip="Look for questions about this same error on GitHub and Stack Overflow. Only the error's text is sent."/>
                             <Button Content="Show in folder" Style="{StaticResource SmallButton}" Tag="{Binding}"
                                     Click="ShowInFolder_Click"/>
                         </WrapPanel>
@@ -460,7 +490,7 @@
                                                     Click="ChooseFileButton_Click" ToolTip="Pick the program's file.">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SourceTileIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="FileÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="File…"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="ChooseFolderButton" AutomationProperties.AutomationId="ChooseFolderButton"
@@ -469,7 +499,7 @@
                                                     ToolTip="Check every program in a folder. Build output, dependencies and caches are left alone.">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SourceTileIcon}" Text="&#xE8B7;"/>
-                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="FolderÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="Folder…"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="PasteCodeButton" AutomationProperties.AutomationId="PasteCodeButton"
@@ -502,7 +532,7 @@
                                                     Click="ChooseFileButton_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Text="Another fileÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                                    <TextBlock Text="Another file…"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="PasteInsteadButton" AutomationProperties.AutomationId="PasteInsteadButton"
@@ -545,7 +575,7 @@
                                                     Click="ChooseFileButton_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Text="A file insteadÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                                    <TextBlock Text="A file instead…"/>
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -578,7 +608,7 @@
                                                 HorizontalAlignment="Left" Margin="0,10,0,0" Click="ChooseFolderButton_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8B7;"/>
-                                                <TextBlock Text="Another folderÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                                <TextBlock Text="Another folder…"/>
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>
@@ -616,7 +646,7 @@
                                 <TextBox x:Name="ArgumentsTextBox" AutomationProperties.AutomationId="ArgumentsTextBox"
                                          AutomationProperties.Name="Program arguments" Style="{StaticResource InputBox}"/>
 
-                                <TextBlock Text="INPUT  Ãƒâ€šÃ‚Â·  ONE ANSWER PER LINE" Style="{StaticResource Label}"/>
+                                <TextBlock Text="INPUT  ·  ONE ANSWER PER LINE" Style="{StaticResource Label}"/>
                                 <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
                                          AutomationProperties.Name="Input for the first run" Style="{StaticResource InputBox}"
                                          AcceptsReturn="True" TextWrapping="NoWrap" Height="64" VerticalScrollBarVisibility="Auto"/>
@@ -635,7 +665,7 @@
                                                         <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource LinkButton}"
                                                                 AutomationProperties.Name="Remove this run" Tag="{Binding}" Click="RemoveRunButton_Click"
                                                                 VerticalAlignment="Bottom"/>
-                                                        <TextBlock Text="ANOTHER RUN  Ãƒâ€šÃ‚Â·  INPUT" Style="{StaticResource Label}"/>
+                                                        <TextBlock Text="ANOTHER RUN  ·  INPUT" Style="{StaticResource Label}"/>
                                                     </DockPanel>
                                                     <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Input for another run"
                                                              Style="{StaticResource InputBox}" AcceptsReturn="True" TextWrapping="NoWrap" Height="50"
@@ -705,7 +735,7 @@
                                 ToolTip="Saves the whole report - every finding, its fix and how it was checked - as a web page to keep, print or hand in.">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE74E;" FontSize="13" Margin="0,0,8,0"/>
-                                <TextBlock Text="Save reportÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"/>
+                                <TextBlock Text="Save report…"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"

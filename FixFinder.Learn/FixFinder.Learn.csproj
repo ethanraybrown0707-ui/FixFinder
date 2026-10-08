@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FixFinder Learn: the teaching side of FixFinder. A problem FixFinder found is opened here by the code FixFinder gave
+    it, and taught - the learner's own mistake beside the idea behind it, examples that can be run, a fix to try, and
+    questions to check it is understood. Its lessons and everything it runs come from FixFinder.Core, and its look from
+    FixFinder.Desktop, so it says exactly what FixFinder says and looks like it.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>FixFinder.Learn</RootNamespace>
+    <AssemblyName>FixFinder.Learn</AssemblyName>
+    <Company>Ethan Brown</Company>
+    <Authors>Ethan Brown</Authors>
+    <Product>FixFinder Learn</Product>
+    <ApplicationIcon>Assets\FixFinderLearn.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The title bar's icon is a WPF resource, apart from the one embedded in the exe for Explorer. -->
+    <Resource Include="Assets\FixFinderLearn.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FixFinder.Core\FixFinder.Core.csproj" />
+    <ProjectReference Include="..\FixFinder.Desktop\FixFinder.Desktop.csproj" />
+  </ItemGroup>
+
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+    <Exec ContinueOnError="true" Condition="Exists('$(TargetDir)$(AssemblyName).exe')"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetDir)$(AssemblyName).exe&quot;" />
+  </Target>
+
+</Project>
