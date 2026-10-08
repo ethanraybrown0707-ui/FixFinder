@@ -33,8 +33,6 @@ public static class CommandLine
 
           --format msbuild|gcc|json   msbuild (the default) is read by Visual Studio, Rider and
                                       VS Code's $msCompile; gcc suits most other tools
-          --level beginner|student|technical
-                                      how much each finding explains (default: your setting)
           --language <name>           Python, Java, C#, C, C++, JavaScript or Go
                                       (default: worked out from the file)
           --expect <text>             what the program should print, to catch wrong answers
@@ -109,17 +107,15 @@ public static class CommandLine
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
 
-        var level = asked.Level ?? preferences.Explanations;
-
-        if (asked.HtmlReport is { } html && !await SaveReportAsync(html, asked, launch, report, level, errors)) return CouldNotCheck;
+        if (asked.HtmlReport is { } html && !await SaveReportAsync(html, asked, launch, report, errors)) return CouldNotCheck;
 
         if (asked.Format == DiagnosticFormat.Json)
         {
-            await output.WriteLineAsync(DiagnosticLines.Json(report.Findings, level));
+            await output.WriteLineAsync(DiagnosticLines.Json(report.Findings));
         }
         else
         {
-            foreach (var finding in report.Findings) await output.WriteLineAsync(DiagnosticLines.Line(finding, asked.Format, level));
+            foreach (var finding in report.Findings) await output.WriteLineAsync(DiagnosticLines.Line(finding, asked.Format));
         }
 
         return report.Findings.Any(f => f.Severity == Severity.Error) ? FoundErrors : NothingWrong;
@@ -129,14 +125,13 @@ public static class CommandLine
     /// Saves the report as the window's Save report saves it - every finding with its fix and how it was checked, and what
     /// the program printed - and says where, or why it could not.
     /// </summary>
-    private static async Task<bool> SaveReportAsync(string path, Asked asked, LaunchPlan launch, CheckReport report, ExplanationLevel level, TextWriter errors)
+    private static async Task<bool> SaveReportAsync(string path, Asked asked, LaunchPlan launch, CheckReport report, TextWriter errors)
     {
         var page = new Reporting.ReportPage
         {
             Program = Path.GetFileName(launch.ShownFile ?? asked.File!),
             Language = (asked.Language ?? CodeLanguage.Of(asked.File!))?.Name ?? "Worked out from the file",
             CheckedAt = DateTimeOffset.Now,
-            Level = level,
             HowItRan = launch.Explanation,
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
@@ -160,7 +155,7 @@ public static class CommandLine
 
     /// <summary>What was asked for on the command line.</summary>
     private sealed record Asked(
-        string? File, DiagnosticFormat Format, ExplanationLevel? Level, CodeLanguage? Language, string? Expect, string? Problem)
+        string? File, DiagnosticFormat Format, CodeLanguage? Language, string? Expect, string? Problem)
     {
         /// <summary>Where to save the report as a web page, when asked to.</summary>
         public string? HtmlReport { get; init; }
@@ -177,10 +172,9 @@ public static class CommandLine
         string? file = null, expect = null, html = null;
         TimeSpan? timeLimit = null;
         var format = DiagnosticFormat.MsBuild;
-        ExplanationLevel? level = null;
         CodeLanguage? language = null;
 
-        Asked Refused(string why) => new(null, format, level, language, expect, why);
+        Asked Refused(string why) => new(null, format, language, expect, why);
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -201,12 +195,6 @@ public static class CommandLine
                 case "--format":
                     if (!Enum.TryParse(value, ignoreCase: true, out format) || !Enum.IsDefined(format))
                         return Refused($"there is no format called '{value}' - use msbuild, gcc or json");
-                    break;
-
-                case "--level":
-                    if (!Enum.TryParse<ExplanationLevel>(value, ignoreCase: true, out var chosen) || !Enum.IsDefined(chosen))
-                        return Refused($"there is no level called '{value}' - use beginner, student or technical");
-                    level = chosen;
                     break;
 
                 case "--language":
@@ -233,7 +221,7 @@ public static class CommandLine
             }
         }
 
-        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, level, language, expect, null) { HtmlReport = html, TimeLimit = timeLimit };
+        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, language, expect, null) { HtmlReport = html, TimeLimit = timeLimit };
     }
 
     /// <summary>A language by the name somebody would type for it.</summary>

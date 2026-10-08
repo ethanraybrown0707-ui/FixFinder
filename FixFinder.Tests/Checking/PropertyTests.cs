@@ -250,30 +250,4 @@ public class PropertyTests
             if (!failed) Assert.Equal(0, marked);
         }
     }
-
-    /// <summary>Every level always has words in it, and the middle one is always exactly what was written.</summary>
-    [Fact]
-    public void EveryLevelAlwaysSaysSomething()
-    {
-        var random = From(404);
-
-        for (var i = 0; i < Cases; i++)
-        {
-            var student = Line(random) + "x";
-            var beginner = random.Next(3) == 0 ? null : Line(random);
-            var technical = random.Next(3) == 0 ? "" : Line(random);
-
-            var explained = Explained.Of(student, beginner, technical);
-
-            Assert.Equal(student, explained.At(ExplanationLevel.Student));
-
-            foreach (var level in Enum.GetValues<ExplanationLevel>())
-            {
-                Assert.False(string.IsNullOrWhiteSpace(explained.At(level)), $"case {i}: {level} had nothing to say");
-            }
-
-            if (string.IsNullOrWhiteSpace(beginner)) Assert.Equal(student, explained.At(ExplanationLevel.Beginner));
-            if (string.IsNullOrWhiteSpace(technical)) Assert.Equal(student, explained.At(ExplanationLevel.Technical));
-        }
-    }
 }

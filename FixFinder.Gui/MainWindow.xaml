@@ -460,7 +460,7 @@
                                                     Click="ChooseFileButton_Click" ToolTip="Pick the program's file.">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SourceTileIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="File…"/>
+                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="FileÃ¢â‚¬Â¦"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="ChooseFolderButton" AutomationProperties.AutomationId="ChooseFolderButton"
@@ -469,7 +469,7 @@
                                                     ToolTip="Check every program in a folder. Build output, dependencies and caches are left alone.">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SourceTileIcon}" Text="&#xE8B7;"/>
-                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="Folder…"/>
+                                                    <TextBlock Style="{StaticResource SourceTileLabel}" Text="FolderÃ¢â‚¬Â¦"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="PasteCodeButton" AutomationProperties.AutomationId="PasteCodeButton"
@@ -502,7 +502,7 @@
                                                     Click="ChooseFileButton_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Text="Another file…"/>
+                                                    <TextBlock Text="Another fileÃ¢â‚¬Â¦"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="PasteInsteadButton" AutomationProperties.AutomationId="PasteInsteadButton"
@@ -545,7 +545,7 @@
                                                     Click="ChooseFileButton_Click">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8A5;"/>
-                                                    <TextBlock Text="A file instead…"/>
+                                                    <TextBlock Text="A file insteadÃ¢â‚¬Â¦"/>
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -578,7 +578,7 @@
                                                 HorizontalAlignment="Left" Margin="0,10,0,0" Click="ChooseFolderButton_Click">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource ButtonIcon}" Text="&#xE8B7;"/>
-                                                <TextBlock Text="Another folder…"/>
+                                                <TextBlock Text="Another folderÃ¢â‚¬Â¦"/>
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>
@@ -622,7 +622,7 @@
                                 <TextBox x:Name="ArgumentsTextBox" AutomationProperties.AutomationId="ArgumentsTextBox"
                                          AutomationProperties.Name="Program arguments" Style="{StaticResource InputBox}"/>
 
-                                <TextBlock Text="INPUT  ·  ONE ANSWER PER LINE" Style="{StaticResource Label}"/>
+                                <TextBlock Text="INPUT  Ã‚Â·  ONE ANSWER PER LINE" Style="{StaticResource Label}"/>
                                 <TextBox x:Name="InputTextBox" AutomationProperties.AutomationId="InputTextBox"
                                          AutomationProperties.Name="Input for the first run" Style="{StaticResource InputBox}"
                                          AcceptsReturn="True" TextWrapping="NoWrap" Height="64" VerticalScrollBarVisibility="Auto"/>
@@ -641,7 +641,7 @@
                                                         <Button DockPanel.Dock="Right" Content="Remove" Style="{StaticResource LinkButton}"
                                                                 AutomationProperties.Name="Remove this run" Tag="{Binding}" Click="RemoveRunButton_Click"
                                                                 VerticalAlignment="Bottom"/>
-                                                        <TextBlock Text="ANOTHER RUN  ·  INPUT" Style="{StaticResource Label}"/>
+                                                        <TextBlock Text="ANOTHER RUN  Ã‚Â·  INPUT" Style="{StaticResource Label}"/>
                                                     </DockPanel>
                                                     <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Input for another run"
                                                              Style="{StaticResource InputBox}" AcceptsReturn="True" TextWrapping="NoWrap" Height="50"
@@ -711,7 +711,7 @@
                                 ToolTip="Saves the whole report - every finding, its fix and how it was checked - as a web page to keep, print or hand in.">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE74E;" FontSize="13" Margin="0,0,8,0"/>
-                                <TextBlock Text="Save report…"/>
+                                <TextBlock Text="Save reportÃ¢â‚¬Â¦"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="StopButton" AutomationProperties.AutomationId="StopButton"
@@ -820,21 +820,6 @@
                             <RadioButton x:Name="FilterSuggestions" AutomationProperties.AutomationId="FilterSuggestions" GroupName="Filter"
                                          Style="{StaticResource FilterPill}" Checked="Filter_Checked"/>
                         </StackPanel>
-
-                        <TextBlock Text="Explanations" VerticalAlignment="Center" Margin="18,0,10,0"
-                                   FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"/>
-                        <TextBlock Text="Simple" VerticalAlignment="Center" Margin="0,0,8,0"
-                                   FontSize="11" Foreground="{DynamicResource HintBrush}"/>
-                        <Slider x:Name="ExplanationDepthSlider" Style="{StaticResource DepthSlider}" Width="96"
-                                VerticalAlignment="Center" ValueChanged="ExplanationDepth_Changed"
-                                AutomationProperties.AutomationId="ExplanationDepthSlider"
-                                AutomationProperties.Name="How in depth the explanations are"
-                                ToolTip="Slide right for more depth. Only the wording changes: what was found, how sure FixFinder is and the fix stay the same."/>
-                        <TextBlock Text="In depth" VerticalAlignment="Center" Margin="8,0,0,0"
-                                   FontSize="11" Foreground="{DynamicResource HintBrush}"/>
-                        <TextBlock x:Name="ExplanationDepthText" AutomationProperties.AutomationId="ExplanationDepthText"
-                                   VerticalAlignment="Center" Margin="12,0,0,0" FontSize="12" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextBrush}"/>
                     </StackPanel>
 
                     <Border x:Name="EfficiencyIntro" AutomationProperties.AutomationId="EfficiencyIntro" Visibility="Collapsed"

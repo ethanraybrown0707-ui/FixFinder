@@ -68,25 +68,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         _ => "",
     };
 
-    private ExplanationLevel _level = ExplanationLevel.Student;
-
-    /// <summary>
-    /// How much the reader wants explained. The window sets it on every row when the choice changes, and the only
-    /// thing that moves is the wording: nothing here is worked out again, and the program is not checked again.
-    /// </summary>
-    public ExplanationLevel Level
-    {
-        get => _level;
-        set
-        {
-            if (_level == value) return;
-
-            _level = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Explanation)));
-        }
-    }
-
-    public string Explanation => Finding.Explanations.At(Level);
+    public string Explanation => Finding.Explanation;
 
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];

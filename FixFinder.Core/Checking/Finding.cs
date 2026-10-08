@@ -45,22 +45,14 @@ public sealed record Finding
 
     public required string Title { get; init; }
 
-    private readonly string _explanation = "";
+    /// <summary>What is wrong, explained for someone new to programming - what the report shows under "What is wrong".</summary>
+    public required string Explanation { get; init; }
 
     /// <summary>
-    /// What is wrong, at the middle depth. Setting it drops the wordings written for the other depths, which belong to the
-    /// explanation they were written with: a finding made again with a new explanation says the new one at every depth,
-    /// unless wordings for the other depths are set after it.
+    /// What the check that found this said of this program, in its own words, before the explanation of this kind of
+    /// mistake was put after it - `count` can be 0 here. Null where the finding came from an error, whose message says it.
     /// </summary>
-    public required string Explanation
-    {
-        get => _explanation;
-        init
-        {
-            _explanation = value;
-            _explanations = null;
-        }
-    }
+    public string? Found { get; init; }
 
     public required string WhyItMatters { get; init; }
     public required string SuggestedFix { get; init; }
@@ -139,22 +131,6 @@ public sealed record Finding
     /// Null whenever there is no fix, so nothing is ever shown as a change that FixFinder did not actually work out.
     /// </summary>
     public CodeChange? Change { get; init; }
-
-    private readonly Explained? _explanations;
-
-    /// <summary>
-    /// The explanation at each depth a reader might want it, carried on the finding so changing depth is a matter of
-    /// reading a different string rather than checking the program again. <see cref="Explanation"/> is the middle one.
-    /// </summary>
-    /// <remarks>
-    /// Where nothing sets this, every depth gives the one explanation that was written. That is the honest default: a
-    /// finding whose wording nobody has written three ways should repeat itself rather than have two of them invented.
-    /// </remarks>
-    public Explained Explanations
-    {
-        get => _explanations ?? Explained.Of(Explanation);
-        init => _explanations = value;
-    }
 
     public string Location => InNotebook is { } place ? $"{Path.GetFileName(place.Notebook)}, cell {place.Cell}, line {place.Line}"
         : Line is { } line ? $"{Path.GetFileName(File)}, line {line}"

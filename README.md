@@ -24,14 +24,12 @@ until the program prints what it should. FixFinder never changes your files.
    too, and the change that makes it right is searched for.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
-   as its data grows - none of them is a mistake. The **Explanations** slider sets how in depth each finding is
-   explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
-   taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
-   and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
-   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text, and **Save report…** saves
-   the whole report as a web page to keep, print or hand in: every finding with all the window shows of it - in the depth
-   the slider is at - the notes, how the program was built and run, what it printed, and how this check compares with the
-   last one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
+   as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
+   words, with the idea behind the mistake spelled out. Each finding has **Copy corrected code**, **Search online** for
+   the error on GitHub and Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text,
+   and **Save report…** saves the whole report as a web page to keep, print or hand in: every finding with all the window
+   shows of it, the notes, how the program was built and run, what it printed, and how this check compares with the last
+   one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
    anything taken from the program is shown as text, never run.
    When a program is checked again, the report says how this check compares with the last one of it - how many of the
    last check's findings are fixed, and how many of this check's are new or still there - and marks each finding **New**
@@ -387,7 +385,7 @@ changed.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
-| **Explanation** | What is wrong, in the program's own names - explained at the depth the **Explanations** slider is set to. Every kind of mistake FixFinder knows is written three ways: for a beginner, with the idea behind it spelled out in plain words; as it is usually taught; and in the language's own terms, saying which version of the language changed the rule where one did. Whatever the depth, the finding starts with what was found in this program. |
+| **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a general example. |
@@ -793,7 +791,7 @@ has to be installed into the editor.
 
 ```
 dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll marks.py
-dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68" --level beginner
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68"
 ```
 
 | | |
@@ -801,7 +799,6 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--format msbuild` | The default. The format Visual Studio and Rider use, and the one VS Code's built-in `$msCompile` reads - checked against that matcher's pattern, copied from VS Code's source, in `CommandLineTests`. |
 | `--format gcc` | `file:line:column: error: message`, for tools that expect gcc's form, Eclipse among them. A suggestion is a `note`, since gcc's form has no word for it. |
 | `--format json` | Everything each finding says, for another program to use. |
-| `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
 | `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
 | `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |

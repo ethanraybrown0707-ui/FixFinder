@@ -88,8 +88,8 @@ public static partial class FindingFactory
             File = source.Path,
             Line = finding.Line,
             Title = guide.Title ?? Sentence(finding.Message),
-            Explanation = Sentence(finding.Message),
-            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
+            Explanation = FoundThenExplained(Sentence(finding.Message), guide),
+            Found = Sentence(finding.Message),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = example,
@@ -122,8 +122,8 @@ public static partial class FindingFactory
             File = finding.Span.File,
             Line = finding.Span.Line,
             Title = guide.Title ?? Sentence(finding.Message),
-            Explanation = Sentence(finding.Message),
-            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
+            Explanation = FoundThenExplained(Sentence(finding.Message), guide),
+            Found = Sentence(finding.Message),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = fix is not null ? TitleThen(fix.Title, fix.Explanation) : guide.SuggestedFix,
             CorrectedExample = fix is not null ? CorrectedCode.From(fix, source!) : guide.Example,
@@ -169,10 +169,7 @@ public static partial class FindingFactory
             Line = line,
             Title = stopped ? $"{run} stopped before printing what you expected" : $"{run} printed the wrong output",
             Explanation = $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
-            Explanations = Explained.Of(
-                $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
-                FollowedBy(guide.ForBeginners, Sentence(result.Mismatch.Describe())),
-                FollowedBy(guide.ForTechnical, Sentence(result.Mismatch.Describe()))),
+            Found = Sentence(result.Mismatch.Describe()),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = result.Fix is { } found ? CorrectedCode.From(found, source) : "",
@@ -187,16 +184,11 @@ public static partial class FindingFactory
     }
 
     /// <summary>
-    /// What a finding says at each depth. The student's is what was found in this program; the beginner's and the
-    /// technical reader's say the same and then add the guide's account of this kind of mistake at their depth, so
-    /// moving the slider never hides what is particular to this program.
+    /// What a finding of a check says: what was found in this program first, then the guide's account of this kind of
+    /// mistake, so what is particular to this program is never hidden behind the general idea.
     /// </summary>
-    private static Explained AtEveryDepth(string found, MistakeGuide guide) =>
-        Explained.Of(found, FollowedBy(found, guide.ForBeginners), FollowedBy(found, guide.ForTechnical));
-
-    /// <summary>The two joined, or nothing when the second - or the first - was never written.</summary>
-    private static string? FollowedBy(string? first, string? then) =>
-        string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(then) ? null : $"{first} {then}";
+    private static string FoundThenExplained(string found, MistakeGuide guide) =>
+        string.IsNullOrWhiteSpace(guide.Explanation) ? found : $"{found} {guide.Explanation}";
 
     private static Finding Build(
         FindingKind kind, Severity severity, Confidence confidence, string file, int? line, string title, string explanation,
@@ -217,7 +209,6 @@ public static partial class FindingFactory
             Line = line,
             Title = title,
             Explanation = explanation,
-            Explanations = Explained.Of(explanation, guide.ForBeginners, guide.ForTechnical),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = fix is null ? guide.SuggestedFix : FixText(fix),
             CorrectedExample = example ?? guide.Example,

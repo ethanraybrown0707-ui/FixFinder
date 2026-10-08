@@ -31,9 +31,6 @@ public sealed class Preferences
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "FixFinder", "preferences.json");
 
-    /// <summary>How much the reader wants explained. Student is the middle, and what is used when nobody has chosen.</summary>
-    public ExplanationLevel Explanations { get; set; } = ExplanationLevel.Student;
-
     /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
 

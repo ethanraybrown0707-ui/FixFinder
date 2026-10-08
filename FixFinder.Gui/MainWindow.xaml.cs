@@ -129,8 +129,6 @@ public partial class MainWindow : Window
         UpdateFilterCounts();
         _saveSettling.Tick += SaveSettled_Tick;
 
-        ExplanationDepthSlider.Value = (int)_preferences.Explanations;
-        ExplanationDepthText.Text = DepthName(_preferences.Explanations);
         WindowsRunUntilClosedBox.IsChecked = _preferences.WindowsRunUntilClosed;
 
         var stored = TokenStore.Load();
@@ -771,8 +769,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Saves the report on screen as a web page: everything the window shows of each finding, in the explanation depth
-    /// chosen, with the comparison with the last check and what the program printed - to keep, print or hand in.
+    /// Saves the report on screen as a web page: everything the window shows of each finding, with the comparison with the
+    /// last check and what the program printed - to keep, print or hand in.
     /// </summary>
     private void SaveReportButton_Click(object sender, RoutedEventArgs e)
     {
@@ -783,7 +781,6 @@ public partial class MainWindow : Window
             Program = ProgramShown(_launch?.ShownFile ?? _chosenPath),
             Language = LanguageShown(finished: true),
             CheckedAt = _shownReportAt,
-            Level = _preferences.Explanations,
             HowItRan = _shownReportOnlyRead ? "Read again as it was saved, and not compiled or run." : _launch?.Explanation,
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
@@ -883,7 +880,6 @@ public partial class MainWindow : Window
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)) || (!collapsed.Contains(Key(f)) && f.Severity == Severity.Error),
-            Level = _preferences.Explanations,
             FollowsFrom = links.FollowsFrom(f),
             LeadsTo = links.LeadsTo(f),
             Status = _comparison?.StatusOf(f),
@@ -947,39 +943,6 @@ public partial class MainWindow : Window
         FilterWarnings.Content = $"Warnings  {Count(Severity.Warning)}";
         FilterSuggestions.Content = $"Suggestions  {Count(Severity.Suggestion)}";
     }
-
-    /// <summary>
-    /// Changes how in depth the findings on screen are explained, and nothing else about them.
-    /// </summary>
-    /// <remarks>
-    /// Every wording a finding has was worked out when the program was checked, so this hands each row the new level
-    /// and the rows read a different string. Nothing is compiled again, nothing is run again, and no finding appears
-    /// or disappears - which is the whole point of the setting.
-    /// </remarks>
-    private void ExplanationDepth_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        // The slider is given its range while the window is still being built, before the label beside it exists.
-        if (ExplanationDepthText is null) return;
-
-        var chosen = (ExplanationLevel)(int)Math.Round(ExplanationDepthSlider.Value);
-        ExplanationDepthText.Text = DepthName(chosen);
-        if (chosen == _preferences.Explanations) return;
-
-        _preferences.Explanations = chosen;
-        foreach (var row in _findings) row.Level = chosen;
-
-        // Failing to write a preference is not worth interrupting anybody over; it is remembered for this session
-        // either way.
-        _preferences.Save();
-    }
-
-    /// <summary>What each stop on the slider is called: who the explanation is written for.</summary>
-    private static string DepthName(ExplanationLevel level) => level switch
-    {
-        ExplanationLevel.Beginner => "Beginner",
-        ExplanationLevel.Technical => "Technical",
-        _ => "Student",
-    };
 
     private void Filter_Checked(object sender, RoutedEventArgs e)
     {

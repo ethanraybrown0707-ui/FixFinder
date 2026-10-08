@@ -49,8 +49,7 @@ public static partial class NotebookWording
         {
             Title = Reworded(finding.Title),
             Explanation = Reworded(finding.Explanation),
-            Explanations = new Explained(
-                Reworded(finding.Explanations.Beginner), Reworded(finding.Explanations.Student), Reworded(finding.Explanations.Technical)),
+            Found = finding.Found is { } found ? Reworded(found) : null,
             WhyItMatters = Reworded(finding.WhyItMatters),
             SuggestedFix = Reworded(finding.SuggestedFix),
             FixCheckedBy = finding.FixCheckedBy is { } checkedBy ? Reworded(checkedBy) : null,

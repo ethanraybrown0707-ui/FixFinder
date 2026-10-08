@@ -330,7 +330,7 @@ public class NotebookTests(ITestOutputHelper output) : IDisposable
         Assert.Equal("python-colab-only", colab.RuleId);
         Assert.Equal(Severity.Warning, colab.Severity);
         Assert.Equal("colab.ipynb, cell 1, line 1", colab.Location);
-        Assert.StartsWith("google.colab is Google Colab's own module", colab.Explanations.At(ExplanationLevel.Beginner), StringComparison.Ordinal);
+        Assert.StartsWith("google.colab is Google Colab's own module", colab.Explanation, StringComparison.Ordinal);
     }
 
     [Fact]
