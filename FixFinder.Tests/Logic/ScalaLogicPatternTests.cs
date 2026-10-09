@@ -25,14 +25,14 @@ public class ScalaLogicPatternTests : IDisposable
         return LogicPatterns.Scan(SourceFile.Read(path)!);
     }
 
-    private static string Main(string body) => "object Program {\n  def main(args: Array[String]): Unit = {\n" + body + "  }\n}\n";
+    private static string InsideMain(string body) => "object Program {\n  def main(args: Array[String]): Unit = {\n" + body + "  }\n}\n";
 
     [Theory]
     [InlineData("    val marks = Array(70, 80, 90)\n    for (i <- 0 to marks.length) println(marks(i))\n", 4, "    for (i <- 0 until marks.length) println(marks(i))")]
     [InlineData("    val marks = List(70, 80, 90)\n    for (i <- 0 to marks.size) {\n      println(marks(i))\n    }\n", 4, "    for (i <- 0 until marks.size) {")]
     public void ALoopOverZeroToTheLengthThatIndexesWithItIsFound(string body, int line, string fixedLine)
     {
-        var finding = Assert.Single(Scan(Main(body)), finding => finding.PatternId == "logic-scala-range-to-length");
+        var finding = Assert.Single(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-range-to-length");
 
         Assert.Equal(line, finding.Line);
         Assert.Equal(fixedLine, finding.Fix?.NewLines.Single());
@@ -43,12 +43,12 @@ public class ScalaLogicPatternTests : IDisposable
     [InlineData("    val marks = Array(70, 80, 90)\n    for (i <- 0 to marks.length - 1) println(marks(i))\n")]
     [InlineData("    val marks = Array(70, 80, 90)\n    for (count <- 0 to marks.length) println(\"seen \" + count)\n")]
     public void ARangeThatStopsInTimeOrIndexesNothingIsLeftAlone(string body) =>
-        Assert.DoesNotContain(Scan(Main(body)), finding => finding.PatternId == "logic-scala-range-to-length");
+        Assert.DoesNotContain(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-range-to-length");
 
     [Fact]
     public void TwoArraysComparedWithEqualsAreFoundAndCompareTheirItemsInstead()
     {
-        var finding = Assert.Single(Scan(Main("    val first = Array(1, 2, 3)\n    val second = Array(1, 2, 3)\n    if (first == second) println(\"same\")\n")),
+        var finding = Assert.Single(Scan(InsideMain("    val first = Array(1, 2, 3)\n    val second = Array(1, 2, 3)\n    if (first == second) println(\"same\")\n")),
             finding => finding.PatternId == "logic-scala-array-equals");
 
         Assert.Equal(5, finding.Line);
@@ -57,7 +57,7 @@ public class ScalaLogicPatternTests : IDisposable
 
     [Fact]
     public void ListsComparedWithEqualsAreLeftAlone() =>
-        Assert.DoesNotContain(Scan(Main("    val first = List(1, 2, 3)\n    val second = List(1, 2, 3)\n    if (first == second) println(\"same\")\n")),
+        Assert.DoesNotContain(Scan(InsideMain("    val first = List(1, 2, 3)\n    val second = List(1, 2, 3)\n    if (first == second) println(\"same\")\n")),
             finding => finding.PatternId == "logic-scala-array-equals");
 
     [Theory]
@@ -65,7 +65,7 @@ public class ScalaLogicPatternTests : IDisposable
     [InlineData("    val total = 7\n    val count = 2\n    val share: Double = total / count\n", "    val share: Double = total.toDouble / count")]
     public void AWholeNumberQuotientGivenToADoubleIsFound(string body, string fixedLine)
     {
-        var finding = Assert.Single(Scan(Main(body)), finding => finding.PatternId == "logic-scala-integer-average");
+        var finding = Assert.Single(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-integer-average");
 
         Assert.Equal(fixedLine, finding.Fix?.NewLines.Single());
     }
@@ -75,12 +75,12 @@ public class ScalaLogicPatternTests : IDisposable
     [InlineData("    val total: Double = 7\n    val count = 2\n    val share: Double = total / count\n")]
     [InlineData("    val scores = List(1, 2)\n    val average: Double = scores.sum.toDouble / scores.length\n")]
     public void ADivisionThatIsAlreadyADecimalOneIsLeftAlone(string body) =>
-        Assert.DoesNotContain(Scan(Main(body)), finding => finding.PatternId == "logic-scala-integer-average");
+        Assert.DoesNotContain(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-integer-average");
 
     [Fact]
     public void ACopyNobodyKeepsIsFoundAndAVarIsGivenIt()
     {
-        var found = Scan(Main("    var marks = List(3, 1, 2)\n    marks.sorted\n    println(marks)\n    val name = \" Ada \"\n    name.trim\n    println(name)\n"))
+        var found = Scan(InsideMain("    var marks = List(3, 1, 2)\n    marks.sorted\n    println(marks)\n    val name = \" Ada \"\n    name.trim\n    println(name)\n"))
             .Where(finding => finding.PatternId == "logic-scala-result-discarded")
             .ToList();
 
@@ -99,8 +99,8 @@ public class ScalaLogicPatternTests : IDisposable
     [Fact]
     public void AValueTakenOutOfAnOptionWithGetIsFoundUnlessTheLineAboveChecked()
     {
-        var takenBlindly = Scan(Main("    val ages = Map(\"Ada\" -> 36)\n    println(ages.get(\"Bob\").get)\n"));
-        var checkedFirst = Scan(Main("    val ages = Map(\"Ada\" -> 36)\n    if (ages.contains(\"Bob\"))\n      println(ages.get(\"Bob\").get)\n"));
+        var takenBlindly = Scan(InsideMain("    val ages = Map(\"Ada\" -> 36)\n    println(ages.get(\"Bob\").get)\n"));
+        var checkedFirst = Scan(InsideMain("    val ages = Map(\"Ada\" -> 36)\n    if (ages.contains(\"Bob\"))\n      println(ages.get(\"Bob\").get)\n"));
 
         var finding = Assert.Single(takenBlindly, finding => finding.PatternId == "logic-scala-option-get");
         Assert.Equal(4, finding.Line);
