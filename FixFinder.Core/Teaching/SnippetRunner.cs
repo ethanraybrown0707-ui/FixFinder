@@ -88,6 +88,12 @@ public static class SnippetRunner
     /// <summary>How long a piece of code is given when nothing else is said: enough for any example a lesson has.</summary>
     public static readonly TimeSpan UsualTimeLimit = TimeSpan.FromSeconds(60);
 
+    /// <summary>How long code a lesson says never finishes is given before it is stopped - far longer than its fixed version takes.</summary>
+    public static readonly TimeSpan NeverFinishingTimeLimit = TimeSpan.FromSeconds(10);
+
+    /// <summary>The time a lesson's program is given: less when the lesson says it never finishes, so nobody waits a minute to see it.</summary>
+    public static TimeSpan TimeLimitFor(Behaviour lessonSays) => lessonSays.NeverFinishes ? NeverFinishingTimeLimit : UsualTimeLimit;
+
     public static async Task<Observation> RunAsync(CodeLanguage language, string code, TimeSpan? timeLimit = null, CancellationToken cancellationToken = default)
     {
         var folder = PastedCode.NewFolder();

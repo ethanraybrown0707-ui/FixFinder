@@ -20,6 +20,15 @@ public static class Lessons
         .. TextToNumberLessons.All,
         .. FunctionLessons.All,
         .. MissedCaseLessons.All,
+        .. ReadBeforeSetLessons.All,
+        .. BlocksLessons.All,
+        .. UnclosedPairLessons.All,
+        .. StatementEndLessons.All,
+        .. EndlessLoopLessons.All,
+        .. FallingThroughLessons.All,
+        .. ChangingAConstantLessons.All,
+        .. ChangingWhileLoopingLessons.All,
+        .. NeverUsedLessons.All,
     ];
 
     /// <summary>The lesson on a concept in a language, or null when that one has not been written.</summary>

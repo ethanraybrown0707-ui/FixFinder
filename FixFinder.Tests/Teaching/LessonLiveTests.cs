@@ -48,7 +48,7 @@ public class LessonLiveTests(ITestOutputHelper output)
             _ => (example.WrongFixes[int.Parse(version["wrong fix ".Length..]) - 1].Code, example.WrongFixes[int.Parse(version["wrong fix ".Length..]) - 1].Does),
         };
 
-        var observed = await SnippetRunner.RunAsync(lesson.Language, code);
+        var observed = await SnippetRunner.RunAsync(lesson.Language, code, SnippetRunner.TimeLimitFor(expected));
 
         if (!observed.Ran)
         {

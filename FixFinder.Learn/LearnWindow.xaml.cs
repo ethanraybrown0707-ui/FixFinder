@@ -236,7 +236,7 @@ public partial class LearnWindow : Window
 
         try
         {
-            var observed = await Task.Run(() => SnippetRunner.RunAsync(lesson.Language, code));
+            var observed = await Task.Run(() => SnippetRunner.RunAsync(lesson.Language, code, SnippetRunner.TimeLimitFor(lessonSays)));
             var printed = observed.Output.Count > 0 ? string.Join("\n", observed.Output) + "\n\n" : "";
             var differs = observed.Ran && !observed.Shows(lessonSays)
                 ? $"\n\nThat is not what the lesson says it does - it was checked with the {lesson.Language.Name} FixFinder is tested with, and this computer's may differ."
