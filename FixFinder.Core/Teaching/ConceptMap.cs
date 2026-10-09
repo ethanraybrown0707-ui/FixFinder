@@ -103,7 +103,7 @@ public static class ConceptMap
 
         new(Concepts.TextToNumber)
         {
-            CheckIds = ["analysis-not-a-number", "logic-python-input-used-as-number", "logic-csharp-parse-unchecked", "logic-csharp-console-read-number"],
+            CheckIds = ["analysis-not-a-number", "logic-python-input-used-as-number", "logic-csharp-parse-unchecked", "logic-csharp-console-read-number", "logic-go-parse-error-ignored"],
             ExceptionTypes = ["NumberFormatException", "InputMismatchException", "FormatException"],
         },
         new(Concepts.TextToNumber) { Message = Words(@"invalid literal for int\(\)|could not convert string to float|int_of_string|float_of_string") },
@@ -124,9 +124,9 @@ public static class ConceptMap
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length"] },
 
         new(Concepts.EndlessLoop)
         {
@@ -169,6 +169,7 @@ public static class ConceptMap
             [
                 "logic-python-returns-nothing-sometimes", "logic-python-print-instead-of-return", "logic-python-return-print",
                 "logic-python-none-returned-assigned", "logic-python-result-discarded", "logic-result-discarded", "logic-scala-result-discarded",
+                "logic-go-result-discarded",
             ],
             Codes = ["CS0161", "C4715", "C4716", "non-unit-statement"],
         },

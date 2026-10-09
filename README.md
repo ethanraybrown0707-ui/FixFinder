@@ -522,7 +522,10 @@ a pass.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
-list. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
+list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
+`xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
+`strconv.Atoi` thrown away with `_`, and `strings.ToUpper(name)` on a line of its own. When an expected output was given,
+it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -820,7 +823,7 @@ Python, Java and C# are checked most thoroughly.
 | C | 46 | 18 | 39 |
 | C++ | 45 | 23 | 39 |
 | JavaScript | 41 | 25 | 15 |
-| Go | 38 | - | 18 |
+| Go | 38 | 5 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 
