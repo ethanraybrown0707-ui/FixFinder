@@ -7,8 +7,9 @@ namespace FixFinder.Core.Checking.Guides;
 /// programming.
 /// </summary>
 /// <remarks>
-/// The messages are matched as OCaml 5.2's own tests record them, with or without the double quotes earlier OCamls left
-/// off names and types. Every example is a whole program, and OCamlGuideExampleTests compiles each one with ocamlc.
+/// The messages are matched as OCaml 5.2's own tests record them, with or without the double quotes around names and
+/// types, which OCaml 5.5.1 leaves off. Every example is a whole program, and OCamlLiveTests compiles each one with
+/// ocamlc, and fails on any warning.
 /// </remarks>
 internal static class OCamlGuides
 {

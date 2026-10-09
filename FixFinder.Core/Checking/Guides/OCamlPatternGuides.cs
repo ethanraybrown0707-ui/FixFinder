@@ -4,7 +4,7 @@ namespace FixFinder.Core.Checking.Guides;
 
 /// <summary>
 /// Guides for the logic checks of OCaml programs, each explained for someone new to programming. Every example is a whole
-/// program, and OCamlGuideExampleTests compiles each one with ocamlc.
+/// program, and OCamlLiveTests compiles each one with ocamlc, and fails on any warning.
 /// </summary>
 internal static class OCamlPatternGuides
 {
