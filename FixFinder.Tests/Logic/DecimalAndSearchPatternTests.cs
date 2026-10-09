@@ -41,6 +41,8 @@ public class DecimalAndSearchPatternTests : IDisposable
     [Theory]
     [InlineData("check.py", "price = 2.5\nif price == 2.5:\n    print(\"equal\")\n")]
     [InlineData("check.py", "count = 1 + 2\nif count == 3:\n    print(\"three\")\n")]
+    [InlineData("check.py", "average = 5 / 2\nif average == 2.5:\n    print(\"two and a half\")\n")]
+    [InlineData("check.js", "const share = 1 / 10;\nif (share === 0.1) {\n  console.log(\"a tenth\");\n}\n")]
     [InlineData("check.js", "const price = 2.5;\nif (price === 2.5) {\n  console.log(\"equal\");\n}\n")]
     public void ADecimalGivenAsItIsOrAWholeNumberIsLeftAlone(string fileName, string code)
     {

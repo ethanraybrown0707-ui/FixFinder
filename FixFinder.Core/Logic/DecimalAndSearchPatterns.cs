@@ -28,11 +28,11 @@ public static partial class DecimalAndSearchPatterns
     /// <summary>A decimal with a fraction that is not 0 - 0.3, 2.75 - and nothing after it that makes it part of a name.</summary>
     private const string Decimal = @"(?<value>\d*\.\d*[1-9]\d*)(?![\w.])";
 
-    /// <summary>A line that gives a name its value by arithmetic: total = 0.1 + 0.2, total += price, average = sum / count.</summary>
+    /// <summary>A line that gives a name its value: total = 0.1 + 0.2, total += 0.1, price = 2.5.</summary>
     [GeneratedRegex(@"^\s*(?:(?:const|let|var)\s+)?(?<name>[A-Za-z_]\w*)\s*(?<assign>[-+*/]?=)(?!=)\s*(?<value>.+)$")]
     private static partial Regex Assignment();
 
-    [GeneratedRegex(@"\d*\.\d+|\d+\.\d*|(?<![/])/(?![/=])|\bfloat\(|\bparseFloat\(")]
+    [GeneratedRegex(@"\d*\.\d+|\d+\.\d*|\bfloat\(|\bparseFloat\(")]
     private static partial Regex DecimalInIt();
 
     [GeneratedRegex(@"[-+*/]")]
@@ -40,8 +40,9 @@ public static partial class DecimalAndSearchPatterns
 
     /// <summary>
     /// The names a file works out as decimals by arithmetic - every name some line gives a value with an operator and a
-    /// decimal, a division or a conversion to a float in it. A name only ever given a decimal as it is, such as
-    /// price = 2.5, compares exactly with that decimal, so it is not one of them.
+    /// decimal or a conversion to a float in it, or adds a decimal to with +=. A name only ever given a decimal as it is,
+    /// such as price = 2.5, compares exactly with that decimal, and so does one division of two whole numbers - 5 / 2 is
+    /// rounded once, to the very decimal 2.5 is - so neither is one of them.
     /// </summary>
     private static HashSet<string> DecimalsWorkedOut(IReadOnlyList<string> masked)
     {
@@ -53,7 +54,7 @@ public static partial class DecimalAndSearchPatterns
 
             var value = assignment.Groups["value"].Value;
             var byArithmetic = assignment.Groups["assign"].Value != "=" || Arithmetic().IsMatch(Regex.Replace(value, @"\d*\.\d+|\d+\.\d*", "0"));
-            if (byArithmetic && (DecimalInIt().IsMatch(value) || assignment.Groups["assign"].Value == "/=")) worked.Add(assignment.Groups["name"].Value);
+            if (byArithmetic && DecimalInIt().IsMatch(value)) worked.Add(assignment.Groups["name"].Value);
         }
 
         return worked;
