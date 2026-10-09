@@ -213,10 +213,12 @@
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
             </Trigger>
+            <!-- The chosen pill swaps the text and page colours, so it reads in both themes: White on the dark theme's
+                 light text colour could not be read. -->
             <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Background" Value="{DynamicResource TextBrush}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
-                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="Foreground" Value="{DynamicResource PageBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
