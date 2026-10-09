@@ -35,6 +35,7 @@ public static class LogicPatterns
         .. ScalaLogicPatterns.All,
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
+        .. DecimalAndSearchPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

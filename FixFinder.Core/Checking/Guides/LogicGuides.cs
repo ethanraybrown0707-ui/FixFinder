@@ -289,6 +289,19 @@ internal static class LogicGuides
             """
             const numbers = texts.map(Number);
             """),
+
+        GuideFor(["logic-js-float-equality"], "Decimal numbers compared exactly",
+            "Every number in JavaScript is stored in binary, where most fractions - 0.1, 0.2 - can only be stored approximately, " +
+            "the way 1/3 can only be written as 0.333... in decimal. Arithmetic on them leaves a tiny error, so 0.1 + 0.2 is " +
+            "0.30000000000000004, and 0.1 + 0.2 === 0.3 is false.",
+            "An exact comparison fails even when the numbers are equal for every practical purpose, so the code it guards never runs.",
+            "Check that the difference is smaller than a tiny tolerance: Math.abs(total - 0.3) < 1e-9.",
+            """
+            const total = 0.1 + 0.2;
+            if (Math.abs(total - 0.3) < 1e-9) {
+              console.log("equal");
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> All { get; } =

@@ -524,8 +524,10 @@ The **logic check** reads the code for mistakes that compile and then give the w
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
 list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
 `xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
-`strconv.Atoi` thrown away with `_`, and `strings.ToUpper(name)` on a line of its own. When an expected output was given,
-it also runs changed copies of the program to find the one that prints it:
+`strconv.Atoi` thrown away with `_`, and `strings.ToUpper(name)` on a line of its own. In Python and JavaScript it finds
+a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java,
+C# and JavaScript a search's position compared with `> 0`, which takes a match at the very start, position 0, for no
+match. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -817,12 +819,12 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 33 | 41 |
-| Java | 54 | 32 | 46 |
-| C# | 47 | 30 | 49 |
+| Python | 88 | 35 | 41 |
+| Java | 54 | 33 | 46 |
+| C# | 47 | 31 | 49 |
 | C | 46 | 18 | 39 |
 | C++ | 45 | 23 | 39 |
-| JavaScript | 41 | 25 | 15 |
+| JavaScript | 41 | 27 | 15 |
 | Go | 38 | 5 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |

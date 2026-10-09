@@ -255,5 +255,17 @@ internal static class BracePatternGuides
             """
             System.out.println("" + first + second);
             """),
+
+        GuideFor(["logic-index-of-above-zero"], "A match at the start taken for no match",
+            "indexOf gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A " +
+            "match at the very start is at position 0, so indexOf(...) > 0 is false for it - as if it were not there. The same " +
+            "holds for C#'s IndexOf and JavaScript's findIndex and search.",
+            "A list or text that starts with what is looked for is treated as not containing it.",
+            "Compare with >= 0, which is false only for -1 - or ask with contains, Contains or includes.",
+            """
+            if (text.indexOf("a") >= 0) {
+                System.out.println("found");
+            }
+            """),
     ];
 }

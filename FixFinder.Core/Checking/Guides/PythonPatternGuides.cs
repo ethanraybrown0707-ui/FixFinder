@@ -275,5 +275,28 @@ internal static class PythonPatternGuides
             def add(self):
                 self.count = self.count + 1
             """),
+
+        GuideFor(["logic-python-float-equality"], "Decimal numbers compared exactly",
+            "Computers store fractions like 0.1 in binary, where most of them can only be stored approximately - the way 1/3 can " +
+            "only be written as 0.333... in decimal. Arithmetic on them leaves a tiny error, so 0.1 + 0.2 is 0.30000000000000004, " +
+            "and 0.1 + 0.2 == 0.3 is False.",
+            "An exact comparison fails even when the numbers are equal for every practical purpose, so the code it guards never runs.",
+            "Check that the difference is smaller than a tiny tolerance - abs(total - 0.3) < 1e-9 - or use math.isclose.",
+            """
+            total = 0.1 + 0.2
+            if abs(total - 0.3) < 1e-9:
+                print("equal")
+            """),
+
+        GuideFor(["logic-python-find-above-zero"], "A match at the start taken for no match",
+            "find gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A match " +
+            "at the very start is at position 0, so find(...) > 0 is False for it - as if it were not there.",
+            "Text that starts with what is looked for is treated as not containing it.",
+            "Compare with >= 0, or ask with in: \"a\" in text.",
+            """
+            text = "apple"
+            if text.find("a") >= 0:
+                print("found")
+            """),
     ];
 }
