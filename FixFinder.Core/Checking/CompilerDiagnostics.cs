@@ -376,7 +376,8 @@ public static partial class CompilerDiagnostics
     }
 
     private static IReadOnlyList<ParsedError> WarningsIn(IReadOnlyList<CapturedLine> lines) =>
-        Distinct([.. GccClangParser.ParseWarnings(lines), .. MsvcParser.ParseWarnings(lines), .. JavaStackTraceParser.ParseWarnings(lines), .. ScalaCompileParser.ParseWarnings(lines)]);
+        Distinct([.. GccClangParser.ParseWarnings(lines), .. MsvcParser.ParseWarnings(lines), .. JavaStackTraceParser.ParseWarnings(lines), .. ScalaCompileParser.ParseWarnings(lines),
+            .. OCamlCompileParser.ParseWarnings(lines)]);
 
     private static List<ParsedError> Distinct(IEnumerable<ParsedError> errors) =>
         errors

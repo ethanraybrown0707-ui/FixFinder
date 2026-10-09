@@ -20,6 +20,8 @@ public class GuideWritingTests
         ["Go"] = GoGuides.All,
         ["Scala"] = ScalaGuides.All,
         ["Scala patterns"] = ScalaPatternGuides.All,
+        ["OCaml"] = OCamlGuides.All,
+        ["OCaml patterns"] = OCamlPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

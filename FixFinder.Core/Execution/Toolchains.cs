@@ -179,6 +179,7 @@ public static class Toolchains
         .. Described("JavaScript : ", "Node.js", Nodes.Installed),
         .. Described("Go         : ", "Go", GoToolchains.Installed),
         DescribeScala(),
+        OCamlToolchains.Usual is { } ocaml ? $"OCaml      : {ocaml.Description}: {ocaml.Ocamlc}" : "OCaml      : not found",
     ];
 
     /// <summary>Scala CLI, and the versions of Scala in its cache - the ones a Scala program can be built with here, as nothing is downloaded.</summary>

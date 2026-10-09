@@ -26,6 +26,8 @@ public sealed class ParserRegistry
             new ScalaRuntimeParser(),
             new JavaStackTraceParser(),
             new ScalaCompileParser(),
+            new OCamlCompileParser(),
+            new OCamlExceptionParser(),
             new GoPanicParser(),
             new GoCompileParser(),
             new RustPanicParser(),

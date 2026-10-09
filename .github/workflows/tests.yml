@@ -5,8 +5,12 @@
 # handling, DPAPI - only exists here. The runner image also ships Visual Studio, a JDK and
 # Python, so the C, C++, Java and Python paths are genuinely exercised rather than skipped.
 #
-# Only FixFinder.Tests and the Core project it references are built. FixFinder.Gui is WPF and
-# has no tests of its own; leaving it out keeps the job honest about what it is checking.
+# FixFinder.Tests and the Core project it references are what is tested. The two windows - FixFinder
+# and FixFinder Learn, which are WPF and have no tests of their own - are built too, so a change that
+# stops either compiling is caught here rather than by the next person to open it.
+#
+# Scala and OCaml have jobs of their own, each with its toolchain installed for it: the runner image
+# has neither, and this repository's own computer cannot run OCaml at all.
 
 name: tests
 
@@ -54,6 +58,11 @@ jobs:
       # and a command that no longer compiles is a broken editor integration nobody would notice until they used it.
       - name: Build the command line
         run: dotnet build FixFinder.Cli/FixFinder.Cli.csproj -c Release --nologo
+
+      - name: Build the two windows, FixFinder and FixFinder Learn
+        run: |
+          dotnet build FixFinder.Gui/FixFinder.Gui.csproj -c Release --nologo
+          dotnet build FixFinder.Learn/FixFinder.Learn.csproj -c Release --nologo
 
       # JUnit and Lombok for the tests that use them, from Maven Central and checked against its SHA-1s - the script says why.
       - name: Fetch JUnit and Lombok for the tests that use them
@@ -234,3 +243,108 @@ jobs:
           Write-Host ("{0,-8} {1}" -f 'javac', (Get-Command javac -ErrorAction SilentlyContinue).Source)
           & javac -version
           & java -version
+
+  # Scala's tests, with Scala CLI installed and the two versions of Scala they were written against fetched into Coursier's
+  # cache first - FixFinder runs Scala CLI offline, so what the tests build with has to be there already, as it would be
+  # on a student's computer once Scala CLI had built something.
+  scala:
+    name: Scala
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      # Java 21, which the Scala tests were written and run against; FixFinder runs Scala CLI with the JDK whose javac is on PATH.
+      - name: Set up Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Scala CLI 1.15.0
+        uses: VirtusLab/scala-cli-setup@v1.17.1
+        with:
+          scala-cli-version: 1.15.0
+
+      - name: Fetch Scala 3.8.4 and 2.13.18 into Coursier's cache
+        shell: pwsh
+        run: |
+          $warm = Join-Path $env:RUNNER_TEMP "warm"
+          New-Item -ItemType Directory -Force -Path $warm | Out-Null
+          Set-Content -Path (Join-Path $warm "Warm.scala") -Value 'object Warm { def main(args: Array[String]): Unit = println("warm") }'
+          foreach ($version in "3.8.4", "2.13.18") {
+            scala-cli --power run --server=false --scala $version (Join-Path $warm "Warm.scala")
+            if ($LASTEXITCODE -ne 0) { throw "Scala CLI could not fetch Scala $version" }
+          }
+
+      - name: Build
+        run: dotnet build FixFinder.Tests/FixFinder.Tests.csproj -c Release --nologo
+
+      - name: Test Scala
+        run: >
+          dotnet test FixFinder.Tests/FixFinder.Tests.csproj -c Release --no-build --nologo
+          --verbosity normal
+          --filter "FullyQualifiedName~Scala|FullyQualifiedName~Sbt|FullyQualifiedName~LessonLive"
+
+      - name: Report which Scala the tests had
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host ("{0,-10} {1}" -f 'scala-cli', (Get-Command scala-cli -ErrorAction SilentlyContinue).Source)
+          Write-Host ("{0,-10} {1}" -f 'java', (Get-Command java -ErrorAction SilentlyContinue).Source)
+          Get-ChildItem "$env:LOCALAPPDATA\Coursier\cache\v1\https\repo1.maven.org\maven2\org\scala-lang" -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { "{0,-22} {1}" -f $_.Name, ((Get-ChildItem $_.FullName -Directory | Select-Object -ExpandProperty Name) -join ", ") }
+
+  # OCaml's tests: its compiler's real errors and warnings, its programs' real exceptions, the fixes compiled with ocamlc,
+  # every example a guide shows, and every lesson's programs - on an OCaml installed by opam, as a student on Windows would
+  # install one. The switch's own PATH is handed to the steps after, so ocamlc and ocamlrun are found as a terminal finds them.
+  ocaml:
+    name: OCaml
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Set up OCaml 5
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5
+
+      - name: Put the OCaml switch on PATH for the steps after
+        shell: pwsh
+        run: |
+          $inside = (opam exec -- cmd /d /c "echo %PATH%") | Select-Object -Last 1
+          $outside = $env:PATH -split ';'
+          foreach ($folder in ($inside -split ';')) {
+            if ($folder -and $outside -notcontains $folder) { $folder | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 }
+          }
+          opam exec -- ocamlc -version
+
+      - name: Build
+        run: dotnet build FixFinder.Tests/FixFinder.Tests.csproj -c Release --nologo
+
+      - name: Test OCaml
+        run: >
+          dotnet test FixFinder.Tests/FixFinder.Tests.csproj -c Release --no-build --nologo
+          --verbosity normal
+          --logger "console;verbosity=detailed"
+          --filter "FullyQualifiedName~OCaml|FullyQualifiedName~LessonLive"
+
+      - name: Report which OCaml the tests had
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($tool in 'ocamlc', 'ocamlrun') {
+            Write-Host ("{0,-9} {1}" -f $tool, (Get-Command $tool -ErrorAction SilentlyContinue).Source)
+          }
+          if (Get-Command ocamlc -ErrorAction SilentlyContinue) { & ocamlc -version }

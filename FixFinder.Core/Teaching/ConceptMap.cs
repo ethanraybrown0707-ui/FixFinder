@@ -87,6 +87,9 @@ public static class ConceptMap
         },
         new(Concepts.PositionOutOfRange) { Message = Words(@"index out of range|index out of bounds|array subscript .* (?:is )?(?:above|outside) array bounds|heap-buffer-overflow|stack-buffer-overflow|global-buffer-overflow|out_of_range|vector::_M_range_check|(?:head|last|tail) of empty list") },
 
+        // OCaml's List.hd and List.tl of an empty list, and List.nth past its end or before its start.
+        new(Concepts.PositionOutOfRange) { ExceptionTypes = ["Failure", "Invalid_argument"], Message = Words(@"^(?:hd|tl|nth|List\.nth)$") },
+
         new(Concepts.EndlessRecursion)
         {
             CheckIds = ["logic-csharp-property-calls-itself"],
@@ -95,7 +98,7 @@ public static class ConceptMap
         new(Concepts.EndlessRecursion) { Message = Words(@"Maximum call stack size exceeded|goroutine stack exceeds|stack overflow") },
 
         // A call given the wrong arguments, before the wider TypeError and type mismatches it is also reported as.
-        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments"], Codes = ["CS7036", "CS1501", "CS1503"] },
+        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments"], Codes = ["CS7036", "CS1501", "CS1503", "ignored-partial-application"] },
         new(Concepts.Arguments) { Message = Words(@"missing \d+ required (?:positional|keyword-only) argument|takes \d+ positional arguments? but \d+ (?:were|was) given|got an unexpected keyword argument|cannot be applied to given types|no suitable (?:method|constructor) found|too (?:few|many) arguments|not enough arguments|missing argument") },
 
         new(Concepts.TextToNumber)
@@ -121,9 +124,9 @@ public static class ConceptMap
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length"] },
 
         new(Concepts.EndlessLoop)
         {
@@ -147,6 +150,7 @@ public static class ConceptMap
             [
                 "logic-java-string-equals", "logic-c-string-equals", "logic-java-wrapper-equality", "logic-js-loose-equality",
                 "logic-python-is-literal", "logic-js-compare-with-new-array", "logic-python-none-comparison", "logic-scala-array-equals",
+                "logic-ocaml-physical-equality",
             ],
         },
         new(Concepts.SameValueOrSameObject) { Codes = ["CS0252", "CS0253"] },
@@ -166,17 +170,28 @@ public static class ConceptMap
                 "logic-python-returns-nothing-sometimes", "logic-python-print-instead-of-return", "logic-python-return-print",
                 "logic-python-none-returned-assigned", "logic-python-result-discarded", "logic-result-discarded", "logic-scala-result-discarded",
             ],
-            Codes = ["CS0161", "C4715", "C4716"],
+            Codes = ["CS0161", "C4715", "C4716", "non-unit-statement"],
         },
         new(Concepts.ReturnValues) { Message = Words(@"^missing return statement|control reaches end of non-void function|no return statement in function returning non-void|^missing return") },
 
-        new(Concepts.NeverUsed) { Codes = ["CS0168", "CS0219", "CS8321", "CS0169", "CS0414"] },
+        new(Concepts.NeverUsed)
+        {
+            Codes =
+            [
+                "CS0168", "CS0219", "CS8321", "CS0169", "CS0414",
+                "unused-var", "unused-var-strict", "unused-value-declaration", "unused-open", "unused-open-bang", "unused-rec-flag", "unused-for-index",
+            ],
+        },
         new(Concepts.NeverUsed) { Message = Words(@"declared and not used|declared but not used|imported and not used|unused variable|set but not used|defined but not used|is never used|^unused (?:import|local definition|private member)") },
 
         new(Concepts.StatementEnd) { Codes = ["CS1002"] },
         new(Concepts.StatementEnd) { Message = Words(@"^';' expected|^expected ';'|missing ';' before") },
 
         new(Concepts.UnclosedPair) { Codes = ["CS1026", "CS1010"] },
+
+        // OCaml: 'Syntax error: ")" expected', said with the bracket that "might be unmatched".
+        new(Concepts.UnclosedPair) { Message = Words(@"^Syntax error: ""(?:\)|\]|\}|\|\]|>\})"" expected|might be unmatched") },
+        new(Concepts.Blocks) { Message = Words(@"^Syntax error: ""(?:end|done)"" expected") },
         new(Concepts.UnclosedPair) { Message = Words(@"was never closed|unexpected EOF|EOF while scanning|unmatched '[)\]}]'|does not match opening parenthesis|unterminated (?:triple-quoted )?string|EOL while scanning string|^unclosed|^'[)\]}]' expected|^Missing closing brace|missing \) after argument list|Unexpected end of input|unterminated string literal|missing terminating") },
 
         new(Concepts.Blocks) { ExceptionTypes = ["IndentationError", "TabError"] },
@@ -185,7 +200,7 @@ public static class ConceptMap
 
         new(Concepts.WrongType) { CheckIds = ["analysis-type-mismatch", "analysis-type-hint-broken"], ExceptionTypes = ["TypeError", "ClassCastException", "InvalidCastException"] },
         new(Concepts.WrongType) { Codes = ["CS0029", "CS0266", "CS0019", "CS0023", "C2440", "C2664", "C2446"] },
-        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |This expression has type|cannot be compared with == or !=|values of types .* using `==` will always yield") },
+        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |This expression has type|cannot be compared with == or !=|values of types .* using `==` will always yield|This pattern matches values of type") },
     ];
 
     /// <summary>The idea a finding is an example of; reading what went wrong when it is none FixFinder teaches.</summary>

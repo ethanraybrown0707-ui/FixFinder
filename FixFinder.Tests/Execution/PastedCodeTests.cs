@@ -31,6 +31,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("JavaScript", "console.log(1);\n", "pasted.js")]
     [InlineData("Go", "package main\n\nfunc main() {}\n", "pasted.go")]
     [InlineData("Scala", "@main def hello() = println(1)\n", "pasted.scala")]
+    [InlineData("OCaml", "let () = print_endline \"hi\"\n", "pasted.ml")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -74,6 +75,8 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(1)\n}\n", "Go")]
     [InlineData("object Marks {\n  def main(args: Array[String]): Unit = {\n    val scores = List(70, 80)\n    println(scores.sum)\n  }\n}\n", "Scala")]
     [InlineData("@main def hello(): Unit =\n  val name = \"Ada\"\n  println(\"Hello, \" + name)\n", "Scala")]
+    [InlineData("let rec factorial n =\n  if n = 0 then 1 else n * factorial (n - 1)\n\nlet () = print_int (factorial 5)\n", "OCaml")]
+    [InlineData("let describe mark =\n  match mark with\n  | 1 -> \"one\"\n  | _ -> \"another\";;\n", "OCaml")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

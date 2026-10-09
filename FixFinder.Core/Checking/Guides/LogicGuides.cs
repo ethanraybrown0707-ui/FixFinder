@@ -297,6 +297,7 @@ internal static class LogicGuides
         .. BracePatternGuides.All,
         .. ManagedPatternGuides.All,
         .. ScalaPatternGuides.All,
+        .. OCamlPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

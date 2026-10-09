@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -319,5 +319,149 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("10"),
                 WhatChanged: "Go saw the zero before the program ran; the fixed program divides by the number of people instead."),
+        ]);
+
+    private static Lesson Scala => new(Concept, CodeLanguage.Scala,
+        "Dividing whole numbers - Int or Long - by zero stops a Scala program with an ArithmeticException, as it would stop a " +
+        "Java one: Scala runs on the same JVM. Dividing decimals - Double - does not stop it: dividing by zero gives Infinity, or " +
+        "NaN, \"not a number\", when 0.0 is divided by 0, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no scores",
+                Broken: """
+                    object Average {
+                      def main(args: Array[String]): Unit = {
+                        val scores = List[Int]()
+                        val average = scores.sum / scores.length
+                        println(average)
+                      }
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticException", 4),
+                Fixed: """
+                    object Average {
+                      def main(args: Array[String]): Unit = {
+                        val scores = List[Int]()
+                        val average = if (scores.isEmpty) 0 else scores.sum / scores.length
+                        println(average)
+                      }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when the list has something in it, and gives 0 otherwise - in Scala an if gives a value back, so it can stand on the right of =.")
+            {
+                WrongFixes =
+                [
+                    new WrongFix("""
+                        object Average {
+                          def main(args: Array[String]): Unit = {
+                            val scores = List[Int]()
+                            val average = scores.sum / scores.size
+                            println(average)
+                          }
+                        }
+                        """,
+                        Behaviour.Stopping("ArithmeticException", 4),
+                        "size is another name for length: the list is still empty, so it is still 0."),
+                    new WrongFix("""
+                        object Average {
+                          def main(args: Array[String]): Unit = {
+                            val scores = List[Int]()
+                            val average = scores.sum.toDouble / scores.length
+                            println(average)
+                          }
+                        }
+                        """,
+                        Behaviour.Printing("NaN"),
+                        "Dividing as decimals stops the crash, but 0.0 divided by 0 is NaN - not a number - which is no average either."),
+                ],
+            },
+            new WorkedExample("Sharing out decimals",
+                Broken: """
+                    object Share {
+                      def main(args: Array[String]): Unit = {
+                        val total = 10.0
+                        val people = 0
+                        println(total / people)
+                      }
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Infinity"),
+                Fixed: """
+                    object Share {
+                      def main(args: Array[String]): Unit = {
+                        val total = 10.0
+                        val people = 0
+                        println(if (people == 0) 0.0 else total / people)
+                      }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0.0"),
+                WhatChanged: "A Double divided by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson OCaml => new(Concept, CodeLanguage.OCaml,
+        "Dividing whole numbers with / by zero stops an OCaml program with the exception Division_by_zero - and so does mod, which " +
+        "divides too. Floats have an operator of their own, /., and dividing a float by zero does not stop the program: it gives " +
+        "infinity, or not-a-number when 0. is divided by 0., and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no scores",
+                Broken: """
+                    let scores = []
+
+                    let average = List.fold_left ( + ) 0 scores / List.length scores
+
+                    let () = print_int average
+                    """,
+                BrokenDoes: Behaviour.Stopping("Division_by_zero", 3),
+                Fixed: """
+                    let scores = []
+
+                    let average = if scores = [] then 0 else List.fold_left ( + ) 0 scores / List.length scores
+
+                    let () = print_int average
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when the list has something in it, and gives 0 otherwise - in OCaml an if gives a value back, so it can stand on the right of =.")
+            {
+                WrongFixes =
+                [
+                    new WrongFix("""
+                        let scores = []
+
+                        let average = List.fold_left ( + ) 0 scores / (List.length scores)
+
+                        let () = print_int average
+                        """,
+                        Behaviour.Stopping("Division_by_zero", 3),
+                        "Brackets change nothing: the length of an empty list is still 0."),
+                    new WrongFix("""
+                        let scores = []
+
+                        let average = List.fold_left ( + ) 0 scores mod List.length scores
+
+                        let () = print_int average
+                        """,
+                        Behaviour.Stopping("Division_by_zero", 3),
+                        "mod is a division too - it gives what is left over - so it fails in the same way."),
+                ],
+            },
+            new WorkedExample("Sharing out floats",
+                Broken: """
+                    let total = 10.
+
+                    let people = 0.
+
+                    let () = print_float (total /. people)
+                    """,
+                BrokenDoes: Behaviour.Printing("inf"),
+                Fixed: """
+                    let total = 10.
+
+                    let people = 0.
+
+                    let () = print_float (if people = 0. then 0. else total /. people)
+                    """,
+                FixedDoes: Behaviour.Printing("0."),
+                WhatChanged: "A float divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

@@ -21,8 +21,21 @@ public static class WarningRatings
     private static Rule ScalaWords(string message, FindingKind kind, Severity severity, Confidence confidence) =>
         new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence), "scala");
 
+    /// <summary>OCaml's warnings, by the names OCaml gives them from 4.12 on: Warning 8 [partial-match].</summary>
+    private static Rule OCamlNames(string[] names, FindingKind kind, Severity severity, Confidence confidence) =>
+        new(new Regex("^"), names, new WarningRating(kind, severity, confidence), "ocaml");
+
     private static readonly Rule[] Rules =
     [
+        // A match that misses a case stops the program with Match_failure when that case comes; an unused name changes nothing.
+        OCamlNames(["partial-match"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        OCamlNames(["redundant-case", "redundant-subpat"], FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        OCamlNames(["non-unit-statement", "ignored-partial-application", "nonreturning-statement"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        OCamlNames(
+            ["unused-var", "unused-var-strict", "unused-value-declaration", "unused-open", "unused-open-bang", "unused-rec-flag", "unused-for-index"],
+            FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+        OCamlNames(["deprecated"], FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+
         // A match that misses a case stops the program with a MatchError when that case comes; what is deprecated still works.
         ScalaWords(@"^match may not be exhaustive", FindingKind.Logic, Severity.Warning, Confidence.Likely),
         ScalaWords(@"^Unreachable case|^unreachable code|^patterns after a variable pattern cannot match", FindingKind.Logic, Severity.Warning, Confidence.Certain),

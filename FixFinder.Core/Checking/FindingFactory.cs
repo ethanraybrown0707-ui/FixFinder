@@ -23,7 +23,7 @@ public static partial class FindingFactory
         ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix, bool isWarning)
     {
         var frame = LocalFixContext.OwnFrame(error);
-        var file = frame?.File is { Length: > 0 } named && Path.IsPathRooted(named) ? named : fallbackFile;
+        var file = frame?.File is { Length: > 0 } named ? FileNamed(named, fallbackFile) : fallbackFile;
         var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error, isWarning);
 
         return Build(kind, severity, confidence, file, frame?.Line, TitleOf(error), guide.Explanation, guide, fix) with
@@ -32,6 +32,25 @@ public static partial class FindingFactory
             Error = error,
             Family = CrashExplainedBy.GetValueOrDefault(error.ShortExceptionType ?? ""),
         };
+    }
+
+    /// <summary>
+    /// The file a frame names: as named, when that is a whole path; else the file of that name beside the chosen one, when
+    /// there is one - an OCaml backtrace, or a Java stack trace, names only the file - else the chosen file.
+    /// </summary>
+    private static string FileNamed(string named, string chosen)
+    {
+        if (Path.IsPathRooted(named)) return named;
+
+        try
+        {
+            var beside = Path.Combine(Path.GetDirectoryName(chosen) ?? "", named);
+            return File.Exists(beside) ? Path.GetFullPath(beside) : chosen;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return chosen;
+        }
     }
 
     /// <summary>

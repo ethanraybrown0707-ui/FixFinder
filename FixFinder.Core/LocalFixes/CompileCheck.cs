@@ -28,6 +28,7 @@ public static class CompileCheck
         ".py" or ".java" or ".cs" => true,
         ".js" or ".mjs" or ".cjs" or ".go" => true,
         ".scala" or ".sc" => true,
+        ".ml" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -242,7 +243,7 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -267,6 +268,7 @@ public static class CompileCheck
         if (extension == ".java") return [ProgramLayout.JavaSourceRoot(original)];
         if (extension == ".go") return [Path.GetDirectoryName(original)!];
         if (extension is ".scala" or ".sc") return [ScalaProgram.SbtSourceRoot(Path.GetFullPath(original)) ?? Path.GetDirectoryName(original)!];
+        if (extension == ".ml") return [Path.GetDirectoryName(original)!];
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -416,6 +418,21 @@ public static class CompileCheck
                     .ToList();
 
                 return Spec(scala.Cli.Program, ScalaSetup.Arguments("compile", scala, Path.Combine(folder, "workspace"), programWithCopy, mainClass: null), folder);
+            }
+
+            case ".ml":
+            {
+                if (OCamlToolchains.Usual is not { } ocaml) return null;
+
+                // The copy stands in the folder in place of the original; the rest of the program is copied in beside it, and
+                // all of it is compiled there, in the order the program is - so nothing is written beside the original.
+                var whole = Path.GetFullPath(original);
+                var ocamlProgram = OCamlProgram.Of(original);
+                var names = ocamlProgram.Files.Select(Path.GetFileName).OfType<string>().ToList();
+                var batch = OCamlBuild.WriteBatch(folder, ocamlProgram.Files.Where(file => !file.Equals(whole, StringComparison.OrdinalIgnoreCase)),
+                    OCamlBuild.CompileArguments(ocaml, names, ocamlProgram.Libraries, "check.byte"), ocaml);
+
+                return Spec("cmd.exe", $"/c \"{batch}\"", folder);
             }
 
             case ".cs":
