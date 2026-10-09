@@ -20,7 +20,9 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// The characters are counted from 0. A message can go on over several lines, and a hint can follow it. A syntax error
 /// can be followed by a second place, with no Error of its own, saying which bracket "might be unmatched" - that is kept
 /// with the error. A warning is <c>Warning 26 [unused-var]: unused variable spare.</c> - its number, and from OCaml 4.12
-/// its name, which is kept as its code. OCaml 5.2 puts names and types in double quotes, and earlier OCamls did not.
+/// its name, which is kept as its code. OCaml 5.2's tests show names and types in double quotes; OCaml 5.5.1, run by the
+/// tests on GitHub's computers, writes them without - "Unbound value facto", "Hint:   Did you mean value1?" - and both
+/// are read.
 /// </para>
 /// </remarks>
 public sealed partial class OCamlCompileParser : IStackTraceParser, IMultiErrorParser

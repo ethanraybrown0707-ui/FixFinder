@@ -248,6 +248,23 @@ whole-number average given to a Double, which has lost its fraction already, a c
 of its own and kept nowhere, and `.get` taken from an Option nothing checked first. Each does what it is said to do in
 Scala 3.8.4 and Scala 2.13.18, and neither warns about it.
 
+An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
+environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
+version. A program is the chosen file and the `.ml` files beside it that its code uses, each compiled after the files it
+uses, with an `.mli` interface before its module; the `str` and `unix` libraries that come with OCaml are linked when the
+code uses `Str` or `Unix`. The files are copied into FixFinder's build folder and compiled there, so no `.cmo` or `.cmi`
+is written beside them. It is compiled to bytecode with `-g` and run with `ocamlrun`, with `b` added to
+`OCAMLRUNPARAM`, so an exception that stops it names where it was raised. FixFinder never runs dune: a `dune` file is
+named in how it ran, as it is not what builds the program here. OCaml's own hints become fixes - the name it suggests for
+one it does not know, and `rec` on the line it names for a function that calls itself. Compiled to bytecode, OCaml names
+no place for a whole-number division by zero itself, only the call of the function that divided - or no line at all,
+outside any function - so the crash is placed at that call, and when the function called divides exactly once, that
+division is the one given an answer for a zero, and the change is run in a copy. OCaml's code is read for logic mistakes
+by three checks of its own: a `for i = 0 to Array.length a do` that uses `i` as a position in `a` - OCaml's `for`
+includes its last number - text, lists or floats compared with `==` or `!=`, which ask whether two values are one and
+the same in memory, and a whole-number average turned into a float after its fraction is lost. OCaml is tested with
+OCaml 5.5.1, on GitHub's Windows computers.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -481,6 +498,7 @@ it stops with:
 | JavaScript | `node --check` on every file |
 | Go | `go build`, then `go vet` |
 | Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
+| OCaml | `ocamlc -g`, with OCaml's default warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -804,15 +822,16 @@ Python, Java and C# are checked most thoroughly.
 | JavaScript | 41 | 25 | 15 |
 | Go | 38 | - | 18 |
 | Scala | 6 | 5 | 28 |
+| OCaml | 6 | 3 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
 for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in sixteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
-Elixir, Perl and Lua, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read as
-Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file and
-line.
+A crash is read in seventeen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Perl, Lua and OCaml, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
+as Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file
+and line.
 
 Some limits are part of how FixFinder works:
 
