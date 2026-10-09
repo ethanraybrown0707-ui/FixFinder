@@ -22,25 +22,36 @@ public static class FixRun
     /// Tries the fix for real and records what that showed, leaving <paramref name="sofar"/> as it was if it could not
     /// be tried at all.
     /// </summary>
+    /// <param name="program">
+    /// The file the program is run from - the one chosen - when the fix is in another of its files, such as a class it
+    /// uses: the copy of the program is run from there, with the fixed file in its place. Null runs the fixed file itself.
+    /// </param>
     public static async Task<Verification> CheckAsync(
         Verification sofar,
         SourceFile source,
         LocalFix fix,
         ParsedError? original,
         ExpectedBehaviour? expected,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? program = null)
     {
         if (fix.ApplyTo(source) is not { } changed) return sofar;
 
         var folder = Path.Combine(Root, Guid.NewGuid().ToString("N")[..12]);
+        var runFrom = program ?? source.Path;
         string? copy = null;
 
         try
         {
             Directory.CreateDirectory(folder);
 
-            copy = CopyProgram(source.Path, folder);
-            await File.WriteAllBytesAsync(copy, source.Render(changed), cancellationToken);
+            (copy, var copiedWhole) = CopyProgram(runFrom, folder);
+
+            var fixedCopy = Path.GetFullPath(source.Path).Equals(Path.GetFullPath(runFrom), StringComparison.OrdinalIgnoreCase) ? copy
+                : copiedWhole ? ProgramCopy.InCopy(ProgramCopy.RootOf(runFrom), source.Path, folder)
+                : Path.Combine(folder, Path.GetFileName(source.Path));
+
+            await File.WriteAllBytesAsync(fixedCopy, source.Render(changed), cancellationToken);
 
             var plan = TargetFactory.FromFile(copy);
             if (!plan.Ok || plan.Spec is null)
@@ -75,15 +86,15 @@ public static class FixRun
     }
 
     /// <summary>
-    /// Copies the program into <paramref name="folder"/> and says where the chosen file is in the copy. The whole
-    /// program comes, laid out as it is and with the files it reads, since a fix to one file of a program that will not
-    /// run without the others - or without its scores.txt - cannot be tried on its own. When the program's folder holds
-    /// more than a program's worth of files, its source files alone are copied, side by side.
+    /// Copies the program into <paramref name="folder"/> and says where the chosen file is in the copy, and whether the
+    /// whole program came. The whole program comes, laid out as it is and with the files it reads, since a fix to one file
+    /// of a program that will not run without the others - or without its scores.txt - cannot be tried on its own. When
+    /// the program's folder holds more than a program's worth of files, its source files alone are copied, side by side.
     /// </summary>
-    private static string CopyProgram(string chosen, string folder)
+    private static (string ChosenInCopy, bool Whole) CopyProgram(string chosen, string folder)
     {
         var root = ProgramCopy.RootOf(chosen);
-        if (ProgramCopy.TryCopyWhole(root, folder)) return ProgramCopy.InCopy(root, chosen, folder);
+        if (ProgramCopy.TryCopyWhole(root, folder)) return (ProgramCopy.InCopy(root, chosen, folder), true);
 
         foreach (var beside in ProgramFiles.Of(chosen))
         {
@@ -94,7 +105,7 @@ public static class FixRun
         }
 
         ProgramCopy.Remember(folder, NotebookScript.FolderOfCode(chosen));
-        return Path.Combine(folder, Path.GetFileName(chosen));
+        return (Path.Combine(folder, Path.GetFileName(chosen)), false);
     }
 
     internal static async Task<Verification> JudgeAsync(

@@ -1403,7 +1403,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         try
         {
-            verified = await FixRun.CheckAsync(finding.Verified, source, fix, finding.Error, Expected, _cancellation);
+            // The copy runs from the file the program was run from, whichever of its files the fix is in.
+            verified = await FixRun.CheckAsync(finding.Verified, source, fix, finding.Error, Expected, _cancellation, _launch?.ChosenFile);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
