@@ -451,13 +451,14 @@ A problem opens on:
   a lesson with all of them answered is marked done.
 
 Nothing in a lesson is written from memory. Each example states what its program does - what it prints, the error it
-stops with and the line, that its compiler refuses it, or that it never finishes - and `LessonLiveTests` runs every
+stops with and the line (or that the language names no line, as OCaml names none for some divisions by zero), that its
+compiler refuses it, or that it never finishes - and `LessonLiveTests` runs every
 program of every lesson with the language's own compiler or interpreter, the way FixFinder runs a program, and fails
 when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
 running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
-**Run it** says so beside what it saw. The lessons are listed by language; an idea with no lesson in the problem's
-language yet names the languages it has one in, and an idea with none at all is shown with what FixFinder said of the
-problem.
+**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons, in
+between two and nine languages, and they are listed by language; an idea with no lesson in the problem's language yet
+names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
 
 FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
 is, the line of code it is on and the change it found - in a small file under `%LOCALAPPDATA%\FixFinder\learn\problems`,

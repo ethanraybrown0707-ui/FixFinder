@@ -162,6 +162,21 @@ public class TeachingTests
         }
     }
 
+    /// <summary>As the README says: every idea but the general one has lessons, in between two and nine languages, one each.</summary>
+    [Fact]
+    public void EveryIdeaButTheGeneralOneHasLessonsInTwoToNineLanguages()
+    {
+        foreach (var concept in Concepts.All.Where(concept => concept.Code != Concepts.ReadingErrors.Code))
+        {
+            var languages = Lessons.Of(concept).Select(lesson => lesson.Language.Name).ToList();
+
+            Assert.InRange(languages.Count, 2, 9);
+            Assert.Equal(languages.Count, languages.Distinct().Count());
+        }
+
+        Assert.Empty(Lessons.Of(Concepts.ReadingErrors));
+    }
+
     /// <summary>An error the language names no line for is said to have none, and only a run that names none shows it.</summary>
     [Fact]
     public void AnErrorWithNoLineIsSaidAndCheckedAsHavingNone()
