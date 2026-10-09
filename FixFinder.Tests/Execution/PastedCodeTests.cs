@@ -30,6 +30,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("C#", "System.Console.WriteLine(1);\n", "pasted.cs")]
     [InlineData("JavaScript", "console.log(1);\n", "pasted.js")]
     [InlineData("Go", "package main\n\nfunc main() {}\n", "pasted.go")]
+    [InlineData("Scala", "@main def hello() = println(1)\n", "pasted.scala")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -71,6 +72,8 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("System.out.printf(\"%d%n\", total);\n", "Java")]
     [InlineData("const total = [1, 2].reduce((a, b) => a + b);\nconsole.log(total);\n", "JavaScript")]
     [InlineData("package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(1)\n}\n", "Go")]
+    [InlineData("object Marks {\n  def main(args: Array[String]): Unit = {\n    val scores = List(70, 80)\n    println(scores.sum)\n  }\n}\n", "Scala")]
+    [InlineData("@main def hello(): Unit =\n  val name = \"Ada\"\n  println(\"Hello, \" + name)\n", "Scala")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

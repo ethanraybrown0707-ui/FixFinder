@@ -222,6 +222,32 @@ never taken for code, and only what is certainly JavaScript's own counts: a `fet
 is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
 so and how to install one.
 
+A **Scala** program - a `.scala` file, or a Scala CLI script, `.sc` - is built and run by **Scala CLI**, which FixFinder
+finds on PATH, in its Windows installer's folder in Program Files, in Coursier's folder of installed applications or in
+Scoop's shims. It is run offline, as FixFinder never downloads anything, and without Scala CLI's compile server, which
+would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written into
+the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt and
+Metals keep what they download; Settings lists them. The version is the one the program asks for - in a
+`//> using scala` directive, or as its build.sbt's `scalaVersion` - when that one is in the cache, or else the newest of
+the same series there: any Scala 3 for a Scala 3, the same 2.13 or 2.12 for a Scala 2. How it ran says which and why, and
+a program that asks for a series that is not in the cache is not built: the note says how to download it. A program that
+asks for nothing is built with the newest Scala 3 there - unless its code does not compile as Scala 3 and the newest Scala
+2 there compiles it with no error, as Scala 3 refuses some of what Scala 2 allowed, such as `def main(args:
+Array[String]) {` without `: Unit =`. Then it is Scala 2 code, it is built and run as Scala 2, and a note says so in the
+compiler's own words. A file under an sbt project's `src/main/scala` is built with every Scala file there, with the
+libraries its build.sbt's `libraryDependencies` name - other than those only its tests use - and runs from the folder
+holding build.sbt, as sbt runs it; anything there FixFinder cannot read, such as a version worked out by code, is named
+in how it ran. Anywhere else, a program is the chosen file and the Scala files beside it that its code uses, and a file
+that defines a name the chosen one defines too - another exercise's `object Main` - is another program. When the files
+built together hold several mains, the chosen file's is run; a file with no main is said to have nothing to run. A
+library a `//> using dep` directive or the build.sbt names that is not in the cache is said once, in a note, rather than
+its errors reported as mistakes in the code. Scala's code is read for logic mistakes by checks of its own, as nothing
+here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in `xs`, two
+Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same items - a
+whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted` made on a line
+of its own and kept nowhere, and `.get` taken from an Option nothing checked first. Each does what it is said to do in
+Scala 3.8.4 and Scala 2.13.18, and neither warns about it.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -453,6 +479,7 @@ it stops with:
 | C, C++ | gcc, clang or MSVC, with `-Wall -Wextra` or `/W3` |
 | JavaScript | `node --check` on every file |
 | Go | `go build`, then `go vet` |
+| Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -775,12 +802,16 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 45 | 23 | 39 |
 | JavaScript | 41 | 25 | 15 |
 | Go | 38 | - | 18 |
+| Scala | 6 | 5 | 28 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
-one. Every compiler warning is reported too, rated as an error, warning or suggestion.
+one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
+for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in fifteen languages, each with its own stack-trace parser: Python, C#, Java, JavaScript, Go, C, C++,
-Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a generic reading of its file and line.
+A crash is read in sixteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Perl and Lua, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read as
+Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file and
+line.
 
 Some limits are part of how FixFinder works:
 

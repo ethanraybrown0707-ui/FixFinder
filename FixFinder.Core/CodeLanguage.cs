@@ -26,7 +26,10 @@ public sealed record CodeLanguage(
 
     public static CodeLanguage Go { get; } = new("Go", [".go"], ["go"], ["go-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go];
+    /// <summary>Scala: its compilers' errors and its crashes, which are the JVM's stack traces with frames in .scala files.</summary>
+    public static CodeLanguage Scala { get; } = new("Scala", [".scala", ".sc"], ["scala"], ["scala-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala];
 
     public bool IsAny => ParserIds.Count == 0;
 

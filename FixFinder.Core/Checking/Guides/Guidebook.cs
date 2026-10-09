@@ -5,7 +5,8 @@ namespace FixFinder.Core.Checking.Guides;
 /// <summary>Finds the guide for a mistake: by the rule that fixed it, then by the error, then by the kind of mistake.</summary>
 public static class Guidebook
 {
-    public static MistakeGuide For(string file, FindingKind kind, string? ruleId = null, ParsedError? error = null)
+    /// <param name="isWarning">Whether what was found is a compiler's warning, which - with no guide of its own - is explained as a warning, not as the kind it is filed under.</param>
+    public static MistakeGuide For(string file, FindingKind kind, string? ruleId = null, ParsedError? error = null, bool isWarning = false)
     {
         var table = TableFor(file);
 
@@ -17,7 +18,7 @@ public static class Guidebook
 
         if (error is not null && table.FirstOrDefault(entry => entry.Describes(error)) is { } byError) return byError.Guide;
 
-        return GeneralGuides.For(LanguageName(file), kind);
+        return isWarning ? GeneralGuides.ForWarning(LanguageName(file)) : GeneralGuides.For(LanguageName(file), kind);
     }
 
     public static bool HasRule(string ruleId) =>
@@ -32,7 +33,7 @@ public static class Guidebook
     /// </summary>
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
-        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, LogicGuides.All,
+        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, LogicGuides.All,
     ];
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
@@ -49,6 +50,7 @@ public static class Guidebook
         ".c" or ".h" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => NativeTable,
         ".js" or ".mjs" or ".cjs" => JavaScriptTable,
         ".go" => GoTable,
+        ".scala" or ".sc" => ScalaGuides.All,
         _ => [],
     };
 
@@ -61,6 +63,7 @@ public static class Guidebook
         ".cpp" or ".cc" or ".cxx" or ".c++" or ".hpp" or ".hh" or ".hxx" => "C++",
         ".js" or ".mjs" or ".cjs" => "JavaScript",
         ".go" => "Go",
+        ".scala" or ".sc" => "Scala",
         _ => "the program",
     };
 }

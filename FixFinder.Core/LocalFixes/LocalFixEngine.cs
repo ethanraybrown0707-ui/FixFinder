@@ -264,6 +264,12 @@ public static partial class LocalFixEngine
         new GoIndexLoop(),
         new GoNilMap(),
         new GoChannelDeadlock(),
+        new ScalaDidYouMean(),
+        new ScalaValToVar(),
+        new ScalaDeclaredNumberType(),
+        new ScalaProcedureSyntax(),
+        new ScalaDivisionGuard(),
+        new ScalaRangeUntil(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -403,6 +409,13 @@ public static partial class LocalFixEngine
 
     [GeneratedRegex(@"expected$|^illegal start of|^reached end of file while parsing|^not a statement|^unclosed|^class, interface, enum, or record expected")]
     private static partial Regex JavaSyntaxMessage();
+
+    /// <summary>
+    /// What Scala says when it cannot read the code at all, in Scala 3's words - "'=' expected, but '{' found" - and Scala
+    /// 2's - "')' expected but '}' found.", "expected start of definition", "Missing closing brace `}` assumed here".
+    /// </summary>
+    [GeneratedRegex(@"^(?:'[^']{1,12}' expected\b|expected (?:start of definition|class or object definition)|unclosed |Missing closing brace|illegal start of)")]
+    private static partial Regex ScalaSyntaxMessage();
 
     public static async Task<FixCandidate?> ForAsync(
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
@@ -636,6 +649,7 @@ public static partial class LocalFixEngine
         "python" => error.ExceptionType is "SyntaxError" or "IndentationError" or "TabError",
         "node" => error.ExceptionType == "SyntaxError" && !(error.Message ?? "").StartsWith("The requested module", StringComparison.Ordinal),
         "java" => error.ExceptionType == "compile error" && JavaSyntaxMessage().IsMatch(error.Message ?? ""),
+        "scala" => error.ExceptionType == "compile error" && (error.ErrorCode == "E040" || ScalaSyntaxMessage().IsMatch(error.Message ?? "")),
         "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
             or "C1083" or "C1189",
@@ -660,6 +674,7 @@ public static partial class LocalFixEngine
             ".cs" => "compiled it with the C# compiler and settings dotnet build uses",
             ".js" or ".mjs" or ".cjs" => "checked it with node --check, which parses it and runs none of it",
             ".go" => "built it with go build",
+            ".scala" or ".sc" => "compiled it with Scala CLI",
             _ => "compiled it",
         };
 

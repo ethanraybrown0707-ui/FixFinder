@@ -114,11 +114,13 @@ public static class Concepts
         "extra one ignored, so the mistake shows up later, somewhere else.");
 
     public static Concept ReturnValues { get; } = new("RETURNS", "What a function gives back",
-        "A function can hand a value back to the line that called it, with return. A function that only prints its answer, " +
-        "or that reaches its end on some way through it without a return, gives nothing back there. Depending on the " +
-        "language, the caller then gets the language's value for nothing - None in Python, undefined in JavaScript - or the " +
-        "compiler refuses a function that promises a value and does not always return one; C and C++ only warn, and what " +
-        "the caller gets is undefined.");
+        "A function can hand a value back to the line that called it - with return in most languages, and in Scala and OCaml " +
+        "as the value of the last thing it works out. A function that only prints its answer gives nothing back - and in the " +
+        "languages with return, neither does one that reaches its end without one. Depending on the language, the caller then gets the " +
+        "language's value for nothing - None in Python, undefined in JavaScript - or the compiler refuses a function that " +
+        "promises a value and does not always return one; C and C++ only warn, and what the caller gets is undefined. And a " +
+        "value handed back is only kept when the line that called the function stores it or uses it: calling a function that " +
+        "gives back a changed copy - of a list, or of a piece of text - without keeping the copy changes nothing.");
 
     public static Concept EndlessRecursion { get; } = new("RECURSION", "A function that calls itself for ever",
         "A function may call itself - recursion - as long as each call works on a smaller part of the problem and there is a " +

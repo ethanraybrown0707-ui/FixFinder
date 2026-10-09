@@ -32,6 +32,7 @@ public static class LogicPatterns
         .. CLikeLogicPatterns.All,
         .. CLikeReviewPatterns.All,
         .. ManagedReviewPatterns.All,
+        .. ScalaLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

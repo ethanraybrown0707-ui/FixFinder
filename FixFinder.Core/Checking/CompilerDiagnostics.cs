@@ -17,6 +17,12 @@ public sealed record CompilerReport(
 {
     public bool Failed => Errors.Count > 0 || Build is { Outcome: not RunOutcome.ExitedClean };
 
+    /// <summary>
+    /// How the program is run now, when building it showed it has to be run otherwise than it was planned to be - a Scala
+    /// program found to be Scala 2 code is run as Scala 2. Null when it is run as planned.
+    /// </summary>
+    public LaunchPlan? Relaunch { get; init; }
+
     public static CompilerReport NotChecked(string? problem = null) => new(false, [], [], [], Problem: problem);
 }
 
@@ -130,6 +136,22 @@ public static partial class CompilerDiagnostics
             {
                 NativeStandards.Remember(NativeBuild.For(chosen).Build?.Sources ?? ProgramLayout.NativeSources(chosen), found.Standard);
                 return new CompilerReport(true, Resolved(Errors(registry, rebuilt.Lines), folder), Resolved(WarningsIn(rebuilt.Lines), folder), rebuilt.Lines, rebuilt, found.Explained);
+            }
+        }
+
+        // A Scala program that asks for no version and does not build as Scala 3 may be Scala 2 code: when the newest Scala 2
+        // here compiles it with no error, it is built - and run - as that.
+        if (errors.Count > 0 && launch.ChosenFile is { } scalaFile && ScalaProgram.IsScala(scalaFile) &&
+            await ScalaSetup.FindAsync(scalaFile, compile, errors, lines => Errors(registry, lines), cancellationToken) is { } scalaFound &&
+            TargetFactory.FromFile(scalaFile, launch.Spec?.Timeout) is { Compile: { } recompile } relaunch)
+        {
+            var rebuilt = await new TargetRunner(registry).RunAsync(recompile, cancellationToken);
+            if (rebuilt.Outcome != RunOutcome.LaunchFailed)
+            {
+                return new CompilerReport(true, Resolved(Errors(registry, rebuilt.Lines), folder), Resolved(WarningsIn(rebuilt.Lines), folder), rebuilt.Lines, rebuilt, scalaFound.Explained)
+                {
+                    Relaunch = relaunch,
+                };
             }
         }
 
@@ -354,7 +376,7 @@ public static partial class CompilerDiagnostics
     }
 
     private static IReadOnlyList<ParsedError> WarningsIn(IReadOnlyList<CapturedLine> lines) =>
-        Distinct([.. GccClangParser.ParseWarnings(lines), .. MsvcParser.ParseWarnings(lines), .. JavaStackTraceParser.ParseWarnings(lines)]);
+        Distinct([.. GccClangParser.ParseWarnings(lines), .. MsvcParser.ParseWarnings(lines), .. JavaStackTraceParser.ParseWarnings(lines), .. ScalaCompileParser.ParseWarnings(lines)]);
 
     private static List<ParsedError> Distinct(IEnumerable<ParsedError> errors) =>
         errors

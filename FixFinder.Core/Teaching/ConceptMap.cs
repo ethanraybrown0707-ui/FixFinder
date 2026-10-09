@@ -53,7 +53,7 @@ public static class ConceptMap
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
-            CheckIds = ["analysis-null-used"],
+            CheckIds = ["analysis-null-used", "logic-scala-option-get"],
             ExceptionTypes = ["NullPointerException", "NullReferenceException"],
         },
         new(Concepts.NothingThere) { Message = Words(@"'NoneType' object|NoneType|Cannot read propert(?:y|ies) of (?:undefined|null)|nil pointer dereference|invalid memory address or nil pointer|assignment to entry in nil map|None\.get") },
@@ -85,7 +85,7 @@ public static class ConceptMap
             CheckIds = ["analysis-index-out-of-range", "analysis-empty-collection"],
             ExceptionTypes = ["IndexError", "ArrayIndexOutOfBoundsException", "StringIndexOutOfBoundsException", "IndexOutOfBoundsException", "IndexOutOfRangeException", "ArgumentOutOfRangeException"],
         },
-        new(Concepts.PositionOutOfRange) { Message = Words(@"index out of range|index out of bounds|array subscript .* (?:is )?(?:above|outside) array bounds|heap-buffer-overflow|stack-buffer-overflow|global-buffer-overflow|out_of_range|vector::_M_range_check") },
+        new(Concepts.PositionOutOfRange) { Message = Words(@"index out of range|index out of bounds|array subscript .* (?:is )?(?:above|outside) array bounds|heap-buffer-overflow|stack-buffer-overflow|global-buffer-overflow|out_of_range|vector::_M_range_check|(?:head|last|tail) of empty list") },
 
         new(Concepts.EndlessRecursion)
         {
@@ -116,14 +116,14 @@ public static class ConceptMap
         new(Concepts.UndefinedName) { ExceptionTypes = ["NameError"] },
         new(Concepts.UndefinedName) { Codes = ["CS0103", "CS0246", "CS1061", "CS0117", "C2065", "C3861"] },
         new(Concepts.UndefinedName) { ExceptionTypes = ["AttributeError"] },
-        new(Concepts.UndefinedName) { Message = Words(@"^cannot find symbol|is not defined|undeclared|was not declared in this scope|use of undeclared identifier|implicit declaration of function|^undefined:|^Not found:|^Unbound (?:value|module|constructor)|does not contain a definition for") },
+        new(Concepts.UndefinedName) { Message = Words(@"^cannot find symbol|is not defined|undeclared|was not declared in this scope|use of undeclared identifier|implicit declaration of function|^undefined:|^Not found:|^Unbound (?:value|module|constructor)|does not contain a definition for|is not a member of") },
 
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length"] },
 
         new(Concepts.EndlessLoop)
         {
@@ -146,7 +146,7 @@ public static class ConceptMap
             CheckIds =
             [
                 "logic-java-string-equals", "logic-c-string-equals", "logic-java-wrapper-equality", "logic-js-loose-equality",
-                "logic-python-is-literal", "logic-js-compare-with-new-array", "logic-python-none-comparison",
+                "logic-python-is-literal", "logic-js-compare-with-new-array", "logic-python-none-comparison", "logic-scala-array-equals",
             ],
         },
         new(Concepts.SameValueOrSameObject) { Codes = ["CS0252", "CS0253"] },
@@ -164,20 +164,20 @@ public static class ConceptMap
             CheckIds =
             [
                 "logic-python-returns-nothing-sometimes", "logic-python-print-instead-of-return", "logic-python-return-print",
-                "logic-python-none-returned-assigned",
+                "logic-python-none-returned-assigned", "logic-python-result-discarded", "logic-result-discarded", "logic-scala-result-discarded",
             ],
             Codes = ["CS0161", "C4715", "C4716"],
         },
         new(Concepts.ReturnValues) { Message = Words(@"^missing return statement|control reaches end of non-void function|no return statement in function returning non-void|^missing return") },
 
         new(Concepts.NeverUsed) { Codes = ["CS0168", "CS0219", "CS8321", "CS0169", "CS0414"] },
-        new(Concepts.NeverUsed) { Message = Words(@"declared and not used|declared but not used|imported and not used|unused variable|set but not used|defined but not used|is never used") },
+        new(Concepts.NeverUsed) { Message = Words(@"declared and not used|declared but not used|imported and not used|unused variable|set but not used|defined but not used|is never used|^unused (?:import|local definition|private member)") },
 
         new(Concepts.StatementEnd) { Codes = ["CS1002"] },
         new(Concepts.StatementEnd) { Message = Words(@"^';' expected|^expected ';'|missing ';' before") },
 
         new(Concepts.UnclosedPair) { Codes = ["CS1026", "CS1010"] },
-        new(Concepts.UnclosedPair) { Message = Words(@"was never closed|unexpected EOF|EOF while scanning|unmatched '[)\]}]'|does not match opening parenthesis|unterminated (?:triple-quoted )?string|EOL while scanning string|^unclosed|^'\)' expected|missing \) after argument list|Unexpected end of input|unterminated string literal|missing terminating") },
+        new(Concepts.UnclosedPair) { Message = Words(@"was never closed|unexpected EOF|EOF while scanning|unmatched '[)\]}]'|does not match opening parenthesis|unterminated (?:triple-quoted )?string|EOL while scanning string|^unclosed|^'[)\]}]' expected|^Missing closing brace|missing \) after argument list|Unexpected end of input|unterminated string literal|missing terminating") },
 
         new(Concepts.Blocks) { ExceptionTypes = ["IndentationError", "TabError"] },
         new(Concepts.Blocks) { Codes = ["CS1513", "CS1514", "C1075"] },
@@ -185,7 +185,7 @@ public static class ConceptMap
 
         new(Concepts.WrongType) { CheckIds = ["analysis-type-mismatch", "analysis-type-hint-broken"], ExceptionTypes = ["TypeError", "ClassCastException", "InvalidCastException"] },
         new(Concepts.WrongType) { Codes = ["CS0029", "CS0266", "CS0019", "CS0023", "C2440", "C2664", "C2446"] },
-        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |This expression has type") },
+        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |This expression has type|cannot be compared with == or !=|values of types .* using `==` will always yield") },
     ];
 
     /// <summary>The idea a finding is an example of; reading what went wrong when it is none FixFinder teaches.</summary>

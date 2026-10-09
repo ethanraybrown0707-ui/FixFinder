@@ -20,7 +20,7 @@ public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Expl
     };
 }
 
-/// <summary>Builds C, C++ and Java source before running it.</summary>
+/// <summary>Builds C, C++, Java and Scala source before running it.</summary>
 public static partial class CompiledLanguages
 {
     public static string BuildRoot { get; } = Path.Combine(
@@ -32,7 +32,7 @@ public static partial class CompiledLanguages
 
     public static bool Handles(string extension) => extension.ToLowerInvariant() switch
     {
-        ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" => true,
+        ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" or ".scala" or ".sc" => true,
         _ => false,
     };
 
@@ -46,8 +46,34 @@ public static partial class CompiledLanguages
             ".c" => Native(source, output, timeout, cpp: false),
             ".cpp" or ".cc" or ".cxx" or ".c++" => Native(source, output, timeout, cpp: true),
             ".java" => Java(source, output, timeout),
+            ".scala" or ".sc" => Scala(source, output, timeout),
             _ => (null, null),
         };
+    }
+
+    /// <summary>
+    /// A Scala program, built and run by Scala CLI with the version of Scala it needs, offline - and with Scala CLI's
+    /// build kept in FixFinder's own build folder, so nothing is written into the program's.
+    /// </summary>
+    /// <remarks>
+    /// Scala CLI is run without its compile server, which would stay running after FixFinder had finished, so it compiles
+    /// the program again before running it: the build first, to read its errors, then the run.
+    /// </remarks>
+    private static (BuildAndRun?, string?) Scala(string source, string output, TimeSpan timeout)
+    {
+        var (setup, problem) = ScalaSetup.For(source);
+        if (setup is null) return (null, problem);
+
+        var layout = ScalaProgram.Of(source);
+
+        var compile = Spec(setup.Cli.Program, ScalaSetup.Arguments("compile", setup, output, layout.Files, mainClass: null), layout.Folder, timeout);
+        var run = Spec(setup.Cli.Program, ScalaSetup.Arguments("run", setup, output, layout.Files, layout.MainClass), layout.Folder, timeout);
+
+        var main = layout.MainClass is { } mainClass ? $" its main {mainClass}" : " it";
+        var startsIn = layout.BuildFile is not null ? $" from {Path.GetFileName(layout.Folder)}, where its build.sbt is, as sbt runs it" : "";
+
+        return (new BuildAndRun(compile, run,
+            $"Building it{Along(layout.Files)} with {setup.Explained}, using Scala CLI ({setup.Cli.FoundIn}), then running{main}{startsIn}."), null);
     }
 
     private static (BuildAndRun?, string?) Native(string source, string output, TimeSpan timeout, bool cpp)

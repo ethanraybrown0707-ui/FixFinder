@@ -226,6 +226,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             builds.TrySetResult(true);
 
+            // Building it may have shown it has to be run otherwise - a Scala program found to be Scala 2 code runs as Scala 2.
+            if (report.Relaunch is { } relaunch) _launch = launch = relaunch;
+
             var outcome = await RunAsync(launch, report, cancellationToken);
             return (Summarise(outcome, report, chosen), outcome);
         }
@@ -514,10 +517,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// <summary>
     /// What to say instead of a finding when the file chosen has nothing to run: a Java class that declares no main method
     /// at all - one the program's other classes use, or a class of tests - which is all the launcher's "Main method not
-    /// found" means for it. A main of the wrong shape is a mistake, and is still reported with its fix.
+    /// found" means for it. A main of the wrong shape is a mistake, and is still reported with its fix. Scala CLI says
+    /// "No main class found" of a Scala file with no main - one that only declares classes for the rest of a program.
     /// </summary>
     private static string? NothingToRun(ParsedError error, string chosen)
     {
+        if (error.LanguageId == "scala" && error.Message == "No main class found")
+        {
+            return $"{Path.GetFileName(chosen)} has no main, so there is nothing in it to run: a Scala program starts at def main(args: Array[String]): Unit " +
+                   "in an object, at an object that extends App, or - in Scala 3 - at a method marked @main. Choose the file of the program that has one. " +
+                   "The code in this file was still read for mistakes.";
+        }
+
         if (error.ExceptionType != JavaStackTraceParser.LauncherError ||
             !(error.Message ?? "").StartsWith("Main method not found", StringComparison.Ordinal) ||
             SourceFile.Read(chosen) is not { } source)
@@ -791,7 +802,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (outcome.Error is { } error)
         {
-            if (error.ExceptionType is "EOFError" or "java.util.NoSuchElementException" && outcome.Result == SessionResult.NothingFound && outcome.Best is null)
+            // Input running out - Python's EOFError, or Java's Scanner finding nothing more to read - is said rather than reported.
+            // A Scala program's NoSuchElementException is its own mistake: None.get, the head of an empty list, a key not there.
+            if ((error.ExceptionType == "EOFError" || error is { LanguageId: "java", ExceptionType: "java.util.NoSuchElementException" }) &&
+                outcome.Result == SessionResult.NothingFound && outcome.Best is null)
             {
                 Note($"{outcome.Headline} {outcome.Detail}");
                 return;

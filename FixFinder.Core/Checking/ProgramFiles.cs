@@ -49,6 +49,7 @@ public static partial class ProgramFiles
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
+            ".scala" or ".sc" => (ScalaProgram.Of(path).Files, true),
             ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => (NativeFiles(path), true),
             _ => ([path], true),
         };

@@ -18,6 +18,8 @@ public class GuideWritingTests
         ["Native"] = NativeGuides.All,
         ["JavaScript"] = JavaScriptGuides.All,
         ["Go"] = GoGuides.All,
+        ["Scala"] = ScalaGuides.All,
+        ["Scala patterns"] = ScalaPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,
@@ -58,6 +60,26 @@ public class GuideWritingTests
     public void EveryGeneralGuideIsWrittenInFull()
     {
         foreach (var kind in Enum.GetValues<FindingKind>()) AssertWrittenInFull(GeneralGuides.For("Python", kind));
+        AssertWrittenInFull(GeneralGuides.ForWarning("Scala"));
+    }
+
+    /// <summary>
+    /// A compiler's warning FixFinder has no guide for is explained as a warning - never with the guide for a logic mistake,
+    /// which says the program gives wrong answers when nothing shows that it does.
+    /// </summary>
+    [Fact]
+    public void AWarningWithNoGuideOfItsOwnIsExplainedAsAWarning()
+    {
+        var warning = new Core.Parsing.ParsedError
+        {
+            LanguageId = "scala", Confidence = 85, RawText = "", FirstLineSequence = 0, ExceptionType = "compile warning",
+            Message = "a warning no guide describes", Frames = [],
+        };
+
+        var guide = Guidebook.For("Marks.scala", FindingKind.Logic, error: warning, isWarning: true);
+
+        Assert.Equal(GeneralGuides.ForWarning("Scala"), guide);
+        Assert.DoesNotContain("wrong", guide.Explanation, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AssertWrittenInFull(MistakeGuide guide)

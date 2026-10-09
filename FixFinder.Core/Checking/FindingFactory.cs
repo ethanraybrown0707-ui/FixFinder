@@ -15,11 +15,16 @@ public static partial class FindingFactory
     private static partial Regex LintCategory();
 
     public static Finding FromError(
-        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix = null)
+        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix = null) =>
+        FromReported(error, kind, severity, confidence, fallbackFile, fix, isWarning: false);
+
+    /// <summary>A finding from what a compiler or a run reported - an error, or a compiler's warning.</summary>
+    private static Finding FromReported(
+        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix, bool isWarning)
     {
         var frame = LocalFixContext.OwnFrame(error);
         var file = frame?.File is { Length: > 0 } named && Path.IsPathRooted(named) ? named : fallbackFile;
-        var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error);
+        var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error, isWarning);
 
         return Build(kind, severity, confidence, file, frame?.Line, TitleOf(error), guide.Explanation, guide, fix) with
         {
@@ -52,10 +57,13 @@ public static partial class FindingFactory
         ["DivideByZeroException"] = "analysis-division-by-zero",
         ["ArithmeticException"] = "analysis-division-by-zero",
         ["NullReferenceException"] = "analysis-null-used",
+
+        // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
+        ["NoSuchElementException"] = "logic-scala-option-get",
     };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>
-        FromError(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix) with
+        FromReported(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix, isWarning: true) with
         {
             Family = rating.SamePatternAs,
             RuleId = fix?.LocalFix?.RuleId ?? warning.ErrorCode ?? WarningName(warning),

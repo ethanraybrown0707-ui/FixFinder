@@ -6,6 +6,18 @@ namespace FixFinder.Core.Checking.Guides;
 /// </summary>
 internal static class GeneralGuides
 {
+    /// <summary>
+    /// The guide for a compiler's warning that FixFinder has no guide of its own for: it says only what a warning is, since
+    /// what this one means is in the compiler's own words beside it - a warning about a deprecation is no sign of a wrong
+    /// answer, and is not explained as one.
+    /// </summary>
+    public static MistakeGuide ForWarning(string language) => new(
+        $"The program still builds and runs, but {language}'s compiler noticed something on this line that may not be what was meant, " +
+        "and warned about it - its message says what it noticed.",
+        "A warning does not stop the program, and is sometimes harmless - but it is often the first sign of a mistake, so it is worth reading.",
+        "Read the compiler's message and change the line so it no longer warns - or, when what it describes is really what you meant, leave it.",
+        "");
+
     public static MistakeGuide For(string language, FindingKind kind) => kind switch
     {
         FindingKind.Syntax => new MistakeGuide(

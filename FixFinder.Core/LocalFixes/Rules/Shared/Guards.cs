@@ -28,7 +28,10 @@ internal static partial class Guards
         var expression = line[start..end];
         var divisor = line.Substring(division.Groups["divisor"].Index, division.Groups["divisor"].Length);
 
-        var guarded = python ? $"({expression} if {divisor} else 0)" : $"({divisor} == 0 ? 0 : {expression})";
+        // Scala has no ?: - its if is an expression of its own, with a value either way.
+        var guarded = python ? $"({expression} if {divisor} else 0)"
+            : syntax == Syntax.Scala ? $"(if ({divisor} == 0) 0 else {expression})"
+            : $"({divisor} == 0 ? 0 : {expression})";
 
         return line[..start] + guarded + line[end..];
     }

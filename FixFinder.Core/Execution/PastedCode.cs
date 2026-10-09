@@ -96,6 +96,10 @@ public static partial class PastedCode
         (CodeLanguage.Go, [
             new(@"^\s*package\s+main\s*$", RegexOptions.Multiline), new(@"^\s*func\s+\w+\s*\(", RegexOptions.Multiline),
             new(@"\bfmt\.(?:Print|Sprint|Fprint|Scan)")]),
+        (CodeLanguage.Scala, [
+            new(@"\bdef\s+main\s*\(\s*\w+\s*:\s*Array\s*\[\s*String\s*\]\s*\)"), new(@"^\s*@main\s+def\b", RegexOptions.Multiline),
+            new(@"^\s*object\s+\w+\s+extends\s+App\b", RegexOptions.Multiline), new(@"^\s*(?:lazy\s+)?val\s+\w+(?:\s*:\s*[^=\n]+)?\s*=", RegexOptions.Multiline),
+            new(@"^\s*import\s+scala\.", RegexOptions.Multiline)]),
     ];
 
     /// <summary>

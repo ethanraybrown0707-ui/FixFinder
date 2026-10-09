@@ -8,7 +8,8 @@ public sealed record WarningRating(FindingKind Kind, Severity Severity, Confiden
 
 public static class WarningRatings
 {
-    private sealed record Rule(Regex Message, string[] Codes, WarningRating Rating);
+    /// <param name="LanguageId">The only language whose warnings the rule rates, when its words could mean something else in another's.</param>
+    private sealed record Rule(Regex Message, string[] Codes, WarningRating Rating, string? LanguageId = null);
 
     private static Rule Words(string message, FindingKind kind, Severity severity, Confidence confidence, string? samePattern = null) =>
         new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence, samePattern));
@@ -16,8 +17,19 @@ public static class WarningRatings
     private static Rule Codes(string[] codes, FindingKind kind, Severity severity, Confidence confidence, string? samePattern = null) =>
         new(new Regex("^"), codes, new WarningRating(kind, severity, confidence, samePattern));
 
+    /// <summary>A Scala compiler's warning, by its words - in Scala 3's and Scala 2's, which differ.</summary>
+    private static Rule ScalaWords(string message, FindingKind kind, Severity severity, Confidence confidence) =>
+        new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence), "scala");
+
     private static readonly Rule[] Rules =
     [
+        // A match that misses a case stops the program with a MatchError when that case comes; what is deprecated still works.
+        ScalaWords(@"^match may not be exhaustive", FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        ScalaWords(@"^Unreachable case|^unreachable code|^patterns after a variable pattern cannot match", FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        ScalaWords(@"will always yield (?:false|true)", FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        ScalaWords(@"^unused (?:import|local definition|private member)|is never used", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+        ScalaWords(@"is deprecated|^Procedure syntax", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+
         Words(@"""is"" with|""is not"" with", FindingKind.Logic, Severity.Warning, Confidence.Likely, "logic-python-is-literal"),
         Words(@"assertion is always true", FindingKind.Logic, Severity.Warning, Confidence.Certain, "logic-python-assert-tuple"),
         Words(@"invalid escape sequence", FindingKind.Style, Severity.Suggestion, Confidence.Likely),
@@ -89,6 +101,8 @@ public static class WarningRatings
     {
         foreach (var rule in Rules)
         {
+            if (rule.LanguageId is { } language && language != warning.LanguageId) continue;
+
             if (rule.Codes.Length > 0)
             {
                 if (rule.Codes.Contains(warning.ErrorCode ?? "", StringComparer.OrdinalIgnoreCase)) return rule.Rating;
