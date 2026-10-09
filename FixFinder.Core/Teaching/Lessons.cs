@@ -8,6 +8,10 @@ public static class Lessons
     public static IReadOnlyList<Lesson> All { get; } =
     [
         .. DivisionByZeroLessons.All,
+        .. NothingThereLessons.All,
+        .. PositionOutOfRangeLessons.All,
+        .. MissingKeyLessons.All,
+        .. UndefinedNameLessons.All,
     ];
 
     /// <summary>The lesson on a concept in a language, or null when that one has not been written.</summary>
