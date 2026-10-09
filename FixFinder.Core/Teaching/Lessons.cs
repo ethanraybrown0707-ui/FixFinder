@@ -12,6 +12,10 @@ public static class Lessons
         .. PositionOutOfRangeLessons.All,
         .. MissingKeyLessons.All,
         .. UndefinedNameLessons.All,
+        .. WrongTypeLessons.All,
+        .. AssignOrCompareLessons.All,
+        .. SameValueOrSameObjectLessons.All,
+        .. WholeNumberDivisionLessons.All,
     ];
 
     /// <summary>The lesson on a concept in a language, or null when that one has not been written.</summary>
