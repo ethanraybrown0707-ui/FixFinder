@@ -4,7 +4,9 @@ using System.Windows;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Http;
 using FixFinder.Core.Patching;
+using FixFinder.Core.Ranking;
 using FixFinder.Core.Sources;
+using FixFinder.Desktop;
 
 using HttpCacheMode = FixFinder.Core.Http.CacheMode;
 
@@ -25,6 +27,7 @@ public partial class FixFoundWindow : Window
     public FixFoundWindow(FixFoundContext context)
     {
         InitializeComponent();
+        ScreenFit.Apply(this);
 
         _context = context;
         ContentListBox.ItemsSource = _rows;
@@ -88,19 +91,26 @@ public partial class FixFoundWindow : Window
             return;
         }
 
+        // Only a fix that fits this program is offered to paste: FixFinder's own, an install, or a patch to its own files.
+        // Code from somebody else's answer is shown to read, never handed over as this program's fix.
         var pasteable = PasteableFix.For(examined);
+        var fitsThisProgram = PasteableFix.FitsThisProgram(examined);
 
-        CopyButton.IsEnabled = pasteable is not null;
-        CopyButton.ToolTip = pasteable is { } fix
-            ? $"Copies {fix.Description}, ready to paste."
-            : "There is no code in this one to copy - open the page to read it.";
+        CopyButton.IsEnabled = pasteable is not null && fitsThisProgram;
+        CopyButton.ToolTip = pasteable is null ? "There is no code in this one to copy - open the page to read it."
+            : fitsThisProgram ? $"Copies {pasteable.Description}, ready to paste."
+            : "This is code from somebody else's program, written for their version of the problem. Read it, then make the change in your own code yourself.";
 
         var candidate = examined.Candidate;
 
         CandidateTitleText.Text = candidate.Title;
-        CandidateSourceText.Text =
-            $"{candidate.SourceName}  ·  {candidate.StateLabel}  ·  scored {candidate.Score:0}/100";
+        CandidateSourceText.Text = RelevanceCheck.IsFixFindersOwn(candidate)
+            ? candidate.SourceName
+            : $"{candidate.SourceName}  ·  {candidate.StateLabel}  ·  scored {candidate.Score:0}/100";
         CandidateUrlText.Text = candidate.Url;
+
+        WhyShownText.Text = candidate.Relevance is { Because.Count: > 0 } relevance ? $"Shown because {relevance.Said}." : "";
+        WhyShownText.Visibility = WhyShownText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (Uri.TryCreate(candidate.Url, UriKind.Absolute, out var uri)) CandidateLink.NavigateUri = uri;
 
@@ -110,9 +120,9 @@ public partial class FixFoundWindow : Window
             AttributionText.Visibility = Visibility.Visible;
         }
 
-        OtherResultsText.Text = examined.Total > 1
-            ? $"Result {examined.Position} of {examined.Total}."
-            : "";
+        var leftOut = _context.Outcome.LeftOutAsUnrelated;
+        OtherResultsText.Text = (examined.Total > 1 ? $"Result {examined.Position} of {examined.Total}." : "") +
+            (leftOut > 0 ? $" {(leftOut == 1 ? "One more" : $"{leftOut} more")} came back about a different error or another language, and {(leftOut == 1 ? "is" : "are")} not shown." : "");
 
         if (candidate is { Tier: FixTier.Dependency, Command: { Length: > 0 } addition, CommandGoesIn: { } buildFile })
         {
@@ -205,7 +215,9 @@ public partial class FixFoundWindow : Window
         }
         else
         {
-            ContentHeaderText.Text = "WHAT IT SAYS";
+            ContentHeaderText.Text = RelevanceCheck.IsFixFindersOwn(candidate)
+                ? "WHAT IT SAYS"
+                : "WHAT THE ANSWER SAYS  ·  CODE FROM SOMEBODY ELSE'S PROGRAM, NOT YOURS";
         }
 
         if (examined.Harvest is { } harvest)

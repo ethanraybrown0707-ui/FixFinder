@@ -11,9 +11,8 @@ namespace FixFinder.Tests;
 /// MSBuild lines are held to the pattern VS Code itself uses, copied from its source rather than written from memory.
 /// </summary>
 /// <remarks>
-/// In the collection that runs on its own, because a check from the command line applies the language versions saved
-/// in the preferences, which every other test shares - and somebody's saved Java 8 must never reach a Java test running
-/// alongside.
+/// In the collection that runs on its own, because a check from the command line applies the time a run is given, which
+/// every other test shares - and a test's short limit must never reach a program another test is running alongside.
 /// </remarks>
 [Collection(SharedLanguageStandards.Name)]
 public class CommandLineTests : IDisposable
@@ -173,26 +172,26 @@ public class CommandLineTests : IDisposable
     }
 
     /// <summary>
-    /// A check applies the saved language versions to the setting everything shares, and has to put it back: anything
-    /// running it in-process would otherwise be left compiling under whatever the preferences happened to say.
+    /// A check applies the time a run is given to the setting everything shares, and has to put it back: anything running
+    /// it in-process would otherwise be left giving every run whatever the command line or the preferences said.
     /// </summary>
     [Fact]
-    public async Task ACheckPutsTheSharedLanguageVersionsBackAsItFoundThem()
+    public async Task ACheckPutsTheSharedTimeLimitBackAsItFoundIt()
     {
-        var before = Core.Execution.LanguageStandards.Current;
-        var distinctive = new Core.Execution.LanguageStandards { C = "c89", Cpp = "c++11", Java = "11" };
+        var before = Core.Execution.TargetFactory.RunTimeLimit;
+        var distinctive = TimeSpan.FromSeconds(17);
 
         try
         {
-            Core.Execution.LanguageStandards.Current = distinctive;
+            Core.Execution.TargetFactory.RunTimeLimit = distinctive;
 
-            await CommandLine.RunAsync([Path.Combine(_temp.Path, "not-there.py")], new StringWriter(), new StringWriter());
+            await CommandLine.RunAsync([Path.Combine(_temp.Path, "not-there.py"), "--time-limit", "5"], new StringWriter(), new StringWriter());
 
-            Assert.Equal(distinctive, Core.Execution.LanguageStandards.Current);
+            Assert.Equal(distinctive, Core.Execution.TargetFactory.RunTimeLimit);
         }
         finally
         {
-            Core.Execution.LanguageStandards.Current = before;
+            Core.Execution.TargetFactory.RunTimeLimit = before;
         }
     }
 

@@ -27,6 +27,8 @@ public static class CompileCheck
     {
         ".py" or ".java" or ".cs" => true,
         ".js" or ".mjs" or ".cjs" or ".go" => true,
+        ".scala" or ".sc" => true,
+        ".ml" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -228,12 +230,10 @@ public static class CompileCheck
 
         if (extension == ".cs" && ProgramLayout.CSharpProject(original) is not null) return null;
 
-        // The chosen language versions are part of what was checked, and a result remembered under one must never answer
-        // for another - a "compiles" from Java 17 would pass a fix written with var that Java 8 rejects. Today the version
-        // already reaches the key through the compiler's arguments below; it is stated here as well so that stays true
-        // for any way of compiling that does not happen to put the version on its command line.
+        // The language version a program is built for is part of what was checked, and a result remembered under one must
+        // never answer for another - a "compiles" from Java 17 would pass a fix written with var that Java 8 rejects. The
+        // version reaches the key through the compiler and its arguments: the JDK, the -std or --release it is given.
         var key = new StringBuilder()
-            .Append(LanguageStandards.Current).Append('\n')
             .Append(spec.ExecutablePath).Append('\n')
             .Append(spec.Arguments.Replace(folder, "<copy>", StringComparison.OrdinalIgnoreCase)).Append('\n')
             .Append(spec.LaunchViaDotnet).Append('\n')
@@ -243,7 +243,7 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -267,6 +267,8 @@ public static class CompileCheck
     {
         if (extension == ".java") return [ProgramLayout.JavaSourceRoot(original)];
         if (extension == ".go") return [Path.GetDirectoryName(original)!];
+        if (extension is ".scala" or ".sc") return [ScalaProgram.SbtSourceRoot(Path.GetFullPath(original)) ?? Path.GetDirectoryName(original)!];
+        if (extension == ".ml") return [Path.GetDirectoryName(original)!];
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -403,6 +405,35 @@ public static class CompileCheck
 
                 return Spec(go, $"build -o \"{Path.Combine(folder, "check.exe")}\" {string.Join(" ", files.Select(f => $"\"{f}\""))}", folder)
                     .WithEnvironment(GoSetup.Environment);
+
+            case ".scala" or ".sc":
+            {
+                if (ScalaSetup.For(original).Setup is not { } scala) return null;
+
+                // The copy is compiled with the rest of its program, read from where it is, as the version of Scala the
+                // program is built with - and with Scala CLI's build in the copy's own folder, removed with it.
+                var whole = Path.GetFullPath(original);
+                var programWithCopy = ScalaProgram.Of(original).Files
+                    .Select(file => file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? copy : file)
+                    .ToList();
+
+                return Spec(scala.Cli.Program, ScalaSetup.Arguments("compile", scala, Path.Combine(folder, "workspace"), programWithCopy, mainClass: null), folder);
+            }
+
+            case ".ml":
+            {
+                if (OCamlToolchains.Usual is not { } ocaml) return null;
+
+                // The copy stands in the folder in place of the original; the rest of the program is copied in beside it, and
+                // all of it is compiled there, in the order the program is - so nothing is written beside the original.
+                var whole = Path.GetFullPath(original);
+                var ocamlProgram = OCamlProgram.Of(original);
+                var names = ocamlProgram.Files.Select(Path.GetFileName).OfType<string>().ToList();
+                var batch = OCamlBuild.WriteBatch(folder, ocamlProgram.Files.Where(file => !file.Equals(whole, StringComparison.OrdinalIgnoreCase)),
+                    OCamlBuild.CompileArguments(ocaml, names, ocamlProgram.Libraries, "check.byte"), ocaml);
+
+                return Spec("cmd.exe", $"/c \"{batch}\"", folder);
+            }
 
             case ".cs":
                 if (TargetFactory.FindOnPath("dotnet") is not { } dotnet) return null;

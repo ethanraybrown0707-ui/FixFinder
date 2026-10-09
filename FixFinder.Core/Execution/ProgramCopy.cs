@@ -41,6 +41,7 @@ public static class ProgramCopy
             _ when WorkingFolder.Chooses(file) => WorkingFolder.CopyRoot(file),
             ".cs" when ProgramLayout.CSharpProject(file) is { } project => Path.GetDirectoryName(project)!,
             ".go" when ProgramLayout.GoPackageOf(file).Module is { } module => module,
+            ".scala" or ".sc" => ScalaProgram.Of(file).Folder,
             ".py" when NotebookScript.Of(file) is { } notebook => Path.GetDirectoryName(notebook.Notebook)!,
             ".py" when ProgramLayout.PythonModule(file) is { } module => module.Folder,
             _ => Path.GetDirectoryName(file)!,

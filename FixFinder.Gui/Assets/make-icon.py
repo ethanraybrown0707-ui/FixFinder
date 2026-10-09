@@ -1,10 +1,11 @@
-"""Draws FixFinder.ico and logo.png: a rounded tile blended from blue through green and yellow to orange,
-with a white tick that sweeps up and across it.
+"""Draws the icons of FixFinder and FixFinder Learn: a rounded tile blended from blue through green and yellow to orange,
+with a white tick that sweeps up and across FixFinder's, and a white open book on FixFinder Learn's.
 
     python make-icon.py
 
-Every size is drawn at its own scale rather than shrunk from one large picture, so the tick stays a
-tick at 16px: the small sizes get a heavier stroke and a tile that fills more of the square.
+Writes FixFinder.ico and logo.png beside itself, and FixFinderLearn.ico and logo.png into FixFinder.Learn's Assets.
+Every size is drawn at its own scale rather than shrunk from one large picture, so the tick stays a tick at 16px: the
+small sizes get a heavier stroke and a tile that fills more of the square.
 """
 import io
 import os
@@ -25,6 +26,10 @@ BLEND = [
 ]
 
 TICK = [(24, 54), (30, 58), (36, 64), (42, 72), (52, 52), (64, 36), (80, 26)]
+
+# An open book seen from above: two pages leaning away from the spine, with a gap down it, on the same 100-unit square.
+LEFT_PAGE = [(17, 33), (47, 39), (47, 75), (17, 69)]
+RIGHT_PAGE = [(53, 39), (83, 33), (83, 69), (53, 75)]
 
 
 def blend_at(t):
@@ -47,7 +52,21 @@ def tick_points():
     return list(cubic(*TICK[0:4])) + list(cubic(*TICK[3:7]))[1:]
 
 
-def draw(size):
+def draw_tick(pen, scale, stroke):
+    radius = stroke * scale / 2
+    for x, y in tick_points():
+        pen.ellipse([x * scale - radius, y * scale - radius, x * scale + radius, y * scale + radius], fill=(255, 255, 255, 255))
+
+
+def draw_book(pen, scale, stroke):
+    for page in (LEFT_PAGE, RIGHT_PAGE):
+        pen.polygon([(x * scale, y * scale) for x, y in page], fill=(255, 255, 255, 255))
+
+
+MARKS = {"tick": draw_tick, "book": draw_book}
+
+
+def draw(size, mark):
     pixels = size * SUPERSAMPLE
     scale = pixels / 100
 
@@ -66,10 +85,7 @@ def draw(size):
     image = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
     image.paste(gradient, (0, 0), mask)
 
-    pen = ImageDraw.Draw(image)
-    radius = stroke * scale / 2
-    for x, y in tick_points():
-        pen.ellipse([x * scale - radius, y * scale - radius, x * scale + radius, y * scale + radius], fill=(255, 255, 255, 255))
+    MARKS[mark](ImageDraw.Draw(image), scale, stroke)
 
     return image.resize((size, size), Image.LANCZOS)
 
@@ -91,8 +107,8 @@ def png_entry(image):
     return buffer.getvalue()
 
 
-def build(folder):
-    entries = [(size, png_entry(draw(size)) if size >= PNG_FROM else bmp_entry(draw(size))) for size in SIZES]
+def build(folder, icon_name, mark):
+    entries = [(size, png_entry(draw(size, mark)) if size >= PNG_FROM else bmp_entry(draw(size, mark))) for size in SIZES]
 
     offset = 6 + 16 * len(entries)
     directory = bytearray(struct.pack("<HHH", 0, 1, len(entries)))
@@ -104,12 +120,15 @@ def build(folder):
         payload += data
         offset += len(data)
 
-    with open(os.path.join(folder, "FixFinder.ico"), "wb") as handle:
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, icon_name), "wb") as handle:
         handle.write(bytes(directory) + bytes(payload))
 
-    draw(256).save(os.path.join(folder, "logo.png"))
-    print(f"wrote FixFinder.ico ({len(entries)} sizes) and logo.png")
+    draw(256, mark).save(os.path.join(folder, "logo.png"))
+    print(f"wrote {icon_name} ({len(entries)} sizes) and logo.png in {folder}")
 
 
 if __name__ == "__main__":
-    build(os.path.dirname(os.path.abspath(__file__)))
+    here = os.path.dirname(os.path.abspath(__file__))
+    build(here, "FixFinder.ico", "tick")
+    build(os.path.join(here, "..", "..", "FixFinder.Learn", "Assets"), "FixFinderLearn.ico", "book")

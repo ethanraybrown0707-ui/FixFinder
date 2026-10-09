@@ -7,7 +7,7 @@ namespace FixFinder.Core.Reporting;
 
 /// <summary>
 /// A check's report as one web page, to keep, print or hand in: what was checked and how, the comparison with the last
-/// check, the notes, and every finding with all the window shows of it - in the explanation depth chosen.
+/// check, the notes, and every finding with all the window shows of it.
 /// </summary>
 /// <remarks>
 /// The page stands on its own: its style is in it, it runs no script and fetches nothing, so it opens the same on any
@@ -22,8 +22,6 @@ public sealed record ReportPage
     public required string Language { get; init; }
 
     public required DateTimeOffset CheckedAt { get; init; }
-
-    public required ExplanationLevel Level { get; init; }
 
     /// <summary>How it was built and run, as the check explained it, or null for code that was only read.</summary>
     public string? HowItRan { get; init; }
@@ -62,7 +60,7 @@ public sealed record ReportPage
             .Append("<style>").Append(Style).Append("</style>\n</head>\n<body>\n<main>\n");
 
         page.Append("<header>\n<p class=\"brand\">FixFinder report</p>\n<h1>").Append(Text(Program)).Append("</h1>\n")
-            .Append("<p class=\"meta\">").Append(Text($"{Language}  ·  checked {CheckedAt:d MMMM yyyy} at {CheckedAt:HH:mm}  ·  explained {LevelWords(Level)}"))
+            .Append("<p class=\"meta\">").Append(Text($"{Language}  ·  checked {CheckedAt:d MMMM yyyy} at {CheckedAt:HH:mm}"))
             .Append("</p>\n</header>\n");
 
         page.Append("<section class=\"summary\">\n<h2>Summary</h2>\n<dl>\n")
@@ -144,7 +142,7 @@ public sealed record ReportPage
         foreach (var said in new[] { FindingText.FoundBy(finding), FindingText.Witness(finding), FindingText.Confirmation(finding) })
             if (said is not null) page.Append("<p class=\"found\">").Append(Prose(said)).Append("</p>\n");
 
-        Section(page, "What is wrong", finding.Explanations.At(Level));
+        Section(page, "What is wrong", finding.Explanation);
 
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
         if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
@@ -246,12 +244,6 @@ public sealed record ReportPage
         return efficiency == 0 ? counts : $"{counts}; {(efficiency == 1 ? "1 way" : $"{efficiency} ways")} to do less work";
     }
 
-    private static string LevelWords(ExplanationLevel level) => level switch
-    {
-        ExplanationLevel.Beginner => "for a beginner",
-        ExplanationLevel.Technical => "in technical terms",
-        _ => "for a student",
-    };
 
     /// <summary>
     /// Text made safe to show: the five characters that mean something in HTML are escaped, and nothing else - the page is

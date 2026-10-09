@@ -133,10 +133,11 @@ public class ProgramFilesTests(ITestOutputHelper output) : IDisposable
             calls.Append($"        System.out.println(new Part{number:000}().value());\n");
         }
 
-        // The last of them divides by zero, which only following the values through it finds.
+        // The last of them divides by zero, which only following the values through it finds. Main reaches it, so it is part
+        // of the program, but never calls it when run: a crash there would be the same mistake, and be reported as one with it.
         Write($@"{LongFolderName}\src\shop\Broken.java", "package shop;\n\npublic class Broken {\n    public int share() {\n        int count = 0;\n        return 10 / count;\n    }\n}\n");
         var main = Write($@"{LongFolderName}\src\shop\Main.java",
-            $"package shop;\n\npublic class Main {{\n    public static void main(String[] args) {{\n{calls}        System.out.println(new Broken().share());\n    }}\n}}\n");
+            $"package shop;\n\npublic class Main {{\n    public static void main(String[] args) {{\n{calls}        if (args.length > 99) System.out.println(new Broken().share());\n    }}\n}}\n");
 
         using var http = new FixFinderHttpClient();
         var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Java }.CheckAsync(TargetFactory.FromFile(main));

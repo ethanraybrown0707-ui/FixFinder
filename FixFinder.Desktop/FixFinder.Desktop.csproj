@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What FixFinder's two windowed programs share - FixFinder itself and FixFinder Learn - so they look and behave as one:
+    the light and dark colours, the styles every window is built from, the way a window fits itself to the screen it
+    opens on, and the text that shows code in the code font. Nothing here checks a program; that is FixFinder.Core's.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>FixFinder.Desktop</RootNamespace>
+    <AssemblyName>FixFinder.Desktop</AssemblyName>
+    <Company>Ethan Brown</Company>
+    <Authors>Ethan Brown</Authors>
+    <Product>FixFinder</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FixFinder.Core\FixFinder.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="SelfSignForWdac" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Exec ContinueOnError="true"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\sign-for-wdac.ps1&quot; -TargetPath &quot;$(TargetPath)&quot;" />
+  </Target>
+
+</Project>

@@ -44,6 +44,40 @@ public class FixRunTests(ITestOutputHelper output) : IDisposable
         return report;
     }
 
+    /// <summary>
+    /// A Java stack trace names only a frame's file - Helper.java - so the crash is placed in the file of that name beside the
+    /// one chosen, not at the same line of the chosen file; and as the same mistake the analysis finds there, it is one finding.
+    /// </summary>
+    [Fact]
+    public async Task ACrashInAnotherClassOfAJavaProgramIsPlacedInThatClassesFile()
+    {
+        if (Toolchains.FindJavac() is null) return;
+
+        var helper = Write(@"shares\Helper.java", """
+            public class Helper {
+                public static int share(int total, int people) {
+                    return total / people;
+                }
+            }
+            """);
+        var main = Write(@"shares\Main.java", """
+            public class Main {
+                public static void main(String[] args) {
+                    System.out.println(Helper.share(10, 0));
+                }
+            }
+            """);
+
+        var report = await CheckAsync(main, CodeLanguage.Java);
+
+        var crash = Assert.Single(report.Findings, finding => finding.Title.Contains("ArithmeticException", StringComparison.Ordinal));
+        Assert.Equal((helper, 3), (crash.File, crash.Line!.Value));
+        Assert.DoesNotContain(report.Findings, finding => finding.File == main && finding.Line == 3 && finding.Kind == FindingKind.Runtime);
+
+        // The fix is in Helper.java, and the copy it is tried in runs as the program does - from Main.
+        Assert.True(crash.Verified.IsVerified, crash.Verified.Summary);
+    }
+
     [Fact]
     public async Task AFixToACProgramIsTriedOnACopyThatIsBuiltAndRun()
     {

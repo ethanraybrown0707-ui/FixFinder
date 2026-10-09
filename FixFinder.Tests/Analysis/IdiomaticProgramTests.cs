@@ -59,7 +59,7 @@ public class IdiomaticProgramTests(ITestOutputHelper output) : IDisposable
 
     /// <summary>
     /// The whole check FixFinder makes of the code without running it - the logic lane's patterns as well as the
-    /// analyses, as Check on save makes it - draws no error or warning either.
+    /// analyses, as FixFinder makes it after every save - draws no error or warning either.
     /// </summary>
     [Theory]
     [MemberData(nameof(Programs))]

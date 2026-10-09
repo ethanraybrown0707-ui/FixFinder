@@ -361,6 +361,8 @@ public static partial class CandidateRanker
         "node" => ["javascript", "node.js", "typescript"],
         "java" => ["java", "spring", "android"],
         "go" => ["go"],
+        "scala" => ["scala", "scala-3", "sbt"],
+        "ocaml" => ["ocaml"],
         "rust" => ["rust"],
         "gcc" => ["c++", "c", "gcc", "clang"],
         "msvc" => ["c++", "c", "visual-studio", "c#"],

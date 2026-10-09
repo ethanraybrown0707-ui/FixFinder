@@ -127,7 +127,7 @@ public static partial class RootCauses
     /// <summary>The undefined name a finding is about, or null when it is not about one.</summary>
     private static string? MissingNameIn(Finding finding)
     {
-        var message = finding.Error?.Message ?? finding.Explanation;
+        var message = finding.Error?.Message ?? finding.Found ?? finding.Explanation;
         var code = finding.Error?.ErrorCode ?? finding.RuleId;
 
         if (!MissingName.Contains(code ?? "") && !SaysMissing().IsMatch(message) &&

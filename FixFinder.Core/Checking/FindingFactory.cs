@@ -15,11 +15,16 @@ public static partial class FindingFactory
     private static partial Regex LintCategory();
 
     public static Finding FromError(
-        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix = null)
+        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix = null) =>
+        FromReported(error, kind, severity, confidence, fallbackFile, fix, isWarning: false);
+
+    /// <summary>A finding from what a compiler or a run reported - an error, or a compiler's warning.</summary>
+    private static Finding FromReported(
+        ParsedError error, FindingKind kind, Severity severity, Confidence confidence, string fallbackFile, FixCandidate? fix, bool isWarning)
     {
         var frame = LocalFixContext.OwnFrame(error);
-        var file = frame?.File is { Length: > 0 } named && Path.IsPathRooted(named) ? named : fallbackFile;
-        var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error);
+        var file = frame?.File is { Length: > 0 } named ? FileNamed(named, fallbackFile) : fallbackFile;
+        var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error, isWarning);
 
         return Build(kind, severity, confidence, file, frame?.Line, TitleOf(error), guide.Explanation, guide, fix) with
         {
@@ -27,6 +32,25 @@ public static partial class FindingFactory
             Error = error,
             Family = CrashExplainedBy.GetValueOrDefault(error.ShortExceptionType ?? ""),
         };
+    }
+
+    /// <summary>
+    /// The file a frame names: as named, when that is a whole path; else the file of that name beside the chosen one, when
+    /// there is one - an OCaml backtrace, or a Java stack trace, names only the file - else the chosen file.
+    /// </summary>
+    private static string FileNamed(string named, string chosen)
+    {
+        if (Path.IsPathRooted(named)) return named;
+
+        try
+        {
+            var beside = Path.Combine(Path.GetDirectoryName(chosen) ?? "", named);
+            return File.Exists(beside) ? Path.GetFullPath(beside) : chosen;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return chosen;
+        }
     }
 
     /// <summary>
@@ -52,10 +76,13 @@ public static partial class FindingFactory
         ["DivideByZeroException"] = "analysis-division-by-zero",
         ["ArithmeticException"] = "analysis-division-by-zero",
         ["NullReferenceException"] = "analysis-null-used",
+
+        // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
+        ["NoSuchElementException"] = "logic-scala-option-get",
     };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>
-        FromError(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix) with
+        FromReported(warning, rating.Kind, rating.Severity, rating.Confidence, fallbackFile, fix, isWarning: true) with
         {
             Family = rating.SamePatternAs,
             RuleId = fix?.LocalFix?.RuleId ?? warning.ErrorCode ?? WarningName(warning),
@@ -88,8 +115,8 @@ public static partial class FindingFactory
             File = source.Path,
             Line = finding.Line,
             Title = guide.Title ?? Sentence(finding.Message),
-            Explanation = Sentence(finding.Message),
-            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
+            Explanation = FoundThenExplained(Sentence(finding.Message), guide),
+            Found = Sentence(finding.Message),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = example,
@@ -122,8 +149,8 @@ public static partial class FindingFactory
             File = finding.Span.File,
             Line = finding.Span.Line,
             Title = guide.Title ?? Sentence(finding.Message),
-            Explanation = Sentence(finding.Message),
-            Explanations = AtEveryDepth(Sentence(finding.Message), guide),
+            Explanation = FoundThenExplained(Sentence(finding.Message), guide),
+            Found = Sentence(finding.Message),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = fix is not null ? TitleThen(fix.Title, fix.Explanation) : guide.SuggestedFix,
             CorrectedExample = fix is not null ? CorrectedCode.From(fix, source!) : guide.Example,
@@ -169,10 +196,7 @@ public static partial class FindingFactory
             Line = line,
             Title = stopped ? $"{run} stopped before printing what you expected" : $"{run} printed the wrong output",
             Explanation = $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
-            Explanations = Explained.Of(
-                $"{guide.Explanation} {Sentence(result.Mismatch.Describe())}",
-                FollowedBy(guide.ForBeginners, Sentence(result.Mismatch.Describe())),
-                FollowedBy(guide.ForTechnical, Sentence(result.Mismatch.Describe()))),
+            Found = Sentence(result.Mismatch.Describe()),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = suggested,
             CorrectedExample = result.Fix is { } found ? CorrectedCode.From(found, source) : "",
@@ -187,16 +211,11 @@ public static partial class FindingFactory
     }
 
     /// <summary>
-    /// What a finding says at each depth. The student's is what was found in this program; the beginner's and the
-    /// technical reader's say the same and then add the guide's account of this kind of mistake at their depth, so
-    /// moving the slider never hides what is particular to this program.
+    /// What a finding of a check says: what was found in this program first, then the guide's account of this kind of
+    /// mistake, so what is particular to this program is never hidden behind the general idea.
     /// </summary>
-    private static Explained AtEveryDepth(string found, MistakeGuide guide) =>
-        Explained.Of(found, FollowedBy(found, guide.ForBeginners), FollowedBy(found, guide.ForTechnical));
-
-    /// <summary>The two joined, or nothing when the second - or the first - was never written.</summary>
-    private static string? FollowedBy(string? first, string? then) =>
-        string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(then) ? null : $"{first} {then}";
+    private static string FoundThenExplained(string found, MistakeGuide guide) =>
+        string.IsNullOrWhiteSpace(guide.Explanation) ? found : $"{found} {guide.Explanation}";
 
     private static Finding Build(
         FindingKind kind, Severity severity, Confidence confidence, string file, int? line, string title, string explanation,
@@ -217,7 +236,6 @@ public static partial class FindingFactory
             Line = line,
             Title = title,
             Explanation = explanation,
-            Explanations = Explained.Of(explanation, guide.ForBeginners, guide.ForTechnical),
             WhyItMatters = guide.WhyItMatters,
             SuggestedFix = fix is null ? guide.SuggestedFix : FixText(fix),
             CorrectedExample = example ?? guide.Example,

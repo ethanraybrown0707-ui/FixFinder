@@ -10,6 +10,15 @@ public enum Syntax
     Python,
 
     CLike,
+
+    /// <summary>C's comments, and Scala's triple-quoted strings, which run on over as many lines as they need.</summary>
+    Scala,
+
+    /// <summary>
+    /// OCaml's: comments between (* and *), and no comment to the end of a line. A quote is a character only as 'a' or
+    /// '\n' - 'a on its own is a type variable, and x' is a name, as OCaml lets a name end in a quote.
+    /// </summary>
+    OCaml,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -31,7 +40,7 @@ public static partial class CodeText
         {
             if (open is { } delimiter)
             {
-                var close = delimiter == "/*" ? "*/" : delimiter;
+                var close = delimiter switch { "/*" => "*/", "(*" => "*)", _ => delimiter };
                 var at = line.IndexOf(close, i, StringComparison.Ordinal);
                 var stop = at < 0 ? chars.Length : at + close.Length;
 
@@ -44,29 +53,50 @@ public static partial class CodeText
 
             var c = line[i];
             var next = i + 1 < line.Length ? line[i + 1] : '\0';
+            var commentsLikeC = syntax is Syntax.CLike or Syntax.Scala;
 
-            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.CLike && c == '/' && next == '/'))
+            if ((syntax == Syntax.Python && c == '#') || (commentsLikeC && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
             }
 
-            if (syntax == Syntax.CLike && c == '/' && next == '*')
+            if ((commentsLikeC && c == '/' && next == '*') || (syntax == Syntax.OCaml && c == '(' && next == '*'))
             {
                 chars[i] = ' ';
                 chars[i + 1] = ' ';
-                open = "/*";
+                open = syntax == Syntax.OCaml ? "(*" : "/*";
                 i += 2;
                 continue;
             }
 
-            if (syntax == Syntax.Python && c is '"' or '\'' && i + 2 < line.Length && line[i + 1] == c && line[i + 2] == c)
+            var tripleQuoted = syntax == Syntax.Python ? c is '"' or '\'' : syntax == Syntax.Scala && c == '"';
+
+            if (tripleQuoted && i + 2 < line.Length && line[i + 1] == c && line[i + 2] == c)
             {
                 chars[i] = ' ';
                 chars[i + 1] = ' ';
                 chars[i + 2] = ' ';
                 open = new string(c, 3);
                 i += 3;
+                continue;
+            }
+
+            if (syntax == Syntax.OCaml && c == '\'')
+            {
+                // A character between quotes is masked; a quote that ends a name, or starts a type variable, is code.
+                var characterEnd = i > 0 && IsWordChar(line[i - 1]) ? -1 : OCamlCharacterEnd(line, i);
+
+                if (characterEnd > i)
+                {
+                    for (var k = i + 1; k < characterEnd; k++) chars[k] = ' ';
+                    i = characterEnd + 1;
+                }
+                else
+                {
+                    i++;
+                }
+
                 continue;
             }
 
@@ -90,6 +120,19 @@ public static partial class CodeText
         }
 
         return new string(chars);
+    }
+
+    /// <summary>
+    /// Where the closing quote of an OCaml character starting at <paramref name="start"/> is - 'a', '\n', '\'', '\065',
+    /// '\x41' - or -1 when the quote starts no character, as in the type variable 'a.
+    /// </summary>
+    private static int OCamlCharacterEnd(string line, int start)
+    {
+        if (start + 2 < line.Length && line[start + 1] != '\\' && line[start + 2] == '\'') return start + 2;
+        if (start + 1 >= line.Length || line[start + 1] != '\\') return -1;
+
+        var closing = line.IndexOf('\'', start + 3);
+        return closing > start && closing - start <= 5 ? closing : -1;
     }
 
     public static string Mask(string line, Syntax syntax)
@@ -122,6 +165,13 @@ public static partial class CodeText
         {
             var c = line[i];
 
+            if (syntax == Syntax.OCaml && c == '\'')
+            {
+                var characterEnd = i > 0 && IsWordChar(line[i - 1]) ? -1 : OCamlCharacterEnd(line, i);
+                if (characterEnd > i) i = characterEnd;
+                continue;
+            }
+
             if (c is '"' or '\'')
             {
                 var j = i + 1;
@@ -137,7 +187,8 @@ public static partial class CodeText
             }
 
             if (syntax == Syntax.Python && c == '#') return i;
-            if (syntax == Syntax.CLike && c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return i;
+            if (syntax is Syntax.CLike or Syntax.Scala && c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return i;
+            if (syntax == Syntax.OCaml && c == '(' && i + 1 < line.Length && line[i + 1] == '*') return i;
         }
 
         return null;

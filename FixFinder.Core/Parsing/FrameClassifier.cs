@@ -70,7 +70,11 @@ public static class FrameClassifier
             if (frame.Origin != FrameOrigin.Unknown) continue;
             frame.Origin = ClassifyOne(frame.File, roots);
 
-            if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "java" && IsJdkSymbol(frame.Symbol))
+            if (frame.Origin == FrameOrigin.Unknown && error.LanguageId is "java" or "scala" && IsJdkSymbol(frame.Symbol))
+                frame.Origin = FrameOrigin.Runtime;
+
+            // A Scala program runs on Scala's own library as much as on Java's: List.apply and Option.get are not its code.
+            if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "scala" && IsScalaLibrarySymbol(frame.Symbol))
                 frame.Origin = FrameOrigin.Runtime;
 
             if (frame.Origin == FrameOrigin.Unknown && error.LanguageId == "python" && IsPythonStandardLibrary(frame.File))
@@ -103,6 +107,10 @@ public static class FrameClassifier
     private static bool IsJdkSymbol(string? symbol) =>
         symbol is not null &&
         new[] { "java.", "javax.", "jdk.", "sun.", "com.sun." }.Any(prefix => symbol.StartsWith(prefix, StringComparison.Ordinal));
+
+    /// <summary>A method of Scala's standard library, or of its compiler's runtime support - <c>scala.collection.immutable.List.apply</c>.</summary>
+    private static bool IsScalaLibrarySymbol(string? symbol) =>
+        symbol is not null && (symbol.StartsWith("scala.", StringComparison.Ordinal) || symbol.StartsWith("dotty.", StringComparison.Ordinal));
 
     private static FrameOrigin ClassifyOne(string? file, IReadOnlyList<string> roots)
     {

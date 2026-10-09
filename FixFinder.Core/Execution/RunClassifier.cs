@@ -25,6 +25,9 @@ public static class RunClassifier
     /// <summary>Whether the exit code is one Windows or a runtime gives a program that was stopped by a crash.</summary>
     public static bool IsKnownCrash(int exitCode) => KnownCrashExitCodes.ContainsKey(exitCode);
 
+    /// <summary>What a crash's exit code means - "integer divide by zero (0xC0000094)" - or null for a code no crash gives.</summary>
+    public static string? MeaningOf(int exitCode) => KnownCrashExitCodes.GetValueOrDefault(exitCode);
+
     public static (RunOutcome Outcome, string Explanation) Classify(int exitCode, bool hasParsedError)
     {
         if (exitCode == 0)

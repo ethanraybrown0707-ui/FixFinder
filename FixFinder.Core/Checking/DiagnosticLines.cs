@@ -49,8 +49,8 @@ public static class DiagnosticLines
         return $"FF{1000 + hash % 9000}";
     }
 
-    /// <summary>One finding as one line, at the depth of explanation asked for.</summary>
-    public static string Line(Finding finding, DiagnosticFormat format, ExplanationLevel level = ExplanationLevel.Student)
+    /// <summary>One finding as one line.</summary>
+    public static string Line(Finding finding, DiagnosticFormat format)
     {
         var title = finding.Title.TrimEnd();
         var joined = title.Length > 0 && title[^1] is '.' or '!' or '?' or ':' ? $"{title} " : $"{title}. ";
@@ -61,7 +61,7 @@ public static class DiagnosticLines
         var (file, line, cell) = finding.InNotebook is { } place
             ? (place.Notebook, 1, $"Cell {place.Cell}, line {place.Line}: ")
             : (finding.File, finding.Line ?? 1, "");
-        var message = OneLine(cell + joined + finding.Explanations.At(level));
+        var message = OneLine(cell + joined + finding.Explanation);
 
         return format switch
         {
@@ -71,7 +71,7 @@ public static class DiagnosticLines
     }
 
     /// <summary>Every finding, with everything it says, as JSON.</summary>
-    public static string Json(IEnumerable<Finding> findings, ExplanationLevel level = ExplanationLevel.Student) =>
+    public static string Json(IEnumerable<Finding> findings) =>
         JsonSerializer.Serialize(findings.Select(finding => new
         {
             file = finding.InNotebook?.Notebook ?? finding.File,
@@ -83,7 +83,7 @@ public static class DiagnosticLines
             rule = finding.RuleId,
             code = Code(finding.RuleId),
             title = finding.Title,
-            explanation = finding.Explanations.At(level),
+            explanation = finding.Explanation,
             whyItMatters = finding.WhyItMatters,
             suggestedFix = finding.SuggestedFix,
             verified = finding.Verified.Summary,

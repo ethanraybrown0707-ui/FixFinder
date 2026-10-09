@@ -7,10 +7,14 @@ using FixFinder.Core.Security;
 using System.Windows.Controls;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Desktop;
 
 namespace FixFinder.Gui;
 
-/// <summary>Holds the two optional API credentials and shows what is stored on disk.</summary>
+/// <summary>
+/// The few choices that are the person's own - how long a run is given, whether a program with a window runs until it is
+/// closed, the colours, and the two optional keys for searching online - with which languages this computer can run.
+/// </summary>
 public partial class SettingsWindow : Window
 {
     private readonly FixFinderHttpClient _http;
@@ -21,6 +25,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(FixFinderHttpClient http)
     {
         InitializeComponent();
+        ScreenFit.Apply(this);
 
         _http = http;
         _stored = TokenStore.Load();
@@ -29,18 +34,12 @@ public partial class SettingsWindow : Window
         ToolchainsText.Text = string.Join(Environment.NewLine, Core.Execution.Toolchains.Describe());
 
         AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
-
-        Fill(CStandardBox, LanguageStandards.CChoices, _preferences.CStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.ToUpperInvariant());
-        Fill(CppStandardBox, LanguageStandards.CppChoices, _preferences.CppStandard, choice => choice.Length == 0 ? DetectAutomatically : choice.Replace("c++", "C++"));
-        Fill(JavaReleaseBox, LanguageStandards.JavaChoices, _preferences.JavaRelease, choice => choice.Length == 0 ? DetectAutomatically : $"Java {choice}");
-        Fill(PythonVersionBox, LanguageStandards.PythonChoices, _preferences.PythonVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Python {choice}");
-        Fill(GoVersionBox, LanguageStandards.GoChoices, _preferences.GoVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Go {choice}");
-        Fill(NodeVersionBox, LanguageStandards.NodeChoices, _preferences.NodeVersion, choice => choice.Length == 0 ? DetectAutomatically : $"Node.js {choice}");
+        WindowsRunUntilClosedBox.IsChecked = _preferences.WindowsRunUntilClosed;
 
         foreach (var limit in TargetFactory.RunTimeLimitChoices)
             RunTimeLimitBox.Items.Add(new ComboBoxItem { Content = limit.TotalSeconds < 60 ? $"{limit.TotalSeconds:0} seconds" : limit.TotalMinutes == 1 ? "1 minute" : $"{limit.TotalMinutes:0} minutes", Tag = limit });
         RunTimeLimitBox.SelectedIndex = Array.IndexOf(TargetFactory.RunTimeLimitChoices, _preferences.RunTimeLimit);
-        _standardsReady = true;
+        _choicesReady = true;
 
         RefreshCredentialState();
         RefreshCacheState();
@@ -77,48 +76,27 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>Set once the boxes are filled, so filling them is not mistaken for somebody choosing.</summary>
-    private bool _standardsReady;
-
-    /// <summary>What a version box says when nothing is chosen: each program's version is worked out from its project and its code.</summary>
-    private const string DetectAutomatically = "Detect automatically";
-
-    /// <summary>One version box: every listed choice, named for a reader, with the saved one selected.</summary>
-    private static void Fill(ComboBox box, string[] choices, string saved, Func<string, string> named)
-    {
-        foreach (var choice in choices) box.Items.Add(new ComboBoxItem { Content = named(choice), Tag = choice });
-
-        var index = Array.IndexOf(choices, saved);
-        box.SelectedIndex = index >= 0 ? index : 0;
-    }
-
-    private static string Chosen(ComboBox box) => (box.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
-
-    /// <summary>
-    /// Takes effect for the next build and the next fix checked, and is written down. A program already checked is not
-    /// checked again: the report on screen was made under the version that was set when it was made.
-    /// </summary>
-    private void Standard_Changed(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_standardsReady) return;
-
-        _preferences.CStandard = Chosen(CStandardBox);
-        _preferences.CppStandard = Chosen(CppStandardBox);
-        _preferences.JavaRelease = Chosen(JavaReleaseBox);
-        _preferences.PythonVersion = Chosen(PythonVersionBox);
-        _preferences.GoVersion = Chosen(GoVersionBox);
-        _preferences.NodeVersion = Chosen(NodeVersionBox);
-
-        LanguageStandards.Current = _preferences.Standards;
-        _preferences.Save();
-    }
+    private bool _choicesReady;
 
     /// <summary>Takes effect for the next run, and is written down; a run already going keeps the time it was given.</summary>
     private void RunTimeLimit_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (!_standardsReady || (RunTimeLimitBox.SelectedItem as ComboBoxItem)?.Tag is not TimeSpan chosen) return;
+        if (!_choicesReady || (RunTimeLimitBox.SelectedItem as ComboBoxItem)?.Tag is not TimeSpan chosen) return;
 
         _preferences.RunSeconds = (int)chosen.TotalSeconds;
         TargetFactory.RunTimeLimit = _preferences.RunTimeLimit;
+        _preferences.Save();
+    }
+
+    /// <summary>
+    /// Whether a program with a window runs until its window is closed - for the next check, and written down. A check
+    /// already running keeps the run it started with.
+    /// </summary>
+    private void WindowsRunUntilClosed_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_choicesReady) return;
+
+        _preferences.WindowsRunUntilClosed = WindowsRunUntilClosedBox.IsChecked == true;
         _preferences.Save();
     }
 

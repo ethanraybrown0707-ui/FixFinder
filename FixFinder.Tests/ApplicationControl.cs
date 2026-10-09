@@ -14,6 +14,9 @@ internal static class ApplicationControl
     public static bool Refused(TargetRunResult run) =>
         Mentions(run.LaunchError) || run.Lines.Any(line => Mentions(line.Text));
 
+    /// <summary>Whether what a tool said, such as go run, is Windows refusing to start the program it built.</summary>
+    public static bool Refused(string said) => Mentions(said);
+
     private static bool Mentions(string? text) =>
         text?.Contains("Application Control", StringComparison.OrdinalIgnoreCase) == true;
 }

@@ -21,7 +21,13 @@ public sealed class ParserRegistry
             new DotNetStackTraceParser(),
             new PythonTracebackParser(),
             new NodeStackTraceParser(),
+            // Scala's before Java's: a Scala program's crash is a JVM stack trace, which Java's parser is as sure of as
+            // Scala's, and the first of two equally sure parsers is the one used. Scala's is sure only of a trace through .scala files.
+            new ScalaRuntimeParser(),
             new JavaStackTraceParser(),
+            new ScalaCompileParser(),
+            new OCamlCompileParser(),
+            new OCamlExceptionParser(),
             new GoPanicParser(),
             new GoCompileParser(),
             new RustPanicParser(),

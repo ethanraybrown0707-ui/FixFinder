@@ -165,8 +165,7 @@ public class JavaVersionErrorsTests : IDisposable
     }
 }
 
-/// <summary>A program built for an older Java than its code is written in, as Settings chooses one, checked as the window checks it.</summary>
-[Collection(SharedLanguageStandards.Name)]
+/// <summary>A program built for an older Java than its code is written in, as its pom.xml says, checked as the window checks it.</summary>
 public class JavaVersionErrorsLiveTests(ITestOutputHelper output)
 {
     [Fact]
@@ -175,29 +174,31 @@ public class JavaVersionErrorsLiveTests(ITestOutputHelper output)
         if (Jdks.AtLeast(25) is null) return;
 
         using var temp = new TempFolder();
-        var hello = Path.Combine(temp.Path, "Hello.java");
+        var hello = Path.Combine(temp.Path, "src", "main", "java", "Hello.java");
+        Directory.CreateDirectory(Path.GetDirectoryName(hello)!);
         await File.WriteAllTextAsync(hello, "void main() {\n    IO.println(\"Hello\");\n}\n");
+        await File.WriteAllTextAsync(Path.Combine(temp.Path, "pom.xml"), """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>uni</groupId>
+              <artifactId>hello</artifactId>
+              <version>1.0</version>
+              <properties>
+                <maven.compiler.release>21</maven.compiler.release>
+              </properties>
+            </project>
+            """);
 
-        var before = LanguageStandards.Current;
-        try
-        {
-            LanguageStandards.Current = new LanguageStandards { Java = "21" };
+        var launch = TargetFactory.FromFile(hello);
+        Assert.True(launch.Ok, launch.Problem);
+        output.WriteLine($"how: {launch.Explanation}");
 
-            var launch = TargetFactory.FromFile(hello);
-            Assert.True(launch.Ok, launch.Problem);
-            output.WriteLine($"how: {launch.Explanation}");
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Java }.CheckAsync(launch);
+        foreach (var note in report.Notes) output.WriteLine($"note: {note}");
 
-            using var http = new FixFinderHttpClient();
-            var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Java }.CheckAsync(launch);
-            foreach (var note in report.Notes) output.WriteLine($"note: {note}");
-
-            Assert.Contains(report.Notes, note => note.StartsWith(
-                "Implicitly declared classes, which Hello.java:1 uses, came in Java 25 - and the program is compiled for Java 21 (compiling it for Java 21 as chosen in Settings).",
-                StringComparison.Ordinal));
-        }
-        finally
-        {
-            LanguageStandards.Current = before;
-        }
+        Assert.Contains(report.Notes, note => note.StartsWith(
+            "Implicitly declared classes, which Hello.java:1 uses, came in Java 25 - and the program is compiled for Java 21 (compiling it for Java 21 as pom.xml's maven.compiler.release says).",
+            StringComparison.Ordinal));
     }
 }

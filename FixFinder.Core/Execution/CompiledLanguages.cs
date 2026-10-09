@@ -20,7 +20,7 @@ public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Expl
     };
 }
 
-/// <summary>Builds C, C++ and Java source before running it.</summary>
+/// <summary>Builds C, C++, Java, Scala and OCaml source before running it.</summary>
 public static partial class CompiledLanguages
 {
     public static string BuildRoot { get; } = Path.Combine(
@@ -32,7 +32,7 @@ public static partial class CompiledLanguages
 
     public static bool Handles(string extension) => extension.ToLowerInvariant() switch
     {
-        ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" => true,
+        ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" or ".scala" or ".sc" or ".ml" => true,
         _ => false,
     };
 
@@ -46,8 +46,35 @@ public static partial class CompiledLanguages
             ".c" => Native(source, output, timeout, cpp: false),
             ".cpp" or ".cc" or ".cxx" or ".c++" => Native(source, output, timeout, cpp: true),
             ".java" => Java(source, output, timeout),
+            ".scala" or ".sc" => Scala(source, output, timeout),
+            ".ml" => OCamlBuild.Prepare(source, output, timeout),
             _ => (null, null),
         };
+    }
+
+    /// <summary>
+    /// A Scala program, built and run by Scala CLI with the version of Scala it needs, offline - and with Scala CLI's
+    /// build kept in FixFinder's own build folder, so nothing is written into the program's.
+    /// </summary>
+    /// <remarks>
+    /// Scala CLI is run without its compile server, which would stay running after FixFinder had finished, so it compiles
+    /// the program again before running it: the build first, to read its errors, then the run.
+    /// </remarks>
+    private static (BuildAndRun?, string?) Scala(string source, string output, TimeSpan timeout)
+    {
+        var (setup, problem) = ScalaSetup.For(source);
+        if (setup is null) return (null, problem);
+
+        var layout = ScalaProgram.Of(source);
+
+        var compile = Spec(setup.Cli.Program, ScalaSetup.Arguments("compile", setup, output, layout.Files, mainClass: null), layout.Folder, timeout);
+        var run = Spec(setup.Cli.Program, ScalaSetup.Arguments("run", setup, output, layout.Files, layout.MainClass), layout.Folder, timeout);
+
+        var main = layout.MainClass is { } mainClass ? $" its main {mainClass}" : " it";
+        var startsIn = layout.BuildFile is not null ? $" from {Path.GetFileName(layout.Folder)}, where its build.sbt is, as sbt runs it" : "";
+
+        return (new BuildAndRun(compile, run,
+            $"Building it{Along(layout.Files)} with {setup.Explained}, using Scala CLI ({setup.Cli.FoundIn}), then running{main}{startsIn}."), null);
     }
 
     private static (BuildAndRun?, string?) Native(string source, string output, TimeSpan timeout, bool cpp)
@@ -100,30 +127,23 @@ public static partial class CompiledLanguages
     {
         if (lookup.Build is not { } build)
         {
-            var writtenTo = !LanguageStandards.Current.Chooses(cpp) && NativeStandards.RememberedFor(source) is { Length: > 0 } found
+            var writtenTo = NativeStandards.RememberedFor(source) is { Length: > 0 } found
                 ? $" as {NativeStandards.Shown(found, compiler)}, the standard its code was found to be written to,"
                 : "";
 
             return $"Building it{Along(sources)}{writtenTo} with {compiler}, then running the result{StartsFrom(start, source)}.{(lookup.Note is { } note ? " " + note : "")}";
         }
 
-        var standards = LanguageStandards.Current;
-        var language = cpp ? "C++" : "C";
-
         var given = new List<string>();
-        if (!standards.Chooses(cpp) && build.Standard is { } own) given.Add($"-std={own}");
+        if (build.Standard is { } own) given.Add($"-std={own}");
         if (build.FlagsShown.Length > 0) given.Add(build.FlagsShown);
-
-        var settingsHold = standards.Chooses(cpp) && build.Standard is { } overruled
-            ? $" It is held to the {language} standard chosen in Settings rather than the -std={overruled} its {build.BuildFileName} gives."
-            : "";
 
         var notFollowed = build.NotFollowed.Count > 0
             ? $" What its {build.BuildFileName} does that FixFinder did not: {string.Join("; ", build.NotFollowed)}."
             : "";
 
         return $"Building it as its {build.BuildFileName} builds {build.Program}{(sources.Count > 1 ? "," : "")}{Along(sources)}" +
-               $"{(given.Count > 0 ? ", given " + string.Join(" ", given) : "")}, using {compiler}, then running the result{StartsFrom(start, source)}.{settingsHold}{notFollowed}";
+               $"{(given.Count > 0 ? ", given " + string.Join(" ", given) : "")}, using {compiler}, then running the result{StartsFrom(start, source)}.{notFollowed}";
     }
 
     private static string WriteMsvcBatch(IReadOnlyList<string> sources, string exe, string output, string vcvarsall, bool cpp, NativeBuild? build)
@@ -151,16 +171,15 @@ public static partial class CompiledLanguages
 
     /// <summary>
     /// The standard the program is held to, then the warnings. Used both to build the program and to check every fix,
-    /// so a fix that needs a later standard than the one chosen - or than the one its build file gives - fails its check
-    /// and is never offered.
+    /// so a fix that needs a later standard than the one its build file gives fails its check and is never offered.
     /// </summary>
-    internal static string GnuWarnings(bool cpp, string? projectStandard = null) => LanguageStandards.Current.Gnu(cpp, projectStandard) + (cpp
+    internal static string GnuWarnings(bool cpp, string? projectStandard = null) => LanguageStandards.Gnu(cpp, projectStandard) + (cpp
         ? "-Wall -Wextra -Wno-unused-parameter -Wmismatched-new-delete -Wdelete-non-virtual-dtor -Wcatch-value -Waddress "
         : "-Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -Waddress ");
 
     /// <summary>MSVC's flags, with the standard the program is held to where MSVC has a flag for it.</summary>
     internal static string MsvcFlags(bool cpp, bool debugInfo, string? projectStandard = null) =>
-        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Current.Msvc(cpp, projectStandard);
+        (debugInfo ? "/nologo /Zi /W3" : "/nologo /W3") + (cpp ? " /EHsc" : "") + LanguageStandards.Msvc(cpp, projectStandard);
 
     internal const string JavaLint = "-Xlint:cast,divzero,empty,fallthrough,finally,overrides,rawtypes,static,unchecked,deprecation";
 

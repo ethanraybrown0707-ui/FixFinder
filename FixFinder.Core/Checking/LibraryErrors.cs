@@ -88,6 +88,9 @@ public static partial class LibraryErrors
         // A Go module that is not in Go's module cache - which FixFinder never downloads - is a library not here too.
         if (chosen.EndsWith(".go", StringComparison.OrdinalIgnoreCase)) return GoModuleErrors.Sort(errors, chosen);
 
+        // A library or a version of Scala that is not in Scala CLI's cache - which FixFinder never downloads - is not here either.
+        if (ScalaProgram.IsScala(chosen)) return ScalaDownloadErrors.Sort(errors, chosen);
+
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || errors.Count == 0) return new Sorted(errors, null, 0);
 
         var libraries = JavaLibraries.For(chosen);

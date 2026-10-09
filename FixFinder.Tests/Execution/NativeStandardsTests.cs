@@ -75,7 +75,7 @@ public class NativeStandardsLiveTests : IDisposable
     [Fact]
     public async Task ConceptsAreBuiltAsCpp20AndHowItRanSaysWhy()
     {
-        if (LanguageStandards.Current.Chooses(cpp: true) || Toolchains.FindGnu(cpp: true) is null) return;
+        if (Toolchains.FindGnu(cpp: true) is null) return;
 
         var main = Write("main.cpp", """
             #include <iostream>
@@ -102,7 +102,7 @@ public class NativeStandardsLiveTests : IDisposable
     [Fact]
     public async Task CodeWrittenToC23IsBuiltAsC23()
     {
-        if (LanguageStandards.Current.Chooses(cpp: false) || Toolchains.FindGnu(cpp: false) is null) return;
+        if (Toolchains.FindGnu(cpp: false) is null) return;
 
         var main = Write("main.c", """
             #include <stdio.h>
@@ -128,7 +128,7 @@ public class NativeStandardsLiveTests : IDisposable
     [Fact]
     public async Task AProgramsOwnMistakeIsNotTakenForAnotherStandard()
     {
-        if (LanguageStandards.Current.Chooses(cpp: true) || Toolchains.FindGnu(cpp: true) is null) return;
+        if (Toolchains.FindGnu(cpp: true) is null) return;
 
         var main = Write("mistake.cpp", "#include <iostream>\n\nint main() {\n    std::cout << total << \"\\n\";\n}\n");
 

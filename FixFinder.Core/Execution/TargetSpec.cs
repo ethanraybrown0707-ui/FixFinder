@@ -30,14 +30,22 @@ public sealed class TargetSpec
         var extra = programArguments?.Trim() ?? "";
         if (extra.Length == 0) return this;
 
-        var separator = !LaunchViaDotnet &&
-                        string.Equals(Path.GetFileNameWithoutExtension(ExecutablePath), "dotnet", StringComparison.OrdinalIgnoreCase) &&
-                        Arguments.StartsWith("run", StringComparison.Ordinal)
-            ? " -- "
-            : " ";
+        var separator = TakesProgramArgumentsAfterDashes ? " -- " : " ";
 
         return Copy(Arguments.Length > 0 ? Arguments + separator + extra : extra, StandardInput);
     }
+
+    /// <summary>
+    /// Whether what runs the program reads every argument as its own until <c>--</c>, after which they are the program's:
+    /// <c>dotnet run</c>, and Scala CLI's <c>run</c>.
+    /// </summary>
+    private bool TakesProgramArgumentsAfterDashes =>
+        !LaunchViaDotnet && Path.GetFileNameWithoutExtension(ExecutablePath).ToLowerInvariant() switch
+        {
+            "dotnet" => Arguments.StartsWith("run", StringComparison.Ordinal),
+            "scala-cli" => Arguments.StartsWith("--power run ", StringComparison.Ordinal),
+            _ => false,
+        };
 
     public TargetSpec WithTimeout(TimeSpan timeout) => Copy(Arguments, StandardInput, timeout);
 

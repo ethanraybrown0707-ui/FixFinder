@@ -30,7 +30,6 @@ public class ReportPageTests
         Program = "Marks.java",
         Language = "Java",
         CheckedAt = new DateTimeOffset(2026, 10, 3, 14, 5, 0, TimeSpan.Zero),
-        Level = ExplanationLevel.Student,
         HowItRan = "Building it with the javac of Java 25.0.4.1 (Eclipse's own Java), then running it with java.",
         SyntaxSummary = "1 error stops it building",
         LogicSummary = "No logic mistakes found",
@@ -47,7 +46,7 @@ public class ReportPageTests
 
         Assert.StartsWith("<!doctype html>", html, StringComparison.Ordinal);
         Assert.Contains("<title>FixFinder report - Marks.java</title>", html, StringComparison.Ordinal);
-        Assert.Contains("Java  ·  checked 3 October 2026 at 14:05  ·  explained for a student", html, StringComparison.Ordinal);
+        Assert.Contains("Java  ·  checked 3 October 2026 at 14:05</p>", html, StringComparison.Ordinal);
         Assert.Contains("1 error stops it building", html, StringComparison.Ordinal);
         Assert.Contains("Building it with the javac of Java 25.0.4.1", html, StringComparison.Ordinal);
         Assert.Contains("1 error, no warnings and no suggestions; 1 way to do less work", html, StringComparison.Ordinal);
@@ -98,18 +97,11 @@ public class ReportPageTests
     }
 
     [Fact]
-    public void TheExplanationIsInTheDepthChosen()
+    public void TheExplanationIsTheOneTheWindowShows()
     {
-        var finding = Found("';' expected") with
-        {
-            Explanations = Explained.Of("The student wording.", beginner: "The beginner wording.", technical: "The technical wording."),
-        };
+        var finding = Found("';' expected") with { Explanation = "The beginner wording." };
 
-        var page = Page([finding]);
-
-        Assert.Contains("The beginner wording.", (page with { Level = ExplanationLevel.Beginner }).ToHtml(), StringComparison.Ordinal);
-        Assert.Contains("The technical wording.", (page with { Level = ExplanationLevel.Technical }).ToHtml(), StringComparison.Ordinal);
-        Assert.DoesNotContain("The beginner wording.", page.ToHtml(), StringComparison.Ordinal);
+        Assert.Contains("The beginner wording.", Page([finding]).ToHtml(), StringComparison.Ordinal);
     }
 
     [Fact]

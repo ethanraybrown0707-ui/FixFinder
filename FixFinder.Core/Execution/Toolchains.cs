@@ -178,7 +178,19 @@ public static class Toolchains
         $"C++        : {FindGnu(true)?.Description ?? FindMsvc()?.Description ?? "no compiler found"}",
         .. Described("JavaScript : ", "Node.js", Nodes.Installed),
         .. Described("Go         : ", "Go", GoToolchains.Installed),
+        DescribeScala(),
+        OCamlToolchains.Usual is { } ocaml ? $"OCaml      : {ocaml.Description}: {ocaml.Ocamlc}" : "OCaml      : not found",
     ];
+
+    /// <summary>Scala CLI, and the versions of Scala in its cache - the ones a Scala program can be built with here, as nothing is downloaded.</summary>
+    private static string DescribeScala()
+    {
+        if (ScalaToolchains.Cli is not { } cli) return "Scala      : Scala CLI not found";
+
+        var versions = ScalaToolchains.CachedVersions;
+        var cached = versions.Count == 0 ? "no version of Scala in its cache yet" : $"Scala {string.Join(", ", versions.Select(version => version.Version))} in its cache";
+        return $"Scala      : Scala CLI ({cli.FoundIn}), with {cached}: {cli.Program}";
+    }
 
     /// <summary>Each toolchain of a language found, one to a line, newest first, with where it was found: the one on PATH is used unless a program needs another.</summary>
     private static IEnumerable<string> Described(string heading, string language, IReadOnlyList<Versions.VersionedToolchain> installed)

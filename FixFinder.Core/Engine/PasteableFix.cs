@@ -9,6 +9,14 @@ public sealed record PasteableText(string Text, string Description, string? Wher
 /// <summary>Turns a found fix into text worth pasting.</summary>
 public static class PasteableFix
 {
+    /// <summary>
+    /// Whether what a result offers can be pasted into this program as its fix: FixFinder's own fix, worked out from the
+    /// program; a command that installs what it is missing; or a patch that applies to the program's own files. Code from
+    /// somebody else's answer is about their program, not this one, so it is shown to read and never offered as the fix.
+    /// </summary>
+    public static bool FitsThisProgram(ExaminedCandidate examined) =>
+        examined.Candidate.Command is { Length: > 0 } || Ranking.RelevanceCheck.IsFixFindersOwn(examined.Candidate) || examined.CanApply;
+
     public static PasteableText? For(ExaminedCandidate examined)
     {
         if (examined.Candidate.Command is { Length: > 0 } command)

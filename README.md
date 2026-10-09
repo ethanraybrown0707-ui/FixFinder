@@ -13,25 +13,31 @@ until the program prints what it should. FixFinder never changes your files.
 
 ## Using it
 
-1. **Choose a program.** Drop the file on the window, or press **File…** and pick it. When the file is hard to find, press
-   **Paste code** and paste the program's code into the box; **Folder…** checks every program in a folder.
-2. **Press the language it is written in** - Python, Java, C#, C, C++, JavaScript or Go, or **Auto-detect**. That starts
-   both checks at once. The program is compiled if it needs to be, and run. For pasted code, **Auto-detect** works the
-   language out from what only that language writes - `System.out.println`, `#include <iostream>`, a `def` line ending
-   in `:` - and when the code shows no language more than another, asks for it rather than guessing.
+1. **Choose a program.** Drop the file on the window, or press **File…** and pick it, and it is checked straight away, as
+   the language its name says - `.py` as Python, `.java` as Java, and so on; a file whose name says no language FixFinder
+   checks is run as its kind of file is run. **Check again** checks it again after a change. When the file is hard to find,
+   press **Paste code**, paste the program's code into the box and press **Check this code**: its language is worked out
+   from what only that language writes - `System.out.println`, `#include <iostream>`, a `def` line ending in `:` - and
+   when the code shows no language more than another, FixFinder asks for it in the box beside the button rather than
+   guessing. **Folder…** checks every program in a folder.
+2. **Both checks run at once.** The program is compiled if it needs to be, and run, while its code is read for logic
+   mistakes. Which version of its language it needs is worked out from its project and its own code - there is nothing
+   to choose.
 3. **Optionally, say what it should print.** Arguments, the input to type and the expected output go in the boxes under
    the program, and **+ Add another run** adds more. With them, a program that runs but prints the wrong thing is caught
    too, and the change that makes it right is searched for.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
-   as its data grows - none of them is a mistake. The **Explanations** slider sets how in depth each finding is
-   explained: **Beginner** in plain words, with the idea behind the mistake spelled out; **Student** as it is usually
-   taught; **Technical** in the language's own terms. Only the wording changes - what was found, how sure FixFinder is
-   and the fix stay the same. Each finding has **Copy corrected code**, **Search online** for the error on GitHub and
-   Stack Overflow, and **Show in folder**. **Copy report** copies every finding as plain text, and **Save report…** saves
-   the whole report as a web page to keep, print or hand in: every finding with all the window shows of it - in the depth
-   the slider is at - the notes, how the program was built and run, what it printed, and how this check compares with the
-   last one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
+   as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
+   words: what is wrong, why it matters and how to fix it. The corrected code waits behind **Show the corrected code**, so
+   the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
+   mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
+   [FixFinder Learn](#fixfinder-learn). **More detail** holds why FixFinder is this sure, the lines that decide it, how
+   the fix was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
+   **Show in folder** opens the program's folder. **Copy report** copies every finding as plain text,
+   and **Save report…** saves the whole report as a web page to keep, print or hand in: every finding with all the window
+   shows of it, the notes, how the program was built and run, what it printed, and how this check compares with the last
+   one. The page holds everything it shows, runs no script and fetches nothing, so it opens the same on any computer;
    anything taken from the program is shown as text, never run.
    When a program is checked again, the report says how this check compares with the last one of it - how many of the
    last check's findings are fixed, and how many of this check's are new or still there - and marks each finding **New**
@@ -40,16 +46,20 @@ until the program prints what it should. FixFinder never changes your files.
    by running the program, so when it did not run this time, those found last time are said not to have been looked
    for, rather than fixed. FixFinder's history keeps a fingerprint of each finding - a hash, never the code - so the fixed
    ones are named only for a check made since FixFinder was opened; after that, they are counted.
-5. **Optionally, tick Check on save.** FixFinder then reads the code again every time the program is saved - the logic
-   patterns and every analysis - and updates the report. It does not compile or run the program, and the report says so;
-   press the language to do that. Code that does not read as its language at all is noted rather than reported as having
-   no mistakes.
+5. **Keep working on it.** Once a program chosen as a file has been checked, FixFinder reads its code again every time it
+   is saved - the logic patterns and every analysis - and updates the report. It does not compile or run the program
+   then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
+   noted rather than reported as having no mistakes.
 
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
-with it, and a note says so. Check on save watches a file chosen from disk; for pasted code, press the language again to
-check it after a change. The saved copy is removed when the window closes.
+with it, and a note says so. Saves are followed only for a file chosen from disk; pasted code is checked again with
+**Check this code**. The saved copy is removed when the window closes.
+
+Each window opens at a size that fits the screen it opens on - inside the part of it windows may use, so it never runs
+under the taskbar or off the top or bottom, whatever the screen's size and scaling - and when that screen's size or
+scaling changes while it is open, it moves back onto it, shrinking if it has to.
 
 A program in more than one file is checked as the whole program: Python imports and JavaScript `require`s are followed,
 Java is compiled from its source root, C# from its project, Go as its package, and C and C++ as their Makefile or
@@ -66,7 +76,7 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
-**Let a program with a window run until I close it**, under the languages, keeps such a program open for you to use: it
+**Let a program with a window run until I close it**, in Settings, keeps such a program open for you to use: it
 is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
 and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
 runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
@@ -140,7 +150,7 @@ those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, 
 Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with it
 - and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
 program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the one
-JDK. The Java it is compiled for is the one chosen in Settings, else the one its project names: `pom.xml`'s
+JDK. The Java it is compiled for is the one its project names: `pom.xml`'s
 `maven.compiler.release`, or its source and target - as properties or as maven-compiler-plugin's own settings, from the
 `pom.xml` or a parent - or Spring Boot's `java.version`; a Gradle build's toolchain, `options.release` or
 `sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
@@ -148,7 +158,7 @@ IntelliJ's language level; or Eclipse's compliance level. Preview features are o
 is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
 is here; else the usual one, when it is new enough; else the oldest that is.
 
-The Java **the code itself** is written in is **detected** as well - which is what Settings' "Detect automatically" means.
+The Java **the code itself** is written in is **detected** as well.
 FixFinder reads the program's files for the newest part of the language or of Java's library they use: `var` is Java 10's,
 a switch with `case ... ->` Java 14's, a text block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed
 class Java 17's, a record pattern, a type pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_`
@@ -159,8 +169,7 @@ code then needs a JDK of at least that Java, and how it ran says which Java the 
 line. A **preview** the code uses - primitive types in patterns, which Java 23 to 27 have as a preview, lazy constants
 (Java 26 and 27), `StableValue` (Java 25), structured concurrency, or a string template (Java 21 and 22, then taken out) -
 is turned on for it, with the JDK the program is usually built with when that one has the preview, else the newest one
-here that does, unless the project already says whether preview features are on, or the project or Settings names a Java
-without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
+here that does, unless the project already says whether preview features are on, or names a Java without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
 so what makes code Java 27's is a preview Java 27 has.
 Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
 Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
@@ -213,14 +222,51 @@ never taken for code, and only what is certainly JavaScript's own counts: a `fet
 is; how it ran says which and why, and when the program has errors and no Node.js here is new enough for it, a note says
 so and how to install one.
 
-For Python, Go and JavaScript, Settings can also **choose the version** instead - Python 3.8 to 3.14, Go 1.21 to 1.27,
-Node.js 18, 20, 22, 24 or 26 - as it can choose one for C, C++ and Java. These languages have no setting that holds them
-to an older version, so the choice is the Python, Go or Node.js that runs the program, checks its fixes and tries them:
-the one a terminal runs when it is of that release, else the newest of it on this computer - and for Python, the
-project's own environment when that is of that release; when it is not, how it ran says that what is installed only
-there is not found. A release chosen that is not on this computer is said to be so, with how to install it, and the
-program is not run with another one instead. How it ran says that the version was chosen in Settings, and a note says
-when the code needs a later one.
+A **Scala** program - a `.scala` file, or a Scala CLI script, `.sc` - is built and run by **Scala CLI**, which FixFinder
+finds on PATH, in its Windows installer's folder in Program Files, in Coursier's folder of installed applications or in
+Scoop's shims. It is run offline, as FixFinder never downloads anything, and without Scala CLI's compile server, which
+would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written into
+the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt and
+Metals keep what they download; Settings lists them. The version is the one the program asks for - in a
+`//> using scala` directive, or as its build.sbt's `scalaVersion` - when that one is in the cache, or else the newest of
+the same series there: any Scala 3 for a Scala 3, the same 2.13 or 2.12 for a Scala 2. How it ran says which and why, and
+a program that asks for a series that is not in the cache is not built: the note says how to download it. A program that
+asks for nothing is built with the newest Scala 3 there - unless its code does not compile as Scala 3 and the newest Scala
+2 there compiles it with no error, as Scala 3 refuses some of what Scala 2 allowed, such as `def main(args:
+Array[String]) {` without `: Unit =`. Then it is Scala 2 code, it is built and run as Scala 2, and a note says so in the
+compiler's own words. A file under an sbt project's `src/main/scala` is built with every Scala file there, with the
+libraries its build.sbt's `libraryDependencies` name - other than those only its tests use - and runs from the folder
+holding build.sbt, as sbt runs it; anything there FixFinder cannot read, such as a version worked out by code, is named
+in how it ran. Anywhere else, a program is the chosen file and the Scala files beside it that its code uses, and a file
+that defines a name the chosen one defines too - another exercise's `object Main` - is another program. When the files
+built together hold several mains, the chosen file's is run; a file with no main is said to have nothing to run. A
+library a `//> using dep` directive or the build.sbt names that is not in the cache is said once, in a note, rather than
+its errors reported as mistakes in the code. Scala's code is read for logic mistakes by checks of its own, as nothing
+here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in `xs`, two
+Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same items - a
+whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted` made on a line
+of its own and kept nowhere, and `.get` taken from an Option nothing checked first. Each does what it is said to do in
+Scala 3.8.4 and Scala 2.13.18, and neither warns about it.
+
+An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
+environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
+version. A program is the chosen file and the `.ml` files beside it that its code uses, each compiled after the files it
+uses, with an `.mli` interface before its module; the `str` and `unix` libraries that come with OCaml are linked when the
+code uses `Str` or `Unix`. The files are copied into FixFinder's build folder and compiled there, so no `.cmo` or `.cmi`
+is written beside them. It is compiled to bytecode with `-g` and run with `ocamlrun`, with `b` added to
+`OCAMLRUNPARAM`, so an exception that stops it names where it was raised. FixFinder never runs dune: a `dune` file is
+named in how it ran, as it is not what builds the program here. OCaml's own hints become fixes - the name it suggests for
+one it does not know, and `rec` on the line it names for a function that calls itself. Compiled to bytecode, OCaml names
+no place for a whole-number division by zero itself, only the call of the function that divided - or no line at all,
+outside any function - so the crash is placed at that call, and when the function called divides exactly once, that
+division is the one given an answer for a zero, and the change is run in a copy. OCaml's code is read for logic mistakes
+by three checks of its own: a `for i = 0 to Array.length a do` that uses `i` as a position in `a` - OCaml's `for`
+includes its last number - text, lists or floats compared with `==` or `!=`, which ask whether two values are one and
+the same in memory, and a whole-number average turned into a float after its fraction is lost. OCaml is tested with
+OCaml 5.5.1, on GitHub's Windows computers.
+
+None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
+is checked, and how it ran says which version that was and why.
 
 A C# program is built with **the .NET SDK dotnet chooses** - the newest here, unless a `global.json` above it asks for
 another, which dotnet itself is asked - and how it ran says which SDK, the C# its project is built as, and the C# its
@@ -260,7 +306,7 @@ that is not a test, or else the one built by default. When two are as likely as 
 exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
 is a program whose files the build file names in a way FixFinder cannot follow, or that it builds from C and C++ files
 together. With no build file, C and C++ are built with the other files of their language beside them when exactly one of
-them all has a `main`. The standard is the one chosen in Settings, else the one the build file gives; with neither, C is
+them all has a `main`. The standard is the one the build file gives; without one, C is
 built to the compiler's own standard and C++ to C++17 - and when the program **does not build as that**, the compiler is
 asked which standard its code is written to. gcc or clang compiles it, for its syntax only, as the standards either side:
 C++20 and C++23, then C++14 for code that uses what C++17 took out; C23, then C17. The first the compiler takes it as,
@@ -387,13 +433,56 @@ changed.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
-| **Explanation** | What is wrong, in the program's own names - explained at the depth the **Explanations** slider is set to. Every kind of mistake FixFinder knows is written three ways: for a beginner, with the idea behind it spelled out in plain words; as it is usually taught; and in the language's own terms, saying which version of the language changed the rule where one did. Whatever the depth, the finding starts with what was found in this program. |
+| **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
-| **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a general example. |
+| **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
+| **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
+| **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |
 
 When two checks find the same mistake - a compiler warning and a logic pattern, or a crash and the pattern that explains
 it - the report shows it once, at the surer of the two confidences.
+
+## FixFinder Learn
+
+FixFinder Learn is a second window, for learning the idea behind a mistake rather than fixing one program. Every finding
+in a file of a language FixFinder checks has a **problem code**, such as `FF-PY-DIVZERO-9PMEEB1`: the language, the idea
+behind the mistake, then seven letters - five that tell this problem from others of its kind, and two worked out from
+the rest of the code, so a code copied with a slip in it is almost always caught (all but about one slip in a thousand)
+rather than opening another problem. Press **Learn about this** on a finding, or paste its code into **Open a problem**;
+lower case, spaces and a missing `FF-` are all accepted, and as Crockford's base 32 reads them, I and L are taken for 1
+and O for 0. The problems FixFinder has found on this computer are listed too, newest first.
+
+A problem opens on:
+
+- **Your problem**, when it was found on this computer: what FixFinder said of it, where it is, the line of code it is on
+  and the change FixFinder found for it.
+- **The idea** behind it, in words that hold in every language, and what the problem's own language does about it.
+- **Examples**: small programs with the mistake, and the same programs put right, with what changed. **Run it** runs
+  each one here, as FixFinder runs a program, and shows what it printed and how it ended.
+- **Try it yourself**: the first program again, to put right. **Check my fix** runs it and says what it did beside what
+  the program put right does - it says what was seen, not whether the code is good, as a different fix can print
+  something else and still be right.
+- **Check your understanding**: questions on what a program does when it runs, which line it stops on, and which of
+  several changes puts it right - with why each answer is right or wrong. The questions answered right are remembered, and
+  a lesson with all of them answered is marked done.
+
+Nothing in a lesson is written from memory. Each example states what its program does - what it prints, the error it
+stops with and the line (or that the language names no line, as OCaml names none for some divisions by zero), that its
+compiler refuses it, or that it never finishes - and `LessonLiveTests` runs every
+program of every lesson with the language's own compiler or interpreter, the way FixFinder runs a program, and fails
+when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
+running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
+**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons, in
+between two and nine languages, and they are listed by language; an idea with no lesson in the problem's language yet
+names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
+
+FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
+is, the line of code it is on and the change it found - in a small file under `%LOCALAPPDATA%\FixFinder\learn\problems`,
+so FixFinder Learn can show it beside the lesson. Only the newest 500 codes are kept, and **Forget these** in FixFinder
+Learn deletes them all; a code still opens its lesson afterwards, without your own lines. A code from another computer
+opens the lesson and says that the problem itself is not kept here. The questions answered right are kept in
+`%LOCALAPPDATA%\FixFinder\learn\progress.json`. Nothing is sent anywhere.
 
 ## How the two checks work
 
@@ -408,6 +497,8 @@ it stops with:
 | C, C++ | gcc, clang or MSVC, with `-Wall -Wextra` or `/W3` |
 | JavaScript | `node --check` on every file |
 | Go | `go build`, then `go vet` |
+| Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
+| OCaml | `ocamlc -g`, with OCaml's default warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -431,7 +522,12 @@ a pass.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
-list. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
+list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
+`xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
+`strconv.Atoi` thrown away with `_`, and `strings.ToUpper(name)` on a line of its own. In Python and JavaScript it finds
+a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java,
+C# and JavaScript a search's position compared with `> 0`, which takes a match at the very start, position 0, for no
+match. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -723,19 +819,24 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 33 | 41 |
-| Java | 54 | 32 | 46 |
-| C# | 47 | 30 | 49 |
+| Python | 88 | 35 | 41 |
+| Java | 54 | 33 | 46 |
+| C# | 47 | 31 | 49 |
 | C | 46 | 18 | 39 |
 | C++ | 45 | 23 | 39 |
-| JavaScript | 41 | 25 | 15 |
-| Go | 38 | - | 18 |
+| JavaScript | 41 | 27 | 15 |
+| Go | 38 | 5 | 18 |
+| Scala | 6 | 5 | 28 |
+| OCaml | 6 | 3 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
-one. Every compiler warning is reported too, rated as an error, warning or suggestion.
+one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
+for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in fifteen languages, each with its own stack-trace parser: Python, C#, Java, JavaScript, Go, C, C++,
-Rust, Ruby, PHP, PowerShell, Dart, Elixir, Perl and Lua. Anything else gets a generic reading of its file and line.
+A crash is read in seventeen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Perl, Lua and OCaml, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
+as Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file
+and line.
 
 Some limits are part of how FixFinder works:
 
@@ -780,6 +881,14 @@ how much of the message it shares (0.22), whether the query is in the title (0.1
 votes (0.08, capped so one famous answer cannot drown a precise one), age (0.06), language (0.06) and whether a patch is
 attached (0.08). A patch from GitHub is shown as the code it should end up as, never as a diff to paste.
 
+Only results about this very error are shown, as `RelevanceCheck` decides: one that does not name the error's type or
+code, is tagged only with other languages, or shares less than a quarter of the error's own distinctive words - half,
+for a compiler message with no type or code to be named by - is somebody else's problem, and is left out; the window
+says how many were. Each result shown says why it is - what in it matches the error. **Copy the fix** is offered only
+for FixFinder's own fix, a command that installs what is missing, or a patch that applies to the program's own files:
+code from somebody else's answer is written for their program, so it is shown to read, marked as theirs, and never
+offered as the fix.
+
 Without a key, Stack Overflow allows 300 requests a day and GitHub 10 searches a minute. A GitHub token with **no
 permissions selected** raises those limits; FixFinder only reads public data, so do not give it more. Tokens are stored
 encrypted with Windows DPAPI under your account, and responses are cached as plain JSON under
@@ -793,7 +902,7 @@ has to be installed into the editor.
 
 ```
 dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll marks.py
-dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68" --level beginner
+dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Average: 68"
 ```
 
 | | |
@@ -801,7 +910,6 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--format msbuild` | The default. The format Visual Studio and Rider use, and the one VS Code's built-in `$msCompile` reads - checked against that matcher's pattern, copied from VS Code's source, in `CommandLineTests`. |
 | `--format gcc` | `file:line:column: error: message`, for tools that expect gcc's form, Eclipse among them. A suggestion is a `note`, since gcc's form has no word for it. |
 | `--format json` | Everything each finding says, for another program to use. |
-| `--level` | `beginner`, `student` or `technical` - how much each finding explains. Your saved setting otherwise. |
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
 | `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
 | `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |
@@ -809,7 +917,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a
 problem. It exits with 0 when nothing is wrong, 1 when there is at least one error - so a build step can stop on it - and
-2 when the program could not be checked at all. The language versions chosen in Settings apply here too.
+2 when the program could not be checked at all.
 
 **VS Code:** copy `Editors/vscode-tasks.json` into your project's `.vscode/tasks.json` and change the path to
 `fixfinder.dll`. *Terminal → Run Task → FixFinder: check this file* checks whatever file is open.
@@ -821,8 +929,10 @@ problem. It exits with 0 when nothing is wrong, 1 when there is at least one err
 
 | Project | |
 |---|---|
-| `FixFinder.Core` | Everything but the window. `net8.0`, so the tests run without a desktop. |
-| `FixFinder.Gui` | The WPF window. |
+| `FixFinder.Core` | Everything but the windows. `net8.0`, so the tests run without a desktop. |
+| `FixFinder.Gui` | FixFinder's window. |
+| `FixFinder.Learn` | FixFinder Learn's window. Its lessons, and everything it runs, come from `FixFinder.Core`. |
+| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes, code shown in text, and fitting a window to its screen. |
 | `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |
@@ -839,10 +949,14 @@ Inside `FixFinder.Core`:
 | `Parsing` | The stack-trace parsers. |
 | `Fingerprinting`, `Sources`, `Ranking`, `Http`, `Security` | Online search: the query, GitHub and Stack Overflow, ranking, caching and token storage. |
 | `Patching` | Reading diffs from search results and working out where they would land in your code. |
+| `Teaching` | FixFinder Learn's side: the ideas behind mistakes (`Concepts`) and which finding is which (`ConceptMap`), problem codes, the problems kept for Learn (`ProblemStore`), the lessons (`LessonsByConcept`), the questions made from them (`Quiz`) and the runner that runs a lesson's programs (`SnippetRunner`). |
+| `Display` | The arithmetic of fitting a window to a screen, apart from WPF so it can be tested. |
 
 To add a check: a logic check goes in `Logic`, with a guide in `Checking/Guides` and cases in
 `CodeReviewPatternTests`, including correct code it must leave alone. A fix rule goes in its language's folder under
-`LocalFixes/Rules`, is listed in `LocalFixEngine.Rules`, and gets a guide and a test.
+`LocalFixes/Rules`, is listed in `LocalFixEngine.Rules`, and gets a guide and a test. A lesson goes in
+`Teaching/LessonsByConcept`, in the file of its idea, and is listed in `Lessons.All`; `LessonLiveTests` then runs each of
+its programs, and fails until each does what the lesson says.
 
 The NuGet dependencies are `System.Security.Cryptography.ProtectedData`, for the token, and `Microsoft.CodeAnalysis.CSharp`
 (Roslyn), to read C#.
@@ -851,11 +965,14 @@ The NuGet dependencies are `System.Security.Cryptography.ProtectedData`, for the
 
 ```
 dotnet build FixFinder.Gui\FixFinder.Gui.csproj
+dotnet build FixFinder.Learn\FixFinder.Learn.csproj
 dotnet test  FixFinder.Tests\FixFinder.Tests.csproj
 ```
 
-Run the build with `run-fixfinder.cmd`, or `dotnet FixFinder.Gui\bin\Debug\net8.0-windows\FixFinder.Gui.dll`. Tests that
-need a compiler or runtime that is not installed skip themselves.
+Run the build with `run-fixfinder.cmd`, or `dotnet FixFinder.Gui\bin\Debug\net8.0-windows\FixFinder.Gui.dll`, and
+FixFinder Learn with `dotnet FixFinder.Learn\bin\Debug\net8.0-windows\FixFinder.Learn.dll` - or with **Learn about this**
+on a finding, which finds Learn's build beside FixFinder's. Tests that need a compiler or runtime that is not installed
+skip themselves.
 
 To make a single executable with .NET included:
 
@@ -863,8 +980,9 @@ To make a single executable with .NET included:
 powershell -ExecutionPolicy Bypass -File publish-exe.ps1
 ```
 
-That writes `publish\FixFinder.exe`. Add `-FrameworkDependent` for a much smaller exe that needs the .NET 8 desktop
-runtime installed. Keep it somewhere writable, since it writes its `Logs` folder beside itself.
+That writes `publish\FixFinder.exe`, and `publish\FixFinderLearn.exe` beside it, where **Learn about this** looks for
+it. Add `-FrameworkDependent` for much smaller exes that need the .NET 8 desktop runtime installed. Keep them somewhere
+writable, since FixFinder writes its `Logs` folder beside itself.
 
 On a machine with Windows Smart App Control, a newly built exe or DLL can be refused until Windows has seen it before,
 even when it is signed. `run-fixfinder.cmd` starts the DLL through `dotnet.exe`, which Windows already trusts, and is the
