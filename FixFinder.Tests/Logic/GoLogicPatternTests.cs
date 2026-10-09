@@ -78,14 +78,26 @@ public class GoLogicPatternTests : IDisposable
         Assert.Equal(7, copyChanged.Fix?.StartLine);
         Assert.Equal(new[] { "\tfor i, mark := range marks {", "\t\tmarks[i] = mark + 5" }, copyChanged.Fix?.NewLines);
 
+        // Nothing uses mark once the line is marks[i] += 5, and Go refuses a name declared and not used, so mark goes.
         var namedChanged = Assert.Single(named, finding => finding.PatternId == "logic-go-range-value-changed");
-        Assert.Equal("\t\tmarks[i] += 5", namedChanged.Fix?.NewLines.Single());
+        Assert.Equal(7, namedChanged.Fix?.StartLine);
+        Assert.Equal(new[] { "\tfor i := range marks {", "\t\tfmt.Println(i)", "\t\tmarks[i] += 5" }, namedChanged.Fix?.NewLines);
+    }
+
+    [Fact]
+    public void AMapValueCountedUpInTheLoopsCopyIsCountedUpInTheMap()
+    {
+        var findings = Scan(InsideMain("\tages := map[string]int{\"Ada\": 36}\n\tfor name, age := range ages {\n\t\tfmt.Println(name)\n\t\tage++\n\t}\n\tfmt.Println(ages)\n"));
+
+        var copyChanged = Assert.Single(findings, finding => finding.PatternId == "logic-go-range-value-changed");
+        Assert.Equal(new[] { "\tfor name := range ages {", "\t\tfmt.Println(name)", "\t\tages[name]++" }, copyChanged.Fix?.NewLines);
     }
 
     [Theory]
     [InlineData("\tlines := []string{\" a \"}\n\tfor _, line := range lines {\n\t\tline = line + \"!\"\n\t\tfmt.Println(line)\n\t}\n")]
     [InlineData("\tcounts := []int{3}\n\tfor _, count := range counts {\n\t\tfor count > 0 {\n\t\t\tcount = count - 1\n\t\t}\n\t}\n")]
-    public void ARangeValueUsedAfterItIsChangedOrCountedDownInAnInnerLoopIsLeftAlone(string body)
+    [InlineData("\tmarks := []int{1}\n\tfor _, mark := range marks {\n\t\tdefer func() { fmt.Println(mark) }()\n\t\tmark = 2\n\t}\n")]
+    public void ARangeValueUsedAfterItIsChangedOrCountedDownInAnInnerLoopOrKeptByAClosureIsLeftAlone(string body)
     {
         Assert.DoesNotContain(Scan(InsideMain(body)), finding => finding.PatternId == "logic-go-range-value-changed");
     }

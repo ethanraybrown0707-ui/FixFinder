@@ -108,6 +108,10 @@ public class GoLogicLiveTests(ITestOutputHelper output) : IDisposable
             "[70 80 90]", "logic-go-range-value-changed", 8, "[75 85 95]"
         },
         {
+            "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tages := map[string]int{\"Ada\": 36}\n\tfor name, age := range ages {\n\t\tfmt.Println(name)\n\t\tage++\n\t}\n\tfmt.Println(ages)\n}\n",
+            "Ada\nmap[Ada:36]", "logic-go-range-value-changed", 9, "Ada\nmap[Ada:37]"
+        },
+        {
             "package main\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nfunc main() {\n\tage, _ := strconv.Atoi(\"twelve\")\n\tfmt.Println(age + 1)\n}\n",
             "1", "logic-go-parse-error-ignored", 9, null
         },
@@ -129,6 +133,11 @@ public class GoLogicLiveTests(ITestOutputHelper output) : IDisposable
         Assert.True(vetExitCode == 0 && vetSaid.Trim().Length == 0, $"go vet said: {vetSaid}");
 
         var report = await CheckAsync(program);
+        if (report.Run?.Run is { } run && ApplicationControl.Refused(run))
+        {
+            output.WriteLine("Windows refused to start the program, so what it prints is not checked here.");
+            return;
+        }
 
         Assert.Equal(printed, string.Join("\n", report.Run?.Run?.Lines.Select(captured => captured.Text) ?? []).Trim());
         var found = Assert.Single(report.Findings, finding => finding.RuleId == check);

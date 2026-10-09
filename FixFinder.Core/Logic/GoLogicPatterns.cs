@@ -128,13 +128,19 @@ public static partial class GoLogicPatterns
     [GeneratedRegex(@"\bfor\s+(?<position>[A-Za-z_]\w*)\s*,\s*(?<value>[A-Za-z_]\w*)\s*:=\s*range\s+(?<collection>[A-Za-z_][\w.]*)\s*\{\s*$")]
     private static partial Regex RangeLoop();
 
+    /// <summary><c>func(</c> - a function literal, which can keep a loop's value and read it later.</summary>
+    [GeneratedRegex(@"\bfunc\s*\(")]
+    private static partial Regex FunctionLiteral();
+
     /// <summary>The names a position is given when the loop has none, in the order they are tried.</summary>
     private static readonly string[] PositionNames = ["i", "index", "position"];
 
     /// <summary>
     /// A range loop that gives its value a new value and never uses it after: the value is the loop's copy of the item, so
     /// the collection keeps what it had and the line does nothing. A line inside a loop nested in the body is left alone,
-    /// as the nested loop can read the value again on its next pass.
+    /// as the nested loop can read the value again on its next pass - and so is a body with a function literal anywhere in
+    /// it, as a deferred call or a goroutine made earlier in the body can read the value after the line, as each pass has
+    /// its own copy from Go 1.22.
     /// </summary>
     private static IEnumerable<LogicFinding> RangeValueChanged(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -153,6 +159,7 @@ public static partial class GoLogicPatterns
             if (bodyLines.Where(line => assignment.IsMatch(masked[line])).ToList() is not [var changed]) continue;
             if (bodyLines.Any(line => line > changed && mention.IsMatch(masked[line]))) continue;
             if (InsideNestedLoopOrClosure(masked, body.First, changed)) continue;
+            if (bodyLines.Any(line => FunctionLiteral().IsMatch(masked[line]))) continue;
 
             yield return new LogicFinding(id, changed + 1,
                 $"Giving `{value}` a new value changes only the loop's copy of the item - {collection} keeps what it had - and nothing " +
@@ -182,8 +189,10 @@ public static partial class GoLogicPatterns
 
     /// <summary>
     /// The change that puts the new value in the collection - <c>marks[i] = mark + 5</c> - when the collection is a slice,
-    /// an array or a map the file makes; a loop with _ for its position is given one. Null for anything else, such as a
-    /// string, whose bytes cannot be changed.
+    /// an array or a map the file makes; a loop with _ for its position is given one. When nothing in the body uses the
+    /// value any more - <c>mark++</c> becomes <c>marks[i]++</c> - the value is taken out of the loop's heading too, as Go
+    /// refuses to build a loop whose value is declared and not used. Null for anything else, such as a string, whose bytes
+    /// cannot be changed.
     /// </summary>
     private static LocalFix? IndexedFix(string id, SourceFile source, IReadOnlyList<string> masked, string code, Match loop, int heading, int changed, Regex assignment)
     {
@@ -193,6 +202,7 @@ public static partial class GoLogicPatterns
         if (!madeChangeable) return null;
 
         var position = loop.Groups["position"].Value;
+        var value = loop.Groups["value"].Value;
         var bodyText = string.Join("\n", Enumerable.Range(heading, changed - heading + 1).Select(line => masked[line]));
         var givenPosition = position == "_" ? PositionNames.FirstOrDefault(candidate => !Regex.IsMatch(bodyText, $@"(?<![\w.]){candidate}\b")) : position;
         if (givenPosition is null) return null;
@@ -202,21 +212,34 @@ public static partial class GoLogicPatterns
         var storedInCollection = changedLine[..target.Index] + $"{collection}[{givenPosition}]" + changedLine[(target.Index + target.Length)..];
         var explanation = $"{collection}[{givenPosition}] is the item itself, so giving it the new value changes {collection}.";
 
-        if (position != "_") return LocalFix.ReplaceLine(id, $"Change {collection}[{givenPosition}]", explanation, source.Path, changed + 1, storedInCollection);
+        var mention = new Regex($@"(?<![\w.]){Regex.Escape(value)}\b");
+        var valueStillUsed = mention.IsMatch(masked[changed][(target.Index + target.Length)..]) ||
+                             Enumerable.Range(heading + 1, changed - heading - 1).Any(line => mention.IsMatch(masked[line]));
+
+        if (position != "_" && valueStillUsed)
+            return LocalFix.ReplaceLine(id, $"Change {collection}[{givenPosition}]", explanation, source.Path, changed + 1, storedInCollection);
 
         var positionGroup = loop.Groups["position"];
+        var valueGroup = loop.Groups["value"];
         var headingLine = source.Lines[heading];
-        var namedHeading = headingLine[..positionGroup.Index] + givenPosition + headingLine[(positionGroup.Index + positionGroup.Length)..];
+        var names = valueStillUsed ? $"{givenPosition}, {value}" : givenPosition;
+        var newHeading = headingLine[..positionGroup.Index] + names + headingLine[(valueGroup.Index + valueGroup.Length)..];
+        var headingChange = (position == "_", valueStillUsed) switch
+        {
+            (true, true) => $"The loop is given a name for the position, {givenPosition}, and ",
+            (true, false) => $"The loop goes by position, {givenPosition}, as nothing uses {value} any more, and ",
+            _ => $"{value} comes out of the loop's heading, as nothing uses it any more - Go refuses a name declared and not used - and ",
+        };
 
         return new LocalFix
         {
             RuleId = id,
             Title = $"Change {collection}[{givenPosition}]",
-            Explanation = $"The loop is given a name for the position, {givenPosition}, and {explanation}",
+            Explanation = headingChange + explanation,
             File = source.Path,
             StartLine = heading + 1,
             RemoveCount = changed - heading + 1,
-            NewLines = [namedHeading, .. Enumerable.Range(heading + 1, changed - heading - 1).Select(line => source.Lines[line]), storedInCollection],
+            NewLines = [newHeading, .. Enumerable.Range(heading + 1, changed - heading - 1).Select(line => source.Lines[line]), storedInCollection],
         };
     }
 
