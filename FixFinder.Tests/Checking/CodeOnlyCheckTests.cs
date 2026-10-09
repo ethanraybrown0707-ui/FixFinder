@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Reading the code alone, as Check on save does after every save: it finds what the code shows, runs nothing and says
+/// Reading the code alone, as FixFinder does after every save: it finds what the code shows, runs nothing and says
 /// so, never passes quietly over code it could not read, and reuses what it found in functions that have not changed.
 /// </summary>
 public class CodeOnlyCheckTests : IDisposable

@@ -81,7 +81,7 @@ public partial class MainWindow : Window
     /// <summary>The folder this window saves pasted code in, to check it; removed when the window closes.</summary>
     private string? _pastedFolder;
 
-    /// <summary>The language pasted code was checked as when Auto-detect worked it out from the code; null otherwise.</summary>
+    /// <summary>The language pasted code was checked as, when it was worked out from the code rather than chosen; null otherwise.</summary>
     private CodeLanguage? _pastedLanguage;
 
     private CancellationTokenSource? _cancellation;
@@ -93,7 +93,7 @@ public partial class MainWindow : Window
     /// </summary>
     private readonly AnalysisCache _analysisCache = new();
 
-    /// <summary>Watches the program's folder while Check on save is on, so the code is read again after every save.</summary>
+    /// <summary>Watches the folder of a program checked as a file, so its code is read again after every save.</summary>
     private FileSystemWatcher? _saveWatcher;
 
     /// <summary>The program's own files, which are the only ones whose saving means anything here.</summary>
@@ -340,7 +340,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Takes a program to check, and checks it straight away: in the language its file's name says, or - for a file whose
-    /// name says none - with everything FixFinder knows, as Auto-detect did.
+    /// name says none - with everything FixFinder knows.
     /// </summary>
     private void Choose(string path)
     {

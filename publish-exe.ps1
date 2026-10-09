@@ -1,18 +1,22 @@
 <#
 .SYNOPSIS
-  Publishes FixFinder as a single self-contained FixFinder.exe and signs it.
+  Publishes FixFinder and FixFinder Learn as single self-contained exes - FixFinder.exe and
+  FixFinderLearn.exe, side by side - and signs them.
 
 .DESCRIPTION
-  Produces one file with the .NET runtime and WPF bundled inside, so it runs on a machine with
-  no .NET installed. That is what makes it worth doing at all - a framework-dependent exe is a
-  few hundred KB but is just a launcher for a runtime that has to already be there, which is no
-  more portable than the DLL it replaces.
+  Produces one file per application with the .NET runtime and WPF bundled inside, so each runs on
+  a machine with no .NET installed. That is what makes it worth doing at all - a framework-dependent
+  exe is a few hundred KB but is just a launcher for a runtime that has to already be there, which
+  is no more portable than the DLL it replaces.
+
+  FixFinder Learn goes in the same folder because that is where FixFinder looks for it: a finding's
+  Learn about this button starts FixFinderLearn.exe from beside FixFinder.exe.
 
   Compression is on. It roughly halves the output at the cost of a slower first start, which is
   the right trade for a tool launched by hand rather than in a loop.
 
-  The exe is Authenticode-signed with the same local certificate the Debug DLLs use. Read the
-  warning printed at the end before assuming that makes it runnable everywhere: local trust
+  Each exe is Authenticode-signed with the same local certificate the Debug DLLs use. Read the
+  warning printed at the end before assuming that makes them runnable everywhere: local trust
   satisfies an Application Control policy, and it does not satisfy Smart App Control, which
   judges by reputation rather than by signature.
 
@@ -22,7 +26,7 @@
   certificate in the personal store - so a fresh clone works without editing anything.
 
 .PARAMETER Version
-  The release being built, for example 2.4.1: the exe's file version, and the version a report
+  The release being built, for example 2.4.1: the exes' file version, and the version a report
   saved as a web page names at its foot, with the commit after it. Left out, the build is numbered
   1.0.0, as .NET numbers a build nobody has given a version.
 #>
@@ -45,13 +49,22 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = $PSScriptRoot
-$project = Join-Path $root "FixFinder.Gui\FixFinder.Gui.csproj"
 $output = Join-Path $root "publish"
 
-if (-not (Test-Path $project)) { throw "Not found: $project" }
+# Each application: its project, the exe dotnet names after its assembly, and the name a person sees. FixFinder.Gui is
+# the assembly, but the thing a person double-clicks should just be FixFinder.
+$applications = @(
+    @{ Project = "FixFinder.Gui\FixFinder.Gui.csproj"; Built = "FixFinder.Gui.exe"; Final = "FixFinder.exe" },
+    @{ Project = "FixFinder.Learn\FixFinder.Learn.csproj"; Built = "FixFinder.Learn.exe"; Final = "FixFinderLearn.exe" }
+)
+
+foreach ($application in $applications) {
+    $projectPath = Join-Path $root $application.Project
+    if (-not (Test-Path $projectPath)) { throw "Not found: $projectPath" }
+}
 
 Write-Host ""
-Write-Host "Publishing FixFinder ($Configuration, $Runtime, $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }))..."
+Write-Host "Publishing FixFinder and FixFinder Learn ($Configuration, $Runtime, $(if ($FrameworkDependent) { 'framework-dependent' } else { 'self-contained' }))..."
 Write-Host ""
 
 # Everything except Logs, which is not ours to throw away: it is the record of what FixFinder
@@ -63,8 +76,7 @@ if (Test-Path $output) {
         Remove-Item -Recurse -Force
 }
 
-$arguments = @(
-    "publish", $project,
+$sharedArguments = @(
     "-c", $Configuration,
     "-r", $Runtime,
     "-o", $output,
@@ -75,26 +87,31 @@ $arguments = @(
     "-p:SatelliteResourceLanguages=en"
 )
 
-if ($Version) { $arguments += "-p:Version=$Version" }
+if ($Version) { $sharedArguments += "-p:Version=$Version" }
 
 if ($FrameworkDependent) {
-    $arguments += "--self-contained:false"
+    $sharedArguments += "--self-contained:false"
 } else {
-    $arguments += "--self-contained:true"
+    $sharedArguments += "--self-contained:true"
     # Compression only applies to a self-contained bundle.
-    $arguments += "-p:EnableCompressionInSingleFile=true"
+    $sharedArguments += "-p:EnableCompressionInSingleFile=true"
 }
 
-& dotnet @arguments
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
+$finishedExes = @()
 
-# The assembly is FixFinder.Gui; the thing a person double-clicks should just be FixFinder.
-$published = Join-Path $output "FixFinder.Gui.exe"
-$final = Join-Path $output "FixFinder.exe"
+foreach ($application in $applications) {
+    & dotnet publish (Join-Path $root $application.Project) @sharedArguments
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish of $($application.Project) failed with exit code $LASTEXITCODE" }
 
-if (-not (Test-Path $published)) { throw "Expected $published but it was not produced" }
-if (Test-Path $final) { Remove-Item $final -Force }
-Move-Item $published $final
+    $published = Join-Path $output $application.Built
+    $final = Join-Path $output $application.Final
+
+    if (-not (Test-Path $published)) { throw "Expected $published but it was not produced" }
+    if (Test-Path $final) { Remove-Item $final -Force }
+    Move-Item $published $final
+
+    $finishedExes += $final
+}
 
 # Signing comes after the rename: Authenticode covers the file's bytes, and renaming afterwards
 # would be fine, but signing the final artifact keeps "what was signed" unambiguous.
@@ -113,29 +130,33 @@ if (-not $SkipSigning) {
     $cert = $candidates | Select-Object -First 1
 
     if ($cert) {
-        $sig = Set-AuthenticodeSignature -FilePath $final -Certificate $cert -HashAlgorithm SHA256
-        Write-Host "Signed: $($sig.Status)  [$($cert.Subject)]"
+        foreach ($finishedExe in $finishedExes) {
+            $sig = Set-AuthenticodeSignature -FilePath $finishedExe -Certificate $cert -HashAlgorithm SHA256
+            Write-Host "Signed $(Split-Path $finishedExe -Leaf): $($sig.Status)  [$($cert.Subject)]"
+        }
     } else {
-        Write-Warning "No code-signing certificate found - the exe is unsigned."
+        Write-Warning "No code-signing certificate found - the exes are unsigned."
     }
 }
 
-$size = [Math]::Round((Get-Item $final).Length / 1MB, 1)
-
 Write-Host ""
-Write-Host "Built: $final  ($size MB)"
+foreach ($finishedExe in $finishedExes) {
+    $size = [Math]::Round((Get-Item $finishedExe).Length / 1MB, 1)
+    Write-Host "Built: $finishedExe  ($size MB)"
+}
 
-$extra = Get-ChildItem $output -File | Where-Object { $_.Name -ne "FixFinder.exe" }
+$finalNames = $applications | ForEach-Object { $_.Final }
+$extra = Get-ChildItem $output -File | Where-Object { $finalNames -notcontains $_.Name }
 if ($extra) {
     Write-Host ""
-    Write-Host "Alongside it:"
+    Write-Host "Alongside them:"
     $extra | ForEach-Object { Write-Host ("  {0}  ({1:N0} bytes)" -f $_.Name, $_.Length) }
 }
 
 Write-Host ""
 Write-Host "Note: this machine enforces Smart App Control, which judges an executable by"
 Write-Host "reputation rather than by signature. A self-signed exe has none, so Windows may"
-Write-Host "refuse to start this one here even though it is signed and the certificate is"
+Write-Host "refuse to start these here even though they are signed and the certificate is"
 Write-Host "trusted locally. If that happens, run-fixfinder.cmd still works - it launches the"
 Write-Host "DLL through dotnet.exe, which is already trusted."
 Write-Host ""

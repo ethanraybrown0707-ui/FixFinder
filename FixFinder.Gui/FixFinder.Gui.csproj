@@ -1,13 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The only project that knows about WPF. It owns the numbered-GroupBox window, the patch
-    preview dialog and the settings dialog, and it does nothing except drive
-    FixFinder.Core's engine and marshal its events onto the UI thread.
-
-    Note there is no UseWindowsForms here, unlike the ShoppingCartAppVerifier front-ends -
-    that flag only exists over there to pull in the Accessibility assembly FlaUI.UIA3 needs
-    at runtime, and FixFinder does not use FlaUI.
+    FixFinder's window: the report, the settings and the search-online window. It does nothing
+    except drive FixFinder.Core's checks and show what they find, with the look FixFinder.Desktop
+    gives it and FixFinder Learn shares.
   -->
 
   <PropertyGroup>
