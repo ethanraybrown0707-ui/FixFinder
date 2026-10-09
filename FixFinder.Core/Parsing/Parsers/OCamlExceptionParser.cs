@@ -18,6 +18,11 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// the function, then the file and where in it. A frame in OCaml's own library - Stdlib.failwith, in stdlib.ml - is not
 /// the program's, so the crash is placed at the first frame that is.
 /// </para>
+/// <para>
+/// OCaml 5.5's bytecode gives a whole-number division by zero no place - "Raised by primitive operation at unknown location
+/// (inlined)" - so the first frame with a place is the call of the function that divided. A frame with no place is passed
+/// over, and the frames after it are still read.
+/// </para>
 /// </remarks>
 public sealed partial class OCamlExceptionParser : IStackTraceParser
 {
@@ -28,8 +33,12 @@ public sealed partial class OCamlExceptionParser : IStackTraceParser
     [GeneratedRegex(@"^Fatal error: exception (?<type>[\w.']+)(?<argument>.*)$")]
     private static partial Regex Heading();
 
-    [GeneratedRegex(@"^(?:Raised at|Raised by primitive operation at|Re-raised at|Called from)\s+(?:(?<symbol>[\w.$']+) in )?file ""(?<file>[^""]+)""(?: \(inlined\))?(?:, line (?<line>\d+)(?:, characters (?<start>\d+)-\d+)?)?")]
+    /// <summary>A frame with its place: "line 21", or "lines 4-6" for code over several lines, whose first line is taken.</summary>
+    [GeneratedRegex(@"^(?:Raised at|Raised by primitive operation at|Re-raised at|Called from)\s+(?:(?<symbol>[\w.$']+) in )?file ""(?<file>[^""]+)""(?: \(inlined\))?(?:, lines? (?<line>\d+)(?:-\d+)?(?:, characters (?<start>\d+)-\d+)?)?")]
     private static partial Regex Frame();
+
+    [GeneratedRegex(@"^(?:Raised at|Raised by primitive operation at|Re-raised at|Called from)\s+unknown location(?: \(inlined\))?\s*$")]
+    private static partial Regex FrameWithNoPlace();
 
     /// <summary>The files of OCaml's own library a frame can be in when, before OCaml 4.12, it names no function.</summary>
     private static readonly HashSet<string> LibraryFiles = new(StringComparer.Ordinal)
@@ -56,8 +65,11 @@ public sealed partial class OCamlExceptionParser : IStackTraceParser
             var frames = new List<ErrorFrame>();
             var end = index + 1;
 
-            for (; end < lines.Count && Frame().Match(lines[end].Text) is { Success: true } frame; end++)
+            for (; end < lines.Count; end++)
             {
+                if (FrameWithNoPlace().IsMatch(lines[end].Text)) continue;
+                if (Frame().Match(lines[end].Text) is not { Success: true } frame) break;
+
                 var symbol = frame.Groups["symbol"].Success ? frame.Groups["symbol"].Value : null;
                 var file = frame.Groups["file"].Value;
 

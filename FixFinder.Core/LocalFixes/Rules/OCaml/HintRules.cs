@@ -3,14 +3,15 @@ using System.Text.RegularExpressions;
 namespace FixFinder.Core.LocalFixes.Rules;
 
 /// <summary>
-/// OCaml's own "Hint: Did you mean "value1"?" - for a name it does not know, and for a number written as the wrong kind,
+/// OCaml's own "Hint: Did you mean value1?" - for a name it does not know, and for a number written as the wrong kind,
 /// such as 123 where a float is expected ("123."). What OCaml pointed at is changed to what it suggests, and only that.
+/// The suggestion is quoted or not, and OCaml 5.5 puts more than one space after "Hint:".
 /// </summary>
 public sealed partial class OCamlHint : ILocalFixRule
 {
     public string Id => "ocaml-hint";
 
-    [GeneratedRegex(@"Hint: Did you mean ""?(?<right>[^""?\s]+)""?\?")]
+    [GeneratedRegex(@"Hint:\s+Did you mean ""?(?<right>[^""?\s]+)""?\?")]
     private static partial Regex Suggested();
 
     [GeneratedRegex(@"^(?:[A-Za-z_][\w']*|\d[\d_]*(?:\.\d*)?)$")]
@@ -33,14 +34,14 @@ public sealed partial class OCamlHint : ILocalFixRule
 }
 
 /// <summary>
-/// "Unbound value "facto"", with OCaml's hint that a recursive definition needs rec on the line it names: rec is added to
-/// that line's let.
+/// "Unbound value facto", with OCaml's hint that a recursive definition needs rec on the line it names: rec is added to
+/// that line's let. The hint goes over two lines, and rec is quoted or not.
 /// </summary>
 public sealed partial class OCamlAddRec : ILocalFixRule
 {
     public string Id => "ocaml-add-rec";
 
-    [GeneratedRegex(@"add the ['""]rec['""] keyword on line (?<line>\d+)")]
+    [GeneratedRegex(@"add\s+the\s+['""]?rec['""]?\s+keyword\s+on\s+line\s+(?<line>\d+)")]
     private static partial Regex RecHint();
 
     [GeneratedRegex(@"^(?<before>\s*(?:let|and))\s+(?!rec\b)")]

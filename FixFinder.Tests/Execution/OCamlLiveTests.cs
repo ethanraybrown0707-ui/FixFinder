@@ -65,8 +65,12 @@ public class OCamlLiveTests(ITestOutputHelper output) : IDisposable
         return report;
     }
 
+    /// <summary>
+    /// OCaml's bytecode names no place for the division itself, only the call of the function that divided: the crash is
+    /// at that call, and the division the function makes is the one changed - and the change is run in a copy.
+    /// </summary>
     [Fact]
-    public async Task AWholeNumberDividedByZeroIsFoundAtItsLineAndItsFixIsRunInACopy()
+    public async Task AWholeNumberDividedByZeroIsFoundAtTheCallOCamlNamesAndItsFixIsRunInACopy()
     {
         if (!Available()) return;
 
@@ -75,8 +79,10 @@ public class OCamlLiveTests(ITestOutputHelper output) : IDisposable
         var report = await CheckAsync(program);
 
         var crash = Assert.Single(report.Findings, finding => finding.RuleId == "ocaml-division-guard");
-        Assert.Equal(1, crash.Line);
+        Assert.Equal(3, crash.Line);
         Assert.Contains("Division_by_zero", crash.Title);
+        Assert.Equal(1, crash.Fix?.StartLine);
+        Assert.Contains("(if count = 0 then 0 else total / count)", crash.CorrectedExample);
         Assert.True(crash.Verified.IsVerified, crash.Verified.Summary);
     }
 
@@ -164,7 +170,7 @@ public class OCamlLiveTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
-    public async Task ACrashInAnotherFileOfTheProgramIsPlacedInThatFileAndNothingIsWrittenBesideIt()
+    public async Task ACrashInAnotherFileOfTheProgramIsFixedInThatFileAndNothingIsWrittenBesideIt()
     {
         if (!Available()) return;
 
@@ -174,7 +180,9 @@ public class OCamlLiveTests(ITestOutputHelper output) : IDisposable
         var report = await CheckAsync(main);
 
         var crash = Assert.Single(report.Findings, finding => finding.Title.Contains("Division_by_zero", StringComparison.Ordinal));
-        Assert.Equal((helper, 1), (crash.File, crash.Line!.Value));
+        Assert.Equal((main, 1), (crash.File, crash.Line!.Value));
+        Assert.Equal((helper, 1), (crash.Fix?.File, crash.Fix?.StartLine));
+        Assert.True(crash.Verified.IsVerified, crash.Verified.Summary);
         Assert.Equal(new[] { "helper.ml", "main.ml" }, Directory.GetFiles(Path.GetDirectoryName(main)!).Select(Path.GetFileName).Order());
     }
 

@@ -15,7 +15,7 @@ public sealed record Behaviour
     /// </summary>
     public string? StopsWith { get; init; }
 
-    /// <summary>The line of the example the error is on.</summary>
+    /// <summary>The line of the example the error is on; null when the language names no line for it.</summary>
     public int? OnLine { get; init; }
 
     /// <summary>Whether the language refused the code before any of it ran - a compiler's error, or a SyntaxError.</summary>
@@ -33,6 +33,12 @@ public sealed record Behaviour
     public static Behaviour Printing(string printed) => new() { Prints = printed };
 
     public static Behaviour Stopping(string error, int line) => new() { StopsWith = error, OnLine = line };
+
+    /// <summary>
+    /// Stopping with an error the language names no line for - as OCaml's bytecode names none for a whole number divided by
+    /// zero outside any function.
+    /// </summary>
+    public static Behaviour StoppingOnNoLine(string error) => new() { StopsWith = error };
 
     public static Behaviour Refused(string error, int line) => new() { StopsWith = error, OnLine = line, BeforeRunning = true };
 
@@ -52,6 +58,7 @@ public sealed record Behaviour
         { NeverFinishes: true } => "It never finishes - it is still running when it is stopped",
         { CrashesWith: { } meaning } => $"It crashes: Windows stops it with {meaning}",
         { StopsWith: { } error, BeforeRunning: true } => $"{RefusedBy(language)} refuses it before it runs: {error} on line {OnLine}",
+        { StopsWith: { } error, OnLine: null } => $"It stops with {error}, and {language} does not say on which line",
         { StopsWith: { } error } => $"It stops with {error} on line {OnLine}",
         { Prints: { Length: > 0 } printed } => printed.Contains('\n') ? $"It prints:\n{printed}" : $"It prints {printed}",
         _ => "It runs to the end and prints nothing",

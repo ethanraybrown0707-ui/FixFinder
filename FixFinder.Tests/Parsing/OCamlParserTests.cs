@@ -152,6 +152,41 @@ public class OCamlParserTests
     }
 
     [Fact]
+    public void AFrameWithNoPlaceIsPassedOverAndTheFramesAfterItAreRead()
+    {
+        // What OCaml 5.5.1's ocamlrun printed, on the computer the tests run on, for a function that divided by zero.
+        var output = """
+            Fatal error: exception Division_by_zero
+            Raised by primitive operation at unknown location (inlined)
+            Called from Average in file "average.ml", line 3, characters 19-33
+            """;
+
+        var crash = new OCamlExceptionParser().Parse(Lines(output));
+
+        Assert.NotNull(crash);
+        var call = Assert.Single(crash.Frames);
+        Assert.Equal(("Division_by_zero", "average.ml", 3, 20), (crash.ExceptionType, call.File, call.Line!.Value, call.Column!.Value));
+        Assert.Contains("unknown location", crash.RawText);
+    }
+
+    [Fact]
+    public void AFrameOverSeveralLinesIsPlacedAtItsFirst()
+    {
+        // OCaml 5.5.1 again, for a match that had no case for the value it was given.
+        var output = """
+            Fatal error: exception Match_failure("grade.ml", 4, 2)
+            Raised at Grade.describe in file "grade.ml", lines 4-6, characters 2-20
+            Called from Grade in file "grade.ml", line 8, characters 23-39
+            """;
+
+        var crash = new OCamlExceptionParser().Parse(Lines(output));
+
+        Assert.NotNull(crash);
+        Assert.Equal(2, crash.Frames.Count);
+        Assert.Equal(("Grade.describe", 4, 3), (crash.Frames[0].Symbol, crash.Frames[0].Line!.Value, crash.Frames[0].Column!.Value));
+    }
+
+    [Fact]
     public void AnExceptionOfTheProgramsOwnKeepsItsModuleAndWhatItCarries()
     {
         var output = """

@@ -63,6 +63,20 @@ public class OCamlRuleTests : IDisposable
         Assert.Equal("let value2 = value1 + 1", older?.NewLines.Single());
     }
 
+    /// <summary>OCaml 5.5.1, as it printed these on the computer the tests run on: names unquoted, and room after "Hint:".</summary>
+    [Fact]
+    public void OCaml55sHintsAreReadAsItWritesThem()
+    {
+        var values = Write("values.ml", "let value1 = 3\n\nlet () = print_int (valeu1 + 1)\n");
+        var facto = Write("facto.ml", "let facto n =\n  if n = 0 then 1 else n * facto (n - 1)\n");
+
+        var renamed = Fix("ocaml-hint", Compile("Unbound value valeu1\nHint:   Did you mean value1?", values, 3, 20, 26));
+        var recursive = Fix("ocaml-add-rec", Compile("Unbound value facto\nHint: If this is a recursive definition,\nyou should add the rec keyword on line 1", facto, 2, 27, 32));
+
+        Assert.Equal("let () = print_int (value1 + 1)", renamed?.NewLines.Single());
+        Assert.Equal("let rec facto n =", recursive?.NewLines.Single());
+    }
+
     [Fact]
     public void ANumberWrittenAsTheWrongKindIsWrittenAsOCamlsHintSays()
     {
@@ -114,6 +128,62 @@ public class OCamlRuleTests : IDisposable
         var fix = Fix("ocaml-division-guard", Raised("Division_by_zero", null, file, 1));
 
         Assert.Equal("let average marks total = (if List.length marks = 0 then 0 else total / List.length marks)", fix?.NewLines.Single());
+    }
+
+    /// <summary>
+    /// A division by zero as OCaml 5.5.1's bytecode reports one: at no place, called from the line that called the function
+    /// that divided, at the characters of that call.
+    /// </summary>
+    private static ParsedError RaisedAtNoPlace(string file, int line, int start, int end) => new()
+    {
+        LanguageId = "ocaml",
+        Confidence = 90,
+        RawText = "Fatal error: exception Division_by_zero\nRaised by primitive operation at unknown location (inlined)\n" +
+                  $"Called from Main in file \"{Path.GetFileName(file)}\", line {line}, characters {start}-{end}",
+        FirstLineSequence = 0,
+        ExceptionType = "Division_by_zero",
+        Frames =
+        [
+            new ErrorFrame
+            {
+                Order = 0, File = file, Line = line, Column = start + 1, Origin = FrameOrigin.FirstParty,
+                RawLine = $"Called from Main in file \"{Path.GetFileName(file)}\", line {line}, characters {start}-{end}",
+            },
+        ],
+    };
+
+    [Fact]
+    public void ADivisionByZeroAtNoPlaceIsLookedForInTheFunctionCalledWhereOCamlSays()
+    {
+        var file = Write("average.ml", "let average total count =\n  total / count\n\nlet () = print_int (average 10 0)\n");
+
+        var fix = Fix("ocaml-division-guard", RaisedAtNoPlace(file, 4, 19, 33));
+
+        Assert.Equal((file, 2), (fix?.File, fix?.StartLine));
+        Assert.Equal("  (if count = 0 then 0 else total / count)", fix?.NewLines.Single());
+        Assert.Contains("OCaml did not say where the division is", fix?.Explanation);
+    }
+
+    [Fact]
+    public void ADivisionByZeroAtNoPlaceIsLookedForInTheModuleOfTheFunctionCalled()
+    {
+        var helper = Write("helper.ml", "let divide a b = a / b\n");
+        var main = Write("main.ml", "let () = print_int (Helper.divide 10 0)\n");
+
+        var fix = Fix("ocaml-division-guard", RaisedAtNoPlace(main, 1, 19, 39));
+
+        Assert.Equal((helper, 1), (fix?.File, fix?.StartLine));
+        Assert.Equal("let divide a b = (if b = 0 then 0 else a / b)", fix?.NewLines.Single());
+    }
+
+    [Fact]
+    public void AFunctionCalledThatDividesMoreThanOnceOrIsNotInTheProgramGetsNoChange()
+    {
+        var twice = Write("twice.ml", "let mean a b c = a / b + a / c\n\nlet () = print_int (mean 1 0 0)\n");
+        var library = Write("library.ml", "let () = print_int (Stdlib.compare 1 2)\n");
+
+        Assert.Null(Fix("ocaml-division-guard", RaisedAtNoPlace(twice, 3, 19, 31)));
+        Assert.Null(Fix("ocaml-division-guard", RaisedAtNoPlace(library, 1, 19, 39)));
     }
 
     [Fact]

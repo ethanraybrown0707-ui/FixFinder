@@ -402,7 +402,9 @@ internal static class DivisionByZeroLessons
     private static Lesson OCaml => new(Concept, CodeLanguage.OCaml,
         "Dividing whole numbers with / by zero stops an OCaml program with the exception Division_by_zero - and so does mod, which " +
         "divides too. Floats have an operator of their own, /., and dividing a float by zero does not stop the program: it gives " +
-        "infinity, or not-a-number when 0. is divided by 0., and the program carries on with a value that is not a real answer.",
+        "infinity, or not-a-number when 0. is divided by 0., and the program carries on with a value that is not a real answer. " +
+        "Compiled to bytecode, as FixFinder compiles it, OCaml does not say where the division was: for one inside a function it " +
+        "names the line that called the function, and for one outside any function it names no line at all.",
         [
             new WorkedExample("An average of no scores",
                 Broken: """
@@ -412,7 +414,7 @@ internal static class DivisionByZeroLessons
 
                     let () = print_int average
                     """,
-                BrokenDoes: Behaviour.Stopping("Division_by_zero", 3),
+                BrokenDoes: Behaviour.StoppingOnNoLine("Division_by_zero"),
                 Fixed: """
                     let scores = []
 
@@ -432,7 +434,7 @@ internal static class DivisionByZeroLessons
 
                         let () = print_int average
                         """,
-                        Behaviour.Stopping("Division_by_zero", 3),
+                        Behaviour.StoppingOnNoLine("Division_by_zero"),
                         "Brackets change nothing: the length of an empty list is still 0."),
                     new WrongFix("""
                         let scores = []
@@ -441,7 +443,7 @@ internal static class DivisionByZeroLessons
 
                         let () = print_int average
                         """,
-                        Behaviour.Stopping("Division_by_zero", 3),
+                        Behaviour.StoppingOnNoLine("Division_by_zero"),
                         "mod is a division too - it gives what is left over - so it fails in the same way."),
                 ],
             },

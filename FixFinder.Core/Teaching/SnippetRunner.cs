@@ -36,7 +36,8 @@ public sealed record Observation
 
     /// <summary>
     /// Whether this is what a lesson says the code does: the same printing, or the same error - named by its type, its code
-    /// or the start of its message - on the same line, refused before running or not, just as the lesson has it.
+    /// or the start of its message - on the same line, or on none when the lesson says the language names none, refused
+    /// before running or not, just as the lesson has it.
     /// </summary>
     public bool Shows(Behaviour expected)
     {
@@ -50,7 +51,7 @@ public sealed record Observation
         if (expected.StopsWith is { } stopsWith)
         {
             if (Error is not { } error || BeforeRunning != expected.BeforeRunning) return false;
-            if (expected.OnLine is { } line && Line != line) return false;
+            if (Line != expected.OnLine) return false;
 
             return string.Equals(error.ShortExceptionType, stopsWith, StringComparison.Ordinal) ||
                    string.Equals(error.ErrorCode, stopsWith, StringComparison.OrdinalIgnoreCase) ||

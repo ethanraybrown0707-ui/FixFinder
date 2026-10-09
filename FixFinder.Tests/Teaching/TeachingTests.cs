@@ -162,6 +162,19 @@ public class TeachingTests
         }
     }
 
+    /// <summary>An error the language names no line for is said to have none, and only a run that names none shows it.</summary>
+    [Fact]
+    public void AnErrorWithNoLineIsSaidAndCheckedAsHavingNone()
+    {
+        var expected = Behaviour.StoppingOnNoLine("Division_by_zero");
+        var error = new ParsedError { LanguageId = "ocaml", Confidence = 90, RawText = "", FirstLineSequence = 0, ExceptionType = "Division_by_zero", Frames = [] };
+
+        Assert.Equal("It stops with Division_by_zero, and OCaml does not say on which line", expected.Described("OCaml"));
+        Assert.True(new Observation { Ran = true, Error = error }.Shows(expected));
+        Assert.False(new Observation { Ran = true, Error = error, Line = 3 }.Shows(expected));
+        Assert.False(new Observation { Ran = true, Error = error }.Shows(Behaviour.Stopping("Division_by_zero", 3)));
+    }
+
     /// <summary>The right answer to "what happens" is what the lesson's running of the program showed, and to "which line", its line.</summary>
     [Fact]
     public void TheRightAnswersAreWhatRunningTheProgramsShowed()
