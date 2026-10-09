@@ -200,7 +200,7 @@ public static class ConceptMap
 
         new(Concepts.WrongType) { CheckIds = ["analysis-type-mismatch", "analysis-type-hint-broken"], ExceptionTypes = ["TypeError", "ClassCastException", "InvalidCastException"] },
         new(Concepts.WrongType) { Codes = ["CS0029", "CS0266", "CS0019", "CS0023", "C2440", "C2664", "C2446"] },
-        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |This expression has type|cannot be compared with == or !=|values of types .* using `==` will always yield|This pattern matches values of type") },
+        new(Concepts.WrongType) { Message = Words(@"^incompatible types|^bad operand types?|invalid conversion from|cannot convert|makes (?:pointer from integer|integer from pointer)|no match for 'operator|invalid operands|cannot use .* as .* value|mismatched types|type mismatch|^Found: |has type[\s\S]*but an expression was expected of type|cannot be compared with == or !=|values of types .* using `==` will always yield|This pattern matches values of type") },
     ];
 
     /// <summary>The idea a finding is an example of; reading what went wrong when it is none FixFinder teaches.</summary>

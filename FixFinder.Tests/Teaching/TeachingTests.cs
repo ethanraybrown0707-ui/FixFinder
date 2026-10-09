@@ -119,6 +119,8 @@ public class TeachingTests
         { "app.js", "TypeError", "TypeError", null, "Assignment to constant variable.", "CONSTANT" },
         { "main.go", "runtime error", "runtime error", null, "runtime error: index out of range [3] with length 3", "INDEX" },
         { "main.c", "compile error", "compile error", null, "expected ';' before 'return'", "ENDINGS" },
+        { "sum.ml", "compile error", "compile error", null, "The value count has type int but an expression was expected of type\nfloat", "TYPES" },
+        { "sum.ml", "compile error", "compile error", null, "The constant 2.5 has type float but an expression was expected of type\nint", "TYPES" },
         { "app.py", "ValueError", "ValueError", null, "math domain error", "GENERAL" },
     };
 

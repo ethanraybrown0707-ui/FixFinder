@@ -92,7 +92,7 @@ internal static class WrongTypeLessons
 
                     let () = print_float (count *. 2.5)
                     """,
-                BrokenDoes: Behaviour.Refused("This expression has type", 3),
+                BrokenDoes: Behaviour.Refused("The value count has type int but an expression was expected of type", 3),
                 Fixed: """
                     let count = 3
 
