@@ -16,6 +16,10 @@ public static class Lessons
         .. AssignOrCompareLessons.All,
         .. SameValueOrSameObjectLessons.All,
         .. WholeNumberDivisionLessons.All,
+        .. OffByOneLessons.All,
+        .. TextToNumberLessons.All,
+        .. FunctionLessons.All,
+        .. MissedCaseLessons.All,
     ];
 
     /// <summary>The lesson on a concept in a language, or null when that one has not been written.</summary>
