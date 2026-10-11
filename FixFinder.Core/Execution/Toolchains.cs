@@ -180,6 +180,7 @@ public static class Toolchains
         .. Described("Go         : ", "Go", GoToolchains.Installed),
         DescribeScala(),
         OCamlToolchains.Usual is { } ocaml ? $"OCaml      : {ocaml.Description}: {ocaml.Ocamlc}" : "OCaml      : not found",
+        RustToolchains.Usual is { } rust ? $"Rust       : {rust.Description}, editions up to {rust.NewestEdition}: {rust.Program}" : "Rust       : not found",
     ];
 
     /// <summary>Scala CLI, and the versions of Scala in its cache - the ones a Scala program can be built with here, as nothing is downloaded.</summary>

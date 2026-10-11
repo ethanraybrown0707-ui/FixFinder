@@ -5,7 +5,7 @@ internal static class PositionOutOfRangeLessons
 {
     private static Concept Concept => Concepts.PositionOutOfRange;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A list's positions run from 0 to one less than its length, and asking for a position past that stops the program with " +
@@ -106,5 +106,27 @@ internal static class PositionOutOfRangeLessons
                     """,
                 FixedDoes: Behaviour.Printing("90"),
                 WhatChanged: "Three items are at positions 0, 1 and 2; the last is always at length - 1."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "A Vec's positions start at 0, so one of 3 items has positions 0, 1 and 2. Asking for one it does not have stops the program " +
+        "with a panic, index out of bounds, which gives the length and the position asked for. .get(i) gives None instead.",
+        [
+            new WorkedExample("The last mark",
+                Broken: """
+                    fn main() {
+                        let marks = vec![70, 80, 90];
+                        println!("{}", marks[3]);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("index out of bounds", 3),
+                Fixed: """
+                    fn main() {
+                        let marks = vec![70, 80, 90];
+                        println!("{}", marks[marks.len() - 1]);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("90"),
+                WhatChanged: "The last position is one less than the length: marks.len() - 1, which is 2."),
         ]);
 }

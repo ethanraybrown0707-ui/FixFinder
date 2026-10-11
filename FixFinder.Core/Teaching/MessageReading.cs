@@ -84,6 +84,13 @@ public static class MessageReading
             "Scala runs on the Java virtual machine, so a crash reads as Java's does: the first line names the exception and " +
             "its message, and each line under it that starts with at is a method that was running, the one that failed " +
             "first, with its file and line number in brackets.",
+        [("Rust", MessagePhase.BeforeRunning)] =
+            "rustc starts with error or warning - an error often with a code in brackets, such as error[E0425], which rustc --explain " +
+            "E0425 explains at length - and what is wrong. After --> come the file, the line and the column, then the line itself, " +
+            "with ^ marks under the part it means, and often help: with the change rustc suggests.",
+        [("Rust", MessagePhase.WhileRunning)] =
+            "This is a panic. The first line says which thread stopped - main, for the program itself - and, after panicked at, the " +
+            "file, the line and the column where it happened. The line under it is the message saying what went wrong.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

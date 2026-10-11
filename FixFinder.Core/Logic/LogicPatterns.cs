@@ -36,6 +36,7 @@ public static class LogicPatterns
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
+        .. RustLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

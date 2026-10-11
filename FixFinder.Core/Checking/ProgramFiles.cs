@@ -51,6 +51,7 @@ public static partial class ProgramFiles
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
             ".scala" or ".sc" => (ScalaProgram.Of(path).Files, true),
             ".ml" => (OCamlProgram.Of(path).Files.Where(OCamlProgram.IsOCaml).ToList(), true),
+            ".rs" => (RustProgram.Of(path).Files.Append(path).ToList(), true),
             ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => (NativeFiles(path), true),
             _ => ([path], true),
         };

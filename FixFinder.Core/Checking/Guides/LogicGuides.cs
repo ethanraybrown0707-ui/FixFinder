@@ -312,6 +312,7 @@ internal static class LogicGuides
         .. ScalaPatternGuides.All,
         .. OCamlPatternGuides.All,
         .. GoPatternGuides.All,
+        .. RustPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

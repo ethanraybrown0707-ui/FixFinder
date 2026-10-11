@@ -151,6 +151,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{1}\n\tfmt.Println(marks[len(marks)])\n}\n", ["panic: runtime error: index out of range", "goroutine 1 [running]:", "+0x"] },
         { "Scala", "object Main {\n  def main(args: Array[String]): Unit = {\n    val x: Int = \"a\"\n  }\n}\n", ["[E007]", ":3:"] },
         { "Scala", "object Main {\n  def main(args: Array[String]): Unit = {\n    val zero = 0\n    println(1 / zero)\n  }\n}\n", ["java.lang.ArithmeticException", "\tat Main$.main(", ".scala:4)"] },
+        { "Rust", "fn main() {\n    let total = 10;\n    println!(\"{}\", totl);\n}\n", ["error[E0425]", "--> ", ":3:20", "^", "help:"] },
+        { "Rust", "fn main() {\n    let marks = vec![70];\n    println!(\"{}\", marks[marks.len()]);\n}\n", ["thread 'main'", "panicked at ", ":3:", "index out of bounds"] },
         { "OCaml", "let value1 = 3\n\nlet () = print_int (valeu1 + 1)\n", ["line 3, characters", "^", "Error:"] },
         { "OCaml", "let () = failwith \"stop\"\n", ["Fatal error: exception Failure", "Raised at"] },
     };

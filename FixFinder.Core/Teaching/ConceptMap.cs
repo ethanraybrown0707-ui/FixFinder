@@ -48,8 +48,30 @@ public static class ConceptMap
 
     private static Regex Words(string pattern) => new(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    /// <summary>A Rust panic, by its message - the words rustc 1.98's programs were seen to stop with.</summary>
+    private static Rule RustPanic(Concept concept, string message) => new(concept) { ExceptionTypes = ["panic"], Message = Words(message) };
+
     private static readonly Rule[] Rules =
     [
+        // Rust first: its codes - E0425 - and its lints' names are its own, and its panics are told apart by their words.
+        new(Concepts.ReturnValues) { Codes = ["E0308"], Message = Words(@"found `\(\)`") },
+        new(Concepts.ReturnValues) { Codes = ["unused_must_use"] },
+        new(Concepts.UndefinedName) { Codes = ["E0425", "E0433", "E0412", "E0432", "E0599"] },
+        new(Concepts.WrongType) { Codes = ["E0308", "E0369", "E0277"] },
+        new(Concepts.ChangingAConstant) { Codes = ["E0384", "E0596"] },
+        new(Concepts.MissedCase) { Codes = ["E0004"] },
+        new(Concepts.Arguments) { Codes = ["E0061"] },
+        new(Concepts.ReadBeforeSet) { Codes = ["E0381"] },
+        new(Concepts.EndlessRecursion) { Codes = ["unconditional_recursion"] },
+        new(Concepts.NeverUsed) { Codes = ["unused_variables", "unused_assignments", "unused_mut", "dead_code", "unused_imports"] },
+        new(Concepts.StatementEnd) { ExceptionTypes = ["compile error"], Message = Words(@"^expected `;`") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["compile error"], Message = Words(@"^mismatched closing delimiter|^unclosed delimiter|^this file contains an unclosed delimiter") },
+        RustPanic(Concepts.DivisionByZero, @"^attempt to divide by zero|^attempt to calculate the remainder with a divisor of zero"),
+        RustPanic(Concepts.PositionOutOfRange, @"^index out of bounds|^removal index|^insertion index"),
+        RustPanic(Concepts.NothingThere, @"Option::unwrap\(\)` on a `None` value"),
+        RustPanic(Concepts.TextToNumber, @"Parse(?:Int|Float)Error"),
+        RustPanic(Concepts.MissingKey, @"^no entry found for key"),
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -124,9 +146,9 @@ public static class ConceptMap
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length"] },
 
         new(Concepts.EndlessLoop)
         {

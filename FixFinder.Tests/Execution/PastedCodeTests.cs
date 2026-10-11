@@ -32,6 +32,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Go", "package main\n\nfunc main() {}\n", "pasted.go")]
     [InlineData("Scala", "@main def hello() = println(1)\n", "pasted.scala")]
     [InlineData("OCaml", "let () = print_endline \"hi\"\n", "pasted.ml")]
+    [InlineData("Rust", "fn main() {\n    println!(\"hi\");\n}\n", "pasted.rs")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -77,6 +78,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("@main def hello(): Unit =\n  val name = \"Ada\"\n  println(\"Hello, \" + name)\n", "Scala")]
     [InlineData("let rec factorial n =\n  if n = 0 then 1 else n * factorial (n - 1)\n\nlet () = print_int (factorial 5)\n", "OCaml")]
     [InlineData("let describe mark =\n  match mark with\n  | 1 -> \"one\"\n  | _ -> \"another\";;\n", "OCaml")]
+    // Rust's let is JavaScript's too, but fn, println! and let mut are Rust's alone.
+    [InlineData("fn main() {\n    let mut total = 0;\n    let marks = vec![70, 80];\n    for mark in &marks {\n        total += mark;\n    }\n    println!(\"{}\", total);\n}\n", "Rust")]
+    [InlineData("use std::collections::HashMap;\n\nfn main() {\n    let ages = HashMap::from([(\"Ada\", 36)]);\n    println!(\"{:?}\", ages);\n}\n", "Rust")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

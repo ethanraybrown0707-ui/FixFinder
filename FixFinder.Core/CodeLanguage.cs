@@ -32,7 +32,10 @@ public sealed record CodeLanguage(
     /// <summary>OCaml: its compiler's errors and warnings, and the exceptions that stop its programs.</summary>
     public static CodeLanguage OCaml { get; } = new("OCaml", [".ml"], ["ocaml"], ["ocaml-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml];
+    /// <summary>Rust: rustc's errors and warnings, with the changes it suggests, and the panics that stop its programs.</summary>
+    public static CodeLanguage Rust { get; } = new("Rust", [".rs"], ["rust"], ["rust-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust];
 
     public bool IsAny => ParserIds.Count == 0;
 

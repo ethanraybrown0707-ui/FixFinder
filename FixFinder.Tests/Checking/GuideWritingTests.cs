@@ -23,6 +23,8 @@ public class GuideWritingTests
         ["OCaml"] = OCamlGuides.All,
         ["OCaml patterns"] = OCamlPatternGuides.All,
         ["Go patterns"] = GoPatternGuides.All,
+        ["Rust"] = RustGuides.All,
+        ["Rust patterns"] = RustPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

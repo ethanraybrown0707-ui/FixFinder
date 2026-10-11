@@ -366,6 +366,7 @@ public static partial class CompilerDiagnostics
         Message = error.Message,
         Frames = error.Frames,
         CulpritFrame = error.CulpritFrame,
+        Suggestions = error.Suggestions,
     };
 
     private static IReadOnlyList<ParsedError> Errors(ParserRegistry registry, IReadOnlyList<CapturedLine> lines)
@@ -377,7 +378,7 @@ public static partial class CompilerDiagnostics
 
     private static IReadOnlyList<ParsedError> WarningsIn(IReadOnlyList<CapturedLine> lines) =>
         Distinct([.. GccClangParser.ParseWarnings(lines), .. MsvcParser.ParseWarnings(lines), .. JavaStackTraceParser.ParseWarnings(lines), .. ScalaCompileParser.ParseWarnings(lines),
-            .. OCamlCompileParser.ParseWarnings(lines)]);
+            .. OCamlCompileParser.ParseWarnings(lines), .. RustCompileParser.ParseWarnings(lines)]);
 
     private static List<ParsedError> Distinct(IEnumerable<ParsedError> errors) =>
         errors
@@ -416,6 +417,7 @@ public static partial class CompilerDiagnostics
             Frames = frames,
             CulpritFrame = culprit,
             Causes = error.Causes,
+            Suggestions = error.Suggestions,
         };
     }
 

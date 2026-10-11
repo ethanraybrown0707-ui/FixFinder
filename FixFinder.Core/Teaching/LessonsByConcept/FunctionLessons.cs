@@ -11,6 +11,7 @@ internal static class FunctionLessons
         ArgumentsInPython, ArgumentsInJava, ArgumentsInJavaScript,
         ReturnsInPython, ReturnsInJava, ReturnsInJavaScript,
         RecursionInPython, RecursionInJava,
+        ArgumentsInRust, ReturnsInRust,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -229,5 +230,61 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "When n reaches 0 the method returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInRust => new(Concepts.Arguments, CodeLanguage.Rust,
+        "rustc checks every call against the function it calls before the program runs: a call with the wrong number of " +
+        "arguments is refused with E0061, which says which one is missing.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    fn area(width: i32, height: i32) -> i32 {
+                        width * height
+                    }
+
+                    fn main() {
+                        println!("{}", area(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0061", 6),
+                Fixed: """
+                    fn area(width: i32, height: i32) -> i32 {
+                        width * height
+                    }
+
+                    fn main() {
+                        println!("{}", area(3, 4));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInRust => new(Concepts.ReturnValues, CodeLanguage.Rust,
+        "A Rust function gives back the value of its last line - when that line has no semicolon. A semicolon makes it a statement, " +
+        "which gives back nothing, so a function that promises a number is refused with E0308.",
+        [
+            new WorkedExample("A sum with a semicolon",
+                Broken: """
+                    fn add(a: i32, b: i32) -> i32 {
+                        a + b;
+                    }
+
+                    fn main() {
+                        println!("{}", add(2, 3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0308", 1),
+                Fixed: """
+                    fn add(a: i32, b: i32) -> i32 {
+                        a + b
+                    }
+
+                    fn main() {
+                        println!("{}", add(2, 3));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("5"),
+                WhatChanged: "Without the semicolon, a + b is the function's last value, so it is what add gives back."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -100,5 +100,27 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("7.5"),
                 WhatChanged: "float_of_int turns the whole number 3 into the float 3., which *. can multiply."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Rust checks the type of every value before the program runs, and never turns one into another by itself: text where a " +
+        "number is needed is refused with E0308, mismatched types. parse turns text into a number.",
+        [
+            new WorkedExample("A number kept as text",
+                Broken: """
+                    fn main() {
+                        let count: i32 = "3";
+                        println!("{}", count + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0308", 2),
+                Fixed: """
+                    fn main() {
+                        let count: i32 = "3".parse().unwrap();
+                        println!("{}", count + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("4"),
+                WhatChanged: "parse turns the text \"3\" into the number 3, which can be added to."),
         ]);
 }

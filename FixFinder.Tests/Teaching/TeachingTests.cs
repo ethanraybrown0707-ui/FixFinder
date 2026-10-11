@@ -164,15 +164,15 @@ public class TeachingTests
         }
     }
 
-    /// <summary>As the README says: every idea but the general one has lessons, in between two and nine languages, one each.</summary>
+    /// <summary>As the README says: every idea but the general one has lessons, in between two and ten languages, one each.</summary>
     [Fact]
-    public void EveryIdeaButTheGeneralOneHasLessonsInTwoToNineLanguages()
+    public void EveryIdeaButTheGeneralOneHasLessonsInTwoToTenLanguages()
     {
         foreach (var concept in Concepts.All.Where(concept => concept.Code != Concepts.ReadingErrors.Code))
         {
             var languages = Lessons.Of(concept).Select(lesson => lesson.Language.Name).ToList();
 
-            Assert.InRange(languages.Count, 2, 9);
+            Assert.InRange(languages.Count, 2, 10);
             Assert.Equal(languages.Count, languages.Distinct().Count());
         }
 

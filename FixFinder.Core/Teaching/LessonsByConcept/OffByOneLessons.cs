@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -132,5 +132,31 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "Array.length marks - 1 is the last position there is, 2, and for includes it."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "0..n counts from 0 up to but not including n, and 0..=n up to and including it. A Vec's positions run from 0 to one less " +
+        "than its length, so a loop over 0..=marks.len() goes one past the end, and stops with a panic, index out of bounds.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    fn main() {
+                        let marks = vec![70, 80, 90];
+                        for i in 0..=marks.len() {
+                            println!("{}", marks[i]);
+                        }
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("index out of bounds", 4),
+                Fixed: """
+                    fn main() {
+                        let marks = vec![70, 80, 90];
+                        for i in 0..marks.len() {
+                            println!("{}", marks[i]);
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: ".. stops before marks.len(), so the last position used is 2."),
         ]);
 }

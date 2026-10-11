@@ -104,6 +104,10 @@ public static partial class PastedCode
             new(@"^\s*let\s+\(\)\s*=", RegexOptions.Multiline), new(@"^\s*let\s+rec\s+\w+", RegexOptions.Multiline),
             new(@"\bprint_(?:endline|string|int|float|newline)\b"), new(@"\bPrintf\.printf\b"),
             new(@"\bmatch\b[^\n]*\bwith\s*$", RegexOptions.Multiline), new(@";;\s*$", RegexOptions.Multiline)]),
+        (CodeLanguage.Rust, [
+            new(@"^\s*(?:pub\s+)?fn\s+\w+\s*(?:<[^>]*>)?\s*\(", RegexOptions.Multiline), new(@"\b(?:println|print|format|vec|panic)!\s*[(\[]"),
+            new(@"^\s*let\s+mut\s+\w+", RegexOptions.Multiline), new(@"^\s*use\s+std::", RegexOptions.Multiline),
+            new(@"\b(?:Vec|String|HashMap)::(?:new|from)\s*\(")]),
     ];
 
     /// <summary>

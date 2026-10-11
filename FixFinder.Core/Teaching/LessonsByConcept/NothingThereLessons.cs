@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -201,5 +201,31 @@ internal static class NothingThereLessons
                         "Looking the key up with () fails the same way when it is not there - NoSuchElementException, key not found."),
                 ],
             },
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Rust has no null. A value that may not be there is an Option: Some(value), or None. unwrap takes the value out, and stops " +
+        "the program with a panic when there is none - so the Option's None has to be dealt with.",
+        [
+            new WorkedExample("The first mark of none",
+                Broken: """
+                    fn main() {
+                        let marks: Vec<i32> = Vec::new();
+                        let first = marks.first().unwrap();
+                        println!("{}", first);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("called `Option::unwrap()` on a `None` value", 3),
+                Fixed: """
+                    fn main() {
+                        let marks: Vec<i32> = Vec::new();
+                        match marks.first() {
+                            Some(first) => println!("{}", first),
+                            None => println!("no marks"),
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("no marks"),
+                WhatChanged: "The match says what to do in each case, None included, instead of taking the value out without looking."),
         ]);
 }

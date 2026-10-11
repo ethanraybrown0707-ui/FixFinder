@@ -23,6 +23,12 @@ public sealed class ParsedError
 
     public IReadOnlyList<ParsedError> Causes { get; init; } = [];
 
+    /// <summary>
+    /// The changes the compiler itself suggested with this error, where it gives them in a form that can be read - rustc
+    /// does, each with how sure it is the change is right. Empty for every other error.
+    /// </summary>
+    public IReadOnlyList<SuggestedChange> Suggestions { get; init; } = [];
+
     public string? ShortExceptionType
     {
         get

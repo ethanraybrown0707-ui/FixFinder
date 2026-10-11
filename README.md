@@ -269,6 +269,23 @@ includes its last number - text, lists or floats compared with `==` or `!=`, whi
 the same in memory, and a whole-number average turned into a float after its fraction is lost. OCaml is tested with
 OCaml 5.5.1, on GitHub's Windows computers.
 
+A **Rust** program - an `.rs` file - is built with the `rustc` on PATH, or else the one rustup installs in `.cargo\bin`,
+and how it ran names it and its version. In a Cargo package - a folder with a `Cargo.toml` - the program is
+`src/main.rs`, or the chosen file under `src/bin`, built as the edition `Cargo.toml` gives and run from the package's
+folder, as `cargo run` runs it; anywhere else it is the chosen file, built as the newest edition that rustc builds. The
+files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo, which
+would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them does not
+build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with the checks
+that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning comes with
+the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a fix - `let mut`,
+a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name it thinks was meant,
+the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a blank in it, or one
+that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A panic is read at the
+file, line and column Rust names, and a whole-number division by zero, or a loop over `0..=v.len()`, gets a change of its
+own. Rust's code is read for logic mistakes by three checks rustc says nothing of: a loop over `0..=v.len()` that uses its
+number as a position in `v`, `(total / count) as f64` of two whole numbers, and a decimal worked out by arithmetic and
+then compared exactly. Rust is tested with rustc 1.98.1.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -478,7 +495,7 @@ program of every lesson with the language's own compiler or interpreter, the way
 when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
 running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
 **Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons, in
-between two and nine languages, and they are listed by language; an idea with no lesson in the problem's language yet
+between two and ten languages, and they are listed by language; an idea with no lesson in the problem's language yet
 names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
 
 FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
@@ -503,6 +520,7 @@ it stops with:
 | Go | `go build`, then `go vet` |
 | Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
 | OCaml | `ocamlc -g`, with OCaml's default warnings |
+| Rust | `rustc`, with its default warnings, its messages as JSON so its suggested changes come with them |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -832,6 +850,7 @@ Python, Java and C# are checked most thoroughly.
 | Go | 38 | 5 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
+| Rust | 3 | 3 | 33 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

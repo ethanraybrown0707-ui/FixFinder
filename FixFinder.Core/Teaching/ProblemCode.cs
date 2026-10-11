@@ -36,6 +36,7 @@ public sealed record ProblemCode(CodeLanguage Language, Concept Concept, string 
         ["Go"] = "GO",
         ["Scala"] = "SCALA",
         ["OCaml"] = "OCAML",
+        ["Rust"] = "RUST",
     };
 
     /// <summary>The code as it is shown and copied: FF-PY-DIVZERO-K7Q2MXA.</summary>

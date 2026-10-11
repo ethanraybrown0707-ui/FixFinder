@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -465,5 +465,49 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0."),
                 WhatChanged: "A float divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Dividing a whole number by zero stops a Rust program with a panic, attempt to divide by zero. Decimals - f64 - do not stop " +
+        "it: dividing one by zero gives inf, infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no scores",
+                Broken: """
+                    fn main() {
+                        let scores: Vec<i32> = Vec::new();
+                        let total: i32 = scores.iter().sum();
+                        let average = total / scores.len() as i32;
+                        println!("{}", average);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to divide by zero", 4),
+                Fixed: """
+                    fn main() {
+                        let scores: Vec<i32> = Vec::new();
+                        let total: i32 = scores.iter().sum();
+                        let average = if scores.is_empty() { 0 } else { total / scores.len() as i32 };
+                        println!("{}", average);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are scores, and gives 0 otherwise - in Rust an if gives a value back, so it can stand on the right of =."),
+            new WorkedExample("Sharing out decimals",
+                Broken: """
+                    fn main() {
+                        let total = 10.0;
+                        let people = 0.0;
+                        println!("{}", total / people);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("inf"),
+                Fixed: """
+                    fn main() {
+                        let total = 10.0;
+                        let people = 0.0;
+                        println!("{}", if people == 0.0 { 0.0 } else { total / people });
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "A decimal divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

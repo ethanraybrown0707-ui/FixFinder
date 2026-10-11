@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -81,5 +81,29 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("15"),
                 WhatChanged: "var makes score a name whose value can be changed."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "A variable made with let keeps the value it is first given - Rust's variables cannot change unless they are made with " +
+        "let mut. rustc refuses a line that changes one, with E0384, before any of the program runs.",
+        [
+            new WorkedExample("Adding a bonus to a score",
+                Broken: """
+                    fn main() {
+                        let score = 10;
+                        score = score + 5;
+                        println!("{}", score);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0384", 3),
+                Fixed: """
+                    fn main() {
+                        let mut score = 10;
+                        score = score + 5;
+                        println!("{}", score);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("15"),
+                WhatChanged: "let mut makes score a variable whose value can be changed."),
         ]);
 }

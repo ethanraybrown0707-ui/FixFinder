@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -124,5 +124,31 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("not a whole number"),
                 WhatChanged: "int_of_string_opt gives back None for text that is not a number, and the match handles that case."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "parse turns text into a number, and gives back a Result: Ok with the number, or Err when the text is not one. unwrap on an " +
+        "Err stops the program with a panic; a match says what to do instead.",
+        [
+            new WorkedExample("An age typed as a word",
+                Broken: """
+                    fn main() {
+                        let typed = "twelve";
+                        let age: i32 = typed.parse().unwrap();
+                        println!("{}", age + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("called `Result::unwrap()` on an `Err` value", 3),
+                Fixed: """
+                    fn main() {
+                        let typed = "twelve";
+                        match typed.parse::<i32>() {
+                            Ok(age) => println!("{}", age + 1),
+                            Err(_) => println!("not a whole number"),
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("not a whole number"),
+                WhatChanged: "The match handles the Err that parse gives for text that is not a number, instead of stopping."),
         ]);
 }
