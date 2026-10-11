@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -158,5 +158,24 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: ".. stops before marks.len(), so the last position used is 2."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "0..n counts up to and including n, and 0...n stops before it. An array's positions run from 0 to one less than its length, " +
+        "so a loop over 0..marks.length asks for one position too many - and Ruby gives nil for it, which stops the program as soon " +
+        "as it is used.",
+        [
+            new WorkedExample("Doubling every mark",
+                Broken: """
+                    marks = [70, 80, 90]
+                    (0..marks.length).each { |i| puts marks[i] * 2 }
+                    """,
+                BrokenDoes: Behaviour.Stopping("NoMethodError", 2),
+                Fixed: """
+                    marks = [70, 80, 90]
+                    (0...marks.length).each { |i| puts marks[i] * 2 }
+                    """,
+                FixedDoes: Behaviour.Printing("140\n160\n180"),
+                WhatChanged: "... stops before marks.length, so the last position used is 2."),
         ]);
 }

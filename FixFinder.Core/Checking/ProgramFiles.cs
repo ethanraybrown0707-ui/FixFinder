@@ -46,6 +46,7 @@ public static partial class ProgramFiles
         {
             ".py" or ".pyw" or ".ipynb" => Follow(path, PythonNeighbours),
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
+            ".rb" => Follow(path, RubyNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -122,6 +123,24 @@ public static partial class ProgramFiles
                     if (File.Exists(submodule)) yield return submodule;
                 }
             }
+        }
+    }
+
+    [GeneratedRegex(@"^\s*require_relative\s*\(?\s*['""](?<path>[^'""]+)['""]", RegexOptions.Multiline)]
+    private static partial Regex RubyRequireRelative();
+
+    /// <summary>The files a Ruby file brings in with require_relative, named from its own folder, with or without .rb.</summary>
+    private static IEnumerable<string> RubyNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match required in RubyRequireRelative().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            var named = target.EndsWith(".rb", StringComparison.OrdinalIgnoreCase) ? target : target + ".rb";
+            if (File.Exists(named)) yield return named;
         }
     }
 

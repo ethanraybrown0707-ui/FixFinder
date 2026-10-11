@@ -33,6 +33,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Scala", "@main def hello() = println(1)\n", "pasted.scala")]
     [InlineData("OCaml", "let () = print_endline \"hi\"\n", "pasted.ml")]
     [InlineData("Rust", "fn main() {\n    println!(\"hi\");\n}\n", "pasted.rs")]
+    [InlineData("Ruby", "puts 'hi'\n", "pasted.rb")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -81,6 +82,8 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     // Rust's let is JavaScript's too, but fn, println! and let mut are Rust's alone.
     [InlineData("fn main() {\n    let mut total = 0;\n    let marks = vec![70, 80];\n    for mark in &marks {\n        total += mark;\n    }\n    println!(\"{}\", total);\n}\n", "Rust")]
     [InlineData("use std::collections::HashMap;\n\nfn main() {\n    let ages = HashMap::from([(\"Ada\", 36)]);\n    println!(\"{:?}\", ages);\n}\n", "Rust")]
+    [InlineData("def total(marks)\n  marks.sum\nend\n\nputs total([70, 80])\n", "Ruby")]
+    [InlineData("require_relative \"average\"\n\nmarks.each do |mark|\n  puts \"Mark: #{mark}\"\nend\n", "Ruby")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

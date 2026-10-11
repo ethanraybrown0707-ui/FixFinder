@@ -37,6 +37,7 @@ public static class LogicPatterns
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
         .. RustLogicPatterns.All,
+        .. RubyLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

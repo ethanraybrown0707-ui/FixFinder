@@ -279,6 +279,9 @@ public static partial class LocalFixEngine
         new RustCompilerSuggestion(),
         new RustDivisionGuard(),
         new RustRangeToLength(),
+        new RubyDidYouMean(),
+        new RubyDivisionGuard(),
+        new RubyNumberToText(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -668,6 +671,7 @@ public static partial class LocalFixEngine
         "scala" => error.ExceptionType == "compile error" && (error.ErrorCode == "E040" || ScalaSyntaxMessage().IsMatch(error.Message ?? "")),
         "ocaml" => error.ExceptionType == "compile error" && (error.Message ?? "").StartsWith("Syntax error", StringComparison.Ordinal),
         "rust" => error.ExceptionType == "compile error" && error.ErrorCode is null && RustSyntaxMessage().IsMatch(error.Message ?? ""),
+        "ruby" => error.ExceptionType == "SyntaxError",
         "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
             or "C1083" or "C1189",
@@ -695,6 +699,7 @@ public static partial class LocalFixEngine
             ".scala" or ".sc" => "compiled it with Scala CLI",
             ".ml" => "compiled it with ocamlc",
             ".rs" => "compiled it with rustc",
+            ".rb" => "checked it with ruby -c, which runs none of it",
             _ => "compiled it",
         };
 

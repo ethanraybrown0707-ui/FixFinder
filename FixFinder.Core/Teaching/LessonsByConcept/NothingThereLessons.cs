@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -227,5 +227,25 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("no marks"),
                 WhatChanged: "The match says what to do in each case, None included, instead of taking the value out without looking."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "nil is Ruby's value for \"nothing here\" - what a hash gives for a key it does not have. nil has hardly any methods, so " +
+        "calling one on it - even + - stops the program with NoMethodError, \"undefined method for nil\".",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    ages = { "Ada" => 36 }
+                    age = ages["Bob"]
+                    puts age + 1
+                    """,
+                BrokenDoes: Behaviour.Stopping("NoMethodError", 3),
+                Fixed: """
+                    ages = { "Ada" => 36 }
+                    age = ages.fetch("Bob", 0)
+                    puts age + 1
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "fetch with a second value gives that value, 0, for a key that is not there, instead of nil."),
         ]);
 }

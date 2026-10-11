@@ -82,8 +82,39 @@ public static partial class CompilerDiagnostics
             ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(chosen, files, log, cancellationToken),
             ".cs" => await CSharpAsync(chosen, log, cancellationToken),
             ".go" => await GoAsync(chosen, log, cancellationToken),
+            _ when ScriptLanguages.Of(chosen) is { } script => await ScriptAsync(script, files, language, log, cancellationToken),
             _ => CompilerReport.NotChecked(),
         };
+    }
+
+    /// <summary>
+    /// A program in a language its interpreter runs straight from the source - Ruby, PHP, Perl, Lua - checked a file at a
+    /// time by the language's own syntax check, which runs none of it: its syntax errors, and the warnings it gives.
+    /// </summary>
+    private static async Task<CompilerReport> ScriptAsync(
+        ScriptLanguages.ScriptLanguage script, IReadOnlyList<string> files, CodeLanguage language, Action<string>? log, CancellationToken cancellationToken)
+    {
+        if (ScriptLanguages.CheckerOf(script) is null)
+            return CompilerReport.NotChecked($"{script.Checker} was not found on PATH, so the code could not be checked before it ran.");
+
+        var registry = language.IsAny ? new ParserRegistry(new ParserRegistry().Parsers.Where(p => p.LanguageId == script.LanguageId)) : language.Parsers();
+        var errors = new List<ParsedError>();
+        var warnings = new List<ParsedError>();
+        var output = new List<CapturedLine>();
+
+        foreach (var file in files.Where(file => ScriptLanguages.Of(file) == script))
+        {
+            if (ScriptLanguages.CheckOf(script, file, Timeout) is not { } check) continue;
+
+            var run = await RunAsync(check, log, cancellationToken);
+            output.AddRange(run.Lines);
+
+            var folder = check.WorkingDirectory!;
+            if (run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error) errors.AddRange(Resolved([error], folder));
+            warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));
+        }
+
+        return new CompilerReport(true, errors, Distinct(warnings), output);
     }
 
     private static async Task<CompilerReport> BuildAsync(

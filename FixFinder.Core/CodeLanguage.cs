@@ -35,7 +35,10 @@ public sealed record CodeLanguage(
     /// <summary>Rust: rustc's errors and warnings, with the changes it suggests, and the panics that stop its programs.</summary>
     public static CodeLanguage Rust { get; } = new("Rust", [".rs"], ["rust"], ["rust-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust];
+    /// <summary>Ruby: ruby -wc's syntax errors and warnings, and the exceptions that stop its programs.</summary>
+    public static CodeLanguage Ruby { get; } = new("Ruby", [".rb"], ["ruby"], ["ruby-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby];
 
     public bool IsAny => ParserIds.Count == 0;
 

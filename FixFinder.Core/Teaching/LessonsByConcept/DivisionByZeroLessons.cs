@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -509,5 +509,39 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "A decimal divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Dividing a whole number by zero stops a Ruby program with ZeroDivisionError. A decimal divided by zero does not stop it: it " +
+        "gives Infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    marks = []
+                    average = marks.sum / marks.length
+                    puts average
+                    """,
+                BrokenDoes: Behaviour.Stopping("ZeroDivisionError", 2),
+                Fixed: """
+                    marks = []
+                    average = marks.empty? ? 0 : marks.sum / marks.length
+                    puts average
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sharing out decimals",
+                Broken: """
+                    total = 7.0
+                    people = 0
+                    puts total / people
+                    """,
+                BrokenDoes: Behaviour.Printing("Infinity"),
+                Fixed: """
+                    total = 7.0
+                    people = 0
+                    puts people.zero? ? 0 : total / people
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "A decimal divided by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

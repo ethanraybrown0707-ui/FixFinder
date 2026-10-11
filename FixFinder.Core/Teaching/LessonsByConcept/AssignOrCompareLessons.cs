@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -113,5 +113,29 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("40"),
                 WhatChanged: "== compares without changing mark, so the if is false for 40, and mark keeps its value."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "In an if, = stores a value and == compares. Ruby warns about = in a condition, but runs the program: the condition is " +
+        "then always true, and the variable is changed.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    mark = 70
+                    if mark = 40
+                      puts "forty"
+                    end
+                    puts mark
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    mark = 70
+                    if mark == 40
+                      puts "forty"
+                    end
+                    puts mark
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
         ]);
 }

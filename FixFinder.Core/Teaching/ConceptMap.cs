@@ -72,6 +72,20 @@ public static class ConceptMap
         RustPanic(Concepts.TextToNumber, @"Parse(?:Int|Float)Error"),
         RustPanic(Concepts.MissingKey, @"^no entry found for key"),
 
+        // Ruby: nil before names, as a NoMethodError for nil is a value that is not there; then its own errors' words.
+        new(Concepts.NothingThere) { ExceptionTypes = ["NoMethodError"], Message = Words(@"for nil\b") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["NoMethodError", "NameError"], Message = Words(@"^undefined (?:local variable or method|method)|^uninitialized constant") },
+        new(Concepts.WrongType) { ExceptionTypes = ["TypeError"], Message = Words(@"^no implicit conversion of|can't be coerced into") },
+        new(Concepts.Arguments) { ExceptionTypes = ["ArgumentError"], Message = Words(@"^wrong number of arguments") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["ArgumentError"], Message = Words(@"^invalid value for (?:Integer|Float)\(\)") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["FrozenError"] },
+        new(Concepts.EndlessRecursion) { ExceptionTypes = ["SystemStackError"] },
+        new(Concepts.AssignOrCompare) { Message = Words(@"found [`']= literal' in conditional") },
+        new(Concepts.NeverUsed) { ExceptionTypes = ["compile warning"], Message = Words(@"^assigned but unused variable") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unterminated (?:quoted )?string") },
+        new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -146,7 +160,7 @@ public static class ConceptMap
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
         new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length"] },
 

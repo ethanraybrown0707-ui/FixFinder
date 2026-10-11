@@ -30,6 +30,7 @@ public static class CompileCheck
         ".scala" or ".sc" => true,
         ".ml" => true,
         ".rs" => true,
+        ".rb" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -436,6 +437,10 @@ public static class CompileCheck
 
                 return Spec("cmd.exe", $"/c \"{batch}\"", folder);
             }
+
+            case ".rb":
+                // ruby -c reads the copy and runs none of it, as the program is checked before it runs.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Ruby, copy, Timeout);
 
             case ".rs":
             {

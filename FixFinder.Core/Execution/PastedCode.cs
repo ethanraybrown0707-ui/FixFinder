@@ -108,6 +108,9 @@ public static partial class PastedCode
             new(@"^\s*(?:pub\s+)?fn\s+\w+\s*(?:<[^>]*>)?\s*\(", RegexOptions.Multiline), new(@"\b(?:println|print|format|vec|panic)!\s*[(\[]"),
             new(@"^\s*let\s+mut\s+\w+", RegexOptions.Multiline), new(@"^\s*use\s+std::", RegexOptions.Multiline),
             new(@"\b(?:Vec|String|HashMap)::(?:new|from)\s*\(")]),
+        (CodeLanguage.Ruby, [
+            new(@"^\s*puts\b", RegexOptions.Multiline), new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"\.each\s+do\s*\|"),
+            new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}")]),
     ];
 
     /// <summary>

@@ -5,7 +5,7 @@ internal static class WholeNumberDivisionLessons
 {
     private static Concept Concept => Concepts.WholeNumberDivision;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Dividing one int by another gives an int: the fraction is dropped, so 7 / 2 is 3. Storing the answer in a double " +
@@ -184,5 +184,21 @@ internal static class WholeNumberDivisionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3.5"),
                 WhatChanged: "as f64 makes each number a decimal before dividing, so the half is kept."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Dividing one whole number by another in Ruby gives a whole number: 7 / 2 is 3. A decimal on either side - 7.0, or .to_f - " +
+        "makes it keep the fraction.",
+        [
+            new WorkedExample("Half of seven",
+                Broken: """
+                    puts 7 / 2
+                    """,
+                BrokenDoes: Behaviour.Printing("3"),
+                Fixed: """
+                    puts 7.0 / 2
+                    """,
+                FixedDoes: Behaviour.Printing("3.5"),
+                WhatChanged: "7.0 is a decimal, so the division keeps the half."),
         ]);
 }

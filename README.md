@@ -286,6 +286,15 @@ own. Rust's code is read for logic mistakes by three checks rustc says nothing o
 number as a position in `v`, `(total / count) as f64` of two whole numbers, and a decimal worked out by arithmetic and
 then compared exactly. Rust is tested with rustc 1.98.1.
 
+A **Ruby** program - an `.rb` file - is read by `ruby -wc` before it runs, which checks every file of the program and
+runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never used.
+The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there. Ruby's own
+"Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a divisor is zero,
+and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`, which runs none of
+it - and run. Ruby's code is read for logic mistakes by three checks `ruby -w` says nothing of: `(total / count).to_f` of
+two whole numbers, a decimal worked out by arithmetic and then compared exactly, and a method that gives back a changed
+copy - `name.upcase`, `marks.sort` - called on a line of its own. Ruby is tested with Ruby 3.3.12.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -494,8 +503,8 @@ compiler refuses it, or that it never finishes - and `LessonLiveTests` runs ever
 program of every lesson with the language's own compiler or interpreter, the way FixFinder runs a program, and fails
 when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
 running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
-**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons, in
-between two and ten languages, and they are listed by language; an idea with no lesson in the problem's language yet
+**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons in at
+least two languages, and they are listed by language; an idea with no lesson in the problem's language yet
 names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
 
 FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
@@ -521,6 +530,7 @@ it stops with:
 | Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
 | OCaml | `ocamlc -g`, with OCaml's default warnings |
 | Rust | `rustc`, with its default warnings, its messages as JSON so its suggested changes come with them |
+| Ruby | `ruby -wc` on every file, with its warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -851,6 +861,7 @@ Python, Java and C# are checked most thoroughly.
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 3 | 33 |
+| Ruby | 3 | 3 | 22 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

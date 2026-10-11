@@ -12,6 +12,7 @@ internal static class FunctionLessons
         ReturnsInPython, ReturnsInJava, ReturnsInJavaScript,
         RecursionInPython, RecursionInJava,
         ArgumentsInRust, ReturnsInRust,
+        ArgumentsInRuby, ReturnsInRuby, RecursionInRuby,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -286,5 +287,76 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("5"),
                 WhatChanged: "Without the semicolon, a + b is the function's last value, so it is what add gives back."),
+        ]);
+
+    private static Lesson ArgumentsInRuby => new(Concepts.Arguments, CodeLanguage.Ruby,
+        "A method has to be given one value for each parameter its def line lists. Ruby stops the program with ArgumentError when it is " +
+        "given too few or too many - saying how many it was given and how many it expects. The line Ruby names first is the method's " +
+        "def; the call that gave the wrong number is the line after from.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    def area(width, height)
+                      width * height
+                    end
+
+                    puts area(3)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentError", 1),
+                Fixed: """
+                    def area(width, height)
+                      width * height
+                    end
+
+                    puts area(3, 4)
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInRuby => new(Concepts.ReturnValues, CodeLanguage.Ruby,
+        "upcase, sort, strip and their like give back a new, changed copy, and leave the value they are called on as it was. Called " +
+        "on a line of its own, such a method changes nothing - the copy is thrown away.",
+        [
+            new WorkedExample("A name made capitals",
+                Broken: """
+                    name = "ada"
+                    name.upcase
+                    puts name
+                    """,
+                BrokenDoes: Behaviour.Printing("ada"),
+                Fixed: """
+                    name = "ada"
+                    name = name.upcase
+                    puts name
+                    """,
+                FixedDoes: Behaviour.Printing("ADA"),
+                WhatChanged: "The copy upcase gives back is kept in name."),
+        ]);
+
+    private static Lesson RecursionInRuby => new(Concepts.EndlessRecursion, CodeLanguage.Ruby,
+        "Each call still in progress takes room on the stack, so a method that never stops calling itself runs out of room and stops " +
+        "the program with SystemStackError, \"stack level too deep\".",
+        [
+            new WorkedExample("Counting down with no bottom",
+                Broken: """
+                    def count_down(n)
+                      count_down(n - 1)
+                    end
+
+                    puts count_down(3)
+                    """,
+                BrokenDoes: Behaviour.Stopping("SystemStackError", 2),
+                Fixed: """
+                    def count_down(n)
+                      return 0 if n.zero?
+
+                      count_down(n - 1)
+                    end
+
+                    puts count_down(3)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "When n reaches 0 the method returns without calling itself, so the calls stop."),
         ]);
 }

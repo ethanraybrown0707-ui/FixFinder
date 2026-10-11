@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -142,6 +142,24 @@ internal static class UndefinedNameLessons
                         let total = 10;
                         println!("{}", total);
                     }
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The name is spelt as it was made: total."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Every name has to be made before it is used, and spelt the same each time. Ruby stops the program with NameError when it " +
+        "reaches a name it cannot find, and names the one it thinks was meant after \"Did you mean?\".",
+        [
+            new WorkedExample("A misspelt total",
+                Broken: """
+                    total = 10
+                    puts totl
+                    """,
+                BrokenDoes: Behaviour.Stopping("NameError", 2),
+                Fixed: """
+                    total = 10
+                    puts total
                     """,
                 FixedDoes: Behaviour.Printing("10"),
                 WhatChanged: "The name is spelt as it was made: total."),

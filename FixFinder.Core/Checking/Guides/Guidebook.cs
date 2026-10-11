@@ -33,7 +33,7 @@ public static class Guidebook
     /// </summary>
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
-        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, LogicGuides.All,
+        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, RubyGuides.All, LogicGuides.All,
     ];
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
@@ -53,6 +53,7 @@ public static class Guidebook
         ".scala" or ".sc" => ScalaGuides.All,
         ".ml" or ".mli" => OCamlGuides.All,
         ".rs" => RustGuides.All,
+        ".rb" => RubyGuides.All,
         _ => [],
     };
 
@@ -68,6 +69,7 @@ public static class Guidebook
         ".scala" or ".sc" => "Scala",
         ".ml" or ".mli" => "OCaml",
         ".rs" => "Rust",
+        ".rb" => "Ruby",
         _ => "the program",
     };
 }

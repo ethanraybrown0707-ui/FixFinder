@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -122,5 +122,23 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("no age for Bob"),
                 WhatChanged: "The second value, found, is false when the key is not there, so the fixed program can tell a missing age from an age of 0."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Square brackets give nil for a key a hash does not have; fetch stops the program with KeyError instead - unless it is " +
+        "given a value to use when the key is missing.",
+        [
+            new WorkedExample("Looking up a missing age",
+                Broken: """
+                    ages = { "Ada" => 36 }
+                    puts ages.fetch("Bob")
+                    """,
+                BrokenDoes: Behaviour.Stopping("KeyError", 2),
+                Fixed: """
+                    ages = { "Ada" => 36 }
+                    puts ages.fetch("Bob", 0)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "fetch is given 0 to use when the key is not there."),
         ]);
 }

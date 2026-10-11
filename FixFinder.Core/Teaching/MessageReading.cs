@@ -91,6 +91,14 @@ public static class MessageReading
         [("Rust", MessagePhase.WhileRunning)] =
             "This is a panic. The first line says which thread stopped - main, for the program itself - and, after panicked at, the " +
             "file, the line and the column where it happened. The line under it is the message saying what went wrong.",
+        [("Ruby", MessagePhase.BeforeRunning)] =
+            "ruby -c names the file and the line, then what it could not make sense of, with (SyntaxError) at the end. Under it are " +
+            "the line and a ^ at the place it stopped - which, for an end that is missing, is often the last line of the file, as " +
+            "Ruby only finds out there.",
+        [("Ruby", MessagePhase.WhileRunning)] =
+            "The first line names the file, the line and the method it was in, then what went wrong and, in brackets at the end, the " +
+            "kind of error - such as (ZeroDivisionError). Ruby then shows the line with ^ marks under the part it means, and Did you " +
+            "mean? with the name it thinks was meant. Each line starting with from is a call that led there.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

@@ -29,8 +29,17 @@ public static class WarningRatings
     private static Rule RustNames(string[] names, FindingKind kind, Severity severity, Confidence confidence) =>
         new(new Regex("^"), names, new WarningRating(kind, severity, confidence), "rust");
 
+    /// <summary>Ruby's warnings, by their words: "found `= literal' in conditional, should be ==".</summary>
+    private static Rule RubyWords(string message, FindingKind kind, Severity severity, Confidence confidence) =>
+        new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence), "ruby");
+
     private static readonly Rule[] Rules =
     [
+        // = in an if always passes and changes the variable; a value worked out and dropped changes nothing.
+        RubyWords(@"found [`']= literal' in conditional", FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        RubyWords(@"^possibly useless use of", FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        RubyWords(@"^assigned but unused variable|^mismatched indentations|^ambiguous first argument", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+
         // A function that cannot return without calling itself overflows the stack; code after a return never runs; a
         // Result or a changed copy thrown away changes nothing; a value stored and never read was meant for something.
         RustNames(["unconditional_recursion"], FindingKind.Logic, Severity.Warning, Confidence.Certain),

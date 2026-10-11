@@ -153,6 +153,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Scala", "object Main {\n  def main(args: Array[String]): Unit = {\n    val zero = 0\n    println(1 / zero)\n  }\n}\n", ["java.lang.ArithmeticException", "\tat Main$.main(", ".scala:4)"] },
         { "Rust", "fn main() {\n    let total = 10;\n    println!(\"{}\", totl);\n}\n", ["error[E0425]", "--> ", ":3:20", "^", "help:"] },
         { "Rust", "fn main() {\n    let marks = vec![70];\n    println!(\"{}\", marks[marks.len()]);\n}\n", ["thread 'main'", "panicked at ", ":3:", "index out of bounds"] },
+        { "Ruby", "def total(marks)\n  marks.sum\n\nputs total([1, 2])\n", ["pasted.rb:4:", "(SyntaxError)", "^"] },
+        { "Ruby", "total = 10\nputs totl\n", [":2:in ", "(NameError)", "^^^^", "Did you mean?"] },
         { "OCaml", "let value1 = 3\n\nlet () = print_int (valeu1 + 1)\n", ["line 3, characters", "^", "Error:"] },
         { "OCaml", "let () = failwith \"stop\"\n", ["Fatal error: exception Failure", "Raised at"] },
     };

@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -122,5 +122,23 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("4"),
                 WhatChanged: "parse turns the text \"3\" into the number 3, which can be added to."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Ruby never turns a number into text by itself: + between text and a number stops the program with TypeError. .to_s turns " +
+        "the number into text first.",
+        [
+            new WorkedExample("A message with a number in it",
+                Broken: """
+                    age = 36
+                    puts "Age: " + age
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 2),
+                Fixed: """
+                    age = 36
+                    puts "Age: " + age.to_s
+                    """,
+                FixedDoes: Behaviour.Printing("Age: 36"),
+                WhatChanged: "age.to_s turns the number into the text \"36\", which + can join to the rest."),
         ]);
 }

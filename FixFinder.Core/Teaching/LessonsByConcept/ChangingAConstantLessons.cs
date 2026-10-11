@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -105,5 +105,25 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("15"),
                 WhatChanged: "let mut makes score a variable whose value can be changed."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "A value made with .freeze can never be changed: a line that changes it stops the program with FrozenError. A changed copy " +
+        "can always be made.",
+        [
+            new WorkedExample("Adding to a frozen name",
+                Broken: """
+                    NAME = "ada".freeze
+                    NAME << "!"
+                    puts NAME
+                    """,
+                BrokenDoes: Behaviour.Stopping("FrozenError", 2),
+                Fixed: """
+                    NAME = "ada".freeze
+                    greeting = NAME + "!"
+                    puts greeting
+                    """,
+                FixedDoes: Behaviour.Printing("ada!"),
+                WhatChanged: "+ makes a new, changed copy, and leaves the frozen value as it is."),
         ]);
 }

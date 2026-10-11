@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -150,5 +150,23 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("not a whole number"),
                 WhatChanged: "The match handles the Err that parse gives for text that is not a number, instead of stopping."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Integer() turns text into a number, and stops the program with ArgumentError when the text is not one. Given " +
+        "exception: false, it gives nil instead, which the program can check for.",
+        [
+            new WorkedExample("An age typed as a word",
+                Broken: """
+                    age = Integer("twelve")
+                    puts age + 1
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentError", 1),
+                Fixed: """
+                    age = Integer("twelve", exception: false)
+                    puts age.nil? ? "not a whole number" : age + 1
+                    """,
+                FixedDoes: Behaviour.Printing("not a whole number"),
+                WhatChanged: "With exception: false, Integer() gives nil for text that is not a number, and the line checks for nil."),
         ]);
 }
