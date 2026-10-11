@@ -72,22 +72,32 @@ public static class DiagnosticLines
 
     /// <summary>Every finding, with everything it says, as JSON.</summary>
     public static string Json(IEnumerable<Finding> findings) =>
-        JsonSerializer.Serialize(findings.Select(finding => new
+        JsonSerializer.Serialize(findings.Select(finding =>
         {
-            file = finding.InNotebook?.Notebook ?? finding.File,
-            line = finding.InNotebook?.Line ?? finding.Line,
-            cell = finding.InNotebook?.Cell,
-            severity = finding.Severity.ToString().ToLowerInvariant(),
-            confidence = finding.Confidence.ToString().ToLowerInvariant(),
-            kind = finding.Kind.ToString().ToLowerInvariant(),
-            rule = finding.RuleId,
-            code = Code(finding.RuleId),
-            title = finding.Title,
-            explanation = finding.Explanation,
-            whyItMatters = finding.WhyItMatters,
-            suggestedFix = finding.SuggestedFix,
-            verified = finding.Verified.Summary,
-            cwe = finding.Weakness is { } weakness ? $"CWE-{weakness.Id}" : null,
+            var further = Teaching.FurtherExplanation.For(finding);
+
+            return new
+            {
+                file = finding.InNotebook?.Notebook ?? finding.File,
+                line = finding.InNotebook?.Line ?? finding.Line,
+                cell = finding.InNotebook?.Cell,
+                severity = finding.Severity.ToString().ToLowerInvariant(),
+                confidence = finding.Confidence.ToString().ToLowerInvariant(),
+                kind = finding.Kind.ToString().ToLowerInvariant(),
+                rule = finding.RuleId,
+                code = Code(finding.RuleId),
+                title = finding.Title,
+                explanation = finding.Explanation,
+                whyItMatters = finding.WhyItMatters,
+                suggestedFix = finding.SuggestedFix,
+                steps = further.Steps,
+                message = further.Message?.Message,
+                howToReadMessage = further.Message?.HowToRead,
+                words = further.Words.Select(word => new { word = word.Word, meaning = word.Meaning }),
+                nextTime = further.NextTime,
+                verified = finding.Verified.Summary,
+                cwe = finding.Weakness is { } weakness ? $"CWE-{weakness.Id}" : null,
+            };
         }), Engine.JsonOptions.Default);
 
     /// <summary>

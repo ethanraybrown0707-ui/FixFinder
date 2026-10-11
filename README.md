@@ -29,7 +29,11 @@ until the program prints what it should. FixFinder never changes your files.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
    as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
-   words: what is wrong, why it matters and how to fix it. The corrected code waits behind **Show the corrected code**, so
+   words: what is wrong, why it matters and how to fix it, then **step by step** - the file and line to go to, with the
+   code on it, what happened there, making the change and checking it again. Where the language said something about it,
+   **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
+   the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
+   stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
    the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
    mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
    [FixFinder Learn](#fixfinder-learn). **More detail** holds why FixFinder is this sure, the lines that decide it, how

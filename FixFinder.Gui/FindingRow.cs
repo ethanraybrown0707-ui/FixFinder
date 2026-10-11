@@ -83,6 +83,36 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string SuggestedFix => Finding.SuggestedFix;
 
+    private FurtherExplanation? _further;
+
+    /// <summary>The steps, the language's own message, the words and the habit - worked out once, when first shown.</summary>
+    private FurtherExplanation Further => _further ??= FurtherExplanation.For(Finding);
+
+    /// <summary>One step of putting the finding right, with its number.</summary>
+    public sealed record NumberedStep(int Number, string Text)
+    {
+        public string NumberText => $"{Number}.";
+    }
+
+    public IReadOnlyList<NumberedStep> Steps => Further.Steps.Select((text, index) => new NumberedStep(index + 1, text)).ToList();
+
+    /// <summary>Whether the language said something about this finding that can be shown, with how to read it.</summary>
+    public bool HasMessage => Further.Message is not null;
+
+    public string MessageHeading => Further.Message is { } message ? $"WHAT {message.SaidBy.ToUpperInvariant()} SAID" : "";
+
+    public string MessageText => Further.Message is { } message ? message.Message + (message.WasShortened ? "\n..." : "") : "";
+
+    public string HowToReadMessage => Further.Message?.HowToRead ?? "";
+
+    /// <summary>The programming words this finding uses, each with what it means.</summary>
+    public IReadOnlyList<GlossaryEntry> Words => Further.Words;
+
+    public bool HasWords => Words.Count > 0;
+
+    /// <summary>A habit that stops this kind of mistake happening again.</summary>
+    public string NextTime => Further.NextTime;
+
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
 
@@ -268,6 +298,22 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
             lines.InsertRange(lines.Count - 1, SliceCode.Split('\n').Select(line => "    " + line));
         }
 
+        lines.Add("Step by step:");
+        lines.AddRange(Steps.Select(step => $"    {step.NumberText} {step.Text}"));
+
+        if (HasMessage)
+        {
+            lines.Add($"What {Further.Message!.SaidBy} said:");
+            lines.AddRange(MessageText.Split('\n').Select(line => "    " + line));
+            lines.Add($"Reading it: {HowToReadMessage}");
+        }
+
+        if (HasWords)
+        {
+            lines.Add("Words used here:");
+            lines.AddRange(Words.Select(word => $"    {word.Word} - {word.Meaning}"));
+        }
+
         if (HasConfirmation) lines.Insert(2, ConfirmationText);
         if (HasWitness) lines.Insert(2, WitnessText);
         if (HasFoundBy) lines.Insert(2, FoundByText);
@@ -287,6 +333,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         }
 
         lines.Add($"The idea behind it: {Concept.Title}" + (HasProblemCode ? $" - problem code {ProblemCodeText}, for FixFinder Learn" : ""));
+        lines.Add($"Next time: {NextTime}");
 
         return string.Join(Environment.NewLine, lines);
     }
