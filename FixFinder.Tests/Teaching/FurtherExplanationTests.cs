@@ -144,7 +144,7 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Java", "public class Main {\n    public static void main(String[] args) {\n        System.out.println(1 / 0);\n    }\n}\n", ["java.lang.ArithmeticException", "\tat Main.main(", ".java:3)"] },
         { "C#", "int x = \"a\";\n", ["(1,9): error CS0029"] },
         { "C#", "int zero = 0;\nConsole.WriteLine(1 / zero);\n", ["Unhandled exception. System.DivideByZeroException", "   at ", ":line 2"] },
-        { "C", "int main(void) {\n    int x = \"a\"\n    return 0;\n}\n", [":3:5: error:"] },
+        { "C", "int main(void) {\n    int x = 1\n    return x;\n}\n", [":3:5: error:"] },
         { "JavaScript", "const x = (1, 2;\n", ["SyntaxError", "node:"] },
         { "JavaScript", "const nothing = undefined;\nconsole.log(nothing.length);\n", ["TypeError", "    at "] },
         { "Go", "package main\n\nfunc main() {\n\tx := \"a\" + 1\n}\n", [".go:4:2:"] },
