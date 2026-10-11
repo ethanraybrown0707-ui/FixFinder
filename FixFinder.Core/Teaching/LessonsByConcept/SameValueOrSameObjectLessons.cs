@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -119,5 +119,56 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "sameElements compares the items; == asked whether they are one and the same array."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "== compares two texts as numbers when both look like numbers - so \"1e3\" == \"1000\" is true, 1e3 being 1000 written " +
+        "another way - while === compares them exactly as they are. For objects, == asks whether they hold the same values, and " +
+        "=== whether they are the very same object.",
+        [
+            new WorkedExample("A code typed in",
+                Broken: """
+                    <?php
+                    $typed = "1e3";
+                    if ($typed == "1000") {
+                        echo "match";
+                    } else {
+                        echo "no match";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("match"),
+                Fixed: """
+                    <?php
+                    $typed = "1e3";
+                    if ($typed === "1000") {
+                        echo "match";
+                    } else {
+                        echo "no match";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("no match"),
+                WhatChanged: "=== compares the two texts as they are, without reading them as numbers."),
+            new WorkedExample("Two marks of the same value",
+                Broken: """
+                    <?php
+                    class Mark {
+                        public function __construct(public int $value) {}
+                    }
+                    $first = new Mark(70);
+                    $second = new Mark(70);
+                    echo $first === $second ? "same" : "different";
+                    """,
+                BrokenDoes: Behaviour.Printing("different"),
+                Fixed: """
+                    <?php
+                    class Mark {
+                        public function __construct(public int $value) {}
+                    }
+                    $first = new Mark(70);
+                    $second = new Mark(70);
+                    echo $first == $second ? "same" : "different";
+                    """,
+                FixedDoes: Behaviour.Printing("same"),
+                WhatChanged: "== compares what the two objects hold; === asked whether they are one and the same object, which two made with new never are."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -125,5 +125,27 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("ada!"),
                 WhatChanged: "+ makes a new, changed copy, and leaves the frozen value as it is."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "A constant made with const cannot be changed. PHP will not even read a line that sets one with =: it refuses the whole file " +
+        "before any of it runs. A value that has to change is a variable, written with a $.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    <?php
+                    const PASS_MARK = 40;
+                    PASS_MARK = 50;
+                    echo PASS_MARK;
+                    """,
+                BrokenDoes: Behaviour.Refused("ParseError", 3),
+                Fixed: """
+                    <?php
+                    $passMark = 40;
+                    $passMark = 50;
+                    echo $passMark;
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "$passMark is a variable, so it can be given a new value."),
         ]);
 }

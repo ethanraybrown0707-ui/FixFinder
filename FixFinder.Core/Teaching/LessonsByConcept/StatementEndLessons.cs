@@ -5,7 +5,7 @@ internal static class StatementEndLessons
 {
     private static Concept Concept => Concepts.StatementEnd;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Every statement ends with a semicolon. Without one, javac refuses the program with \"';' expected\" before any of it " +
@@ -85,5 +85,25 @@ internal static class StatementEndLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The value is on the same line as return, so it is what the function gives back."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Every statement ends with a semicolon. Without one, PHP refuses the whole file with a parse error before any of it runs. It " +
+        "names the line after the one missing the semicolon: it only notices when that next line starts something that cannot follow.",
+        [
+            new WorkedExample("Printing a name",
+                Broken: """
+                    <?php
+                    $name = "Ada"
+                    echo $name;
+                    """,
+                BrokenDoes: Behaviour.Refused("ParseError", 3),
+                Fixed: """
+                    <?php
+                    $name = "Ada";
+                    echo $name;
+                    """,
+                FixedDoes: Behaviour.Printing("Ada"),
+                WhatChanged: "The ; ends the line that sets $name, so echo starts a statement of its own."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -177,5 +177,28 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("140\n160\n180"),
                 WhatChanged: "... stops before marks.length, so the last position used is 2."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "A for loop runs while its condition is true, so < 5 stops before 5 is reached and <= 5 takes it in. Positions in an array " +
+        "are the other way round: they run from 0 to count($marks) - 1, so < count($marks) is right there, and <= reads one past the " +
+        "end - which PHP only warns of, Undefined array key, carrying on with nothing in its place.",
+        [
+            new WorkedExample("Counting to five",
+                Broken: """
+                    <?php
+                    for ($number = 1; $number < 5; $number++) {
+                        echo $number . "\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("1\n2\n3\n4"),
+                Fixed: """
+                    <?php
+                    for ($number = 1; $number <= 5; $number++) {
+                        echo $number . "\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("1\n2\n3\n4\n5"),
+                WhatChanged: "<= 5 lets the loop run once more, for 5 itself."),
         ]);
 }

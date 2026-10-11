@@ -41,6 +41,7 @@ public class CodeLanguageTests : IDisposable
     [InlineData("OCaml", "ocaml-", "scala-")]
     [InlineData("Rust", "rust-", "go-")]
     [InlineData("Ruby", "ruby-", "rust-")]
+    [InlineData("PHP", "php-", "ruby-")]
     public void ALanguageKeepsItsOwnRulesAndNoOthers(string name, string own, string other)
     {
         var language = CodeLanguage.All.Single(l => l.Name == name);

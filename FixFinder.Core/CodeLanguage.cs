@@ -38,7 +38,10 @@ public sealed record CodeLanguage(
     /// <summary>Ruby: ruby -wc's syntax errors and warnings, and the exceptions that stop its programs.</summary>
     public static CodeLanguage Ruby { get; } = new("Ruby", [".rb"], ["ruby"], ["ruby-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby];
+    /// <summary>PHP: php -l's parse errors, the fatal errors that stop its programs, and the warnings it carries on past.</summary>
+    public static CodeLanguage Php { get; } = new("PHP", [".php"], ["php"], ["php-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php];
 
     public bool IsAny => ParserIds.Count == 0;
 

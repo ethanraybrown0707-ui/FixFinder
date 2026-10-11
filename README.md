@@ -295,6 +295,17 @@ it - and run. Ruby's code is read for logic mistakes by three checks `ruby -w` s
 two whole numbers, a decimal worked out by arithmetic and then compared exactly, and a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own. Ruby is tested with Ruby 3.3.12.
 
+A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
+none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
+from its own folder or after `__DIR__ .`, and a fatal error in one of those is placed there. PHP carries on past a
+warning - an undefined variable, a key an array does not have - with nothing in its place, so every warning a run
+prints is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined
+variable becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero,
+and a loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read
+for logic mistakes by three checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
+position, an `=` in a condition, and a decimal worked out by arithmetic and then compared exactly. PHP is tested with
+PHP 8.4.24.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -531,6 +542,7 @@ it stops with:
 | OCaml | `ocamlc -g`, with OCaml's default warnings |
 | Rust | `rustc`, with its default warnings, its messages as JSON so its suggested changes come with them |
 | Ruby | `ruby -wc` on every file, with its warnings |
+| PHP | `php -l` on every file |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -862,6 +874,7 @@ Python, Java and C# are checked most thoroughly.
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 3 | 33 |
 | Ruby | 3 | 3 | 22 |
+| PHP | 4 | 3 | 12 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

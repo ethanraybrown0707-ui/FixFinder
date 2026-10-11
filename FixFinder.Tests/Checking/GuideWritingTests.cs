@@ -27,6 +27,8 @@ public class GuideWritingTests
         ["Rust patterns"] = RustPatternGuides.All,
         ["Ruby"] = RubyGuides.All,
         ["Ruby patterns"] = RubyPatternGuides.All,
+        ["PHP"] = PhpGuides.All,
+        ["PHP patterns"] = PhpPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

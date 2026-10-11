@@ -86,6 +86,19 @@ public static class ConceptMap
         new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
         new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded"] },
 
+        // PHP: its fatal errors by their words, and the warnings it carries on past.
+        new(Concepts.NothingThere) { ExceptionTypes = ["Error"], Message = Words(@"^Call to a member function \w+\(\) on null") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["Error"], Message = Words(@"^Call to undefined (?:function|method)") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined variable \$") },
+        new(Concepts.PositionOutOfRange) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined array key \d+$") },
+        new(Concepts.MissingKey) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined array key """) },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["DivisionByZeroError"] },
+        new(Concepts.Arguments) { ExceptionTypes = ["ArgumentCountError"] },
+        new(Concepts.WrongType) { ExceptionTypes = ["TypeError"], Message = Words(@"^Unsupported operand types|must be of type") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["Warning"], Message = Words(@"^A non-numeric value encountered") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["ParseError"], Message = Words(@"^Unclosed '|unexpected end of file") },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-php-assignment-in-condition"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -162,7 +175,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count"] },
 
         new(Concepts.EndlessLoop)
         {

@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -64,5 +64,33 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("Ada"),
                 WhatChanged: "The closing quote ends the text after Ada, so the ; is code again."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Every { needs a } to close it. When one is missing, PHP reads to the end of the file looking for it, then refuses the whole " +
+        "file before any of it runs: Unclosed '{' names the line the { that was left open is on, and the line at the end is the last " +
+        "line of the file, where PHP gave up looking.",
+        [
+            new WorkedExample("Printing the higher marks",
+                Broken: """
+                    <?php
+                    $marks = [70, 80, 90];
+                    foreach ($marks as $mark) {
+                        if ($mark > 75) {
+                            echo $mark . "\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("ParseError", 6),
+                Fixed: """
+                    <?php
+                    $marks = [70, 80, 90];
+                    foreach ($marks as $mark) {
+                        if ($mark > 75) {
+                            echo $mark . "\n";
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("80\n90"),
+                WhatChanged: "The if gets a } of its own, so the last } closes the foreach - the { PHP said was left open, on line 3."),
         ]);
 }

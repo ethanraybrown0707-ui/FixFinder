@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -140,5 +140,26 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Age: 36"),
                 WhatChanged: "age.to_s turns the number into the text \"36\", which + can join to the rest."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "In PHP, + adds numbers and . joins text. + between a number and text that does not start with one stops the program with " +
+        "TypeError, Unsupported operand types. Text that does start with a number, such as \"5 apples\", is added as that number, " +
+        "with a warning. . turns the number into text and joins the two.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    <?php
+                    $total = 12;
+                    echo "Total: " + $total;
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 3),
+                Fixed: """
+                    <?php
+                    $total = 12;
+                    echo "Total: " . $total;
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 12"),
+                WhatChanged: ". joins the text and the number, where + tried to add them."),
         ]);
 }

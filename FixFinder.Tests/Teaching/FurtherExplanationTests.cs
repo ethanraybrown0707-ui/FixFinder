@@ -157,6 +157,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Ruby", "total = 10\nputs totl\n", [":2:in ", "(NameError)", "^^^^", "Did you mean?"] },
         { "OCaml", "let value1 = 3\n\nlet () = print_int (valeu1 + 1)\n", ["line 3, characters", "^", "Error:"] },
         { "OCaml", "let () = failwith \"stop\"\n", ["Fatal error: exception Failure", "Raised at"] },
+        { "PHP", "<?php\n$total = 10\necho $total;\n", ["Parse error:", "pasted.php on line 3"] },
+        { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error: Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 
     [Theory]

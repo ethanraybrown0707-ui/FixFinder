@@ -163,12 +163,13 @@ public static class SnippetRunner
     }
 
     /// <summary>
-    /// Whether an error is the language refusing the code before any of it ran: a compiler's error, or the SyntaxError
-    /// Python and JavaScript give for code they cannot read at all.
+    /// Whether an error is the language refusing the code before any of it ran: a compiler's error, the SyntaxError
+    /// Python and JavaScript give for code they cannot read at all, or PHP's ParseError - PHP reads a whole file before
+    /// running any of it.
     /// </summary>
     private static bool IsRefusal(ParsedError error) =>
         error.ExceptionType is "compile error" or "link error" ||
-        error.ShortExceptionType is "SyntaxError" or "IndentationError" or "TabError";
+        error.ShortExceptionType is "SyntaxError" or "IndentationError" or "TabError" or "ParseError";
 
     /// <summary>The line of the saved code an error is on: the frame in that file, the one the error's own code is in.</summary>
     private static int? LineIn(ParsedError? error, string file)

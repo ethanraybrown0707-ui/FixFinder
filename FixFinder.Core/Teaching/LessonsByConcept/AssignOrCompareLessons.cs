@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -134,6 +134,32 @@ internal static class AssignOrCompareLessons
                       puts "forty"
                     end
                     puts mark
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "In an if, = stores a value and == compares. PHP gives no warning for = in a condition: it stores the value, and the if's " +
+        "code runs whenever that value counts as true - as 40 does. So the variable is changed, and the if is taken.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    <?php
+                    $mark = 70;
+                    if ($mark = 40) {
+                        echo "forty\n";
+                    }
+                    echo $mark;
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    <?php
+                    $mark = 70;
+                    if ($mark == 40) {
+                        echo "forty\n";
+                    }
+                    echo $mark;
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== compares the mark with 40 without changing it."),

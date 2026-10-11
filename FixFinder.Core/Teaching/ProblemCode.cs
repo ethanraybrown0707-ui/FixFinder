@@ -38,6 +38,7 @@ public sealed record ProblemCode(CodeLanguage Language, Concept Concept, string 
         ["OCaml"] = "OCAML",
         ["Rust"] = "RUST",
         ["Ruby"] = "RUBY",
+        ["PHP"] = "PHP",
     };
 
     /// <summary>The code as it is shown and copied: FF-PY-DIVZERO-K7Q2MXA.</summary>

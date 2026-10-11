@@ -47,6 +47,7 @@ public static partial class ProgramFiles
             ".py" or ".pyw" or ".ipynb" => Follow(path, PythonNeighbours),
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
             ".rb" => Follow(path, RubyNeighbours),
+            ".php" => Follow(path, PhpNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -141,6 +142,23 @@ public static partial class ProgramFiles
             var target = Path.GetFullPath(Path.Combine(folder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
             var named = target.EndsWith(".rb", StringComparison.OrdinalIgnoreCase) ? target : target + ".rb";
             if (File.Exists(named)) yield return named;
+        }
+    }
+
+    [GeneratedRegex(@"\b(?:require|include)(?:_once)?\s*\(?\s*(?:__DIR__\s*\.\s*)?['""](?<path>[^'""]+\.php)['""]")]
+    private static partial Regex PhpInclude();
+
+    /// <summary>The files a PHP file brings in with require or include - named from its own folder, or after __DIR__ . '/'.</summary>
+    private static IEnumerable<string> PhpNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match included in PhpInclude().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, included.Groups["path"].Value.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
         }
     }
 

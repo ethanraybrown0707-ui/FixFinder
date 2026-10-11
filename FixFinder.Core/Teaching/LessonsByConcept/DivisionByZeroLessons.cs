@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -543,5 +543,43 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "A decimal divided by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Dividing by zero stops a PHP program with DivisionByZeroError - Division by zero for /, Modulo by zero for %. This holds for " +
+        "decimals as well: 7.5 / 0 stops the program too, rather than giving infinity.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    <?php
+                    $marks = [];
+                    $average = array_sum($marks) / count($marks);
+                    echo $average;
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivisionByZeroError", 3),
+                Fixed: """
+                    <?php
+                    $marks = [];
+                    $average = count($marks) === 0 ? 0 : array_sum($marks) / count($marks);
+                    echo $average;
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    <?php
+                    $sweets = 7;
+                    $people = 0;
+                    echo $sweets % $people;
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivisionByZeroError", 4),
+                Fixed: """
+                    <?php
+                    $sweets = 7;
+                    $people = 0;
+                    echo $people === 0 ? 0 : $sweets % $people;
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
         ]);
 }

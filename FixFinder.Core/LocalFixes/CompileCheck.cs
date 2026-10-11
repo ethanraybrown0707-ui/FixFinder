@@ -31,6 +31,7 @@ public static class CompileCheck
         ".ml" => true,
         ".rs" => true,
         ".rb" => true,
+        ".php" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -441,6 +442,10 @@ public static class CompileCheck
             case ".rb":
                 // ruby -c reads the copy and runs none of it, as the program is checked before it runs.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Ruby, copy, Timeout);
+
+            case ".php":
+                // php -l reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Php, copy, Timeout);
 
             case ".rs":
             {

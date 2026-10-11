@@ -111,6 +111,9 @@ public static partial class PastedCode
         (CodeLanguage.Ruby, [
             new(@"^\s*puts\b", RegexOptions.Multiline), new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"\.each\s+do\s*\|"),
             new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}")]),
+        (CodeLanguage.Php, [
+            new(@"<\?php\b"), new(@"^\s*\$\w+\s*=", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
+            new(@"\bfunction\s+\w+\s*\([^)]*\$\w+")]),
     ];
 
     /// <summary>

@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -247,5 +247,44 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("1"),
                 WhatChanged: "fetch with a second value gives that value, 0, for a key that is not there, instead of nil."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "null is PHP's value for \"nothing here\" - what ?? null gives for a key an array does not have, and what a function " +
+        "without return gives back. Calling a method on null stops the program with Error, Call to a member function ... on null. " +
+        "Reading a property of null only warns, and gives null.",
+        [
+            new WorkedExample("Greeting a student who is not there",
+                Broken: """
+                    <?php
+                    class Student {
+                        public function __construct(public string $name) {}
+
+                        public function greeting() {
+                            return "Hello, " . $this->name;
+                        }
+                    }
+
+                    $students = ["ada" => new Student("Ada")];
+                    $found = $students["bob"] ?? null;
+                    echo $found->greeting();
+                    """,
+                BrokenDoes: Behaviour.Stopping("Error", 12),
+                Fixed: """
+                    <?php
+                    class Student {
+                        public function __construct(public string $name) {}
+
+                        public function greeting() {
+                            return "Hello, " . $this->name;
+                        }
+                    }
+
+                    $students = ["ada" => new Student("Ada")];
+                    $found = $students["bob"] ?? null;
+                    echo $found === null ? "No such student" : $found->greeting();
+                    """,
+                FixedDoes: Behaviour.Printing("No such student"),
+                WhatChanged: "The fixed line checks for null before calling greeting on what was found."),
         ]);
 }

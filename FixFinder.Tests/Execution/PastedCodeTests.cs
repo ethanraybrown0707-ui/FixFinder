@@ -34,6 +34,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("OCaml", "let () = print_endline \"hi\"\n", "pasted.ml")]
     [InlineData("Rust", "fn main() {\n    println!(\"hi\");\n}\n", "pasted.rs")]
     [InlineData("Ruby", "puts 'hi'\n", "pasted.rb")]
+    [InlineData("PHP", "<?php\necho 'hi';\n", "pasted.php")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -84,6 +85,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("use std::collections::HashMap;\n\nfn main() {\n    let ages = HashMap::from([(\"Ada\", 36)]);\n    println!(\"{:?}\", ages);\n}\n", "Rust")]
     [InlineData("def total(marks)\n  marks.sum\nend\n\nputs total([70, 80])\n", "Ruby")]
     [InlineData("require_relative \"average\"\n\nmarks.each do |mark|\n  puts \"Mark: #{mark}\"\nend\n", "Ruby")]
+    [InlineData("<?php\n$marks = [70, 80];\necho array_sum($marks);\n", "PHP")]
+    // A function line is JavaScript's too, but <?php, echo and a $ parameter are PHP's alone.
+    [InlineData("<?php\nfunction average($marks) {\n    return array_sum($marks) / count($marks);\n}\necho average([70, 80]);\n", "PHP")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

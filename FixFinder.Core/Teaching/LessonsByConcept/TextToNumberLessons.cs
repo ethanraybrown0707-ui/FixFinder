@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -168,5 +168,30 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("not a whole number"),
                 WhatChanged: "With exception: false, Integer() gives nil for text that is not a number, and the line checks for nil."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "(int) turns text into a whole number, but never says when the text is not one: (int) of \"twenty\" is 0, and the program " +
+        "carries on with the 0. is_numeric says first whether the text is a number at all.",
+        [
+            new WorkedExample("An age typed in words",
+                Broken: """
+                    <?php
+                    $typed = "twenty";
+                    $age = (int)$typed;
+                    echo $age + 1;
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    <?php
+                    $typed = "twenty";
+                    if (is_numeric($typed)) {
+                        echo (int)$typed + 1;
+                    } else {
+                        echo "Please type a number";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "is_numeric checks the text before it is used as a number, so text that is not one is said rather than taken as 0."),
         ]);
 }

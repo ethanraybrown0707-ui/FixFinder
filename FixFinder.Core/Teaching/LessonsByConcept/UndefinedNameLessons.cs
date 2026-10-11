@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -163,5 +163,30 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("10"),
                 WhatChanged: "The name is spelt as it was made: total."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Every function has to be made before it is called, and its name spelt the same each time. PHP stops the program with Error, " +
+        "Call to undefined function, naming the line of the call. A misspelt variable is different: PHP only warns - Undefined " +
+        "variable - and carries on with nothing in its place, so the program can go on to print a wrong answer.",
+        [
+            new WorkedExample("An average",
+                Broken: """
+                    <?php
+                    function average($marks) {
+                        return array_sum($marks) / count($marks);
+                    }
+                    echo averge([70, 80]);
+                    """,
+                BrokenDoes: Behaviour.Stopping("Error", 5),
+                Fixed: """
+                    <?php
+                    function average($marks) {
+                        return array_sum($marks) / count($marks);
+                    }
+                    echo average([70, 80]);
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "The call spells average the way its function line does."),
         ]);
 }

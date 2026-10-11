@@ -13,6 +13,7 @@ internal static class FunctionLessons
         RecursionInPython, RecursionInJava,
         ArgumentsInRust, ReturnsInRust,
         ArgumentsInRuby, ReturnsInRuby, RecursionInRuby,
+        ArgumentsInPhp, ReturnsInPhp,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -358,5 +359,55 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "When n reaches 0 the method returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInPhp => new(Concepts.Arguments, CodeLanguage.Php,
+        "A function has to be given a value for each parameter its function line lists, unless the parameter has a default. Given " +
+        "too few, PHP stops the program with ArgumentCountError, saying how many were passed and how many it expects: the line it " +
+        "names at the end is the function's own, and the call's line is in the message, after passed in. Given too many, PHP says " +
+        "nothing and passes over the extra ones.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    <?php
+                    function area($width, $height) {
+                        return $width * $height;
+                    }
+                    echo area(3);
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentCountError", 2),
+                Fixed: """
+                    <?php
+                    function area($width, $height) {
+                        return $width * $height;
+                    }
+                    echo area(3, 4);
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInPhp => new(Concepts.ReturnValues, CodeLanguage.Php,
+        "A function gives back only what return gives it. Without return it gives back null, and PHP carries on with it - null + 1 " +
+        "is 1 - so the program prints a wrong answer rather than stopping.",
+        [
+            new WorkedExample("Doubling a number",
+                Broken: """
+                    <?php
+                    function double($number) {
+                        $number * 2;
+                    }
+                    echo double(4) + 1;
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    <?php
+                    function double($number) {
+                        return $number * 2;
+                    }
+                    echo double(4) + 1;
+                    """,
+                FixedDoes: Behaviour.Printing("9"),
+                WhatChanged: "return gives the doubled number back to the line that called double."),
         ]);
 }

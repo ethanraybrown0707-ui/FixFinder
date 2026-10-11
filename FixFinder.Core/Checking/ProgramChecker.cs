@@ -274,6 +274,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
+            await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
             return outcome;
         }
         finally
@@ -281,6 +282,29 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             session.Log -= Relay;
             session.LineCaptured -= Forward;
             session.Progress -= Status;
+        }
+    }
+
+    /// <summary>
+    /// PHP carries on past a warning - an undefined variable, a key that is not there - with null in its place, so a run can
+    /// print several, each a mistake of its own. Every one the run printed is a finding, with a fix where one is found; the
+    /// one already reported as what happened to the run is not reported again.
+    /// </summary>
+    private async Task RecordWarningsPrintedAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || !chosen.EndsWith(".php", StringComparison.OrdinalIgnoreCase)) return;
+
+        var printed = Parsing.Parsers.PhpParser.RunWarnings(run.Lines);
+
+        foreach (var warning in printed)
+        {
+            if (outcome.Error is { } reported && reported.FirstLineSequence == warning.FirstLineSequence) continue;
+
+            var fix = await FixAsync(warning, printed, run.Lines, launch.SourceFolder, fromBuild: false, cancellationToken);
+            Add(FindingFactory.FromError(warning, FindingKind.Runtime, Severity.Warning, Confidence.Certain, chosen, fix) with
+            {
+                Title = $"It printed {Parsing.Parsers.PhpParser.CarriedOnPast(warning) ?? "a warning"} and carried on: {warning.Message ?? FindingFactory.TitleOf(warning)}",
+            });
         }
     }
 
@@ -776,12 +800,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// What happened to the run, in words that are true of it. A run that finished and reported success, having printed
     /// an exception on the way - one caught and printed with printStackTrace, or one that ended a thread other than
     /// the main one - did not crash; nor did a program that printed an error of its own and ended with a failing code.
+    /// PHP's warnings, notices and deprecation notices are none of these: PHP printed them and carried on.
     /// </summary>
     private static string RunTitle(ParsedError error, TargetRunResult? run)
     {
         var what = FindingFactory.TitleOf(error);
 
         if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
+        if (Parsing.Parsers.PhpParser.CarriedOnPast(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
         if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
 
         var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);
