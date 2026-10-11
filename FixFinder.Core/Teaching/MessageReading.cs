@@ -118,6 +118,14 @@ public static class MessageReading
             "gives its errors no type names. In brackets at the end it often says which name held the wrong value - such as (global " +
             "'totl'). Under stack traceback: is each call that led there, the latest first; main chunk is the file itself, and [C] " +
             "lines are inside Lua.",
+        [("Perl", MessagePhase.BeforeRunning)] =
+            "Perl reads a whole file before it runs any of it. Its message says what is wrong, then after at come the file and the line " +
+            "- and, for a syntax error, near and the code where it stopped reading; the mistake is often just before that, at the end " +
+            "of the line above.",
+        [("Perl", MessagePhase.WhileRunning)] =
+            "The message says what went wrong, then at, the file and the line, and ends with a full stop - with, while the program " +
+            "reads its input, which line of the input it was on, such as <STDIN> line 1. Perl gives these messages no type names. A " +
+            "warning looks the same, but Perl carries on past it.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

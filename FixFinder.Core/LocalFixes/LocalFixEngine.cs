@@ -293,6 +293,15 @@ public static partial class LocalFixEngine
         new LuaNearestName(),
         new LuaJoinText(),
         new LuaDivisionGuard(),
+        new PerlMissingSemicolon(),
+        new PerlConditionInBrackets(),
+        new PerlUndeclaredVariable(),
+        new PerlElsif(),
+        new PerlCompareInCondition(),
+        new PerlTextComparison(),
+        new PerlJoinText(),
+        new PerlDivisionGuard(),
+        new PerlNearestSub(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -685,6 +694,7 @@ public static partial class LocalFixEngine
         "ruby" => error.ExceptionType == "SyntaxError",
         "php" => error.ExceptionType == "ParseError",
         "lua" => error.ExceptionType == Parsing.Parsers.LuaParser.SyntaxError,
+        "perl" => error.ExceptionType == Parsing.Parsers.PerlParser.CompilationError,
         "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
             or "C1083" or "C1189",
@@ -715,6 +725,7 @@ public static partial class LocalFixEngine
             ".rb" => "checked it with ruby -c, which runs none of it",
             ".php" => "checked it with php -l, which runs none of it",
             ".lua" => "checked it with luac -p, which runs none of it",
+            ".pl" or ".pm" => "checked it with perl -c, which runs none of it but its use lines and BEGIN blocks",
             _ => "compiled it",
         };
 

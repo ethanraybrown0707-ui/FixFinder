@@ -318,6 +318,20 @@ run. Lua's code is read for logic mistakes by three checks Lua says nothing of: 
 item is at 1; text compared with `==` to a number, which in Lua is never equal; and a decimal worked out by arithmetic
 and then compared exactly. Lua is tested with Lua 5.4.6.
 
+A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
+and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
+condition, a name used only once. The modules it uses from its folder or its `lib` folder are checked with it, and what
+stops the program in one of them is placed there. Perl carries on past a warning - a value that is undef, text used as
+a number - so every warning a run prints is a finding of its own, once however often a loop printed it. Perl's own words
+become fixes: a missing `;` is put at the end of the line before, an `if` gets the brackets its condition needs, a
+variable `use strict` refused becomes the nearest declared name or is declared with `my`, `elseif` becomes `elsif`, `=`
+in a condition `==` or `eq`, a comparison of text with `==` or `<` becomes `eq` or `lt`, a `+` joining text becomes `.`,
+a division by zero gets an answer for when the divisor is zero, and a misspelt sub becomes the nearest one the file has;
+each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by four checks: a
+loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
+compared with `eq` without `chomp`, and a decimal worked out by arithmetic and then compared exactly. Perl is tested with
+Strawberry Perl 5.42.2.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -556,6 +570,7 @@ it stops with:
 | Ruby | `ruby -wc` on every file, with its warnings |
 | PHP | `php -l` on every file |
 | Lua | `luac -p` on every file |
+| Perl | `perl -wc` on every file, with its warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -889,6 +904,7 @@ Python, Java and C# are checked most thoroughly.
 | Ruby | 3 | 3 | 22 |
 | PHP | 4 | 3 | 12 |
 | Lua | 7 | 3 | 23 |
+| Perl | 9 | 4 | 24 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

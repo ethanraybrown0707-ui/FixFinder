@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -158,5 +158,33 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("1"),
                 WhatChanged: "ages.Bob or 0 gives 0 when the table has no Bob, so there is a number to add to."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Asking a hash for a key it does not have gives undef, with no error - and undef is 0 in arithmetic, so the program works out " +
+        "an answer for someone who is not there. exists says whether the key is there.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my %ages = (Ada => 36);
+                    print $ages{Bob} + 1, "\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my %ages = (Ada => 36);
+                    if (exists $ages{Bob}) {
+                        print $ages{Bob} + 1, "\n";
+                    } else {
+                        print "No age for Bob\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("No age for Bob"),
+                WhatChanged: "exists checks the hash has Bob before his age is used."),
         ]);
 }

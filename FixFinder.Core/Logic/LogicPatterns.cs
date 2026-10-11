@@ -40,6 +40,7 @@ public static class LogicPatterns
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
         .. LuaLogicPatterns.All,
+        .. PerlLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

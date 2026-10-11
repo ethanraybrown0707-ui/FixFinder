@@ -19,7 +19,7 @@ public static partial class ScriptWarnings
     [GeneratedRegex(@"^(?<file>.+?\.rb):(?<line>\d+): warning: (?<message>.+?)\s*$")]
     private static partial Regex RubyWarning();
 
-    [GeneratedRegex(@"^(?<message>.+?) at (?<file>\S+?\.p[lm]) line (?<line>\d+)\.\s*$")]
+    [GeneratedRegex(@"^(?<message>.+?) at (?<file>.+?\.p[lm]) line (?<line>\d+)\.\s*$")]
     private static partial Regex PerlWarning();
 
     public static IReadOnlyList<ParsedError> In(ScriptLanguages.ScriptLanguage language, IReadOnlyList<CapturedLine> lines) => language.LanguageId switch

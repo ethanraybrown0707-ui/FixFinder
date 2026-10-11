@@ -110,6 +110,19 @@ public static class ConceptMap
         new(Concepts.TextToNumber) { CheckIds = ["logic-lua-text-compared-with-number"] },
         new(Concepts.ChangingAConstant) { ExceptionTypes = ["syntax error"], Message = Words(@"^attempt to assign to const variable") },
 
+        // Perl: what stops its programs has no type, so it is told apart by its words; so are its warnings.
+        new(Concepts.UndefinedName) { Message = Words(@"^Global symbol ""[$@%]\w+"" requires explicit package name|^Undefined subroutine &|^Name "".*"" used only once: possible typo") },
+        new(Concepts.UnclosedPair) { Message = Words(@"^Missing right curly or square bracket") },
+        new(Concepts.DivisionByZero) { Message = Words(@"^Illegal (?:division by zero|modulus zero)") },
+        new(Concepts.NothingThere) { Message = Words(@"^Can't (?:call method ""\w+"" on an undefined value|use an undefined value as)") },
+        new(Concepts.ChangingAConstant) { Message = Words(@"^Can't modify constant item") },
+        new(Concepts.AssignOrCompare) { Message = Words(@"^Found = in conditional") },
+        new(Concepts.SameValueOrSameObject) { Message = Words(@"^Argument "".*"" isn't numeric in numeric (?:eq|ne|lt|gt|le|ge)") },
+        new(Concepts.WrongType) { Message = Words(@"^Argument "".*"" isn't numeric") },
+        new(Concepts.ReadBeforeSet) { Message = Words(@"^Use of uninitialized value") },
+        new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-perl-text-compared-as-numbers"] },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-perl-line-not-chomped"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -186,7 +199,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count"] },
 
         new(Concepts.EndlessLoop)
         {

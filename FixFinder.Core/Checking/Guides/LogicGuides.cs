@@ -316,6 +316,7 @@ internal static class LogicGuides
         .. RubyPatternGuides.All,
         .. PhpPatternGuides.All,
         .. LuaPatternGuides.All,
+        .. PerlPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

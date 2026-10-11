@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -222,5 +222,33 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "The loop counts from 1, where the list's first item is."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "A list's positions run from 0 to its last, $#marks - one less than its count, scalar(@marks). A loop that stops before " +
+        "scalar(@marks) - 1 misses the last item; one that goes on to scalar(@marks) reads past the end.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = (70, 80, 90);
+                    for (my $i = 0; $i < scalar(@marks) - 1; $i++) {
+                        print $marks[$i], "\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("70\n80"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = (70, 80, 90);
+                    for (my $i = 0; $i < scalar(@marks); $i++) {
+                        print $marks[$i], "\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The loop goes on while $i is below the count, so it reaches the last position, 2."),
         ]);
 }

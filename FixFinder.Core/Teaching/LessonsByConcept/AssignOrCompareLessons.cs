@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -184,6 +184,36 @@ internal static class AssignOrCompareLessons
                       print("forty")
                     end
                     print(mark)
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "In Perl, = stores a value and == compares. = in an if stores the value, and the if is taken whenever that value counts as " +
+        "true - as 40 does. With use warnings Perl warns, Found = in conditional, but runs the program all the same.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $mark = 70;
+                    if ($mark = 40) {
+                        print "forty\n";
+                    }
+                    print "$mark\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $mark = 70;
+                    if ($mark == 40) {
+                        print "forty\n";
+                    }
+                    print "$mark\n";
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== compares the mark with 40 without changing it."),

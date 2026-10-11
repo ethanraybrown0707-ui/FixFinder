@@ -30,7 +30,7 @@ public static class ScriptLanguages
 
     public static ScriptLanguage Php { get; } = new("PHP", "php", [".php"], "php", "-l", "php", "-v");
 
-    public static ScriptLanguage Perl { get; } = new("Perl", "perl", [".pl"], "perl", "-wc", "perl", "-v");
+    public static ScriptLanguage Perl { get; } = new("Perl", "perl", [".pl", ".pm"], "perl", "-wc", "perl", "-v");
 
     public static ScriptLanguage Lua { get; } = new("Lua", "lua", [".lua"], "luac", "-p", "lua", "-v");
 

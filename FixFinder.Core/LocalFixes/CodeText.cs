@@ -25,6 +25,9 @@ public enum Syntax
     /// like, [==[ ]==] - that run on over as many lines as they need.
     /// </summary>
     Lua,
+
+    /// <summary>Perl's: # to the end of a line - but not the # of $#marks, the last position of @marks.</summary>
+    Perl,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -82,7 +85,7 @@ public static partial class CodeText
                 }
             }
 
-            if ((syntax == Syntax.Python && c == '#') || (commentsLikeC && c == '/' && next == '/'))
+            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (commentsLikeC && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
@@ -179,6 +182,9 @@ public static partial class CodeText
         return (equalsSigns + 2, "]" + new string('=', equalsSigns) + "]");
     }
 
+    /// <summary>Whether the # at <paramref name="at"/> starts a Perl comment, rather than being the # of $#marks.</summary>
+    private static bool IsPerlComment(string line, int at) => line[at] == '#' && (at == 0 || line[at - 1] != '$');
+
     public static string Mask(string line, Syntax syntax)
     {
         string? open = null;
@@ -234,6 +240,7 @@ public static partial class CodeText
             if (syntax is Syntax.CLike or Syntax.Scala && c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return i;
             if (syntax == Syntax.OCaml && c == '(' && i + 1 < line.Length && line[i + 1] == '*') return i;
             if (syntax == Syntax.Lua && c == '-' && i + 1 < line.Length && line[i + 1] == '-') return i;
+            if (syntax == Syntax.Perl && IsPerlComment(line, i)) return i;
         }
 
         return null;

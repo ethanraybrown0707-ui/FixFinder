@@ -5,7 +5,7 @@ internal static class StatementEndLessons
 {
     private static Concept Concept => Concepts.StatementEnd;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Every statement ends with a semicolon. Without one, javac refuses the program with \"';' expected\" before any of it " +
@@ -105,5 +105,29 @@ internal static class StatementEndLessons
                     """,
                 FixedDoes: Behaviour.Printing("Ada"),
                 WhatChanged: "The ; ends the line that sets $name, so echo starts a statement of its own."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Every statement ends with a semicolon. Without one, Perl refuses the whole file before any of it runs with syntax error - " +
+        "naming the line after the one missing it, and near the word where it noticed.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10
+                    print "$total\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("syntax error", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print "$total\n";
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The ; ends the line that declares $total, so print starts a statement of its own."),
         ]);
 }

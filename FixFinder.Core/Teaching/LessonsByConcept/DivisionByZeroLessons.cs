@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -615,5 +615,50 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "/ by zero gives inf rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Dividing by zero stops a Perl program: Illegal division by zero for /, Illegal modulus zero for %.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = ();
+                    my $count = scalar(@marks);
+                    print 100 / $count, "\n";
+                    """,
+                BrokenDoes: Behaviour.Stopping("Illegal division by zero", 6),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = ();
+                    my $count = scalar(@marks);
+                    print $count == 0 ? 0 : 100 / $count, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $sweets = 7;
+                    my $people = 0;
+                    print $sweets % $people, "\n";
+                    """,
+                BrokenDoes: Behaviour.Stopping("Illegal modulus zero", 6),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $sweets = 7;
+                    my $people = 0;
+                    print $people == 0 ? 0 : $sweets % $people, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
         ]);
 }

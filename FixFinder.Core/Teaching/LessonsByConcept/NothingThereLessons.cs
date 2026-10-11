@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -308,5 +308,33 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("No such student"),
                 WhatChanged: "The fixed code checks students.bob is there before looking inside it."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "undef is Perl's value for \"nothing here\" - what a variable holds before it is given a value. Calling a method on undef " +
+        "stops the program with Can't call method on an undefined value. defined says whether a variable holds anything.",
+        [
+            new WorkedExample("A student who is not there",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $student;
+                    print $student->name, "\n";
+                    """,
+                BrokenDoes: Behaviour.Stopping("Can't call method \"name\" on an undefined value", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $student;
+                    if (defined $student) {
+                        print $student->name, "\n";
+                    } else {
+                        print "No student\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("No student"),
+                WhatChanged: "The fixed code checks $student holds something before calling a method on it."),
         ]);
 }

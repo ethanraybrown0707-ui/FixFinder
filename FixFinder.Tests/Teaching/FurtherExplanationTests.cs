@@ -160,6 +160,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "PHP", "<?php\n$total = 10\necho $total;\n", ["Parse error:", "pasted.php on line 3"] },
         { "Lua", "local mark = 50\nif mark != 40 then\n  print(mark)\nend\n", ["lua", ": pasted.lua:2: ", "'then' expected near '!'"] },
         { "Lua", "local total = 10\nprint(totl + 1)\n", [": pasted.lua:2: ", "(global 'totl')", "stack traceback:", "in main chunk", "[C]: in ?"] },
+        { "Perl", "use strict;\nmy $total = 10\nprint $total;\n", ["syntax error at ", "pasted.pl line 3, near \"print"] },
+        { "Perl", "my @marks = ();\nprint 100 / scalar(@marks), \"\\n\";\n", ["Illegal division by zero at ", "pasted.pl line 2."] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 

@@ -33,6 +33,7 @@ public static class CompileCheck
         ".rb" => true,
         ".php" => true,
         ".lua" => true,
+        ".pl" or ".pm" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -451,6 +452,10 @@ public static class CompileCheck
             case ".lua":
                 // luac -p reads the copy and runs none of it.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Lua, copy, Timeout);
+
+            case ".pl" or ".pm":
+                // perl -c compiles the copy and runs none of it but its use lines and BEGIN blocks, as running it would.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Perl, copy, Timeout);
 
             case ".rs":
             {

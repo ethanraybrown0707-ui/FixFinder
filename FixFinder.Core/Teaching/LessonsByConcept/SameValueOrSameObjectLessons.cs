@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -194,5 +194,37 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "== asked whether they are the same table; the fixed code compares the items one by one."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Perl has two kinds of comparison: == and != for numbers, eq and ne for text. == turns both sides into numbers first, and a " +
+        "word becomes 0 - so \"yes\" == \"no\" is true. With use warnings Perl warns, Argument isn't numeric, but carries on.",
+        [
+            new WorkedExample("Checking an answer",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $answer = "yes";
+                    if ($answer == "no") {
+                        print "no\n";
+                    } else {
+                        print "yes\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("no"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $answer = "yes";
+                    if ($answer eq "no") {
+                        print "no\n";
+                    } else {
+                        print "yes\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("yes"),
+                WhatChanged: "eq compares the two pieces of text as text, so \"yes\" and \"no\" are different."),
         ]);
 }

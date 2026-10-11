@@ -31,6 +31,8 @@ public class GuideWritingTests
         ["PHP patterns"] = PhpPatternGuides.All,
         ["Lua"] = LuaGuides.All,
         ["Lua patterns"] = LuaPatternGuides.All,
+        ["Perl"] = PerlGuides.All,
+        ["Perl patterns"] = PerlPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

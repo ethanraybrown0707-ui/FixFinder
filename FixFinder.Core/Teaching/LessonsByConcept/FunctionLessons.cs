@@ -15,6 +15,7 @@ internal static class FunctionLessons
         ArgumentsInRuby, ReturnsInRuby, RecursionInRuby,
         ArgumentsInPhp, ReturnsInPhp,
         ArgumentsInLua, RecursionInLua,
+        ArgumentsInPerl,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -457,5 +458,35 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3"),
                 WhatChanged: "When the number reaches 0 the function returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInPerl => new(Concepts.Arguments, CodeLanguage.Perl,
+        "Perl does not check how many values a call gives a sub: the sub gets whatever is in @_, and a parameter given none is undef - " +
+        "which Perl uses as 0 in arithmetic, warning of it only with use warnings.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    sub area {
+                        my ($width, $height) = @_;
+                        return $width * $height;
+                    }
+                    print area(3), "\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    sub area {
+                        my ($width, $height) = @_;
+                        return $width * $height;
+                    }
+                    print area(3, 4), "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
         ]);
 }

@@ -118,6 +118,9 @@ public static partial class PastedCode
             new(@"^\s*local\s+(?:function\s+)?[A-Za-z_]\w*", RegexOptions.Multiline), new(@"\b(?:ipairs|pairs)\s*\("),
             new(@"\bthen\s*(?:--.*)?$", RegexOptions.Multiline), new(@"~="), new(@"[""']\s*\.\.\s|\s\.\.\s*[""']"),
             new(@"^\s*--(?:\s|\[\[)", RegexOptions.Multiline)]),
+        (CodeLanguage.Perl, [
+            new(@"^\s*use\s+(?:strict|warnings)\s*;", RegexOptions.Multiline), new(@"^\s*my\s+[$@%]\w+", RegexOptions.Multiline),
+            new(@"^\s*sub\s+\w+\s*\{", RegexOptions.Multiline), new(@"\$#\w+|@_\b|\bchomp\b"), new(@"<STDIN>")]),
     ];
 
     /// <summary>

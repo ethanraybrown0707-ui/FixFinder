@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -167,5 +167,31 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "passMark is an ordinary local, so it can be given a new value."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "A constant made with use constant cannot be changed. Perl will not even read a line that gives it a new value: it refuses the " +
+        "whole file before any of it runs, with Can't modify constant item. A value that has to change is a variable, declared with my.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    use constant PASS_MARK => 40;
+                    PASS_MARK = 50;
+                    print PASS_MARK, "\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("Can't modify constant item", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $pass_mark = 40;
+                    $pass_mark = 50;
+                    print "$pass_mark\n";
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "$pass_mark is a variable, so it can be given a new value."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -179,5 +179,29 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 12"),
                 WhatChanged: ".. joins the text and the number, where + tried to add them."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "In Perl, + adds numbers and . joins text. + between text and a number turns the text into a number - 0, for text that does " +
+        "not start with one - and adds: \"Total: \" + 12 is 12. With use warnings Perl warns, Argument isn't numeric, and carries on.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 12;
+                    print "Total: " + $total, "\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("12"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 12;
+                    print "Total: " . $total, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 12"),
+                WhatChanged: ". joins the text and the number, where + turned the text into 0 and added."),
         ]);
 }

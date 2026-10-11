@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -207,5 +207,30 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way the line that gives it its value spells it."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "With use strict at the top, Perl refuses the whole file before any of it runs if a variable is used without being declared " +
+        "with my - which catches a misspelt name. Without use strict, a misspelt name is a new, empty variable, and the program " +
+        "carries on with nothing in it.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print $totl + 1, "\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("Global symbol", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print $total + 1, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the my line declares it."),
         ]);
 }

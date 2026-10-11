@@ -43,6 +43,7 @@ public class CodeLanguageTests : IDisposable
     [InlineData("Ruby", "ruby-", "rust-")]
     [InlineData("PHP", "php-", "ruby-")]
     [InlineData("Lua", "lua-", "php-")]
+    [InlineData("Perl", "perl-", "php-")]
     public void ALanguageKeepsItsOwnRulesAndNoOthers(string name, string own, string other)
     {
         var language = CodeLanguage.All.Single(l => l.Name == name);

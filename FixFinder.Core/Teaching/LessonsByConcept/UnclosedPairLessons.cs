@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -124,5 +124,37 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("75.0"),
                 WhatChanged: "The end after the return closes the function, the block Lua said was opened on line 1."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Every { needs a } to close it. When one is missing, Perl reads to the end of the file looking for it and refuses the whole " +
+        "file before any of it runs, with Missing right curly or square bracket - naming the last line of the file, where it gave up, " +
+        "not the block that is missing it.",
+        [
+            new WorkedExample("Printing the higher marks",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = (70, 80);
+                    foreach my $mark (@marks) {
+                        if ($mark > 75) {
+                            print "$mark\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing right curly or square bracket", 8),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = (70, 80);
+                    foreach my $mark (@marks) {
+                        if ($mark > 75) {
+                            print "$mark\n";
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("80"),
+                WhatChanged: "The if gets a } of its own, so the last } closes the foreach."),
         ]);
 }

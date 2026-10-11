@@ -49,6 +49,7 @@ public static partial class ProgramFiles
             ".rb" => Follow(path, RubyNeighbours),
             ".php" => Follow(path, PhpNeighbours),
             ".lua" => Follow(path, file => LuaNeighbours(file, Path.GetDirectoryName(path)!)),
+            ".pl" or ".pm" => Follow(path, file => PerlNeighbours(file, Path.GetDirectoryName(path)!)),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -182,6 +183,27 @@ public static partial class ProgramFiles
 
             if (File.Exists(asFile)) yield return asFile;
             else if (File.Exists(asFolder)) yield return asFolder;
+        }
+    }
+
+    [GeneratedRegex(@"\b(?:require|do)\s*\(?\s*['""](?:\./)?(?<path>[^'""]+\.p[lm])['""]|^\s*use\s+(?<module>[A-Z]\w*(?:::\w+)*)\b", RegexOptions.Multiline)]
+    private static partial Regex PerlRequire();
+
+    /// <summary>
+    /// The files a Perl file brings in, from the folder the program runs in: those named to require or do - "./helpers.pl" -
+    /// and the modules it uses, Marks::Report being Marks\Report.pm there or in its lib folder, as use lib names them.
+    /// </summary>
+    private static IEnumerable<string> PerlNeighbours(string file, string programFolder)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        foreach (Match required in PerlRequire().Matches(text))
+        {
+            var candidates = required.Groups["path"].Success
+                ? [Path.Combine(programFolder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar))]
+                : new[] { programFolder, Path.Combine(programFolder, "lib") }.Select(folder => Path.Combine(folder, required.Groups["module"].Value.Replace("::", Path.DirectorySeparatorChar.ToString()) + ".pm"));
+
+            if (candidates.FirstOrDefault(File.Exists) is { } found) yield return Path.GetFullPath(found);
         }
     }
 

@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -219,5 +219,38 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("five"),
                 WhatChanged: "tonumber turns the text into the number 5 before it is compared with 5."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "A line read from <STDIN> keeps the newline the Enter key made: typing 5 gives \"5\\n\", which is not eq to \"5\". chomp takes " +
+        "the newline off. The examples hold what <STDIN> gives for a typed 5.",
+        [
+            new WorkedExample("What <STDIN> gives for 5",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $typed = "5\n";
+                    if ($typed eq "5") {
+                        print "five\n";
+                    } else {
+                        print "not five\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("not five"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $typed = "5\n";
+                    chomp $typed;
+                    if ($typed eq "5") {
+                        print "five\n";
+                    } else {
+                        print "not five\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("five"),
+                WhatChanged: "chomp takes the newline off the end, so what is left is just the 5."),
         ]);
 }
