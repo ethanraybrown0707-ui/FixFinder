@@ -114,6 +114,10 @@ public static partial class PastedCode
         (CodeLanguage.Php, [
             new(@"<\?php\b"), new(@"^\s*\$\w+\s*=", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
             new(@"\bfunction\s+\w+\s*\([^)]*\$\w+")]),
+        (CodeLanguage.Lua, [
+            new(@"^\s*local\s+(?:function\s+)?[A-Za-z_]\w*", RegexOptions.Multiline), new(@"\b(?:ipairs|pairs)\s*\("),
+            new(@"\bthen\s*(?:--.*)?$", RegexOptions.Multiline), new(@"~="), new(@"[""']\s*\.\.\s|\s\.\.\s*[""']"),
+            new(@"^\s*--(?:\s|\[\[)", RegexOptions.Multiline)]),
     ];
 
     /// <summary>

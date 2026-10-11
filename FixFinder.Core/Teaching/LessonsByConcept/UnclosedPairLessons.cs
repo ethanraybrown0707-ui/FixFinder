@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -92,5 +92,37 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("80\n90"),
                 WhatChanged: "The if gets a } of its own, so the last } closes the foreach - the { PHP said was left open, on line 3."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "Every function, if, for and while block is closed with end. When one is missing, Lua reads on looking for it and refuses the " +
+        "whole file before any of it runs, saying which block it is - 'end' expected (to close 'function' at line 1) - and the line " +
+        "where it gave up.",
+        [
+            new WorkedExample("An average",
+                Broken: """
+                    local function average(marks)
+                      local total = 0
+                      for _, mark in ipairs(marks) do
+                        total = total + mark
+                      end
+                      return total / #marks
+
+                    print(average({70, 80}))
+                    """,
+                BrokenDoes: Behaviour.Refused("'end' expected", 8),
+                Fixed: """
+                    local function average(marks)
+                      local total = 0
+                      for _, mark in ipairs(marks) do
+                        total = total + mark
+                      end
+                      return total / #marks
+                    end
+
+                    print(average({70, 80}))
+                    """,
+                FixedDoes: Behaviour.Printing("75.0"),
+                WhatChanged: "The end after the return closes the function, the block Lua said was opened on line 1."),
         ]);
 }

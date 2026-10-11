@@ -99,6 +99,17 @@ public static class ConceptMap
         new(Concepts.UnclosedPair) { ExceptionTypes = ["ParseError"], Message = Words(@"^Unclosed '|unexpected end of file") },
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-php-assignment-in-condition"] },
 
+        // Lua: its errors have no types, so they are told apart by their words alone.
+        new(Concepts.UndefinedName) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:call|perform arithmetic on|concatenate) a nil value \(global '") },
+        new(Concepts.MissingKey) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:perform arithmetic on|concatenate) a nil value \(field '") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:index|call|concatenate|perform arithmetic on|get length of) a nil value|^attempt to compare (?:\w+ with nil|nil with \w+)") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:divide by zero|perform 'n%%?0')") },
+        new(Concepts.WrongType) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to add a '(?:string|number)' with|^attempt to perform arithmetic on a (?:string|table) value|^attempt to compare (?:number with string|string with number)|^attempt to concatenate a table value") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["syntax error"], Message = Words(@"^'(?:end|[)\]}])' expected|^unfinished string") },
+        new(Concepts.AssignOrCompare) { ExceptionTypes = ["syntax error"], Message = Words(@"^'(?:then|do)' expected near '='$") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-lua-text-compared-with-number"] },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["syntax error"], Message = Words(@"^attempt to assign to const variable") },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -175,7 +186,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero"] },
 
         new(Concepts.EndlessLoop)
         {

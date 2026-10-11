@@ -39,6 +39,7 @@ public static class LogicPatterns
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
+        .. LuaLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

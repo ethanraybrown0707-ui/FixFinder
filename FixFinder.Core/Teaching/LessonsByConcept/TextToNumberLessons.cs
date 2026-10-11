@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -193,5 +193,31 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("Please type a number"),
                 WhatChanged: "is_numeric checks the text before it is used as a number, so text that is not one is said rather than taken as 0."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "Text is never equal to a number in Lua - \"5\" == 5 is false - and Lua says nothing of it, so a comparison like that gives " +
+        "the same answer every time. What io.read() reads is text. tonumber turns text into a number, or gives nil for text that is not one.",
+        [
+            new WorkedExample("Checking what was typed",
+                Broken: """
+                    local typed = "5"
+                    if typed == 5 then
+                      print("five")
+                    else
+                      print("not five")
+                    end
+                    """,
+                BrokenDoes: Behaviour.Printing("not five"),
+                Fixed: """
+                    local typed = "5"
+                    if tonumber(typed) == 5 then
+                      print("five")
+                    else
+                      print("not five")
+                    end
+                    """,
+                FixedDoes: Behaviour.Printing("five"),
+                WhatChanged: "tonumber turns the text into the number 5 before it is compared with 5."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -161,5 +161,23 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 12"),
                 WhatChanged: ". joins the text and the number, where + tried to add them."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, + only adds numbers, and .. joins text. + between text that is not a number and a number stops the program with " +
+        "attempt to add a 'string' with a 'number'. .. turns the number into text and joins the two.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    local total = 12
+                    print("Total: " + total)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to add a 'string' with a 'number'", 2),
+                Fixed: """
+                    local total = 12
+                    print("Total: " .. total)
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 12"),
+                WhatChanged: ".. joins the text and the number, where + tried to add them."),
         ]);
 }

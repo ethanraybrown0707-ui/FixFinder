@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -170,5 +170,29 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("same"),
                 WhatChanged: "== compares what the two objects hold; === asked whether they are one and the same object, which two made with new never are."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "== compares numbers and text by their value: \"ada\" == \"ada\" is true. On two tables it asks whether they are the very same " +
+        "table, never whether they hold the same items, so two tables made apart are never ==.",
+        [
+            new WorkedExample("Two lists of the same marks",
+                Broken: """
+                    local first = {70, 80}
+                    local second = {70, 80}
+                    print(first == second)
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    local first = {70, 80}
+                    local second = {70, 80}
+                    local same = #first == #second
+                    for i = 1, #first do
+                      same = same and first[i] == second[i]
+                    end
+                    print(same)
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "== asked whether they are the same table; the fixed code compares the items one by one."),
         ]);
 }

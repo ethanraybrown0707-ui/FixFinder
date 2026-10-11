@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -147,5 +147,25 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "$passMark is a variable, so it can be given a new value."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "A local marked <const> cannot be given another value. Lua will not even read a line that gives it one: it refuses the whole " +
+        "file before any of it runs, with attempt to assign to const variable. A value that has to change is a local without <const>.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    local PASS_MARK <const> = 40
+                    PASS_MARK = 50
+                    print(PASS_MARK)
+                    """,
+                BrokenDoes: Behaviour.Refused("attempt to assign to const variable", 2),
+                Fixed: """
+                    local passMark = 40
+                    passMark = 50
+                    print(passMark)
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "passMark is an ordinary local, so it can be given a new value."),
         ]);
 }

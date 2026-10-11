@@ -35,6 +35,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Rust", "fn main() {\n    println!(\"hi\");\n}\n", "pasted.rs")]
     [InlineData("Ruby", "puts 'hi'\n", "pasted.rb")]
     [InlineData("PHP", "<?php\necho 'hi';\n", "pasted.php")]
+    [InlineData("Lua", "print('hi')\n", "pasted.lua")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -88,6 +89,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("<?php\n$marks = [70, 80];\necho array_sum($marks);\n", "PHP")]
     // A function line is JavaScript's too, but <?php, echo and a $ parameter are PHP's alone.
     [InlineData("<?php\nfunction average($marks) {\n    return array_sum($marks) / count($marks);\n}\necho average([70, 80]);\n", "PHP")]
+    // Lua's print is Python's too, and its end is Ruby's, but local, ipairs and .. joining text are Lua's alone.
+    [InlineData("local marks = {70, 80}\nfor _, mark in ipairs(marks) do\n  print(mark)\nend\n", "Lua")]
+    [InlineData("local function greet(name)\n  return \"Hello, \" .. name\nend\n\nprint(greet(\"Ada\"))\n", "Lua")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

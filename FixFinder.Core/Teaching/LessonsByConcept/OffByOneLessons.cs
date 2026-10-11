@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -200,5 +200,27 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("1\n2\n3\n4\n5"),
                 WhatChanged: "<= 5 lets the loop run once more, for 5 itself."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "A Lua list's first item is at 1, not 0, and its last at #marks. A loop from 0 asks for marks[0] first - which is nil, with no " +
+        "error - so the program carries on with nothing in the place of an item.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    local marks = {70, 80, 90}
+                    for i = 0, #marks do
+                      print(marks[i])
+                    end
+                    """,
+                BrokenDoes: Behaviour.Printing("nil\n70\n80\n90"),
+                Fixed: """
+                    local marks = {70, 80, 90}
+                    for i = 1, #marks do
+                      print(marks[i])
+                    end
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The loop counts from 1, where the list's first item is."),
         ]);
 }

@@ -158,6 +158,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "OCaml", "let value1 = 3\n\nlet () = print_int (valeu1 + 1)\n", ["line 3, characters", "^", "Error:"] },
         { "OCaml", "let () = failwith \"stop\"\n", ["Fatal error: exception Failure", "Raised at"] },
         { "PHP", "<?php\n$total = 10\necho $total;\n", ["Parse error:", "pasted.php on line 3"] },
+        { "Lua", "local mark = 50\nif mark != 40 then\n  print(mark)\nend\n", ["lua", ": pasted.lua:2: ", "'then' expected near '!'"] },
+        { "Lua", "local total = 10\nprint(totl + 1)\n", [": pasted.lua:2: ", "(global 'totl')", "stack traceback:", "in main chunk", "[C]: in ?"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 

@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -286,5 +286,27 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("No such student"),
                 WhatChanged: "The fixed line checks for null before calling greeting on what was found."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "nil is Lua's value for \"nothing here\" - what a table gives for a key it does not have, and what a name holds before it is " +
+        "given a value. Looking inside nil stops the program with attempt to index a nil value, naming the key that was not there.",
+        [
+            new WorkedExample("A student who is not there",
+                Broken: """
+                    local students = {ada = {name = "Ada"}}
+                    print(students.bob.name)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to index a nil value", 2),
+                Fixed: """
+                    local students = {ada = {name = "Ada"}}
+                    if students.bob then
+                      print(students.bob.name)
+                    else
+                      print("No such student")
+                    end
+                    """,
+                FixedDoes: Behaviour.Printing("No such student"),
+                WhatChanged: "The fixed code checks students.bob is there before looking inside it."),
         ]);
 }

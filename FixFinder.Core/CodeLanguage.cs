@@ -41,7 +41,10 @@ public sealed record CodeLanguage(
     /// <summary>PHP: php -l's parse errors, the fatal errors that stop its programs, and the warnings it carries on past.</summary>
     public static CodeLanguage Php { get; } = new("PHP", [".php"], ["php"], ["php-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php];
+    /// <summary>Lua: luac -p's syntax errors, and the runtime errors that stop its programs.</summary>
+    public static CodeLanguage Lua { get; } = new("Lua", [".lua"], ["lua"], ["lua-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua];
 
     public bool IsAny => ParserIds.Count == 0;
 

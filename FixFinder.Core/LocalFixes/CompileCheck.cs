@@ -32,6 +32,7 @@ public static class CompileCheck
         ".rs" => true,
         ".rb" => true,
         ".php" => true,
+        ".lua" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -446,6 +447,10 @@ public static class CompileCheck
             case ".php":
                 // php -l reads the copy and runs none of it.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Php, copy, Timeout);
+
+            case ".lua":
+                // luac -p reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Lua, copy, Timeout);
 
             case ".rs":
             {

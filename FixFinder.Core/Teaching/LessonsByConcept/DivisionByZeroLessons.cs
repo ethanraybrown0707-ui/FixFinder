@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -581,5 +581,39 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, dividing a whole number by zero with // or % stops the program: attempt to divide by zero, or attempt to perform " +
+        "'n%0'. Dividing with / does not stop it: it gives inf, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("Sweets shared out",
+                Broken: """
+                    local sweets = 7
+                    local people = 0
+                    print(sweets // people)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to divide by zero", 3),
+                Fixed: """
+                    local sweets = 7
+                    local people = 0
+                    print(people == 0 and 0 or sweets // people)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are people, and gives 0 otherwise - Lua counts 0 as true, so and 0 or gives the 0."),
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    local total = 210
+                    local marks = {}
+                    print(total / #marks)
+                    """,
+                BrokenDoes: Behaviour.Printing("inf"),
+                Fixed: """
+                    local total = 210
+                    local marks = {}
+                    print(#marks == 0 and 0 or total / #marks)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "/ by zero gives inf rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

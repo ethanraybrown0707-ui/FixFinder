@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -188,5 +188,24 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("75"),
                 WhatChanged: "The call spells average the way its function line does."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, a name that was never given a value is not an error by itself: it is nil. A misspelt name stops the program only " +
+        "when its nil is used - in arithmetic, say, which Lua cannot do with nil - and Lua names the misspelt name at the end of " +
+        "its message, as (global 'totl').",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    local total = 10
+                    print(totl + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local total = 10
+                    print(total + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the line that gives it its value spells it."),
         ]);
 }

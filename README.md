@@ -306,6 +306,18 @@ for logic mistakes by three checks `php -l` says nothing of: a loop to `<= count
 position, an `=` in a condition, and a decimal worked out by arithmetic and then compared exactly. PHP is tested with
 PHP 8.4.24.
 
+A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
+none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
+`require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose message
+names no place, at the program's line in its traceback. Lua says what it expected where it stopped, and these syntax
+errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5` and `count++` are written out in full,
+and an `if` or a loop without its `then` or `do` gets it. While it runs, a name that is nil because it is misspelt
+becomes the nearest name the file gives a value to, a `+` joining text becomes `..`, and a whole number divided by zero
+with `//` or `%` gets an answer for when the divisor is zero; each change is checked in a copy - with `luac -p` - and
+run. Lua's code is read for logic mistakes by three checks Lua says nothing of: a loop from 0 over a list, whose first
+item is at 1; text compared with `==` to a number, which in Lua is never equal; and a decimal worked out by arithmetic
+and then compared exactly. Lua is tested with Lua 5.4.6.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -543,6 +555,7 @@ it stops with:
 | Rust | `rustc`, with its default warnings, its messages as JSON so its suggested changes come with them |
 | Ruby | `ruby -wc` on every file, with its warnings |
 | PHP | `php -l` on every file |
+| Lua | `luac -p` on every file |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -875,6 +888,7 @@ Python, Java and C# are checked most thoroughly.
 | Rust | 3 | 3 | 33 |
 | Ruby | 3 | 3 | 22 |
 | PHP | 4 | 3 | 12 |
+| Lua | 7 | 3 | 23 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

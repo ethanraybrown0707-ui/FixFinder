@@ -39,6 +39,7 @@ public sealed record ProblemCode(CodeLanguage Language, Concept Concept, string 
         ["Rust"] = "RUST",
         ["Ruby"] = "RUBY",
         ["PHP"] = "PHP",
+        ["Lua"] = "LUA",
     };
 
     /// <summary>The code as it is shown and copied: FF-PY-DIVZERO-K7Q2MXA.</summary>

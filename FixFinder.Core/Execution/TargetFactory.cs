@@ -252,6 +252,12 @@ public static class TargetFactory
                 together = $" as part of its project, {Path.GetFileName(project)}";
                 break;
 
+            case ".lua":
+                // Lua cuts a file's name of more than 60 characters down to its end - "...Temp\marks\main.lua" - in what it
+                // prints. Run from the file's own folder, the file is given by its name alone, which Lua prints whole.
+                arguments = $"\"{Path.GetFileName(full)}\"";
+                break;
+
             case ".py" when ProgramLayout.PythonModule(full) is { } module:
                 arguments = $"-m {module.Module}";
                 workingDirectory = module.Folder;

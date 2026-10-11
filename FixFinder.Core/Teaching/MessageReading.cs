@@ -109,6 +109,15 @@ public static class MessageReading
             "trace: is each call that led there, the latest first, with its line in brackets; {main} is the program itself, and thrown " +
             "in repeats where it happened. A line that starts Warning: - or PHP Warning: - is one PHP carried on past: it names the " +
             "file, and the line after on line.",
+        [("Lua", MessagePhase.BeforeRunning)] =
+            "Lua reads a whole file before it runs any of it. Its message starts with the name of the program that read it - luac or " +
+            "lua, or the whole path to it - then the file, the line, and what it expected or could not make sense of, ending with near " +
+            "and the word or symbol where it stopped. The mistake is often just before that place.",
+        [("Lua", MessagePhase.WhileRunning)] =
+            "The first line starts with the name of lua - or the whole path to it - then the file, the line and what went wrong; Lua " +
+            "gives its errors no type names. In brackets at the end it often says which name held the wrong value - such as (global " +
+            "'totl'). Under stack traceback: is each call that led there, the latest first; main chunk is the file itself, and [C] " +
+            "lines are inside Lua.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

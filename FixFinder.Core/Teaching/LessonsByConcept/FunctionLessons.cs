@@ -14,6 +14,7 @@ internal static class FunctionLessons
         ArgumentsInRust, ReturnsInRust,
         ArgumentsInRuby, ReturnsInRuby, RecursionInRuby,
         ArgumentsInPhp, ReturnsInPhp,
+        ArgumentsInLua, RecursionInLua,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -409,5 +410,52 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("9"),
                 WhatChanged: "return gives the doubled number back to the line that called double."),
+        ]);
+
+    private static Lesson ArgumentsInLua => new(Concepts.Arguments, CodeLanguage.Lua,
+        "Lua does not check how many values a call gives a function: a parameter given none is nil, and values given beyond the " +
+        "parameters are passed over. The program stops only when the nil is used - inside the function, at the line that uses it.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    local function area(width, height)
+                      return width * height
+                    end
+                    print(area(3))
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local function area(width, height)
+                      return width * height
+                    end
+                    print(area(3, 4))
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson RecursionInLua => new(Concepts.EndlessRecursion, CodeLanguage.Lua,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room and stops the program " +
+        "with stack overflow.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    local function countDown(number)
+                      return 1 + countDown(number - 1)
+                    end
+                    print(countDown(3))
+                    """,
+                BrokenDoes: Behaviour.Stopping("stack overflow", 2),
+                Fixed: """
+                    local function countDown(number)
+                      if number == 0 then
+                        return 0
+                      end
+                      return 1 + countDown(number - 1)
+                    end
+                    print(countDown(3))
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When the number reaches 0 the function returns without calling itself, so the calls stop."),
         ]);
 }

@@ -48,6 +48,7 @@ public static partial class ProgramFiles
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
             ".rb" => Follow(path, RubyNeighbours),
             ".php" => Follow(path, PhpNeighbours),
+            ".lua" => Follow(path, file => LuaNeighbours(file, Path.GetDirectoryName(path)!)),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -159,6 +160,28 @@ public static partial class ProgramFiles
         {
             var target = Path.GetFullPath(Path.Combine(folder, included.Groups["path"].Value.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar)));
             if (File.Exists(target)) yield return target;
+        }
+    }
+
+    [GeneratedRegex(@"\brequire\s*\(?\s*['""](?<module>[\w.]+)['""]")]
+    private static partial Regex LuaRequire();
+
+    /// <summary>
+    /// The files a Lua file brings in with require - named, a dot for each folder, from the folder the program runs in, as
+    /// Lua's own search does: .\stats.lua for require("stats"), .\lib\helpers.lua or .\lib\helpers\init.lua for require "lib.helpers".
+    /// </summary>
+    private static IEnumerable<string> LuaNeighbours(string file, string programFolder)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        foreach (Match required in LuaRequire().Matches(text))
+        {
+            var relative = required.Groups["module"].Value.Replace('.', Path.DirectorySeparatorChar);
+            var asFile = Path.Combine(programFolder, relative + ".lua");
+            var asFolder = Path.Combine(programFolder, relative, "init.lua");
+
+            if (File.Exists(asFile)) yield return asFile;
+            else if (File.Exists(asFolder)) yield return asFolder;
         }
     }
 

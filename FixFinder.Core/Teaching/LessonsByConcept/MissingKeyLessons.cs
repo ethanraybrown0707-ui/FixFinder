@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -140,5 +140,23 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "fetch is given 0 to use when the key is not there."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "Asking a Lua table for a key it does not have gives nil, with no error. The program stops only when the nil is used - in " +
+        "arithmetic, say - which can be lines later. (value or default) gives a default in place of nil.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    local ages = {Ada = 36}
+                    print(ages.Bob + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local ages = {Ada = 36}
+                    print((ages.Bob or 0) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "ages.Bob or 0 gives 0 when the table has no Bob, so there is a number to add to."),
         ]);
 }
