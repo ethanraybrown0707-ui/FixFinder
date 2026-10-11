@@ -144,7 +144,9 @@ public class PhpLiveTests(ITestOutputHelper output) : IDisposable
         const string code = "<?php\n$marks = [70, 80, 90];\n$total = 0;\nfor ($i = 0; $i <= count($marks); $i++) {\n    $total += $marks[$i];\n}\necho $total;\n";
         var report = await CheckAsync(Write(Path.Combine("loop-warned", "main.php"), code));
 
-        Assert.Contains(report.Run?.Run?.Lines ?? [], captured => captured.Text.StartsWith("Warning: Undefined array key 3", StringComparison.Ordinal));
+        // "Warning: Undefined array key 3", or "PHP Warning:  Undefined array key 3" where PHP logs its messages to the error stream.
+        Assert.Contains(report.Run?.Run?.Lines ?? [], captured => captured.Text.Contains("Warning:  Undefined array key 3", StringComparison.Ordinal) ||
+                                                                   captured.Text.Contains("Warning: Undefined array key 3", StringComparison.Ordinal));
         var loop = Assert.Single(report.Findings);
         Assert.Equal(4, loop.Fix?.StartLine);
         Assert.Equal("for ($i = 0; $i < count($marks); $i++) {", loop.Fix?.NewLines.Single());

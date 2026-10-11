@@ -84,11 +84,15 @@ public sealed partial class PhpParser : IStackTraceParser
         return Read(lines, chosen.Index, chosen.Match);
     }
 
-    /// <summary>Every warning, notice and deprecation PHP printed while the program ran - each a message of its own.</summary>
+    /// <summary>
+    /// Every warning, notice and deprecation PHP printed while the program ran - each a message of its own, once: PHP set up both
+    /// to show its messages and to log them prints each twice, and a line run again in a loop warns again of the same thing.
+    /// </summary>
     public static IReadOnlyList<ParsedError> RunWarnings(IReadOnlyList<CapturedLine> lines) => Enumerable.Range(0, lines.Count)
         .Select(index => (Index: index, Match: HeaderPattern().Match(lines[index].Text)))
         .Where(header => header.Match.Success && CarriesOn.Contains(header.Match.Groups["severity"].Value))
         .Select(header => Read(lines, header.Index, header.Match))
+        .DistinctBy(warning => (warning.ExceptionType, warning.Message, warning.Frames[0].File, warning.Frames[0].Line))
         .ToList();
 
     private static ParsedError Read(IReadOnlyList<CapturedLine> lines, int headerIndex, Match header)

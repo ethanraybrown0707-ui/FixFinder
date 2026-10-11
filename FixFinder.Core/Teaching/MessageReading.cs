@@ -100,14 +100,15 @@ public static class MessageReading
             "kind of error - such as (ZeroDivisionError). Ruby then shows the line with ^ marks under the part it means, and Did you " +
             "mean? with the name it thinks was meant. Each line starting with from is a call that led there.",
         [("PHP", MessagePhase.BeforeRunning)] =
-            "PHP reads a whole file before it runs any of it. Parse error: says what it could not make sense of, then after in come the " +
-            "file and, after on line, the line it was reading when it noticed - which, for a missing semicolon, is the line after the " +
-            "one that needs it.",
+            "PHP reads a whole file before it runs any of it. Parse error: - or PHP Parse error:, where PHP is set up to log its messages " +
+            "- says what it could not make sense of, then after in come the file and, after on line, the line it was reading when it " +
+            "noticed - which, for a missing semicolon, is the line after the one that needs it.",
         [("PHP", MessagePhase.WhileRunning)] =
-            "Fatal error: Uncaught names the kind of error - such as DivisionByZeroError - and what went wrong, then after in come the " +
-            "file and, after a colon, the line. Under Stack trace: is each call that led there, the latest first, with its line in " +
-            "brackets; {main} is the program itself, and thrown in repeats where it happened. A line that starts Warning: is one PHP " +
-            "carried on past: it names the file, and the line after on line.",
+            "Fatal error: Uncaught - or PHP Fatal error: Uncaught, where PHP is set up to log its messages - names the kind of error, " +
+            "such as DivisionByZeroError, and what went wrong, then after in come the file and, after a colon, the line. Under Stack " +
+            "trace: is each call that led there, the latest first, with its line in brackets; {main} is the program itself, and thrown " +
+            "in repeats where it happened. A line that starts Warning: - or PHP Warning: - is one PHP carried on past: it names the " +
+            "file, and the line after on line.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +
