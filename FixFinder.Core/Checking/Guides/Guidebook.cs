@@ -33,7 +33,7 @@ public static class Guidebook
     /// </summary>
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
-        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, RubyGuides.All, PhpGuides.All, LuaGuides.All, PerlGuides.All, LogicGuides.All,
+        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, RubyGuides.All, PhpGuides.All, LuaGuides.All, PerlGuides.All, DartGuides.All, LogicGuides.All,
     ];
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
@@ -57,6 +57,7 @@ public static class Guidebook
         ".php" => PhpGuides.All,
         ".lua" => LuaGuides.All,
         ".pl" or ".pm" => PerlGuides.All,
+        ".dart" => DartGuides.All,
         _ => [],
     };
 
@@ -76,6 +77,7 @@ public static class Guidebook
         ".php" => "PHP",
         ".lua" => "Lua",
         ".pl" or ".pm" => "Perl",
+        ".dart" => "Dart",
         _ => "the program",
     };
 }

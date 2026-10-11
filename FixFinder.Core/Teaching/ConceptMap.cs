@@ -123,6 +123,24 @@ public static class ConceptMap
         new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-perl-text-compared-as-numbers"] },
         new(Concepts.TextToNumber) { CheckIds = ["logic-perl-line-not-chomped"] },
 
+        // Dart: the analyzer's diagnostics by their names, and the exceptions that stop a program.
+        new(Concepts.StatementEnd) { Codes = ["expected_token"], Message = Words(@"^Expected to find ';'") },
+        new(Concepts.UnclosedPair) { Codes = ["expected_token"], Message = Words(@"^Expected to find '[)\]}]'") },
+        new(Concepts.UndefinedName) { Codes = ["undefined_identifier", "undefined_function", "undefined_method", "undefined_getter"] },
+        new(Concepts.WrongType) { Codes = ["invalid_assignment", "argument_type_not_assignable"] },
+        new(Concepts.AssignOrCompare) { Codes = ["non_bool_condition"] },
+        new(Concepts.ReturnValues) { Codes = ["body_might_complete_normally"] },
+        new(Concepts.ChangingAConstant) { Codes = ["assignment_to_final_local"] },
+        new(Concepts.Arguments) { Codes = ["not_enough_positional_arguments", "extra_positional_arguments"] },
+        new(Concepts.NothingThere) { Codes = ["unchecked_use_of_nullable_value"] },
+        new(Concepts.NeverUsed) { Codes = ["unused_local_variable", "unused_import"] },
+        new(Concepts.NothingThere) { Message = Words(@"^Null check operator used on a null value") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["IntegerDivisionByZeroException"] },
+        new(Concepts.PositionOutOfRange) { Message = Words(@"^Invalid value: Not in inclusive range|^Index out of range") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["FormatException"] },
+        new(Concepts.EndlessRecursion) { Message = Words(@"^Stack Overflow$") },
+        new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-dart-lists-compared-with-equals"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -199,7 +217,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length"] },
 
         new(Concepts.EndlessLoop)
         {

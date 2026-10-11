@@ -162,6 +162,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Lua", "local total = 10\nprint(totl + 1)\n", [": pasted.lua:2: ", "(global 'totl')", "stack traceback:", "in main chunk", "[C]: in ?"] },
         { "Perl", "use strict;\nmy $total = 10\nprint $total;\n", ["syntax error at ", "pasted.pl line 3, near \"print"] },
         { "Perl", "my @marks = ();\nprint 100 / scalar(@marks), \"\\n\";\n", ["Illegal division by zero at ", "pasted.pl line 2."] },
+        { "Dart", "void main() {\n  var total = 10;\n  print(totl + 1);\n}\n", ["pasted.dart:3:9: Error: Undefined name 'totl'.", "^"] },
+        { "Dart", "void main() {\n  var marks = <int>[];\n  print(70 ~/ marks.length);\n}\n", ["Unhandled exception:", "IntegerDivisionByZeroException", "main (file:///", "pasted.dart:3:"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 

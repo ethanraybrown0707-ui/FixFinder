@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -226,5 +226,29 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("yes"),
                 WhatChanged: "eq compares the two pieces of text as text, so \"yes\" and \"no\" are different."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "== compares numbers and text by their value. On two lists it asks whether they are the very same list, never whether they " +
+        "hold the same items, so two lists made apart are never ==.",
+        [
+            new WorkedExample("Two lists of the same marks",
+                Broken: """
+                    void main() {
+                      var first = [70, 80];
+                      var second = [70, 80];
+                      print(first == second);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    void main() {
+                      var first = [70, 80];
+                      var second = [70, 80];
+                      print(first.length == second.length && Iterable.generate(first.length).every((i) => first[i] == second[i]));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "== asked whether they are the same list; the fixed line compares the items one by one."),
         ]);
 }

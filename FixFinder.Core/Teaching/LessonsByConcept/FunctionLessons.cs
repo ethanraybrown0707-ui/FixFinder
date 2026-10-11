@@ -16,6 +16,7 @@ internal static class FunctionLessons
         ArgumentsInPhp, ReturnsInPhp,
         ArgumentsInLua, RecursionInLua,
         ArgumentsInPerl,
+        ArgumentsInDart, ReturnsInDart, RecursionInDart,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -488,5 +489,81 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("12"),
                 WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ArgumentsInDart => new(Concepts.Arguments, CodeLanguage.Dart,
+        "A call has to give a function a value for each of its parameters, and Dart refuses a call that gives too few, or too many, " +
+        "before the program runs - saying how many it needs and how many it was given.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    int area(int width, int height) => width * height;
+
+                    void main() {
+                      print(area(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Too few positional arguments", 4),
+                Fixed: """
+                    int area(int width, int height) => width * height;
+
+                    void main() {
+                      print(area(3, 4));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInDart => new(Concepts.ReturnValues, CodeLanguage.Dart,
+        "A function that says it gives back an int has to return one on every way through it. Without return, it would give back " +
+        "null, which an int cannot be - so Dart refuses the program before it runs.",
+        [
+            new WorkedExample("Doubling a number",
+                Broken: """
+                    int doubled(int n) {
+                      n * 2;
+                    }
+
+                    void main() {
+                      print(doubled(4) + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A non-null value must be returned", 1),
+                Fixed: """
+                    int doubled(int n) {
+                      return n * 2;
+                    }
+
+                    void main() {
+                      print(doubled(4) + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("9"),
+                WhatChanged: "return gives the doubled number back to the line that called doubled."),
+        ]);
+
+    private static Lesson RecursionInDart => new(Concepts.EndlessRecursion, CodeLanguage.Dart,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room and stops the program " +
+        "with Stack Overflow.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    int countDown(int n) => 1 + countDown(n - 1);
+
+                    void main() {
+                      print(countDown(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("Stack Overflow", 1),
+                Fixed: """
+                    int countDown(int n) => n == 0 ? 0 : 1 + countDown(n - 1);
+
+                    void main() {
+                      print(countDown(3));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When n reaches 0 the function gives 0 without calling itself, so the calls stop."),
         ]);
 }

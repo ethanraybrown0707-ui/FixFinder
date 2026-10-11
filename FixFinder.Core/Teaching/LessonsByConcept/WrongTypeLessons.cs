@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -203,5 +203,27 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 12"),
                 WhatChanged: ". joins the text and the number, where + turned the text into 0 and added."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Dart never turns a number into text by itself: + between text and a number is refused before the program runs. Writing " +
+        "the number inside the text - \"Total: $total\" - or toString() turns it into text.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    void main() {
+                      var total = 12;
+                      print("Total: " + total);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A value of type 'int' can't be assigned to a variable of type 'String'", 3),
+                Fixed: """
+                    void main() {
+                      var total = 12;
+                      print("Total: $total");
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 12"),
+                WhatChanged: "$total inside the text puts the number in as text."),
         ]);
 }

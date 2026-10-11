@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -250,5 +250,31 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "The loop goes on while $i is below the count, so it reaches the last position, 2."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A list's positions start at 0, so the last is length - 1. A loop that runs while i <= marks.length takes one step too many, " +
+        "and Dart stops the program on that step with RangeError.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    void main() {
+                      var marks = [70, 80, 90];
+                      for (var i = 0; i <= marks.length; i++) {
+                        print(marks[i]);
+                      }
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("RangeError (length)", 4),
+                Fixed: """
+                    void main() {
+                      var marks = [70, 80, 90];
+                      for (var i = 0; i < marks.length; i++) {
+                        print(marks[i]);
+                      }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "< stops the loop at the last position, 2."),
         ]);
 }

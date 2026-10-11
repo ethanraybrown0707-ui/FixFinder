@@ -88,7 +88,7 @@ public static partial class CompilerDiagnostics
     }
 
     /// <summary>
-    /// A program in a language its interpreter runs straight from the source - Ruby, PHP, Perl, Lua - checked a file at a
+    /// A program in a language run straight from the source - Ruby, PHP, Perl, Lua, and Dart - checked a file at a
     /// time by the language's own syntax check, which runs none of it: its syntax errors, and the warnings it gives.
     /// </summary>
     private static async Task<CompilerReport> ScriptAsync(
@@ -110,7 +110,10 @@ public static partial class CompilerDiagnostics
             output.AddRange(run.Lines);
 
             var folder = check.WorkingDirectory!;
-            if (run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error) errors.AddRange(Resolved([error], folder));
+            // dart analyze lists every error it finds; the other checks stop at their first.
+            IReadOnlyList<ParsedError> found = script == ScriptLanguages.Dart ? DartParser.AnalyzerErrors(run.Lines)
+                : run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error ? [error] : [];
+            errors.AddRange(Resolved(found, folder));
             warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));
         }
 

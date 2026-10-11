@@ -107,7 +107,9 @@ public static class TargetFactory
         [".ps1"] = new("powershell", "-NoProfile -ExecutionPolicy Bypass -File"),
         [".go"] = new("go", "run"),
 
-        [".dart"] = new("dart", "run"),
+        // dart <file>, not dart run <file>: dart run resolves a package's dependencies first, fetching them when it has to, and
+        // FixFinder never downloads. Run as dart <file>, a program whose packages were never fetched says so, and fails.
+        [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
     };
 

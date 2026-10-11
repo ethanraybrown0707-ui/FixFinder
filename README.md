@@ -332,6 +332,18 @@ loop to `<= scalar(@marks)` that uses its number as a position, text compared wi
 compared with `eq` without `chomp`, and a decimal worked out by arithmetic and then compared exactly. Perl is tested with
 Strawberry Perl 5.42.2.
 
+A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
+error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
+`dart main.dart`, not `dart run`: `dart run` resolves a package's dependencies first, fetching them when it has to, and
+FixFinder never downloads - a program whose packages were never fetched says so and stops. An exception is placed at the
+first line of the program's own code in its frames, past Dart's own. The analyzer's diagnostics become fixes: a missing
+`;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in an
+`int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`, `=`
+in a condition becomes `==`, and a `final` variable set again becomes `var`; and while it runs, a whole number divided
+by zero gets an answer for when the divisor is zero. Each change is checked in a copy - with `dart analyze` - and run.
+Dart's code is read for logic mistakes by three checks the analyzer says nothing of: a loop to `<= marks.length`, two
+lists compared with `==`, and a decimal worked out by arithmetic and then compared exactly. Dart is tested with Dart 3.13.2.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -571,6 +583,7 @@ it stops with:
 | PHP | `php -l` on every file |
 | Lua | `luac -p` on every file |
 | Perl | `perl -wc` on every file, with its warnings |
+| Dart | `dart analyze` on every file, its errors and warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -905,6 +918,7 @@ Python, Java and C# are checked most thoroughly.
 | PHP | 4 | 3 | 12 |
 | Lua | 7 | 3 | 23 |
 | Perl | 9 | 4 | 24 |
+| Dart | 10 | 3 | 23 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

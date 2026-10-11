@@ -47,7 +47,10 @@ public sealed record CodeLanguage(
     /// <summary>Perl: perl -wc's compilation errors and warnings, what stops its programs, and the warnings it carries on past.</summary>
     public static CodeLanguage Perl { get; } = new("Perl", [".pl", ".pm"], ["perl"], ["perl-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
+    /// <summary>Dart: what dart analyze says before it runs, and the exceptions that stop its programs.</summary>
+    public static CodeLanguage Dart { get; } = new("Dart", [".dart"], ["dart"], ["dart-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     public bool IsAny => ParserIds.Count == 0;
 

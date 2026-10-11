@@ -302,6 +302,16 @@ public static partial class LocalFixEngine
         new PerlJoinText(),
         new PerlDivisionGuard(),
         new PerlNearestSub(),
+        new DartMissingSemicolon(),
+        new DartNearestName(),
+        new DartNearestMember(),
+        new DartWholeNumberDivision(),
+        new DartNullDefault(),
+        new DartNumberToText(),
+        new DartCompareWithDoubleEquals(),
+        new DartFinalChanged(),
+        new DartDivisionGuard(),
+        new DartLoopToLength(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -455,6 +465,13 @@ public static partial class LocalFixEngine
     /// </summary>
     [GeneratedRegex(@"^(?:expected |mismatched closing delimiter|unclosed delimiter|unexpected closing delimiter|this file contains an unclosed delimiter)")]
     private static partial Regex RustSyntaxMessage();
+
+    /// <summary>
+    /// What dart itself says of code it cannot read, as Dart 3.13 gives it when the program is run rather than analyzed:
+    /// "Expected ';' after this.", "Can't find '}' to match '{'.".
+    /// </summary>
+    [GeneratedRegex(@"^(?:Expected |Can't find '.' to match ')")]
+    private static partial Regex DartSyntaxMessage();
 
     public static async Task<FixCandidate?> ForAsync(
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
@@ -695,6 +712,10 @@ public static partial class LocalFixEngine
         "php" => error.ExceptionType == "ParseError",
         "lua" => error.ExceptionType == Parsing.Parsers.LuaParser.SyntaxError,
         "perl" => error.ExceptionType == Parsing.Parsers.PerlParser.CompilationError,
+        "dart" => error.ExceptionType == "compile error" &&
+                  (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
+                       "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
+                   (error.ErrorCode is null && DartSyntaxMessage().IsMatch(error.Message ?? ""))),
         "msvc" => error.ErrorCode is "C2143" or "C2146" or "C2059" or "C1075" or "C1004" or "C2061" or "C2760"
             or "CS1002" or "CS1003" or "CS1513" or "CS1001" or "CS1012" or "CS1026" or "CS1525" or "CS1514"
             or "C1083" or "C1189",
@@ -726,6 +747,7 @@ public static partial class LocalFixEngine
             ".php" => "checked it with php -l, which runs none of it",
             ".lua" => "checked it with luac -p, which runs none of it",
             ".pl" or ".pm" => "checked it with perl -c, which runs none of it but its use lines and BEGIN blocks",
+            ".dart" => "checked it with dart analyze, which runs none of it",
             _ => "compiled it",
         };
 

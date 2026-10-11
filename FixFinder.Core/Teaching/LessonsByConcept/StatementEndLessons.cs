@@ -5,7 +5,7 @@ internal static class StatementEndLessons
 {
     private static Concept Concept => Concepts.StatementEnd;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Every statement ends with a semicolon. Without one, javac refuses the program with \"';' expected\" before any of it " +
@@ -129,5 +129,27 @@ internal static class StatementEndLessons
                     """,
                 FixedDoes: Behaviour.Printing("10"),
                 WhatChanged: "The ; ends the line that declares $total, so print starts a statement of its own."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Every statement ends with a semicolon. Without one, Dart refuses the program before any of it runs, pointing at the end of " +
+        "the line that needs it: Expected ';' after this.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    void main() {
+                      var total = 10
+                      print(total);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Expected ';' after this", 2),
+                Fixed: """
+                    void main() {
+                      var total = 10;
+                      print(total);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The ; ends the line that declares total."),
         ]);
 }

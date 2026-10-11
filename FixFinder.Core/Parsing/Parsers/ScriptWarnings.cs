@@ -26,6 +26,7 @@ public static partial class ScriptWarnings
     {
         "ruby" => Read(lines, RubyWarning(), "ruby"),
         "perl" when lines.Any(line => line.Text.TrimEnd().EndsWith("syntax OK", StringComparison.Ordinal)) => Read(lines, PerlWarning(), "perl"),
+        "dart" => DartParser.AnalyzerWarnings(lines),
         _ => [],
     };
 

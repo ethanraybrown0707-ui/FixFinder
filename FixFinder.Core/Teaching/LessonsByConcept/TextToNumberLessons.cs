@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -252,5 +252,27 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("five"),
                 WhatChanged: "chomp takes the newline off the end, so what is left is just the 5."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "int.parse turns text into a whole number, and stops the program with FormatException when the text is not one. " +
+        "int.tryParse gives null instead, so the program can say what went wrong.",
+        [
+            new WorkedExample("An age typed in words",
+                Broken: """
+                    void main() {
+                      var age = int.parse("twenty");
+                      print(age + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("FormatException", 2),
+                Fixed: """
+                    void main() {
+                      var age = int.tryParse("twenty");
+                      print(age == null ? "Please type a number" : age + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "int.tryParse gives null for text that is not a number, and the fixed line checks for it."),
         ]);
 }

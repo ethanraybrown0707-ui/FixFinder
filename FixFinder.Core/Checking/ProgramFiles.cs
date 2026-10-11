@@ -50,6 +50,7 @@ public static partial class ProgramFiles
             ".php" => Follow(path, PhpNeighbours),
             ".lua" => Follow(path, file => LuaNeighbours(file, Path.GetDirectoryName(path)!)),
             ".pl" or ".pm" => Follow(path, file => PerlNeighbours(file, Path.GetDirectoryName(path)!)),
+            ".dart" => Follow(path, DartNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -204,6 +205,23 @@ public static partial class ProgramFiles
                 : new[] { programFolder, Path.Combine(programFolder, "lib") }.Select(folder => Path.Combine(folder, required.Groups["module"].Value.Replace("::", Path.DirectorySeparatorChar.ToString()) + ".pm"));
 
             if (candidates.FirstOrDefault(File.Exists) is { } found) yield return Path.GetFullPath(found);
+        }
+    }
+
+    [GeneratedRegex(@"^\s*(?:import|export|part)\s+['""](?!dart:|package:)(?<path>[^'""]+\.dart)['""]", RegexOptions.Multiline)]
+    private static partial Regex DartImport();
+
+    /// <summary>The files a Dart file imports, exports or has as a part, named from its own folder - not dart: or package: ones.</summary>
+    private static IEnumerable<string> DartNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match imported in DartImport().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, imported.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
         }
     }
 

@@ -5,7 +5,7 @@ internal static class WholeNumberDivisionLessons
 {
     private static Concept Concept => Concepts.WholeNumberDivision;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Dividing one int by another gives an int: the fraction is dropped, so 7 / 2 is 3. Storing the answer in a double " +
@@ -200,5 +200,31 @@ internal static class WholeNumberDivisionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3.5"),
                 WhatChanged: "7.0 is a decimal, so the division keeps the half."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "In Dart, / always gives a decimal - 7 / 2 is 3.5 - and Dart refuses to store a decimal in an int. ~/ is its whole-number " +
+        "division: 7 ~/ 2 is 3, the fraction dropped.",
+        [
+            new WorkedExample("An average kept as a whole number",
+                Broken: """
+                    void main() {
+                      int total = 7;
+                      int count = 2;
+                      int average = total / count;
+                      print(average);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A value of type 'double' can't be assigned to a variable of type 'int'", 4),
+                Fixed: """
+                    void main() {
+                      int total = 7;
+                      int count = 2;
+                      int average = total ~/ count;
+                      print(average);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "~/ divides and keeps the whole number; a double variable would keep the 3.5."),
         ]);
 }

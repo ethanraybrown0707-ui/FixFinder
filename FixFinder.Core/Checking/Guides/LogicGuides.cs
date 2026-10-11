@@ -317,6 +317,7 @@ internal static class LogicGuides
         .. PhpPatternGuides.All,
         .. LuaPatternGuides.All,
         .. PerlPatternGuides.All,
+        .. DartPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

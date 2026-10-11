@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -186,5 +186,29 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("No age for Bob"),
                 WhatChanged: "exists checks the hash has Bob before his age is used."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Asking a map for a key it does not have gives null. Dart will not let null into an int, so ! is often added to say \"this " +
+        "is not null\" - and when it is, the program stops: Null check operator used on a null value. ?? gives a value to use instead.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    void main() {
+                      Map<String, int> ages = {"Ada": 36};
+                      int age = ages["Bob"]!;
+                      print(age + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("Null check operator used on a null value", 3),
+                Fixed: """
+                    void main() {
+                      Map<String, int> ages = {"Ada": 36};
+                      int age = ages["Bob"] ?? 0;
+                      print(age + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "?? 0 gives 0 when the map has no Bob, so there is a number to add to."),
         ]);
 }

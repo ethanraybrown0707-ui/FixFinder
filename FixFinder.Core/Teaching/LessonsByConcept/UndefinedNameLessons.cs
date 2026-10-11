@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -232,5 +232,27 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way the my line declares it."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Every name has to be declared before it is used, and spelt the same each time. Dart refuses a program with a name it does " +
+        "not know before any of it runs: Undefined name.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    void main() {
+                      var total = 10;
+                      print(totl + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Undefined name 'totl'", 3),
+                Fixed: """
+                    void main() {
+                      var total = 10;
+                      print(total + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way its declaration spells it."),
         ]);
 }

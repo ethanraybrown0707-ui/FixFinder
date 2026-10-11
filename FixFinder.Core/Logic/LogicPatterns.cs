@@ -41,6 +41,7 @@ public static class LogicPatterns
         .. PhpLogicPatterns.All,
         .. LuaLogicPatterns.All,
         .. PerlLogicPatterns.All,
+        .. DartLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

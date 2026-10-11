@@ -121,6 +121,11 @@ public static partial class PastedCode
         (CodeLanguage.Perl, [
             new(@"^\s*use\s+(?:strict|warnings)\s*;", RegexOptions.Multiline), new(@"^\s*my\s+[$@%]\w+", RegexOptions.Multiline),
             new(@"^\s*sub\s+\w+\s*\{", RegexOptions.Multiline), new(@"\$#\w+|@_\b|\bchomp\b"), new(@"<STDIN>")]),
+        (CodeLanguage.Dart, [
+            new(@"^\s*import\s+['""](?:dart|package):", RegexOptions.Multiline), new(@"\bvoid\s+main\s*\(\s*\)\s*(?:\{|=>)"),
+            // Text in single quotes with a $name in it: Dart's way, as PHP and Perl put nothing into single-quoted text.
+            new(@"'[^'\n]*\$\{?[A-Za-z_]"), new(@"^\s*(?:late|final)\s+\w+(?:<[^>]*>)?\??\s+\w+", RegexOptions.Multiline),
+            new(@"\b(?:String|int|double)\?\s+\w+")]),
     ];
 
     /// <summary>

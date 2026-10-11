@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -660,5 +660,43 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A whole number divided by zero with ~/ stops a Dart program with IntegerDivisionByZeroException. Dividing with / does not " +
+        "stop it: it gives Infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("Sharing between no marks",
+                Broken: """
+                    void main() {
+                      var marks = <int>[];
+                      print(70 ~/ marks.length);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("IntegerDivisionByZeroException", 3),
+                Fixed: """
+                    void main() {
+                      var marks = <int>[];
+                      print(marks.isEmpty ? 0 : 70 ~/ marks.length);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Dividing with /",
+                Broken: """
+                    void main() {
+                      var marks = <int>[];
+                      print(70 / marks.length);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Infinity"),
+                Fixed: """
+                    void main() {
+                      var marks = <int>[];
+                      print(marks.isEmpty ? 0 : 70 / marks.length);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "/ by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

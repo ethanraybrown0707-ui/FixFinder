@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -193,5 +193,29 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "$pass_mark is a variable, so it can be given a new value."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A variable declared final can be set only once, and Dart refuses a program that sets it again before any of it runs. A value " +
+        "that has to change is declared with var.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    void main() {
+                      final passMark = 40;
+                      passMark = 50;
+                      print(passMark);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Can't assign to the final variable 'passMark'", 3),
+                Fixed: """
+                    void main() {
+                      var passMark = 40;
+                      passMark = 50;
+                      print(passMark);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "var lets passMark be given a new value."),
         ]);
 }

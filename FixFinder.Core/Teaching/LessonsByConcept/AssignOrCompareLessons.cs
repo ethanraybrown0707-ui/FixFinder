@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -217,5 +217,33 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "In Dart, = stores a value and == compares. An if needs true or false, and = gives the value it stored - a number here - so " +
+        "Dart refuses the program before any of it runs.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    void main() {
+                      var mark = 70;
+                      if (mark = 40) {
+                        print("forty");
+                      }
+                      print(mark);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A value of type 'int' can't be assigned to a variable of type 'bool'", 3),
+                Fixed: """
+                    void main() {
+                      var mark = 70;
+                      if (mark == 40) {
+                        print("forty");
+                      }
+                      print(mark);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40, giving true or false, without changing it."),
         ]);
 }

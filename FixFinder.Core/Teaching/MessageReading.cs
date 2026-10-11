@@ -126,6 +126,15 @@ public static class MessageReading
             "The message says what went wrong, then at, the file and the line, and ends with a full stop - with, while the program " +
             "reads its input, which line of the input it was on, such as <STDIN> line 1. Perl gives these messages no type names. A " +
             "warning looks the same, but Perl carries on past it.",
+        [("Dart", MessagePhase.BeforeRunning)] =
+            "Dart will not run a program with even one error in it. Each message names the file, the line and the column - main.dart:3:9 " +
+            "is line 3, column 9 - and what is wrong. From dart analyze, it starts with error or warning, often gives Dart's own advice " +
+            "after Try, and ends with the problem's name, such as undefined_identifier, which can be looked up; from dart itself, the " +
+            "line follows, with ^ marks under the place.",
+        [("Dart", MessagePhase.WhileRunning)] =
+            "Unhandled exception: comes first, then the exception - such as RangeError - and what went wrong, or the message alone. " +
+            "Each line under it that starts with # is a call that was running, the latest first: #1 main (file:///C:/marks/main.dart:3:12) " +
+            "is line 3, column 12 of main.dart, in main. The ones in dart: files are inside Dart itself.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

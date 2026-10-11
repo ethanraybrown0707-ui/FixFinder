@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -336,5 +336,27 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("No student"),
                 WhatChanged: "The fixed code checks $student holds something before calling a method on it."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A Dart type with ? after it - String? - may hold null, and Dart refuses, before the program runs, to use such a value as if " +
+        "it were there. ?? gives a value to use when it is null.",
+        [
+            new WorkedExample("The length of a name not given",
+                Broken: """
+                    void main() {
+                      String? name;
+                      print(name.length);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Property 'length' cannot be accessed on 'String?' because it is potentially null", 3),
+                Fixed: """
+                    void main() {
+                      String? name;
+                      print((name ?? '').length);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "name ?? '' gives empty text when name is null, so there is always a length to take."),
         ]);
 }

@@ -15,6 +15,10 @@ namespace FixFinder.Core.Execution;
 /// the program runs - and says syntax OK, or its errors and warnings.
 /// </para>
 /// <para>luac -p, Lua's compiler told only to parse, says nothing for a file that reads, and its error for one that does not.</para>
+/// <para>
+/// dart analyze lists every error and warning in a file, and runs none of it; with --no-fatal-warnings it fails only for an
+/// error. Unlike dart run, it never fetches a package's dependencies.
+/// </para>
 /// The check runs in the file's own folder and is given the file's name, so what it says names the file as it is there.
 /// </remarks>
 public static class ScriptLanguages
@@ -34,7 +38,9 @@ public static class ScriptLanguages
 
     public static ScriptLanguage Lua { get; } = new("Lua", "lua", [".lua"], "luac", "-p", "lua", "-v");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua];
+    public static ScriptLanguage Dart { get; } = new("Dart", "dart", [".dart"], "dart", "analyze --no-fatal-warnings", "dart", "--version");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart];
 
     public static ScriptLanguage? Of(string file)
     {
