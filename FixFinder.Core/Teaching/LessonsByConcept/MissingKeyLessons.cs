@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -122,5 +122,93 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("no age for Bob"),
                 WhatChanged: "The second value, found, is false when the key is not there, so the fixed program can tell a missing age from an age of 0."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Square brackets give nil for a key a hash does not have; fetch stops the program with KeyError instead - unless it is " +
+        "given a value to use when the key is missing.",
+        [
+            new WorkedExample("Looking up a missing age",
+                Broken: """
+                    ages = { "Ada" => 36 }
+                    puts ages.fetch("Bob")
+                    """,
+                BrokenDoes: Behaviour.Stopping("KeyError", 2),
+                Fixed: """
+                    ages = { "Ada" => 36 }
+                    puts ages.fetch("Bob", 0)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "fetch is given 0 to use when the key is not there."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "Asking a Lua table for a key it does not have gives nil, with no error. The program stops only when the nil is used - in " +
+        "arithmetic, say - which can be lines later. (value or default) gives a default in place of nil.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    local ages = {Ada = 36}
+                    print(ages.Bob + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local ages = {Ada = 36}
+                    print((ages.Bob or 0) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "ages.Bob or 0 gives 0 when the table has no Bob, so there is a number to add to."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Asking a hash for a key it does not have gives undef, with no error - and undef is 0 in arithmetic, so the program works out " +
+        "an answer for someone who is not there. exists says whether the key is there.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my %ages = (Ada => 36);
+                    print $ages{Bob} + 1, "\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my %ages = (Ada => 36);
+                    if (exists $ages{Bob}) {
+                        print $ages{Bob} + 1, "\n";
+                    } else {
+                        print "No age for Bob\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("No age for Bob"),
+                WhatChanged: "exists checks the hash has Bob before his age is used."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Asking a map for a key it does not have gives null. Dart will not let null into an int, so ! is often added to say \"this " +
+        "is not null\" - and when it is, the program stops: Null check operator used on a null value. ?? gives a value to use instead.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    void main() {
+                      Map<String, int> ages = {"Ada": 36};
+                      int age = ages["Bob"]!;
+                      print(age + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("Null check operator used on a null value", 3),
+                Fixed: """
+                    void main() {
+                      Map<String, int> ages = {"Ada": 36};
+                      int age = ages["Bob"] ?? 0;
+                      print(age + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "?? 0 gives 0 when the map has no Bob, so there is a number to add to."),
         ]);
 }

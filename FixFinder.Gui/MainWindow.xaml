@@ -120,6 +120,21 @@
                         <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
 
+                        <!-- The same fix as numbered steps: where to look, what happened, the change, and how to see it worked. -->
+                        <TextBlock Text="STEP BY STEP" Style="{StaticResource Label}"/>
+                        <ItemsControl ItemsSource="{Binding Steps}" Focusable="False"
+                                      AutomationProperties.AutomationId="FindingSteps" AutomationProperties.Name="Step by step">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2,0,2">
+                                        <TextBlock Text="{Binding NumberText}" Width="22" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource HintBrush}"/>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
                         <StackPanel Visibility="{Binding HasCorrection, Converter={StaticResource Visible}}">
                             <Button Content="{Binding CorrectionToggleText}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                     Margin="0,10,0,0" Tag="{Binding}" Click="ToggleCorrection_Click"
@@ -188,6 +203,33 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <!-- What the language itself said, as it said it, and how to read a message like it. -->
+                        <StackPanel Visibility="{Binding HasMessage, Converter={StaticResource Visible}}"
+                                    AutomationProperties.AutomationId="FindingMessage">
+                            <TextBlock Text="{Binding MessageHeading}" Style="{StaticResource Label}"/>
+                            <TextBox Text="{Binding MessageText, Mode=OneWay}" Style="{StaticResource CodeBlock}"
+                                     AutomationProperties.Name="The language's message"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding HowToReadMessage}" Style="{StaticResource Body}" FontSize="12.5"
+                                       Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <!-- The programming words this finding uses, each with what it means. -->
+                        <StackPanel Visibility="{Binding HasWords, Converter={StaticResource Visible}}"
+                                    AutomationProperties.AutomationId="FindingWords">
+                            <TextBlock Text="WORDS USED HERE" Style="{StaticResource Label}"/>
+                            <ItemsControl ItemsSource="{Binding Words}" Focusable="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{StaticResource Body}" FontSize="12.5" Margin="0,1,0,1">
+                                            <Run Text="{Binding Word, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
+                                            <Run Text=" - "/>
+                                            <Run Text="{Binding Meaning, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <!-- The idea behind the mistake, and the code that opens it in FixFinder Learn. -->
                         <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
                                 BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,14,0,0"
@@ -195,6 +237,11 @@
                             <StackPanel>
                                 <TextBlock Text="{Binding IdeaTitle}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBlock Text="{Binding Idea}" Style="{StaticResource Body}" FontSize="12.5" Margin="0,4,0,0"/>
+                                <TextBlock Style="{StaticResource Body}" FontSize="12.5" Margin="0,6,0,0"
+                                           AutomationProperties.AutomationId="FindingNextTime">
+                                    <Run Text="Next time: " FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}"/>
+                                    <Run Text="{Binding NextTime, Mode=OneWay}"/>
+                                </TextBlock>
                                 <WrapPanel Margin="0,10,0,0" Visibility="{Binding HasProblemCode, Converter={StaticResource Visible}}">
                                     <TextBlock Text="Problem code" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"
                                                Foreground="{DynamicResource SecondaryTextBrush}"/>

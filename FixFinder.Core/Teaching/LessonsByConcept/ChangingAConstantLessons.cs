@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -81,5 +81,141 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("15"),
                 WhatChanged: "var makes score a name whose value can be changed."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "A variable made with let keeps the value it is first given - Rust's variables cannot change unless they are made with " +
+        "let mut. rustc refuses a line that changes one, with E0384, before any of the program runs.",
+        [
+            new WorkedExample("Adding a bonus to a score",
+                Broken: """
+                    fn main() {
+                        let score = 10;
+                        score = score + 5;
+                        println!("{}", score);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0384", 3),
+                Fixed: """
+                    fn main() {
+                        let mut score = 10;
+                        score = score + 5;
+                        println!("{}", score);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("15"),
+                WhatChanged: "let mut makes score a variable whose value can be changed."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "A value made with .freeze can never be changed: a line that changes it stops the program with FrozenError. A changed copy " +
+        "can always be made.",
+        [
+            new WorkedExample("Adding to a frozen name",
+                Broken: """
+                    NAME = "ada".freeze
+                    NAME << "!"
+                    puts NAME
+                    """,
+                BrokenDoes: Behaviour.Stopping("FrozenError", 2),
+                Fixed: """
+                    NAME = "ada".freeze
+                    greeting = NAME + "!"
+                    puts greeting
+                    """,
+                FixedDoes: Behaviour.Printing("ada!"),
+                WhatChanged: "+ makes a new, changed copy, and leaves the frozen value as it is."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "A constant made with const cannot be changed. PHP will not even read a line that sets one with =: it refuses the whole file " +
+        "before any of it runs. A value that has to change is a variable, written with a $.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    <?php
+                    const PASS_MARK = 40;
+                    PASS_MARK = 50;
+                    echo PASS_MARK;
+                    """,
+                BrokenDoes: Behaviour.Refused("ParseError", 3),
+                Fixed: """
+                    <?php
+                    $passMark = 40;
+                    $passMark = 50;
+                    echo $passMark;
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "$passMark is a variable, so it can be given a new value."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "A local marked <const> cannot be given another value. Lua will not even read a line that gives it one: it refuses the whole " +
+        "file before any of it runs, with attempt to assign to const variable. A value that has to change is a local without <const>.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    local PASS_MARK <const> = 40
+                    PASS_MARK = 50
+                    print(PASS_MARK)
+                    """,
+                BrokenDoes: Behaviour.Refused("attempt to assign to const variable", 2),
+                Fixed: """
+                    local passMark = 40
+                    passMark = 50
+                    print(passMark)
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "passMark is an ordinary local, so it can be given a new value."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "A constant made with use constant cannot be changed. Perl will not even read a line that gives it a new value: it refuses the " +
+        "whole file before any of it runs, with Can't modify constant item. A value that has to change is a variable, declared with my.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    use constant PASS_MARK => 40;
+                    PASS_MARK = 50;
+                    print PASS_MARK, "\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("Can't modify constant item", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $pass_mark = 40;
+                    $pass_mark = 50;
+                    print "$pass_mark\n";
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "$pass_mark is a variable, so it can be given a new value."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A variable declared final can be set only once, and Dart refuses a program that sets it again before any of it runs. A value " +
+        "that has to change is declared with var.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    void main() {
+                      final passMark = 40;
+                      passMark = 50;
+                      print(passMark);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Can't assign to the final variable 'passMark'", 3),
+                Fixed: """
+                    void main() {
+                      var passMark = 40;
+                      passMark = 50;
+                      print(passMark);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "var lets passMark be given a new value."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -113,5 +113,137 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("40"),
                 WhatChanged: "== compares without changing mark, so the if is false for 40, and mark keeps its value."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "In an if, = stores a value and == compares. Ruby warns about = in a condition, but runs the program: the condition is " +
+        "then always true, and the variable is changed.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    mark = 70
+                    if mark = 40
+                      puts "forty"
+                    end
+                    puts mark
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    mark = 70
+                    if mark == 40
+                      puts "forty"
+                    end
+                    puts mark
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "In an if, = stores a value and == compares. PHP gives no warning for = in a condition: it stores the value, and the if's " +
+        "code runs whenever that value counts as true - as 40 does. So the variable is changed, and the if is taken.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    <?php
+                    $mark = 70;
+                    if ($mark = 40) {
+                        echo "forty\n";
+                    }
+                    echo $mark;
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    <?php
+                    $mark = 70;
+                    if ($mark == 40) {
+                        echo "forty\n";
+                    }
+                    echo $mark;
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, = stores a value and == compares. Lua will not store a value in a condition at all: = in an if refuses the whole " +
+        "file before any of it runs - 'then' expected near '=' - so this mistake is caught before it can do harm.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    local mark = 70
+                    if mark = 40 then
+                      print("forty")
+                    end
+                    print(mark)
+                    """,
+                BrokenDoes: Behaviour.Refused("'then' expected near '='", 2),
+                Fixed: """
+                    local mark = 70
+                    if mark == 40 then
+                      print("forty")
+                    end
+                    print(mark)
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "In Perl, = stores a value and == compares. = in an if stores the value, and the if is taken whenever that value counts as " +
+        "true - as 40 does. With use warnings Perl warns, Found = in conditional, but runs the program all the same.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $mark = 70;
+                    if ($mark = 40) {
+                        print "forty\n";
+                    }
+                    print "$mark\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $mark = 70;
+                    if ($mark == 40) {
+                        print "forty\n";
+                    }
+                    print "$mark\n";
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "In Dart, = stores a value and == compares. An if needs true or false, and = gives the value it stored - a number here - so " +
+        "Dart refuses the program before any of it runs.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    void main() {
+                      var mark = 70;
+                      if (mark = 40) {
+                        print("forty");
+                      }
+                      print(mark);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A value of type 'int' can't be assigned to a variable of type 'bool'", 3),
+                Fixed: """
+                    void main() {
+                      var mark = 70;
+                      if (mark == 40) {
+                        print("forty");
+                      }
+                      print(mark);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40, giving true or false, without changing it."),
         ]);
 }

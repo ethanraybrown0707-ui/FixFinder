@@ -5,7 +5,7 @@ internal static class WholeNumberDivisionLessons
 {
     private static Concept Concept => Concepts.WholeNumberDivision;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Dividing one int by another gives an int: the fraction is dropped, so 7 / 2 is 3. Storing the answer in a double " +
@@ -158,5 +158,73 @@ internal static class WholeNumberDivisionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3.5"),
                 WhatChanged: "Both numbers become floats before dividing, and /. divides floats, so the fraction is kept."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Dividing one whole number by another in Rust gives a whole number: 7 / 2 is 3. Making each number an f64 first, with as, " +
+        "makes the division keep its fraction.",
+        [
+            new WorkedExample("An average of two marks",
+                Broken: """
+                    fn main() {
+                        let total = 7;
+                        let count = 2;
+                        let average = total / count;
+                        println!("{}", average);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("3"),
+                Fixed: """
+                    fn main() {
+                        let total = 7;
+                        let count = 2;
+                        let average = total as f64 / count as f64;
+                        println!("{}", average);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("3.5"),
+                WhatChanged: "as f64 makes each number a decimal before dividing, so the half is kept."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Dividing one whole number by another in Ruby gives a whole number: 7 / 2 is 3. A decimal on either side - 7.0, or .to_f - " +
+        "makes it keep the fraction.",
+        [
+            new WorkedExample("Half of seven",
+                Broken: """
+                    puts 7 / 2
+                    """,
+                BrokenDoes: Behaviour.Printing("3"),
+                Fixed: """
+                    puts 7.0 / 2
+                    """,
+                FixedDoes: Behaviour.Printing("3.5"),
+                WhatChanged: "7.0 is a decimal, so the division keeps the half."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "In Dart, / always gives a decimal - 7 / 2 is 3.5 - and Dart refuses to store a decimal in an int. ~/ is its whole-number " +
+        "division: 7 ~/ 2 is 3, the fraction dropped.",
+        [
+            new WorkedExample("An average kept as a whole number",
+                Broken: """
+                    void main() {
+                      int total = 7;
+                      int count = 2;
+                      int average = total / count;
+                      print(average);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A value of type 'double' can't be assigned to a variable of type 'int'", 4),
+                Fixed: """
+                    void main() {
+                      int total = 7;
+                      int count = 2;
+                      int average = total ~/ count;
+                      print(average);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "~/ divides and keeps the whole number; a double variable would keep the 3.5."),
         ]);
 }

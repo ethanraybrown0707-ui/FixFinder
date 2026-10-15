@@ -93,7 +93,7 @@ public class TeachingTests
     }
 
     [Theory]
-    [InlineData("FF-RUBY-DIVZERO-K7Q2MXA", "RUBY is not a language FixFinder checks")]
+    [InlineData("FF-COBOL-DIVZERO-K7Q2MXA", "COBOL is not a language FixFinder checks")]
     [InlineData("FF-PY-SPELLING-K7Q2MXA", "SPELLING is not a kind of mistake")]
     [InlineData("FF-PY-DIVZERO", "three parts after FF")]
     [InlineData("FF-PY-DIVZERO-K7Q2", "seven letters and digits")]
@@ -164,15 +164,15 @@ public class TeachingTests
         }
     }
 
-    /// <summary>As the README says: every idea but the general one has lessons, in between two and nine languages, one each.</summary>
+    /// <summary>As the README says: every idea but the general one has lessons in at least two languages, one each.</summary>
     [Fact]
-    public void EveryIdeaButTheGeneralOneHasLessonsInTwoToNineLanguages()
+    public void EveryIdeaButTheGeneralOneHasLessonsInAtLeastTwoLanguages()
     {
         foreach (var concept in Concepts.All.Where(concept => concept.Code != Concepts.ReadingErrors.Code))
         {
             var languages = Lessons.Of(concept).Select(lesson => lesson.Language.Name).ToList();
 
-            Assert.InRange(languages.Count, 2, 9);
+            Assert.True(languages.Count >= 2, $"{concept.Code} has lessons in {languages.Count} languages");
             Assert.Equal(languages.Count, languages.Distinct().Count());
         }
 

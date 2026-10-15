@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -465,5 +465,238 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0."),
                 WhatChanged: "A float divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Dividing a whole number by zero stops a Rust program with a panic, attempt to divide by zero. Decimals - f64 - do not stop " +
+        "it: dividing one by zero gives inf, infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no scores",
+                Broken: """
+                    fn main() {
+                        let scores: Vec<i32> = Vec::new();
+                        let total: i32 = scores.iter().sum();
+                        let average = total / scores.len() as i32;
+                        println!("{}", average);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to divide by zero", 4),
+                Fixed: """
+                    fn main() {
+                        let scores: Vec<i32> = Vec::new();
+                        let total: i32 = scores.iter().sum();
+                        let average = if scores.is_empty() { 0 } else { total / scores.len() as i32 };
+                        println!("{}", average);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are scores, and gives 0 otherwise - in Rust an if gives a value back, so it can stand on the right of =."),
+            new WorkedExample("Sharing out decimals",
+                Broken: """
+                    fn main() {
+                        let total = 10.0;
+                        let people = 0.0;
+                        println!("{}", total / people);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("inf"),
+                Fixed: """
+                    fn main() {
+                        let total = 10.0;
+                        let people = 0.0;
+                        println!("{}", if people == 0.0 { 0.0 } else { total / people });
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "A decimal divided by zero gives infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Dividing a whole number by zero stops a Ruby program with ZeroDivisionError. A decimal divided by zero does not stop it: it " +
+        "gives Infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    marks = []
+                    average = marks.sum / marks.length
+                    puts average
+                    """,
+                BrokenDoes: Behaviour.Stopping("ZeroDivisionError", 2),
+                Fixed: """
+                    marks = []
+                    average = marks.empty? ? 0 : marks.sum / marks.length
+                    puts average
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sharing out decimals",
+                Broken: """
+                    total = 7.0
+                    people = 0
+                    puts total / people
+                    """,
+                BrokenDoes: Behaviour.Printing("Infinity"),
+                Fixed: """
+                    total = 7.0
+                    people = 0
+                    puts people.zero? ? 0 : total / people
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "A decimal divided by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Dividing by zero stops a PHP program with DivisionByZeroError - Division by zero for /, Modulo by zero for %. This holds for " +
+        "decimals as well: 7.5 / 0 stops the program too, rather than giving infinity.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    <?php
+                    $marks = [];
+                    $average = array_sum($marks) / count($marks);
+                    echo $average;
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivisionByZeroError", 3),
+                Fixed: """
+                    <?php
+                    $marks = [];
+                    $average = count($marks) === 0 ? 0 : array_sum($marks) / count($marks);
+                    echo $average;
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    <?php
+                    $sweets = 7;
+                    $people = 0;
+                    echo $sweets % $people;
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivisionByZeroError", 4),
+                Fixed: """
+                    <?php
+                    $sweets = 7;
+                    $people = 0;
+                    echo $people === 0 ? 0 : $sweets % $people;
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, dividing a whole number by zero with // or % stops the program: attempt to divide by zero, or attempt to perform " +
+        "'n%0'. Dividing with / does not stop it: it gives inf, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("Sweets shared out",
+                Broken: """
+                    local sweets = 7
+                    local people = 0
+                    print(sweets // people)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to divide by zero", 3),
+                Fixed: """
+                    local sweets = 7
+                    local people = 0
+                    print(people == 0 and 0 or sweets // people)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are people, and gives 0 otherwise - Lua counts 0 as true, so and 0 or gives the 0."),
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    local total = 210
+                    local marks = {}
+                    print(total / #marks)
+                    """,
+                BrokenDoes: Behaviour.Printing("inf"),
+                Fixed: """
+                    local total = 210
+                    local marks = {}
+                    print(#marks == 0 and 0 or total / #marks)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "/ by zero gives inf rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Dividing by zero stops a Perl program: Illegal division by zero for /, Illegal modulus zero for %.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = ();
+                    my $count = scalar(@marks);
+                    print 100 / $count, "\n";
+                    """,
+                BrokenDoes: Behaviour.Stopping("Illegal division by zero", 6),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my @marks = ();
+                    my $count = scalar(@marks);
+                    print $count == 0 ? 0 : 100 / $count, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $sweets = 7;
+                    my $people = 0;
+                    print $sweets % $people, "\n";
+                    """,
+                BrokenDoes: Behaviour.Stopping("Illegal modulus zero", 6),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $sweets = 7;
+                    my $people = 0;
+                    print $people == 0 ? 0 : $sweets % $people, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "% divides too - it gives what is left over - so it needs the same check for zero."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "A whole number divided by zero with ~/ stops a Dart program with IntegerDivisionByZeroException. Dividing with / does not " +
+        "stop it: it gives Infinity, and the program carries on with a value that is not a real answer.",
+        [
+            new WorkedExample("Sharing between no marks",
+                Broken: """
+                    void main() {
+                      var marks = <int>[];
+                      print(70 ~/ marks.length);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("IntegerDivisionByZeroException", 3),
+                Fixed: """
+                    void main() {
+                      var marks = <int>[];
+                      print(marks.isEmpty ? 0 : 70 ~/ marks.length);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Dividing with /",
+                Broken: """
+                    void main() {
+                      var marks = <int>[];
+                      print(70 / marks.length);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Infinity"),
+                Fixed: """
+                    void main() {
+                      var marks = <int>[];
+                      print(marks.isEmpty ? 0 : 70 / marks.length);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "/ by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
         ]);
 }

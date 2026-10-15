@@ -5,7 +5,7 @@ internal static class NeverUsedLessons
 {
     private static Concept Concept => Concepts.NeverUsed;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Go, Python];
+    public static IReadOnlyList<Lesson> All { get; } = [Go, Python, Rust];
 
     private static Lesson Go => new(Concept, CodeLanguage.Go,
         "Go refuses to build a program with a variable that is made and never used - which often catches a result worked out " +
@@ -52,6 +52,29 @@ internal static class NeverUsedLessons
                 Fixed: """
                     total = 70 + 80
                     print(total)
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The sum is kept in total, the name that is printed."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "rustc warns about a variable that is made and never used - unused_variables - but still builds and runs the program, so " +
+        "a result worked out under one name and printed from another prints the wrong value.",
+        [
+            new WorkedExample("A total printed from the wrong name",
+                Broken: """
+                    fn main() {
+                        let total = 0;
+                        let result = 70 + 80;
+                        println!("{}", total);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    fn main() {
+                        let total = 70 + 80;
+                        println!("{}", total);
+                    }
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The sum is kept in total, the name that is printed."),

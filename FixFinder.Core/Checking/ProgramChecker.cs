@@ -274,6 +274,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
+            await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
             return outcome;
         }
         finally
@@ -281,6 +282,45 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             session.Log -= Relay;
             session.LineCaptured -= Forward;
             session.Progress -= Status;
+        }
+    }
+
+    /// <summary>
+    /// PHP and Perl carry on past a warning - an undefined variable, a key that is not there - with nothing in its place, so a
+    /// run can print several, each a mistake of its own. Every one the run printed is a finding, with a fix where one is found;
+    /// the one already reported as what happened to the run, and one Perl's check already gave before it ran, are not reported again.
+    /// </summary>
+    private async Task RecordWarningsPrintedAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen) return;
+
+        var printed = Path.GetExtension(chosen).ToLowerInvariant() switch
+        {
+            ".php" => Parsing.Parsers.PhpParser.RunWarnings(run.Lines),
+            ".pl" => Parsing.Parsers.PerlParser.RunWarnings(run.Lines),
+            _ => [],
+        };
+
+        foreach (var warning in printed)
+        {
+            if (outcome.Error is { } reported && reported.FirstLineSequence == warning.FirstLineSequence) continue;
+            if (FoundAlready(warning)) continue;
+
+            var fix = await FixAsync(warning, printed, run.Lines, launch.SourceFolder, fromBuild: false, cancellationToken);
+            Add(FindingFactory.FromError(warning, FindingKind.Runtime, Severity.Warning, Confidence.Certain, chosen, fix) with
+            {
+                Title = $"It printed {CarriedOnPast.WhatItWas(warning) ?? "a warning"} and carried on: {warning.Message ?? FindingFactory.TitleOf(warning)}",
+            });
+        }
+    }
+
+    /// <summary>Whether a finding already holds this message, at this file and line - one perl -wc gave before the program ran.</summary>
+    private bool FoundAlready(ParsedError message)
+    {
+        lock (_gate)
+        {
+            return _findings.Any(finding => finding.Error?.Message == message.Message && finding.Line == message.Frames[0].Line &&
+                                            string.Equals(Path.GetFileName(finding.File), Path.GetFileName(message.Frames[0].File), StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -776,12 +816,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// What happened to the run, in words that are true of it. A run that finished and reported success, having printed
     /// an exception on the way - one caught and printed with printStackTrace, or one that ended a thread other than
     /// the main one - did not crash; nor did a program that printed an error of its own and ended with a failing code.
+    /// PHP's warnings, notices and deprecation notices, and Perl's warnings, are none of these: they were printed, and the program carried on.
     /// </summary>
     private static string RunTitle(ParsedError error, TargetRunResult? run)
     {
         var what = FindingFactory.TitleOf(error);
 
         if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
+        if (CarriedOnPast.WhatItWas(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
         if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
 
         var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);

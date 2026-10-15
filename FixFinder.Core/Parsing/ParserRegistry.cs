@@ -30,6 +30,7 @@ public sealed class ParserRegistry
             new OCamlExceptionParser(),
             new GoPanicParser(),
             new GoCompileParser(),
+            new RustCompileParser(),
             new RustPanicParser(),
             new GccClangParser(),
             new MsvcParser(),

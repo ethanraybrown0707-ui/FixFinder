@@ -23,6 +23,25 @@ public sealed class LogicRepair
 
     public int AtOnce { get; init; } = LocalFixEngine.ChecksAtOnce;
 
+    /// <summary>
+    /// How many changes whose run was stopped for time are tried again, one at a time and with longer to run, when no change
+    /// was found: a run stopped for time showed nothing either way, and on a busy computer even the right change can be slow.
+    /// </summary>
+    public int MostTriedAgainForTime { get; init; } = 3;
+
+    /// <summary>What trying one change showed.</summary>
+    private enum ChangeVerdict
+    {
+        /// <summary>Every run printed what was expected.</summary>
+        PrintsWhatWasExpected,
+
+        /// <summary>A run printed something else, or the change did not build.</summary>
+        PrintsSomethingElse,
+
+        /// <summary>A run was stopped for time before it finished, so whether the change is right is not known.</summary>
+        RanOutOfTime,
+    }
+
     public async Task<LogicRepairResult?> RunAsync(
         string chosenFile, ExpectedBehaviour expected, TimeSpan runTimeout, CancellationToken cancellationToken)
     {
@@ -139,6 +158,8 @@ public sealed class LogicRepair
         Log?.Invoke($"Trying {candidates.Count} change(s), {AtOnce} at a time");
 
         var workers = Enumerable.Range(0, Math.Max(1, AtOnce)).Select(_ => new Workspace(root, chosenFile)).ToList();
+        var wrongFirst = wrong.Select(w => w.Index).ToList();
+        var stoppedForTime = new List<(LocalFix Fix, bool FromPattern)>();
         var tried = 0;
 
         try
@@ -165,16 +186,36 @@ public sealed class LogicRepair
                 var slice = candidates.Skip(batch).Take(workers.Count).ToList();
                 Progress?.Invoke($"Trying changes {batch + 1}-{batch + slice.Count} of {candidates.Count}...");
 
-                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrong.Select(w => w.Index).ToList(), cancellationToken)));
+                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrongFirst, cancellationToken)));
                 tried += slice.Count;
 
                 for (var i = 0; i < slice.Count; i++)
                 {
-                    if (!verdicts[i]) continue;
+                    if (verdicts[i] == ChangeVerdict.RanOutOfTime) stoppedForTime.Add(slice[i]);
+                    if (verdicts[i] != ChangeVerdict.PrintsWhatWasExpected) continue;
 
                     Log?.Invoke($"Accepted: {slice[i].Fix.Title} - every run now prints what was expected");
                     return Result(slice[i].Fix, slice[i].FromPattern);
                 }
+            }
+
+            // Changes are tried several at once, so on a busy computer a right one can be stopped for time - which showed
+            // nothing about it. The most suspicious of those are tried again, one at a time, with three times as long to run.
+            var longerPerRun = TimeSpan.FromTicks(Math.Min(perRun.Ticks * 3, Math.Max(perRun.Ticks, runTimeout.Ticks)));
+
+            foreach (var again in stoppedForTime.Take(MostTriedAgainForTime))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (DateTime.UtcNow - started > Budget) break;
+
+                Progress?.Invoke($"Trying again, with longer to run: {again.Fix.Title}...");
+                if (await TryAsync(workers[0], source, again.Fix, expected, longerPerRun, runTimeout, wrongFirst, cancellationToken) != ChangeVerdict.PrintsWhatWasExpected)
+                    continue;
+
+                Log?.Invoke($"Accepted: {again.Fix.Title} - every run now prints what was expected, given longer to run");
+                notes.Add($"A run of this change was stopped for time when it was first tried beside others, so it was tried again on its own, " +
+                          $"with {longerPerRun.TotalSeconds:0} seconds a run - and printed what you expected.");
+                return Result(again.Fix, again.FromPattern);
             }
         }
         finally
@@ -236,11 +277,11 @@ public sealed class LogicRepair
         return new Evaluation(plan.Spec, results!);
     }
 
-    private async Task<bool> TryAsync(
+    private async Task<ChangeVerdict> TryAsync(
         Workspace workspace, SourceFile source, LocalFix fix, ExpectedBehaviour expected, TimeSpan perRun, TimeSpan buildTimeout,
         IReadOnlyList<int> wrongFirst, CancellationToken cancellationToken)
     {
-        if (fix.ApplyTo(source) is not { } lines) return false;
+        if (fix.ApplyTo(source) is not { } lines) return ChangeVerdict.PrintsSomethingElse;
 
         try
         {
@@ -248,11 +289,14 @@ public sealed class LogicRepair
 
             var evaluation = await EvaluateAsync(workspace.File, expected, perRun, buildTimeout, stopAtFirstWrong: true, cancellationToken, wrongFirst);
 
-            return evaluation is { Results.Count: > 0 } && evaluation.Results.Count == expected.Runs.Count && evaluation.Results.All(r => r.Mismatch is null);
+            if (evaluation is { Results.Count: > 0 } && evaluation.Results.Count == expected.Runs.Count && evaluation.Results.All(r => r.Mismatch is null))
+                return ChangeVerdict.PrintsWhatWasExpected;
+
+            return evaluation?.Results.Any(r => r.Outcome == RunOutcome.TimedOut) == true ? ChangeVerdict.RanOutOfTime : ChangeVerdict.PrintsSomethingElse;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return false;
+            return ChangeVerdict.PrintsSomethingElse;
         }
     }
 

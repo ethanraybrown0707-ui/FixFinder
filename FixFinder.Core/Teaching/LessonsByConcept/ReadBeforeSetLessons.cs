@@ -5,7 +5,7 @@ internal static class ReadBeforeSetLessons
 {
     private static Concept Concept => Concepts.ReadBeforeSet;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, Python, JavaScript];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, Python, JavaScript, Rust];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "javac checks that every variable inside a method is given a value before it is read, on every way through the " +
@@ -120,5 +120,26 @@ internal static class ReadBeforeSetLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "total starts at 0, so the first mark is added to a number."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "rustc will not let a variable be read before it has been given a value, and refuses the program with E0381 when one might not be.",
+        [
+            new WorkedExample("A total with no start",
+                Broken: """
+                    fn main() {
+                        let total: i32;
+                        println!("{}", total);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0381", 3),
+                Fixed: """
+                    fn main() {
+                        let total: i32 = 0;
+                        println!("{}", total);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "total is given its starting value where it is made."),
         ]);
 }

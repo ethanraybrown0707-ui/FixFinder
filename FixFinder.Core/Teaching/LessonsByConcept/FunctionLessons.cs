@@ -11,6 +11,12 @@ internal static class FunctionLessons
         ArgumentsInPython, ArgumentsInJava, ArgumentsInJavaScript,
         ReturnsInPython, ReturnsInJava, ReturnsInJavaScript,
         RecursionInPython, RecursionInJava,
+        ArgumentsInRust, ReturnsInRust,
+        ArgumentsInRuby, ReturnsInRuby, RecursionInRuby,
+        ArgumentsInPhp, ReturnsInPhp,
+        ArgumentsInLua, RecursionInLua,
+        ArgumentsInPerl,
+        ArgumentsInDart, ReturnsInDart, RecursionInDart,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -229,5 +235,335 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "When n reaches 0 the method returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInRust => new(Concepts.Arguments, CodeLanguage.Rust,
+        "rustc checks every call against the function it calls before the program runs: a call with the wrong number of " +
+        "arguments is refused with E0061, which says which one is missing.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    fn area(width: i32, height: i32) -> i32 {
+                        width * height
+                    }
+
+                    fn main() {
+                        println!("{}", area(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0061", 6),
+                Fixed: """
+                    fn area(width: i32, height: i32) -> i32 {
+                        width * height
+                    }
+
+                    fn main() {
+                        println!("{}", area(3, 4));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInRust => new(Concepts.ReturnValues, CodeLanguage.Rust,
+        "A Rust function gives back the value of its last line - when that line has no semicolon. A semicolon makes it a statement, " +
+        "which gives back nothing, so a function that promises a number is refused with E0308.",
+        [
+            new WorkedExample("A sum with a semicolon",
+                Broken: """
+                    fn add(a: i32, b: i32) -> i32 {
+                        a + b;
+                    }
+
+                    fn main() {
+                        println!("{}", add(2, 3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0308", 1),
+                Fixed: """
+                    fn add(a: i32, b: i32) -> i32 {
+                        a + b
+                    }
+
+                    fn main() {
+                        println!("{}", add(2, 3));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("5"),
+                WhatChanged: "Without the semicolon, a + b is the function's last value, so it is what add gives back."),
+        ]);
+
+    private static Lesson ArgumentsInRuby => new(Concepts.Arguments, CodeLanguage.Ruby,
+        "A method has to be given one value for each parameter its def line lists. Ruby stops the program with ArgumentError when it is " +
+        "given too few or too many - saying how many it was given and how many it expects. The line Ruby names first is the method's " +
+        "def; the call that gave the wrong number is the line after from.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    def area(width, height)
+                      width * height
+                    end
+
+                    puts area(3)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentError", 1),
+                Fixed: """
+                    def area(width, height)
+                      width * height
+                    end
+
+                    puts area(3, 4)
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInRuby => new(Concepts.ReturnValues, CodeLanguage.Ruby,
+        "upcase, sort, strip and their like give back a new, changed copy, and leave the value they are called on as it was. Called " +
+        "on a line of its own, such a method changes nothing - the copy is thrown away.",
+        [
+            new WorkedExample("A name made capitals",
+                Broken: """
+                    name = "ada"
+                    name.upcase
+                    puts name
+                    """,
+                BrokenDoes: Behaviour.Printing("ada"),
+                Fixed: """
+                    name = "ada"
+                    name = name.upcase
+                    puts name
+                    """,
+                FixedDoes: Behaviour.Printing("ADA"),
+                WhatChanged: "The copy upcase gives back is kept in name."),
+        ]);
+
+    private static Lesson RecursionInRuby => new(Concepts.EndlessRecursion, CodeLanguage.Ruby,
+        "Each call still in progress takes room on the stack, so a method that never stops calling itself runs out of room and stops " +
+        "the program with SystemStackError, \"stack level too deep\".",
+        [
+            new WorkedExample("Counting down with no bottom",
+                Broken: """
+                    def count_down(n)
+                      count_down(n - 1)
+                    end
+
+                    puts count_down(3)
+                    """,
+                BrokenDoes: Behaviour.Stopping("SystemStackError", 2),
+                Fixed: """
+                    def count_down(n)
+                      return 0 if n.zero?
+
+                      count_down(n - 1)
+                    end
+
+                    puts count_down(3)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "When n reaches 0 the method returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInPhp => new(Concepts.Arguments, CodeLanguage.Php,
+        "A function has to be given a value for each parameter its function line lists, unless the parameter has a default. Given " +
+        "too few, PHP stops the program with ArgumentCountError, saying how many were passed and how many it expects: the line it " +
+        "names at the end is the function's own, and the call's line is in the message, after passed in. Given too many, PHP says " +
+        "nothing and passes over the extra ones.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    <?php
+                    function area($width, $height) {
+                        return $width * $height;
+                    }
+                    echo area(3);
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentCountError", 2),
+                Fixed: """
+                    <?php
+                    function area($width, $height) {
+                        return $width * $height;
+                    }
+                    echo area(3, 4);
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInPhp => new(Concepts.ReturnValues, CodeLanguage.Php,
+        "A function gives back only what return gives it. Without return it gives back null, and PHP carries on with it - null + 1 " +
+        "is 1 - so the program prints a wrong answer rather than stopping.",
+        [
+            new WorkedExample("Doubling a number",
+                Broken: """
+                    <?php
+                    function double($number) {
+                        $number * 2;
+                    }
+                    echo double(4) + 1;
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    <?php
+                    function double($number) {
+                        return $number * 2;
+                    }
+                    echo double(4) + 1;
+                    """,
+                FixedDoes: Behaviour.Printing("9"),
+                WhatChanged: "return gives the doubled number back to the line that called double."),
+        ]);
+
+    private static Lesson ArgumentsInLua => new(Concepts.Arguments, CodeLanguage.Lua,
+        "Lua does not check how many values a call gives a function: a parameter given none is nil, and values given beyond the " +
+        "parameters are passed over. The program stops only when the nil is used - inside the function, at the line that uses it.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    local function area(width, height)
+                      return width * height
+                    end
+                    print(area(3))
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local function area(width, height)
+                      return width * height
+                    end
+                    print(area(3, 4))
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson RecursionInLua => new(Concepts.EndlessRecursion, CodeLanguage.Lua,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room and stops the program " +
+        "with stack overflow.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    local function countDown(number)
+                      return 1 + countDown(number - 1)
+                    end
+                    print(countDown(3))
+                    """,
+                BrokenDoes: Behaviour.Stopping("stack overflow", 2),
+                Fixed: """
+                    local function countDown(number)
+                      if number == 0 then
+                        return 0
+                      end
+                      return 1 + countDown(number - 1)
+                    end
+                    print(countDown(3))
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When the number reaches 0 the function returns without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInPerl => new(Concepts.Arguments, CodeLanguage.Perl,
+        "Perl does not check how many values a call gives a sub: the sub gets whatever is in @_, and a parameter given none is undef - " +
+        "which Perl uses as 0 in arithmetic, warning of it only with use warnings.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    sub area {
+                        my ($width, $height) = @_;
+                        return $width * $height;
+                    }
+                    print area(3), "\n";
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    sub area {
+                        my ($width, $height) = @_;
+                        return $width * $height;
+                    }
+                    print area(3, 4), "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ArgumentsInDart => new(Concepts.Arguments, CodeLanguage.Dart,
+        "A call has to give a function a value for each of its parameters, and Dart refuses a call that gives too few, or too many, " +
+        "before the program runs - saying how many it needs and how many it was given.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    int area(int width, int height) => width * height;
+
+                    void main() {
+                      print(area(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Too few positional arguments", 4),
+                Fixed: """
+                    int area(int width, int height) => width * height;
+
+                    void main() {
+                      print(area(3, 4));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ReturnsInDart => new(Concepts.ReturnValues, CodeLanguage.Dart,
+        "A function that says it gives back an int has to return one on every way through it. Without return, it would give back " +
+        "null, which an int cannot be - so Dart refuses the program before it runs.",
+        [
+            new WorkedExample("Doubling a number",
+                Broken: """
+                    int doubled(int n) {
+                      n * 2;
+                    }
+
+                    void main() {
+                      print(doubled(4) + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("A non-null value must be returned", 1),
+                Fixed: """
+                    int doubled(int n) {
+                      return n * 2;
+                    }
+
+                    void main() {
+                      print(doubled(4) + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("9"),
+                WhatChanged: "return gives the doubled number back to the line that called doubled."),
+        ]);
+
+    private static Lesson RecursionInDart => new(Concepts.EndlessRecursion, CodeLanguage.Dart,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room and stops the program " +
+        "with Stack Overflow.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    int countDown(int n) => 1 + countDown(n - 1);
+
+                    void main() {
+                      print(countDown(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Stopping("Stack Overflow", 1),
+                Fixed: """
+                    int countDown(int n) => n == 0 ? 0 : 1 + countDown(n - 1);
+
+                    void main() {
+                      print(countDown(3));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When n reaches 0 the function gives 0 without calling itself, so the calls stop."),
         ]);
 }

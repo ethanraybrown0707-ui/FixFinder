@@ -5,7 +5,7 @@ internal static class FallingThroughLessons
 {
     private static Concept Concept => Concepts.FallingThrough;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, CSharp, Go];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, CSharp, Go, Php];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A case of a switch is only where the program starts: it runs that case's lines and then carries on into the next " +
@@ -164,5 +164,37 @@ internal static class FallingThroughLessons
                     """,
                 FixedDoes: Behaviour.Printing("weekend"),
                 WhatChanged: "case 6, 7 handles both days with the same lines; the empty case 6 had handled 6 by doing nothing."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "A switch runs the code from the case that matches until it reaches a break - through every case under it. Without break at " +
+        "the end of a case, PHP runs the next case's code too.",
+        [
+            new WorkedExample("Naming a day",
+                Broken: """
+                    <?php
+                    $day = 1;
+                    switch ($day) {
+                        case 1:
+                            echo "Monday\n";
+                        case 2:
+                            echo "Tuesday\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Monday\nTuesday"),
+                Fixed: """
+                    <?php
+                    $day = 1;
+                    switch ($day) {
+                        case 1:
+                            echo "Monday\n";
+                            break;
+                        case 2:
+                            echo "Tuesday\n";
+                            break;
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Monday"),
+                WhatChanged: "break ends each case, so the switch stops after the case that matched."),
         ]);
 }

@@ -19,6 +19,15 @@ public enum Syntax
     /// '\n' - 'a on its own is a type variable, and x' is a name, as OCaml lets a name end in a quote.
     /// </summary>
     OCaml,
+
+    /// <summary>
+    /// Lua's: -- to the end of a line, and --[[ ]] comments and [[ ]] strings - with as many = between the brackets as they
+    /// like, [==[ ]==] - that run on over as many lines as they need.
+    /// </summary>
+    Lua,
+
+    /// <summary>Perl's: # to the end of a line - but not the # of $#marks, the last position of @marks.</summary>
+    Perl,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -55,7 +64,28 @@ public static partial class CodeText
             var next = i + 1 < line.Length ? line[i + 1] : '\0';
             var commentsLikeC = syntax is Syntax.CLike or Syntax.Scala;
 
-            if ((syntax == Syntax.Python && c == '#') || (commentsLikeC && c == '/' && next == '/'))
+            if (syntax == Syntax.Lua && (c == '[' || (c == '-' && next == '-')))
+            {
+                var bracketAt = c == '-' ? i + 2 : i;
+
+                if (LuaLongBracket(line, bracketAt) is { } longBracket)
+                {
+                    var openingEnd = bracketAt + longBracket.OpeningLength;
+                    for (var k = i; k < openingEnd; k++) chars[k] = ' ';
+
+                    open = longBracket.Closing;
+                    i = openingEnd;
+                    continue;
+                }
+
+                if (c == '-')
+                {
+                    for (var k = i; k < chars.Length; k++) chars[k] = ' ';
+                    break;
+                }
+            }
+
+            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (commentsLikeC && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
@@ -135,6 +165,26 @@ public static partial class CodeText
         return closing > start && closing - start <= 5 ? closing : -1;
     }
 
+    /// <summary>
+    /// The Lua long bracket that opens at <paramref name="start"/> - [[, or [ with = signs and another [ - as how many
+    /// characters it takes and what closes it: ]] or ] with as many = and another ]. Null when no long bracket opens there.
+    /// </summary>
+    private static (int OpeningLength, string Closing)? LuaLongBracket(string line, int start)
+    {
+        if (start >= line.Length || line[start] != '[') return null;
+
+        var equalsSigns = 0;
+        while (start + 1 + equalsSigns < line.Length && line[start + 1 + equalsSigns] == '=') equalsSigns++;
+
+        var secondBracket = start + 1 + equalsSigns;
+        if (secondBracket >= line.Length || line[secondBracket] != '[') return null;
+
+        return (equalsSigns + 2, "]" + new string('=', equalsSigns) + "]");
+    }
+
+    /// <summary>Whether the # at <paramref name="at"/> starts a Perl comment, rather than being the # of $#marks.</summary>
+    private static bool IsPerlComment(string line, int at) => line[at] == '#' && (at == 0 || line[at - 1] != '$');
+
     public static string Mask(string line, Syntax syntax)
     {
         string? open = null;
@@ -189,6 +239,8 @@ public static partial class CodeText
             if (syntax == Syntax.Python && c == '#') return i;
             if (syntax is Syntax.CLike or Syntax.Scala && c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return i;
             if (syntax == Syntax.OCaml && c == '(' && i + 1 < line.Length && line[i + 1] == '*') return i;
+            if (syntax == Syntax.Lua && c == '-' && i + 1 < line.Length && line[i + 1] == '-') return i;
+            if (syntax == Syntax.Perl && IsPerlComment(line, i)) return i;
         }
 
         return null;

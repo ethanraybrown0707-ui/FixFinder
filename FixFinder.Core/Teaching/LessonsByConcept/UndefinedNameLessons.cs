@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -123,5 +123,136 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("5"),
                 WhatChanged: "The name is spelt as it was defined: total."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "Every name has to be made before it is used, and spelt the same each time. rustc refuses a name it cannot find with E0425, " +
+        "before any of the program runs - and often names the one it thinks was meant.",
+        [
+            new WorkedExample("A misspelt total",
+                Broken: """
+                    fn main() {
+                        let total = 10;
+                        println!("{}", totl);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0425", 3),
+                Fixed: """
+                    fn main() {
+                        let total = 10;
+                        println!("{}", total);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The name is spelt as it was made: total."),
+        ]);
+
+    private static Lesson Ruby => new(Concept, CodeLanguage.Ruby,
+        "Every name has to be made before it is used, and spelt the same each time. Ruby stops the program with NameError when it " +
+        "reaches a name it cannot find, and names the one it thinks was meant after \"Did you mean?\".",
+        [
+            new WorkedExample("A misspelt total",
+                Broken: """
+                    total = 10
+                    puts totl
+                    """,
+                BrokenDoes: Behaviour.Stopping("NameError", 2),
+                Fixed: """
+                    total = 10
+                    puts total
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The name is spelt as it was made: total."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Every function has to be made before it is called, and its name spelt the same each time. PHP stops the program with Error, " +
+        "Call to undefined function, naming the line of the call. A misspelt variable is different: PHP only warns - Undefined " +
+        "variable - and carries on with nothing in its place, so the program can go on to print a wrong answer.",
+        [
+            new WorkedExample("An average",
+                Broken: """
+                    <?php
+                    function average($marks) {
+                        return array_sum($marks) / count($marks);
+                    }
+                    echo averge([70, 80]);
+                    """,
+                BrokenDoes: Behaviour.Stopping("Error", 5),
+                Fixed: """
+                    <?php
+                    function average($marks) {
+                        return array_sum($marks) / count($marks);
+                    }
+                    echo average([70, 80]);
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "The call spells average the way its function line does."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "In Lua, a name that was never given a value is not an error by itself: it is nil. A misspelt name stops the program only " +
+        "when its nil is used - in arithmetic, say, which Lua cannot do with nil - and Lua names the misspelt name at the end of " +
+        "its message, as (global 'totl').",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    local total = 10
+                    print(totl + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("attempt to perform arithmetic on a nil value", 2),
+                Fixed: """
+                    local total = 10
+                    print(total + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the line that gives it its value spells it."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "With use strict at the top, Perl refuses the whole file before any of it runs if a variable is used without being declared " +
+        "with my - which catches a misspelt name. Without use strict, a misspelt name is a new, empty variable, and the program " +
+        "carries on with nothing in it.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print $totl + 1, "\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("Global symbol", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print $total + 1, "\n";
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the my line declares it."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Every name has to be declared before it is used, and spelt the same each time. Dart refuses a program with a name it does " +
+        "not know before any of it runs: Undefined name.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    void main() {
+                      var total = 10;
+                      print(totl + 1);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Undefined name 'totl'", 3),
+                Fixed: """
+                    void main() {
+                      var total = 10;
+                      print(total + 1);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way its declaration spells it."),
         ]);
 }

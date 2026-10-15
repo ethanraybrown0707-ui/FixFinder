@@ -3,16 +3,19 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>Reads Rust panics, in both the pre- and post-1.72 formats.</summary>
+/// <summary>
+/// Reads Rust panics, in both the pre- and post-1.72 formats - and with the thread's number Rust 1.98 puts after its name:
+/// <c>thread 'main' (2216) panicked at divzero.rs:3:20:</c>.
+/// </summary>
 public sealed partial class RustPanicParser : IStackTraceParser
 {
     public string LanguageId => "rust";
     public string DisplayName => "Rust";
 
-    [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'\s+panicked\s+at\s+(?<file>.+?):(?<line>\d+):(?<col>\d+):\s*$")]
+    [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'(?:\s+\(\d+\))?\s+panicked\s+at\s+(?<file>.+?):(?<line>\d+):(?<col>\d+):\s*$")]
     private static partial Regex ModernHeaderPattern();
 
-    [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'\s+panicked\s+at\s+'(?<msg>.*)',\s+(?<file>.+?):(?<line>\d+):(?<col>\d+)\s*$")]
+    [GeneratedRegex(@"^thread\s+'(?<thread>[^']*)'(?:\s+\(\d+\))?\s+panicked\s+at\s+'(?<msg>.*)',\s+(?<file>.+?):(?<line>\d+):(?<col>\d+)\s*$")]
     private static partial Regex LegacyHeaderPattern();
 
     [GeneratedRegex(@"^\s*(?<n>\d+):\s+(?<sym>.+?)\s*$")]

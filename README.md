@@ -29,7 +29,11 @@ until the program prints what it should. FixFinder never changes your files.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
    as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
-   words: what is wrong, why it matters and how to fix it. The corrected code waits behind **Show the corrected code**, so
+   words: what is wrong, why it matters and how to fix it, then **step by step** - the file and line to go to, with the
+   code on it, what happened there, making the change and checking it again. Where the language said something about it,
+   **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
+   the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
+   stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
    the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
    mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
    [FixFinder Learn](#fixfinder-learn). **More detail** holds why FixFinder is this sure, the lines that decide it, how
@@ -265,6 +269,81 @@ includes its last number - text, lists or floats compared with `==` or `!=`, whi
 the same in memory, and a whole-number average turned into a float after its fraction is lost. OCaml is tested with
 OCaml 5.5.1, on GitHub's Windows computers.
 
+A **Rust** program - an `.rs` file - is built with the `rustc` on PATH, or else the one rustup installs in `.cargo\bin`,
+and how it ran names it and its version. In a Cargo package - a folder with a `Cargo.toml` - the program is
+`src/main.rs`, or the chosen file under `src/bin`, built as the edition `Cargo.toml` gives and run from the package's
+folder, as `cargo run` runs it; anywhere else it is the chosen file, built as the newest edition that rustc builds. The
+files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo, which
+would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them does not
+build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with the checks
+that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning comes with
+the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a fix - `let mut`,
+a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name it thinks was meant,
+the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a blank in it, or one
+that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A panic is read at the
+file, line and column Rust names, and a whole-number division by zero, or a loop over `0..=v.len()`, gets a change of its
+own. Rust's code is read for logic mistakes by three checks rustc says nothing of: a loop over `0..=v.len()` that uses its
+number as a position in `v`, `(total / count) as f64` of two whole numbers, and a decimal worked out by arithmetic and
+then compared exactly. Rust is tested with rustc 1.98.1.
+
+A **Ruby** program - an `.rb` file - is read by `ruby -wc` before it runs, which checks every file of the program and
+runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never used.
+The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there. Ruby's own
+"Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a divisor is zero,
+and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`, which runs none of
+it - and run. Ruby's code is read for logic mistakes by three checks `ruby -w` says nothing of: `(total / count).to_f` of
+two whole numbers, a decimal worked out by arithmetic and then compared exactly, and a method that gives back a changed
+copy - `name.upcase`, `marks.sort` - called on a line of its own. Ruby is tested with Ruby 3.3.12.
+
+A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
+none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
+from its own folder or after `__DIR__ .`, and a fatal error in one of those is placed there. PHP carries on past a
+warning - an undefined variable, a key an array does not have - with nothing in its place, so every warning a run
+prints is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined
+variable becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero,
+and a loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read
+for logic mistakes by three checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
+position, an `=` in a condition, and a decimal worked out by arithmetic and then compared exactly. PHP is tested with
+PHP 8.4.24.
+
+A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
+none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
+`require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose message
+names no place, at the program's line in its traceback. Lua says what it expected where it stopped, and these syntax
+errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5` and `count++` are written out in full,
+and an `if` or a loop without its `then` or `do` gets it. While it runs, a name that is nil because it is misspelt
+becomes the nearest name the file gives a value to, a `+` joining text becomes `..`, and a whole number divided by zero
+with `//` or `%` gets an answer for when the divisor is zero; each change is checked in a copy - with `luac -p` - and
+run. Lua's code is read for logic mistakes by three checks Lua says nothing of: a loop from 0 over a list, whose first
+item is at 1; text compared with `==` to a number, which in Lua is never equal; and a decimal worked out by arithmetic
+and then compared exactly. Lua is tested with Lua 5.4.6.
+
+A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
+and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
+condition, a name used only once. The modules it uses from its folder or its `lib` folder are checked with it, and what
+stops the program in one of them is placed there. Perl carries on past a warning - a value that is undef, text used as
+a number - so every warning a run prints is a finding of its own, once however often a loop printed it. Perl's own words
+become fixes: a missing `;` is put at the end of the line before, an `if` gets the brackets its condition needs, a
+variable `use strict` refused becomes the nearest declared name or is declared with `my`, `elseif` becomes `elsif`, `=`
+in a condition `==` or `eq`, a comparison of text with `==` or `<` becomes `eq` or `lt`, a `+` joining text becomes `.`,
+a division by zero gets an answer for when the divisor is zero, and a misspelt sub becomes the nearest one the file has;
+each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by four checks: a
+loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
+compared with `eq` without `chomp`, and a decimal worked out by arithmetic and then compared exactly. Perl is tested with
+Strawberry Perl 5.42.2.
+
+A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
+error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
+`dart main.dart`, not `dart run`: `dart run` resolves a package's dependencies first, fetching them when it has to, and
+FixFinder never downloads - a program whose packages were never fetched says so and stops. An exception is placed at the
+first line of the program's own code in its frames, past Dart's own. The analyzer's diagnostics become fixes: a missing
+`;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in an
+`int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`, `=`
+in a condition becomes `==`, and a `final` variable set again becomes `var`; and while it runs, a whole number divided
+by zero gets an answer for when the divisor is zero. Each change is checked in a copy - with `dart analyze` - and run.
+Dart's code is read for logic mistakes by three checks the analyzer says nothing of: a loop to `<= marks.length`, two
+lists compared with `==`, and a decimal worked out by arithmetic and then compared exactly. Dart is tested with Dart 3.13.2.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -473,8 +552,8 @@ compiler refuses it, or that it never finishes - and `LessonLiveTests` runs ever
 program of every lesson with the language's own compiler or interpreter, the way FixFinder runs a program, and fails
 when one does anything else. The questions are made only from those behaviours, so the right answer to each is what
 running the program shows. Should this computer's compiler or interpreter do something else than a lesson says,
-**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons, in
-between two and nine languages, and they are listed by language; an idea with no lesson in the problem's language yet
+**Run it** says so beside what it saw. Every idea but the general one - reading what went wrong - has lessons in at
+least two languages, and they are listed by language; an idea with no lesson in the problem's language yet
 names the languages it has one in, and the general idea is shown with what FixFinder said of the problem.
 
 FixFinder keeps what it said of each problem it finds - its title, what is wrong, why it matters, how to fix it, where it
@@ -499,6 +578,12 @@ it stops with:
 | Go | `go build`, then `go vet` |
 | Scala | Scala CLI's `compile`, offline, with `-deprecation`, and `-Wunused:imports,privates,locals` from Scala 2.13 on |
 | OCaml | `ocamlc -g`, with OCaml's default warnings |
+| Rust | `rustc`, with its default warnings, its messages as JSON so its suggested changes come with them |
+| Ruby | `ruby -wc` on every file, with its warnings |
+| PHP | `php -l` on every file |
+| Lua | `luac -p` on every file |
+| Perl | `perl -wc` on every file, with its warnings |
+| Dart | `dart analyze` on every file, its errors and warnings |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -828,6 +913,12 @@ Python, Java and C# are checked most thoroughly.
 | Go | 38 | 5 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
+| Rust | 3 | 3 | 33 |
+| Ruby | 3 | 3 | 22 |
+| PHP | 4 | 3 | 12 |
+| Lua | 7 | 3 | 23 |
+| Perl | 9 | 4 | 24 |
+| Dart | 10 | 3 | 23 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

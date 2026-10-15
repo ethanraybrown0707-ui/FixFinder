@@ -36,6 +36,12 @@ public static class LogicPatterns
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
+        .. RustLogicPatterns.All,
+        .. RubyLogicPatterns.All,
+        .. PhpLogicPatterns.All,
+        .. LuaLogicPatterns.All,
+        .. PerlLogicPatterns.All,
+        .. DartLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

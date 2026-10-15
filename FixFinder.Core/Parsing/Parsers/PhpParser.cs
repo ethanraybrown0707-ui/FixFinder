@@ -3,7 +3,26 @@ using FixFinder.Core.Execution;
 
 namespace FixFinder.Core.Parsing.Parsers;
 
-/// <summary>Reads PHP fatal errors, parse errors and warnings.</summary>
+/// <summary>
+/// Reads what PHP says about a program: a parse error from php -l, a fatal error that stops it, and the warnings it prints
+/// while it carries on - as PHP 8.4 writes them.
+/// </summary>
+/// <remarks>
+/// <code>
+/// Parse error: syntax error, unexpected token "echo" in p_semi.php on line 3
+/// Fatal error: Uncaught DivisionByZeroError: Division by zero in C:\...\p_divzero.php:3
+/// Stack trace:
+/// #0 {main}
+///   thrown in C:\...\p_divzero.php on line 3
+/// Warning: Undefined variable $totl in C:\...\p_undefvar.php on line 3
+/// </code>
+/// <para>
+/// A message can itself hold " in ... on line 5" - "Too few arguments to function area(), 1 passed in p_args.php on line 5
+/// and exactly 2 expected in p_args.php:2" - so the file and line are the last ones the line names. A fatal error's type
+/// is the exception's, after Uncaught; a parse error's is ParseError; a warning's, a notice's or a deprecation's is that
+/// word, as PHP writes it.
+/// </para>
+/// </remarks>
 public sealed partial class PhpParser : IStackTraceParser
 {
     public string LanguageId => "php";
@@ -11,7 +30,7 @@ public sealed partial class PhpParser : IStackTraceParser
 
     [GeneratedRegex(
         @"^(?:PHP\s+)?(?<severity>Fatal error|Parse error|Recoverable fatal error|Warning|Notice|Deprecated)" +
-        @":\s+(?:Uncaught\s+(?<type>[A-Za-z_\\][\w\\]*)\s*:\s*)?(?<msg>.*?)" +
+        @":\s+(?:Uncaught\s+(?<type>[A-Za-z_\\][\w\\]*)\s*:\s*)?(?<msg>.*)" +
         @"\s+in\s+(?<file>.+?)(?::(?<line>\d+)|\s+on line\s+(?<line>\d+))\s*$")]
     private static partial Regex HeaderPattern();
 
@@ -20,6 +39,21 @@ public sealed partial class PhpParser : IStackTraceParser
 
     [GeneratedRegex(@"^\s*thrown in\s+(?<file>.+?)\s+on line\s+(?<line>\d+)\s*$")]
     private static partial Regex ThrownPattern();
+
+    /// <summary>The kinds of message PHP prints while the program carries on.</summary>
+    private static readonly HashSet<string> CarriesOn = new(StringComparer.Ordinal) { "Warning", "Notice", "Deprecated" };
+
+    /// <summary>
+    /// What PHP printed, in words, when it was one PHP carried on past - "a warning", "a notice", "a deprecation notice" -
+    /// or null for an error that stopped the program, or a message that is not PHP's.
+    /// </summary>
+    public static string? CarriedOnPast(ParsedError error) => error.LanguageId != "php" ? null : error.ExceptionType switch
+    {
+        "Warning" => "a warning",
+        "Notice" => "a notice",
+        "Deprecated" => "a deprecation notice",
+        _ => null,
+    };
 
     public int Detect(IReadOnlyList<string> lines)
     {
@@ -36,19 +70,33 @@ public sealed partial class PhpParser : IStackTraceParser
         return Math.Min(score, 100);
     }
 
+    /// <summary>What stopped the program - its fatal or parse error - or, when nothing did, the last thing it warned of.</summary>
     public ParsedError? Parse(IReadOnlyList<CapturedLine> lines)
     {
-        var headerIndex = -1;
-        for (var i = lines.Count - 1; i >= 0; i--)
-        {
-            if (!HeaderPattern().IsMatch(lines[i].Text)) continue;
-            headerIndex = i;
-            break;
-        }
+        var headers = Enumerable.Range(0, lines.Count)
+            .Select(index => (Index: index, Match: HeaderPattern().Match(lines[index].Text)))
+            .Where(header => header.Match.Success)
+            .ToList();
+        if (headers.Count == 0) return null;
 
-        if (headerIndex < 0) return null;
+        var stopping = headers.LastOrDefault(header => !CarriesOn.Contains(header.Match.Groups["severity"].Value));
+        var chosen = stopping.Match is not null ? stopping : headers[^1];
+        return Read(lines, chosen.Index, chosen.Match);
+    }
 
-        var header = HeaderPattern().Match(lines[headerIndex].Text);
+    /// <summary>
+    /// Every warning, notice and deprecation PHP printed while the program ran - each a message of its own, once: PHP set up both
+    /// to show its messages and to log them prints each twice, and a line run again in a loop warns again of the same thing.
+    /// </summary>
+    public static IReadOnlyList<ParsedError> RunWarnings(IReadOnlyList<CapturedLine> lines) => Enumerable.Range(0, lines.Count)
+        .Select(index => (Index: index, Match: HeaderPattern().Match(lines[index].Text)))
+        .Where(header => header.Match.Success && CarriesOn.Contains(header.Match.Groups["severity"].Value))
+        .Select(header => Read(lines, header.Index, header.Match))
+        .DistinctBy(warning => (warning.ExceptionType, warning.Message, warning.Frames[0].File, warning.Frames[0].Line))
+        .ToList();
+
+    private static ParsedError Read(IReadOnlyList<CapturedLine> lines, int headerIndex, Match header)
+    {
         var severity = header.Groups["severity"].Value;
 
         var frames = new List<ErrorFrame>
@@ -65,7 +113,7 @@ public sealed partial class PhpParser : IStackTraceParser
 
         var end = headerIndex + 1;
 
-        for (var i = headerIndex + 1; i < lines.Count; i++)
+        for (var i = headerIndex + 1; i < lines.Count && !CarriesOn.Contains(severity); i++)
         {
             var text = lines[i].Text;
 
@@ -86,7 +134,7 @@ public sealed partial class PhpParser : IStackTraceParser
 
             end = i + 1;
 
-            if (frame.Groups["main"].Success) break;
+            if (frame.Groups["main"].Success) continue;
 
             frames.Add(new ErrorFrame
             {
@@ -98,13 +146,13 @@ public sealed partial class PhpParser : IStackTraceParser
             });
         }
 
-        var type = header.Groups["type"].Success
-            ? header.Groups["type"].Value
-            : severity.Contains("Parse", StringComparison.Ordinal) ? "ParseError" : null;
+        var type = header.Groups["type"].Success ? header.Groups["type"].Value
+            : severity.Contains("Parse", StringComparison.Ordinal) ? "ParseError"
+            : severity;
 
         return new ParsedError
         {
-            LanguageId = LanguageId,
+            LanguageId = "php",
             Confidence = severity.Contains("error", StringComparison.OrdinalIgnoreCase) ? 90 : 70,
             RawText = ParserHelpers.RawTextOf(lines, headerIndex, end),
             FirstLineSequence = lines[headerIndex].Sequence,

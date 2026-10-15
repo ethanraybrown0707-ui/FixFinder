@@ -104,6 +104,28 @@ public static partial class PastedCode
             new(@"^\s*let\s+\(\)\s*=", RegexOptions.Multiline), new(@"^\s*let\s+rec\s+\w+", RegexOptions.Multiline),
             new(@"\bprint_(?:endline|string|int|float|newline)\b"), new(@"\bPrintf\.printf\b"),
             new(@"\bmatch\b[^\n]*\bwith\s*$", RegexOptions.Multiline), new(@";;\s*$", RegexOptions.Multiline)]),
+        (CodeLanguage.Rust, [
+            new(@"^\s*(?:pub\s+)?fn\s+\w+\s*(?:<[^>]*>)?\s*\(", RegexOptions.Multiline), new(@"\b(?:println|print|format|vec|panic)!\s*[(\[]"),
+            new(@"^\s*let\s+mut\s+\w+", RegexOptions.Multiline), new(@"^\s*use\s+std::", RegexOptions.Multiline),
+            new(@"\b(?:Vec|String|HashMap)::(?:new|from)\s*\(")]),
+        (CodeLanguage.Ruby, [
+            new(@"^\s*puts\b", RegexOptions.Multiline), new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"\.each\s+do\s*\|"),
+            new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}")]),
+        (CodeLanguage.Php, [
+            new(@"<\?php\b"), new(@"^\s*\$\w+\s*=", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
+            new(@"\bfunction\s+\w+\s*\([^)]*\$\w+")]),
+        (CodeLanguage.Lua, [
+            new(@"^\s*local\s+(?:function\s+)?[A-Za-z_]\w*", RegexOptions.Multiline), new(@"\b(?:ipairs|pairs)\s*\("),
+            new(@"\bthen\s*(?:--.*)?$", RegexOptions.Multiline), new(@"~="), new(@"[""']\s*\.\.\s|\s\.\.\s*[""']"),
+            new(@"^\s*--(?:\s|\[\[)", RegexOptions.Multiline)]),
+        (CodeLanguage.Perl, [
+            new(@"^\s*use\s+(?:strict|warnings)\s*;", RegexOptions.Multiline), new(@"^\s*my\s+[$@%]\w+", RegexOptions.Multiline),
+            new(@"^\s*sub\s+\w+\s*\{", RegexOptions.Multiline), new(@"\$#\w+|@_\b|\bchomp\b"), new(@"<STDIN>")]),
+        (CodeLanguage.Dart, [
+            new(@"^\s*import\s+['""](?:dart|package):", RegexOptions.Multiline), new(@"\bvoid\s+main\s*\(\s*\)\s*(?:\{|=>)"),
+            // Text in single quotes with a $name in it: Dart's way, as PHP and Perl put nothing into single-quoted text.
+            new(@"'[^'\n]*\$\{?[A-Za-z_]"), new(@"^\s*(?:late|final)\s+\w+(?:<[^>]*>)?\??\s+\w+", RegexOptions.Multiline),
+            new(@"\b(?:String|int|double)\?\s+\w+")]),
     ];
 
     /// <summary>

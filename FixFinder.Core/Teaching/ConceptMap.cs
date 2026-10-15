@@ -48,8 +48,99 @@ public static class ConceptMap
 
     private static Regex Words(string pattern) => new(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
+    /// <summary>A Rust panic, by its message - the words rustc 1.98's programs were seen to stop with.</summary>
+    private static Rule RustPanic(Concept concept, string message) => new(concept) { ExceptionTypes = ["panic"], Message = Words(message) };
+
     private static readonly Rule[] Rules =
     [
+        // Rust first: its codes - E0425 - and its lints' names are its own, and its panics are told apart by their words.
+        new(Concepts.ReturnValues) { Codes = ["E0308"], Message = Words(@"found `\(\)`") },
+        new(Concepts.ReturnValues) { Codes = ["unused_must_use"] },
+        new(Concepts.UndefinedName) { Codes = ["E0425", "E0433", "E0412", "E0432", "E0599"] },
+        new(Concepts.WrongType) { Codes = ["E0308", "E0369", "E0277"] },
+        new(Concepts.ChangingAConstant) { Codes = ["E0384", "E0596"] },
+        new(Concepts.MissedCase) { Codes = ["E0004"] },
+        new(Concepts.Arguments) { Codes = ["E0061"] },
+        new(Concepts.ReadBeforeSet) { Codes = ["E0381"] },
+        new(Concepts.EndlessRecursion) { Codes = ["unconditional_recursion"] },
+        new(Concepts.NeverUsed) { Codes = ["unused_variables", "unused_assignments", "unused_mut", "dead_code", "unused_imports"] },
+        new(Concepts.StatementEnd) { ExceptionTypes = ["compile error"], Message = Words(@"^expected `;`") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["compile error"], Message = Words(@"^mismatched closing delimiter|^unclosed delimiter|^this file contains an unclosed delimiter") },
+        RustPanic(Concepts.DivisionByZero, @"^attempt to divide by zero|^attempt to calculate the remainder with a divisor of zero"),
+        RustPanic(Concepts.PositionOutOfRange, @"^index out of bounds|^removal index|^insertion index"),
+        RustPanic(Concepts.NothingThere, @"Option::unwrap\(\)` on a `None` value"),
+        RustPanic(Concepts.TextToNumber, @"Parse(?:Int|Float)Error"),
+        RustPanic(Concepts.MissingKey, @"^no entry found for key"),
+
+        // Ruby: nil before names, as a NoMethodError for nil is a value that is not there; then its own errors' words.
+        new(Concepts.NothingThere) { ExceptionTypes = ["NoMethodError"], Message = Words(@"for nil\b") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["NoMethodError", "NameError"], Message = Words(@"^undefined (?:local variable or method|method)|^uninitialized constant") },
+        new(Concepts.WrongType) { ExceptionTypes = ["TypeError"], Message = Words(@"^no implicit conversion of|can't be coerced into") },
+        new(Concepts.Arguments) { ExceptionTypes = ["ArgumentError"], Message = Words(@"^wrong number of arguments") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["ArgumentError"], Message = Words(@"^invalid value for (?:Integer|Float)\(\)") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["FrozenError"] },
+        new(Concepts.EndlessRecursion) { ExceptionTypes = ["SystemStackError"] },
+        new(Concepts.AssignOrCompare) { Message = Words(@"found [`']= literal' in conditional") },
+        new(Concepts.NeverUsed) { ExceptionTypes = ["compile warning"], Message = Words(@"^assigned but unused variable") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unterminated (?:quoted )?string") },
+        new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded"] },
+
+        // PHP: its fatal errors by their words, and the warnings it carries on past.
+        new(Concepts.NothingThere) { ExceptionTypes = ["Error"], Message = Words(@"^Call to a member function \w+\(\) on null") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["Error"], Message = Words(@"^Call to undefined (?:function|method)") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined variable \$") },
+        new(Concepts.PositionOutOfRange) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined array key \d+$") },
+        new(Concepts.MissingKey) { ExceptionTypes = ["Warning"], Message = Words(@"^Undefined array key """) },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["DivisionByZeroError"] },
+        new(Concepts.Arguments) { ExceptionTypes = ["ArgumentCountError"] },
+        new(Concepts.WrongType) { ExceptionTypes = ["TypeError"], Message = Words(@"^Unsupported operand types|must be of type") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["Warning"], Message = Words(@"^A non-numeric value encountered") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["ParseError"], Message = Words(@"^Unclosed '|unexpected end of file") },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-php-assignment-in-condition"] },
+
+        // Lua: its errors have no types, so they are told apart by their words alone.
+        new(Concepts.UndefinedName) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:call|perform arithmetic on|concatenate) a nil value \(global '") },
+        new(Concepts.MissingKey) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:perform arithmetic on|concatenate) a nil value \(field '") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:index|call|concatenate|perform arithmetic on|get length of) a nil value|^attempt to compare (?:\w+ with nil|nil with \w+)") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:divide by zero|perform 'n%%?0')") },
+        new(Concepts.WrongType) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to add a '(?:string|number)' with|^attempt to perform arithmetic on a (?:string|table) value|^attempt to compare (?:number with string|string with number)|^attempt to concatenate a table value") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["syntax error"], Message = Words(@"^'(?:end|[)\]}])' expected|^unfinished string") },
+        new(Concepts.AssignOrCompare) { ExceptionTypes = ["syntax error"], Message = Words(@"^'(?:then|do)' expected near '='$") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-lua-text-compared-with-number"] },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["syntax error"], Message = Words(@"^attempt to assign to const variable") },
+
+        // Perl: what stops its programs has no type, so it is told apart by its words; so are its warnings.
+        new(Concepts.UndefinedName) { Message = Words(@"^Global symbol ""[$@%]\w+"" requires explicit package name|^Undefined subroutine &|^Name "".*"" used only once: possible typo") },
+        new(Concepts.UnclosedPair) { Message = Words(@"^Missing right curly or square bracket") },
+        new(Concepts.DivisionByZero) { Message = Words(@"^Illegal (?:division by zero|modulus zero)") },
+        new(Concepts.NothingThere) { Message = Words(@"^Can't (?:call method ""\w+"" on an undefined value|use an undefined value as)") },
+        new(Concepts.ChangingAConstant) { Message = Words(@"^Can't modify constant item") },
+        new(Concepts.AssignOrCompare) { Message = Words(@"^Found = in conditional") },
+        new(Concepts.SameValueOrSameObject) { Message = Words(@"^Argument "".*"" isn't numeric in numeric (?:eq|ne|lt|gt|le|ge)") },
+        new(Concepts.WrongType) { Message = Words(@"^Argument "".*"" isn't numeric") },
+        new(Concepts.ReadBeforeSet) { Message = Words(@"^Use of uninitialized value") },
+        new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-perl-text-compared-as-numbers"] },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-perl-line-not-chomped"] },
+
+        // Dart: the analyzer's diagnostics by their names, and the exceptions that stop a program.
+        new(Concepts.StatementEnd) { Codes = ["expected_token"], Message = Words(@"^Expected to find ';'") },
+        new(Concepts.UnclosedPair) { Codes = ["expected_token"], Message = Words(@"^Expected to find '[)\]}]'") },
+        new(Concepts.UndefinedName) { Codes = ["undefined_identifier", "undefined_function", "undefined_method", "undefined_getter"] },
+        new(Concepts.WrongType) { Codes = ["invalid_assignment", "argument_type_not_assignable"] },
+        new(Concepts.AssignOrCompare) { Codes = ["non_bool_condition"] },
+        new(Concepts.ReturnValues) { Codes = ["body_might_complete_normally"] },
+        new(Concepts.ChangingAConstant) { Codes = ["assignment_to_final_local"] },
+        new(Concepts.Arguments) { Codes = ["not_enough_positional_arguments", "extra_positional_arguments"] },
+        new(Concepts.NothingThere) { Codes = ["unchecked_use_of_nullable_value"] },
+        new(Concepts.NeverUsed) { Codes = ["unused_local_variable", "unused_import"] },
+        new(Concepts.NothingThere) { Message = Words(@"^Null check operator used on a null value") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["IntegerDivisionByZeroException"] },
+        new(Concepts.PositionOutOfRange) { Message = Words(@"^Invalid value: Not in inclusive range|^Index out of range") },
+        new(Concepts.TextToNumber) { ExceptionTypes = ["FormatException"] },
+        new(Concepts.EndlessRecursion) { Message = Words(@"^Stack Overflow$") },
+        new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-dart-lists-compared-with-equals"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -124,9 +215,9 @@ public static class ConceptMap
         new(Concepts.ChangingAConstant) { Codes = ["CS0191", "CS0198", "CS0200"] },
         new(Concepts.ChangingAConstant) { Message = Words(@"cannot assign a value to final variable|Assignment to constant variable|Reassignment to val|assignment of read-only|is not mutable") },
 
-        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length"] },
 
         new(Concepts.EndlessLoop)
         {

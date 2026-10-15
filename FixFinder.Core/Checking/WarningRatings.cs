@@ -25,8 +25,31 @@ public static class WarningRatings
     private static Rule OCamlNames(string[] names, FindingKind kind, Severity severity, Confidence confidence) =>
         new(new Regex("^"), names, new WarningRating(kind, severity, confidence), "ocaml");
 
+    /// <summary>rustc's warnings, by the names of its lints: unused_variables, unconditional_recursion.</summary>
+    private static Rule RustNames(string[] names, FindingKind kind, Severity severity, Confidence confidence) =>
+        new(new Regex("^"), names, new WarningRating(kind, severity, confidence), "rust");
+
+    /// <summary>Ruby's warnings, by their words: "found `= literal' in conditional, should be ==".</summary>
+    private static Rule RubyWords(string message, FindingKind kind, Severity severity, Confidence confidence) =>
+        new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence), "ruby");
+
     private static readonly Rule[] Rules =
     [
+        // = in an if always passes and changes the variable; a value worked out and dropped changes nothing.
+        RubyWords(@"found [`']= literal' in conditional", FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        RubyWords(@"^possibly useless use of", FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        RubyWords(@"^assigned but unused variable|^mismatched indentations|^ambiguous first argument", FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+
+        // A function that cannot return without calling itself overflows the stack; code after a return never runs; a
+        // Result or a changed copy thrown away changes nothing; a value stored and never read was meant for something.
+        RustNames(["unconditional_recursion"], FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        RustNames(["unreachable_code", "unreachable_patterns", "unused_comparisons"], FindingKind.Logic, Severity.Warning, Confidence.Certain),
+        RustNames(["unused_must_use", "unused_assignments"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
+        RustNames(
+            ["unused_variables", "unused_mut", "dead_code", "unused_imports", "unused_parens", "non_snake_case", "non_camel_case_types",
+             "non_upper_case_globals", "while_true"],
+            FindingKind.Style, Severity.Suggestion, Confidence.Certain),
+
         // A match that misses a case stops the program with Match_failure when that case comes; an unused name changes nothing.
         OCamlNames(["partial-match"], FindingKind.Logic, Severity.Warning, Confidence.Likely),
         OCamlNames(["redundant-case", "redundant-subpat"], FindingKind.Logic, Severity.Warning, Confidence.Certain),

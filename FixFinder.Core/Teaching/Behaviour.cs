@@ -64,6 +64,9 @@ public sealed record Behaviour
         _ => "It runs to the end and prints nothing",
     };
 
-    /// <summary>Who refuses code before it runs: the compiler, or - for Python and JavaScript, which have none - the language.</summary>
-    private static string RefusedBy(string language) => language is "Python" or "JavaScript" ? language : $"The {language} compiler";
+    /// <summary>
+    /// Who refuses code before it runs: the compiler, or - for the languages run straight from their code, Python, JavaScript,
+    /// Ruby, PHP and Lua - the language.
+    /// </summary>
+    private static string RefusedBy(string language) => language is "Python" or "JavaScript" or "Ruby" or "PHP" or "Lua" ? language : $"The {language} compiler";
 }

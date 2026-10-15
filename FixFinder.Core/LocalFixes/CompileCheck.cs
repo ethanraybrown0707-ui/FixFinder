@@ -29,6 +29,12 @@ public static class CompileCheck
         ".js" or ".mjs" or ".cjs" or ".go" => true,
         ".scala" or ".sc" => true,
         ".ml" => true,
+        ".rs" => true,
+        ".rb" => true,
+        ".php" => true,
+        ".lua" => true,
+        ".pl" or ".pm" => true,
+        ".dart" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -243,7 +249,7 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -269,6 +275,7 @@ public static class CompileCheck
         if (extension == ".go") return [Path.GetDirectoryName(original)!];
         if (extension is ".scala" or ".sc") return [ScalaProgram.SbtSourceRoot(Path.GetFullPath(original)) ?? Path.GetDirectoryName(original)!];
         if (extension == ".ml") return [Path.GetDirectoryName(original)!];
+        if (extension == ".rs") return RustProgram.Of(original).Files.Select(file => Path.GetDirectoryName(file)!).Distinct(StringComparer.OrdinalIgnoreCase);
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -433,6 +440,51 @@ public static class CompileCheck
                     OCamlBuild.CompileArguments(ocaml, names, ocamlProgram.Libraries, "check.byte"), ocaml);
 
                 return Spec("cmd.exe", $"/c \"{batch}\"", folder);
+            }
+
+            case ".rb":
+                // ruby -c reads the copy and runs none of it, as the program is checked before it runs.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Ruby, copy, Timeout);
+
+            case ".php":
+                // php -l reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Php, copy, Timeout);
+
+            case ".lua":
+                // luac -p reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Lua, copy, Timeout);
+
+            case ".pl" or ".pm":
+                // perl -c compiles the copy and runs none of it but its use lines and BEGIN blocks, as running it would.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Perl, copy, Timeout);
+
+            case ".dart":
+                // dart analyze reads the copy and runs none of it, failing only for an error.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Dart, copy, Timeout);
+
+            case ".rs":
+            {
+                if (RustToolchains.Usual is not { } rustc) return null;
+
+                // The crate is copied laid out as it is - its mod files where rustc looks for them - with the copy in place of
+                // the original, and built there as the program is: the same edition, rustc's messages as JSON.
+                var whole = Path.GetFullPath(original);
+                var layout = RustProgram.Of(original);
+                var crate = Path.Combine(folder, "crate");
+
+                foreach (var file in layout.Files.Append(whole).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    var relative = Path.GetRelativePath(layout.Folder, file);
+                    if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)) return null;
+
+                    var target = Path.Combine(crate, relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? copy : file, target, overwrite: true);
+                }
+
+                return Spec(rustc.Program,
+                    RustBuild.CompileArguments(RustBuild.EditionFor(layout, rustc), Path.GetRelativePath(layout.Folder, layout.Root), Path.Combine(folder, "check.exe")),
+                    crate);
             }
 
             case ".cs":

@@ -107,7 +107,9 @@ public static class TargetFactory
         [".ps1"] = new("powershell", "-NoProfile -ExecutionPolicy Bypass -File"),
         [".go"] = new("go", "run"),
 
-        [".dart"] = new("dart", "run"),
+        // dart <file>, not dart run <file>: dart run resolves a package's dependencies first, fetching them when it has to, and
+        // FixFinder never downloads. Run as dart <file>, a program whose packages were never fetched says so, and fails.
+        [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
     };
 
@@ -116,7 +118,7 @@ public static class TargetFactory
         get
         {
             var all = ByExtension.Keys
-                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml"])
+                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml", ".rs"])
                 .OrderBy(e => e, StringComparer.Ordinal);
 
             var extensions = string.Join(";", all.Select(e => "*" + e));
@@ -250,6 +252,12 @@ public static class TargetFactory
                 arguments = $"run --project \"{project}\"";
                 workingDirectory = Path.GetDirectoryName(project)!;
                 together = $" as part of its project, {Path.GetFileName(project)}";
+                break;
+
+            case ".lua":
+                // Lua cuts a file's name of more than 60 characters down to its end - "...Temp\marks\main.lua" - in what it
+                // prints. Run from the file's own folder, the file is given by its name alone, which Lua prints whole.
+                arguments = $"\"{Path.GetFileName(full)}\"";
                 break;
 
             case ".py" when ProgramLayout.PythonModule(full) is { } module:

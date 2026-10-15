@@ -154,6 +154,12 @@ public sealed record ReportPage
 
         Section(page, "How to fix it", finding.SuggestedFix);
 
+        var further = Teaching.FurtherExplanation.For(finding);
+
+        page.Append("<h4>Step by step</h4>\n<ol class=\"walkthrough\">\n");
+        foreach (var step in further.Steps) page.Append("<li>").Append(Prose(step)).Append("</li>\n");
+        page.Append("</ol>\n");
+
         if (finding.State is { Rows.Count: > 0 } state)
         {
             page.Append("<h4>").Append(Text(FindingText.StateHeading(finding))).Append("</h4>\n<table>\n<thead><tr><th>Time</th>");
@@ -222,6 +228,26 @@ public sealed record ReportPage
         }
 
         if (finding.FixCheckedBy is { Length: > 0 } checkedBy) page.Append("<p class=\"checked\">").Append(Prose(checkedBy)).Append("</p>\n");
+
+        if (further.Message is { } message)
+        {
+            page.Append("<h4>").Append(Text($"What {message.SaidBy} said")).Append("</h4>\n<pre>")
+                .Append(Text(message.Message + (message.WasShortened ? "\n..." : ""))).Append("</pre>\n")
+                .Append("<p>").Append(Prose(message.HowToRead)).Append("</p>\n");
+        }
+
+        if (further.Words.Count > 0)
+        {
+            page.Append("<h4>Words used here</h4>\n<ul class=\"words\">\n");
+            foreach (var word in further.Words) page.Append("<li><strong>").Append(Text(word.Word)).Append("</strong> - ").Append(Prose(word.Meaning)).Append("</li>\n");
+            page.Append("</ul>\n");
+        }
+
+        var concept = Teaching.ConceptMap.Of(finding);
+        page.Append("<h4>").Append(Text($"The idea behind it: {concept.Title}")).Append("</h4>\n<p>").Append(Prose(concept.Idea)).Append("</p>\n");
+        if (Teaching.ProblemStore.CodeFor(finding) is { } code)
+            page.Append("<p class=\"code\">Problem code <code>").Append(Text(code.Text)).Append("</code>, for FixFinder Learn</p>\n");
+        page.Append("<p><strong>Next time:</strong> ").Append(Prose(further.NextTime)).Append("</p>\n");
 
         page.Append("</article>\n");
     }

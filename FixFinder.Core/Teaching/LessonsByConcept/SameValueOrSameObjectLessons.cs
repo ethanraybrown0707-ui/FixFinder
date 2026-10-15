@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -119,5 +119,136 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "sameElements compares the items; == asked whether they are one and the same array."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "== compares two texts as numbers when both look like numbers - so \"1e3\" == \"1000\" is true, 1e3 being 1000 written " +
+        "another way - while === compares them exactly as they are. For objects, == asks whether they hold the same values, and " +
+        "=== whether they are the very same object.",
+        [
+            new WorkedExample("A code typed in",
+                Broken: """
+                    <?php
+                    $typed = "1e3";
+                    if ($typed == "1000") {
+                        echo "match";
+                    } else {
+                        echo "no match";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("match"),
+                Fixed: """
+                    <?php
+                    $typed = "1e3";
+                    if ($typed === "1000") {
+                        echo "match";
+                    } else {
+                        echo "no match";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("no match"),
+                WhatChanged: "=== compares the two texts as they are, without reading them as numbers."),
+            new WorkedExample("Two marks of the same value",
+                Broken: """
+                    <?php
+                    class Mark {
+                        public function __construct(public int $value) {}
+                    }
+                    $first = new Mark(70);
+                    $second = new Mark(70);
+                    echo $first === $second ? "same" : "different";
+                    """,
+                BrokenDoes: Behaviour.Printing("different"),
+                Fixed: """
+                    <?php
+                    class Mark {
+                        public function __construct(public int $value) {}
+                    }
+                    $first = new Mark(70);
+                    $second = new Mark(70);
+                    echo $first == $second ? "same" : "different";
+                    """,
+                FixedDoes: Behaviour.Printing("same"),
+                WhatChanged: "== compares what the two objects hold; === asked whether they are one and the same object, which two made with new never are."),
+        ]);
+
+    private static Lesson Lua => new(Concept, CodeLanguage.Lua,
+        "== compares numbers and text by their value: \"ada\" == \"ada\" is true. On two tables it asks whether they are the very same " +
+        "table, never whether they hold the same items, so two tables made apart are never ==.",
+        [
+            new WorkedExample("Two lists of the same marks",
+                Broken: """
+                    local first = {70, 80}
+                    local second = {70, 80}
+                    print(first == second)
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    local first = {70, 80}
+                    local second = {70, 80}
+                    local same = #first == #second
+                    for i = 1, #first do
+                      same = same and first[i] == second[i]
+                    end
+                    print(same)
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "== asked whether they are the same table; the fixed code compares the items one by one."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Perl has two kinds of comparison: == and != for numbers, eq and ne for text. == turns both sides into numbers first, and a " +
+        "word becomes 0 - so \"yes\" == \"no\" is true. With use warnings Perl warns, Argument isn't numeric, but carries on.",
+        [
+            new WorkedExample("Checking an answer",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $answer = "yes";
+                    if ($answer == "no") {
+                        print "no\n";
+                    } else {
+                        print "yes\n";
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("no"),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $answer = "yes";
+                    if ($answer eq "no") {
+                        print "no\n";
+                    } else {
+                        print "yes\n";
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("yes"),
+                WhatChanged: "eq compares the two pieces of text as text, so \"yes\" and \"no\" are different."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "== compares numbers and text by their value. On two lists it asks whether they are the very same list, never whether they " +
+        "hold the same items, so two lists made apart are never ==.",
+        [
+            new WorkedExample("Two lists of the same marks",
+                Broken: """
+                    void main() {
+                      var first = [70, 80];
+                      var second = [70, 80];
+                      print(first == second);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    void main() {
+                      var first = [70, 80];
+                      var second = [70, 80];
+                      print(first.length == second.length && Iterable.generate(first.length).every((i) => first[i] == second[i]));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "== asked whether they are the same list; the fixed line compares the items one by one."),
         ]);
 }

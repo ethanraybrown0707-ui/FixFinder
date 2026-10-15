@@ -1,0 +1,49 @@
+using static FixFinder.Core.Checking.Guides.LogicGuides;
+
+namespace FixFinder.Core.Checking.Guides;
+
+/// <summary>
+/// Guides for the logic checks of Lua programs, each explained for someone new to programming. Every example is a whole
+/// program, and LuaLiveTests checks each one with luac -p and runs it, and fails on anything Lua says.
+/// </summary>
+internal static class LuaPatternGuides
+{
+    public static IReadOnlyList<GuideEntry> All { get; } =
+    [
+        GuideFor(["logic-lua-loop-from-zero"], "A loop that counts a list from 0",
+            "A Lua list's first item is at position 1, not 0, so a list of 3 items has positions 1, 2 and 3. A loop that starts at 0 " +
+            "asks for marks[0] first - which is nil, as nothing is there.",
+            "Lua gives no error for marks[0]: the loop's first pass works with nil, and a loop that stops at #marks - 1 misses the last item.",
+            "Count from 1 to #marks, or go through the items themselves: for _, mark in ipairs(marks) do.",
+            """
+            local marks = {70, 80, 90}
+            for i = 1, #marks do
+              print(marks[i])
+            end
+            """),
+
+        GuideFor(["logic-lua-text-compared-with-number"], "Text compared with a number",
+            "== in Lua compares the kind of value as well as the value, and text is never equal to a number - so \"5\" == 5 is false. " +
+            "What io.read() reads is text, even when what was typed is a number.",
+            "The comparison gives the same answer every time, whatever the text holds, and Lua says nothing of it.",
+            "Turn the text into a number first with tonumber, or read a number in the first place: io.read(\"n\").",
+            """
+            local typed = "5"
+            if tonumber(typed) == 5 then
+              print("five")
+            end
+            """),
+
+        GuideFor(["logic-lua-float-equality"], "Decimal numbers compared exactly",
+            "Decimals are stored in binary, which holds most of them only nearly: 0.1 + 0.2 is held as 0.30000000000000004, not 0.3 - " +
+            "and print rounds it, showing 0.3, so the two look equal when they are not.",
+            "== asks for an exact match, so a total worked out by arithmetic can fail to equal the decimal it should.",
+            "Compare within a tiny tolerance: math.abs(total - 0.3) < 1e-9.",
+            """
+            local total = 0.1 + 0.2
+            if math.abs(total - 0.3) < 1e-9 then
+              print("equal")
+            end
+            """),
+    ];
+}

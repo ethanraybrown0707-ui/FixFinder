@@ -127,6 +127,7 @@ public partial class LearnWindow : Window
         ConceptTitleText.Text = concept.Title;
         LanguageText.Text = language.Name;
         IdeaText.Text = concept.Idea;
+        NextTimeText.Text = Habits.For(concept);
 
         ShowProblem(problems);
 

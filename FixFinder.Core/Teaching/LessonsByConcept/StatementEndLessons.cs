@@ -5,7 +5,7 @@ internal static class StatementEndLessons
 {
     private static Concept Concept => Concepts.StatementEnd;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl, Dart];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Every statement ends with a semicolon. Without one, javac refuses the program with \"';' expected\" before any of it " +
@@ -85,5 +85,71 @@ internal static class StatementEndLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The value is on the same line as return, so it is what the function gives back."),
+        ]);
+
+    private static Lesson Php => new(Concept, CodeLanguage.Php,
+        "Every statement ends with a semicolon. Without one, PHP refuses the whole file with a parse error before any of it runs. It " +
+        "names the line after the one missing the semicolon: it only notices when that next line starts something that cannot follow.",
+        [
+            new WorkedExample("Printing a name",
+                Broken: """
+                    <?php
+                    $name = "Ada"
+                    echo $name;
+                    """,
+                BrokenDoes: Behaviour.Refused("ParseError", 3),
+                Fixed: """
+                    <?php
+                    $name = "Ada";
+                    echo $name;
+                    """,
+                FixedDoes: Behaviour.Printing("Ada"),
+                WhatChanged: "The ; ends the line that sets $name, so echo starts a statement of its own."),
+        ]);
+
+    private static Lesson Perl => new(Concept, CodeLanguage.Perl,
+        "Every statement ends with a semicolon. Without one, Perl refuses the whole file before any of it runs with syntax error - " +
+        "naming the line after the one missing it, and near the word where it noticed.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10
+                    print "$total\n";
+                    """,
+                BrokenDoes: Behaviour.Refused("syntax error", 5),
+                Fixed: """
+                    use strict;
+                    use warnings;
+
+                    my $total = 10;
+                    print "$total\n";
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The ; ends the line that declares $total, so print starts a statement of its own."),
+        ]);
+
+    private static Lesson Dart => new(Concept, CodeLanguage.Dart,
+        "Every statement ends with a semicolon. Without one, Dart refuses the program before any of it runs, pointing at the end of " +
+        "the line that needs it: Expected ';' after this.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    void main() {
+                      var total = 10
+                      print(total);
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Expected ';' after this", 2),
+                Fixed: """
+                    void main() {
+                      var total = 10;
+                      print(total);
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The ; ends the line that declares total."),
         ]);
 }

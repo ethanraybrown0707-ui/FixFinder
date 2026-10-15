@@ -46,11 +46,17 @@ public static partial class ProgramFiles
         {
             ".py" or ".pyw" or ".ipynb" => Follow(path, PythonNeighbours),
             ".js" or ".mjs" or ".cjs" => Follow(path, JavaScriptNeighbours),
+            ".rb" => Follow(path, RubyNeighbours),
+            ".php" => Follow(path, PhpNeighbours),
+            ".lua" => Follow(path, file => LuaNeighbours(file, Path.GetDirectoryName(path)!)),
+            ".pl" or ".pm" => Follow(path, file => PerlNeighbours(file, Path.GetDirectoryName(path)!)),
+            ".dart" => Follow(path, DartNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
             ".scala" or ".sc" => (ScalaProgram.Of(path).Files, true),
             ".ml" => (OCamlProgram.Of(path).Files.Where(OCamlProgram.IsOCaml).ToList(), true),
+            ".rs" => (RustProgram.Of(path).Files.Append(path).ToList(), true),
             ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => (NativeFiles(path), true),
             _ => ([path], true),
         };
@@ -121,6 +127,101 @@ public static partial class ProgramFiles
                     if (File.Exists(submodule)) yield return submodule;
                 }
             }
+        }
+    }
+
+    [GeneratedRegex(@"^\s*require_relative\s*\(?\s*['""](?<path>[^'""]+)['""]", RegexOptions.Multiline)]
+    private static partial Regex RubyRequireRelative();
+
+    /// <summary>The files a Ruby file brings in with require_relative, named from its own folder, with or without .rb.</summary>
+    private static IEnumerable<string> RubyNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match required in RubyRequireRelative().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            var named = target.EndsWith(".rb", StringComparison.OrdinalIgnoreCase) ? target : target + ".rb";
+            if (File.Exists(named)) yield return named;
+        }
+    }
+
+    [GeneratedRegex(@"\b(?:require|include)(?:_once)?\s*\(?\s*(?:__DIR__\s*\.\s*)?['""](?<path>[^'""]+\.php)['""]")]
+    private static partial Regex PhpInclude();
+
+    /// <summary>The files a PHP file brings in with require or include - named from its own folder, or after __DIR__ . '/'.</summary>
+    private static IEnumerable<string> PhpNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match included in PhpInclude().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, included.Groups["path"].Value.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
+        }
+    }
+
+    [GeneratedRegex(@"\brequire\s*\(?\s*['""](?<module>[\w.]+)['""]")]
+    private static partial Regex LuaRequire();
+
+    /// <summary>
+    /// The files a Lua file brings in with require - named, a dot for each folder, from the folder the program runs in, as
+    /// Lua's own search does: .\stats.lua for require("stats"), .\lib\helpers.lua or .\lib\helpers\init.lua for require "lib.helpers".
+    /// </summary>
+    private static IEnumerable<string> LuaNeighbours(string file, string programFolder)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        foreach (Match required in LuaRequire().Matches(text))
+        {
+            var relative = required.Groups["module"].Value.Replace('.', Path.DirectorySeparatorChar);
+            var asFile = Path.Combine(programFolder, relative + ".lua");
+            var asFolder = Path.Combine(programFolder, relative, "init.lua");
+
+            if (File.Exists(asFile)) yield return asFile;
+            else if (File.Exists(asFolder)) yield return asFolder;
+        }
+    }
+
+    [GeneratedRegex(@"\b(?:require|do)\s*\(?\s*['""](?:\./)?(?<path>[^'""]+\.p[lm])['""]|^\s*use\s+(?<module>[A-Z]\w*(?:::\w+)*)\b", RegexOptions.Multiline)]
+    private static partial Regex PerlRequire();
+
+    /// <summary>
+    /// The files a Perl file brings in, from the folder the program runs in: those named to require or do - "./helpers.pl" -
+    /// and the modules it uses, Marks::Report being Marks\Report.pm there or in its lib folder, as use lib names them.
+    /// </summary>
+    private static IEnumerable<string> PerlNeighbours(string file, string programFolder)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        foreach (Match required in PerlRequire().Matches(text))
+        {
+            var candidates = required.Groups["path"].Success
+                ? [Path.Combine(programFolder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar))]
+                : new[] { programFolder, Path.Combine(programFolder, "lib") }.Select(folder => Path.Combine(folder, required.Groups["module"].Value.Replace("::", Path.DirectorySeparatorChar.ToString()) + ".pm"));
+
+            if (candidates.FirstOrDefault(File.Exists) is { } found) yield return Path.GetFullPath(found);
+        }
+    }
+
+    [GeneratedRegex(@"^\s*(?:import|export|part)\s+['""](?!dart:|package:)(?<path>[^'""]+\.dart)['""]", RegexOptions.Multiline)]
+    private static partial Regex DartImport();
+
+    /// <summary>The files a Dart file imports, exports or has as a part, named from its own folder - not dart: or package: ones.</summary>
+    private static IEnumerable<string> DartNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match imported in DartImport().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, imported.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
         }
     }
 

@@ -312,6 +312,12 @@ internal static class LogicGuides
         .. ScalaPatternGuides.All,
         .. OCamlPatternGuides.All,
         .. GoPatternGuides.All,
+        .. RustPatternGuides.All,
+        .. RubyPatternGuides.All,
+        .. PhpPatternGuides.All,
+        .. LuaPatternGuides.All,
+        .. PerlPatternGuides.All,
+        .. DartPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

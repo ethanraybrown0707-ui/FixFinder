@@ -32,7 +32,25 @@ public sealed record CodeLanguage(
     /// <summary>OCaml: its compiler's errors and warnings, and the exceptions that stop its programs.</summary>
     public static CodeLanguage OCaml { get; } = new("OCaml", [".ml"], ["ocaml"], ["ocaml-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml];
+    /// <summary>Rust: rustc's errors and warnings, with the changes it suggests, and the panics that stop its programs.</summary>
+    public static CodeLanguage Rust { get; } = new("Rust", [".rs"], ["rust"], ["rust-"]);
+
+    /// <summary>Ruby: ruby -wc's syntax errors and warnings, and the exceptions that stop its programs.</summary>
+    public static CodeLanguage Ruby { get; } = new("Ruby", [".rb"], ["ruby"], ["ruby-"]);
+
+    /// <summary>PHP: php -l's parse errors, the fatal errors that stop its programs, and the warnings it carries on past.</summary>
+    public static CodeLanguage Php { get; } = new("PHP", [".php"], ["php"], ["php-"]);
+
+    /// <summary>Lua: luac -p's syntax errors, and the runtime errors that stop its programs.</summary>
+    public static CodeLanguage Lua { get; } = new("Lua", [".lua"], ["lua"], ["lua-"]);
+
+    /// <summary>Perl: perl -wc's compilation errors and warnings, what stops its programs, and the warnings it carries on past.</summary>
+    public static CodeLanguage Perl { get; } = new("Perl", [".pl", ".pm"], ["perl"], ["perl-"]);
+
+    /// <summary>Dart: what dart analyze says before it runs, and the exceptions that stop its programs.</summary>
+    public static CodeLanguage Dart { get; } = new("Dart", [".dart"], ["dart"], ["dart-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
 
     public bool IsAny => ParserIds.Count == 0;
 

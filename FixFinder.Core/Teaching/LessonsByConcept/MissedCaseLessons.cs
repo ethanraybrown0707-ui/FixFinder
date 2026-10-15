@@ -5,7 +5,7 @@ internal static class MissedCaseLessons
 {
     private static Concept Concept => Concepts.MissedCase;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml];
+    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml, Rust];
 
     private static Lesson Scala => new(Concept, CodeLanguage.Scala,
         "A match tries its cases in order, and when none fits the value, the program stops with a MatchError. A last case _ " +
@@ -130,5 +130,40 @@ internal static class MissedCaseLessons
                     """,
                 FixedDoes: Behaviour.Printing("another"),
                 WhatChanged: "| _ -> fits any value the cases above it do not, so every mark gets an answer."),
+        ]);
+
+    private static Lesson Rust => new(Concept, CodeLanguage.Rust,
+        "A match has to have an arm for every value that can arrive, and rustc checks it does before the program runs: one that " +
+        "leaves values out is refused with E0004, which names them. A last arm _ takes every value the others leave.",
+        [
+            new WorkedExample("Describing a mark",
+                Broken: """
+                    fn describe(mark: u8) -> &'static str {
+                        match mark {
+                            1 => "first",
+                            2 => "second",
+                        }
+                    }
+
+                    fn main() {
+                        println!("{}", describe(3));
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("E0004", 2),
+                Fixed: """
+                    fn describe(mark: u8) -> &'static str {
+                        match mark {
+                            1 => "first",
+                            2 => "second",
+                            _ => "another",
+                        }
+                    }
+
+                    fn main() {
+                        println!("{}", describe(3));
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("another"),
+                WhatChanged: "_ => takes any value the arms above it do not, so every mark gets an answer."),
         ]);
 }
