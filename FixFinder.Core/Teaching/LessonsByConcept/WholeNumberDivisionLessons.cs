@@ -5,7 +5,7 @@ internal static class WholeNumberDivisionLessons
 {
     private static Concept Concept => Concepts.WholeNumberDivision;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, C, Python, Scala, OCaml, Rust, Ruby, Dart, Fortran];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Dividing one int by another gives an int: the fraction is dropped, so 7 / 2 is 3. Storing the answer in a double " +
@@ -226,5 +226,37 @@ internal static class WholeNumberDivisionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3"),
                 WhatChanged: "~/ divides and keeps the whole number; a double variable would keep the 3.5."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "When both sides of / are whole numbers, Fortran works the answer out as a whole number, dropping the fraction - and only " +
+        "then keeps it in the real on the left. 7 / 2 gives 3, kept as 3.0. real() turns one side into a real first.",
+        [
+            new WorkedExample("An average",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      real :: average
+                      total = 7
+                      count = 2
+                      average = total / count
+                      print '(F0.1)', average
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Printing("3.0"),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      real :: average
+                      total = 7
+                      count = 2
+                      average = real(total) / count
+                      print '(F0.1)', average
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("3.5"),
+                WhatChanged: "real(total) makes the division one of reals, so the .5 is kept."),
         ]);
 }

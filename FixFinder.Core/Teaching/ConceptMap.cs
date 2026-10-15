@@ -141,6 +141,23 @@ public static class ConceptMap
         new(Concepts.EndlessRecursion) { Message = Words(@"^Stack Overflow$") },
         new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-dart-lists-compared-with-equals"] },
 
+        // Fortran: gfortran's messages by their words, and what stopped the program it built.
+        new(Concepts.UndefinedName) { ExceptionTypes = ["compile error"], Message = Words(@"has no IMPLICIT type") },
+        new(Concepts.AssignOrCompare) { ExceptionTypes = ["compile error"], Message = Words(@"^Syntax error in IF-expression") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["compile error"], Message = Words(@"^Expecting END (?:DO|IF) statement|^Unterminated character constant") },
+        new(Concepts.WrongType) { ExceptionTypes = ["compile error"], Message = Words(@"^Cannot convert \S+ to \S+") },
+        new(Concepts.Arguments) { ExceptionTypes = ["compile error"], Message = Words(@"^Missing actual argument for argument") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["compile error"], Message = Words(@"^Named constant '\w+' in variable definition context|^Dummy argument '\w+' with INTENT\(IN\)") },
+        new(Concepts.OffByOne) { ExceptionTypes = [Parsing.Parsers.FortranParser.RuntimeError], Message = Words(@"^Index '-?\d+' of dimension \d+ of array") },
+        new(Concepts.OffByOne) { ExceptionTypes = ["compile warning"], Message = Words(@"^Array reference at \(1\) out of bounds") },
+        new(Concepts.TextToNumber) { ExceptionTypes = [Parsing.Parsers.FortranParser.RuntimeError], Message = Words(@"^Bad \w+ for item \d+ in list input") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["SIGFPE"] },
+        new(Concepts.ReadBeforeSet) { ExceptionTypes = ["compile warning"], Message = Words(@"may be used uninitialized") },
+        new(Concepts.ReturnValues) { ExceptionTypes = ["compile warning"], Message = Words(@"^Return value of function '\w+' at \(1\) not set") },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fortran-whole-number-division"] },
+        new(Concepts.UndefinedName) { CheckIds = ["logic-fortran-no-implicit-none"] },
+        new(Concepts.ReadBeforeSet) { CheckIds = ["logic-fortran-total-not-started"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {

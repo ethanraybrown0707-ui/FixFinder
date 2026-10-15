@@ -17,6 +17,7 @@ internal static class FunctionLessons
         ArgumentsInLua, RecursionInLua,
         ArgumentsInPerl,
         ArgumentsInDart, ReturnsInDart, RecursionInDart,
+        ArgumentsInFortran,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -565,5 +566,37 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3"),
                 WhatChanged: "When n reaches 0 the function gives 0 without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInFortran => new(Concepts.Arguments, CodeLanguage.Fortran,
+        "A call has to give a function a value for each of its arguments, and gfortran refuses a call that gives too few before the " +
+        "program runs, naming the argument with no value.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    program marks
+                      implicit none
+                      print '(I0)', area(3)
+                    contains
+                      integer function area(width, height)
+                        integer, intent(in) :: width, height
+                        area = width * height
+                      end function area
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing actual argument for argument 'height'", 3),
+                Fixed: """
+                    program marks
+                      implicit none
+                      print '(I0)', area(3, 4)
+                    contains
+                      integer function area(width, height)
+                        integer, intent(in) :: width, height
+                        area = width * height
+                      end function area
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
         ]);
 }

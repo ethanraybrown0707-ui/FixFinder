@@ -312,6 +312,14 @@ public static partial class LocalFixEngine
         new DartFinalChanged(),
         new DartDivisionGuard(),
         new DartLoopToLength(),
+        new FortranDidYouMean(),
+        new FortranCompareWithDoubleEquals(),
+        new FortranNotEqual(),
+        new FortranMissingThen(),
+        new FortranCloseBlock(),
+        new FortranIntentInOut(),
+        new FortranParameterChanged(),
+        new FortranLoopBounds(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -472,6 +480,10 @@ public static partial class LocalFixEngine
     /// </summary>
     [GeneratedRegex(@"^(?:Expected |Can't find '.' to match ')")]
     private static partial Regex DartSyntaxMessage();
+
+    /// <summary>What gfortran 13 says of code it cannot read, before it knows what any of it means.</summary>
+    [GeneratedRegex(@"^(?:Syntax error|Unterminated character constant|Expecting END|Missing '\)'|Unclassifiable statement)")]
+    private static partial Regex FortranSyntaxMessage();
 
     public static async Task<FixCandidate?> ForAsync(
         LocalFixContext context, Action<string>? log = null, CancellationToken cancellationToken = default) =>
@@ -712,6 +724,7 @@ public static partial class LocalFixEngine
         "php" => error.ExceptionType == "ParseError",
         "lua" => error.ExceptionType == Parsing.Parsers.LuaParser.SyntaxError,
         "perl" => error.ExceptionType == Parsing.Parsers.PerlParser.CompilationError,
+        "fortran" => error.ExceptionType == "compile error" && FortranSyntaxMessage().IsMatch(error.Message ?? ""),
         "dart" => error.ExceptionType == "compile error" &&
                   (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
                        "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
@@ -743,6 +756,7 @@ public static partial class LocalFixEngine
             ".scala" or ".sc" => "compiled it with Scala CLI",
             ".ml" => "compiled it with ocamlc",
             ".rs" => "compiled it with rustc",
+            ".f90" or ".f95" or ".f03" or ".f08" => "checked it with gfortran -fsyntax-only, which builds none of it",
             ".rb" => "checked it with ruby -c, which runs none of it",
             ".php" => "checked it with php -l, which runs none of it",
             ".lua" => "checked it with luac -p, which runs none of it",

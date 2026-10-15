@@ -38,6 +38,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Lua", "print('hi')\n", "pasted.lua")]
     [InlineData("Perl", "print \"hi\\n\";\n", "pasted.pl")]
     [InlineData("Dart", "void main() {\n  print('hi');\n}\n", "pasted.dart")]
+    [InlineData("Fortran", "program hi\n  print *, 'hi'\nend program hi\n", "pasted.f90")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -100,6 +101,8 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     // Dart's print is Python's too, but void main(), a $name inside single quotes and import 'dart:...' are Dart's alone.
     [InlineData("void main() {\n  var name = 'Ada';\n  print('Hello, $name');\n}\n", "Dart")]
     [InlineData("import 'dart:math';\n\nvoid main() {\n  final int biggest = max(3, 4);\n  print(biggest);\n}\n", "Dart")]
+    // A line with :: is C++'s too, but program, implicit none and print *, are Fortran's alone.
+    [InlineData("program marks\n  implicit none\n  integer :: total\n  total = 10\n  print *, total\nend program marks\n", "Fortran")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

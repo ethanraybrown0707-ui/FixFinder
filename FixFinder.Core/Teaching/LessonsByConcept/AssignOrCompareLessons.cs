@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -245,5 +245,61 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== compares the mark with 40, giving true or false, without changing it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "In Fortran, = gives a variable a value and == compares; \"is not equal to\" is /=. gfortran refuses = in an if's condition " +
+        "before any of the program runs. != is refused too, for another reason: ! starts a comment, so gfortran reads only as far as it.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 70
+                      if (mark = 40) then
+                        print '(A)', 'forty'
+                      end if
+                      print '(I0)', mark
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Syntax error in IF-expression", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 70
+                      if (mark == 40) then
+                        print '(A)', 'forty'
+                      end if
+                      print '(I0)', mark
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+            new WorkedExample("A mark that is not forty",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 50
+                      if (mark != 40) then
+                        print '(A)', 'not forty'
+                      end if
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing ')' in statement", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 50
+                      if (mark /= 40) then
+                        print '(A)', 'not forty'
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("not forty"),
+                WhatChanged: "/= is Fortran's \"is not equal to\"; with !, everything after the ! was a comment."),
         ]);
 }

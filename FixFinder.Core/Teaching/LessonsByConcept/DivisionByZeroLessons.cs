@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -698,5 +698,63 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "/ by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A whole number divided by zero stops a Fortran program with SIGFPE - which, on Windows, names no line. Reals divided by zero " +
+        "do not stop it: the answer is Infinity, and the program carries on with it.",
+        [
+            new WorkedExample("Sharing between nobody",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      total = 70
+                      count = 0
+                      print '(I0)', total / count
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.StoppingOnNoLine("SIGFPE"),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      total = 70
+                      count = 0
+                      if (count == 0) then
+                        print '(I0)', 0
+                      else
+                        print '(I0)', total / count
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed code divides only when count is not zero, and gives 0 otherwise."),
+            new WorkedExample("Dividing reals",
+                Broken: """
+                    program marks
+                      implicit none
+                      real :: total, count
+                      total = 70.0
+                      count = 0.0
+                      print '(F0.1)', total / count
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Printing("Inf"),
+                Fixed: """
+                    program marks
+                      implicit none
+                      real :: total, count
+                      total = 70.0
+                      count = 0.0
+                      if (count == 0.0) then
+                        print '(F0.1)', 0.0
+                      else
+                        print '(F0.1)', total / count
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing(".0"),
+                WhatChanged: "Reals divided by zero give Infinity rather than stopping the program, so the fixed code checks for zero itself."),
         ]);
 }

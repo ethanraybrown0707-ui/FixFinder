@@ -28,6 +28,9 @@ public enum Syntax
 
     /// <summary>Perl's: # to the end of a line - but not the # of $#marks, the last position of @marks.</summary>
     Perl,
+
+    /// <summary>Fortran's: ! to the end of a line - which is why if (mark != 40) is read as if (mark, and a comment.</summary>
+    Fortran,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -85,7 +88,8 @@ public static partial class CodeText
                 }
             }
 
-            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (commentsLikeC && c == '/' && next == '/'))
+            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (syntax == Syntax.Fortran && c == '!') ||
+                (commentsLikeC && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
@@ -241,6 +245,7 @@ public static partial class CodeText
             if (syntax == Syntax.OCaml && c == '(' && i + 1 < line.Length && line[i + 1] == '*') return i;
             if (syntax == Syntax.Lua && c == '-' && i + 1 < line.Length && line[i + 1] == '-') return i;
             if (syntax == Syntax.Perl && IsPerlComment(line, i)) return i;
+            if (syntax == Syntax.Fortran && c == '!') return i;
         }
 
         return null;

@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -156,5 +156,32 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("80"),
                 WhatChanged: "The if gets a } of its own, so the last } closes the foreach."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A do loop is closed with end do, and a block if with end if. When one is missing, gfortran reaches a line that ends something " +
+        "else - often the end of the program - still inside it, and refuses the program before any of it runs.",
+        [
+            new WorkedExample("Counting to three",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: i
+                      do i = 1, 3
+                        print '(I0)', i
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Expecting END DO statement", 6),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: i
+                      do i = 1, 3
+                        print '(I0)', i
+                      end do
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("1\n2\n3"),
+                WhatChanged: "end do closes the loop where its lines finish."),
         ]);
 }

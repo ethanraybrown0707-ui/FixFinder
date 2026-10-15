@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -210,5 +210,40 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("6"),
                 WhatChanged: "count++ moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A do while loop runs for as long as its condition is true, so something inside it has to change what the condition checks. " +
+        "When nothing does, the loop never ends: Fortran gives no error, and the program has to be stopped.",
+        [
+            new WorkedExample("Adding up to three",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: count, total
+                      count = 1
+                      total = 0
+                      do while (count <= 3)
+                        total = total + count
+                      end do
+                      print '(I0)', total
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: count, total
+                      count = 1
+                      total = 0
+                      do while (count <= 3)
+                        total = total + count
+                        count = count + 1
+                      end do
+                      print '(I0)', total
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "count = count + 1 moves the count on each time, so the condition is false once it passes 3."),
         ]);
 }

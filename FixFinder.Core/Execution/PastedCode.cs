@@ -126,6 +126,11 @@ public static partial class PastedCode
             // Text in single quotes with a $name in it: Dart's way, as PHP and Perl put nothing into single-quoted text.
             new(@"'[^'\n]*\$\{?[A-Za-z_]"), new(@"^\s*(?:late|final)\s+\w+(?:<[^>]*>)?\??\s+\w+", RegexOptions.Multiline),
             new(@"\b(?:String|int|double)\?\s+\w+")]),
+        (CodeLanguage.Fortran, [
+            new(@"^\s*program\s+\w+\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase), new(@"\bimplicit\s+none\b", RegexOptions.IgnoreCase),
+            new(@"^\s*end\s+(?:program|do|if|subroutine|function)\b", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"^\s*print\s*\*\s*,", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"^\s*(?:integer|real|character|logical|double\s+precision)\b[^:\n]*::", RegexOptions.Multiline | RegexOptions.IgnoreCase)]),
     ];
 
     /// <summary>

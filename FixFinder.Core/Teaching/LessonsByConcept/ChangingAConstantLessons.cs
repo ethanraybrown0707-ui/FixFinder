@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -217,5 +217,31 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "var lets passMark be given a new value."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A parameter is a constant, set where it is declared and never changed, and gfortran refuses a program that gives it another " +
+        "value. An argument declared intent(in) is a promise to only read it, kept the same way.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer, parameter :: pass_mark = 40
+                      pass_mark = 50
+                      print '(I0)', pass_mark
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Named constant 'pass_mark' in variable definition context", 4),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: pass_mark = 40
+                      pass_mark = 50
+                      print '(I0)', pass_mark
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "Without parameter, pass_mark is a variable, which can be given a new value."),
         ]);
 }

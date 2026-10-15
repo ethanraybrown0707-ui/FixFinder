@@ -118,7 +118,7 @@ public static class TargetFactory
         get
         {
             var all = ByExtension.Keys
-                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml", ".rs"])
+                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml", ".rs", ".f90", ".f95", ".f03", ".f08"])
                 .OrderBy(e => e, StringComparer.Ordinal);
 
             var extensions = string.Join(";", all.Select(e => "*" + e));

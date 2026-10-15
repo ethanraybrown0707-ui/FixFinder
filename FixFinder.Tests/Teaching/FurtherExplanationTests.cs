@@ -164,6 +164,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Perl", "my @marks = ();\nprint 100 / scalar(@marks), \"\\n\";\n", ["Illegal division by zero at ", "pasted.pl line 2."] },
         { "Dart", "void main() {\n  var total = 10;\n  print(totl + 1);\n}\n", ["pasted.dart:3:9: Error: Undefined name 'totl'.", "^"] },
         { "Dart", "void main() {\n  var marks = <int>[];\n  print(70 ~/ marks.length);\n}\n", ["Unhandled exception:", "IntegerDivisionByZeroException", "main (file:///", "pasted.dart:3:"] },
+        { "Fortran", "program marks\n  implicit none\n  integer :: total\n  total = 10\n  print *, totl + 1\nend program marks\n", ["pasted.f90:5:15:", "|               1", "Error: Symbol 'totl' at (1) has no IMPLICIT type", "did you mean 'total'?"] },
+        { "Fortran", "program marks\n  implicit none\n  integer :: scores(3) = [70, 80, 90]\n  integer :: i\n  do i = 0, 3\n    print *, scores(i)\n  end do\nend program marks\n", ["At line 6 of file pasted.f90", "Fortran runtime error: Index '0' of dimension 1 of array 'scores' below lower bound of 1"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 

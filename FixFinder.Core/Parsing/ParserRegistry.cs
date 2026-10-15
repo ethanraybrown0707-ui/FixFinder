@@ -41,6 +41,7 @@ public sealed class ParserRegistry
             new ElixirParser(),
             new PerlParser(),
             new LuaParser(),
+            new FortranParser(),
             new GenericFileLineParser(),
         ];
     }

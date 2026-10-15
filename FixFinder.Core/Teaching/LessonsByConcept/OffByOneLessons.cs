@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -276,5 +276,35 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "< stops the loop at the last position, 2."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A Fortran array's positions start at 1, not 0: an array of 3 has positions 1, 2 and 3. A loop from 0 asks for position 0, " +
+        "and a program built with run-time checks, as FixFinder builds it, stops there.",
+        [
+            new WorkedExample("Printing every score",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: scores(3) = [70, 80, 90]
+                      integer :: i
+                      do i = 0, 3
+                        print '(I0)', scores(i)
+                      end do
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Stopping("Index '0' of dimension 1 of array 'scores' below lower bound of 1", 6),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: scores(3) = [70, 80, 90]
+                      integer :: i
+                      do i = 1, size(scores)
+                        print '(I0)', scores(i)
+                      end do
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The loop counts from 1 to size(scores), the array's own positions."),
         ]);
 }

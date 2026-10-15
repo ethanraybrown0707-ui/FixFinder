@@ -135,6 +135,14 @@ public static class MessageReading
             "Unhandled exception: comes first, then the exception - such as RangeError - and what went wrong, or the message alone. " +
             "Each line under it that starts with # is a call that was running, the latest first: #1 main (file:///C:/marks/main.dart:3:12) " +
             "is line 3, column 12 of main.dart, in main. The ones in dart: files are inside Dart itself.",
+        [("Fortran", MessagePhase.BeforeRunning)] =
+            "gfortran names the file, the line and the column - marks.f90:5:15 is line 5, column 15 - then shows the line, with a 1 " +
+            "under the place it means, then Error: or Warning: and what is wrong, calling that place (1). It often says which declared " +
+            "name it thinks was meant. gfortran will not build a program with even one error, so none of it ran.",
+        [("Fortran", MessagePhase.WhileRunning)] =
+            "At line and the file say where the program stopped; Fortran runtime error: says what went wrong - for a position outside " +
+            "an array, which position, which array and its bounds. A program stopped by a signal - SIGFPE, for a whole number divided " +
+            "by zero - names no line of its own on Windows.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

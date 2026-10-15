@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -251,6 +251,33 @@ internal static class UndefinedNameLessons
                       var total = 10;
                       print(total + 1);
                     }
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way its declaration spells it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "With implicit none at the top, every name has to be declared before it is used, and gfortran refuses the program before " +
+        "any of it runs when one is not - often saying which declared name it thinks was meant. Without implicit none, a misspelt " +
+        "name would be a new variable instead, with no value.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10
+                      print '(I0)', totl + 1
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Symbol 'totl' at (1) has no IMPLICIT type", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10
+                      print '(I0)', total + 1
+                    end program marks
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way its declaration spells it."),

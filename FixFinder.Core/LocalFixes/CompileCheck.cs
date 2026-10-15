@@ -35,6 +35,7 @@ public static class CompileCheck
         ".lua" => true,
         ".pl" or ".pm" => true,
         ".dart" => true,
+        ".f90" or ".f95" or ".f03" or ".f08" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -249,7 +250,8 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs" or
+            ".f90" or ".f95" or ".f03" or ".f08")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -276,6 +278,7 @@ public static class CompileCheck
         if (extension is ".scala" or ".sc") return [ScalaProgram.SbtSourceRoot(Path.GetFullPath(original)) ?? Path.GetDirectoryName(original)!];
         if (extension == ".ml") return [Path.GetDirectoryName(original)!];
         if (extension == ".rs") return RustProgram.Of(original).Files.Select(file => Path.GetDirectoryName(file)!).Distinct(StringComparer.OrdinalIgnoreCase);
+        if (FortranBuild.Extensions.Contains(extension)) return [Path.GetDirectoryName(original)!];
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -485,6 +488,27 @@ public static class CompileCheck
                 return Spec(rustc.Program,
                     RustBuild.CompileArguments(RustBuild.EditionFor(layout, rustc), Path.GetRelativePath(layout.Folder, layout.Root), Path.Combine(folder, "check.exe")),
                     crate);
+            }
+
+            case ".f90" or ".f95" or ".f03" or ".f08":
+            {
+                if (FortranBuild.Gfortran() is not { } gfortran) return null;
+
+                // The files of the program whose modules the changed file uses come with the copy, each before the files that
+                // use it, and gfortran's .mod files are kept in the check's own folder.
+                var whole = Path.GetFullPath(original);
+                var checkFolder = Path.GetDirectoryName(copy)!;
+                var checkedFiles = new List<string>();
+
+                foreach (var file in FortranBuild.Files(original))
+                {
+                    if (!file.Equals(whole, StringComparison.OrdinalIgnoreCase))
+                        File.Copy(file, Path.Combine(checkFolder, Path.GetFileName(file)), overwrite: true);
+
+                    checkedFiles.Add(file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(copy) : Path.GetFileName(file));
+                }
+
+                return Spec(gfortran, FortranBuild.CheckArguments(checkFolder, checkedFiles), checkFolder);
             }
 
             case ".cs":

@@ -5,7 +5,7 @@ internal static class StatementEndLessons
 {
     private static Concept Concept => Concepts.StatementEnd;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, CSharp, JavaScript, Php, Perl, Dart, Fortran];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "Every statement ends with a semicolon. Without one, javac refuses the program with \"';' expected\" before any of it " +
@@ -151,5 +151,33 @@ internal static class StatementEndLessons
                     """,
                 FixedDoes: Behaviour.Printing("10"),
                 WhatChanged: "The ; ends the line that declares total."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A Fortran statement ends where its line ends - there is no semicolon to end it. A statement that goes on to the next line " +
+        "says so with & at the end of the line; without it, gfortran reads an unfinished line, and refuses the program.",
+        [
+            new WorkedExample("A total over two lines",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10 +
+                              5
+                      print '(I0)', total
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Syntax error in expression", 4),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10 + &
+                              5
+                      print '(I0)', total
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("15"),
+                WhatChanged: "The & at the end of the line carries the statement on to the next one."),
         ]);
 }

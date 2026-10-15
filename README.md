@@ -344,6 +344,19 @@ by zero gets an answer for when the divisor is zero. Each change is checked in a
 Dart's code is read for logic mistakes by three checks the analyzer says nothing of: a loop to `<= marks.length`, two
 lists compared with `==`, and a decimal worked out by arithmetic and then compared exactly. Dart is tested with Dart 3.13.2.
 
+A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
+files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
+folder, `.mod` files and all, so nothing is written beside the program, with `-Wall` and `-fcheck=all`: a position outside
+an array stops the program at its line, and gfortran often warns of it before the program runs. A whole number divided by
+zero stops it with SIGFPE, which names no line on Windows. gfortran's own "did you mean" becomes a fix, and so do `=` in
+an `if`'s condition, `!=` - which Fortran reads as the start of a comment - a missing `then`, a do loop or block if left
+open, an `intent(in)` argument the subroutine changes, a `parameter` given a new value, and a loop that reads outside its
+array; each change is checked in a copy - with `gfortran -fsyntax-only` - and run. Fortran's code is read for logic
+mistakes by four checks gfortran says nothing of: two whole numbers divided and kept in a `real`, a program with no
+`implicit none`, a total added to in a loop before it is given a value, and a double precision decimal worked out by
+arithmetic and then compared exactly - not a default `real`, where `0.1 + 0.2 == 0.3` is true. Fortran is tested with
+gfortran 13.2.0.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -584,6 +597,7 @@ it stops with:
 | Lua | `luac -p` on every file |
 | Perl | `perl -wc` on every file, with its warnings |
 | Dart | `dart analyze` on every file, its errors and warnings |
+| Fortran | `gfortran -Wall`, building with `-fcheck=all` |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -919,6 +933,7 @@ Python, Java and C# are checked most thoroughly.
 | Lua | 7 | 3 | 23 |
 | Perl | 9 | 4 | 24 |
 | Dart | 10 | 3 | 23 |
+| Fortran | 8 | 4 | 17 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

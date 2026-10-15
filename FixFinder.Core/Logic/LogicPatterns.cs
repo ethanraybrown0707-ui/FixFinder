@@ -42,6 +42,7 @@ public static class LogicPatterns
         .. LuaLogicPatterns.All,
         .. PerlLogicPatterns.All,
         .. DartLogicPatterns.All,
+        .. FortranLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

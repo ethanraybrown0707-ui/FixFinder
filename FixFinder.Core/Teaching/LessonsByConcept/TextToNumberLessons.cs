@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -274,5 +274,37 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("Please type a number"),
                 WhatChanged: "int.tryParse gives null for text that is not a number, and the fixed line checks for it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "Fortran turns text into a number by reading it - read(text, *) number - and stops the program when the text is not one. " +
+        "iostat= keeps it going instead, and is set to something other than 0 when the reading failed.",
+        [
+            new WorkedExample("An age written in words",
+                Broken: """
+                    program marks
+                      implicit none
+                      character(len=10) :: typed = 'twenty'
+                      integer :: age
+                      read(typed, *) age
+                      print '(I0)', age + 1
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Stopping("Bad integer for item 1 in list input", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      character(len=10) :: typed = 'twenty'
+                      integer :: age, status
+                      read(typed, *, iostat=status) age
+                      if (status /= 0) then
+                        print '(A)', 'Please type a number'
+                      else
+                        print '(I0)', age + 1
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "iostat= catches the failed reading, and the fixed code says so rather than stopping."),
         ]);
 }
