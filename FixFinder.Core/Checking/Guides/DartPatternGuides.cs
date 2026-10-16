@@ -48,5 +48,17 @@ internal static class DartPatternGuides
               print((total - 0.3).abs() < 1e-9);
             }
             """),
+
+        GuideFor(["logic-dart-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Dart ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and dart analyze says nothing of it.",
+            "Multiply the number by itself: side * side. pow, from dart:math, raises a number to any power: pow(side, 2).",
+            """
+            void main() {
+              var side = 5;
+              print(side * side);
+            }
+            """),
     ];
 }

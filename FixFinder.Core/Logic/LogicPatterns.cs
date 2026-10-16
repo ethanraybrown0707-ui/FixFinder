@@ -36,6 +36,7 @@ public static class LogicPatterns
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
+        .. CaretAsPowerPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

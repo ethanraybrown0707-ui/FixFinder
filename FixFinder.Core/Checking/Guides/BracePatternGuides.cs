@@ -267,5 +267,15 @@ internal static class BracePatternGuides
                 System.out.println("found");
             }
             """),
+
+        GuideFor(["logic-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in C, C++, Java, C# and JavaScript ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - with no error or warning.",
+            "Multiply the number by itself: side * side, or side * side * side for a cube. Java and C# also have Math.pow and " +
+            "Math.Pow, and JavaScript has **: side ** 2.",
+            """
+            int area = side * side;
+            """),
     ];
 }

@@ -54,5 +54,18 @@ internal static class RustPatternGuides
                 }
             }
             """),
+
+        GuideFor(["logic-rust-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Rust ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and rustc says nothing of it.",
+            "Multiply the number by itself: side * side. A whole number whose type is given - let side: i32 = 5 - also has pow: " +
+            "side.pow(2).",
+            """
+            fn main() {
+                let side = 5;
+                println!("{}", side * side);
+            }
+            """),
     ];
 }

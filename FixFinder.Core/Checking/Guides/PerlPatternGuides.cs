@@ -83,5 +83,18 @@ internal static class PerlPatternGuides
             my @marks = (70, 80, 90);
             print scalar(@marks), "\n";
             """),
+
+        GuideFor(["logic-perl-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Perl ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and Perl says nothing of it, even with use warnings.",
+            "Use Perl's power, **: $side ** 2.",
+            """
+            use strict;
+            use warnings;
+
+            my $side = 5;
+            print $side ** 2, "\n";
+            """),
     ];
 }

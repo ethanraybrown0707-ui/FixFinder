@@ -130,5 +130,21 @@ internal static class GoPatternGuides
             	fmt.Println(strings.ReplaceAll("a-b-c", "-", "+"))
             }
             """),
+
+        GuideFor(["logic-go-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Go ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and neither Go nor go vet says anything of it.",
+            "Multiply the number by itself: side * side. For a decimal power, math.Pow works with float64s.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	side := 5
+            	fmt.Println(side * side)
+            }
+            """),
     ];
 }

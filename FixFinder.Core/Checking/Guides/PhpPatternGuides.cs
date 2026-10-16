@@ -66,5 +66,16 @@ internal static class PhpPatternGuides
                 echo "has an a\n";
             }
             """),
+
+        GuideFor(["logic-php-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in PHP ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and neither php -l nor PHP says anything of it.",
+            "Use PHP's power, **: $side ** 2.",
+            """
+            <?php
+            $side = 5;
+            echo $side ** 2;
+            """),
     ];
 }

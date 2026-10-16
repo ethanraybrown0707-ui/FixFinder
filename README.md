@@ -282,9 +282,9 @@ a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of onl
 the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a blank in it, or one
 that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A panic is read at the
 file, line and column Rust names, and a whole-number division by zero, or a loop over `0..=v.len()`, gets a change of its
-own. Rust's code is read for logic mistakes by three checks rustc says nothing of: a loop over `0..=v.len()` that uses its
-number as a position in `v`, `(total / count) as f64` of two whole numbers, and a decimal worked out by arithmetic and
-then compared exactly. Rust is tested with rustc 1.98.1.
+own. Rust's code is read for logic mistakes by four checks rustc says nothing of: a loop over `0..=v.len()` that uses its
+number as a position in `v`, `(total / count) as f64` of two whole numbers, a decimal worked out by arithmetic and then
+compared exactly, and `^` written as a power. Rust is tested with rustc 1.98.1.
 
 A **Ruby** program - an `.rb` file - is read by `ruby -wc` before it runs, which checks every file of the program and
 runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never used.
@@ -294,7 +294,7 @@ and `.to_s` for a number joined to text with `+`; each change is checked in a co
 it - and run. Ruby's code is read for logic mistakes by four checks `ruby -w` says nothing of: `(total / count).to_f` of
 two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy -
 `name.upcase`, `marks.sort` - called on a line of its own, and a range to an array's length with two dots,
-`0..marks.length`, whose last number is one past the last position. Ruby is tested with Ruby 3.3.12.
+`0..marks.length`, whose last number is one past the last position - and `^` written as a power. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -305,7 +305,7 @@ variable becomes the nearest name the program does use, a division by zero gets 
 and a loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read
 for logic mistakes by four checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
 position, an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, and `strpos(...) == false`,
-which is true for a match at the very start as well as for none. PHP is tested with
+which is true for a match at the very start as well as for none - and `^` written as a power. PHP is tested with
 PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
@@ -334,7 +334,7 @@ each change is checked in a copy - with `perl -c` - and run. Perl's code is read
 loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
 compared with `eq` without `chomp`, a decimal worked out by arithmetic and then compared exactly, and `length(@marks)`,
 which counts the digits of the array's count - Perl warns of it too, and the warning and the check are one finding, whose
-change is `scalar(@marks)`. Perl is tested with
+change is `scalar(@marks)` - and `^` written as a power. Perl is tested with
 Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
@@ -346,8 +346,8 @@ first line of the program's own code in its frames, past Dart's own. The analyze
 `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`, `=`
 in a condition becomes `==`, and a `final` variable set again becomes `var`; and while it runs, a whole number divided
 by zero gets an answer for when the divisor is zero. Each change is checked in a copy - with `dart analyze` - and run.
-Dart's code is read for logic mistakes by three checks the analyzer says nothing of: a loop to `<= marks.length`, two
-lists compared with `==`, and a decimal worked out by arithmetic and then compared exactly. Dart is tested with Dart 3.13.2.
+Dart's code is read for logic mistakes by four checks the analyzer says nothing of: a loop to `<= marks.length`, two
+lists compared with `==`, a decimal worked out by arithmetic and then compared exactly, and `^` written as a power. Dart is tested with Dart 3.13.2.
 
 A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
 files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
@@ -638,14 +638,18 @@ only when the copy ran without the failure; a copy that could not be built or st
 a pass.
 
 The **logic check** reads the code for mistakes that compile and then give the wrong answer: `answer == "yes" or "y"`,
-`total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
-list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
+`total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through
+a list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
 `xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
 `strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, and `strings.Replace` with a count of
-0, which replaces nothing. In Python and JavaScript it finds
-a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java,
-C# and JavaScript a search's position compared with `> 0`, which takes a match at the very start, position 0, for no
-match. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
+0, which replaces nothing. In Python and JavaScript it finds a decimal worked out by arithmetic and then compared
+exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java, C# and JavaScript a search's position compared with
+`> 0`, which takes a match at the very start, position 0, for no match. In C, C++, Java, C#, JavaScript, Python, Go,
+Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive
+or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or
+interpreters says anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises
+it with `**`. When an expected output was given, it also runs changed copies of the program to find the one that prints
+it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -937,21 +941,21 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 35 | 41 |
-| Java | 54 | 33 | 46 |
-| C# | 47 | 31 | 49 |
-| C | 46 | 18 | 39 |
-| C++ | 45 | 23 | 39 |
-| JavaScript | 41 | 27 | 15 |
-| Go | 38 | 6 | 18 |
+| Python | 88 | 36 | 41 |
+| Java | 54 | 34 | 46 |
+| C# | 47 | 32 | 49 |
+| C | 46 | 19 | 39 |
+| C++ | 45 | 24 | 39 |
+| JavaScript | 41 | 28 | 15 |
+| Go | 38 | 7 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
-| Rust | 3 | 3 | 33 |
-| Ruby | 3 | 4 | 22 |
-| PHP | 4 | 4 | 12 |
+| Rust | 3 | 4 | 33 |
+| Ruby | 3 | 5 | 22 |
+| PHP | 4 | 5 | 12 |
 | Lua | 7 | 4 | 23 |
-| Perl | 10 | 5 | 25 |
-| Dart | 10 | 3 | 23 |
+| Perl | 10 | 6 | 25 |
+| Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 5 | 4 | 13 |
 
