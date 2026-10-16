@@ -88,5 +88,19 @@ internal static class PhpPatternGuides
             $answer = trim("yes\n");
             echo $answer == "yes" ? "yes" : "no";
             """),
+
+        GuideFor(["logic-php-foreach-copy-changed"], "A loop that changes its own copy",
+            "foreach ($marks as $mark) gives each item of $marks to $mark as a copy of its own. Giving $mark a new value changes the copy, " +
+            "not the item in the array - so after the loop, $marks is just as it was.",
+            "The array is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Take each item's key as well, and change the item under it: foreach ($marks as $key => $mark) { $marks[$key] += 5; }",
+            """
+            <?php
+            $marks = [70, 80, 90];
+            foreach ($marks as $key => $mark) {
+                $marks[$key] += 5;
+            }
+            echo implode(" ", $marks), "\n";
+            """),
     ];
 }

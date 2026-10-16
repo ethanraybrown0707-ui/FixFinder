@@ -38,6 +38,7 @@ public static class LogicPatterns
         .. DecimalAndSearchPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. InputPatterns.All,
+        .. LoopCopyPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

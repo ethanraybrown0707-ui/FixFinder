@@ -72,5 +72,22 @@ internal static class PowerShellPatternGuides
                 Write-Output "child"
             }
             """),
+
+        GuideFor(["logic-powershell-function-output-returned"], "Text a function writes comes back with its result",
+            "A PowerShell function gives back everything it outputs, not only what return names. Write-Output outputs its text, so the " +
+            "text comes back as part of the function's result, beside the value.",
+            "The value kept from the function holds the text too, so arithmetic on it gives a list rather than a number.",
+            "Write text meant for the screen with Write-Host, which outputs nothing.",
+            """
+            function Get-Total($marks) {
+                Write-Host "Adding up the marks"
+                $sum = 0
+                foreach ($mark in $marks) { $sum += $mark }
+                return $sum
+            }
+
+            $total = Get-Total @(70, 80)
+            Write-Output ($total + 1)
+            """),
     ];
 }

@@ -165,5 +165,25 @@ internal static class GoPatternGuides
             	fmt.Println(answer == "yes")
             }
             """),
+
+        GuideFor(["logic-go-range-index-as-value"], "range with one variable gives positions",
+            "range over a slice gives two values each time round: the position, and the item at it. With one variable, that variable is " +
+            "the position - 0, 1, 2 - not the item, so for mark := range marks makes mark a position.",
+            "The loop works with positions where it means items, with no error: the total of 70, 80 and 90 comes out as 3.",
+            "Take the item as range's second variable, and leave the position unused with _: for _, mark := range marks.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	total := 0
+            	for _, mark := range marks {
+            		total += mark
+            	}
+            	fmt.Println(total)
+            }
+            """),
     ];
 }

@@ -308,5 +308,17 @@ internal static class PythonPatternGuides
             side = 5
             print(side ** 2)
             """),
+
+        GuideFor(["logic-python-loop-variable-changed"], "A loop that changes its own copy",
+            "for mark in marks gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
+            "variable, not the item in the list - so after the loop, marks is just as it was.",
+            "The list is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Change the item itself, at its position: for index, mark in enumerate(marks): marks[index] += 5.",
+            """
+            marks = [70, 80, 90]
+            for index, mark in enumerate(marks):
+                marks[index] += 5
+            print(marks)
+            """),
     ];
 }

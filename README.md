@@ -151,40 +151,40 @@ holds the project's packages - and how it ran says when it is older than the cod
 A Java program is built with **a JDK of the Java it is written for**, up to Java 27. FixFinder finds every JDK on the
 computer - the one whose `javac` is on PATH, the one `JAVA_HOME` names, those Oracle's installer lists in the registry,
 those Oracle's, Eclipse Temurin's, Microsoft's, Amazon Corretto's, Azul Zulu's, BellSoft's, IBM Semeru's, SAP's and Red
-Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with it
-- and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
-program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the one
-JDK. The Java it is compiled for is the one its project names: `pom.xml`'s
-`maven.compiler.release`, or its source and target - as properties or as maven-compiler-plugin's own settings, from the
-`pom.xml` or a parent - or Spring Boot's `java.version`; a Gradle build's toolchain, `options.release` or
-`sourceCompatibility`, in the project's build file, the convention plugins it applies or the `subprojects { }` above it;
-IntelliJ's language level; or Eclipse's compliance level. Preview features are on when the build turns them on. The JDK
-is one of at least that Java: the one the project's IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it
-is here; else the usual one, when it is new enough; else the oldest that is.
+Hat's installers put in Program Files, those IntelliJ and Gradle download, Scoop's, and the Java an Eclipse brings with
+it - and knows each by the version in its own `release` file; Settings lists them. Unless something asks for another, a
+program is built with the JDK whose `javac` a terminal would run, and `javac`, `java` and `javap` always come from the
+one JDK. The Java it is compiled for is the one its project names: `pom.xml`'s `maven.compiler.release`, or its source
+and target - as properties or as maven-compiler-plugin's own settings, from the `pom.xml` or a parent - or Spring Boot's
+`java.version`; a Gradle build's toolchain, `options.release` or `sourceCompatibility`, in the project's build file, the
+convention plugins it applies or the `subprojects { }` above it; IntelliJ's language level; or Eclipse's compliance
+level. Preview features are on when the build turns them on. The JDK is one of at least that Java: the one the project's
+IntelliJ or VS Code settings, or its Gradle toolchain, choose, when it is here; else the usual one, when it is new
+enough; else the oldest that is.
 
-The Java **the code itself** is written in is **detected** as well.
-FixFinder reads the program's files for the newest part of the language or of Java's library they use: `var` is Java 10's,
-a switch with `case ... ->` Java 14's, a text block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed
-class Java 17's, a record pattern, a type pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_`
-Java 22's, stream gatherers Java 24's, `IO.println`, `import module`, a compact source file with no class around its
-methods and a `void main()` that is not static Java 25's, and HTTP/3 in the HTTP client Java 26's
-- each as that release's JEPs at openjdk.org record it, and those of Java 21 to 25 as javac 21 and 25 compile them. The
-code then needs a JDK of at least that Java, and how it ran says which Java the code needs and why, with the file and
-line. A **preview** the code uses - primitive types in patterns, which Java 23 to 27 have as a preview, lazy constants
-(Java 26 and 27), `StableValue` (Java 25), structured concurrency, or a string template (Java 21 and 22, then taken out) -
-is turned on for it, with the JDK the program is usually built with when that one has the preview, else the newest one
-here that does, unless the project already says whether preview features are on, or names a Java without that preview. Java 26 and 27 made no new part of the language final - what they add to it is still a preview -
-so what makes code Java 27's is a preview Java 27 has.
-Only what is certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not
-Java's. Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
-`static`: before Java 25 those are mistakes, so they say nothing of which Java the code is for, and they are still reported
-as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet needs Java
-25 or earlier, as Java 26 took the Applet API out, and a Lombok works only with the Java releases it supports, as
-Lombok's changelog records them. A project that names a later Java than any JDK here has is not built, and the report
-says which to install; code that needs a JDK that is not here is built with the nearest, and the run explanation says
-what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than the Java it is
-compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a JDK of it is
-on this computer.
+The Java **the code itself** is written in is **detected** as well. FixFinder reads the program's files for the newest
+part of the language or of Java's library they use: `var` is Java 10's, a switch with `case ... ->` Java 14's, a text
+block Java 15's, a record or a pattern in `instanceof` Java 16's, a sealed class Java 17's, a record pattern, a type
+pattern in a switch, `case null` and virtual threads Java 21's, an unnamed `_` Java 22's, stream gatherers Java 24's,
+`IO.println`, `import module`, a compact source file with no class around its methods and a `void main()` that is not
+static Java 25's, and HTTP/3 in the HTTP client Java 26's - each as that release's JEPs at openjdk.org record it, and
+those of Java 21 to 25 as javac 21 and 25 compile them. The code then needs a JDK of at least that Java, and how it ran
+says which Java the code needs and why, with the file and line. A **preview** the code uses - primitive types in
+patterns, which Java 23 to 27 have as a preview, lazy constants (Java 26 and 27), `StableValue` (Java 25), structured
+concurrency, or a string template (Java 21 and 22, then taken out) - is turned on for it, with the JDK the program is
+usually built with when that one has the preview, else the newest one here that does, unless the project already says
+whether preview features are on, or names a Java without that preview. Java 26 and 27 made no new part of the language
+final - what they add to it is still a preview - so what makes code Java 27's is a preview Java 27 has. Only what is
+certainly Java's own counts: a class of the program's own named `IO`, or a `List` from another library, is not Java's.
+Nor does what Java 25 only stopped forbidding - a statement before `super(...)`, or a `main(String[] args)` without
+`static`: before Java 25 those are mistakes, so they say nothing of which Java the code is for, and they are still
+reported as mistakes when the program is built with an earlier Java. The code can also need an earlier Java: an applet
+needs Java 25 or earlier, as Java 26 took the Applet API out, and a Lombok works only with the Java releases it
+supports, as Lombok's changelog records them. A project that names a later Java than any JDK here has is not built, and
+the report says which to install; code that needs a JDK that is not here is built with the nearest, and the run
+explanation says what is missing. When javac says a feature is only a preview in the JDK that built it, or is newer than
+the Java it is compiled for, or that a library was built for a later Java, a note says which Java it needs and whether a
+JDK of it is on this computer.
 
 A Go program is built and run with **a Go new enough for it**. FixFinder finds every Go on the computer - the one on PATH,
 the one `GOROOT` names, the one Go's installer puts in Program Files or `C:\Go`, those golang.org/dl downloads to the `sdk`
@@ -292,11 +292,13 @@ runs none of it: a syntax error is found there, and so are Ruby's warnings - an 
 used. The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there.
 Ruby's own "Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a
 divisor is zero, and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`,
-which runs none of it - and run. Ruby's code is read for logic mistakes by six checks `ruby -w` says nothing of:
+which runs none of it - and run. Ruby's code is read for logic mistakes by seven checks `ruby -w` says nothing of:
 `(total / count).to_f` of two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that
 gives back a changed copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with
-two dots, `0..marks.length`, whose last number is one past the last position, `^` written as a power, and a line read
-with `gets` compared with text, though it still ends with its newline. Ruby is tested with Ruby 3.3.12.
+two dots, `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with
+`gets` compared with text, though it still ends with its newline, and `each` where `map` was meant -
+`doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked out. Ruby
+is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -305,10 +307,11 @@ warning - an undefined variable, a key an array does not have - with nothing in 
 is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined variable
 becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero, and a
 loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read for
-logic mistakes by six checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a position,
-an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, `strpos(...) == false`, which is
-true for a match at the very start as well as for none, `^` written as a power, and a line read with `fgets` compared
-with text, though it still ends with its newline. PHP is tested with PHP 8.4.24.
+logic mistakes by seven checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
+position, an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, `strpos(...) == false`,
+which is true for a match at the very start as well as for none, `^` written as a power, a line read with `fgets`
+compared with text, though it still ends with its newline, and a `foreach` that gives its copy of each item a new
+value - `$mark += 5` - which leaves the array as it was. PHP is tested with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
@@ -370,11 +373,13 @@ by zero - so every error a run prints is a finding of its own, placed in a dot-s
 Comparisons written as other languages write them - `==`, `!=`, `<`, `<=`, `>=`, `&&`, `||` - become PowerShell's `-eq`,
 `-ne`, `-lt`, `-le`, `-ge`, `-and` and `-or`, `else if` becomes `elseif`, a misspelt command the nearest one the script
 or PowerShell has, `.Add` on a fixed-size array `+=`, and a division by zero gets an answer for when the divisor is
-zero; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by five
+zero; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by six
 checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
-and text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text -
-`"7" -gt 17` is true. PowerShell is tested with Windows PowerShell 5.1.
+text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
+is true; and text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back
+with that value as part of the function's result when the result is kept. PowerShell is tested with Windows PowerShell
+5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -682,16 +687,18 @@ The **logic check** reads the code for mistakes that compile and then give the w
 a list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
 `xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
 `strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, `strings.Replace` with a count of 0,
-which replaces nothing, and a line read with `ReadString('\n')` compared with text, though it still ends with its
-newline. In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly -
-`0.1 + 0.2 == 0.3` is false in both - and in Python, Java, C# and JavaScript a search's position compared with `> 0`,
-which takes a match at the very start, position 0, for no match. In C and C++ it finds a line read with `fgets` compared
-with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after `nextInt`, which reads the
-rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it
-finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which compares two whole numbers
-bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says anything of it. The change
-multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. When an expected output was
-given, it also runs changed copies of the program to find the one that prints it:
+which replaces nothing, a line read with `ReadString('\n')` compared with text, though it still ends with its newline,
+and a `range` loop with one variable - `for mark := range marks` - which gives the position, 0, 1, 2, not the item. In
+Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is
+false in both - and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or
+`for (let mark of marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position
+compared with `> 0`, which takes a match at the very start, position 0, for no match. In C and C++ it finds a line read
+with `fgets` compared with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after
+`nextInt`, which reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart,
+Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which
+compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says
+anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`.
+When an expected output was given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -983,23 +990,23 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 36 | 41 |
+| Python | 88 | 37 | 41 |
 | Java | 54 | 35 | 46 |
 | C# | 47 | 32 | 49 |
 | C | 46 | 20 | 39 |
 | C++ | 45 | 25 | 39 |
-| JavaScript | 41 | 28 | 15 |
-| Go | 38 | 8 | 18 |
+| JavaScript | 41 | 29 | 15 |
+| Go | 38 | 9 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 3 | 6 | 22 |
-| PHP | 4 | 6 | 12 |
+| Ruby | 3 | 7 | 22 |
+| PHP | 4 | 7 | 12 |
 | Lua | 7 | 4 | 23 |
 | Perl | 10 | 6 | 25 |
 | Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |
-| PowerShell | 5 | 5 | 13 |
+| PowerShell | 5 | 6 | 13 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 

@@ -78,5 +78,16 @@ internal static class RubyPatternGuides
             answer = "yes\n".chomp
             puts answer == "yes"
             """),
+
+        GuideFor(["logic-ruby-each-for-map"], "each where map was meant",
+            "each runs its block for every item, and then gives back the list it went over, as it was - not what the block worked out. " +
+            "map gives back a new list of what the block worked out for each item.",
+            "The name is given the same list again, with no error, so it holds the old values.",
+            "Use map when the block works out a new value for each item: doubled = marks.map { |mark| mark * 2 }.",
+            """
+            marks = [70, 80]
+            doubled = marks.map { |mark| mark * 2 }
+            p doubled
+            """),
     ];
 }

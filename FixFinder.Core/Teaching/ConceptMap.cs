@@ -84,7 +84,7 @@ public static class ConceptMap
         new(Concepts.NeverUsed) { ExceptionTypes = ["compile warning"], Message = Words(@"^assigned but unused variable") },
         new(Concepts.UnclosedPair) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unterminated (?:quoted )?string") },
         new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
-        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded", "logic-ruby-each-for-map", "logic-powershell-function-output-returned"] },
 
         // PHP: its fatal errors by their words, and the warnings it carries on past.
         new(Concepts.NothingThere) { ExceptionTypes = ["Error"], Message = Words(@"^Call to a member function \w+\(\) on null") },

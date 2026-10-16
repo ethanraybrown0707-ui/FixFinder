@@ -301,5 +301,16 @@ internal static class BracePatternGuides
             scanner.nextLine();
             String name = scanner.nextLine();
             """),
+
+        GuideFor(["logic-js-loop-copy-changed"], "A loop that changes its own copy",
+            "for (let mark of marks) gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
+            "variable, not the item in the array - so after the loop, marks is just as it was.",
+            "The array is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Go over the positions and change the item at each: marks[index] += 5 - or make a new array with map.",
+            """
+            for (let index = 0; index < marks.length; index++) {
+              marks[index] += 5;
+            }
+            """),
     ];
 }
