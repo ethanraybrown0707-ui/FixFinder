@@ -121,18 +121,18 @@ public static partial class ErlangBuild
 
     public static (BuildAndRun? Plan, string? Problem) Prepare(string source, string output, TimeSpan timeout)
     {
-        if (Erlc() is not { } erlc || Erl() is not { } erl)
-        {
-            return (null,
-                $"{Path.GetFileName(source)} is Erlang, which has to be compiled before it can run, and no erlc and erl were found on PATH.\n\n" +
-                "Install Erlang/OTP, and put its bin folder on PATH.");
-        }
-
         if (EntryOf(source) is not { } entry)
         {
             return (null,
                 $"{Path.GetFileName(source)} exports no main/0, main/1 or start/0, so there is nothing to start it with. Export the " +
                 "function that starts the program - -export([main/0]). - for FixFinder to run it.");
+        }
+
+        if (Erlc() is not { } erlc || Erl() is not { } erl)
+        {
+            return (null,
+                $"{Path.GetFileName(source)} is Erlang, which has to be compiled before it can run, and no erlc and erl were found on PATH.\n\n" +
+                "Install Erlang/OTP, and put its bin folder on PATH.");
         }
 
         var files = Files(source);
