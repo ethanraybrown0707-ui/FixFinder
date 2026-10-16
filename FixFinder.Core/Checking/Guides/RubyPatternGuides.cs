@@ -68,5 +68,15 @@ internal static class RubyPatternGuides
             side = 5
             puts side ** 2
             """),
+
+        GuideFor(["logic-ruby-input-not-chomped"], "A line read with its newline still on it",
+            "gets gives back the line that was typed with the newline from pressing Enter still on the end: typing yes gives \"yes\\n\". " +
+            "Compared with \"yes\", it is not equal.",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Take the newline off as the line is read: answer = gets.chomp.",
+            """
+            answer = "yes\n".chomp
+            puts answer == "yes"
+            """),
     ];
 }

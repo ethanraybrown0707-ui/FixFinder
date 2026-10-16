@@ -58,5 +58,19 @@ internal static class PowerShellPatternGuides
             }
             Write-Output (Area 3 4)
             """),
+
+        GuideFor(["logic-powershell-read-host-compared-as-text"], "Typed text compared with a number",
+            "Read-Host gives back what was typed as text, even when it is a number. PowerShell compares as its left side is, so text is " +
+            "compared with -gt as text, character by character: \"7\" -gt 17 compares \"7\" with \"17\", and as 7 comes after 1, it is true.",
+            "The comparison gives the wrong answer for many numbers, with no error.",
+            "Read the text as a whole number: $age = [int](Read-Host \"Age\").",
+            """
+            $age = [int]"7"
+            if ($age -gt 17) {
+                Write-Output "adult"
+            } else {
+                Write-Output "child"
+            }
+            """),
     ];
 }

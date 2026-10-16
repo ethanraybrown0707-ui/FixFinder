@@ -198,6 +198,16 @@ public static class ConceptMap
         new(Concepts.MissingKey) { ExceptionTypes = ["badkey"] },
         new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileWarning], Message = Words(@"^variable '\w+' is unused|^function \S+ is unused|^this clause cannot match because a previous clause") },
         new(Concepts.TextToNumber) { CheckIds = ["logic-erlang-text-compared-with-number", "logic-erlang-input-not-trimmed"] },
+
+        // What a program reads in, used as if it were something else - in seven languages.
+        new(Concepts.TextToNumber)
+        {
+            CheckIds =
+            [
+                "logic-go-input-not-trimmed", "logic-ruby-input-not-chomped", "logic-php-input-not-trimmed", "logic-c-fgets-newline",
+                "logic-rust-input-not-trimmed", "logic-java-nextline-after-nextint", "logic-powershell-read-host-compared-as-text",
+            ],
+        },
         new(Concepts.ReturnValues) { CheckIds = ["logic-erlang-result-discarded"] },
         new(Concepts.WrongType) { CheckIds = ["logic-erlang-number-joined-to-text", "logic-erlang-list-printed-as-text"] },
 

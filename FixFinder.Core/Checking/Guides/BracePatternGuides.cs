@@ -277,5 +277,29 @@ internal static class BracePatternGuides
             """
             int area = side * side;
             """),
+
+        GuideFor(["logic-c-fgets-newline"], "A line read with its newline still in it",
+            "fgets keeps the newline from pressing Enter at the end of the text it reads: typing yes leaves \"yes\\n\" in the buffer. " +
+            "strcmp compares every character, the newline too, so it never finds the buffer equal to \"yes\".",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Cut the text at its newline after reading it: answer[strcspn(answer, \"\\n\")] = '\\0'; - strcspn, from <string.h>, finds where it is.",
+            """
+            fgets(answer, sizeof answer, stdin);
+            answer[strcspn(answer, "\n")] = '\0';
+            if (strcmp(answer, "yes") == 0) {
+                printf("yes\n");
+            }
+            """),
+
+        GuideFor(["logic-java-nextline-after-nextint"], "nextLine after nextInt reads nothing",
+            "nextInt reads the number and stops - before the newline from pressing Enter after it. The nextLine that follows reads to the " +
+            "end of that line: it finds the newline straight away, and gives back empty text, without waiting for the next line typed.",
+            "The text read is empty, so whatever was typed on the next line is never read where it was meant to be.",
+            "Read the rest of the number's line with a nextLine of its own before reading the next line.",
+            """
+            int age = scanner.nextInt();
+            scanner.nextLine();
+            String name = scanner.nextLine();
+            """),
     ];
 }

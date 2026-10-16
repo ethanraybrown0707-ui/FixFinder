@@ -273,40 +273,42 @@ A **Rust** program - an `.rs` file - is built with the `rustc` on PATH, or else 
 and how it ran names it and its version. In a Cargo package - a folder with a `Cargo.toml` - the program is
 `src/main.rs`, or the chosen file under `src/bin`, built as the edition `Cargo.toml` gives and run from the package's
 folder, as `cargo run` runs it; anywhere else it is the chosen file, built as the newest edition that rustc builds. The
-files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo, which
-would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them does not
-build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with the checks
-that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning comes with
-the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a fix - `let mut`,
-a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name it thinks was meant,
-the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a blank in it, or one
-that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A panic is read at the
-file, line and column Rust names, and a whole-number division by zero, or a loop over `0..=v.len()`, gets a change of its
-own. Rust's code is read for logic mistakes by four checks rustc says nothing of: a loop over `0..=v.len()` that uses its
-number as a position in `v`, `(total / count) as f64` of two whole numbers, a decimal worked out by arithmetic and then
-compared exactly, and `^` written as a power. Rust is tested with rustc 1.98.1.
+files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo,
+which would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them
+does not build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with
+the checks that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning
+comes with the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a
+fix - `let mut`, a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name
+it thinks was meant, the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a
+blank in it, or one that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A
+panic is read at the file, line and column Rust names, and a whole-number division by zero, or a loop over
+`0..=v.len()`, gets a change of its own. Rust's code is read for logic mistakes by five checks rustc says nothing of: a
+loop over `0..=v.len()` that uses its number as a position in `v`, `(total / count) as f64` of two whole numbers, a
+decimal worked out by arithmetic and then compared exactly, `^` written as a power, and a line read with `read_line`
+compared with text, though it still ends with its newline. Rust is tested with rustc 1.98.1.
 
 A **Ruby** program - an `.rb` file - is read by `ruby -wc` before it runs, which checks every file of the program and
-runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never used.
-The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there. Ruby's own
-"Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a divisor is zero,
-and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`, which runs none of
-it - and run. Ruby's code is read for logic mistakes by four checks `ruby -w` says nothing of: `(total / count).to_f` of
-two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy -
-`name.upcase`, `marks.sort` - called on a line of its own, and a range to an array's length with two dots,
-`0..marks.length`, whose last number is one past the last position - and `^` written as a power. Ruby is tested with Ruby 3.3.12.
+runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never
+used. The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there.
+Ruby's own "Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a
+divisor is zero, and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`,
+which runs none of it - and run. Ruby's code is read for logic mistakes by six checks `ruby -w` says nothing of:
+`(total / count).to_f` of two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that
+gives back a changed copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with
+two dots, `0..marks.length`, whose last number is one past the last position, `^` written as a power, and a line read
+with `gets` compared with text, though it still ends with its newline. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
 from its own folder or after `__DIR__ .`, and a fatal error in one of those is placed there. PHP carries on past a
-warning - an undefined variable, a key an array does not have - with nothing in its place, so every warning a run
-prints is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined
-variable becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero,
-and a loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read
-for logic mistakes by four checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
-position, an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, and `strpos(...) == false`,
-which is true for a match at the very start as well as for none - and `^` written as a power. PHP is tested with
-PHP 8.4.24.
+warning - an undefined variable, a key an array does not have - with nothing in its place, so every warning a run prints
+is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined variable
+becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero, and a
+loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read for
+logic mistakes by six checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a position,
+an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, `strpos(...) == false`, which is
+true for a match at the very start as well as for none, `^` written as a power, and a line read with `fgets` compared
+with text, though it still ends with its newline. PHP is tested with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
@@ -324,18 +326,17 @@ it removes. Lua is tested with Lua 5.4.6.
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
 condition, a name used only once. The modules it uses from its folder or its `lib` folder are checked with it, and what
-stops the program in one of them is placed there. Perl carries on past a warning - a value that is undef, text used as
-a number - so every warning a run prints is a finding of its own, once however often a loop printed it. Perl's own words
+stops the program in one of them is placed there. Perl carries on past a warning - a value that is undef, text used as a
+number - so every warning a run prints is a finding of its own, once however often a loop printed it. Perl's own words
 become fixes: a missing `;` is put at the end of the line before, an `if` gets the brackets its condition needs, a
 variable `use strict` refused becomes the nearest declared name or is declared with `my`, `elseif` becomes `elsif`, `=`
 in a condition `==` or `eq`, a comparison of text with `==` or `<` becomes `eq` or `lt`, a `+` joining text becomes `.`,
 a division by zero gets an answer for when the divisor is zero, and a misspelt sub becomes the nearest one the file has;
-each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by five checks: a
+each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by six checks: a
 loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
-compared with `eq` without `chomp`, a decimal worked out by arithmetic and then compared exactly, and `length(@marks)`,
-which counts the digits of the array's count - Perl warns of it too, and the warning and the check are one finding, whose
-change is `scalar(@marks)` - and `^` written as a power. Perl is tested with
-Strawberry Perl 5.42.2.
+compared with `eq` without `chomp`, a decimal worked out by arithmetic and then compared exactly, `length(@marks)`,
+which counts the digits of the array's count - Perl warns of it too, and the warning and the check are one finding,
+whose change is `scalar(@marks)` - and `^` written as a power. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -363,16 +364,17 @@ arithmetic and then compared exactly - not a default `real`, where `0.1 + 0.2 ==
 gfortran 13.2.0.
 
 A **PowerShell** script - a `.ps1` file - is read by PowerShell's own parser before it runs, which runs none of it, and
-every mistake the parser finds is a finding, with PowerShell's name for it; the scripts it dot-sources from its folder are
-read with it. PowerShell carries on past most errors - a command not found, a method called on `$null`, a division by zero
-- so every error a run prints is a finding of its own, placed in a dot-sourced script when it is there. Comparisons
-written as other languages write them - `==`, `!=`, `<`, `<=`, `>=`, `&&`, `||` - become PowerShell's `-eq`, `-ne`, `-lt`,
-`-le`, `-ge`, `-and` and `-or`, `else if` becomes `elseif`, a misspelt command the nearest one the script or PowerShell
-has, `.Add` on a fixed-size array `+=`, and a division by zero gets an answer for when the divisor is zero; each change is
-checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by four checks it runs without
-a word: `>` in a condition, which writes a file; `=` in a condition; a loop to `-le $marks.Count`; and a function called as
-`Area(3, 4)`, which gives its first parameter both values and the second none. PowerShell is tested with Windows
-PowerShell 5.1.
+every mistake the parser finds is a finding, with PowerShell's name for it; the scripts it dot-sources from its folder
+are read with it. PowerShell carries on past most errors - a command not found, a method called on `$null`, a division
+by zero - so every error a run prints is a finding of its own, placed in a dot-sourced script when it is there.
+Comparisons written as other languages write them - `==`, `!=`, `<`, `<=`, `>=`, `&&`, `||` - become PowerShell's `-eq`,
+`-ne`, `-lt`, `-le`, `-ge`, `-and` and `-or`, `else if` becomes `elseif`, a misspelt command the nearest one the script
+or PowerShell has, `.Add` on a fixed-size array `+=`, and a division by zero gets an answer for when the divisor is
+zero; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by five
+checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+`-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
+and text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text -
+`"7" -gt 17` is true. PowerShell is tested with Windows PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -679,15 +681,17 @@ The **logic check** reads the code for mistakes that compile and then give the w
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through
 a list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
 `xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
-`strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, and `strings.Replace` with a count of
-0, which replaces nothing. In Python and JavaScript it finds a decimal worked out by arithmetic and then compared
-exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java, C# and JavaScript a search's position compared with
-`> 0`, which takes a match at the very start, position 0, for no match. In C, C++, Java, C#, JavaScript, Python, Go,
-Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive
-or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or
-interpreters says anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises
-it with `**`. When an expected output was given, it also runs changed copies of the program to find the one that prints
-it:
+`strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, `strings.Replace` with a count of 0,
+which replaces nothing, and a line read with `ReadString('\n')` compared with text, though it still ends with its
+newline. In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly -
+`0.1 + 0.2 == 0.3` is false in both - and in Python, Java, C# and JavaScript a search's position compared with `> 0`,
+which takes a match at the very start, position 0, for no match. In C and C++ it finds a line read with `fgets` compared
+with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after `nextInt`, which reads the
+rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it
+finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which compares two whole numbers
+bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says anything of it. The change
+multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. When an expected output was
+given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -980,22 +984,22 @@ Python, Java and C# are checked most thoroughly.
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
 | Python | 88 | 36 | 41 |
-| Java | 54 | 34 | 46 |
+| Java | 54 | 35 | 46 |
 | C# | 47 | 32 | 49 |
-| C | 46 | 19 | 39 |
-| C++ | 45 | 24 | 39 |
+| C | 46 | 20 | 39 |
+| C++ | 45 | 25 | 39 |
 | JavaScript | 41 | 28 | 15 |
-| Go | 38 | 7 | 18 |
+| Go | 38 | 8 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
-| Rust | 3 | 4 | 33 |
-| Ruby | 3 | 5 | 22 |
-| PHP | 4 | 5 | 12 |
+| Rust | 3 | 5 | 33 |
+| Ruby | 3 | 6 | 22 |
+| PHP | 4 | 6 | 12 |
 | Lua | 7 | 4 | 23 |
 | Perl | 10 | 6 | 25 |
 | Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |
-| PowerShell | 5 | 4 | 13 |
+| PowerShell | 5 | 5 | 13 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 

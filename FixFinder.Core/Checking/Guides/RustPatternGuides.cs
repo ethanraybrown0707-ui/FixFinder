@@ -67,5 +67,17 @@ internal static class RustPatternGuides
                 println!("{}", side * side);
             }
             """),
+
+        GuideFor(["logic-rust-input-not-trimmed"], "A line read with its newline still on it",
+            "read_line adds the line that was typed to the string with the newline from pressing Enter still on the end: typing yes gives " +
+            "\"yes\\n\". Compared with \"yes\", it is not equal.",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Compare the trimmed text: answer.trim() == \"yes\".",
+            """
+            fn main() {
+                let answer = String::from("yes\n");
+                println!("{}", answer.trim() == "yes");
+            }
+            """),
     ];
 }

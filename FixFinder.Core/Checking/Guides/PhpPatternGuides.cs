@@ -77,5 +77,16 @@ internal static class PhpPatternGuides
             $side = 5;
             echo $side ** 2;
             """),
+
+        GuideFor(["logic-php-input-not-trimmed"], "A line read with its newline still on it",
+            "fgets gives back the line that was typed with the newline from pressing Enter still on the end: typing yes gives \"yes\\n\". " +
+            "Compared with \"yes\", it is not equal.",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Trim the line as it is read: $answer = trim(fgets(STDIN));",
+            """
+            <?php
+            $answer = trim("yes\n");
+            echo $answer == "yes" ? "yes" : "no";
+            """),
     ];
 }

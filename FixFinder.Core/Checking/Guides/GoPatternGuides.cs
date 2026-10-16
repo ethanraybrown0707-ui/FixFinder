@@ -146,5 +146,24 @@ internal static class GoPatternGuides
             	fmt.Println(side * side)
             }
             """),
+
+        GuideFor(["logic-go-input-not-trimmed"], "A line read with its newline still on it",
+            "ReadString('\\n') reads up to the newline from pressing Enter, and gives back the line with that newline still on the end: " +
+            "typing yes gives \"yes\\n\". Compared with \"yes\", it is not equal.",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Trim the line as it is read: answer = strings.TrimSpace(answer).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"strings"
+            )
+
+            func main() {
+            	answer := strings.TrimSpace("yes\n")
+            	fmt.Println(answer == "yes")
+            }
+            """),
     ];
 }
