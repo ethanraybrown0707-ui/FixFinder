@@ -28,6 +28,7 @@ public static partial class ScriptWarnings
         "perl" when lines.Any(line => line.Text.TrimEnd().EndsWith("syntax OK", StringComparison.Ordinal)) => Read(lines, PerlWarning(), "perl"),
         "dart" => DartParser.AnalyzerWarnings(lines),
         "elixir" => ElixirParser.Warnings(lines),
+        "fsharp" => FSharpParser.Warnings(lines),
         _ => [],
     };
 

@@ -169,6 +169,16 @@ public static class MessageReading
             "below too, with the value it had and, after Did you mean:, what Elixir suggests. Then come the calls that led there, the " +
             "latest first: the file and the line, then the function - (file) for the file's own lines. Lines starting with a bracket, " +
             "such as (elixir 1.20.4), are inside Elixir, and lines starting with : are inside Erlang, which Elixir runs on.",
+        [("F#", MessagePhase.BeforeRunning)] =
+            "F# names the file, then the line and the column in brackets - main.fsx(3,15) is line 3, column 15 - then error, warning " +
+            "or info, F#'s own number for the message, such as FS0039, and what is wrong. The lines under it belong to it: after Maybe " +
+            "you want one of the following:, the names F# thinks were meant; and for two types that do not match, the type F# expected " +
+            "and the one it found. F# checks the whole script before it runs any of it, and stops at its first error.",
+        [("F#", MessagePhase.WhileRunning)] =
+            "The first line names what stopped the script - .NET's name for it, such as System.DivideByZeroException - and after the colon " +
+            "what went wrong. The lines starting with at are the calls that led there, the latest first, each with in, the file and " +
+            ":line and the line number - FSI_0001.average is the script's function average, and main@ is the script's own lines. Lines " +
+            "with no file of yours, and the ones after the script's - System.Reflection and FSharp.Compiler - are F#'s and .NET's own.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

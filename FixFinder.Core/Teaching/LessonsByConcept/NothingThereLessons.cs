@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -400,5 +400,26 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("81"),
                 WhatChanged: "Positions count from 0, so the second mark is at 1."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "List.head gives a list's first item, and an empty list has none: it stops the script with ArgumentException - The " +
+        "input list was empty. List.tryHead gives None instead.",
+        [
+            new WorkedExample("The first mark of none",
+                Broken: """
+                    let marks : int list = []
+                    printfn "%d" (List.head marks)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentException", 2),
+                Fixed: """
+                    let marks : int list = []
+                    match List.tryHead marks with
+                    | Some first -> printfn "%d" first
+                    | None -> printfn "no marks"
+                    """,
+                FixedDoes: Behaviour.Printing("no marks"),
+                WhatChanged: "List.tryHead gives Some with the first mark, or None for an empty list, and the match says what to do " +
+                    "for each."),
         ]);
 }

@@ -49,6 +49,7 @@ public class CodeLanguageTests : IDisposable
     [InlineData("PowerShell", "powershell-", "fortran-")]
     [InlineData("Elixir", "elixir-", "powershell-")]
     [InlineData("Erlang", "erlang-", "elixir-")]
+    [InlineData("F#", "fsharp-", "erlang-")]
     public void ALanguageKeepsItsOwnRulesAndNoOthers(string name, string own, string other)
     {
         var language = CodeLanguage.All.Single(l => l.Name == name);

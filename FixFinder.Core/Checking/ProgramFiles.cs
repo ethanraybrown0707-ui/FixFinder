@@ -53,6 +53,7 @@ public static partial class ProgramFiles
             ".dart" => Follow(path, DartNeighbours),
             ".ps1" => Follow(path, PowerShellNeighbours),
             ".exs" or ".ex" => Follow(path, file => ElixirNeighbours(file, Path.GetDirectoryName(path)!)),
+            ".fsx" => Follow(path, FSharpScript.Loaded),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),

@@ -43,6 +43,8 @@ public class GuideWritingTests
         ["Elixir patterns"] = ElixirPatternGuides.All,
         ["Erlang"] = ErlangGuides.All,
         ["Erlang patterns"] = ErlangPatternGuides.All,
+        ["F#"] = FSharpGuides.All,
+        ["F# patterns"] = FSharpPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -278,5 +278,26 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("36"),
                 WhatChanged: "The key is spelt as the map has it - age."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "Looking a key up in a map with .[key] stops an F# script with KeyNotFoundException when the map has no such key. " +
+        "Map.tryFind gives None instead.",
+        [
+            new WorkedExample("Looking up an age",
+                Broken: """
+                    let ages = Map.ofList [("Ada", 36)]
+                    printfn "%d" ages.["Bob"]
+                    """,
+                BrokenDoes: Behaviour.Stopping("KeyNotFoundException", 2),
+                Fixed: """
+                    let ages = Map.ofList [("Ada", 36)]
+                    match Map.tryFind "Bob" ages with
+                    | Some age -> printfn "%d" age
+                    | None -> printfn "no age for Bob"
+                    """,
+                FixedDoes: Behaviour.Printing("no age for Bob"),
+                WhatChanged: "Map.tryFind gives Some with the age when the key is there and None when it is not, and the match says " +
+                    "what to do for each."),
         ]);
 }

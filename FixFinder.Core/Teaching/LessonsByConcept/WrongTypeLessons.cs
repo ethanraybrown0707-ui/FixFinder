@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -290,5 +290,23 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("6"),
                 WhatChanged: "list_to_integer turns the text into a number before it is added to."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "F# never turns one type into another by itself: text + a number is refused before the script runs, with error FS0001 " +
+        "- the type 'int' does not match the type 'string'. string turns a number into text.",
+        [
+            new WorkedExample("Writing a mark with its label",
+                Broken: """
+                    let mark = 70
+                    printfn "%s" ("Mark: " + mark)
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0001", 2),
+                Fixed: """
+                    let mark = 70
+                    printfn "%s" ("Mark: " + string mark)
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70"),
+                WhatChanged: "string mark is the text \"70\", and + joins two pieces of text."),
         ]);
 }

@@ -23,6 +23,10 @@ namespace FixFinder.Core.Execution;
 /// Elixir has no check of its own that runs none of a script, so FixFinder's check script has Elixir compile the file
 /// without running it: Elixir writes every error and warning it would give as the program ran, and fails for an error.
 /// </para>
+/// <para>
+/// F# Interactive, dotnet fsi, checks an F# script with --typecheck-only - the script and the files it loads - and runs none
+/// of it: it writes its first error, and the warnings before it, and fails for an error.
+/// </para>
 /// The check runs in the file's own folder and is given the file's name, so what it says names the file as it is there.
 /// </remarks>
 public static class ScriptLanguages
@@ -51,7 +55,10 @@ public static class ScriptLanguages
     /// <summary>Elixir, compiled through FixFinder's small check script, which runs none of the program.</summary>
     public static ScriptLanguage Elixir { get; } = new("Elixir", "elixir", [".exs", ".ex"], "elixir", ElixirCheck.Arguments, "elixir", "--short-version");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir];
+    /// <summary>F#'s scripts, checked by F# Interactive with --typecheck-only, which runs none of the script.</summary>
+    public static ScriptLanguage FSharp { get; } = new("F#", "fsharp", [".fsx"], "dotnet", FSharpScript.CheckArguments, "dotnet", "fsi --version");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir, FSharp];
 
     public static ScriptLanguage? Of(string file)
     {

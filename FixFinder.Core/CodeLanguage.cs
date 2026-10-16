@@ -62,7 +62,10 @@ public sealed record CodeLanguage(
     /// <summary>Erlang: what erlc says as it compiles a program, and what stops the program it compiled.</summary>
     public static CodeLanguage Erlang { get; } = new("Erlang", [".erl"], ["erlang"], ["erlang-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    /// <summary>F#: what F# Interactive says as it checks a script, and the .NET exceptions that stop the script it runs.</summary>
+    public static CodeLanguage FSharp { get; } = new("F#", [".fsx"], ["fsharp"], ["fsharp-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     public bool IsAny => ParserIds.Count == 0;
 

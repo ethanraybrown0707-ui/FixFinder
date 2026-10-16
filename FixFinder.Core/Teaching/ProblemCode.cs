@@ -46,6 +46,7 @@ public sealed record ProblemCode(CodeLanguage Language, Concept Concept, string 
         ["PowerShell"] = "PS",
         ["Elixir"] = "ELIXIR",
         ["Erlang"] = "ERLANG",
+        ["F#"] = "FSHARP",
     };
 
     /// <summary>The code as it is shown and copied: FF-PY-DIVZERO-K7Q2MXA.</summary>

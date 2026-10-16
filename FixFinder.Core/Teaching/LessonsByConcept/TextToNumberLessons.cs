@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -376,5 +376,24 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("13"),
                 WhatChanged: "string:trim takes the newline off before the text is read as a number."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A number typed in arrives as text, and a number in quotes is text too. Compared with > they are put in order letter " +
+        "by letter, as a dictionary orders words - so \"7\" > \"10\" is true, as \"7\" comes after \"1\".",
+        [
+            new WorkedExample("Is the number bigger than ten?",
+                Broken: """
+                    let typed = "7"
+                    if typed > "10" then printfn "big" else printfn "small"
+                    """,
+                BrokenDoes: Behaviour.Printing("big"),
+                Fixed: """
+                    let typed = "7"
+                    if int typed > 10 then printfn "big" else printfn "small"
+                    """,
+                FixedDoes: Behaviour.Printing("small"),
+                WhatChanged: "int turns the text into a whole number, and 10 without quotes is a number, so > compares the two as " +
+                    "numbers."),
         ]);
 }

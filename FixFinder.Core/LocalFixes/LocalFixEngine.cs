@@ -343,6 +343,22 @@ public static partial class LocalFixEngine
         new ErlangMissingComma(),
         new ErlangMissingSemicolon(),
         new ErlangTrimInput(),
+        new FSharpDidYouMean(),
+        new FSharpMissingRec(),
+        new FSharpNotMutable(),
+        new FSharpComparisonOperator(),
+        new FSharpReturn(),
+        new FSharpMissingDo(),
+        new FSharpMissingThen(),
+        new FSharpNot(),
+        new FSharpAssignWithArrow(),
+        new FSharpPrintfFormat(),
+        new FSharpListSemicolons(),
+        new FSharpNumberToText(),
+        new FSharpDivisionGuard(),
+        new FSharpLoopToLength(),
+        new FSharpCurriedArguments(),
+        new FSharpUnmatchedBracket(),
         new ErlangDivisionGuard(),
         new ErlangCapitalVariable(),
         new JsBuiltinNotLoaded(),
@@ -753,6 +769,7 @@ public static partial class LocalFixEngine
         "powershell" => error.ExceptionType == Parsing.Parsers.PowerShellParser.ParserError,
         "elixir" => error.ExceptionType == Parsing.Parsers.ElixirParser.CompileError || Parsing.Parsers.ElixirParser.SyntaxErrors.Contains(error.ExceptionType ?? ""),
         "erlang" => error.ExceptionType == Parsing.Parsers.ErlangParser.CompileError,
+        "fsharp" => error.ExceptionType == Parsing.Parsers.FSharpParser.CompileError,
         "dart" => error.ExceptionType == "compile error" &&
                   (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
                        "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
@@ -793,6 +810,7 @@ public static partial class LocalFixEngine
             ".ps1" => "checked it with PowerShell's parser, which runs none of it",
             ".exs" or ".ex" => "compiled it with Elixir, which runs none of it but what sits directly inside a defmodule",
             ".erl" => "compiled it with erlc",
+            ".fsx" => "checked it with dotnet fsi --typecheck-only, which runs none of it",
             _ => "compiled it",
         };
 

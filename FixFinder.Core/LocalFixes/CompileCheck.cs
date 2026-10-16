@@ -39,6 +39,7 @@ public static class CompileCheck
         ".exs" or ".ex" => true,
         ".f90" or ".f95" or ".f03" or ".f08" => true,
         ".erl" => true,
+        ".fsx" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -73,6 +74,7 @@ public static class CompileCheck
                 ".java" => await CompileJavaAsync(spec, copy, source.Path, folder, cancellationToken),
                 ".go" when ProgramLayout.GoPackageOf(source.Path).IsSingleFile && GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
                     await CompileGoAsync(spec, copy, folder, plan, bytes, cancellationToken),
+                ".fsx" => FSharpChecked(await CompileAsync(spec, direct: false, cancellationToken)),
                 _ => await CompileAsync(spec, direct: false, cancellationToken),
             };
 
@@ -101,6 +103,25 @@ public static class CompileCheck
             }
         }
     }
+
+    /// <summary>
+    /// An F# check read as F# writes its errors - and one that failed only for "Undefined value 'it'", which --typecheck-only
+    /// says of a script that is one expression and nothing else, and which runs as it should, counts as one that passed.
+    /// </summary>
+    private static CheckResult FSharpChecked(CheckResult check)
+    {
+        if (!check.Ran) return check;
+
+        var errors = new Parsing.Parsers.FSharpParser().ParseAll(check.Lines);
+        var onlyCheckOnly = errors.Count == 0 && check.ExitCode != 0 &&
+                            check.Lines.Any(line => line.Text.EndsWith($"error FS0971: {Parsing.Parsers.FSharpParser.CheckOnlyMessage}", StringComparison.Ordinal));
+
+        return check with { ExitCode = onlyCheckOnly ? 0 : check.ExitCode, Errors = errors };
+    }
+
+    /// <summary>Whether two paths name the same file, as Windows compares them.</summary>
+    private static bool SamePath(string first, string second) =>
+        string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
 
     private static async Task<CheckResult> CompileAsync(TargetSpec spec, bool direct, CancellationToken cancellationToken)
     {
@@ -476,6 +497,30 @@ public static class CompileCheck
             case ".exs" or ".ex":
                 // Elixir compiles the copy and runs none of it but what sits directly inside a defmodule, as running it would.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Elixir, copy, Timeout);
+
+            case ".fsx":
+            {
+                // A file another script in its folder loads is checked through that script, with the copy in its place: a file
+                // made to be loaded need not check on its own - one that starts with module Helpers does not.
+                var loader = Directory.EnumerateFiles(originalFolder, "*.fsx")
+                    .Where(script => !SamePath(script, original))
+                    .FirstOrDefault(script => FSharpScript.Loaded(script).Any(loaded => SamePath(loaded, original)));
+                var checkedScript = loader ?? original;
+
+                // F# Interactive checks the files a script loads along with it, so each is copied beside the copy, as far from it
+                // as from the script, where #load finds it; one outside the script's folder is not, and the check says so.
+                foreach (var file in Checking.ProgramFiles.Of(checkedScript).Where(file => !SamePath(file, original)))
+                {
+                    var placed = Path.GetRelativePath(originalFolder, file);
+                    if (placed.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(placed)) continue;
+
+                    var into = Path.Combine(folder, placed);
+                    Directory.CreateDirectory(Path.GetDirectoryName(into)!);
+                    File.Copy(file, into, overwrite: false);
+                }
+
+                return ScriptLanguages.CheckOf(ScriptLanguages.FSharp, Path.Combine(folder, Path.GetFileName(checkedScript)), Timeout);
+            }
 
             case ".rs":
             {

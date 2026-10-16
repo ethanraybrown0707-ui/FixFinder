@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -250,5 +250,25 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("hello"),
                 WhatChanged: "The string is closed with \" before the bracket that closes io:format."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "Every bracket opened in F# has to be closed. One left open stops F# before the script runs, with error FS0583 - " +
+        "Unmatched '(' - at the bracket.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.sum marks
+                    printfn "done"
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0583", 2),
+                Fixed: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.sum marks)
+                    printfn "done"
+                    """,
+                FixedDoes: Behaviour.Printing("240\ndone"),
+                WhatChanged: "The bracket opened before List.sum is closed after marks."),
         ]);
 }

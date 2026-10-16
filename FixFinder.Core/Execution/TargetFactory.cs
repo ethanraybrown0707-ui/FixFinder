@@ -112,6 +112,7 @@ public static class TargetFactory
         [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
         [".ex"] = new("elixir"),
+        [".fsx"] = new("dotnet", FSharpScript.RunArguments),
     };
 
     public static string FileDialogFilter
@@ -169,6 +170,15 @@ public static class TargetFactory
             return LaunchPlan.Failed(
                 $"{Path.GetFileName(full)} installs packages with Mix.install as it runs, which downloads them, and FixFinder never " +
                 "downloads anything - so it is not run here.");
+        }
+
+        // An F# script that brings in a NuGet package with #r "nuget: ..." has F# Interactive download it as the script starts,
+        // and FixFinder never downloads.
+        if (extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) && FSharpScript.FetchesPackages(full))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} brings in a NuGet package with #r \"nuget: ...\", which F# Interactive downloads as the script " +
+                "starts, and FixFinder never downloads anything - so it is not run here.");
         }
 
         if (!ByExtension.TryGetValue(extension, out var runner))
@@ -275,6 +285,11 @@ public static class TargetFactory
                 arguments = $"\"{Path.GetFileName(full)}\"";
                 break;
 
+            case ".fsx":
+                // Run from its own folder by its name, F# Interactive names the file in its messages as its check names it.
+                arguments = $"{runner.ArgumentPrefix} \"{Path.GetFileName(full)}\"";
+                break;
+
             case ".py" when ProgramLayout.PythonModule(full) is { } module:
                 arguments = $"-m {module.Module}";
                 workingDirectory = module.Folder;
@@ -292,7 +307,9 @@ public static class TargetFactory
             ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
         };
 
-        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        // dotnet runs an F# script through F# Interactive, which is what is named.
+        var fsharp = extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) ? "F# Interactive, dotnet fsi" : null;
+        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
             : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");

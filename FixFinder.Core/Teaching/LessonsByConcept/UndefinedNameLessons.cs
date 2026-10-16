@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -347,5 +347,25 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The name is spelt as it was when it was given its value - Total, as erlc suggested."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "F# checks the whole script before it runs any of it, and a name it does not know at that point stops it there with " +
+        "error FS0039 - the value is not defined - often with the names F# thinks were meant.",
+        [
+            new WorkedExample("Dividing a total by a count",
+                Broken: """
+                    let total = 150
+                    let count = 2
+                    printfn "%d" (totl / count)
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0039", 3),
+                Fixed: """
+                    let total = 150
+                    let count = 2
+                    printfn "%d" (total / count)
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "totl is now total, the name the first line defines - the one F# suggested."),
         ]);
 }

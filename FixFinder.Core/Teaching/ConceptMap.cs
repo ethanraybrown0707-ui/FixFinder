@@ -211,6 +211,27 @@ public static class ConceptMap
         new(Concepts.ReturnValues) { CheckIds = ["logic-erlang-result-discarded"] },
         new(Concepts.WrongType) { CheckIds = ["logic-erlang-number-joined-to-text", "logic-erlang-list-printed-as-text"] },
 
+        // F#: what it refuses and warns of by its own numbers - FS0039 - what stops a script by .NET's names where F#'s own
+        // library gives them, and the logic checks of its scripts. .NET's other exceptions are the rows further down.
+        new(Concepts.UndefinedName) { Codes = ["FS0039"] },
+        new(Concepts.ChangingAConstant) { Codes = ["FS0027"] },
+        new(Concepts.AssignOrCompare) { Codes = ["FS0043"] },
+        new(Concepts.AssignOrCompare) { Codes = ["FS0020"], Message = Words(@"If you intended to mutate a value") },
+        new(Concepts.ReturnValues) { Codes = ["FS0020", "FS0748"] },
+        new(Concepts.Blocks) { Codes = ["FS3123", "FS0589", "FS0010"] },
+        new(Concepts.UnclosedPair) { Codes = ["FS0583"] },
+        new(Concepts.MissedCase) { Codes = ["FS0025"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["MatchFailureException"] },
+        new(Concepts.WrongType) { Codes = ["FS0001", "FS3886"] },
+        new(Concepts.PositionOutOfRange) { ExceptionTypes = ["ArgumentException"], Message = Words(@"^The index was outside the range of elements in the list") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArgumentException"], Message = Words(@"^The input list was empty") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArgumentNullException"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-fsharp-comparison-for-assignment"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-fsharp-result-discarded"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fsharp-whole-number-division"] },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-fsharp-input-compared-as-text"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-fsharp-loop-to-length"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {

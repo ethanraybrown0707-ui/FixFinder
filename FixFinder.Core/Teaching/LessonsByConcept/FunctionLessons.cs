@@ -21,6 +21,7 @@ internal static class FunctionLessons
         ArgumentsInElixir, ReturnsInElixir,
         ArgumentsInErlang, ReturnsInErlang,
         ArgumentsInPowerShell,
+        RecursionInFSharp, ReturnsInFSharp, ArgumentsInFSharp,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -733,5 +734,67 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The sum is the function's last expression, so it is what the function gives back."),
+        ]);
+
+    private static Lesson RecursionInFSharp => new(Concepts.EndlessRecursion, CodeLanguage.FSharp,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room, and the " +
+        "script stops with a stack overflow - for which .NET names the function it repeated, and no line.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    let rec countDown number =
+                        1 + countDown (number - 1)
+
+                    printfn "%d" (countDown 3)
+                    """,
+                BrokenDoes: Behaviour.StoppingOnNoLine("StackOverflowException"),
+                Fixed: """
+                    let rec countDown number =
+                        if number = 0 then 0 else 1 + countDown (number - 1)
+
+                    printfn "%d" (countDown 3)
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When the number reaches 0 the function gives back 0 without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ReturnsInFSharp => new(Concepts.ReturnValues, CodeLanguage.FSharp,
+        "F#'s lists never change: List.sort gives back a new, sorted list. On a line of the script's own, F# throws that list " +
+        "away without a word, and the old one is what the script prints.",
+        [
+            new WorkedExample("Sorting the marks",
+                Broken: """
+                    let marks = [80; 70; 90]
+                    List.sort marks
+                    printfn "%A" marks
+                    """,
+                BrokenDoes: Behaviour.Printing("[80; 70; 90]"),
+                Fixed: """
+                    let marks = [80; 70; 90]
+                    let sortedMarks = List.sort marks
+                    printfn "%A" sortedMarks
+                    """,
+                FixedDoes: Behaviour.Printing("[70; 80; 90]"),
+                WhatChanged: "let keeps the sorted list List.sort gives back, under a name of its own, and that is what is printed."),
+        ]);
+
+    private static Lesson ArgumentsInFSharp => new(Concepts.Arguments, CodeLanguage.FSharp,
+        "An F# function takes its arguments one after another, separated by spaces. area(3, 4) gives it one argument - the " +
+        "pair (3, 4) - and F# refuses the script with error FS0001: a tuple where a number was expected.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    let area (width: int) (height: int) = width * height
+                    let result = area(3, 4)
+                    printfn "%d" result
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0001", 2),
+                Fixed: """
+                    let area (width: int) (height: int) = width * height
+                    let result = area 3 4
+                    printfn "%d" result
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "area is given 3 and then 4, apart by a space, as it is defined to take them."),
         ]);
 }

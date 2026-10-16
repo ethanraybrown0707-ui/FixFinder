@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -842,5 +842,23 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "The fixed function divides only when there are marks, and gives 0 otherwise."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "Dividing a whole number by zero stops an F# script with System.DivideByZeroException, on the line that divides. A " +
+        "decimal divided by zero gives infinity instead, and stops nothing.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    let marks : int list = []
+                    printfn "%d" (List.sum marks / List.length marks)
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivideByZeroException", 2),
+                Fixed: """
+                    let marks : int list = []
+                    printfn "%d" (if List.isEmpty marks then 0 else List.sum marks / List.length marks)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when the list has marks in it, and gives 0 when it is empty."),
         ]);
 }

@@ -175,6 +175,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Elixir", "IO.puts(Enum.sum([1, 2])\n", ["** (TokenMissingError)", "error: missing terminator: )", "└ unclosed delimiter", "└─ pasted.exs:1:25"] },
         { "Elixir", "marks = []\nIO.puts(Enum.sum(marks) / length(marks))\n", ["** (ArithmeticError) bad argument in arithmetic expression", "pasted.exs:2: (file)"] },
         { "Elixir", "person = %{name: \"Ada\", age: 36}\nIO.puts(person.agee)\n", ["** (KeyError) key :agee not found in:", "Did you mean:", "* :age", "pasted.exs:2: (file)"] },
+        { "F#", "let total = 10\nprintfn \"%d\" (totl + 1)\n", ["pasted.fsx(2,15): error FS0039: The value or constructor 'totl' is not defined.", "Maybe you want one of the following:", "   total"] },
+        { "F#", "let marks : int list = []\nprintfn \"%d\" (List.sum marks / List.length marks)\n", ["System.DivideByZeroException: Attempted to divide by zero.", "   at ", "pasted.fsx:line 2"] },
     };
 
     [Theory]

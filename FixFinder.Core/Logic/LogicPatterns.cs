@@ -49,6 +49,7 @@ public static class LogicPatterns
         .. PowerShellLogicPatterns.All,
         .. ElixirLogicPatterns.All,
         .. ErlangLogicPatterns.All,
+        .. FSharpLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

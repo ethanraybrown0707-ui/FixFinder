@@ -5,7 +5,7 @@ internal static class BlocksLessons
 {
     private static Concept Concept => Concepts.Blocks;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, PowerShell, Elixir, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python knows which lines are inside a loop, an if or a function by how far they are indented: the lines after the " +
@@ -114,5 +114,25 @@ internal static class BlocksLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The def gets its do, so the end on line 4 closes it and the end on line 5 closes the module."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "An F# for loop is written for ... in ... do. Without the do, F# cannot tell where the loop's heading ends, and stops " +
+        "before the script runs with error FS3123 - Missing 'do' in 'for' expression.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    let marks = [70; 80]
+                    for mark in marks
+                        printfn "%d" mark
+                    """,
+                BrokenDoes: Behaviour.Refused("FS3123", 2),
+                Fixed: """
+                    let marks = [70; 80]
+                    for mark in marks do
+                        printfn "%d" mark
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80"),
+                WhatChanged: "do ends the loop's heading, and the indented line under it is the loop's body."),
         ]);
 }

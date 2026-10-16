@@ -148,6 +148,10 @@ public static partial class PastedCode
         (CodeLanguage.Erlang, [
             new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
             new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
+        // F#: printfn and let mutable are its own; OCaml writes Printf.printf, and has no List.sum or #load.
+        (CodeLanguage.FSharp, [
+            new(@"\bprintfn\s+[$@]?"""), new(@"^\s*let\s+mutable\s+\w+", RegexOptions.Multiline), new(@"\b(?:List|Seq|Array)\.(?:sum|average|max|min|sumBy)\b"),
+            new(@"^\s*#load\s+""", RegexOptions.Multiline), new(@"^\s*open\s+System\b", RegexOptions.Multiline), new(@"\[<EntryPoint>\]")]),
     ];
 
     /// <summary>

@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -328,5 +328,26 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("lift off"),
                 WhatChanged: "The first clause now stops for any N of 0 or less, so the countdown stops at -1."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A while loop runs for as long as its condition is true, so a loop that never changes what its condition checks runs " +
+        "for ever.",
+        [
+            new WorkedExample("Printing the first three numbers",
+                Broken: """
+                    let mutable count = 0
+                    while count < 3 do
+                        printfn "%d" count
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    let mutable count = 0
+                    while count < 3 do
+                        printfn "%d" count
+                        count <- count + 1
+                    """,
+                FixedDoes: Behaviour.Printing("0\n1\n2"),
+                WhatChanged: "count goes up by one on each pass, so after three passes count < 3 is false and the loop ends."),
         ]);
 }

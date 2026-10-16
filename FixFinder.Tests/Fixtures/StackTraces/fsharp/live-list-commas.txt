@@ -1,0 +1,8 @@
+
+
+main.fsx(1,13): info FS3886: This list expression contains a single tuple element. Did you mean to use ';' instead of ',' to separate list elements?
+
+
+
+main.fsx(2,22): error FS0001: Operator '+' cannot be applied to a tuple type. You may have an unintended extra comma creating a tuple, or the operator may not be in scope. Check that you have opened the correct module or namespace.
+

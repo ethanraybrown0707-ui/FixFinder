@@ -82,17 +82,19 @@ public static partial class CompilerDiagnostics
             ".js" or ".mjs" or ".cjs" => await JavaScriptAsync(chosen, files, log, cancellationToken),
             ".cs" => await CSharpAsync(chosen, log, cancellationToken),
             ".go" => await GoAsync(chosen, log, cancellationToken),
-            _ when ScriptLanguages.Of(chosen) is { } script => await ScriptAsync(script, files, language, log, cancellationToken),
+            _ when ScriptLanguages.Of(chosen) is { } script => await ScriptAsync(script, chosen, files, language, log, cancellationToken),
             _ => CompilerReport.NotChecked(),
         };
     }
 
     /// <summary>
-    /// A program in a language run straight from the source - Ruby, PHP, Perl, Lua, Dart, PowerShell and Elixir - checked a
-    /// file at a time by the language's own check, which runs none of it: its errors, and the warnings it gives.
+    /// A program in a language run straight from the source - Ruby, PHP, Perl, Lua, Dart, PowerShell, Elixir and F# - checked a
+    /// file at a time by the language's own check, which runs none of it: its errors, and the warnings it gives. An F# script
+    /// is checked whole, as the one file it is: F# Interactive checks the files it loads with it.
     /// </summary>
     private static async Task<CompilerReport> ScriptAsync(
-        ScriptLanguages.ScriptLanguage script, IReadOnlyList<string> files, CodeLanguage language, Action<string>? log, CancellationToken cancellationToken)
+        ScriptLanguages.ScriptLanguage script, string chosen, IReadOnlyList<string> files, CodeLanguage language, Action<string>? log,
+        CancellationToken cancellationToken)
     {
         if (ScriptLanguages.CheckerOf(script) is null)
             return CompilerReport.NotChecked($"{script.Checker} was not found on PATH, so the code could not be checked before it ran.");
@@ -102,7 +104,11 @@ public static partial class CompilerDiagnostics
         var warnings = new List<ParsedError>();
         var output = new List<CapturedLine>();
 
-        foreach (var file in files.Where(file => ScriptLanguages.Of(file) == script))
+        var checkedOnTheirOwn = script == ScriptLanguages.FSharp
+            ? files.Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase))
+            : files.Where(file => ScriptLanguages.Of(file) == script);
+
+        foreach (var file in checkedOnTheirOwn)
         {
             if (ScriptLanguages.CheckOf(script, file, Timeout) is not { } check) continue;
 
@@ -115,6 +121,7 @@ public static partial class CompilerDiagnostics
             IReadOnlyList<ParsedError> found = script == ScriptLanguages.Dart ? DartParser.AnalyzerErrors(run.Lines)
                 : script == ScriptLanguages.PowerShell ? PowerShellParser.CheckErrors(run.Lines)
                 : script == ScriptLanguages.Elixir && run.Outcome != RunOutcome.ExitedClean ? new ElixirParser().ParseAll(run.Lines)
+                : script == ScriptLanguages.FSharp ? new FSharpParser().ParseAll(run.Lines)
                 : run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error ? [error] : [];
             errors.AddRange(Resolved(found, folder));
             warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));

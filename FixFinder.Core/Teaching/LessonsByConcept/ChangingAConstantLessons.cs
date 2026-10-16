@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang, FSharp];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -292,5 +292,25 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "lists:foldl passes the sum on from one mark to the next, and gives back the last one, which is given to Total once."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A value given with let keeps the value it was given. F# refuses <- on it before the script runs, with error FS0027 - " +
+        "This value is not mutable - so a value that changes is declared with let mutable.",
+        [
+            new WorkedExample("Counting up",
+                Broken: """
+                    let count = 0
+                    count <- count + 1
+                    printfn "%d" count
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0027", 2),
+                Fixed: """
+                    let mutable count = 0
+                    count <- count + 1
+                    printfn "%d" count
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "count is declared with let mutable, so <- can give it a new value."),
         ]);
 }

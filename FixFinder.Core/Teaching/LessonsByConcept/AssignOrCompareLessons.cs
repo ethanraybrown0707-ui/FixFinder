@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -408,5 +408,25 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("false"),
                 WhatChanged: "== asks whether Mark is 40, and leaves Mark as it was."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "In F# = compares two values, and <- gives a mutable value a new one. total = total + 70 on a line of the script's " +
+        "own works out true or false, and F# throws the answer away without a word - so total keeps its old value.",
+        [
+            new WorkedExample("Adding a mark to a total",
+                Broken: """
+                    let mutable total = 0
+                    total = total + 70
+                    printfn "%d" total
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    let mutable total = 0
+                    total <- total + 70
+                    printfn "%d" total
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "<- gives total its new value; = only compared total with total + 70."),
         ]);
 }

@@ -42,6 +42,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("PowerShell", "Write-Output 'hi'\n", "pasted.ps1")]
     [InlineData("Elixir", "IO.puts(\"hi\")\n", "pasted.exs")]
     [InlineData("Erlang", "-module(hello).\n-export([main/0]).\n\nmain() -> io:format(\"hi~n\").\n", "hello.erl")]
+    [InlineData("F#", "printfn \"hi\"\n", "pasted.fsx")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -113,6 +114,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("marks = [70, 80]\n\nmarks\n|> Enum.map(fn mark -> mark + 5 end)\n|> IO.inspect()\n", "Elixir")]
     // A function's -> is Elixir's too, but -module, -export, io:format and ~p are Erlang's alone.
     [InlineData("-module(marks).\n-export([main/0]).\n\nmain() ->\n    Marks = [70, 80],\n    io:format(\"~p~n\", [lists:sum(Marks)]).\n", "Erlang")]
+    // let and [70; 80] are OCaml's too, but printfn, let mutable and List.sum are F#'s alone.
+    [InlineData("let marks = [70; 80; 90]\nlet total = List.sum marks\nprintfn \"%d\" total\n", "F#")]
+    [InlineData("let mutable count = 0\nfor mark in [70; 80] do\n    count <- count + 1\nprintfn \"%d\" count\n", "F#")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 
