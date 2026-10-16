@@ -603,8 +603,11 @@ public sealed partial class FSharpCurriedArguments : ILocalFixRule
         if (!FSharpCode.Is(context, FSharpParser.CompileError, "FS0001") || !Message().IsMatch(context.Error.Message ?? "")) return null;
         if (FSharpCode.Locate(context) is not { } at || FSharpCode.At(context) is not { } column) return null;
 
+        // F# names the column of the tuple's first value, just inside its bracket: (2,19) is the 3 of area(3, 4).
         var masked = FSharpCode.Masked(at.Line);
-        if (column >= masked.Length || masked[column] != '(' || NameBefore().Match(masked[..column]) is not { Success: true } called) return null;
+        if (column >= masked.Length) return null;
+        if (masked[column] != '(' && masked[..column].TrimEnd() is { Length: > 0 } before && before[^1] == '(') column = before.Length - 1;
+        if (masked[column] != '(' || NameBefore().Match(masked[..column]) is not { Success: true } called) return null;
 
         // The values between the brackets, split at the commas that are not inside anything within them.
         var values = new List<(int Start, int End)>();
