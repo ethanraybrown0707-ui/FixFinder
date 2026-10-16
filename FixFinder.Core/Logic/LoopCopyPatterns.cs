@@ -92,14 +92,18 @@ public static partial class LoopCopyPatterns
     {
         for (var index = 0; index + 2 < masked.Count; index++)
         {
-            if (ScriptForOfHeading().Match(masked[index]) is not { Success: true } heading || masked[index + 2].Trim() != "}") continue;
+            if (ScriptLoopCopyAt(masked, index) is not var (heading, given)) continue;
 
             var variable = heading.Groups["variable"].Value;
             var list = heading.Groups["list"].Value;
-            if (GivenANewValue(variable).Match(masked[index + 1]) is not { Success: true } given || !ReadAfter(masked, index + 2, list)) continue;
-
             var position = PositionName(masked);
-            var value = source.Lines[index + 1].Substring(given.Groups["value"].Index, given.Groups["value"].Length);
+
+            // The new loop has no variable of the item's own, so a value that reads it - item = item.trim() - reads the item at its
+            // position instead. The names are found in the code, not inside its text.
+            var valueGroup = given.Groups["value"];
+            var value = source.Lines[index + 1].Substring(valueGroup.Index, valueGroup.Length);
+            foreach (var read in new Regex($@"(?<![\w$.]){Regex.Escape(variable)}(?![\w$])").Matches(masked[index + 1].Substring(valueGroup.Index, valueGroup.Length)).Reverse())
+                value = value[..read.Index] + $"{list}[{position}]" + value[(read.Index + read.Length)..];
 
             yield return new LogicFinding(id, index + 2,
                 $"for...of gives each item of {list} to {variable}, a variable of the loop's own - so giving {variable} a new value leaves the " +
@@ -119,6 +123,22 @@ public static partial class LoopCopyPatterns
                     ],
                 });
         }
+    }
+
+    /// <summary>
+    /// Whether the line starts a for...of loop that this check changes: one statement, giving the loop's variable a new value,
+    /// and the array read after the loop. The check on loop copies in general leaves such a loop to this one.
+    /// </summary>
+    internal static bool FindsScriptLoop(IReadOnlyList<string> masked, int index) => ScriptLoopCopyAt(masked, index) is not null;
+
+    private static (Match Heading, Match Given)? ScriptLoopCopyAt(IReadOnlyList<string> masked, int index)
+    {
+        if (index + 2 >= masked.Count || ScriptForOfHeading().Match(masked[index]) is not { Success: true } heading || masked[index + 2].Trim() != "}") return null;
+
+        var variable = heading.Groups["variable"].Value;
+        return GivenANewValue(variable).Match(masked[index + 1]) is { Success: true } given && ReadAfter(masked, index + 2, heading.Groups["list"].Value)
+            ? (heading, given)
+            : null;
     }
 
     /// <summary><c>foreach ($marks as $mark) {</c>.</summary>

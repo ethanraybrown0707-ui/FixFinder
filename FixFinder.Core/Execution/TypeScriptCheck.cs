@@ -50,21 +50,79 @@ public static class TypeScriptCheck
     /// The arguments that run the check, before the file's name: Node's warnings that stripTypeScriptTypes and modules in vm
     /// are experimental left out, and the check's own file, written once where it is read from.
     /// </summary>
-    public static string Arguments => $"--no-warnings --experimental-vm-modules \"{Written()}\"";
+    public static string Arguments => $"--no-warnings --experimental-vm-modules \"{Written("fixfinder_typescript_check", CheckSource)}\"";
 
-    /// <summary>Writes the check where Node.js can read it - the temp folder - named for its own text, and says where.</summary>
-    private static string Written()
+    /// <summary>Writes a script of FixFinder's where Node.js can read it - the temp folder - named for its own text, and says where.</summary>
+    private static string Written(string name, string source)
     {
-        var name = $"fixfinder_typescript_check_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(CheckSource)))[..12].ToLowerInvariant()}.cjs";
-        var check = Path.Combine(Path.GetTempPath(), "FixFinder-tests", name);
+        var file = Path.Combine(Path.GetTempPath(), "FixFinder-tests",
+            $"{name}_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..12].ToLowerInvariant()}.cjs");
 
-        if (!File.Exists(check))
+        if (!File.Exists(file))
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(check)!);
-            File.WriteAllText(check, CheckSource, new UTF8Encoding(false));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, source, new UTF8Encoding(false));
         }
 
-        return check;
+        return file;
+    }
+
+    private const string StripSource = """
+        const { stripTypeScriptTypes } = require("node:module");
+
+        let code = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", (chunk) => (code += chunk));
+        process.stdin.on("end", () => process.stdout.write(stripTypeScriptTypes(code)));
+        """;
+
+    private static readonly ConcurrentDictionary<string, IReadOnlyList<string>?> Stripped = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A TypeScript file's lines with their types taken out by Node.js itself - each type replaced by spaces, so every line and
+    /// column is where it was - as the JavaScript Node runs. Null when no Node.js here runs TypeScript, or Node cannot read
+    /// the file; worked out once for each text.
+    /// </summary>
+    public static IReadOnlyList<string>? StrippedLines(IReadOnlyList<string> lines)
+    {
+        var text = string.Join("\n", lines);
+        var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+
+        return Stripped.GetOrAdd(key, _ => Strip(text, lines.Count));
+    }
+
+    private static IReadOnlyList<string>? Strip(string text, int lineCount)
+    {
+        if (TargetFactory.FindOnPath("node") is not { } node || !NodeRunsTypeScript(node)) return null;
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(node, $"--no-warnings \"{Written("fixfinder_typescript_strip", StripSource)}\"")
+            {
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardInputEncoding = new UTF8Encoding(false),
+                StandardOutputEncoding = Encoding.UTF8,
+            });
+
+            if (process is null) return null;
+
+            process.StandardInput.Write(text);
+            process.StandardInput.Close();
+            var stripped = process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(30_000) || process.ExitCode != 0) return null;
+
+            var strippedLines = stripped.Split('\n');
+            return strippedLines.Length == lineCount ? strippedLines : null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private static readonly ConcurrentDictionary<string, (DateTime Written, bool RunsTypeScript)> Asked = new(StringComparer.OrdinalIgnoreCase);

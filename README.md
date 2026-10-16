@@ -454,7 +454,10 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. TypeScript is tested with Node.js 24.19.
+copy - by the same check - and run. JavaScript's 29 logic checks read it too, in the JavaScript Node runs - its lines
+with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
+a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
+becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
 
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
@@ -1051,7 +1054,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 6 | 33 |
-| TypeScript | 44 | 0 | 5 |
+| TypeScript | 44 | 29 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

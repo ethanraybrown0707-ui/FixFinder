@@ -1,7 +1,8 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Checking;
-using FixFinder.Core.LocalFixes;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes.Rules;
+using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Logic;
 
@@ -53,8 +54,9 @@ public static partial class CLikeLogicPatterns
         public IReadOnlySet<string> Extensions => extensions;
 
         public IEnumerable<LogicFinding> Find(SourceFile source) =>
-            find(id, source, CodeText.MaskAll(source.Lines, Syntax.CLike))
-                .Select(finding => finding with { Severity = severity, Confidence = confidence, Kind = kind });
+            LogicLines.Of(source) is { } lines
+                ? find(id, source, CodeText.MaskAll(lines, Syntax.CLike)).Select(finding => finding with { Severity = severity, Confidence = confidence, Kind = kind })
+                : [];
     }
 
     private static string Indent(string line) => CodeText.Indentation(line);
@@ -264,7 +266,7 @@ public static partial class CLikeLogicPatterns
 
     private static IEnumerable<LogicFinding> AssignmentInCondition(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        var script = Is(source, ".js", ".mjs", ".cjs");
+        var script = Is(source, ".js", ".mjs", ".cjs") || TypeScriptCheck.IsTypeScript(source.Path);
 
         for (var i = 0; i < masked.Count; i++)
         {

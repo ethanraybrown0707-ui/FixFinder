@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Logic;
@@ -154,7 +155,7 @@ public static partial class Mutations
             if ((python && value is "True" or "False") || (clike && value is "true" or "false")) Add(m.Index, value.Length, to, "the opposite result", 3);
         }
 
-        if (clike && !source.Path.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+        if (clike && !source.Path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) && !TypeScriptCheck.IsTypeScript(source.Path))
         {
             foreach (Match m in Regex.Matches(masked, @"(?<![\w.)\]])(?<left>[A-Za-z_]\w*)\s*/\s*(?<right>[A-Za-z_]\w*|\d+)(?![\w.(])"))
             {
