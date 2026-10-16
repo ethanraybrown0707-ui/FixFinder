@@ -310,13 +310,19 @@ none of it, so a parse error is found there - in a file the program brings in wi
 from its own folder or after `__DIR__ .`, and a fatal error in one of those is placed there. PHP carries on past a
 warning - an undefined variable, a key an array does not have - with nothing in its place, so every warning a run prints
 is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined variable
-becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero, and a
-loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read for
-logic mistakes by seven checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
-position, an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, `strpos(...) == false`,
-which is true for a match at the very start as well as for none, `^` written as a power, a line read with `fgets`
-compared with text, though it still ends with its newline, and a `foreach` that gives its copy of each item a new
-value - `$mark += 5` - which leaves the array as it was. PHP is tested with PHP 8.4.24.
+becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero, a loop to
+`<= count(...)` gets `<`, a variable written without its `$` gets it, `+` joining text becomes `.`, a `{` left open is
+closed where its indentation ends - PHP names the outer block, and each `}` is taken to close the `{` at its own
+indentation - a string left open is closed, a misspelt function becomes the nearest one the file or PHP itself has - the
+PHP here lists its own - and a misspelt method the nearest one its class has, a property used inside a method without
+`$this->` gets it, a key an array does not have gets `?? 0` where it is added to, `$student.name` becomes
+`$student->name`, `elif` becomes `elseif`, and an array joined to text is joined with `implode`; each change is checked
+in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by seven checks `php -l` says nothing of: a
+loop to `<= count($marks)` that uses its number as a position, an `=` in a condition, a decimal worked out by arithmetic
+and then compared exactly, `strpos(...) == false`, which is true for a match at the very start as well as for none, `^`
+written as a power, a line read with `fgets` compared with text, though it still ends with its newline, and a `foreach`
+that gives its copy of each item a new value - `$mark += 5` - which leaves the array as it was. PHP is tested with PHP
+8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
@@ -1050,7 +1056,7 @@ Python, Java and C# are checked most thoroughly.
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 8 | 26 |
-| PHP | 4 | 7 | 12 |
+| PHP | 15 | 7 | 18 |
 | Lua | 7 | 4 | 23 |
 | Perl | 10 | 6 | 25 |
 | Dart | 10 | 4 | 23 |

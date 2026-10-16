@@ -104,6 +104,14 @@ public class PhpLiveTests(ITestOutputHelper output) : IDisposable
     [Theory]
     [InlineData("<?php\n$total = 10;\necho $totl + 1;\n", "php-nearest-variable", 3, "1", "11")]
     [InlineData("<?php\n$marks = [];\n$average = array_sum($marks) / count($marks);\necho $average;\n", "php-division-guard", 3, null, "0")]
+    [InlineData("<?php\n$total = 150;\necho \"Total: \" + $total;\n", "php-join-with-dot", 3, null, "Total: 150")]
+    [InlineData("<?php\n$name = \"Ada\";\necho strlenn($name);\n", "php-nearest-function", 3, null, "3")]
+    [InlineData("<?php\nclass Student {\n    public function greet() { return \"hi\"; }\n}\n$student = new Student();\necho $student->gret();\n", "php-nearest-method", 6, null, "hi")]
+    [InlineData("<?php\nclass Student {\n    public $name = \"Ada\";\n}\n$student = new Student();\necho $student.name;\n", "php-arrow-for-dot", 6, null, "Ada")]
+    // Without $this, each call adds 1 to a $count of its own, null: both print 1. With it, the second call prints 2.
+    [InlineData("<?php\nclass Counter {\n    private $count = 0;\n    public function add() {\n        $count = $count + 1;\n        return $count;\n    }\n}\n$counter = new Counter();\n$counter->add();\necho $counter->add();\n", "php-this-property", 5, "1", "2")]
+    [InlineData("<?php\n$ages = [\"Ada\" => 36];\necho $ages[\"Bob\"] + 1;\n", "php-missing-key-default", 3, "1", "1")]
+    [InlineData("<?php\n$marks = [70, 80];\necho \"Marks: \" . $marks;\n", "php-implode-array", 3, "Marks: Array", "Marks: 70, 80")]
     public async Task AWarningOrAFatalErrorGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string? printed, string fixedPrints)
     {
         if (Php() is not { } php) return;
@@ -115,6 +123,25 @@ public class PhpLiveTests(ITestOutputHelper output) : IDisposable
         if (printed is not null) Assert.Equal(printed, report.Run?.Run?.Lines.Where(captured => captured.Stream == StreamKind.StdOut).Select(captured => captured.Text).LastOrDefault()?.Trim());
         Assert.True(found.Verified.IsVerified, found.Verified.Summary);
         Assert.Equal(fixedPrints, await RunAsync(php, Changed(code, found), rule));
+    }
+
+    [Theory]
+    [InlineData("<?php\n$marks = [70, 80];\ntotal = array_sum($marks);\necho $total;\n", "php-missing-dollar", 3, "150")]
+    // PHP names the function's { on line 2; the { left open is the foreach's, and its } goes after the foreach's body.
+    [InlineData("<?php\nfunction total($marks) {\n    $sum = 0;\n    foreach ($marks as $mark) {\n        $sum += $mark;\n    return $sum;\n}\n\necho total([70, 80]);\n", "php-unclosed-brace", 10, "150")]
+    [InlineData("<?php\n$name = \"Ada;\necho $name;\n", "php-unclosed-string", 4, "Ada")]
+    [InlineData("<?php\n$name = \"Ada;\necho \"Name: \" . $name;\n", "php-unclosed-string", 3, "Name: Ada")]
+    [InlineData("<?php\n$mark = 70;\nif ($mark > 80) {\n    echo \"high\";\n} elif ($mark > 50) {\n    echo \"pass\";\n}\n", "php-elseif", 5, "pass")]
+    public async Task WhatPhpWillNotReadIsFoundBeforeItRunsAndItsChangeRuns(string code, string rule, int line, string fixedPrints)
+    {
+        if (Php() is not { } php) return;
+
+        var report = await CheckAsync(Write(Path.Combine($"refused-{rule}-{code.Length}", "main.php"), code));
+
+        var refused = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Syntax);
+        Assert.Equal((rule, line), (refused.RuleId, refused.Line!.Value));
+        Assert.True(refused.Verified.IsVerified, refused.Verified.Summary);
+        Assert.Equal(fixedPrints, await RunAsync(php, Changed(code, refused), $"refused-{rule}-{code.Length}"));
     }
 
     [Fact]
