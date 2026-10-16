@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -352,5 +352,35 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
                 WhatChanged: "length(marks) - 1 is the last position, and //1 makes the range count up - so an empty list gives no passes at all."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Erlang's lists count their positions from 1, not 0. lists:nth(0, Marks) has no clause that takes a 0, so a loop over " +
+        "lists:seq(0, length(Marks) - 1) stops at its very first position, with function_clause.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    show(Marks) ->
+                        lists:foreach(fun(Position) -> io:format("~p~n", [lists:nth(Position, Marks)]) end, lists:seq(0, length(Marks) - 1)).
+
+                    main() ->
+                        show([70, 80, 90]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("function_clause", 5),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    show(Marks) ->
+                        lists:foreach(fun(Position) -> io:format("~p~n", [lists:nth(Position, Marks)]) end, lists:seq(1, length(Marks))).
+
+                    main() ->
+                        show([70, 80, 90]).
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The positions run from 1 to length(Marks), the positions the list has."),
         ]);
 }

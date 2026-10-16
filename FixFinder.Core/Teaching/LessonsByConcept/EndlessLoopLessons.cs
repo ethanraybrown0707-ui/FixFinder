@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -298,5 +298,35 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("lift off"),
                 WhatChanged: "The first clause now stops for any n of 0 or less, so the countdown stops at -1."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Erlang has no while loop: a function that calls itself is its loop. When the clause that should stop it never matches - from(0), " +
+        "when N goes 5, 3, 1, -1 - it calls itself for ever, and as calling itself is the last thing each call does, it never runs out of room.",
+        [
+            new WorkedExample("A countdown in twos",
+                Broken: """
+                    -module(countdown).
+                    -export([main/0]).
+
+                    from(0) -> io:format("lift off~n");
+                    from(N) -> from(N - 2).
+
+                    main() ->
+                        from(5).
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    -module(countdown).
+                    -export([main/0]).
+
+                    from(N) when N =< 0 -> io:format("lift off~n");
+                    from(N) -> from(N - 2).
+
+                    main() ->
+                        from(5).
+                    """,
+                FixedDoes: Behaviour.Printing("lift off"),
+                WhatChanged: "The first clause now stops for any N of 0 or less, so the countdown stops at -1."),
         ]);
 }

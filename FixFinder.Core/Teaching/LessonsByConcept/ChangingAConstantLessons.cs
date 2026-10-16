@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -265,5 +265,32 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("240"),
                 WhatChanged: "Enum.reduce passes the total on from one mark to the next and gives back the last one, which is given to total."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "An Erlang variable is given its value once. = after that matches rather than changes it, so Total = Total + Mark asks whether 0 " +
+        "is 70 - and stops the program with badmatch.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Total = 0,
+                        lists:foreach(fun(Mark) -> Total = Total + Mark end, [70, 80]),
+                        io:format("~p~n", [Total]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badmatch", 6),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Total = lists:foldl(fun(Mark, Sum) -> Sum + Mark end, 0, [70, 80]),
+                        io:format("~p~n", [Total]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "lists:foldl passes the sum on from one mark to the next, and gives back the last one, which is given to Total once."),
         ]);
 }

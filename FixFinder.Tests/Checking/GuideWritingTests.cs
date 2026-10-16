@@ -41,6 +41,8 @@ public class GuideWritingTests
         ["PowerShell patterns"] = PowerShellPatternGuides.All,
         ["Elixir"] = ElixirGuides.All,
         ["Elixir patterns"] = ElixirPatternGuides.All,
+        ["Erlang"] = ErlangGuides.All,
+        ["Erlang patterns"] = ErlangPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

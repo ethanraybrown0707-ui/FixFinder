@@ -5,7 +5,7 @@ internal static class MissedCaseLessons
 {
     private static Concept Concept => Concepts.MissedCase;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml, Rust, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml, Rust, Elixir, Erlang];
 
     private static Lesson Scala => new(Concept, CodeLanguage.Scala,
         "A match tries its cases in order, and when none fits the value, the program stops with a MatchError. A last case _ " +
@@ -194,6 +194,42 @@ internal static class MissedCaseLessons
                       end
 
                     IO.puts(grade)
+                    """,
+                FixedDoes: Behaviour.Printing("F"),
+                WhatChanged: "The last clause, _ ->, matches anything the clauses above it did not."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "When none of a case's clauses matches the value, Erlang stops the program with case_clause and shows the value.",
+        [
+            new WorkedExample("A grade for every mark",
+                Broken: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    grade(Mark) ->
+                        case Mark of
+                            70 -> "A";
+                            40 -> "C"
+                        end.
+
+                    main() ->
+                        io:format("~s~n", [grade(20)]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("case_clause", 5),
+                Fixed: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    grade(Mark) ->
+                        case Mark of
+                            70 -> "A";
+                            40 -> "C";
+                            _ -> "F"
+                        end.
+
+                    main() ->
+                        io:format("~s~n", [grade(20)]).
                     """,
                 FixedDoes: Behaviour.Printing("F"),
                 WhatChanged: "The last clause, _ ->, matches anything the clauses above it did not."),

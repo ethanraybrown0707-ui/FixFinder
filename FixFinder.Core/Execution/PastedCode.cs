@@ -16,6 +16,9 @@ public static partial class PastedCode
     [GeneratedRegex(@"^\s*package\s+(?<name>[A-Za-z_][\w]*(?:\s*\.\s*[A-Za-z_]\w*)*)\s*;", RegexOptions.Multiline)]
     private static partial Regex JavaPackage();
 
+    [GeneratedRegex(@"^\s*-module\(\s*(?<name>[a-z]\w*)\s*\)\s*\.", RegexOptions.Multiline)]
+    private static partial Regex ErlangModule();
+
     /// <summary>A class, interface, enum or record declared in Java, and whether it is public.</summary>
     [GeneratedRegex(@"^[ \t]*(?<public>public\s+)?(?:(?:abstract|final|sealed|non-sealed|strictfp|static)\s+)*(?:class|interface|enum|record)\s+(?<name>[A-Za-z_$][\w$]*)", RegexOptions.Multiline)]
     private static partial Regex JavaTypeDeclaration();
@@ -41,10 +44,14 @@ public static partial class PastedCode
 
     /// <summary>
     /// Where in its folder the code is saved, and as what: pasted.py, pasted.c and so on - except Java, whose file has to
-    /// be named for its class, the one with main if it has one, and sit under the folders of its package, in src.
+    /// be named for its class, the one with main if it has one, and sit under the folders of its package, in src; and
+    /// Erlang, whose file erlc will compile only under its module's name.
     /// </summary>
     public static string RelativePathFor(string code, CodeLanguage language)
     {
+        if (language == CodeLanguage.Erlang)
+            return (ErlangModule().Match(code) is { Success: true } module ? module.Groups["name"].Value : "pasted") + ".erl";
+
         if (language != CodeLanguage.Java) return "pasted" + language.Extensions[0];
 
         var types = JavaTypeDeclaration().Matches(code).Cast<Match>().ToList();
@@ -138,6 +145,9 @@ public static partial class PastedCode
         (CodeLanguage.Elixir, [
             new(@"^\s*defmodule\s+[A-Z][\w.]*\s+do\b", RegexOptions.Multiline), new(@"^\s*defp?\s+[a-z_]\w*[?!]?(?:\([^)]*\))?\s*(?:when\b.*)?(?:,\s*do:|\s+do\b)", RegexOptions.Multiline),
             new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\(")]),
+        (CodeLanguage.Erlang, [
+            new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
+            new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
     ];
 
     /// <summary>

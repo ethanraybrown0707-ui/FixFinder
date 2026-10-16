@@ -337,6 +337,14 @@ public static partial class LocalFixEngine
         new ElixirOuterVariable(),
         new ElixirListIndex(),
         new ElixirTrimInput(),
+        new ErlangDidYouMean(),
+        new ErlangAndAlso(),
+        new ErlangMissingPeriod(),
+        new ErlangMissingComma(),
+        new ErlangMissingSemicolon(),
+        new ErlangTrimInput(),
+        new ErlangDivisionGuard(),
+        new ErlangCapitalVariable(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -744,6 +752,7 @@ public static partial class LocalFixEngine
         "fortran" => error.ExceptionType == "compile error" && FortranSyntaxMessage().IsMatch(error.Message ?? ""),
         "powershell" => error.ExceptionType == Parsing.Parsers.PowerShellParser.ParserError,
         "elixir" => error.ExceptionType == Parsing.Parsers.ElixirParser.CompileError || Parsing.Parsers.ElixirParser.SyntaxErrors.Contains(error.ExceptionType ?? ""),
+        "erlang" => error.ExceptionType == Parsing.Parsers.ErlangParser.CompileError,
         "dart" => error.ExceptionType == "compile error" &&
                   (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
                        "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
@@ -783,6 +792,7 @@ public static partial class LocalFixEngine
             ".dart" => "checked it with dart analyze, which runs none of it",
             ".ps1" => "checked it with PowerShell's parser, which runs none of it",
             ".exs" or ".ex" => "compiled it with Elixir, which runs none of it but what sits directly inside a defmodule",
+            ".erl" => "compiled it with erlc",
             _ => "compiled it",
         };
 

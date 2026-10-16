@@ -31,6 +31,11 @@ public enum Syntax
 
     /// <summary>Fortran's: ! to the end of a line - which is why if (mark != 40) is read as if (mark, and a comment.</summary>
     Fortran,
+
+    /// <summary>
+    /// Erlang's: % to the end of a line, text in double quotes and atoms in single ones - but $% and $" are characters, and code.
+    /// </summary>
+    Erlang,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -88,8 +93,15 @@ public static partial class CodeText
                 }
             }
 
+            // An Erlang character - $a, $%, $", $\n - is code, whatever character it is.
+            if (syntax == Syntax.Erlang && c == '$')
+            {
+                i += next == '\\' ? 3 : 2;
+                continue;
+            }
+
             if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (syntax == Syntax.Fortran && c == '!') ||
-                (commentsLikeC && c == '/' && next == '/'))
+                (syntax == Syntax.Erlang && c == '%') || (commentsLikeC && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
@@ -226,6 +238,12 @@ public static partial class CodeText
                 continue;
             }
 
+            if (syntax == Syntax.Erlang && c == '$')
+            {
+                i += i + 1 < line.Length && line[i + 1] == '\\' ? 2 : 1;
+                continue;
+            }
+
             if (c is '"' or '\'')
             {
                 var j = i + 1;
@@ -246,6 +264,7 @@ public static partial class CodeText
             if (syntax == Syntax.Lua && c == '-' && i + 1 < line.Length && line[i + 1] == '-') return i;
             if (syntax == Syntax.Perl && IsPerlComment(line, i)) return i;
             if (syntax == Syntax.Fortran && c == '!') return i;
+            if (syntax == Syntax.Erlang && c == '%') return i;
         }
 
         return null;

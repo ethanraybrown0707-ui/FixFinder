@@ -169,6 +169,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "PowerShell", "$mark = 50\nif ($mark -gt 70) {\n    Write-Output \"high\"\n} else if ($mark -gt 40) {\n    Write-Output \"pass\"\n}\n", ["At ", "pasted.ps1:4 char:7", "~", "Missing statement block after 'else' keyword."] },
         { "PowerShell", "$ErrorActionPreference = \"Stop\"\n$name = $null\nWrite-Output $name.ToUpper()\n", ["You cannot call a method on a null-valued expression.", "pasted.ps1:3 char:1", "~", "FullyQualifiedErrorId : InvokeMethodOnNull"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
+        { "Erlang", "-module(pasted).\n-export([main/0]).\n\nmain() ->\n    Total = 10,\n    io:format(\"~p~n\", [Totl]).\n", ["pasted.erl:6:24: variable 'Totl' is unbound, did you mean 'Total'?", "%    6|", "^"] },
+        { "Erlang", "-module(pasted).\n-export([main/0]).\n\naverage(Marks) -> lists:sum(Marks) / length(Marks).\n\nmain() ->\n    io:format(\"~p~n\", [average([])]).\n", ["** exception error: an error occurred when evaluating an arithmetic expression", "in function  pasted:average/1 (pasted.erl:4)", "in call from pasted:main/0 (pasted.erl:7)"] },
         { "Elixir", "marks = [70, 80]\nIO.puts(totl)\n", ["error: undefined variable \"totl\"", "^^^^", "└─ pasted.exs:2:9"] },
         { "Elixir", "IO.puts(Enum.sum([1, 2])\n", ["** (TokenMissingError)", "error: missing terminator: )", "└ unclosed delimiter", "└─ pasted.exs:1:25"] },
         { "Elixir", "marks = []\nIO.puts(Enum.sum(marks) / length(marks))\n", ["** (ArithmeticError) bad argument in arithmetic expression", "pasted.exs:2: (file)"] },

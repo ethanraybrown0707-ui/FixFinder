@@ -59,7 +59,10 @@ public sealed record CodeLanguage(
     /// <summary>Elixir: what it says as it compiles a program, run none of it, and what stops the program it runs.</summary>
     public static CodeLanguage Elixir { get; } = new("Elixir", [".exs", ".ex"], ["elixir"], ["elixir-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    /// <summary>Erlang: what erlc says as it compiles a program, and what stops the program it compiled.</summary>
+    public static CodeLanguage Erlang { get; } = new("Erlang", [".erl"], ["erlang"], ["erlang-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     public bool IsAny => ParserIds.Count == 0;
 

@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -810,5 +810,37 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "The fixed line works out the remainder only when there are people to share between."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Dividing by zero stops an Erlang program with badarith - an error occurred when evaluating an arithmetic expression - in the " +
+        "function that divided.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([])]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarith", 4),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) ->
+                        case length(Marks) of
+                            0 -> 0;
+                            Count -> lists:sum(Marks) / Count
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [average([])]).
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed function divides only when there are marks, and gives 0 otherwise."),
         ]);
 }

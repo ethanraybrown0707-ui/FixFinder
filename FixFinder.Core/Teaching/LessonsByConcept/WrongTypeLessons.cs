@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -263,5 +263,32 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 10"),
                 WhatChanged: "<> joins text, and to_string turns the number into text first."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "+ adds numbers only. Given text, it stops the program with badarith, and Erlang shows what + was called as: \"5\" + 1.",
+        [
+            new WorkedExample("Adding one",
+                Broken: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> Typed + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("5")]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarith", 4),
+                Fixed: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(Typed) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("5")]).
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "list_to_integer turns the text into a number before it is added to."),
         ]);
 }

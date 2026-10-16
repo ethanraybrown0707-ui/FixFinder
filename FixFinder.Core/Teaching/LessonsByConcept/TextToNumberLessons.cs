@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -348,5 +348,33 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("13"),
                 WhatChanged: "String.trim takes the newline off before the text is read as a number."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "list_to_integer reads text that is a whole number and nothing else. A line read with io:get_line still has its newline on the " +
+        "end - \"12\\n\" - and list_to_integer stops the program with badarg for it.",
+        [
+            new WorkedExample("Adding one to what was typed",
+                Broken: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(Typed) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("12\n")]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarg", 4),
+                Fixed: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(string:trim(Typed)) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("12\n")]).
+                    """,
+                FixedDoes: Behaviour.Printing("13"),
+                WhatChanged: "string:trim takes the newline off before the text is read as a number."),
         ]);
 }

@@ -321,6 +321,7 @@ internal static class LogicGuides
         .. FortranPatternGuides.All,
         .. PowerShellPatternGuides.All,
         .. ElixirPatternGuides.All,
+        .. ErlangPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

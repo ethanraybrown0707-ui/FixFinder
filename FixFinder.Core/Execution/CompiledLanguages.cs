@@ -20,7 +20,7 @@ public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Expl
     };
 }
 
-/// <summary>Builds C, C++, Java, Scala, OCaml and Rust source before running it.</summary>
+/// <summary>Builds C, C++, Java, Scala, OCaml, Rust, Fortran and Erlang source before running it.</summary>
 public static partial class CompiledLanguages
 {
     public static string BuildRoot { get; } = Path.Combine(
@@ -34,6 +34,7 @@ public static partial class CompiledLanguages
     {
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".java" or ".scala" or ".sc" or ".ml" or ".rs" => true,
         ".f90" or ".f95" or ".f03" or ".f08" => true,
+        ".erl" => true,
         _ => false,
     };
 
@@ -51,6 +52,7 @@ public static partial class CompiledLanguages
             ".ml" => OCamlBuild.Prepare(source, output, timeout),
             ".rs" => RustBuild.Prepare(source, output, timeout),
             ".f90" or ".f95" or ".f03" or ".f08" => FortranBuild.Prepare(source, output, timeout),
+            ".erl" => ErlangBuild.Prepare(source, output, timeout),
             _ => (null, null),
         };
     }

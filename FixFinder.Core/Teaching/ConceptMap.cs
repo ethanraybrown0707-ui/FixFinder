@@ -187,6 +187,20 @@ public static class ConceptMap
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-elixir-assignment-in-condition"] },
         new(Concepts.ChangingAConstant) { CheckIds = ["logic-elixir-new-variable-in-block"] },
 
+        // Erlang: erlc's messages by their words, what stops a program by Erlang's own name for its reason, and the logic checks.
+        new(Concepts.UndefinedName) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^variable '\w+' is unbound|^function \S+ undefined") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["undef"] },
+        new(Concepts.StatementEnd) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^syntax error before: |^head mismatch") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^unterminated string") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["badmatch"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["function_clause", "case_clause", "if_clause"] },
+        new(Concepts.WrongType) { ExceptionTypes = ["badarg", "badmap"] },
+        new(Concepts.MissingKey) { ExceptionTypes = ["badkey"] },
+        new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileWarning], Message = Words(@"^variable '\w+' is unused|^function \S+ is unused|^this clause cannot match because a previous clause") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-erlang-text-compared-with-number", "logic-erlang-input-not-trimmed"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-erlang-result-discarded"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-erlang-number-joined-to-text", "logic-erlang-list-printed-as-text"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {

@@ -19,6 +19,7 @@ internal static class FunctionLessons
         ArgumentsInDart, ReturnsInDart, RecursionInDart,
         ArgumentsInFortran,
         ArgumentsInElixir, ReturnsInElixir,
+        ArgumentsInErlang, ReturnsInErlang,
         ArgumentsInPowerShell,
     ];
 
@@ -674,5 +675,63 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The sum is the function's last line, so it is what the function gives back."),
+        ]);
+
+    private static Lesson ArgumentsInErlang => new(Concepts.Arguments, CodeLanguage.Erlang,
+        "An Erlang function is known by its name and by how many arguments it takes - average/1 takes one - so calling it with two calls " +
+        "a function that does not exist, and erlc refuses the module, suggesting the one it has.",
+        [
+            new WorkedExample("An average of two marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([70, 80], 2)]).
+                    """,
+                BrokenDoes: Behaviour.Refused("function average/2 undefined", 7),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([70, 80])]).
+                    """,
+                FixedDoes: Behaviour.Printing("75.0"),
+                WhatChanged: "average/1 is given the one argument it takes: the list, which knows its own length."),
+        ]);
+
+    private static Lesson ReturnsInErlang => new(Concepts.ReturnValues, CodeLanguage.Erlang,
+        "An Erlang function gives back the value of its last expression, and there is no return. Written before it, return is just a " +
+        "word erlc cannot make sense of there, and it refuses the module.",
+        [
+            new WorkedExample("The total of the marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    total(Marks) ->
+                        return lists:sum(Marks).
+
+                    main() ->
+                        io:format("~p~n", [total([70, 80])]).
+                    """,
+                BrokenDoes: Behaviour.Refused("syntax error before: lists", 5),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    total(Marks) ->
+                        lists:sum(Marks).
+
+                    main() ->
+                        io:format("~p~n", [total([70, 80])]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The sum is the function's last expression, so it is what the function gives back."),
         ]);
 }

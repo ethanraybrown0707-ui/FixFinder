@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -226,5 +226,29 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The ) that closes IO.puts( is added after the one that closes Enum.sum(."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "A string started with \" and never closed runs on to the end of the file, and erlc refuses the module before any of it runs, " +
+        "saying where the string started.",
+        [
+            new WorkedExample("Saying hello",
+                Broken: """
+                    -module(hello).
+                    -export([main/0]).
+
+                    main() ->
+                        io:format("hello~n).
+                    """,
+                BrokenDoes: Behaviour.Refused("unterminated string", 5),
+                Fixed: """
+                    -module(hello).
+                    -export([main/0]).
+
+                    main() ->
+                        io:format("hello~n").
+                    """,
+                FixedDoes: Behaviour.Printing("hello"),
+                WhatChanged: "The string is closed with \" before the bracket that closes io:format."),
         ]);
 }

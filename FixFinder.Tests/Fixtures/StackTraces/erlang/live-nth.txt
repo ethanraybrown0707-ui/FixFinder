@@ -1,0 +1,3 @@
+** exception error: no function clause matching lists:nth(0,"FP") (lists.erl:318)
+  in function  marks:show/1 (marks.erl:4)
+  in call from marks:main/0 (marks.erl:7)

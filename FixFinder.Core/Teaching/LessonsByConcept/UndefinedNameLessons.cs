@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -319,5 +319,33 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("150"),
                 WhatChanged: "The name is spelt as it was when it was given its value."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "erlc compiles the whole module before any of it runs, and a variable used without being given a value - often a name spelt " +
+        "differently - stops it compiling. erlc compares the name with the variables it knows, and suggests one after did you mean.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Marks = [70, 80],
+                        Total = lists:sum(Marks),
+                        io:format("~p~n", [Totl]).
+                    """,
+                BrokenDoes: Behaviour.Refused("variable 'Totl' is unbound", 7),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Marks = [70, 80],
+                        Total = lists:sum(Marks),
+                        io:format("~p~n", [Total]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The name is spelt as it was when it was given its value - Total, as erlc suggested."),
         ]);
 }

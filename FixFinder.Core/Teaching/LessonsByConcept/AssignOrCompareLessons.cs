@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -372,5 +372,41 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== asks whether mark is 40 and leaves it as it was, so the if is skipped and mark is still 70."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "= in Erlang matches, and an if's condition may only compare - so Mark = 40 in an if is an illegal guard expression, and erlc " +
+        "refuses the module before any of it runs.",
+        [
+            new WorkedExample("Is the mark forty?",
+                Broken: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    is_forty(Mark) ->
+                        if
+                            Mark = 40 -> true;
+                            true -> false
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [is_forty(70)]).
+                    """,
+                BrokenDoes: Behaviour.Refused("illegal guard expression", 6),
+                Fixed: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    is_forty(Mark) ->
+                        if
+                            Mark == 40 -> true;
+                            true -> false
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [is_forty(70)]).
+                    """,
+                FixedDoes: Behaviour.Printing("false"),
+                WhatChanged: "== asks whether Mark is 40, and leaves Mark as it was."),
         ]);
 }

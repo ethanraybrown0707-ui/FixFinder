@@ -156,6 +156,14 @@ public static class MessageReading
             "with ^ marks under the place, and ends with └─ and the file, the line and the column - marks.exs:3:9 is line 3, column 9 " +
             "- and, in a module, the function it is in. Code it cannot read at all starts with its kind, such as ** (TokenMissingError), " +
             "and └ unclosed delimiter marks where a bracket or a do was opened. A warning is laid out the same way, after warning:.",
+        [("Erlang", MessagePhase.BeforeRunning)] =
+            "erlc names the file, the line and the column - marks.erl:7:24 is line 7, column 24 - then what is wrong, often ending with " +
+            "did you mean and the name it knows. Under it is the line itself, each line of it starting with %, with ^ under the place. " +
+            "A warning says Warning: before its message, and the program is compiled all the same.",
+        [("Erlang", MessagePhase.WhileRunning)] =
+            "After ** exception error: comes what went wrong, in Erlang's words. Then come the functions it was in, the latest first - in " +
+            "function, then in call from - each as module:function/number of arguments, with its file and line in brackets. Under one of " +
+            "Erlang's own functions, called as shows what it was given, and *** which argument was wrong.",
         [("Elixir", MessagePhase.WhileRunning)] =
             "After ** comes the kind of error in brackets, such as (ArithmeticError), and what went wrong - for some kinds on the lines " +
             "below too, with the value it had and, after Did you mean:, what Elixir suggests. Then come the calls that led there, the " +

@@ -393,6 +393,23 @@ which leaves the one outside as it was - Elixir warns of it only as an unused va
 are one finding, whose change gives the block's result to the variable. Elixir is tested with Elixir 1.20.4 on
 Erlang/OTP 29.
 
+An **Erlang** program - an `.erl` file - is compiled by `erlc -Wall` into FixFinder's own build folder, together with
+the modules beside it that it calls, so nothing is written into the program's; every error and warning erlc gives is a
+finding, at the line and column it names. It is started at the chosen module's own `main/0`, `main/1` or `start/0` - a
+module that exports none of them is not run - by a small module of FixFinder's, which prints what stopped the program as
+Erlang's shell does, `** exception error:` and the functions it was in, so a crash is placed at its line, in a module
+the program calls too; what stopped it is given Erlang's own name for its reason, such as `badarith` or
+`function_clause`, and no crash dump is written. erlc's own "did you mean" for a variable or a function is the change,
+and these become fixes too: `and` and `or` between comparisons become `andalso` and `orelse`, a missing full stop, comma
+or semicolon is put at the end of the line before, a line read as a number is trimmed of its newline first, a division
+by zero gets an answer for when the divisor is zero, and a name written with a small first letter - an atom - is made a
+variable to the end of its function; each change is checked in a copy - compiled by erlc - and run. Erlang's code is
+read for logic mistakes by six checks: a line read with `io:get_line` compared with a number, which is always true, as
+text sorts after every number; the same line compared with text, though it still ends with its newline; a decimal worked
+out by arithmetic and then compared exactly; a list of numbers printed with `~p`, which prints `[80, 70, 90]` as
+`"PFZ"`; a number joined to text with `++` in `io:format`; and `lists:sort` or another function that gives back a
+changed copy, called on a line of its own. Erlang is tested with Erlang/OTP 29.0.6.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -636,6 +653,7 @@ it stops with:
 | Fortran | `gfortran -Wall`, building with `-fcheck=all` |
 | PowerShell | PowerShell's own parser, on every file |
 | Elixir | Elixir's own compiler on every file, through a check that runs none of the program |
+| Erlang | `erlc -Wall`, with the modules the program calls |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -979,13 +997,14 @@ Python, Java and C# are checked most thoroughly.
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 5 | 4 | 13 |
 | Elixir | 11 | 6 | 29 |
+| Erlang | 8 | 6 | 23 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
 for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in eighteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
-Elixir, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
+A crash is read in nineteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Erlang, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
 as Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file
 and line.
 

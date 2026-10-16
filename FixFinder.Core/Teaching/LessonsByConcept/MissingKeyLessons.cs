@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -250,5 +250,33 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("36"),
                 WhatChanged: "The key is spelt as the map has it - age, the one Elixir suggested."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "maps:get asks for a key the map must have. When it is not there, Erlang stops the program with badkey, names the key, and " +
+        "shows the map it looked in.",
+        [
+            new WorkedExample("A person's age",
+                Broken: """
+                    -module(people).
+                    -export([main/0]).
+
+                    age(Person) -> maps:get(agee, Person).
+
+                    main() ->
+                        io:format("~p~n", [age(#{name => "Ada", age => 36})]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badkey", 4),
+                Fixed: """
+                    -module(people).
+                    -export([main/0]).
+
+                    age(Person) -> maps:get(age, Person).
+
+                    main() ->
+                        io:format("~p~n", [age(#{name => "Ada", age => 36})]).
+                    """,
+                FixedDoes: Behaviour.Printing("36"),
+                WhatChanged: "The key is spelt as the map has it - age."),
         ]);
 }

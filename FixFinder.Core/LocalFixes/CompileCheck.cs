@@ -38,6 +38,7 @@ public static class CompileCheck
         ".ps1" => true,
         ".exs" or ".ex" => true,
         ".f90" or ".f95" or ".f03" or ".f08" => true,
+        ".erl" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -253,7 +254,7 @@ public static class CompileCheck
             key.Append(name).Append('=').Append(value).Append('\n');
 
         if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs" or
-            ".f90" or ".f95" or ".f03" or ".f08")
+            ".f90" or ".f95" or ".f03" or ".f08" or ".erl")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -281,6 +282,7 @@ public static class CompileCheck
         if (extension == ".ml") return [Path.GetDirectoryName(original)!];
         if (extension == ".rs") return RustProgram.Of(original).Files.Select(file => Path.GetDirectoryName(file)!).Distinct(StringComparer.OrdinalIgnoreCase);
         if (FortranBuild.Extensions.Contains(extension)) return [Path.GetDirectoryName(original)!];
+        if (extension == ".erl") return [Path.GetDirectoryName(original)!];
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -498,6 +500,27 @@ public static class CompileCheck
                 return Spec(rustc.Program,
                     RustBuild.CompileArguments(RustBuild.EditionFor(layout, rustc), Path.GetRelativePath(layout.Folder, layout.Root), Path.Combine(folder, "check.exe")),
                     crate);
+            }
+
+            case ".erl":
+            {
+                if (ErlangBuild.Erlc() is not { } erlc) return null;
+
+                // The modules of the program the changed module calls come with the copy, and the compiled modules are
+                // written into the check's own folder.
+                var whole = Path.GetFullPath(original);
+                var checkFolder = Path.GetDirectoryName(copy)!;
+                var checkedFiles = new List<string>();
+
+                foreach (var file in ErlangBuild.Files(original))
+                {
+                    if (!file.Equals(whole, StringComparison.OrdinalIgnoreCase))
+                        File.Copy(file, Path.Combine(checkFolder, Path.GetFileName(file)), overwrite: true);
+
+                    checkedFiles.Add(file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(copy) : Path.GetFileName(file));
+                }
+
+                return Spec(erlc, ErlangBuild.CompileArguments(checkFolder, checkedFiles), checkFolder);
             }
 
             case ".f90" or ".f95" or ".f03" or ".f08":

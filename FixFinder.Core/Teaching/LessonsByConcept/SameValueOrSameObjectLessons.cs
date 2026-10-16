@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart, PowerShell, Elixir];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -292,5 +292,33 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "In double quotes the name is text, the same kind of value as \"Ada\", so the two are equal."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "yes without quotes is an atom - a fixed value of its own - and \"yes\" in double quotes is text. They look alike, but they are " +
+        "different kinds of value, so they are never equal.",
+        [
+            new WorkedExample("Did they say yes?",
+                Broken: """
+                    -module(answers).
+                    -export([main/0]).
+
+                    agreed(Answer) -> Answer == yes.
+
+                    main() ->
+                        io:format("~p~n", [agreed("yes")]).
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    -module(answers).
+                    -export([main/0]).
+
+                    agreed(Answer) -> Answer == "yes".
+
+                    main() ->
+                        io:format("~p~n", [agreed("yes")]).
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "The answer is compared with the text \"yes\", the kind of value it is."),
         ]);
 }
