@@ -25,7 +25,99 @@ public static partial class PowerShellLogicPatterns
         Pattern("logic-powershell-assignment-in-condition", AssignmentInCondition, Severity.Error, Confidence.Certain),
         Pattern("logic-powershell-loop-to-count", LoopToCount, Severity.Error),
         Pattern("logic-powershell-function-called-with-brackets", FunctionCalledWithBrackets, Severity.Error, Confidence.Certain),
+        Pattern("logic-powershell-property-in-text", PropertyInText, Severity.Error, Confidence.Certain),
+        Pattern("logic-powershell-variable-in-single-quotes", VariableInSingleQuotes, Severity.Error),
     ];
+
+    /// <summary>The text on a line - between double quotes, with ` escaping, or single ones, with '' for a quote - each with its quote.</summary>
+    private static IEnumerable<(char Quote, int Start, int End)> TextIn(string line)
+    {
+        for (var index = 0; index < line.Length; index++)
+        {
+            if (line[index] == '#') yield break;
+            if (line[index] is not ('"' or '\'')) continue;
+
+            var quote = line[index];
+            var end = index + 1;
+            while (end < line.Length)
+            {
+                if (quote == '"' && line[end] == '`') end += 2;
+                else if (line[end] == quote && end + 1 < line.Length && line[end + 1] == quote) end += 2;
+                else if (line[end] == quote) break;
+                else end++;
+            }
+
+            if (end >= line.Length) yield break;
+            yield return (quote, index + 1, end);
+            index = end;
+        }
+    }
+
+    /// <summary><c>$marks.Count</c> or <c>$marks[0]</c> - a variable with a property or a position after it - not already in $( ).</summary>
+    [GeneratedRegex(@"(?<!\$\()(?<!`)\$(?<name>[A-Za-z_]\w*)(?<after>\.[A-Za-z_]\w*|\[[^\]]+\])")]
+    private static partial Regex VariableWithMore();
+
+    /// <summary>
+    /// "$marks.Count" in double quotes: PowerShell puts a variable's value into text, but only the variable - $marks - so the .Count
+    /// after it stays as it is written, and 70 80 90.Count is printed. $( ) puts the whole expression's value in.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PropertyInText(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < source.Lines.Count; index++)
+        {
+            var line = source.Lines[index];
+            var inText = TextIn(line).Where(text => text.Quote == '"')
+                .SelectMany(text => VariableWithMore().Matches(line[text.Start..text.End]).Select(found => (Found: found, At: text.Start + found.Index)))
+                .ToList();
+            if (inText.Count == 0) continue;
+
+            var changed = line;
+            foreach (var (found, at) in Enumerable.Reverse(inText))
+                changed = changed[..at] + $"$({found.Value})" + changed[(at + found.Length)..];
+
+            var first = inText[0].Found;
+            yield return new LogicFinding(id, index + 1,
+                $"in double quotes PowerShell puts in the value of ${first.Groups["name"].Value} alone, and writes the {first.Groups["after"].Value} " +
+                "after it as it is - so the text holds the whole of the variable, and then the words",
+                LocalFix.ReplaceLine(id, $"Put the whole expression in: $({first.Value})",
+                    $"$( ) inside double quotes puts in the value of everything between its brackets - {first.Value}, not ${first.Groups["name"].Value} alone.",
+                    source.Path, index + 1, changed));
+        }
+    }
+
+    /// <summary>
+    /// 'Hello, $name' in single quotes, where the script gives $name a value: PowerShell puts variables' values only into text in
+    /// double quotes - text in single quotes is written exactly as it is, $name and all. The quotes become double ones.
+    /// </summary>
+    private static IEnumerable<LogicFinding> VariableInSingleQuotes(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var given = masked
+            .Select(line => Regex.Match(line, @"^\s*\$(?<name>[A-Za-z_]\w*)\s*=(?!=)"))
+            .Where(found => found.Success)
+            .Select(found => found.Groups["name"].Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        for (var index = 0; index < source.Lines.Count; index++)
+        {
+            var line = source.Lines[index];
+
+            foreach (var (quote, start, end) in TextIn(line))
+            {
+                var text = line[start..end];
+                if (quote != '\'' || text.Contains('"') || text.Contains("''", StringComparison.Ordinal) || text.Contains('`')) continue;
+
+                var named = Regex.Matches(text, @"\$(?<name>[A-Za-z_]\w*)").Select(found => found.Groups["name"].Value).Where(given.Contains).ToList();
+                if (named.Count == 0) continue;
+
+                yield return new LogicFinding(id, index + 1,
+                    $"text in single quotes is written exactly as it is, so ${named[0]} is printed as the word ${named[0]} - not its value",
+                    LocalFix.ReplaceLine(id, "Put the text in double quotes",
+                        $"PowerShell puts a variable's value into text only in double quotes: \"{text}\" holds the value of ${named[0]}.",
+                        source.Path, index + 1, line[..(start - 1)] + "\"" + text + "\"" + line[(end + 1)..]));
+                break;
+            }
+        }
+    }
 
     /// <summary>An if, elseif or while whose condition has a &gt; of its own - not -gt, not 2&gt;, not &gt;&gt;.</summary>
     [GeneratedRegex(@"^\s*(?:\}\s*)?(?:if|elseif|while)\s*\((?<left>[^()>]*?)\s*(?<symbol>(?<![-\w>])>(?![>=]))\s*(?<right>[^()]*?)\)", RegexOptions.IgnoreCase)]

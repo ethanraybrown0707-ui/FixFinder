@@ -129,37 +129,12 @@ public sealed partial class PhpUnclosedBrace : ILocalFixRule
         if (context.Read(context.Frame?.File) is not { } source || !PhpCode.IsPhp(source)) return null;
 
         var masked = PhpLines.Masked(source);
-        var open = new List<int>();
-        var neverClosed = new List<int>();
-
-        for (var index = 0; index < masked.Count; index++)
-        {
-            var code = masked[index].Trim();
-            if (code.StartsWith('}') && open.Count > 0)
-            {
-                var indent = CodeText.Indentation(masked[index]).Length;
-                var closes = open.FindLastIndex(opener => CodeText.Indentation(masked[opener]).Length == indent);
-                if (closes < 0) closes = open.Count - 1;
-
-                neverClosed.AddRange(open.Skip(closes + 1));
-                open.RemoveRange(closes, open.Count - closes);
-            }
-
-            if (code.EndsWith('{')) open.Add(index);
-        }
-
-        if (neverClosed.Concat(open).ToList() is not [var opened]) return null;
-
-        var openerIndent = CodeText.Indentation(source.Lines[opened]);
-        var back = Enumerable.Range(opened + 1, Math.Max(0, masked.Count - opened - 1))
-            .FirstOrDefault(index => masked[index].Trim().Length > 0 && CodeText.Indentation(source.Lines[index]).Length <= openerIndent.Length, -1);
-        var last = (back < 0 ? masked.Count : back) - 1;
-        while (last > opened && source.Lines[last].Trim().Length == 0) last--;
+        if (LeftOpen.NeverClosedBraces(masked) is not [var opened]) return null;
 
         return LocalFix.Insert(Id, $"Close the {{ on line {opened + 1}",
             $"The {{ on line {opened + 1} is never closed, so PHP reached the end of the file inside it. Its }} goes where its indentation " +
             "ends - after the last line indented inside it.",
-            source.Path, last + 2, [openerIndent + "}"]);
+            source.Path, LeftOpen.BlockEndsBefore(source.Lines, masked, opened), [CodeText.Indentation(source.Lines[opened]) + "}"]);
     }
 }
 

@@ -89,5 +89,25 @@ internal static class PowerShellPatternGuides
             $total = Get-Total @(70, 80)
             Write-Output ($total + 1)
             """),
+
+        GuideFor(["logic-powershell-property-in-text"], "A property inside double quotes",
+            "In double quotes PowerShell puts in a variable's value - but only the variable's: in \"$marks.Count\" it puts in $marks, " +
+            "and writes .Count after it as it is. The same goes for $marks[0].",
+            "The text holds the whole of the variable followed by the words, with no error - 70 80 90.Count.",
+            "Put the whole expression inside $( ): \"$($marks.Count)\" puts in the value of everything between its brackets.",
+            """
+            $marks = @(70, 80, 90)
+            Write-Output "Marks counted: $($marks.Count)"
+            """),
+
+        GuideFor(["logic-powershell-variable-in-single-quotes"], "A variable inside single quotes",
+            "PowerShell puts a variable's value into text only in double quotes. Text in single quotes is written exactly as it is, " +
+            "$name and all.",
+            "The text holds the variable's name rather than its value, with no error.",
+            "Put the text in double quotes: \"Hello, $name\".",
+            """
+            $name = "Ada"
+            Write-Output "Hello, $name"
+            """),
     ];
 }

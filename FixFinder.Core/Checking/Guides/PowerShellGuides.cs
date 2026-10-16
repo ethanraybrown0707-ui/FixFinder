@@ -34,7 +34,8 @@ internal static class PowerShellGuides
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
         Refused("MissingEndCurlyBrace",
-            "A { was opened and not closed, so PowerShell reached the end of the script still waiting for its }. It names the line of the { left open.",
+            "A { was opened and not closed, so PowerShell reached the end of the script still waiting for its }. PowerShell takes each } " +
+            "to close the latest {, so when an inner block's } is the one missing, the line it names is the outer block's.",
             "Close each block with } where its lines finish. Indenting each block's lines shows which one is missing its }.",
             """
             $marks = 70, 80
@@ -87,6 +88,29 @@ internal static class PowerShellGuides
                 Write-Output "not forty"
             }
             """),
+
+        Refused("MissingEndParenthesisInExpression",
+            "A ( was opened and not closed on its line, so PowerShell read on past the line's end looking for its ).",
+            "Close the bracket where what is inside it ends - often at the end of the same line.",
+            """
+            $total = (70 + 80)
+            Write-Output $total
+            """),
+
+        new GuideEntry
+        {
+            RuleIds = ["powershell-missing-dollar"],
+            Guide = new MistakeGuide(
+                "Every PowerShell variable's name starts with $. Without it, PowerShell takes the name for a command - a cmdlet, a function " +
+                "or a program - looks for one called that, and finds none.",
+                CarriesOn,
+                "Put the $ before the variable's name: $total = ....",
+                """
+                $marks = @(70, 80)
+                $total = ($marks | Measure-Object -Sum).Sum
+                Write-Output $total
+                """),
+        },
 
         Refused("TerminatorExpectedAtEndOfString",
             "A piece of text was started with a quote that is never closed, so PowerShell took the rest of the script as text.",

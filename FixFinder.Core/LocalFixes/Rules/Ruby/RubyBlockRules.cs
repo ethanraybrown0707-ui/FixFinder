@@ -58,21 +58,6 @@ internal static partial class RubyBlocks
 
         return [.. neverClosed.Concat(open).Order()];
     }
-
-    /// <summary>
-    /// Where the block opened on <paramref name="opener"/> ends by its indentation: after the last line indented further than it,
-    /// before the first line - not blank - that is not. The line number, from 1, that its end goes before.
-    /// </summary>
-    public static int EndsBefore(IReadOnlyList<string> lines, IReadOnlyList<string> masked, int opener)
-    {
-        var indent = CodeText.Indentation(lines[opener]).Length;
-        var back = Enumerable.Range(opener + 1, Math.Max(0, lines.Count - opener - 1))
-            .FirstOrDefault(index => masked[index].Trim().Length > 0 && CodeText.Indentation(lines[index]).Length <= indent, -1);
-
-        var last = (back < 0 ? lines.Count : back) - 1;
-        while (last > opener && lines[last].Trim().Length == 0) last--;
-        return last + 2;
-    }
 }
 
 /// <summary>
@@ -102,7 +87,7 @@ public sealed partial class RubyMissingEnd : ILocalFixRule
             $"Every block Ruby opens - with def, if, do and the rest - is closed by an end, and the {keyword} on line {opener + 1} has none, so " +
             "Ruby reached the end of the file still inside it. The end goes where the block's indentation ends - after the last line " +
             "indented inside it.",
-            at.Source.Path, RubyBlocks.EndsBefore(at.Source.Lines, masked, opener), [CodeText.Indentation(at.Source.Lines[opener]) + "end"]);
+            at.Source.Path, LeftOpen.BlockEndsBefore(at.Source.Lines, masked, opener), [CodeText.Indentation(at.Source.Lines[opener]) + "end"]);
     }
 }
 
@@ -345,7 +330,7 @@ public sealed partial class RubyUnterminatedString : ILocalFixRule
 
         for (var index = 0; index < at.Source.Lines.Count; index++)
         {
-            if (Closed(at.Source.Lines[index]) is not { } closed) continue;
+            if (LeftOpen.ClosedText(at.Source.Lines[index], Syntax.Python, escape: '\\') is not { } closed) continue;
 
             return LocalFix.ReplaceLine(Id, $"Close the string on line {index + 1}",
                 "The text that starts with this quote has no closing quote on its line, so Ruby read on to the end of the file inside it. " +
@@ -354,46 +339,6 @@ public sealed partial class RubyUnterminatedString : ILocalFixRule
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// The line with its text closed, when a quote on it opens text that the line does not close: the same quote at its end - before
-    /// the ) of each bracket still open before the quote, when the line ends with them. Null when every quote on it closes.
-    /// </summary>
-    private static string? Closed(string line)
-    {
-        var quote = '\0';
-        var opened = -1;
-
-        for (var index = 0; index < line.Length; index++)
-        {
-            var character = line[index];
-
-            if (quote == '\0')
-            {
-                if (character == '#') return null;
-                if (character is '"' or '\'')
-                {
-                    quote = character;
-                    opened = index;
-                }
-
-                continue;
-            }
-
-            if (character == '\\') index++;
-            else if (character == quote) quote = '\0';
-        }
-
-        if (quote == '\0') return null;
-
-        var brackets = CodeText.Mask(line[..opened], Syntax.Python);
-        var open = brackets.Count(character => character == '(') - brackets.Count(character => character == ')');
-        var text = line.TrimEnd();
-        var closeAt = text.Length;
-
-        for (var bracket = 0; bracket < open && closeAt > opened + 1 && text[closeAt - 1] == ')'; bracket++) closeAt--;
-        return text[..closeAt] + quote + text[closeAt..];
     }
 }
 

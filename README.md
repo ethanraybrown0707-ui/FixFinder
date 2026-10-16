@@ -383,14 +383,17 @@ are read with it. PowerShell carries on past most errors - a command not found, 
 by zero - so every error a run prints is a finding of its own, placed in a dot-sourced script when it is there.
 Comparisons written as other languages write them - `==`, `!=`, `<`, `<=`, `>=`, `&&`, `||` - become PowerShell's `-eq`,
 `-ne`, `-lt`, `-le`, `-ge`, `-and` and `-or`, `else if` becomes `elseif`, a misspelt command the nearest one the script
-or PowerShell has, `.Add` on a fixed-size array `+=`, and a division by zero gets an answer for when the divisor is
-zero; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by six
-checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+or PowerShell has, `.Add` on a fixed-size array `+=`, a division by zero gets an answer for when the divisor is zero, a
+variable written without its `$` gets it, a `{` left open is closed where its indentation ends - PowerShell names the
+outer block, and each `}` is taken to close the `{` at its own indentation - and a string or a bracket left open is
+closed; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by
+eight checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
 text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
-is true; and text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back
-with that value as part of the function's result when the result is kept. PowerShell is tested with Windows PowerShell
-5.1.
+is true; text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back with
+that value as part of the function's result when the result is kept; `"$marks.Count"` in double quotes, which puts in
+the value of `$marks` alone and prints `70 80 90.Count`; and a variable in single quotes, `'Hello, $name'`, which is
+printed as it is written. PowerShell is tested with Windows PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -1061,7 +1064,7 @@ Python, Java and C# are checked most thoroughly.
 | Perl | 10 | 6 | 25 |
 | Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |
-| PowerShell | 5 | 6 | 13 |
+| PowerShell | 9 | 8 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 6 | 33 |
