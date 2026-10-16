@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -367,5 +367,25 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("75"),
                 WhatChanged: "totl is now total, the name the first line defines - the one F# suggested."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js runs TypeScript by taking its types out, and checks nothing else first - so a name it does not know stops " +
+        "the program only when that line runs, with ReferenceError: the name is not defined.",
+        [
+            new WorkedExample("Dividing a total by a count",
+                Broken: """
+                    const total: number = 150;
+                    const count: number = 2;
+                    console.log(totl / count);
+                    """,
+                BrokenDoes: Behaviour.Stopping("ReferenceError", 3),
+                Fixed: """
+                    const total: number = 150;
+                    const count: number = 2;
+                    console.log(total / count);
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "totl is now total, the name the first line defines."),
         ]);
 }

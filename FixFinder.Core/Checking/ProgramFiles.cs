@@ -54,6 +54,7 @@ public static partial class ProgramFiles
             ".ps1" => Follow(path, PowerShellNeighbours),
             ".exs" or ".ex" => Follow(path, file => ElixirNeighbours(file, Path.GetDirectoryName(path)!)),
             ".fsx" => Follow(path, FSharpScript.Loaded),
+            ".ts" or ".mts" or ".cts" => Follow(path, TypeScriptNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -263,6 +264,23 @@ public static partial class ProgramFiles
             var folder = required.Groups["here"].Success ? Path.GetDirectoryName(file)! : programFolder;
             var target = Path.GetFullPath(Path.Combine(folder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
             if (File.Exists(target)) yield return target;
+        }
+    }
+
+    /// <summary>
+    /// The files a TypeScript file imports by their whole names - import { average } from "./helpers.ts" - as Node.js, which
+    /// strips the types and adds no extension of its own, finds only those.
+    /// </summary>
+    private static IEnumerable<string> TypeScriptNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match import in JavaScriptImport().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, import.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target) && Path.GetExtension(target).ToLowerInvariant() is ".ts" or ".mts" or ".cts" or ".js" or ".mjs" or ".cjs") yield return target;
         }
     }
 

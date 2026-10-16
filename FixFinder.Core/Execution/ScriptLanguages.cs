@@ -27,6 +27,10 @@ namespace FixFinder.Core.Execution;
 /// F# Interactive, dotnet fsi, checks an F# script with --typecheck-only - the script and the files it loads - and runs none
 /// of it: it writes its first error, and the warnings before it, and fails for an error.
 /// </para>
+/// <para>
+/// TypeScript is checked by Node.js itself, through FixFinder's small check: Node strips the types, saying where it cannot,
+/// and compiles what is left as a module, running none of it.
+/// </para>
 /// The check runs in the file's own folder and is given the file's name, so what it says names the file as it is there.
 /// </remarks>
 public static class ScriptLanguages
@@ -58,7 +62,10 @@ public static class ScriptLanguages
     /// <summary>F#'s scripts, checked by F# Interactive with --typecheck-only, which runs none of the script.</summary>
     public static ScriptLanguage FSharp { get; } = new("F#", "fsharp", [".fsx"], "dotnet", FSharpScript.CheckArguments, "dotnet", "fsi --version");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir, FSharp];
+    /// <summary>TypeScript, checked by Node.js itself through FixFinder's small check, which strips its types and runs none of it.</summary>
+    public static ScriptLanguage TypeScript { get; } = new("TypeScript", "node", [".ts", ".mts", ".cts"], "node", TypeScriptCheck.Arguments, "node", "--version");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir, FSharp, TypeScript];
 
     public static ScriptLanguage? Of(string file)
     {

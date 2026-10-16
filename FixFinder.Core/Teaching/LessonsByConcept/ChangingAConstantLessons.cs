@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang, FSharp];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -312,5 +312,25 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("1"),
                 WhatChanged: "count is declared with let mutable, so <- can give it a new value."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "A value declared with const keeps the value it was given. Node.js does not check that before it runs, so giving it " +
+        "another stops the program at that line with TypeError: Assignment to constant variable.",
+        [
+            new WorkedExample("Changing a total",
+                Broken: """
+                    const total: number = 10;
+                    total = 20;
+                    console.log(total);
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 2),
+                Fixed: """
+                    let total: number = 10;
+                    total = 20;
+                    console.log(total);
+                    """,
+                FixedDoes: Behaviour.Printing("20"),
+                WhatChanged: "total is declared with let, so it can be given a new value."),
         ]);
 }

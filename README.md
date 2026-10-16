@@ -440,6 +440,22 @@ that reads `marks.[index]`; a decimal worked out by arithmetic and then compared
 `stdin.ReadLine()` compared with a number in quotes, which compares the two as text. F# is tested with F# Interactive
 15.2, F# 10, from the .NET SDK 10.0.400.
 
+A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js itself, which runs TypeScript by taking
+its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
+package it does not have, and with no one at a terminal to ask it says yes by itself, and FixFinder never downloads; a
+Node.js that does not run TypeScript itself - its `process.features.typescript` says so - is said to be one, and the
+program is not run. No TypeScript compiler is run either, so **the types are not checked**:
+`const total: number = "ten"` runs. Before it runs, every file of the program is checked by a small check of FixFinder's
+that runs none of it: Node's own `stripTypeScriptTypes` takes the types out - failing, in Node's words and at the line
+it names, on TypeScript it cannot read, such as a bracket left open, or cannot run with its types taken out, such as an
+`enum`, a `namespace` or a parameter property - and what is left is compiled as a module, which finds JavaScript's own
+errors, such as a name declared twice. Once its types are out the program is JavaScript, so a crash is read as
+JavaScript's, at the lines of the `.ts` file as written, in a file it imports too, and JavaScript's fix rules are
+TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
+`'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
+quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
+copy - by the same check - and run. TypeScript is tested with Node.js 24.19.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -685,6 +701,7 @@ it stops with:
 | Elixir | Elixir's own compiler on every file, through a check that runs none of the program |
 | Erlang | `erlc -Wall`, with the modules the program calls |
 | F# | `dotnet fsi --typecheck-only`, with the files the script loads |
+| TypeScript | Node.js itself on every file: its types taken out, and the rest compiled - the types are not checked |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -1019,7 +1036,7 @@ Python, Java and C# are checked most thoroughly.
 | C# | 47 | 32 | 49 |
 | C | 46 | 20 | 39 |
 | C++ | 45 | 25 | 39 |
-| JavaScript | 41 | 29 | 15 |
+| JavaScript | 42 | 29 | 16 |
 | Go | 38 | 9 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1034,15 +1051,17 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 6 | 33 |
+| TypeScript | 44 | 0 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
 for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in twenty languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+A crash is read in twenty-one languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
 Elixir, Erlang, F#, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the
-JVM's stack trace, read as Java's is and placed at the first frame in the program's own code. Anything else gets a
-generic reading of its file and line.
+JVM's stack trace, read as Java's is and placed at the first frame in the program's own code, and TypeScript, whose
+crash is JavaScript's once its types are taken out, read as JavaScript's is. Anything else gets a generic reading of its
+file and line.
 
 Some limits are part of how FixFinder works:
 

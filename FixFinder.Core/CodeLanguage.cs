@@ -65,7 +65,13 @@ public sealed record CodeLanguage(
     /// <summary>F#: what F# Interactive says as it checks a script, and the .NET exceptions that stop the script it runs.</summary>
     public static CodeLanguage FSharp { get; } = new("F#", [".fsx"], ["fsharp"], ["fsharp-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
+    /// <summary>
+    /// TypeScript: run by Node.js, which strips its types, so its messages are Node's - and JavaScript's fix rules read it as they
+    /// read JavaScript, which is what it is once its types are gone.
+    /// </summary>
+    public static CodeLanguage TypeScript { get; } = new("TypeScript", [".ts", ".mts", ".cts"], ["node"], ["js-", "ts-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     public bool IsAny => ParserIds.Count == 0;
 

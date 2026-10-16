@@ -69,6 +69,16 @@ public static class MessageReading
             "The first line names the kind of error - TypeError, ReferenceError - and its message. Each line under it that " +
             "starts with at is a function that was running, the one that failed first, with its file, line and column in " +
             "brackets; the ones in node: files are Node's own, and can be passed over.",
+        [("TypeScript", MessagePhase.BeforeRunning)] =
+            "Node.js runs TypeScript by taking its types out. The message names the file and the line, shows the line with ^ under " +
+            "the place, then SyntaxError and, in brackets, Node's code for it: ERR_INVALID_TYPESCRIPT_SYNTAX for TypeScript it could " +
+            "not read, with what it expected, and ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX for a part of TypeScript that is more than types, " +
+            "such as an enum. None of the file ran. The lines under it that start with at are inside Node itself, and can be passed over.",
+        [("TypeScript", MessagePhase.WhileRunning)] =
+            "Once its types are taken out, the program runs as JavaScript, so this is JavaScript's message: the kind of error - " +
+            "TypeError, ReferenceError - and its message, then a line starting with at for each function that was running, the one " +
+            "that failed first, with its file, line and column - the lines of your .ts file, as written. The ones in node: files are " +
+            "Node's own, and can be passed over.",
         [("Go", MessagePhase.BeforeRunning)] =
             "Go names the file, the line and the column - main.go:7:5 is line 7, column 5 - and what is wrong. Go refuses " +
             "to build a program with even one such error, so none of it ran.",

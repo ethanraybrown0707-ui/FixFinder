@@ -23,7 +23,8 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
 
     private static Match Header(string text) => HeaderPattern().Match(text) is { Success: true } header ? header : PrintedObjectHeaderPattern().Match(text);
 
-    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/).+?\.[mc]?js):(?<line>\d+)\s*$")]
+    // A JavaScript file, or a TypeScript one, which Node.js runs once it has stripped the types.
+    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:[\\/]|file:\/\/|\/).+?\.[mc]?[jt]s):(?<line>\d+)\s*$")]
     private static partial Regex LocationPattern();
 
     [GeneratedRegex(@"^\s*\^+\s*$")]

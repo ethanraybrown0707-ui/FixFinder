@@ -26,7 +26,15 @@ public static partial class FindingFactory
         var file = frame?.File is { Length: > 0 } named ? FileNamed(named, fallbackFile) : fallbackFile;
         var guide = Guidebook.For(file, kind, fix?.LocalFix?.RuleId, error, isWarning);
 
-        return Build(kind, severity, confidence, file, frame?.Line, TitleOf(error), guide.Explanation, guide, fix) with
+        // A line of a file that is not there - node:internal/modules/esm/resolve:271 - is no line of the chosen file's. With no
+        // line of its own, the finding is at the line its change makes, when the change is to that file: the import it fixes.
+        var line = frame?.File is { Length: > 0 } framed && !string.Equals(Path.GetFileName(framed), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? null
+            : frame?.Line;
+        if (line is null && fix?.LocalFix is { } change && string.Equals(Path.GetFullPath(change.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase))
+            line = change.StartLine;
+
+        return Build(kind, severity, confidence, file, line, TitleOf(error), guide.Explanation, guide, fix) with
         {
             RuleId = fix?.LocalFix?.RuleId ?? error.ErrorCode ?? error.ShortExceptionType ?? "",
             Error = error,

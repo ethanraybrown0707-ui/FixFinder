@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, FSharp];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -421,5 +421,29 @@ internal static class NothingThereLessons
                 FixedDoes: Behaviour.Printing("no marks"),
                 WhatChanged: "List.tryHead gives Some with the first mark, or None for an empty list, and the match says what to do " +
                     "for each."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "A type says what a value should be, and Node.js does not check it: people[0] of an empty list is undefined whatever " +
+        "its type says, and reading .name of undefined stops the program with TypeError.",
+        [
+            new WorkedExample("The first person's name",
+                Broken: """
+                    interface Person {
+                      name: string;
+                    }
+                    const people: Person[] = [];
+                    console.log(people[0].name);
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 5),
+                Fixed: """
+                    interface Person {
+                      name: string;
+                    }
+                    const people: Person[] = [];
+                    console.log(people.length > 0 ? people[0].name : "no people");
+                    """,
+                FixedDoes: Behaviour.Printing("no people"),
+                WhatChanged: "The name is read only when the list has someone in it."),
         ]);
 }

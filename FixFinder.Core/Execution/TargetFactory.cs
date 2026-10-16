@@ -96,7 +96,11 @@ public static class TargetFactory
         [".js"] = new("node"),
         [".mjs"] = new("node"),
         [".cjs"] = new("node"),
-        [".ts"] = new("npx", "tsx", "ts-node"),
+        // TypeScript is run by Node.js itself, which strips its types - not by npx tsx, which installs tsx when it is not there,
+        // without asking when no one is at a terminal, and FixFinder never downloads.
+        [".ts"] = new("node"),
+        [".mts"] = new("node"),
+        [".cts"] = new("node"),
 
         [".jar"] = new("java", "-jar"),
         [".rb"] = new("ruby"),
@@ -210,7 +214,7 @@ public static class TargetFactory
         // the code's own needs ask for.
         var python = isPython ? PythonSetup.For(full, environment, windowed) : null;
         var go = extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ? GoSetup.For(full) : null;
-        var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" ? NodeSetup.For(full) : null;
+        var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" || TypeScriptCheck.IsTypeScript(full) ? NodeSetup.For(full) : null;
 
         var found = python?.Interpreter ?? go?.Go ?? node?.Node ?? environment?.Interpreter ?? Resolve(runner);
 
@@ -225,6 +229,14 @@ public static class TargetFactory
                 $"{Path.GetFileName(full)} needs {names} to run it, and that is not installed - " +
                 $"or at least not on this account's PATH.\n\n" +
                 $"Install it, or pick a program that runs on its own such as an .exe.");
+        }
+
+        if (TypeScriptCheck.IsTypeScript(full) && !TypeScriptCheck.NodeRunsTypeScript(found))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} is TypeScript, which FixFinder runs with Node.js itself, and the Node.js that would run it - " +
+                $"{found} - does not run TypeScript: its process.features.typescript says it cannot strip types. FixFinder never " +
+                "downloads a package such as tsx to run it.\n\nA newer Node.js runs TypeScript itself.");
         }
 
         var viaDotnet =

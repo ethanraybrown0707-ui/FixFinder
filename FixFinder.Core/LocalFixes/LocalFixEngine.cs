@@ -381,6 +381,9 @@ public static partial class LocalFixEngine
         new JsNamedExportTypo(),
         new JsRequireInModule(),
         new JsCoreModuleTypo(),
+        new JsImportExtension(),
+        new TsConditionClosingBracket(),
+        new TsMissingComma(),
         new JsForeignPrint(),
         new JsForeignWord(),
         new JsLen(),
@@ -811,6 +814,7 @@ public static partial class LocalFixEngine
             ".exs" or ".ex" => "compiled it with Elixir, which runs none of it but what sits directly inside a defmodule",
             ".erl" => "compiled it with erlc",
             ".fsx" => "checked it with dotnet fsi --typecheck-only, which runs none of it",
+            ".ts" or ".mts" or ".cts" => "checked it with Node.js, which stripped its types and compiled it, and ran none of it",
             _ => "compiled it",
         };
 

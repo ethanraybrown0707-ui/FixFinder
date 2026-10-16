@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang, FSharp];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -270,5 +270,23 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("240\ndone"),
                 WhatChanged: "The bracket opened before List.sum is closed after marks."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js reads a whole TypeScript file before it runs any of it, so a bracket left open stops it before anything " +
+        "runs: SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX], saying what it expected where the statement ended.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    const total: number = 10;
+                    console.log(total;
+                    """,
+                BrokenDoes: Behaviour.Refused("ERR_INVALID_TYPESCRIPT_SYNTAX", 2),
+                Fixed: """
+                    const total: number = 10;
+                    console.log(total);
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The bracket opened after console.log is closed before the ;."),
         ]);
 }

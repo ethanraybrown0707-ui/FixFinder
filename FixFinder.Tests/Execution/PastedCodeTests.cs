@@ -43,6 +43,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Elixir", "IO.puts(\"hi\")\n", "pasted.exs")]
     [InlineData("Erlang", "-module(hello).\n-export([main/0]).\n\nmain() -> io:format(\"hi~n\").\n", "hello.erl")]
     [InlineData("F#", "printfn \"hi\"\n", "pasted.fsx")]
+    [InlineData("TypeScript", "const total: number = 1;\n", "pasted.ts")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -117,6 +118,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     // let and [70; 80] are OCaml's too, but printfn, let mutable and List.sum are F#'s alone.
     [InlineData("let marks = [70; 80; 90]\nlet total = List.sum marks\nprintfn \"%d\" total\n", "F#")]
     [InlineData("let mutable count = 0\nfor mark in [70; 80] do\n    count <- count + 1\nprintfn \"%d\" count\n", "F#")]
+    // console.log is JavaScript's too, but a value or a parameter written with its type, and an interface, are TypeScript's alone.
+    [InlineData("const marks: number[] = [70, 80];\nfunction average(values: number[]): number {\n  return values.length;\n}\nconsole.log(average(marks));\n", "TypeScript")]
+    [InlineData("interface Student {\n  name: string;\n}\nconst ada: Student = { name: \"Ada\" };\nconsole.log(ada.name);\n", "TypeScript")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

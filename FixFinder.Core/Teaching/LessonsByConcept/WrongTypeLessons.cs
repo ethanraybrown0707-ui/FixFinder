@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang, FSharp];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -308,5 +308,25 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Mark: 70"),
                 WhatChanged: "string mark is the text \"70\", and + joins two pieces of text."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js runs TypeScript by taking the types out without checking them, so a type written on a value does not make it " +
+        "that type. + on two pieces of text joins them: \"4\" + \"4\" is \"44\", even where the type says number.",
+        [
+            new WorkedExample("Doubling a number typed in",
+                Broken: """
+                    const typed: string = "4";
+                    const doubled: number = typed + typed;
+                    console.log(doubled);
+                    """,
+                BrokenDoes: Behaviour.Printing("44"),
+                Fixed: """
+                    const typed: string = "4";
+                    const doubled: number = Number(typed) + Number(typed);
+                    console.log(doubled);
+                    """,
+                FixedDoes: Behaviour.Printing("8"),
+                WhatChanged: "Number turns the text into a number before +, so + adds two numbers."),
         ]);
 }

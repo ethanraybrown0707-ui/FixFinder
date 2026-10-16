@@ -57,7 +57,7 @@ public static class ProjectScan
     /// <summary>The kinds of file FixFinder can check.</summary>
     private static readonly HashSet<string> Source = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".py", ".ipynb", ".java", ".cs", ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".js", ".mjs", ".cjs", ".go", ".scala", ".sc", ".ml", ".rs", ".rb", ".php", ".lua", ".pl", ".pm", ".dart", ".f90", ".f95", ".f03", ".f08", ".ps1", ".exs", ".ex", ".erl", ".fsx",
+        ".py", ".ipynb", ".java", ".cs", ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".js", ".mjs", ".cjs", ".go", ".scala", ".sc", ".ml", ".rs", ".rb", ".php", ".lua", ".pl", ".pm", ".dart", ".f90", ".f95", ".f03", ".f08", ".ps1", ".exs", ".ex", ".erl", ".fsx", ".ts", ".mts", ".cts",
     };
 
     /// <summary>Headers are part of a program rather than programs, so they never start a check of their own.</summary>

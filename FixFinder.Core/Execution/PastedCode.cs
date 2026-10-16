@@ -148,6 +148,15 @@ public static partial class PastedCode
         (CodeLanguage.Erlang, [
             new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
             new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
+        // TypeScript: JavaScript with types - a value, a parameter or what a function gives back written with its type, an
+        // interface, a type, as const. JavaScript has none of them.
+        (CodeLanguage.TypeScript, [
+            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w<>\[\]|]+\s*=", RegexOptions.Multiline),
+            new(@"\(\s*\w+\s*:\s*(?:number|string|boolean|any|unknown)(?:\[\])?\s*[,)]"),
+            new(@"\)\s*:\s*(?:number|string|boolean|void|any|Promise<[^>]*>)(?:\[\])?\s*(?:\{|=>)"),
+            new(@"^\s*(?:export\s+)?interface\s+[A-Z]\w*", RegexOptions.Multiline),
+            new(@"^\s*(?:export\s+)?type\s+[A-Z]\w*(?:<[^>]*>)?\s*=", RegexOptions.Multiline),
+            new(@"\bas\s+const\b")]),
         // F#: printfn and let mutable are its own; OCaml writes Printf.printf, and has no List.sum or #load.
         (CodeLanguage.FSharp, [
             new(@"\bprintfn\s+[$@]?"""), new(@"^\s*let\s+mutable\s+\w+", RegexOptions.Multiline), new(@"\b(?:List|Seq|Array)\.(?:sum|average|max|min|sumBy)\b"),

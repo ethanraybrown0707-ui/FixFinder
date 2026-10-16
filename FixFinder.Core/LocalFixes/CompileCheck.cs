@@ -40,6 +40,7 @@ public static class CompileCheck
         ".f90" or ".f95" or ".f03" or ".f08" => true,
         ".erl" => true,
         ".fsx" => true,
+        ".ts" or ".mts" or ".cts" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -497,6 +498,10 @@ public static class CompileCheck
             case ".exs" or ".ex":
                 // Elixir compiles the copy and runs none of it but what sits directly inside a defmodule, as running it would.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Elixir, copy, Timeout);
+
+            case ".ts" or ".mts" or ".cts":
+                // Node.js strips the copy's types and compiles what is left, and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.TypeScript, copy, Timeout);
 
             case ".fsx":
             {
