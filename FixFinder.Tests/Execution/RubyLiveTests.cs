@@ -119,8 +119,47 @@ public class RubyLiveTests(ITestOutputHelper output) : IDisposable
     }
 
     [Theory]
+    // The end the do on line 3 is missing goes after its body, at its indentation - not after the def's - so the total is 150.
+    [InlineData("def total(marks)\n  sum = 0\n  marks.each do |mark|\n    sum += mark\n  sum\nend\n\nputs total([70, 80])\n", "ruby-missing-end", 8, "150")]
+    [InlineData("mark = 70\nif mark > 50\n  puts \"pass\"\n\nputs \"done\"\n", "ruby-missing-end", 5, "pass\ndone")]
+    [InlineData("mark = 70\nif mark > 50\n  puts \"pass\"\nend\nend\nputs \"done\"\n", "ruby-extra-end", 5, "pass\ndone")]
+    [InlineData("mark = 70\nif mark > 80\n  puts \"high\"\nelse if mark > 50\n  puts \"pass\"\nend\n", "ruby-else-if", 6, "pass")]
+    [InlineData("[70, 80].each |mark|\n  puts mark\nend\n", "ruby-missing-do", 2, "70\n80")]
+    [InlineData("def total(marks):\n  marks.sum\nend\nputs total([1])\n", "ruby-python-colon", 1, "1")]
+    [InlineData("name = \"Ada\nputs name\n", "ruby-unterminated-string", 2, "Ada")]
+    [InlineData("puts(1 + 2\nputs 3\n", "ruby-unclosed-bracket", 2, "3\n3")]
+    public async Task WhatRubyWillNotReadIsFoundBeforeItRunsAndItsChangeRuns(string code, string rule, int line, string fixedPrints)
+    {
+        if (Ruby() is not { } ruby) return;
+
+        var program = Write(Path.Combine($"refused-{rule}-{code.Length}", "main.rb"), code);
+        var report = await CheckAsync(program);
+
+        var refused = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Syntax);
+        Assert.Equal((rule, line), (refused.RuleId, refused.Line!.Value));
+        Assert.True(refused.Verified.IsVerified, refused.Verified.Summary);
+        Assert.Equal(fixedPrints, await RunAsync(ruby, Changed(code, refused), $"refused-{rule}-{code.Length}"));
+    }
+
+    [Fact]
+    public async Task EqualsInAConditionIsChangedToCompare()
+    {
+        if (Ruby() is not { } ruby) return;
+
+        const string code = "mark = 70\nif mark = 100\n  puts \"full\"\nelse\n  puts \"not full\"\nend\n";
+        var report = await CheckAsync(Write(Path.Combine("compare", "main.rb"), code));
+
+        var warned = Assert.Single(report.Findings, finding => finding.RuleId == "ruby-compare-in-condition");
+        Assert.Equal((2, "if mark == 100"), (warned.Line!.Value, warned.Fix!.NewLines.Single()));
+        Assert.Equal("full", report.Run?.Run?.Lines.Single(line => line.Stream == StreamKind.StdOut).Text.Trim());
+        Assert.Equal("not full", await RunAsync(ruby, Changed(code, warned), "compare"));
+    }
+
+    [Theory]
     [InlineData("marks = []\ntotal = marks.sum\naverage = total / marks.length\nputs average\n", "ruby-division-guard", 3, "0")]
     [InlineData("age = 36\nputs \"Age: \" + age\n", "ruby-number-to-text", 2, "Age: 36")]
+    [InlineData("marks = [70, 80]\nmarks.each do |mark|\n  total = total + mark\nend\nputs total\n", "ruby-total-starts-at-zero", 3, "150")]
+    [InlineData("typed = \"7\"\nputs 10 + typed\n", "ruby-text-to-number", 2, "17")]
     public async Task ACrashGetsItsChangeAndTheChangedProgramRuns(string code, string rule, int line, string fixedPrints)
     {
         if (Ruby() is not { } ruby) return;
@@ -155,6 +194,8 @@ public class RubyLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("name = \"ada\"\nname.upcase\nputs name\n", "logic-ruby-result-discarded", 2, "ada", "ADA")]
     [InlineData("marks = [70, 80, 90]\n(0..marks.length).each do |i|\n  puts \"Mark: #{marks[i]}\"\nend\n", "logic-ruby-range-to-length", 2, "Mark: 70\nMark: 80\nMark: 90\nMark:", "Mark: 70\nMark: 80\nMark: 90")]
     [InlineData("marks = [70, 80, 90]\nfor i in 0..marks.length\n  p marks[i]\nend\n", "logic-ruby-range-to-length", 2, "70\n80\n90\nnil", "70\n80\n90")]
+    // Ruby reads elif as a call to a method, inside the if's own branch: with mark 70 neither branch runs.
+    [InlineData("mark = 70\nif mark > 80\n  puts \"high\"\nelif mark > 50\n  puts \"pass\"\nend\n", "logic-ruby-elif", 4, "", "pass")]
     public async Task ALogicMistakeRubySaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string printed, string fixedPrints)
     {
         if (Ruby() is not { } ruby) return;

@@ -89,5 +89,19 @@ internal static class RubyPatternGuides
             doubled = marks.map { |mark| mark * 2 }
             p doubled
             """),
+
+        GuideFor(["logic-ruby-elif"], "elif, which Ruby does not have",
+            "Ruby writes \"else if\" as elsif. elif is Python's word, and Ruby reads a line starting with it as a call to a method called " +
+            "elif - inside the if's own branch, not as a branch of its own.",
+            "When the if's condition is false, neither branch runs and nothing is said; when it is true, the program stops at the elif.",
+            "Write elsif.",
+            """
+            mark = 70
+            if mark > 80
+              puts "high"
+            elsif mark > 50
+              puts "pass"
+            end
+            """),
     ];
 }

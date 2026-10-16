@@ -26,6 +26,7 @@ public static partial class RubyLogicPatterns
         Pattern("logic-ruby-float-equality", FloatEquality),
         Pattern("logic-ruby-result-discarded", ResultDiscarded),
         Pattern("logic-ruby-range-to-length", RangeToLength, Severity.Error),
+        Pattern("logic-ruby-elif", ElifForElsif, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary><c>(total / count).to_f</c>: a division made a decimal afterwards.</summary>
@@ -182,6 +183,40 @@ public static partial class RubyLogicPatterns
                 LocalFix.ReplaceLine(id, $"Stop before the length: 0...{array}.length",
                     $"A range with three dots stops before its end, so {variable} goes over {array}'s positions and no further.",
                     source.Path, index + 1, line[..dots.Index] + "..." + line[(dots.Index + dots.Length)..]));
+        }
+    }
+
+    /// <summary><c>elif mark &gt; 50</c> at the start of a line.</summary>
+    [GeneratedRegex(@"^(?<lead>\s*)elif\b")]
+    private static partial Regex Elif();
+
+    /// <summary>
+    /// elif, as Python writes it, inside an if: Ruby has no elif, and reads the line as a call to a method called elif, in the if's
+    /// own branch. When the if's condition is false nothing runs, with no error - Ruby 3.3 ran it and printed nothing - and when it
+    /// is true, Ruby stops there with NoMethodError. The change is Ruby's elsif.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ElifForElsif(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 1; index < masked.Count; index++)
+        {
+            if (Elif().Match(masked[index]) is not { Success: true } elif) continue;
+
+            var indent = elif.Groups["lead"].Length;
+            var inIf = Enumerable.Range(0, index).Reverse()
+                .Where(above => masked[above].Trim().Length > 0)
+                .Select(above => masked[above])
+                .FirstOrDefault(above => CodeText.Indentation(above).Length <= indent) is { } heading &&
+                Regex.IsMatch(heading, @"^\s*(?:if|unless|elsif)\b");
+            if (!inIf) continue;
+
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                "Ruby has no elif, so it reads this line as a call to a method called elif, inside the if's own branch - when the condition " +
+                "above is false, neither branch runs, with no error, and when it is true Ruby stops here",
+                LocalFix.ReplaceLine(id, "Write elsif",
+                    "Ruby writes \"else if\" as elsif, which starts the next branch of the if.",
+                    source.Path, index + 1, elif.Groups["lead"].Value + "elsif" + line[(elif.Groups["lead"].Length + "elif".Length)..]));
         }
     }
 }

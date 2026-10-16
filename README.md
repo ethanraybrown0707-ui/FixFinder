@@ -290,15 +290,20 @@ compared with text, though it still ends with its newline. Rust is tested with r
 A **Ruby** program - an `.rb` file - is read by `ruby -wc` before it runs, which checks every file of the program and
 runs none of it: a syntax error is found there, and so are Ruby's warnings - an `=` in a condition, a variable never
 used. The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there.
-Ruby's own "Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a
-divisor is zero, and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`,
-which runs none of it - and run. Ruby's code is read for logic mistakes by seven checks `ruby -w` says nothing of:
-`(total / count).to_f` of two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that
-gives back a changed copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with
-two dots, `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with
-`gets` compared with text, though it still ends with its newline, and `each` where `map` was meant -
-`doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked out. Ruby
-is tested with Ruby 3.3.12.
+Ruby's own "Did you mean?" for a name or a method it does not know becomes a fix, and so do an answer for when a divisor
+is zero, `.to_s` for a number joined to text with `+`, `.to_i` for text added to a number - a number typed in is still
+text - a missing `end`, put where its block's indentation ends, an `end` that closes nothing, `else if` written for
+`elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
+`=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
+it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
+run. Ruby's code is read for logic mistakes by eight checks `ruby -w` says nothing of: `(total / count).to_f` of two
+whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy -
+`name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
+`0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
+compared with text, though it still ends with its newline, `each` where `map` was meant -
+`doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked out, and
+`elif`, which Ruby reads as a call to a method of that name, inside the `if`'s own branch - when the `if`'s condition is
+false, nothing runs and nothing is said. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -1044,7 +1049,7 @@ Python, Java and C# are checked most thoroughly.
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 3 | 7 | 22 |
+| Ruby | 13 | 8 | 26 |
 | PHP | 4 | 7 | 12 |
 | Lua | 7 | 4 | 23 |
 | Perl | 10 | 6 | 25 |
