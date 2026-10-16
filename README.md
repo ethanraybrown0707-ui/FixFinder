@@ -360,12 +360,15 @@ error and warning the analyzer lists is a finding, with its own advice and the p
 `dart main.dart`, not `dart run`: `dart run` resolves a package's dependencies first, fetching them when it has to, and
 FixFinder never downloads - a program whose packages were never fetched says so and stops. An exception is placed at the
 first line of the program's own code in its frames, past Dart's own. The analyzer's diagnostics become fixes: a missing
-`;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in an
-`int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`, `=`
-in a condition becomes `==`, and a `final` variable set again becomes `var`; and while it runs, a whole number divided
-by zero gets an answer for when the divisor is zero. Each change is checked in a copy - with `dart analyze` - and run.
-Dart's code is read for logic mistakes by four checks the analyzer says nothing of: a loop to `<= marks.length`, two
-lists compared with `==`, a decimal worked out by arithmetic and then compared exactly, and `^` written as a power. Dart is tested with Dart 3.13.2.
+`;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in
+an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`,
+`=` in a condition becomes `==`, a `final` variable set again becomes `var`, a named parameter whose type does not allow
+the null it has when left out is made `required`, and a variable given `null` whose type does not allow it gets a type
+that does - `String?`; and while it runs, a whole number divided by zero gets an answer for when the divisor is zero.
+Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by five checks
+the analyzer says nothing of: a loop to `<= marks.length`, two lists compared with `==`, a decimal worked out by
+arithmetic and then compared exactly, `^` written as a power, and `'$marks.length'` in text, which puts in the value of
+`marks` alone and prints `[70, 80, 90].length`. Dart is tested with Dart 3.13.2.
 
 A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
 files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
@@ -1065,7 +1068,7 @@ Python, Java and C# are checked most thoroughly.
 | PHP | 15 | 7 | 18 |
 | Lua | 12 | 4 | 25 |
 | Perl | 10 | 6 | 25 |
-| Dart | 10 | 4 | 23 |
+| Dart | 12 | 5 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 8 | 15 |
 | Elixir | 11 | 6 | 29 |

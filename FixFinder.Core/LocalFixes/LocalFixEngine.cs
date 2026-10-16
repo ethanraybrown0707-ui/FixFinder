@@ -339,6 +339,8 @@ public static partial class LocalFixEngine
         new DartFinalChanged(),
         new DartDivisionGuard(),
         new DartLoopToLength(),
+        new DartRequiredParameter(),
+        new DartNullableType(),
         new FortranDidYouMean(),
         new FortranCompareWithDoubleEquals(),
         new FortranNotEqual(),

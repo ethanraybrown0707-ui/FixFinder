@@ -60,5 +60,17 @@ internal static class DartPatternGuides
               print(side * side);
             }
             """),
+
+        GuideFor(["logic-dart-interpolated-property"], "A property after $ in text",
+            "In text, $marks puts in the value of the name after the $ - and only the name. In '$marks.length' Dart puts in marks, " +
+            "and writes .length after it as it is; the same goes for $marks[0].",
+            "The text holds the whole list followed by the words, with no error - [70, 80, 90].length.",
+            "Put the whole expression in ${ }: '${marks.length}' puts in the value of everything between the braces.",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              print('Marks counted: ${marks.length}');
+            }
+            """),
     ];
 }
