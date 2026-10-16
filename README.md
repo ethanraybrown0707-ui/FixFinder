@@ -417,6 +417,29 @@ out by arithmetic and then compared exactly; a list of numbers printed with `~p`
 `"PFZ"`; a number joined to text with `++` in `io:format`; and `lists:sort` or another function that gives back a
 changed copy, called on a line of its own. Erlang is tested with Erlang/OTP 29.0.6.
 
+An **F#** script - an `.fsx` file - is checked by F# Interactive, `dotnet fsi --typecheck-only`, before it runs, which
+checks the script and the files it loads with `#load` and runs none of it. F# stops at its first error, so a check names
+one, with the warnings and notes it gave before it; each is a finding, with F#'s own number for it - `FS0039` - at the
+line and column it names. The one message that is not the script's - `FS0971: Undefined value 'it'`, which the check
+gives a script that is one expression and nothing else - is left out, as that script runs as it should. The script is
+run by F# Interactive with `--optimize-`, as optimised F# can name the wrong line for a crash, and what stops it -
+.NET's own exception, such as `System.DivideByZeroException` - is placed at its line, in a file the script loads too; a
+function that calls itself for ever is named by the call .NET saw repeated, as .NET gives that no line. A script that
+brings in a NuGet package with `#r "nuget: ..."` is not run, as F# Interactive would download it. F#'s own words become
+fixes: its "Maybe you want one of the following" is the change, a function that calls itself gets `rec`, a value given a
+new one with `<-` is declared `mutable`, `!=` and `==` become `<>` and `=`, `return` is taken out, a `for` with no `do`
+and an `if` with no `then` get them, `!finished` becomes `not finished`, a `%` in a printf format becomes the one for
+its value's type, `area(3, 4)` becomes `area 3 4`, a number joined to text with `+` gets `string`, a bracket left open
+is closed, `[70, 80, 90]` - one tuple - becomes `[70; 80; 90]`, `count = count + 1` inside a function becomes
+`count <- count + 1`, a whole number divided by zero gets an answer for when the divisor is zero, and a loop to
+`marks.Length` stops at `marks.Length - 1`; each change is checked in a copy - with `dotnet fsi --typecheck-only`,
+through the script that loads it when another does - and run. F#'s code is read for logic mistakes by six checks F# says
+nothing of: `total = total + 70` on a line of the script's own, which compares and changes nothing; `List.sort marks` on
+a line of its own there, whose new list is lost; `float (total / count)` of two whole numbers; a loop to `marks.Length`
+that reads `marks.[index]`; a decimal worked out by arithmetic and then compared exactly; and a line read with
+`stdin.ReadLine()` compared with a number in quotes, which compares the two as text. F# is tested with F# Interactive
+15.2, F# 10, from the .NET SDK 10.0.400.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -661,6 +684,7 @@ it stops with:
 | PowerShell | PowerShell's own parser, on every file |
 | Elixir | Elixir's own compiler on every file, through a check that runs none of the program |
 | Erlang | `erlc -Wall`, with the modules the program calls |
+| F# | `dotnet fsi --typecheck-only`, with the files the script loads |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -1009,15 +1033,16 @@ Python, Java and C# are checked most thoroughly.
 | PowerShell | 5 | 6 | 13 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
+| F# | 16 | 6 | 33 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
 for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in nineteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
-Elixir, Erlang, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
-as Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file
-and line.
+A crash is read in twenty languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Erlang, F#, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the
+JVM's stack trace, read as Java's is and placed at the first frame in the program's own code. Anything else gets a
+generic reading of its file and line.
 
 Some limits are part of how FixFinder works:
 
