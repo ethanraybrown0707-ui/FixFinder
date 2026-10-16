@@ -111,6 +111,7 @@ public static class TargetFactory
         // FixFinder never downloads. Run as dart <file>, a program whose packages were never fetched says so, and fails.
         [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
+        [".ex"] = new("elixir"),
     };
 
     public static string FileDialogFilter
@@ -159,6 +160,15 @@ public static class TargetFactory
                 Compile = built.Compile,
                 SourceFolder = workingDirectory,
             };
+        }
+
+        // An Elixir script that installs its packages with Mix.install fetches them as it runs - and Mix can ask to install Hex
+        // first, reading the answer from what is typed in - and FixFinder never downloads.
+        if (extension.ToLowerInvariant() is ".exs" or ".ex" && InstallsElixirPackages(full))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} installs packages with Mix.install as it runs, which downloads them, and FixFinder never " +
+                "downloads anything - so it is not run here.");
         }
 
         if (!ByExtension.TryGetValue(extension, out var runner))
@@ -260,6 +270,11 @@ public static class TargetFactory
                 arguments = $"\"{Path.GetFileName(full)}\"";
                 break;
 
+            case ".exs" or ".ex":
+                // Run from its own folder by its name, Elixir names the file in what it prints as its check names it.
+                arguments = $"\"{Path.GetFileName(full)}\"";
+                break;
+
             case ".py" when ProgramLayout.PythonModule(full) is { } module:
                 arguments = $"-m {module.Module}";
                 workingDirectory = module.Folder;
@@ -283,6 +298,19 @@ public static class TargetFactory
             : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
+    }
+
+    /// <summary>Whether an Elixir file calls Mix.install - outside its comments and text - to install the packages it uses.</summary>
+    private static bool InstallsElixirPackages(string file)
+    {
+        try
+        {
+            return LocalFixes.CodeText.MaskAll(File.ReadAllLines(file), LocalFixes.Syntax.Python).Any(line => line.Contains("Mix.install(", StringComparison.Ordinal));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The warning filter, in Python's own form, for the warning matplotlib gives when a plot is made with no window.</summary>

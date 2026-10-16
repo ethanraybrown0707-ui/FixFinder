@@ -56,7 +56,10 @@ public sealed record CodeLanguage(
     /// <summary>PowerShell: what its parser says before a script runs, and the errors a script prints as it carries on.</summary>
     public static CodeLanguage PowerShell { get; } = new("PowerShell", [".ps1"], ["powershell"], ["powershell-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    /// <summary>Elixir: what it says as it compiles a program, run none of it, and what stops the program it runs.</summary>
+    public static CodeLanguage Elixir { get; } = new("Elixir", [".exs", ".ex"], ["elixir"], ["elixir-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     public bool IsAny => ParserIds.Count == 0;
 

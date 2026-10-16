@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -232,5 +232,23 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("No age for Bob"),
                 WhatChanged: "ContainsKey checks the hashtable has Bob before his age is used."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "person.age asks for a key the map must have. When it is not there, Elixir stops the program with KeyError, shows the map, " +
+        "and suggests a key it does have.",
+        [
+            new WorkedExample("A person's age",
+                Broken: """
+                    person = %{name: "Ada", age: 36}
+                    IO.puts(person.agee)
+                    """,
+                BrokenDoes: Behaviour.Stopping("KeyError", 2),
+                Fixed: """
+                    person = %{name: "Ada", age: 36}
+                    IO.puts(person.age)
+                    """,
+                FixedDoes: Behaviour.Printing("36"),
+                WhatChanged: "The key is spelt as the map has it - age, the one Elixir suggested."),
         ]);
 }

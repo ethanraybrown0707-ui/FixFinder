@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -330,5 +330,23 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("Please type a number"),
                 WhatChanged: "-as [int] gives $null for text that is not a number, and the fixed code checks for it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "String.to_integer reads text that is a whole number and nothing else. A line read with IO.gets still has its newline on the " +
+        "end - \"12\\n\" - and String.to_integer stops the program with ArgumentError for it.",
+        [
+            new WorkedExample("Adding one to what was typed",
+                Broken: """
+                    typed = "12\n"
+                    IO.puts(String.to_integer(typed) + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentError", 2),
+                Fixed: """
+                    typed = "12\n"
+                    IO.puts(String.to_integer(String.trim(typed)) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("13"),
+                WhatChanged: "String.trim takes the newline off before the text is read as a number."),
         ]);
 }

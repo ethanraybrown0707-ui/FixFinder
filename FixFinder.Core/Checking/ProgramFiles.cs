@@ -52,6 +52,7 @@ public static partial class ProgramFiles
             ".pl" or ".pm" => Follow(path, file => PerlNeighbours(file, Path.GetDirectoryName(path)!)),
             ".dart" => Follow(path, DartNeighbours),
             ".ps1" => Follow(path, PowerShellNeighbours),
+            ".exs" or ".ex" => Follow(path, file => ElixirNeighbours(file, Path.GetDirectoryName(path)!)),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -240,6 +241,25 @@ public static partial class ProgramFiles
         foreach (Match sourced in PowerShellDotSourced().Matches(text))
         {
             var target = Path.GetFullPath(Path.Combine(folder, sourced.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
+        }
+    }
+
+    [GeneratedRegex(@"\bCode\.(?:require_file|eval_file|compile_file)\(\s*""(?<path>[^""]+\.exs?)""\s*(?<here>,\s*__DIR__\s*)?\)")]
+    private static partial Regex ElixirRequire();
+
+    /// <summary>
+    /// The files an Elixir file brings in with Code.require_file, Code.eval_file or Code.compile_file: named from the file's own
+    /// folder when __DIR__ follows the name, and from the folder the program runs in when it does not.
+    /// </summary>
+    private static IEnumerable<string> ElixirNeighbours(string file, string programFolder)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        foreach (Match required in ElixirRequire().Matches(text))
+        {
+            var folder = required.Groups["here"].Success ? Path.GetDirectoryName(file)! : programFolder;
+            var target = Path.GetFullPath(Path.Combine(folder, required.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
             if (File.Exists(target)) yield return target;
         }
     }

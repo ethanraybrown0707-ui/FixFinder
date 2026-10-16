@@ -19,6 +19,10 @@ namespace FixFinder.Core.Execution;
 /// dart analyze lists every error and warning in a file, and runs none of it; with --no-fatal-warnings it fails only for an
 /// error. Unlike dart run, it never fetches a package's dependencies.
 /// </para>
+/// <para>
+/// Elixir has no check of its own that runs none of a script, so FixFinder's check script has Elixir compile the file
+/// without running it: Elixir writes every error and warning it would give as the program ran, and fails for an error.
+/// </para>
 /// The check runs in the file's own folder and is given the file's name, so what it says names the file as it is there.
 /// </remarks>
 public static class ScriptLanguages
@@ -44,7 +48,10 @@ public static class ScriptLanguages
     public static ScriptLanguage PowerShell { get; } =
         new("PowerShell", "powershell", [".ps1"], "powershell", PowerShellCheck.Arguments, "powershell", "-NoProfile -Command $PSVersionTable.PSVersion.ToString()");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell];
+    /// <summary>Elixir, compiled through FixFinder's small check script, which runs none of the program.</summary>
+    public static ScriptLanguage Elixir { get; } = new("Elixir", "elixir", [".exs", ".ex"], "elixir", ElixirCheck.Arguments, "elixir", "--short-version");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir];
 
     public static ScriptLanguage? Of(string file)
     {

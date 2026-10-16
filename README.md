@@ -374,6 +374,25 @@ a word: `>` in a condition, which writes a file; `=` in a condition; a loop to `
 `Area(3, 4)`, which gives its first parameter both values and the second none. PowerShell is tested with Windows
 PowerShell 5.1.
 
+An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
+FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
+the file, each module is compiled, and the rest is compiled into a function that is never called - so `IO.gets` waits
+for nothing and `Code.require_file` brings nothing in. Every error and warning Elixir would give as the program ran is a
+finding, in its own words and at the line and column it names; the files the program brings in with `Code.require_file`
+are checked with it, and what stops the program in one of them is placed there. A script that installs packages with
+`Mix.install` is not run, as that downloads them. Elixir's own words become fixes: an undefined variable or function
+becomes the nearest one the file has, Elixir's own "Did you mean" for a function or a map's key is the change, a `+`
+joining text becomes `<>`, a division by zero gets an answer for when the divisor is zero, `marks[0]` on a list becomes
+`Enum.at(marks, 0)`, a number read from text with its newline still on is trimmed first, a block with no `do` gets one,
+and a block with no `end` gets one, lined up with its start; each change is checked in a copy - compiled by Elixir - and
+run. Elixir's code is read for logic mistakes by six checks: a range to `0..length(marks)` used with `Enum.at`, which
+takes in the length; a line read with `IO.gets` compared with text, though it still ends with its newline; `Map.put` or
+`String.upcase` on a line of its own, whose changed copy is lost; a decimal worked out by arithmetic and then compared
+exactly; `if mark = 40 do`, which gives `mark` the value; and a variable given a new value inside `fn`, `for` or `if`,
+which leaves the one outside as it was - Elixir warns of it only as an unused variable, and the warning and the check
+are one finding, whose change gives the block's result to the variable. Elixir is tested with Elixir 1.20.4 on
+Erlang/OTP 29.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -616,6 +635,7 @@ it stops with:
 | Dart | `dart analyze` on every file, its errors and warnings |
 | Fortran | `gfortran -Wall`, building with `-fcheck=all` |
 | PowerShell | PowerShell's own parser, on every file |
+| Elixir | Elixir's own compiler on every file, through a check that runs none of the program |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -958,6 +978,7 @@ Python, Java and C# are checked most thoroughly.
 | Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 5 | 4 | 13 |
+| Elixir | 11 | 6 | 29 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

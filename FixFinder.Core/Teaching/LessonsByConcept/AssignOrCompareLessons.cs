@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -344,5 +344,33 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("pass\ndone"),
                 WhatChanged: "-gt compares; > wrote 50 to a file named 40, and the if had nothing to test."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "= in Elixir matches. In an if's condition it gives the variable the value, and the condition is then that value - true for " +
+        "anything but false and nil - so the block always runs. Elixir warns only that the value the variable had first is never used.",
+        [
+            new WorkedExample("Is the mark forty?",
+                Broken: """
+                    mark = 70
+
+                    if mark = 40 do
+                      IO.puts("forty")
+                    end
+
+                    IO.puts(mark)
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    mark = 70
+
+                    if mark == 40 do
+                      IO.puts("forty")
+                    end
+
+                    IO.puts(mark)
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== asks whether mark is 40 and leaves it as it was, so the if is skipped and mark is still 70."),
         ]);
 }

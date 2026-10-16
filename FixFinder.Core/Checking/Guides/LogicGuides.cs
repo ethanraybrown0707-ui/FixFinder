@@ -320,6 +320,7 @@ internal static class LogicGuides
         .. DartPatternGuides.All,
         .. FortranPatternGuides.All,
         .. PowerShellPatternGuides.All,
+        .. ElixirPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

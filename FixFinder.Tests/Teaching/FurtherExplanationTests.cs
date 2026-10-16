@@ -169,6 +169,10 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "PowerShell", "$mark = 50\nif ($mark -gt 70) {\n    Write-Output \"high\"\n} else if ($mark -gt 40) {\n    Write-Output \"pass\"\n}\n", ["At ", "pasted.ps1:4 char:7", "~", "Missing statement block after 'else' keyword."] },
         { "PowerShell", "$ErrorActionPreference = \"Stop\"\n$name = $null\nWrite-Output $name.ToUpper()\n", ["You cannot call a method on a null-valued expression.", "pasted.ps1:3 char:1", "~", "FullyQualifiedErrorId : InvokeMethodOnNull"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
+        { "Elixir", "marks = [70, 80]\nIO.puts(totl)\n", ["error: undefined variable \"totl\"", "^^^^", "└─ pasted.exs:2:9"] },
+        { "Elixir", "IO.puts(Enum.sum([1, 2])\n", ["** (TokenMissingError)", "error: missing terminator: )", "└ unclosed delimiter", "└─ pasted.exs:1:25"] },
+        { "Elixir", "marks = []\nIO.puts(Enum.sum(marks) / length(marks))\n", ["** (ArithmeticError) bad argument in arithmetic expression", "pasted.exs:2: (file)"] },
+        { "Elixir", "person = %{name: \"Ada\", age: 36}\nIO.puts(person.agee)\n", ["** (KeyError) key :agee not found in:", "Did you mean:", "* :age", "pasted.exs:2: (file)"] },
     };
 
     [Theory]

@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -382,5 +382,23 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("No name\ndone"),
                 WhatChanged: "The fixed code checks $name holds something before calling a method on it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Enum.at gives nil - nothing - for a position past the end of a list, with no error. The error comes when the nil is used: " +
+        "nil + 1 stops the program with ArithmeticError.",
+        [
+            new WorkedExample("The second mark, plus one",
+                Broken: """
+                    marks = [70, 80]
+                    IO.puts(Enum.at(marks, 2) + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    marks = [70, 80]
+                    IO.puts(Enum.at(marks, 1) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("81"),
+                WhatChanged: "Positions count from 0, so the second mark is at 1."),
         ]);
 }

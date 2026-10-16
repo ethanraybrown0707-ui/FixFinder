@@ -135,6 +135,9 @@ public static partial class PastedCode
             new(@"\b(?:Write-Output|Write-Host|Read-Host|Get-Content|Set-Content|ForEach-Object|Where-Object|Get-ChildItem|Test-Path)\b", RegexOptions.IgnoreCase),
             new(@"\s-(?:eq|ne|lt|le|gt|ge|and|or|like|match)\s", RegexOptions.IgnoreCase), new(@"^\s*param\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase),
             new(@"\$_\b|\$PSScriptRoot\b|\$null\b"), new(@"\bforeach\s*\(\s*\$\w+\s+in\s+\$", RegexOptions.IgnoreCase)]),
+        (CodeLanguage.Elixir, [
+            new(@"^\s*defmodule\s+[A-Z][\w.]*\s+do\b", RegexOptions.Multiline), new(@"^\s*defp?\s+[a-z_]\w*[?!]?(?:\([^)]*\))?\s*(?:when\b.*)?(?:,\s*do:|\s+do\b)", RegexOptions.Multiline),
+            new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\(")]),
     ];
 
     /// <summary>

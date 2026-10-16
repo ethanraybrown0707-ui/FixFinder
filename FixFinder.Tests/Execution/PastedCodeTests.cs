@@ -40,6 +40,7 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("Dart", "void main() {\n  print('hi');\n}\n", "pasted.dart")]
     [InlineData("Fortran", "program hi\n  print *, 'hi'\nend program hi\n", "pasted.f90")]
     [InlineData("PowerShell", "Write-Output 'hi'\n", "pasted.ps1")]
+    [InlineData("Elixir", "IO.puts(\"hi\")\n", "pasted.exs")]
     public void PastedCodeIsSavedUnderTheNameItsLanguageRunsBy(string languageName, string code, string expected) =>
         Assert.Equal(expected, PastedCode.RelativePathFor(code, CodeLanguage.All.Single(language => language.Name == languageName)));
 
@@ -106,6 +107,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("program marks\n  implicit none\n  integer :: total\n  total = 10\n  print *, total\nend program marks\n", "Fortran")]
     // A line starting $marks = is PHP's too, but Write-Output, -gt and foreach ($mark in $marks) are PowerShell's alone.
     [InlineData("$marks = 70, 80\nforeach ($mark in $marks) {\n    if ($mark -gt 75) {\n        Write-Output $mark\n    }\n}\n", "PowerShell")]
+    // A line marks = [70, 80] is Python's and Ruby's too, but defmodule, IO.puts, |> and fn ... -> are Elixir's alone.
+    [InlineData("defmodule Marks do\n  def total(marks), do: Enum.sum(marks)\nend\n\nIO.puts(Marks.total([70, 80]))\n", "Elixir")]
+    [InlineData("marks = [70, 80]\n\nmarks\n|> Enum.map(fn mark -> mark + 5 end)\n|> IO.inspect()\n", "Elixir")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 

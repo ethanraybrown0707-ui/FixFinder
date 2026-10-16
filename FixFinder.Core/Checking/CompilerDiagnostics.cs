@@ -88,8 +88,8 @@ public static partial class CompilerDiagnostics
     }
 
     /// <summary>
-    /// A program in a language run straight from the source - Ruby, PHP, Perl, Lua, and Dart - checked a file at a
-    /// time by the language's own syntax check, which runs none of it: its syntax errors, and the warnings it gives.
+    /// A program in a language run straight from the source - Ruby, PHP, Perl, Lua, Dart, PowerShell and Elixir - checked a
+    /// file at a time by the language's own check, which runs none of it: its errors, and the warnings it gives.
     /// </summary>
     private static async Task<CompilerReport> ScriptAsync(
         ScriptLanguages.ScriptLanguage script, IReadOnlyList<string> files, CodeLanguage language, Action<string>? log, CancellationToken cancellationToken)
@@ -110,9 +110,11 @@ public static partial class CompilerDiagnostics
             output.AddRange(run.Lines);
 
             var folder = check.WorkingDirectory!;
-            // dart analyze and PowerShell's parser list every error they find; the other checks stop at their first.
+            // dart analyze and PowerShell's parser list every error they find, and Elixir every one in a module; the other
+            // checks stop at their first.
             IReadOnlyList<ParsedError> found = script == ScriptLanguages.Dart ? DartParser.AnalyzerErrors(run.Lines)
                 : script == ScriptLanguages.PowerShell ? PowerShellParser.CheckErrors(run.Lines)
+                : script == ScriptLanguages.Elixir && run.Outcome != RunOutcome.ExitedClean ? new ElixirParser().ParseAll(run.Lines)
                 : run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error ? [error] : [];
             errors.AddRange(Resolved(found, folder));
             warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));

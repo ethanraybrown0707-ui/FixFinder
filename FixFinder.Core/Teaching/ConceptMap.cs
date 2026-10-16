@@ -169,6 +169,24 @@ public static class ConceptMap
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-powershell-greater-than-writes-a-file", "logic-powershell-assignment-in-condition"] },
         new(Concepts.Arguments) { CheckIds = ["logic-powershell-function-called-with-brackets"] },
 
+        // Elixir: its errors by their kinds, what it refuses to compile and warns of by its words, and the logic checks of its programs.
+        new(Concepts.UndefinedName) { ExceptionTypes = [Parsing.Parsers.ElixirParser.CompileError], Message = Words(@"^undefined (?:variable ""|function )") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["UndefinedFunctionError"] },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["TokenMissingError", "MismatchedDelimiterError"] },
+        new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"^unexpected reserved word: end") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArithmeticError"], Message = Words(@"^bad argument in arithmetic expression: (?:nil [-+*/]|.+ [-+*/] nil$)") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["ArithmeticError"], Message = Words(@"^bad argument in arithmetic expression(?:: (?:div|rem)\(.+, 0\))?$") },
+        new(Concepts.WrongType) { ExceptionTypes = ["ArithmeticError", "ArgumentError", "Protocol.UndefinedError"] },
+        new(Concepts.NothingThere) { ExceptionTypes = ["BadMapError"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["FunctionClauseError", "CaseClauseError"] },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^variable ""\w+"" is unused \(there is a variable with the same name in the context") },
+        new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^variable ""\w+"" is unused \(if the variable|^function \S+ is unused|^this clause for .+ cannot match|^the following clause is redundant") },
+        new(Concepts.WrongType) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^using single-quoted strings to represent charlists") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-elixir-input-not-trimmed"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-elixir-result-discarded"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-elixir-assignment-in-condition"] },
+        new(Concepts.ChangingAConstant) { CheckIds = ["logic-elixir-new-variable-in-block"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -249,7 +267,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-ruby-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-ruby-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count", "logic-elixir-range-to-length"] },
 
         new(Concepts.EndlessLoop)
         {

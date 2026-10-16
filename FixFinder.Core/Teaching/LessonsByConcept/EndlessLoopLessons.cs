@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -272,5 +272,31 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("6"),
                 WhatChanged: "$count++ moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir has no while loop: a function that calls itself is its loop. When the call that should stop it never comes - from(0), " +
+        "when n goes 5, 3, 1, -1 - it calls itself for ever, and as calling itself is the last thing each call does, it never runs out of room.",
+        [
+            new WorkedExample("A countdown in twos",
+                Broken: """
+                    defmodule Countdown do
+                      def from(0), do: IO.puts("lift off")
+                      def from(n), do: from(n - 2)
+                    end
+
+                    Countdown.from(5)
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    defmodule Countdown do
+                      def from(n) when n <= 0, do: IO.puts("lift off")
+                      def from(n), do: from(n - 2)
+                    end
+
+                    Countdown.from(5)
+                    """,
+                FixedDoes: Behaviour.Printing("lift off"),
+                WhatChanged: "The first clause now stops for any n of 0 or less, so the countdown stops at -1."),
         ]);
 }

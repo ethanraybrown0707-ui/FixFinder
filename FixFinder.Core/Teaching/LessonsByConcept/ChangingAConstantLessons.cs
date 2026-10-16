@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -243,5 +243,27 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "Without parameter, pass_mark is a variable, which can be given a new value."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir's variables never change. = inside an fn makes a new variable, which lasts only until the fn ends - so a total added " +
+        "to inside Enum.each is still 0 afterwards. Elixir only warns that the new total is unused.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    marks = [70, 80, 90]
+                    total = 0
+                    Enum.each(marks, fn mark -> total = total + mark end)
+                    IO.puts(total)
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    marks = [70, 80, 90]
+                    total = 0
+                    total = Enum.reduce(marks, total, fn mark, total -> total + mark end)
+                    IO.puts(total)
+                    """,
+                FixedDoes: Behaviour.Printing("240"),
+                WhatChanged: "Enum.reduce passes the total on from one mark to the next and gives back the last one, which is given to total."),
         ]);
 }

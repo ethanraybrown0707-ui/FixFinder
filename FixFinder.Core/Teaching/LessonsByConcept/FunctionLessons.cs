@@ -18,6 +18,7 @@ internal static class FunctionLessons
         ArgumentsInPerl,
         ArgumentsInDart, ReturnsInDart, RecursionInDart,
         ArgumentsInFortran,
+        ArgumentsInElixir, ReturnsInElixir,
         ArgumentsInPowerShell,
     ];
 
@@ -621,5 +622,57 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("12"),
                 WhatChanged: "Area 3 4 gives the width and the height a value each."),
+        ]);
+
+    private static Lesson ArgumentsInElixir => new(Concepts.Arguments, CodeLanguage.Elixir,
+        "An Elixir function is known by its name and by how many arguments it takes - average/1 takes one - so calling it with two calls " +
+        "a function that does not exist. Elixir stops the program with UndefinedFunctionError, and suggests the one it has.",
+        [
+            new WorkedExample("An average of two marks",
+                Broken: """
+                    defmodule Marks do
+                      def average(marks), do: Enum.sum(marks) / length(marks)
+                    end
+
+                    IO.puts(Marks.average([70, 80], 2))
+                    """,
+                BrokenDoes: Behaviour.Stopping("UndefinedFunctionError", 5),
+                Fixed: """
+                    defmodule Marks do
+                      def average(marks), do: Enum.sum(marks) / length(marks)
+                    end
+
+                    IO.puts(Marks.average([70, 80]))
+                    """,
+                FixedDoes: Behaviour.Printing("75.0"),
+                WhatChanged: "average/1 is given the one argument it takes: the list, which knows its own length."),
+        ]);
+
+    private static Lesson ReturnsInElixir => new(Concepts.ReturnValues, CodeLanguage.Elixir,
+        "An Elixir function gives back the value of its last line, and there is no return. Written on a line of its own, return is read " +
+        "as a call to a function called return - and as there is none, Elixir refuses to compile the file.",
+        [
+            new WorkedExample("The total of the marks",
+                Broken: """
+                    defmodule Marks do
+                      def total(marks) do
+                        return Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                BrokenDoes: Behaviour.Refused("undefined function return/1", 3),
+                Fixed: """
+                    defmodule Marks do
+                      def total(marks) do
+                        Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The sum is the function's last line, so it is what the function gives back."),
         ]);
 }

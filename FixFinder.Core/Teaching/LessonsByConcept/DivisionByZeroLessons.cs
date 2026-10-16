@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -778,5 +778,37 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0\ndone"),
                 WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Dividing by zero stops an Elixir program with ArithmeticError - for /, saying no more than bad argument in arithmetic " +
+        "expression; for div and rem, showing the call.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    marks = []
+                    IO.puts(Enum.sum(marks) / length(marks))
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    marks = []
+                    IO.puts(if length(marks) == 0, do: 0, else: Enum.sum(marks) / length(marks))
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    sweets = 7
+                    people = 0
+                    IO.puts(rem(sweets, people))
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 3),
+                Fixed: """
+                    sweets = 7
+                    people = 0
+                    IO.puts(if people == 0, do: 0, else: rem(sweets, people))
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line works out the remainder only when there are people to share between."),
         ]);
 }

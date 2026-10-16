@@ -5,7 +5,7 @@ internal static class MissedCaseLessons
 {
     private static Concept Concept => Concepts.MissedCase;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Scala, Java, Python, OCaml, Rust, Elixir];
 
     private static Lesson Scala => new(Concept, CodeLanguage.Scala,
         "A match tries its cases in order, and when none fits the value, the program stops with a MatchError. A last case _ " +
@@ -165,5 +165,37 @@ internal static class MissedCaseLessons
                     """,
                 FixedDoes: Behaviour.Printing("another"),
                 WhatChanged: "_ => takes any value the arms above it do not, so every mark gets an answer."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "When none of a case's clauses matches the value, Elixir stops the program with CaseClauseError and shows the value.",
+        [
+            new WorkedExample("A grade for every mark",
+                Broken: """
+                    mark = 20
+
+                    grade =
+                      case mark do
+                        70 -> "A"
+                        40 -> "C"
+                      end
+
+                    IO.puts(grade)
+                    """,
+                BrokenDoes: Behaviour.Stopping("CaseClauseError", 4),
+                Fixed: """
+                    mark = 20
+
+                    grade =
+                      case mark do
+                        70 -> "A"
+                        40 -> "C"
+                        _ -> "F"
+                      end
+
+                    IO.puts(grade)
+                    """,
+                FixedDoes: Behaviour.Printing("F"),
+                WhatChanged: "The last clause, _ ->, matches anything the clauses above it did not."),
         ]);
 }

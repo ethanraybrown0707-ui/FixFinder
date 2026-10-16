@@ -5,7 +5,7 @@ internal static class BlocksLessons
 {
     private static Concept Concept => Concepts.Blocks;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python knows which lines are inside a loop, an if or a function by how far they are indented: the lines after the " +
@@ -85,5 +85,34 @@ internal static class BlocksLessons
                     """,
                 FixedDoes: Behaviour.Printing("pass"),
                 WhatChanged: "elseif, one word, starts the next test with its own block."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "A def, an if and every other block in Elixir starts with do and ends with end. Without the do, Elixir reaches an end with " +
+        "nothing left to close - here the module's - and refuses the whole file before any of it runs, with a hint naming the end on " +
+        "line 4, whose block has no do.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    defmodule Marks do
+                      def total(marks)
+                        Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                BrokenDoes: Behaviour.Refused("SyntaxError", 5),
+                Fixed: """
+                    defmodule Marks do
+                      def total(marks) do
+                        Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The def gets its do, so the end on line 4 closes it and the end on line 5 closes the module."),
         ]);
 }

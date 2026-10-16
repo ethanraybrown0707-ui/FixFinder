@@ -151,6 +151,16 @@ public static class MessageReading
             "The message comes first - after the command's name and a colon, when a command gave it - then after At the file, the " +
             "line and, after char:, the column; then the line itself with ~ under the part it means, and after FullyQualifiedErrorId " +
             "PowerShell's own name for the error. PowerShell carries on with the next line, so a script can print several.",
+        [("Elixir", MessagePhase.BeforeRunning)] =
+            "Elixir compiles a whole file before it runs any of it. Its message starts with error: and what is wrong, shows the line " +
+            "with ^ marks under the place, and ends with └─ and the file, the line and the column - marks.exs:3:9 is line 3, column 9 " +
+            "- and, in a module, the function it is in. Code it cannot read at all starts with its kind, such as ** (TokenMissingError), " +
+            "and └ unclosed delimiter marks where a bracket or a do was opened. A warning is laid out the same way, after warning:.",
+        [("Elixir", MessagePhase.WhileRunning)] =
+            "After ** comes the kind of error in brackets, such as (ArithmeticError), and what went wrong - for some kinds on the lines " +
+            "below too, with the value it had and, after Did you mean:, what Elixir suggests. Then come the calls that led there, the " +
+            "latest first: the file and the line, then the function - (file) for the file's own lines. Lines starting with a bracket, " +
+            "such as (elixir 1.20.4), are inside Elixir, and lines starting with : are inside Erlang, which Elixir runs on.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -328,5 +328,29 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
                 WhatChanged: "-lt stops the loop at the last position, one less than the Count."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir's ranges take in their end, so 0..length(marks) runs one past the last position - where Enum.at gives nil, with no " +
+        "error, and nil is printed as nothing.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    marks = [70, 80, 90]
+
+                    for i <- 0..length(marks) do
+                      IO.puts("Mark: #{Enum.at(marks, i)}")
+                    end
+                    """,
+                BrokenDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90\nMark:"),
+                Fixed: """
+                    marks = [70, 80, 90]
+
+                    for i <- 0..(length(marks) - 1)//1 do
+                      IO.puts("Mark: #{Enum.at(marks, i)}")
+                    end
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
+                WhatChanged: "length(marks) - 1 is the last position, and //1 makes the range count up - so an empty list gives no passes at all."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -208,5 +208,23 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("80"),
                 WhatChanged: "The if gets a } of its own, so the last } closes the foreach - the { PowerShell said was left open, on line 2."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Every bracket needs its pair. When one is missing, Elixir reads on to the end of the file looking for it and refuses the whole " +
+        "file before any of it runs, with TokenMissingError - naming the bracket it expected, and the line where it gave up.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    marks = [70, 80]
+                    IO.puts(Enum.sum(marks)
+                    """,
+                BrokenDoes: Behaviour.Refused("TokenMissingError", 2),
+                Fixed: """
+                    marks = [70, 80]
+                    IO.puts(Enum.sum(marks))
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The ) that closes IO.puts( is added after the one that closes Enum.sum(."),
         ]);
 }

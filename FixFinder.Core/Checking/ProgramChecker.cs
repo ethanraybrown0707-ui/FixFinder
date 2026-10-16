@@ -299,6 +299,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ".php" => Parsing.Parsers.PhpParser.RunWarnings(run.Lines),
             ".pl" => Parsing.Parsers.PerlParser.RunWarnings(run.Lines),
             ".ps1" => Parsing.Parsers.PowerShellParser.RunErrors(run.Lines).Where(error => CarriedOnPast.WhatItWas(error) is not null).ToList(),
+            ".exs" or ".ex" => Parsing.Parsers.ElixirParser.Warnings(run.Lines),
             _ => [],
         };
 

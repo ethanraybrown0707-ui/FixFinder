@@ -36,6 +36,7 @@ public static class CompileCheck
         ".pl" or ".pm" => true,
         ".dart" => true,
         ".ps1" => true,
+        ".exs" or ".ex" => true,
         ".f90" or ".f95" or ".f03" or ".f08" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
@@ -469,6 +470,10 @@ public static class CompileCheck
             case ".ps1":
                 // PowerShell's parser reads the copy and runs none of it.
                 return ScriptLanguages.CheckOf(ScriptLanguages.PowerShell, copy, Timeout);
+
+            case ".exs" or ".ex":
+                // Elixir compiles the copy and runs none of it but what sits directly inside a defmodule, as running it would.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Elixir, copy, Timeout);
 
             case ".rs":
             {

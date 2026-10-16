@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -299,5 +299,25 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way the line that sets it spells it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir compiles the whole file before running any of it, and a variable used without ever being given a value - often a name " +
+        "spelt differently - stops it compiling, with undefined variable.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    marks = [70, 80]
+                    total = Enum.sum(marks)
+                    IO.puts(totl)
+                    """,
+                BrokenDoes: Behaviour.Refused("undefined variable", 3),
+                Fixed: """
+                    marks = [70, 80]
+                    total = Enum.sum(marks)
+                    IO.puts(total)
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The name is spelt as it was when it was given its value."),
         ]);
 }

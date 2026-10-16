@@ -45,6 +45,7 @@ public static class LogicPatterns
         .. DartLogicPatterns.All,
         .. FortranLogicPatterns.All,
         .. PowerShellLogicPatterns.All,
+        .. ElixirLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

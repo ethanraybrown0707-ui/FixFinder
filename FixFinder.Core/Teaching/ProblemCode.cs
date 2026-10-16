@@ -44,6 +44,7 @@ public sealed record ProblemCode(CodeLanguage Language, Concept Concept, string 
         ["Dart"] = "DART",
         ["Fortran"] = "FORTRAN",
         ["PowerShell"] = "PS",
+        ["Elixir"] = "ELIXIR",
     };
 
     /// <summary>The code as it is shown and copied: FF-PY-DIVZERO-K7Q2MXA.</summary>

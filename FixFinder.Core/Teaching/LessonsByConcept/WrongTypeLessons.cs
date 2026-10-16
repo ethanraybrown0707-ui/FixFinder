@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -245,5 +245,23 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("12 marks\ndone"),
                 WhatChanged: "The number is written inside the text, which turns it into text."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "+ adds numbers only. Given text, it stops the program with ArithmeticError, and the message shows the sum it was given: " +
+        "\"Total: \" + 10.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    total = 10
+                    IO.puts("Total: " + total)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    total = 10
+                    IO.puts("Total: " <> to_string(total))
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 10"),
+                WhatChanged: "<> joins text, and to_string turns the number into text first."),
         ]);
 }

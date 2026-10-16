@@ -326,6 +326,17 @@ public static partial class LocalFixEngine
         new PowerShellNearestCommand(),
         new PowerShellFixedSizeArray(),
         new PowerShellDivisionGuard(),
+        new ElixirNearestVariable(),
+        new ElixirNearestFunction(),
+        new ElixirDidYouMeanFunction(),
+        new ElixirDidYouMeanKey(),
+        new ElixirJoinText(),
+        new ElixirDivisionGuard(),
+        new ElixirMissingDo(),
+        new ElixirMissingEnd(),
+        new ElixirOuterVariable(),
+        new ElixirListIndex(),
+        new ElixirTrimInput(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -732,6 +743,7 @@ public static partial class LocalFixEngine
         "perl" => error.ExceptionType == Parsing.Parsers.PerlParser.CompilationError,
         "fortran" => error.ExceptionType == "compile error" && FortranSyntaxMessage().IsMatch(error.Message ?? ""),
         "powershell" => error.ExceptionType == Parsing.Parsers.PowerShellParser.ParserError,
+        "elixir" => error.ExceptionType == Parsing.Parsers.ElixirParser.CompileError || Parsing.Parsers.ElixirParser.SyntaxErrors.Contains(error.ExceptionType ?? ""),
         "dart" => error.ExceptionType == "compile error" &&
                   (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
                        "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
@@ -770,6 +782,7 @@ public static partial class LocalFixEngine
             ".pl" or ".pm" => "checked it with perl -c, which runs none of it but its use lines and BEGIN blocks",
             ".dart" => "checked it with dart analyze, which runs none of it",
             ".ps1" => "checked it with PowerShell's parser, which runs none of it",
+            ".exs" or ".ex" => "compiled it with Elixir, which runs none of it but what sits directly inside a defmodule",
             _ => "compiled it",
         };
 
