@@ -43,6 +43,7 @@ public static class LogicPatterns
         .. PerlLogicPatterns.All,
         .. DartLogicPatterns.All,
         .. FortranLogicPatterns.All,
+        .. PowerShellLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

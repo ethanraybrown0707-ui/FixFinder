@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -301,5 +301,48 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("not forty"),
                 WhatChanged: "/= is Fortran's \"is not equal to\"; with !, everything after the ! was a comment."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "PowerShell compares with words - -eq, -gt, -lt - and its symbols mean other things: = gives a variable a value, and > sends " +
+        "output to a file. In an if, neither is an error: = changes the variable and the if is taken, and > writes a file, leaving " +
+        "the condition empty, so false.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    $mark = 70
+                    if ($mark = 40) {
+                        Write-Output "forty"
+                    }
+                    Write-Output $mark
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    $mark = 70
+                    if ($mark -eq 40) {
+                        Write-Output "forty"
+                    }
+                    Write-Output $mark
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "-eq compares the mark with 40 without changing it."),
+            new WorkedExample("A mark over forty",
+                Broken: """
+                    $mark = 50
+                    if ($mark > 40) {
+                        Write-Output "pass"
+                    }
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $mark = 50
+                    if ($mark -gt 40) {
+                        Write-Output "pass"
+                    }
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("pass\ndone"),
+                WhatChanged: "-gt compares; > wrote 50 to a file named 40, and the if had nothing to test."),
         ]);
 }

@@ -53,7 +53,10 @@ public sealed record CodeLanguage(
     /// <summary>Fortran: what gfortran says as it builds a program, and what stops the program it built.</summary>
     public static CodeLanguage Fortran { get; } = new("Fortran", [".f90", ".f95", ".f03", ".f08"], ["fortran"], ["fortran-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    /// <summary>PowerShell: what its parser says before a script runs, and the errors a script prints as it carries on.</summary>
+    public static CodeLanguage PowerShell { get; } = new("PowerShell", [".ps1"], ["powershell"], ["powershell-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     public bool IsAny => ParserIds.Count == 0;
 

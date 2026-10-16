@@ -171,7 +171,7 @@ public static class SnippetRunner
     private static bool IsRefusal(ParsedError error) =>
         error.ExceptionType is "compile error" or "link error" ||
         error.ShortExceptionType is "SyntaxError" or "IndentationError" or "TabError" or "ParseError" ||
-        error.ExceptionType is Parsing.Parsers.LuaParser.SyntaxError or Parsing.Parsers.PerlParser.CompilationError;
+        error.ExceptionType is Parsing.Parsers.LuaParser.SyntaxError or Parsing.Parsers.PerlParser.CompilationError or Parsing.Parsers.PowerShellParser.ParserError;
 
     /// <summary>The line of the saved code an error is on: the frame in that file, the one the error's own code is in.</summary>
     private static int? LineIn(ParsedError? error, string file)

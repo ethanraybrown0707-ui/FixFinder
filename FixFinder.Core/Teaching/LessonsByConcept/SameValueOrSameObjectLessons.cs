@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart, PowerShell];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -250,5 +250,29 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "== asked whether they are the same list; the fixed line compares the items one by one."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "-eq compares text without minding capital letters, so \"Ada\" -eq \"ada\" is true. -ceq compares it letter for letter, capitals " +
+        "and all - and so on for each comparison: -cne, -clt, -cgt.",
+        [
+            new WorkedExample("Two spellings of a name",
+                Broken: """
+                    if ("Ada" -eq "ada") {
+                        Write-Output "same"
+                    } else {
+                        Write-Output "different"
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("same"),
+                Fixed: """
+                    if ("Ada" -ceq "ada") {
+                        Write-Output "same"
+                    } else {
+                        Write-Output "different"
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("different"),
+                WhatChanged: "-ceq counts a capital A as different from a small a."),
         ]);
 }

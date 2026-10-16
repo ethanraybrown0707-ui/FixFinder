@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -281,5 +281,23 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way its declaration spells it."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "A variable PowerShell has never seen a value for is $null, with no error - so a misspelt name is simply nothing, and the " +
+        "script carries on with it. Set-StrictMode -Version Latest at the top makes PowerShell say so instead.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    $total = 10
+                    Write-Output ($totl + 1)
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    $total = 10
+                    Write-Output ($total + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the line that sets it spells it."),
         ]);
 }

@@ -37,6 +37,8 @@ public class GuideWritingTests
         ["Dart patterns"] = DartPatternGuides.All,
         ["Fortran"] = FortranGuides.All,
         ["Fortran patterns"] = FortranPatternGuides.All,
+        ["PowerShell"] = PowerShellGuides.All,
+        ["PowerShell patterns"] = PowerShellPatternGuides.All,
         ["Shared logic"] = LogicGuides.SharedGuides,
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,

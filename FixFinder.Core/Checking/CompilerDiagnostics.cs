@@ -110,8 +110,9 @@ public static partial class CompilerDiagnostics
             output.AddRange(run.Lines);
 
             var folder = check.WorkingDirectory!;
-            // dart analyze lists every error it finds; the other checks stop at their first.
+            // dart analyze and PowerShell's parser list every error they find; the other checks stop at their first.
             IReadOnlyList<ParsedError> found = script == ScriptLanguages.Dart ? DartParser.AnalyzerErrors(run.Lines)
+                : script == ScriptLanguages.PowerShell ? PowerShellParser.CheckErrors(run.Lines)
                 : run.Outcome != RunOutcome.ExitedClean && registry.Parse(run.Lines) is { } error ? [error] : [];
             errors.AddRange(Resolved(found, folder));
             warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));

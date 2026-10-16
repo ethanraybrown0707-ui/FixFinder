@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -183,5 +183,30 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("1\n2\n3"),
                 WhatChanged: "end do closes the loop where its lines finish."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "Every { needs a } to close it. When one is missing, PowerShell reaches the end of the script still waiting for it, and " +
+        "refuses the whole script before any of it runs - naming the line of the { left open.",
+        [
+            new WorkedExample("Printing the higher marks",
+                Broken: """
+                    $marks = 70, 80
+                    foreach ($mark in $marks) {
+                        if ($mark -gt 75) {
+                            Write-Output $mark
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing closing '}' in statement block or type definition", 2),
+                Fixed: """
+                    $marks = 70, 80
+                    foreach ($mark in $marks) {
+                        if ($mark -gt 75) {
+                            Write-Output $mark
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("80"),
+                WhatChanged: "The if gets a } of its own, so the last } closes the foreach - the { PowerShell said was left open, on line 2."),
         ]);
 }

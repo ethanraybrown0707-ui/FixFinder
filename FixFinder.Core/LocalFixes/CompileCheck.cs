@@ -35,6 +35,7 @@ public static class CompileCheck
         ".lua" => true,
         ".pl" or ".pm" => true,
         ".dart" => true,
+        ".ps1" => true,
         ".f90" or ".f95" or ".f03" or ".f08" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
@@ -464,6 +465,10 @@ public static class CompileCheck
             case ".dart":
                 // dart analyze reads the copy and runs none of it, failing only for an error.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Dart, copy, Timeout);
+
+            case ".ps1":
+                // PowerShell's parser reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.PowerShell, copy, Timeout);
 
             case ".rs":
             {

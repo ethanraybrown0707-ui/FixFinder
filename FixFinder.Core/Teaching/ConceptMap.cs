@@ -158,6 +158,16 @@ public static class ConceptMap
         new(Concepts.UndefinedName) { CheckIds = ["logic-fortran-no-implicit-none"] },
         new(Concepts.ReadBeforeSet) { CheckIds = ["logic-fortran-total-not-started"] },
 
+        // PowerShell: its parser's and its errors' ids, and the logic checks of its scripts.
+        new(Concepts.UnclosedPair) { Codes = ["MissingEndCurlyBrace", "TerminatorExpectedAtEndOfString"] },
+        new(Concepts.AssignOrCompare) { Codes = ["RedirectionNotSupported", "InvalidEndOfLine"] },
+        new(Concepts.UndefinedName) { Codes = ["CommandNotFoundException", "VariableIsUndefined"] },
+        new(Concepts.NothingThere) { Codes = ["InvokeMethodOnNull"] },
+        new(Concepts.DivisionByZero) { Codes = ["RuntimeException"], Message = Words(@"^Attempted to divide by zero") },
+        new(Concepts.TextToNumber) { Codes = ["InvalidCastFromStringToInteger"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-powershell-greater-than-writes-a-file", "logic-powershell-assignment-in-condition"] },
+        new(Concepts.Arguments) { CheckIds = ["logic-powershell-function-called-with-brackets"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -234,7 +244,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count"] },
 
         new(Concepts.EndlessLoop)
         {

@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -756,5 +756,27 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing(".0"),
                 WhatChanged: "Reals divided by zero give Infinity rather than stopping the program, so the fixed code checks for zero itself."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "Dividing by zero prints \"Attempted to divide by zero.\" - and then PowerShell carries on with the next line, without the " +
+        "line's result, so the variable it was to set holds nothing.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    $marks = @()
+                    $average = 100 / $marks.Count
+                    Write-Output $average
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $marks = @()
+                    $average = $(if ($marks.Count -eq 0) { 0 } else { 100 / $marks.Count })
+                    Write-Output $average
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("0\ndone"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
         ]);
 }

@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -306,5 +306,29 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("Please type a number"),
                 WhatChanged: "iostat= catches the failed reading, and the fixed code says so rather than stopping."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "[int] turns text into a whole number, and prints an error when the text is not one - then PowerShell carries on, with " +
+        "nothing in the variable, so the script goes on to a wrong answer. -as [int] gives $null instead, which can be checked for.",
+        [
+            new WorkedExample("An age typed in words",
+                Broken: """
+                    $typed = "twenty"
+                    $age = [int]$typed
+                    Write-Output ($age + 1)
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    $typed = "twenty"
+                    $age = $typed -as [int]
+                    if ($null -eq $age) {
+                        Write-Output "Please type a number"
+                    } else {
+                        Write-Output ($age + 1)
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "-as [int] gives $null for text that is not a number, and the fixed code checks for it."),
         ]);
 }

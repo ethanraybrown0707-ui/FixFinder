@@ -143,6 +143,14 @@ public static class MessageReading
             "At line and the file say where the program stopped; Fortran runtime error: says what went wrong - for a position outside " +
             "an array, which position, which array and its bounds. A program stopped by a signal - SIGFPE, for a whole number divided " +
             "by zero - names no line of its own on Windows.",
+        [("PowerShell", MessagePhase.BeforeRunning)] =
+            "PowerShell reads a whole script before it runs any of it. FixFinder's check names the file, the line and the column - " +
+            "marks.ps1:4:7 is line 4, column 7 - then PowerShell's own name for the mistake, such as MissingStatementBlockAfterElse, " +
+            "and what is wrong. Run, the script shows the place after At, the line with ~ under it, and the message.",
+        [("PowerShell", MessagePhase.WhileRunning)] =
+            "The message comes first - after the command's name and a colon, when a command gave it - then after At the file, the " +
+            "line and, after char:, the column; then the line itself with ~ under the part it means, and after FullyQualifiedErrorId " +
+            "PowerShell's own name for the error. PowerShell carries on with the next line, so a script can print several.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

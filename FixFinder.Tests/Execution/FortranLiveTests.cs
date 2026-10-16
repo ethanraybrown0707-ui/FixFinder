@@ -14,6 +14,7 @@ namespace FixFinder.Tests;
 /// what gfortran says and what stops the program found at their lines - in a module the program uses too - with changes
 /// checked in copies, and every example a Fortran guide shows built and run. A computer without gfortran passes over them.
 /// </summary>
+[Collection(BuildsRunAlone.Name)]
 public class FortranLiveTests(ITestOutputHelper output) : IDisposable
 {
     private readonly TempFolder _temp = new();

@@ -166,6 +166,8 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Dart", "void main() {\n  var marks = <int>[];\n  print(70 ~/ marks.length);\n}\n", ["Unhandled exception:", "IntegerDivisionByZeroException", "main (file:///", "pasted.dart:3:"] },
         { "Fortran", "program marks\n  implicit none\n  integer :: total\n  total = 10\n  print *, totl + 1\nend program marks\n", ["pasted.f90:5:15:", "|               1", "Error: Symbol 'totl' at (1) has no IMPLICIT type", "did you mean 'total'?"] },
         { "Fortran", "program marks\n  implicit none\n  integer :: scores(3) = [70, 80, 90]\n  integer :: i\n  do i = 0, 3\n    print *, scores(i)\n  end do\nend program marks\n", ["At line 6 of file pasted.f90", "Fortran runtime error: Index '0' of dimension 1 of array 'scores' below lower bound of 1"] },
+        { "PowerShell", "$mark = 50\nif ($mark -gt 70) {\n    Write-Output \"high\"\n} else if ($mark -gt 40) {\n    Write-Output \"pass\"\n}\n", ["At ", "pasted.ps1:4 char:7", "~", "Missing statement block after 'else' keyword."] },
+        { "PowerShell", "$ErrorActionPreference = \"Stop\"\n$name = $null\nWrite-Output $name.ToUpper()\n", ["You cannot call a method on a null-valued expression.", "pasted.ps1:3 char:1", "~", "FullyQualifiedErrorId : InvokeMethodOnNull"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
     };
 

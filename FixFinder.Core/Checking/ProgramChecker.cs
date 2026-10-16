@@ -298,6 +298,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         {
             ".php" => Parsing.Parsers.PhpParser.RunWarnings(run.Lines),
             ".pl" => Parsing.Parsers.PerlParser.RunWarnings(run.Lines),
+            ".ps1" => Parsing.Parsers.PowerShellParser.RunErrors(run.Lines).Where(error => CarriedOnPast.WhatItWas(error) is not null).ToList(),
             _ => [],
         };
 
@@ -823,7 +824,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var what = FindingFactory.TitleOf(error);
 
         if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
-        if (CarriedOnPast.WhatItWas(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
+        if (run is { ExitCode: 0 } && CarriedOnPast.WhatItWas(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
         if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
 
         var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);

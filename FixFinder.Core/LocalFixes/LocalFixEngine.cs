@@ -320,6 +320,11 @@ public static partial class LocalFixEngine
         new FortranIntentInOut(),
         new FortranParameterChanged(),
         new FortranLoopBounds(),
+        new PowerShellElseIf(),
+        new PowerShellComparisonWords(),
+        new PowerShellNearestCommand(),
+        new PowerShellFixedSizeArray(),
+        new PowerShellDivisionGuard(),
         new JsBuiltinNotLoaded(),
         new JsCallbackApiUsedForValue(),
         new JsCallbackCalledTooSoon(),
@@ -725,6 +730,7 @@ public static partial class LocalFixEngine
         "lua" => error.ExceptionType == Parsing.Parsers.LuaParser.SyntaxError,
         "perl" => error.ExceptionType == Parsing.Parsers.PerlParser.CompilationError,
         "fortran" => error.ExceptionType == "compile error" && FortranSyntaxMessage().IsMatch(error.Message ?? ""),
+        "powershell" => error.ExceptionType == Parsing.Parsers.PowerShellParser.ParserError,
         "dart" => error.ExceptionType == "compile error" &&
                   (error.ErrorCode is "expected_token" or "missing_identifier" or "unexpected_token" or "unterminated_string_literal" or
                        "missing_function_body" or "expected_executable" or "missing_const_final_var_or_type" ||
@@ -762,6 +768,7 @@ public static partial class LocalFixEngine
             ".lua" => "checked it with luac -p, which runs none of it",
             ".pl" or ".pm" => "checked it with perl -c, which runs none of it but its use lines and BEGIN blocks",
             ".dart" => "checked it with dart analyze, which runs none of it",
+            ".ps1" => "checked it with PowerShell's parser, which runs none of it",
             _ => "compiled it",
         };
 

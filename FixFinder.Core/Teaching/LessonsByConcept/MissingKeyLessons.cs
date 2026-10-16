@@ -5,7 +5,7 @@ internal static class MissingKeyLessons
 {
     private static Concept Concept => Concepts.MissingKey;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, Go, Ruby, Lua, Perl, Dart, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Looking a key up in a dictionary with [] stops the program with KeyError when the key is not there. get asks without " +
@@ -210,5 +210,27 @@ internal static class MissingKeyLessons
                     """,
                 FixedDoes: Behaviour.Printing("1"),
                 WhatChanged: "?? 0 gives 0 when the map has no Bob, so there is a number to add to."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "Asking a hashtable for a key it does not have gives $null, with no error - and $null + 1 is 1, so the script works out an " +
+        "answer for someone who is not there. ContainsKey says whether the key is there.",
+        [
+            new WorkedExample("An age that is not there",
+                Broken: """
+                    $ages = @{ Ada = 36 }
+                    Write-Output ($ages["Bob"] + 1)
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    $ages = @{ Ada = 36 }
+                    if ($ages.ContainsKey("Bob")) {
+                        Write-Output ($ages["Bob"] + 1)
+                    } else {
+                        Write-Output "No age for Bob"
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("No age for Bob"),
+                WhatChanged: "ContainsKey checks the hashtable has Bob before his age is used."),
         ]);
 }

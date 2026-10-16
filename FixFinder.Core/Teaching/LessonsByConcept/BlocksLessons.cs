@@ -5,7 +5,7 @@ internal static class BlocksLessons
 {
     private static Concept Concept => Concepts.Blocks;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python knows which lines are inside a loop, an if or a function by how far they are indented: the lines after the " +
@@ -59,5 +59,31 @@ internal static class BlocksLessons
                     """,
                 FixedDoes: Behaviour.Printing("Mark checked"),
                 WhatChanged: "The braces make both lines the if's block, so neither runs for a mark under 40."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "After else, PowerShell wants a block in { }. \"else if\" is written as one word, elseif - written as two, PowerShell finds if " +
+        "where the block should be, and refuses the script before any of it runs.",
+        [
+            new WorkedExample("Naming a mark's band",
+                Broken: """
+                    $mark = 50
+                    if ($mark -gt 70) {
+                        Write-Output "high"
+                    } else if ($mark -gt 40) {
+                        Write-Output "pass"
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing statement block after 'else' keyword", 4),
+                Fixed: """
+                    $mark = 50
+                    if ($mark -gt 70) {
+                        Write-Output "high"
+                    } elseif ($mark -gt 40) {
+                        Write-Output "pass"
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("pass"),
+                WhatChanged: "elseif, one word, starts the next test with its own block."),
         ]);
 }

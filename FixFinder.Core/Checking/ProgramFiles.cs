@@ -51,6 +51,7 @@ public static partial class ProgramFiles
             ".lua" => Follow(path, file => LuaNeighbours(file, Path.GetDirectoryName(path)!)),
             ".pl" or ".pm" => Follow(path, file => PerlNeighbours(file, Path.GetDirectoryName(path)!)),
             ".dart" => Follow(path, DartNeighbours),
+            ".ps1" => Follow(path, PowerShellNeighbours),
             ".java" => JavaFiles(path),
             ".cs" => CSharpFiles(path),
             ".go" => (ProgramLayout.GoPackageOf(path).Files, true),
@@ -222,6 +223,23 @@ public static partial class ProgramFiles
         foreach (Match imported in DartImport().Matches(text))
         {
             var target = Path.GetFullPath(Path.Combine(folder, imported.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(target)) yield return target;
+        }
+    }
+
+    [GeneratedRegex(@"^\s*\.\s+['""]?(?:\$PSScriptRoot[\\/]|\.[\\/])?(?<path>[^'""\s]+\.ps1)['""]?", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
+    private static partial Regex PowerShellDotSourced();
+
+    /// <summary>The scripts a PowerShell script dot-sources - . .\helpers.ps1, or . $PSScriptRoot\helpers.ps1 - named from its own folder.</summary>
+    private static IEnumerable<string> PowerShellNeighbours(string file)
+    {
+        if (TextOf(file) is not { } text) yield break;
+
+        var folder = Path.GetDirectoryName(file)!;
+
+        foreach (Match sourced in PowerShellDotSourced().Matches(text))
+        {
+            var target = Path.GetFullPath(Path.Combine(folder, sourced.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
             if (File.Exists(target)) yield return target;
         }
     }

@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -306,5 +306,27 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "The loop counts from 1 to size(scores), the array's own positions."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "An array's positions start at 0, so the last is one less than its Count. A loop that runs while $i -le $marks.Count takes one " +
+        "pass too many, and PowerShell gives $null for the position past the end, with no error.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    $marks = 70, 80, 90
+                    for ($i = 0; $i -le $marks.Count; $i++) {
+                        Write-Output ("Mark: " + $marks[$i])
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90\nMark:"),
+                Fixed: """
+                    $marks = 70, 80, 90
+                    for ($i = 0; $i -lt $marks.Count; $i++) {
+                        Write-Output ("Mark: " + $marks[$i])
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
+                WhatChanged: "-lt stops the loop at the last position, one less than the Count."),
         ]);
 }

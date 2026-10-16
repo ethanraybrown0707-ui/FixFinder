@@ -18,6 +18,7 @@ internal static class FunctionLessons
         ArgumentsInPerl,
         ArgumentsInDart, ReturnsInDart, RecursionInDart,
         ArgumentsInFortran,
+        ArgumentsInPowerShell,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -598,5 +599,27 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("12"),
                 WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ArgumentsInPowerShell => new(Concepts.Arguments, CodeLanguage.PowerShell,
+        "PowerShell calls a function by its name, then its values, apart: Area 3 4. Written Area(3, 4), as other languages write it, " +
+        "the brackets and comma make one value - the list 3, 4 - which goes to the first parameter, and the second gets nothing.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    function Area($width, $height) {
+                        return $width * $height
+                    }
+                    Write-Output (Area(3, 4))
+                    """,
+                BrokenDoes: Behaviour.Printing(""),
+                Fixed: """
+                    function Area($width, $height) {
+                        return $width * $height
+                    }
+                    Write-Output (Area 3 4)
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "Area 3 4 gives the width and the height a value each."),
         ]);
 }

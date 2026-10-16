@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -358,5 +358,29 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "name ?? '' gives empty text when name is null, so there is always a length to take."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "$null is PowerShell's value for \"nothing here\". Calling a method on it prints \"You cannot call a method on a null-valued " +
+        "expression\", and PowerShell carries on without the line's result.",
+        [
+            new WorkedExample("A name never given",
+                Broken: """
+                    $name = $null
+                    Write-Output $name.ToUpper()
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $name = $null
+                    if ($null -ne $name) {
+                        Write-Output $name.ToUpper()
+                    } else {
+                        Write-Output "No name"
+                    }
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("No name\ndone"),
+                WhatChanged: "The fixed code checks $name holds something before calling a method on it."),
         ]);
 }

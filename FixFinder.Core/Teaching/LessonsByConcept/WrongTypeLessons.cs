@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -225,5 +225,25 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 12"),
                 WhatChanged: "$total inside the text puts the number in as text."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "+ takes its type from its left side: with a number on the left, PowerShell tries to turn the text on the right into a number, " +
+        "and prints an error when it cannot - then carries on. Text with the number written inside it, \"$total marks\", needs no +.",
+        [
+            new WorkedExample("A total with its word",
+                Broken: """
+                    $total = 12
+                    Write-Output ($total + " marks")
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $total = 12
+                    Write-Output "$total marks"
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("12 marks\ndone"),
+                WhatChanged: "The number is written inside the text, which turns it into text."),
         ]);
 }

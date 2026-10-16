@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -245,5 +245,32 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("6"),
                 WhatChanged: "count = count + 1 moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "A while loop runs for as long as its condition is true, so something inside it has to change what the condition checks. " +
+        "When nothing does, the loop never ends: PowerShell gives no error, and the script has to be stopped.",
+        [
+            new WorkedExample("Adding up to three",
+                Broken: """
+                    $count = 1
+                    $total = 0
+                    while ($count -le 3) {
+                        $total += $count
+                    }
+                    Write-Output $total
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    $count = 1
+                    $total = 0
+                    while ($count -le 3) {
+                        $total += $count
+                        $count++
+                    }
+                    Write-Output $total
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "$count++ moves the count on each time, so the condition is false once it passes 3."),
         ]);
 }

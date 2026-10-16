@@ -40,7 +40,11 @@ public static class ScriptLanguages
 
     public static ScriptLanguage Dart { get; } = new("Dart", "dart", [".dart"], "dart", "analyze --no-fatal-warnings", "dart", "--version");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart];
+    /// <summary>Windows PowerShell, checked by its own parser through FixFinder's small check script, which runs none of the script.</summary>
+    public static ScriptLanguage PowerShell { get; } =
+        new("PowerShell", "powershell", [".ps1"], "powershell", PowerShellCheck.Arguments, "powershell", "-NoProfile -Command $PSVersionTable.PSVersion.ToString()");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell];
 
     public static ScriptLanguage? Of(string file)
     {

@@ -357,6 +357,18 @@ mistakes by four checks gfortran says nothing of: two whole numbers divided and 
 arithmetic and then compared exactly - not a default `real`, where `0.1 + 0.2 == 0.3` is true. Fortran is tested with
 gfortran 13.2.0.
 
+A **PowerShell** script - a `.ps1` file - is read by PowerShell's own parser before it runs, which runs none of it, and
+every mistake the parser finds is a finding, with PowerShell's name for it; the scripts it dot-sources from its folder are
+read with it. PowerShell carries on past most errors - a command not found, a method called on `$null`, a division by zero
+- so every error a run prints is a finding of its own, placed in a dot-sourced script when it is there. Comparisons
+written as other languages write them - `==`, `!=`, `<`, `<=`, `>=`, `&&`, `||` - become PowerShell's `-eq`, `-ne`, `-lt`,
+`-le`, `-ge`, `-and` and `-or`, `else if` becomes `elseif`, a misspelt command the nearest one the script or PowerShell
+has, `.Add` on a fixed-size array `+=`, and a division by zero gets an answer for when the divisor is zero; each change is
+checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by four checks it runs without
+a word: `>` in a condition, which writes a file; `=` in a condition; a loop to `-le $marks.Count`; and a function called as
+`Area(3, 4)`, which gives its first parameter both values and the second none. PowerShell is tested with Windows
+PowerShell 5.1.
+
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
 
@@ -598,6 +610,7 @@ it stops with:
 | Perl | `perl -wc` on every file, with its warnings |
 | Dart | `dart analyze` on every file, its errors and warnings |
 | Fortran | `gfortran -Wall`, building with `-fcheck=all` |
+| PowerShell | PowerShell's own parser, on every file |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -934,13 +947,14 @@ Python, Java and C# are checked most thoroughly.
 | Perl | 9 | 4 | 24 |
 | Dart | 10 | 3 | 23 |
 | Fortran | 8 | 4 | 17 |
+| PowerShell | 5 | 4 | 13 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
 for is explained as a warning, in the compiler's own words, rather than as a mistake it may not be.
 
-A crash is read in seventeen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
-Elixir, Perl, Lua and OCaml, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
+A crash is read in eighteen languages: Python, C#, Java, JavaScript, Go, C, C++, Rust, Ruby, PHP, PowerShell, Dart,
+Elixir, Perl, Lua, OCaml and Fortran, each with its own stack-trace parser, and Scala, whose crash is the JVM's stack trace, read
 as Java's is and placed at the first frame in the program's own code. Anything else gets a generic reading of its file
 and line.
 

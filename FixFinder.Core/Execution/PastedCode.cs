@@ -131,6 +131,10 @@ public static partial class PastedCode
             new(@"^\s*end\s+(?:program|do|if|subroutine|function)\b", RegexOptions.Multiline | RegexOptions.IgnoreCase),
             new(@"^\s*print\s*\*\s*,", RegexOptions.Multiline | RegexOptions.IgnoreCase),
             new(@"^\s*(?:integer|real|character|logical|double\s+precision)\b[^:\n]*::", RegexOptions.Multiline | RegexOptions.IgnoreCase)]),
+        (CodeLanguage.PowerShell, [
+            new(@"\b(?:Write-Output|Write-Host|Read-Host|Get-Content|Set-Content|ForEach-Object|Where-Object|Get-ChildItem|Test-Path)\b", RegexOptions.IgnoreCase),
+            new(@"\s-(?:eq|ne|lt|le|gt|ge|and|or|like|match)\s", RegexOptions.IgnoreCase), new(@"^\s*param\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"\$_\b|\$PSScriptRoot\b|\$null\b"), new(@"\bforeach\s*\(\s*\$\w+\s+in\s+\$", RegexOptions.IgnoreCase)]),
     ];
 
     /// <summary>

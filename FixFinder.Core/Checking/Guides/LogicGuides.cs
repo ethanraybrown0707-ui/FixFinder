@@ -319,6 +319,7 @@ internal static class LogicGuides
         .. PerlPatternGuides.All,
         .. DartPatternGuides.All,
         .. FortranPatternGuides.All,
+        .. PowerShellPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];
