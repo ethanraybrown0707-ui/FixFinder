@@ -76,8 +76,9 @@ internal static class LuaGuides
             """),
 
         Syntax(@"^'end' expected",
-            "A block - a function, an if, a for or while loop, or a do - was opened and not closed with end. Lua says where it was opened, " +
-            "and reached the line it names, or the end of the file, still waiting for the end.",
+            "A block - a function, an if, a for or while loop, or a do - was opened and not closed with end, and Lua reached the line it " +
+            "names, or the end of the file, still waiting for it. Lua takes each end to close the latest block, so when an inner block's end " +
+            "is the one missing, the block it says was left open is the outer one.",
             "Put an end where the block finishes. Indenting each block's lines shows where each one ends.",
             """
             local function average(marks)
@@ -259,6 +260,38 @@ internal static class LuaGuides
             end
             print(countDown(3))
             """),
+
+        new GuideEntry
+        {
+            RuleIds = ["lua-elseif"],
+            Guide = new MistakeGuide(
+                "Lua writes \"else if\" as one word, elseif. else if is an else with a new if inside it - and that if needs an end of its " +
+                "own, so Lua reached the end of the file still looking for it.",
+                NothingRuns,
+                "Write elseif, which starts the next branch of the same if.",
+                """
+                local mark = 70
+                if mark > 80 then
+                  print("high")
+                elseif mark > 50 then
+                  print("pass")
+                end
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["lua-colon-for-method"],
+            Guide = new MistakeGuide(
+                "A string's own functions - upper, lower, sub, len - are called with a colon: name:upper(). The colon gives the function the " +
+                "string itself to work on. With a dot, name.upper() calls it with nothing at all.",
+                Stops,
+                "Call it with a colon: name:upper() - or give the string as the first argument: string.upper(name).",
+                """
+                local name = "ada"
+                print(name:upper())
+                """),
+        },
 
         Runtime(@"^bad argument #\d+ to",
             "One of Lua's own functions was given a value it cannot use - the message says which argument, by its number, what it " +

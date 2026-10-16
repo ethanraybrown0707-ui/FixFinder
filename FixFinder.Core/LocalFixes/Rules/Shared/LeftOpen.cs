@@ -54,10 +54,10 @@ internal static class LeftOpen
     /// <summary>
     /// The line with its text closed, when a quote on it opens text that the line does not close: the same quote at the line's
     /// end - before the ) of each bracket still open before the quote, when the line ends with them. Null when every quote on it
-    /// closes. A # outside text starts a comment, as in Ruby and PowerShell; <paramref name="escape"/> - Ruby's backslash,
-    /// PowerShell's backtick - takes the character after it as it is.
+    /// closes. <paramref name="comment"/> outside text starts a comment - # in Ruby and PowerShell, -- in Lua; <paramref name="escape"/>
+    /// - a backslash, or PowerShell's backtick - takes the character after it as it is.
     /// </summary>
-    public static string? ClosedText(string line, Syntax syntax, char escape)
+    public static string? ClosedText(string line, Syntax syntax, char escape, string comment = "#")
     {
         var quote = '\0';
         var opened = -1;
@@ -68,7 +68,7 @@ internal static class LeftOpen
 
             if (quote == '\0')
             {
-                if (character == '#') return null;
+                if (string.CompareOrdinal(line, index, comment, 0, comment.Length) == 0) return null;
                 if (character is '"' or '\'')
                 {
                     quote = character;

@@ -326,16 +326,19 @@ that gives its copy of each item a new value - `$mark += 5` - which leaves the a
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
-`require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose message
-names no place, at the program's line in its traceback. Lua says what it expected where it stopped, and these syntax
-errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5` and `count++` are written out in full,
-and an `if` or a loop without its `then` or `do` gets it. While it runs, a name that is nil because it is misspelt
-becomes the nearest name the file gives a value to, a `+` joining text becomes `..`, and a whole number divided by zero
-with `//` or `%` gets an answer for when the divisor is zero; each change is checked in a copy - with `luac -p` - and
-run. Lua's code is read for logic mistakes by four checks Lua says nothing of: a loop from 0 over a list, whose first
-item is at 1; text compared with `==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and
-then compared exactly; and `table.remove` in a loop going forward over the same list, which skips the item after each one
-it removes. Lua is tested with Lua 5.4.6.
+`require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose
+message names no place, at the program's line in its traceback. Lua says what it expected where it stopped, and these
+syntax errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5` and `count++` are written out in
+full, an `if` or a loop without its `then` or `do` gets it, a block with no `end` gets one where its indentation ends -
+Lua names the outer block, as it takes each `end` to close the latest - `else if` becomes `elseif`, and a string or a
+bracket left open is closed. While it runs, a name that is nil because it is misspelt becomes the nearest name the file
+gives a value to, a `+` joining text becomes `..`, a whole number divided by zero with `//` or `%` gets an answer for
+when the divisor is zero, and `name.upper()` - a string's own function called with a dot, which gives it nothing to work
+on - becomes `name:upper()`; each change is checked in a copy - with `luac -p` - and run. Lua's code is read for logic
+mistakes by four checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared with
+`==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and then compared exactly; and
+`table.remove` in a loop going forward over the same list, which skips the item after each one it removes. Lua is tested
+with Lua 5.4.6.
 
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
@@ -1060,7 +1063,7 @@ Python, Java and C# are checked most thoroughly.
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 8 | 26 |
 | PHP | 15 | 7 | 18 |
-| Lua | 7 | 4 | 23 |
+| Lua | 12 | 4 | 25 |
 | Perl | 10 | 6 | 25 |
 | Dart | 10 | 4 | 23 |
 | Fortran | 8 | 4 | 17 |

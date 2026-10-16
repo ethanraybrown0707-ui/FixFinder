@@ -93,6 +93,12 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local count = 0\ncount++\nprint(count)\n", "lua-compound-assignment", 2, 2, "count = count + 1", "1")]
     [InlineData("local mark = 50\nif mark > 40\n  print(\"pass\")\nend\n", "lua-missing-then-or-do", 3, 2, "if mark > 40 then", "pass")]
     [InlineData("local count = 0\nwhile count < 3\n  count = count + 1\nend\nprint(count)\n", "lua-missing-then-or-do", 3, 2, "while count < 3 do", "3")]
+    // Lua names the function on line 1; the block left open is the for loop, and its end goes after the loop's body.
+    [InlineData("local function total(marks)\n  local sum = 0\n  for _, mark in ipairs(marks) do\n    sum = sum + mark\n  return sum\nend\n\nprint(total({70, 80}))\n",
+        "lua-missing-end", 9, 5, "  end", "150")]
+    [InlineData("local mark = 70\nif mark > 80 then\n  print(\"high\")\nelse if mark > 50 then\n  print(\"pass\")\nend\n", "lua-elseif", 7, 4, "elseif mark > 50 then", "pass")]
+    [InlineData("local name = \"Ada\nprint(name)\n", "lua-unfinished-string", 1, 1, "local name = \"Ada\"", "Ada")]
+    [InlineData("print(math.max(70, 80)\nprint(\"done\")\n", "lua-closing-bracket", 2, 1, "print(math.max(70, 80))", "80\ndone")]
     public async Task ASyntaxErrorIsFoundBeforeItRunsAndItsChangeReadsAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Lua() is not { } lua) return;
@@ -113,6 +119,7 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local total = 12\nprint(\"Total: \" + total)\n", "lua-join-text", 2, "print(\"Total: \" .. total)", "Total: 12")]
     [InlineData("local sweets = 7\nlocal people = 0\nprint(sweets // people)\n", "lua-division-guard", 3, "print((people == 0 and 0 or sweets // people))", "0")]
     [InlineData("local sweets = 7\nlocal people = 0\nprint(sweets % people)\n", "lua-division-guard", 3, "print((people == 0 and 0 or sweets % people))", "0")]
+    [InlineData("local name = \"ada\"\nprint(name.upper())\n", "lua-colon-for-method", 2, "print(name:upper())", "ADA")]
     public async Task ARuntimeErrorGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Lua() is not { } lua) return;
