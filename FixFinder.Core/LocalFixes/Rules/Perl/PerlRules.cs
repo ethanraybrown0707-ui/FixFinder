@@ -309,3 +309,38 @@ public sealed partial class PerlNearestSub : ILocalFixRule
             at.Source.Path, at.Number, corrected);
     }
 }
+
+/// <summary>
+/// "length() used on @marks (did you mean "scalar(@marks)"?)": length counts the characters of text, so given an array it
+/// counts the digits of the array's count. The change is Perl's own suggestion, and the logic check's too - so the two are
+/// one finding.
+/// </summary>
+public sealed class PerlLengthOfArray : ILocalFixRule
+{
+    public string Id => "perl-length-of-array";
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!PerlCode.IsWarning(context) || !(context.Error.Message ?? "").StartsWith("length() used on @", StringComparison.Ordinal)) return null;
+        if (PerlCode.Locate(context) is not { } at || PerlArrays.LengthOfArray().Match(CodeText.Mask(at.Line, Syntax.Perl)) is not { Success: true } length) return null;
+
+        return PerlArrays.CountFix(Id, at.Source, at.Number, length);
+    }
+}
+
+/// <summary>The change the warning's rule and the logic check both make to length(@marks), so the two are one fix.</summary>
+internal static partial class PerlArrays
+{
+    [GeneratedRegex(@"\blength\s*\(\s*@(?<array>\w+)\s*\)")]
+    public static partial Regex LengthOfArray();
+
+    public static LocalFix CountFix(string id, SourceFile source, int lineNumber, Match length)
+    {
+        var line = source.Lines[lineNumber - 1];
+        var array = length.Groups["array"].Value;
+
+        return LocalFix.ReplaceLine(id, $"Count the array: scalar(@{array})",
+            $"length counts the characters of text; scalar(@{array}) gives how many items @{array} has.",
+            source.Path, lineNumber, line[..length.Index] + $"scalar(@{array})" + line[(length.Index + length.Length)..]);
+    }
+}

@@ -341,6 +341,18 @@ internal static class PerlGuides
             print $marks[0], "\n";
             """),
 
+        Warned(@"^length\(\) used on @",
+            "length counts the characters of text, so given an array it counts the digits of the array's count - 2 for an array of " +
+            "12 items. Perl's own suggestion, scalar(@marks), is the count.",
+            "Count an array's items with scalar(@marks).",
+            """
+            use strict;
+            use warnings;
+
+            my @marks = (70, 80, 90);
+            print scalar(@marks), "\n";
+            """),
+
         Warned(@"^readline\(\) on (?:closed|unopened) filehandle",
             "A line was read from a file that is not open - it was closed, or opening it failed and nothing checked.",
             "Check open worked - open(...) or die \"...: $!\" - and read the file before closing it.",

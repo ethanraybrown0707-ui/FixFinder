@@ -119,6 +119,10 @@ public class GoLogicLiveTests(ITestOutputHelper output) : IDisposable
             "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tname := \"ada\"\n\tstrings.ToUpper(name)\n\tfmt.Println(name)\n}\n",
             "ada", "logic-go-result-discarded", 10, "ADA"
         },
+        {
+            "package main\n\nimport (\n\t\"fmt\"\n\t\"strings\"\n)\n\nfunc main() {\n\tfmt.Println(strings.Replace(\"a-b-c\", \"-\", \"+\", 0))\n}\n",
+            "a-b-c", "logic-go-replace-none", 9, "a+b+c"
+        },
     };
 
     [Theory]

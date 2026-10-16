@@ -112,5 +112,23 @@ internal static class GoPatternGuides
             	fmt.Println(name)
             }
             """),
+
+        GuideFor(["logic-go-replace-none"], "strings.Replace with a count of 0",
+            "strings.Replace's last argument is how many times to replace, counting from the start: 1 replaces the first match, -1 " +
+            "every one - and 0 none at all.",
+            "The text comes back exactly as it was, and neither Go nor go vet says anything of it.",
+            "Use strings.ReplaceAll to replace every match, or give strings.Replace the count wanted.",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"strings"
+            )
+
+            func main() {
+            	fmt.Println(strings.ReplaceAll("a-b-c", "-", "+"))
+            }
+            """),
     ];
 }

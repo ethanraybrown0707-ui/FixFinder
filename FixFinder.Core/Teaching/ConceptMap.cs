@@ -122,6 +122,7 @@ public static class ConceptMap
         new(Concepts.ReadBeforeSet) { Message = Words(@"^Use of uninitialized value") },
         new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-perl-text-compared-as-numbers"] },
         new(Concepts.TextToNumber) { CheckIds = ["logic-perl-line-not-chomped"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-perl-length-of-array"], Message = Words(@"^length\(\) used on @") },
 
         // Dart: the analyzer's diagnostics by their names, and the exceptions that stop a program.
         new(Concepts.StatementEnd) { Codes = ["expected_token"], Message = Words(@"^Expected to find ';'") },
@@ -186,7 +187,11 @@ public static class ConceptMap
 
         new(Concepts.ChangingWhileLooping)
         {
-            CheckIds = ["analysis-changed-while-looping", "logic-python-modified-while-looping", "logic-modified-while-looping", "logic-remove-while-counting-up"],
+            CheckIds =
+            [
+                "analysis-changed-while-looping", "logic-python-modified-while-looping", "logic-modified-while-looping",
+                "logic-remove-while-counting-up", "logic-lua-remove-while-looping-forward",
+            ],
             ExceptionTypes = ["ConcurrentModificationException"],
         },
         new(Concepts.ChangingWhileLooping) { Message = Words(@"changed size during iteration|Collection was modified") },
@@ -216,7 +221,7 @@ public static class ConceptMap
         new(Concepts.EndlessRecursion) { Message = Words(@"Maximum call stack size exceeded|goroutine stack exceeds|stack overflow") },
 
         // A call given the wrong arguments, before the wider TypeError and type mismatches it is also reported as.
-        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments"], Codes = ["CS7036", "CS1501", "CS1503", "ignored-partial-application"] },
+        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments", "logic-go-replace-none"], Codes = ["CS7036", "CS1501", "CS1503", "ignored-partial-application"] },
         new(Concepts.Arguments) { Message = Words(@"missing \d+ required (?:positional|keyword-only) argument|takes \d+ positional arguments? but \d+ (?:were|was) given|got an unexpected keyword argument|cannot be applied to given types|no suitable (?:method|constructor) found|too (?:few|many) arguments|not enough arguments|missing argument") },
 
         new(Concepts.TextToNumber)
@@ -244,7 +249,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-ruby-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count"] },
 
         new(Concepts.EndlessLoop)
         {
@@ -268,7 +273,7 @@ public static class ConceptMap
             [
                 "logic-java-string-equals", "logic-c-string-equals", "logic-java-wrapper-equality", "logic-js-loose-equality",
                 "logic-python-is-literal", "logic-js-compare-with-new-array", "logic-python-none-comparison", "logic-scala-array-equals",
-                "logic-ocaml-physical-equality",
+                "logic-ocaml-physical-equality", "logic-php-search-compared-with-false",
             ],
         },
         new(Concepts.SameValueOrSameObject) { Codes = ["CS0252", "CS0253"] },

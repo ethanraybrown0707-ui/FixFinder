@@ -131,6 +131,7 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local marks = {70, 80, 90}\nfor i = 0, #marks - 1 do\n  print(marks[i])\nend\n", "logic-lua-loop-from-zero", 2, "70\n80\n90")]
     [InlineData("local typed = \"5\"\nif typed == 5 then\n  print(\"five\")\nelse\n  print(\"not five\")\nend\n", "logic-lua-text-compared-with-number", 2, "five")]
     [InlineData("local total = 0.1 + 0.2\nif total == 0.3 then\n  print(\"equal\")\nelse\n  print(\"not equal\")\nend\n", "logic-lua-float-equality", 2, "equal")]
+    [InlineData("local marks = {70, 40, 40, 90}\nfor i = 1, #marks do\n  if marks[i] == 40 then\n    table.remove(marks, i)\n  end\nend\nprint(table.concat(marks, \" \"))\n", "logic-lua-remove-while-looping-forward", 2, "70 90")]
     public async Task ALogicMistakeLuaSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Lua() is not { } lua) return;

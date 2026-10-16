@@ -136,6 +136,7 @@ public class PerlLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Strict + "my $answer = \"yes\";\nif ($answer == \"no\") {\n    print \"no\\n\";\n} else {\n    print \"yes\\n\";\n}\n", "logic-perl-text-compared-as-numbers", 5, "if ($answer eq \"no\") {", "yes")]
     [InlineData(Strict + "my $name = \"bob\";\nif ($name < \"carol\") {\n    print \"before\\n\";\n} else {\n    print \"after\\n\";\n}\n", "perl-text-comparison", 5, "if ($name lt \"carol\") {", "before")]
     [InlineData(Strict + "my $total = 12;\nprint \"Total: \" + $total, \"\\n\";\n", "perl-join-text", 5, "print \"Total: \" . $total, \"\\n\";", "Total: 12")]
+    [InlineData(Strict + "my @marks = (70, 80, 90, 65, 72, 88, 91, 55, 60, 77, 82, 95);\nprint length(@marks), \"\\n\";\n", "logic-perl-length-of-array", 5, "print scalar(@marks), \"\\n\";", "12")]
     public async Task AWarningPerlCarriedOnPastGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Perl() is not { } perl) return;

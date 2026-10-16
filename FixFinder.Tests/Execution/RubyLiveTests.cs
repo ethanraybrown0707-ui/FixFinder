@@ -153,6 +153,8 @@ public class RubyLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("total = 3\ncount = 2\naverage = (total / count).to_f\nputs average\n", "logic-ruby-integer-average", 3, "1.0", "1.5")]
     [InlineData("sum = 0.1 + 0.2\nif sum == 0.3\n  puts \"equal\"\nelse\n  puts \"not equal\"\nend\n", "logic-ruby-float-equality", 2, "not equal", "equal")]
     [InlineData("name = \"ada\"\nname.upcase\nputs name\n", "logic-ruby-result-discarded", 2, "ada", "ADA")]
+    [InlineData("marks = [70, 80, 90]\n(0..marks.length).each do |i|\n  puts \"Mark: #{marks[i]}\"\nend\n", "logic-ruby-range-to-length", 2, "Mark: 70\nMark: 80\nMark: 90\nMark:", "Mark: 70\nMark: 80\nMark: 90")]
+    [InlineData("marks = [70, 80, 90]\nfor i in 0..marks.length\n  p marks[i]\nend\n", "logic-ruby-range-to-length", 2, "70\n80\n90\nnil", "70\n80\n90")]
     public async Task ALogicMistakeRubySaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string printed, string fixedPrints)
     {
         if (Ruby() is not { } ruby) return;

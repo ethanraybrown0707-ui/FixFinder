@@ -291,9 +291,10 @@ runs none of it: a syntax error is found there, and so are Ruby's warnings - an 
 The files it brings in with `require_relative` are checked with it, and a crash in one of them is placed there. Ruby's own
 "Did you mean?" for a name or a method it does not know becomes a fix, and so does an answer for when a divisor is zero,
 and `.to_s` for a number joined to text with `+`; each change is checked in a copy - with `ruby -c`, which runs none of
-it - and run. Ruby's code is read for logic mistakes by three checks `ruby -w` says nothing of: `(total / count).to_f` of
-two whole numbers, a decimal worked out by arithmetic and then compared exactly, and a method that gives back a changed
-copy - `name.upcase`, `marks.sort` - called on a line of its own. Ruby is tested with Ruby 3.3.12.
+it - and run. Ruby's code is read for logic mistakes by four checks `ruby -w` says nothing of: `(total / count).to_f` of
+two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy -
+`name.upcase`, `marks.sort` - called on a line of its own, and a range to an array's length with two dots,
+`0..marks.length`, whose last number is one past the last position. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -302,8 +303,9 @@ warning - an undefined variable, a key an array does not have - with nothing in 
 prints is a finding of its own. A missing `;` is put at the end of the line before the one PHP names, an undefined
 variable becomes the nearest name the program does use, a division by zero gets an answer for when the divisor is zero,
 and a loop to `<= count(...)` gets `<`; each change is checked in a copy - with `php -l` - and run. PHP's code is read
-for logic mistakes by three checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
-position, an `=` in a condition, and a decimal worked out by arithmetic and then compared exactly. PHP is tested with
+for logic mistakes by four checks `php -l` says nothing of: a loop to `<= count($marks)` that uses its number as a
+position, an `=` in a condition, a decimal worked out by arithmetic and then compared exactly, and `strpos(...) == false`,
+which is true for a match at the very start as well as for none. PHP is tested with
 PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
@@ -314,9 +316,10 @@ errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5`
 and an `if` or a loop without its `then` or `do` gets it. While it runs, a name that is nil because it is misspelt
 becomes the nearest name the file gives a value to, a `+` joining text becomes `..`, and a whole number divided by zero
 with `//` or `%` gets an answer for when the divisor is zero; each change is checked in a copy - with `luac -p` - and
-run. Lua's code is read for logic mistakes by three checks Lua says nothing of: a loop from 0 over a list, whose first
-item is at 1; text compared with `==` to a number, which in Lua is never equal; and a decimal worked out by arithmetic
-and then compared exactly. Lua is tested with Lua 5.4.6.
+run. Lua's code is read for logic mistakes by four checks Lua says nothing of: a loop from 0 over a list, whose first
+item is at 1; text compared with `==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and
+then compared exactly; and `table.remove` in a loop going forward over the same list, which skips the item after each one
+it removes. Lua is tested with Lua 5.4.6.
 
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
@@ -327,9 +330,11 @@ become fixes: a missing `;` is put at the end of the line before, an `if` gets t
 variable `use strict` refused becomes the nearest declared name or is declared with `my`, `elseif` becomes `elsif`, `=`
 in a condition `==` or `eq`, a comparison of text with `==` or `<` becomes `eq` or `lt`, a `+` joining text becomes `.`,
 a division by zero gets an answer for when the divisor is zero, and a misspelt sub becomes the nearest one the file has;
-each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by four checks: a
+each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by five checks: a
 loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
-compared with `eq` without `chomp`, and a decimal worked out by arithmetic and then compared exactly. Perl is tested with
+compared with `eq` without `chomp`, a decimal worked out by arithmetic and then compared exactly, and `length(@marks)`,
+which counts the digits of the array's count - Perl warns of it too, and the warning and the check are one finding, whose
+change is `scalar(@marks)`. Perl is tested with
 Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
@@ -636,7 +641,8 @@ The **logic check** reads the code for mistakes that compile and then give the w
 `total = 0` inside the loop that adds to it, `Console.Read()` used as a number, removing items while counting up through a
 list. In Go, where neither `go build` nor `go vet` says anything of them, it finds a loop to `i <= len(xs)` that reads
 `xs[i]`, `float64(total / count)` of two ints, a new value given to a `range` loop's copy and never used, the error of
-`strconv.Atoi` thrown away with `_`, and `strings.ToUpper(name)` on a line of its own. In Python and JavaScript it finds
+`strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, and `strings.Replace` with a count of
+0, which replaces nothing. In Python and JavaScript it finds
 a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both - and in Python, Java,
 C# and JavaScript a search's position compared with `> 0`, which takes a match at the very start, position 0, for no
 match. When an expected output was given, it also runs changed copies of the program to find the one that prints it:
@@ -937,14 +943,14 @@ Python, Java and C# are checked most thoroughly.
 | C | 46 | 18 | 39 |
 | C++ | 45 | 23 | 39 |
 | JavaScript | 41 | 27 | 15 |
-| Go | 38 | 5 | 18 |
+| Go | 38 | 6 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 3 | 33 |
-| Ruby | 3 | 3 | 22 |
-| PHP | 4 | 3 | 12 |
-| Lua | 7 | 3 | 23 |
-| Perl | 9 | 4 | 24 |
+| Ruby | 3 | 4 | 22 |
+| PHP | 4 | 4 | 12 |
+| Lua | 7 | 4 | 23 |
+| Perl | 10 | 5 | 25 |
 | Dart | 10 | 3 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 5 | 4 | 13 |

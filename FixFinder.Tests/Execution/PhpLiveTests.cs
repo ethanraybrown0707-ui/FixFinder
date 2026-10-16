@@ -157,6 +157,8 @@ public class PhpLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("<?php\n$marks = [70, 80, 90];\nfor ($i = 0; $i <= count($marks); $i++) {\n    echo $marks[$i] . \"\\n\";\n}\n", 3, "70\n80\n90")]
     [InlineData("<?php\n$mark = 70;\nif ($mark = 40) {\n    echo \"forty\\n\";\n}\necho $mark;\n", 3, "70")]
     [InlineData("<?php\n$total = 0.1 + 0.2;\nif ($total == 0.3) {\n    echo \"equal\";\n} else {\n    echo \"not equal\";\n}\n", 3, "equal")]
+    [InlineData("<?php\n$word = \"apple\";\nif (strpos($word, \"a\") == false) {\n    echo \"no a\";\n} else {\n    echo \"has an a\";\n}\n", 3, "has an a")]
+    [InlineData("<?php\n$marks = [70, 80, 90];\nif (array_search(70, $marks) != false) {\n    echo \"has 70\";\n} else {\n    echo \"no 70\";\n}\n", 3, "has 70")]
     public async Task ALogicMistakeIsFoundAndItsChangePrintsTheRightAnswer(string code, int line, string fixedPrints)
     {
         if (Php() is not { } php) return;

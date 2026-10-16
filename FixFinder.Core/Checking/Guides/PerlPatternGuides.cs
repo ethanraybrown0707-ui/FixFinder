@@ -70,5 +70,18 @@ internal static class PerlPatternGuides
                 print "equal\n";
             }
             """),
+
+        GuideFor(["logic-perl-length-of-array"], "length of an array",
+            "length counts the characters of a piece of text. Given an array, it is given the array's count as text, and counts that " +
+            "text's digits - so for an array of 12 items length(@marks) is 2, and for 3 items it is 1.",
+            "The count is wrong for every array, with no error - only a warning, and only with use warnings.",
+            "Count an array's items with scalar(@marks).",
+            """
+            use strict;
+            use warnings;
+
+            my @marks = (70, 80, 90);
+            print scalar(@marks), "\n";
+            """),
     ];
 }

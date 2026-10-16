@@ -302,6 +302,7 @@ public static partial class LocalFixEngine
         new PerlJoinText(),
         new PerlDivisionGuard(),
         new PerlNearestSub(),
+        new PerlLengthOfArray(),
         new DartMissingSemicolon(),
         new DartNearestName(),
         new DartNearestMember(),

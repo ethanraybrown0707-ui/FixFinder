@@ -7,7 +7,8 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Mistakes Lua programs make that Lua runs without a word - each run with Lua 5.4.6: a loop from 0 over a list, whose
 /// first item is at 1, so <c>marks[0]</c> is nil; text compared with == to a number, which in Lua is never equal - "5" == 5
-/// is false; and a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false.
+/// is false; a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false; and
+/// <c>table.remove(marks, i)</c> in a loop forward over marks, which skips the item after each one it removes.
 /// </summary>
 public static partial class LuaLogicPatterns
 {
@@ -23,6 +24,7 @@ public static partial class LuaLogicPatterns
         Pattern("logic-lua-loop-from-zero", LoopFromZero, Severity.Error),
         Pattern("logic-lua-text-compared-with-number", TextComparedWithNumber, Severity.Error, Confidence.Certain),
         Pattern("logic-lua-float-equality", FloatEquality),
+        Pattern("logic-lua-remove-while-looping-forward", RemoveWhileLoopingForward, Severity.Error),
     ];
 
     /// <summary><c>for i = 0, #marks do</c>, or <c>for i = 0, #marks - 1 do</c>: counting a list's positions from 0.</summary>
@@ -158,6 +160,37 @@ public static partial class LuaLogicPatterns
                 LocalFix.ReplaceLine(id, $"Compare within a tiny tolerance: {close}",
                     $"{close} is true when {name} is {value} to within a billionth, which arithmetic's tiny errors stay inside.",
                     source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
+
+    /// <summary><c>for i = 1, #marks do</c>: a loop forward over a list's positions.</summary>
+    [GeneratedRegex(@"\bfor\s+(?<variable>[A-Za-z_]\w*)\s*=\s*(?<range>1\s*,\s*#\s*(?<list>[A-Za-z_][\w.]*))\s*do\b")]
+    private static partial Regex ForwardOverList();
+
+    /// <summary>
+    /// table.remove(marks, i) inside a loop forward over marks: each removal moves the items after it down a place, so the
+    /// loop skips the one that moved into i. Going backwards, a removal only moves items the loop has been past.
+    /// </summary>
+    private static IEnumerable<LogicFinding> RemoveWhileLoopingForward(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (ForwardOverList().Match(masked[index]) is not { Success: true } loop || Body(masked, index) is not { } body) continue;
+
+            var variable = loop.Groups["variable"].Value;
+            var list = loop.Groups["list"].Value;
+            var removal = new Regex($@"\btable\.remove\s*\(\s*{Regex.Escape(list)}\s*,\s*{Regex.Escape(variable)}\s*\)");
+            if (!Enumerable.Range(body.First, body.End - body.First).Any(line => removal.IsMatch(masked[line]))) continue;
+
+            var line = source.Lines[index];
+            var range = loop.Groups["range"];
+
+            yield return new LogicFinding(id, index + 1,
+                $"table.remove moves every item after the one it removes down a place, so going forward the loop skips the item that " +
+                $"moved into position {variable} - and #{list}, worked out once as the loop began, now reaches past the end",
+                LocalFix.ReplaceLine(id, $"Loop backwards: for {variable} = #{list}, 1, -1",
+                    "Going backwards, a removal only moves items the loop has already been past, so none is skipped.",
+                    source.Path, index + 1, line[..range.Index] + $"#{list}, 1, -1" + line[(range.Index + range.Length)..]));
         }
     }
 }

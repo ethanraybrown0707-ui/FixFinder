@@ -44,5 +44,19 @@ internal static class RubyPatternGuides
             name = name.upcase
             puts name
             """),
+
+        GuideFor(["logic-ruby-range-to-length"], "A range that runs one past the end",
+            "A range with two dots takes in its end, so 0..marks.length goes from 0 up to marks.length itself. An array's positions " +
+            "start at 0, so its last position is one less than its length - and the range's last number is one past it. A range with " +
+            "three dots, 0...marks.length, stops before its end.",
+            "On the last pass marks[i] is nil - Ruby gives no error for a position past the end - so the loop works with a value " +
+            "that is not there.",
+            "Use three dots - 0...marks.length - or go over the items themselves with marks.each.",
+            """
+            marks = [70, 80, 90]
+            (0...marks.length).each do |i|
+              puts "Mark: #{marks[i]}"
+            end
+            """),
     ];
 }

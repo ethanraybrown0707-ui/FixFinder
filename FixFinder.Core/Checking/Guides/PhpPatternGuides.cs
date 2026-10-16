@@ -50,5 +50,21 @@ internal static class PhpPatternGuides
                 echo "equal";
             }
             """),
+
+        GuideFor(["logic-php-search-compared-with-false"], "A search compared with == false",
+            "strpos gives the position where it found what it looked for, counting from 0 - so a match at the very start is 0 - and " +
+            "false when it found nothing. == does not compare types, and counts 0 as equal to false, so strpos(...) == false is true " +
+            "both when nothing was found and when it was found at the very start. stripos, strrpos and array_search do the same.",
+            "A match at the very start is read as no match at all, with no error.",
+            "Compare with === false, or !== false, which only false itself matches.",
+            """
+            <?php
+            $word = "apple";
+            if (strpos($word, "a") === false) {
+                echo "no a\n";
+            } else {
+                echo "has an a\n";
+            }
+            """),
     ];
 }

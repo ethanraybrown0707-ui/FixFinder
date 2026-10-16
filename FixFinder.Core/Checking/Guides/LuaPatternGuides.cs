@@ -45,5 +45,21 @@ internal static class LuaPatternGuides
               print("equal")
             end
             """),
+
+        GuideFor(["logic-lua-remove-while-looping-forward"], "Removing from a list while looping forward over it",
+            "table.remove(marks, i) takes out the item at i and moves every item after it down a place to close the gap. A loop going " +
+            "forward then moves on to i + 1 - so the item that moved into position i is never looked at. And #marks was worked out " +
+            "once, as the loop began, so the loop now reaches past the end.",
+            "Two items in a row that should both go leave one behind, and the last pass works with nil, with no error.",
+            "Loop backwards - for i = #marks, 1, -1 do - so a removal only moves items the loop has already been past.",
+            """
+            local marks = {70, 40, 40, 90}
+            for i = #marks, 1, -1 do
+              if marks[i] == 40 then
+                table.remove(marks, i)
+              end
+            end
+            print(table.concat(marks, " "))
+            """),
     ];
 }

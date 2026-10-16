@@ -45,7 +45,8 @@ public sealed partial class PerlParser : IStackTraceParser
     [GeneratedRegex(
         @"^(?:Use of uninitialized value|Argument "".*"" isn't numeric|Found = in conditional|Name "".*"" used only once|Useless use of|" +
         @"Odd number of elements in|Deep recursion on|Scalar value .* better written as|Possible precedence|Unquoted string|"".*"" variable .* masks earlier|" +
-        @"Possible unintended interpolation|readline\(\) on (?:closed|unopened) filehandle|print\(\) on (?:closed|unopened) filehandle|Misplaced _ in number)")]
+        @"Possible unintended interpolation|readline\(\) on (?:closed|unopened) filehandle|print\(\) on (?:closed|unopened) filehandle|Misplaced _ in number|" +
+        @"length\(\) used on @)")]
     private static partial Regex WarningPattern();
 
     public int Detect(IReadOnlyList<string> lines)

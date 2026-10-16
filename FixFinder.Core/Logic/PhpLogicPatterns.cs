@@ -7,9 +7,10 @@ namespace FixFinder.Core.Logic;
 
 /// <summary>
 /// Mistakes PHP programs make that it runs without stopping - each run with PHP 8.4, and neither php -l nor PHP itself
-/// said anything of the last two: a loop to <c>$i &lt;= count($marks)</c> reads one key too many, which PHP only warns of,
-/// carrying on with null; <c>if ($mark = 40)</c> stores 40 and is always true; and a decimal worked out by arithmetic,
-/// compared exactly - 0.1 + 0.2 == 0.3 is false.
+/// said anything of the last three: a loop to <c>$i &lt;= count($marks)</c> reads one key too many, which PHP only warns of,
+/// carrying on with null; <c>if ($mark = 40)</c> stores 40 and is always true; a decimal worked out by arithmetic,
+/// compared exactly - 0.1 + 0.2 == 0.3 is false; and <c>strpos($word, "a") == false</c>, true for a match at the very
+/// start, as == counts 0 as false.
 /// </summary>
 public static partial class PhpLogicPatterns
 {
@@ -25,6 +26,7 @@ public static partial class PhpLogicPatterns
         Pattern("logic-php-loop-to-count", LoopToCount, Severity.Error),
         Pattern("logic-php-assignment-in-condition", AssignmentInCondition, Severity.Error, Confidence.Certain),
         Pattern("logic-php-float-equality", FloatEquality),
+        Pattern("logic-php-search-compared-with-false", SearchComparedWithFalse, Severity.Error, Confidence.Certain),
     ];
 
     private static IEnumerable<LogicFinding> LoopToCount(string id, SourceFile source, IReadOnlyList<string> masked)
@@ -106,6 +108,29 @@ public static partial class PhpLogicPatterns
                 LocalFix.ReplaceLine(id, $"Compare within a tiny tolerance: {close}",
                     $"{close} is true when ${name} is {value} to within a billionth, which arithmetic's tiny errors stay inside.",
                     source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
+
+    /// <summary><c>strpos($word, "a") == false</c>: where a search found something, compared with false by ==, which counts 0 as false.</summary>
+    [GeneratedRegex(@"\b(?<function>strpos|stripos|strrpos|array_search)\s*\([^()]*\)\s*(?<comparison>==|!=)(?!=)\s*false\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SearchComparedLoosely();
+
+    private static IEnumerable<LogicFinding> SearchComparedWithFalse(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (SearchComparedLoosely().Match(masked[index]) is not { Success: true } search) continue;
+
+            var comparison = search.Groups["comparison"];
+            var strict = comparison.Value == "==" ? "===" : "!==";
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"{search.Groups["function"].Value} gives where it found what it looked for - 0 for the very start - or false when it found " +
+                $"nothing, and {comparison.Value} counts 0 as equal to false, so a match at the very start reads as no match",
+                LocalFix.ReplaceLine(id, $"Compare with {strict} false",
+                    $"{strict} compares the type as well, so only false itself means nothing was found, and 0 is the very start.",
+                    source.Path, index + 1, line[..comparison.Index] + strict + line[(comparison.Index + comparison.Length)..]));
         }
     }
 }
