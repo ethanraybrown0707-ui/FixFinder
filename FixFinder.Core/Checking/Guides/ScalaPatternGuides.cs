@@ -109,5 +109,18 @@ internal static class ScalaPatternGuides
               val millisPerYear: Long = 365L * 24 * 60 * 60 * 1000
               println(millisPerYear)
             """),
+
+        GuideFor(["logic-scala-regex-character-as-text"], "A character split on that means something else",
+            "split, replaceAll and replaceFirst read their first text as a regular expression, as Java's do, where . is any character, " +
+            "| is \"or\" and $ is the end of the text. So \"3.14\".split(\".\") gives no parts at all, and " +
+            "\"3.14\".replaceAll(\".\", \",\") gives ,,,,. Scala says nothing.",
+            "The text is split or replaced in the wrong places, with no error - a list of numbers read from a line comes back empty.",
+            "Escape the character - split(\"\\\\.\") - so it means itself, or use replace, which takes its text as it is: " +
+            "\"3.14\".replace(\".\", \",\") is 3,14.",
+            """
+            @main def run(): Unit =
+              val parts = "3.14".split("\\.")
+              println(parts.length)
+            """),
     ];
 }

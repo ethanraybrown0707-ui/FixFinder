@@ -54,6 +54,7 @@ public static class LogicPatterns
         .. ConstantOverflowPatterns.All,
         .. StepOverEndPatterns.All,
         .. RandomPositionPatterns.All,
+        .. RegexArgumentPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

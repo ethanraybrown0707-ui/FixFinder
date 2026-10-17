@@ -215,6 +215,22 @@ internal static class ManagedPatternGuides
             }
             """),
 
+        GuideFor(["logic-java-regex-character-as-text"], "A character split on that means something else",
+            "split, replaceAll and replaceFirst read their first text as a regular expression, where some characters mean something " +
+            "else: . is any character, | is \"or\", and $ is the end of the text. So \"3.14\".split(\".\") gives no parts at all, " +
+            "\"a|b\".split(\"|\") splits between every character, and \"3.14\".replaceAll(\".\", \",\") gives ,,,,. javac says nothing.",
+            "The text is split or replaced in the wrong places, with no error - a list of numbers read from a line comes back empty.",
+            "Escape the character - split(\"\\\\.\") - so it means itself, or use replace, which takes its text as it is: " +
+            "\"3.14\".replace(\".\", \",\") is 3,14.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    String[] parts = "3.14".split("\\.");
+                    System.out.println(parts.length);
+                }
+            }
+            """),
+
         GuideFor(["logic-java-array-shared"], "A second name for an array is not a copy",
             "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
             "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List. javac says nothing.",

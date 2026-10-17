@@ -251,13 +251,14 @@ as nothing here follows a Scala program's values: a loop over `0 to xs.length` t
 items - an Array printed as it is - `println(marks)` - which shows its kind and a code, such as `[I@4563e9ab`, rather
 than its items, and whose change prints them with `mkString(", ")`, a whole-number average given to a Double, which has
 lost its fraction already, a copy such as `marks.sorted` made on a line of its own and kept nowhere, `.get` taken from
-an Option nothing checked first, whole numbers whose product is too big for an Int - `365 * 24 * 60 * 60 * 1000`, which
-wraps round to `1471228928` even when it is stored in a Long, and whose change is `365L * ...` - `value == Double.NaN`,
-which is false even when the value is NaN, and text with `$name` in it but no `s` before its
-quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into text; the
-change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and neither
-warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the text was
-the one place meant to use it.
+an Option nothing checked first, `"3.14".split(".")`, which reads `.` as any character and gives no parts, and whose
+change escapes it - `split("\\.")` - whole numbers whose product is too big for an Int - `365 * 24 * 60 * 60 * 1000`,
+which wraps round to `1471228928` even when it is stored in a Long, and whose change is
+`365L * ...` - `value == Double.NaN`, which is false even when the value is NaN, and text with `$name` in it but no `s`
+before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into
+text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and
+neither warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the
+text was the one place meant to use it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -806,11 +807,14 @@ same - `(int)(price * 100 + 0.5) / 100` given to a double - which printed `12.00
 in Java, and none of their compilers said anything; the change divides by `100.0` too. In Java and Scala it finds whole
 numbers whose sum or product is too big for an int - `long millisPerYear = 365 * 24 * 60 * 60 * 1000` - which are worked
 out as ints and wrap round, to `1471228928`, before they are stored in the long; the change works it out in longs,
-`365L * ...`. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In Python, C, C++,
-Java, C#, JavaScript and TypeScript it finds a loop run while its counter `!=` its end, whose steps go over the
-end - `count != 10` counting from 0 by 3, which is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the loop never
-ended; an `int` counter in Java, C and C# ran on until it wrapped round past the largest `int`, and landed on 10 only
-after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In Python it finds
+`365L * ...`. In Java and Scala it finds `.`, `|` or `$` given alone to `split`, `replaceAll` or `replaceFirst`, which
+read a regular expression: `"3.14".split(".")` gave no parts at all, `"a|b".split("|")` split between every character,
+and `"3.14".replaceAll(".", ",")` gave `,,,,`. The change escapes the character - `split("\\.")` - or uses `replace`,
+which takes its text as it is. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In
+Python, C, C++, Java, C#, JavaScript and TypeScript it finds a loop run while its counter `!=` its end, whose steps go
+over the end - `count != 10` counting from 0 by 3, which is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the
+loop never ended; an `int` counter in Java, C and C# ran on until it wrapped round past the largest `int`, and landed on
+10 only after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In Python it finds
 `marks[random.randint(0, len(marks))]`: `randint` includes both ends, so it can draw `len(marks)`, one past the last
 position, and the program stops with `IndexError` only on the runs that draw it; the change ends at `len(marks) - 1`. In
 C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2`
@@ -1136,13 +1140,13 @@ Python, Java and C# are checked most thoroughly.
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
 | Python | 88 | 45 | 41 |
-| Java | 54 | 41 | 46 |
+| Java | 54 | 42 | 46 |
 | C# | 47 | 38 | 49 |
 | C | 46 | 24 | 39 |
 | C++ | 45 | 31 | 39 |
 | JavaScript | 42 | 37 | 16 |
 | Go | 38 | 11 | 18 |
-| Scala | 6 | 9 | 28 |
+| Scala | 6 | 10 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 12 | 26 |
