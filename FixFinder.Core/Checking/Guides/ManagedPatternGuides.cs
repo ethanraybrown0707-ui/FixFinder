@@ -165,5 +165,36 @@ internal static class ManagedPatternGuides
             var marks = new[] { 70, 80, 90 };
             foreach (var mark in marks) { Console.WriteLine(mark); }
             """),
+
+        GuideFor(["logic-java-array-shared"], "A second name for an array is not a copy",
+            "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List. javac says nothing.",
+            "The second name does not keep the values the array had: after marks[0] = 100, backup[0] prints 100.",
+            "Make a copy: marks.clone() for an array, new ArrayList<>(marks) for a List. The copy has the same items, and a change " +
+            "to one no longer shows in the other.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    int[] marks = {70, 80, 90};
+                    int[] backup = marks.clone();
+                    marks[0] = 100;
+                    System.out.println(backup[0]);
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-array-shared"], "A second name for an array is not a copy",
+            "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List<T>. dotnet build says " +
+            "nothing.",
+            "The second name does not keep the values the array had: after marks[0] = 100, backup[0] prints 100.",
+            "Make a copy: marks.ToArray() for an array, marks.ToList() for a List<T>. The copy has the same items, and a change to " +
+            "one no longer shows in the other.",
+            """
+            int[] marks = { 70, 80, 90 };
+            int[] backup = marks.ToArray();
+            marks[0] = 100;
+            Console.WriteLine(backup[0]);
+            """),
     ];
 }

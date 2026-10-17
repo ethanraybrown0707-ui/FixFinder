@@ -356,5 +356,19 @@ internal static class PythonPatternGuides
             for mark in marks:
                 print(mark)
             """),
+
+        GuideFor(["logic-python-list-shared"], "A second name for a list is not a copy",
+            "backup = marks does not copy the list: it gives the same list a second name. A change made through either name - " +
+            "marks.append(100) - is a change to the one list, so backup shows it too. Python says nothing, as both names are " +
+            "allowed to point at one list.",
+            "The second name does not keep the values the list had: after marks.append(100), backup prints [70, 80, 90, 100].",
+            "Make a copy: backup = marks.copy(). The copy is a new list with the same items, and a change to one no longer shows " +
+            "in the other.",
+            """
+            marks = [70, 80, 90]
+            backup = marks.copy()
+            marks.append(100)
+            print(backup)
+            """),
     ];
 }

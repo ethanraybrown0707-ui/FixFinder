@@ -373,6 +373,19 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-js-array-shared"], "A second name for an array is not a copy",
+            "const backup = marks does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks.push(100) - is a change to the one array, so backup shows it too. Node says nothing.",
+            "The second name does not keep the values the array had: after marks.push(100), backup prints [ 70, 80, 90, 100 ].",
+            "Make a copy: const backup = [...marks]. The copy is a new array with the same items, and a change to one no longer " +
+            "shows in the other.",
+            """
+            const marks = [70, 80, 90];
+            const backup = [...marks];
+            marks.push(100);
+            console.log(backup);
+            """),
+
         GuideFor(["logic-js-typeof-never-gives"], "typeof compared with a word it never gives",
             "typeof gives one of eight words: \"undefined\", \"object\", \"boolean\", \"number\", \"bigint\", \"string\", " +
             "\"symbol\" and \"function\". An array is an object, so typeof gives \"object\" for it - and for null - and \"number\" " +

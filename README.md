@@ -497,7 +497,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 32 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 33 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -806,8 +806,11 @@ of it, and the change is the language's own test, such as `math.isnan(value)`. D
 Python, C# and Dart it finds a map run for what its function does, on a line of its own - `map(print, marks)`,
 `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which works each item out only
 when its result is read; nothing reads it, so nothing is printed, and none of the three says anything. The change is a
-loop, which runs straight away. When an expected output was given, it also runs changed copies of the program to find
-the one that prints it:
+loop, which runs straight away. In Python, Java, C#, JavaScript and TypeScript it finds a second name for a list or an
+array - `backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though
+both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a
+copy - `marks.copy()`, `marks.clone()`, `[...marks]` or `marks.ToArray()`. When an expected output was given, it also
+runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1099,12 +1102,12 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 40 | 41 |
-| Java | 54 | 36 | 46 |
-| C# | 47 | 35 | 49 |
+| Python | 88 | 41 | 41 |
+| Java | 54 | 37 | 46 |
+| C# | 47 | 36 | 49 |
 | C | 46 | 21 | 39 |
 | C++ | 45 | 27 | 39 |
-| JavaScript | 42 | 32 | 16 |
+| JavaScript | 42 | 33 | 16 |
 | Go | 38 | 10 | 18 |
 | Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1119,7 +1122,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |
-| TypeScript | 44 | 32 | 5 |
+| TypeScript | 44 | 33 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
