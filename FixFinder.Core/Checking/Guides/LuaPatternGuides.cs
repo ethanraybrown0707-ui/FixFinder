@@ -61,5 +61,20 @@ internal static class LuaPatternGuides
             end
             print(table.concat(marks, " "))
             """),
+
+        GuideFor(["logic-lua-local-hides-outer"], "local inside a loop hides the outer variable",
+            "local declares a new variable, which lasts until the end of the block it is in. Inside a loop, local total = total + mark " +
+            "declares a new total each time round, worked out from the total outside the loop - which is never changed. Lua says " +
+            "nothing, as declaring a variable with a name already in use is allowed.",
+            "The total outside the loop keeps the value it started with: adding up 70, 80 and 90 prints Total: 0.",
+            "Take local away inside the loop - total = total + mark - so the line changes the total declared before it.",
+            """
+            local marks = {70, 80, 90}
+            local total = 0
+            for _, mark in ipairs(marks) do
+              total = total + mark
+            end
+            print("Total: " .. total)
+            """),
     ];
 }

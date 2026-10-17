@@ -128,5 +128,22 @@ internal static class PerlPatternGuides
             my $name = "Ada";
             print "Hello, $name\n";
             """),
+
+        GuideFor(["logic-perl-my-hides-outer"], "my inside a loop hides the outer variable",
+            "my declares a new variable, which lasts until the end of the block it is in. Inside a loop, my $total = $total + $mark " +
+            "declares a new $total each time round, worked out from the $total outside the loop - which is never changed. Perl says " +
+            "nothing, even with use strict and use warnings, as the new variable is in a block of its own.",
+            "The $total outside the loop keeps the value it started with: adding up 70, 80 and 90 prints Total: 0.",
+            "Take my away inside the loop - $total = $total + $mark - so the line changes the $total declared before it.",
+            """
+            use strict;
+            use warnings;
+            my @marks = (70, 80, 90);
+            my $total = 0;
+            foreach my $mark (@marks) {
+                $total = $total + $mark;
+            }
+            print "Total: $total\n";
+            """),
     ];
 }

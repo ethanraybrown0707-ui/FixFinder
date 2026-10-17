@@ -333,20 +333,22 @@ written, `$name` and all, as only double quotes put a value into text; the chang
 with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
-none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
-`require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose
+none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names
+them - `require "lib.helpers"` is `lib\helpers.lua` - and a runtime error in one of them is placed there, even one whose
 message names no place, at the program's line in its traceback. Lua says what it expected where it stopped, and these
 syntax errors become fixes: `!=` becomes `~=`, an `=` in a condition `==`, `total += 5` and `count++` are written out in
-full, an `if` or a loop without its `then` or `do` gets it, a block with no `end` gets one where its indentation ends -
-Lua names the outer block, as it takes each `end` to close the latest - `else if` becomes `elseif`, and a string or a
-bracket left open is closed. While it runs, a name that is nil because it is misspelt becomes the nearest name the file
-gives a value to, a `+` joining text becomes `..`, a whole number divided by zero with `//` or `%` gets an answer for
-when the divisor is zero, and `name.upper()` - a string's own function called with a dot, which gives it nothing to work
-on - becomes `name:upper()`; each change is checked in a copy - with `luac -p` - and run. Lua's code is read for logic
-mistakes by four checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared with
-`==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and then compared exactly; and
-`table.remove` in a loop going forward over the same list, which skips the item after each one it removes. Lua is tested
-with Lua 5.4.6.
+full, an `if` or a loop without its `then` or `do` gets it, a block with no `end` gets one where its indentation
+ends - Lua names the outer block, as it takes each `end` to close the latest - `else if` becomes `elseif`, and a string
+or a bracket left open is closed. While it runs, a name that is nil because it is misspelt becomes the nearest name the
+file gives a value to, a `+` joining text becomes `..`, a whole number divided by zero with `//` or `%` gets an answer
+for when the divisor is zero, and `name.upper()` - a string's own function called with a dot, which gives it nothing to
+work on - becomes `name:upper()`; each change is checked in a copy - with `luac -p` - and run. Lua's code is read for
+logic mistakes by five checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared
+with `==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and then compared exactly;
+`table.remove` in a loop going forward over the same list, which skips the item after each one it removes; and
+`local total = total + mark` inside a loop, which declares a new `total` for the loop alone each time round and leaves
+the one outside it as it was - `Total: 0` for marks of 70, 80 and 90; the change takes `local` away. Lua is tested with
+Lua 5.4.6.
 
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
@@ -360,13 +362,15 @@ a division by zero gets an answer for when the divisor is zero, a misspelt sub b
 variable written without its `$` gets it - with `my` under `use strict` when nothing declares it - a `{` left open is
 closed where its indentation ends, and a string left open is closed on the line it starts on, which Perl's own hint
 names when a later quote stopped it; each change is checked in a copy - with `perl -c` - and run. Perl's code is read
-for logic mistakes by eight checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
+for logic mistakes by nine checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
 `==`, a line read from `<STDIN>` and compared with `eq` without `chomp`, a decimal worked out by arithmetic and then
 compared exactly, `length(@marks)`, which counts the digits of the array's count - Perl warns of it too, and the warning
 and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, a variable inside single
 quotes - `'Hello, $name'` - which Perl prints as it is written, `$name` and all, even with `use warnings`, and a method
 called inside text, `"Name: $student->name"`, which Perl does not call: it prints the object, `Student=HASH(0x...)`, and
-`->name` after it. Perl is tested with Strawberry Perl 5.42.2.
+`->name` after it. The ninth is `my $total = $total + $mark` inside a loop: it declares a new `$total` for the loop
+alone each time round, so the one outside it keeps its value - `Total: 0` for marks of 70, 80 and 90, with no
+warning - and the change takes `my` away. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -1099,8 +1103,8 @@ Python, Java and C# are checked most thoroughly.
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 10 | 26 |
 | PHP | 15 | 9 | 18 |
-| Lua | 12 | 4 | 25 |
-| Perl | 13 | 8 | 26 |
+| Lua | 12 | 5 | 25 |
+| Perl | 13 | 9 | 26 |
 | Dart | 12 | 5 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 9 | 15 |

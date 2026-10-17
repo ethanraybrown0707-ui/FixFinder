@@ -44,6 +44,7 @@ public static class LogicPatterns
         .. TextHolePatterns.All,
         .. TypeNamePatterns.All,
         .. NaNComparisonPatterns.All,
+        .. HiddenOuterVariablePatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
