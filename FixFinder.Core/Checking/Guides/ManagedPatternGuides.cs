@@ -143,6 +143,23 @@ internal static class ManagedPatternGuides
             Console.WriteLine($"Total: {total}");
             """),
 
+        GuideFor(["logic-loop-steps-over-end"], "A loop that steps over its end",
+            "count != 10 keeps the loop going until count is exactly 10. Counting from 0 by 3, count is 0, 3, 6, 9, 12, 15 - it " +
+            "steps over 10 without ever being it - so the test stays true. In JavaScript the loop never ends. An int in Java, C# " +
+            "and C runs on until it passes the largest int and wraps round to the smallest, and lands on 10 only after " +
+            "2,863,311,534 passes. None of their compilers says anything.",
+            "The loop does its work for numbers far past the end - billions of times over, or for ever.",
+            "Stop once the counter reaches the end or passes it: count < 10 when counting up, count > 10 when counting down.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    for (int count = 0; count < 10; count += 3) {
+                        System.out.println(count);
+                    }
+                }
+            }
+            """),
+
         GuideFor(["logic-loop-steps-away"], "A loop that counts the wrong way",
             "A counting loop needs its counter to move towards the limit that ends it. Here the condition keeps the loop going " +
             "while i is below the limit, but each step makes i smaller - moving away from it - so the loop never reaches its " +

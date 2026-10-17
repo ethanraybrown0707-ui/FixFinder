@@ -507,7 +507,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 36 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 37 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -806,7 +806,11 @@ same - `(int)(price * 100 + 0.5) / 100` given to a double - which printed `12.00
 in Java, and none of their compilers said anything; the change divides by `100.0` too. In Java and Scala it finds whole
 numbers whose sum or product is too big for an int - `long millisPerYear = 365 * 24 * 60 * 60 * 1000` - which are worked
 out as ints and wrap round, to `1471228928`, before they are stored in the long; the change works it out in longs,
-`365L * ...`. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In C, C++, Java, C#,
+`365L * ...`. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In Python, C, C++,
+Java, C#, JavaScript and TypeScript it finds a loop run while its counter `!=` its end, whose steps go over the
+end - `count != 10` counting from 0 by 3, which is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the loop never
+ended; an `int` counter in Java, C and C# ran on until it wrapped round past the largest `int`, and landed on 10 only
+after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In C, C++, Java, C#,
 JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side
 squared - where `^` is exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none
 of their compilers or interpreters says anything of it. The change multiplies the number by itself - or, in Python,
@@ -1129,12 +1133,12 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 43 | 41 |
-| Java | 54 | 40 | 46 |
-| C# | 47 | 37 | 49 |
-| C | 46 | 23 | 39 |
-| C++ | 45 | 30 | 39 |
-| JavaScript | 42 | 36 | 16 |
+| Python | 88 | 44 | 41 |
+| Java | 54 | 41 | 46 |
+| C# | 47 | 38 | 49 |
+| C | 46 | 24 | 39 |
+| C++ | 45 | 31 | 39 |
+| JavaScript | 42 | 37 | 16 |
 | Go | 38 | 11 | 18 |
 | Scala | 6 | 9 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1149,7 +1153,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |
-| TypeScript | 44 | 36 | 5 |
+| TypeScript | 44 | 37 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

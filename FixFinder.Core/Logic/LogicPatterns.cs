@@ -52,6 +52,7 @@ public static class LogicPatterns
         .. SpreadArgumentPatterns.All,
         .. SharedRowPatterns.All,
         .. ConstantOverflowPatterns.All,
+        .. StepOverEndPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

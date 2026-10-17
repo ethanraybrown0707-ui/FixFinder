@@ -50,6 +50,18 @@ internal static class PythonPatternGuides
                 print("a whole number")
             """),
 
+        GuideFor(["logic-python-loop-steps-over-end"], "A loop that steps over its end",
+            "while count != 10: keeps the loop going until count is exactly 10. Counting from 0 by 3, count is 3, 6, 9, 12, 15 - it " +
+            "steps over 10 without ever being it - so the test stays True and the loop never ends. Python says nothing.",
+            "The program never finishes: it counts on and on, doing the loop's work for numbers far past the end.",
+            "Stop once the counter reaches the end or passes it: while count < 10: when counting up, while count > 10: when counting down.",
+            """
+            count = 0
+            while count < 10:
+                count += 3
+                print(count)
+            """),
+
         GuideFor(["logic-python-method-not-called"], "A method used without calling it",
             "The round brackets after a method's name are what make it run. Without them, name.upper is the method itself - " +
             "like naming a recipe instead of cooking it - so you get the method, not its answer.",
