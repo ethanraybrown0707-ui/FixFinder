@@ -50,6 +50,7 @@ public static class LogicPatterns
         .. SharedListPatterns.All,
         .. RoundingPatterns.All,
         .. SpreadArgumentPatterns.All,
+        .. SharedRowPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

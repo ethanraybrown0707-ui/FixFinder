@@ -102,5 +102,19 @@ internal static class DartPatternGuides
               print(backup);
             }
             """),
+
+        GuideFor(["logic-dart-rows-shared"], "A grid whose rows are one row",
+            "List.filled(3, List.filled(3, 0)) makes one row and fills the grid with that one row three times. Every " +
+            "row is the same list, so grid[0][0] = 1 changes the first item of every row. dart analyze says nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid prints [[1, 0, 0], [1, 0, 0], " +
+            "[1, 0, 0]].",
+            "Make each row its own list: List.generate(3, (_) => List.filled(3, 0)) makes a new row for each.",
+            """
+            void main() {
+              var grid = List.generate(3, (_) => List.filled(3, 0));
+              grid[0][0] = 1;
+              print(grid);
+            }
+            """),
     ];
 }

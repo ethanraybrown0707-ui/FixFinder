@@ -382,5 +382,18 @@ internal static class PythonPatternGuides
             marks.append(100)
             print(backup)
             """),
+
+        GuideFor(["logic-python-rows-shared"], "A grid whose rows are one row",
+            "[[0] * 3] * 3 does not make three rows: it makes one row, [0, 0, 0], and a list that holds it three " +
+            "times. Every row is that one list, so grid[0][0] = 1 changes the first item of every row. Python says " +
+            "nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid prints [[1, 0, 0], [1, 0, 0], " +
+            "[1, 0, 0]].",
+            "Make each row its own list: [[0] * 3 for _ in range(3)] works the row out again for each row.",
+            """
+            grid = [[0] * 3 for _ in range(3)]
+            grid[0][0] = 1
+            print(grid)
+            """),
     ];
 }

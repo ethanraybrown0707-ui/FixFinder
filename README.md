@@ -301,7 +301,7 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by eleven checks `ruby -w` says nothing of: `(total / count).to_f` of two
+run. Ruby's code is read for logic mistakes by twelve checks `ruby -w` says nothing of: `(total / count).to_f` of two
 whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
@@ -311,7 +311,9 @@ out, and `elif`, which Ruby reads as a call to a method of that name, inside the
 condition is false, nothing runs and nothing is said - `value == Float::NAN`, which is false even when the value is NaN,
 and `'Hello, #{name}'`, whose `#{name}` is printed as it is written, as only text in double quotes has a value put into
 it; the change makes the quotes double. The eleventh is `backup = marks` taken as a copy: both names are one array, so
-after `marks << 100`, `p backup` prints `[70, 80, 90, 100]`; the change is `marks.dup`. Ruby is tested with Ruby 3.3.12.
+after `marks << 100`, `p backup` prints `[70, 80, 90, 100]`; the change is `marks.dup`. The twelfth is a grid made by
+repeating one row - `Array.new(3, Array.new(3, 0))` - whose rows are then one array, so `grid[0][0] = 1` changes every
+row; the change is `Array.new(3) { Array.new(3, 0) }`. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -385,13 +387,15 @@ an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a n
 `=` in a condition becomes `==`, a `final` variable set again becomes `var`, a named parameter whose type does not allow
 the null it has when left out is made `required`, and a variable given `null` whose type does not allow it gets a type
 that does - `String?`; and while it runs, a whole number divided by zero gets an answer for when the divisor is zero.
-Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by seven checks
+Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by eight checks
 the analyzer says nothing of: a loop to `<= marks.length`, two lists compared with `==`, a decimal worked out by
 arithmetic and then compared exactly, `^` written as a power, `'$marks.length'` in text, which puts in the value of
 `marks` alone and prints `[70, 80, 90].length`, and `marks.map((mark) => print(mark));` on a line of its own, which
 prints nothing: `map` works each item out only when its result is read, and nothing reads it. The seventh is
 `var backup = marks;` taken as a copy: both names are one list, so after `marks.add(100)`, `backup` prints
-`[70, 80, 90, 100]`; the change is `[...marks]`. Dart is tested with Dart 3.13.2.
+`[70, 80, 90, 100]`; the change is `[...marks]`. The eighth is a grid made by repeating one
+row - `List.filled(3, List.filled(3, 0))` - whose rows are then one list, so `grid[0][0] = 1` changes every row; the
+change is `List.generate(3, (_) => List.filled(3, 0))`. Dart is tested with Dart 3.13.2.
 
 A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
 files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
@@ -501,7 +505,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 35 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 36 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -824,8 +828,11 @@ Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a 
 array - `backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though
 both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a copy in
 the language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`, `marks.dup`,
-`append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. When an expected output was given, it also
-runs changed copies of the program to find the one that prints it:
+`append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. In Python, JavaScript, TypeScript, Ruby and
+Dart it finds a grid made by repeating one row - `[[0] * 3] * 3` - and then a row of it changed: every row is that one
+row, so after `grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. The change makes each row its own, as
+`[[0] * 3 for _ in range(3)]` does. When an expected output was given, it also runs changed copies of the program to
+find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1117,27 +1124,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 42 | 41 |
+| Python | 88 | 43 | 41 |
 | Java | 54 | 39 | 46 |
 | C# | 47 | 37 | 49 |
 | C | 46 | 23 | 39 |
 | C++ | 45 | 30 | 39 |
-| JavaScript | 42 | 35 | 16 |
+| JavaScript | 42 | 36 | 16 |
 | Go | 38 | 11 | 18 |
 | Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 13 | 11 | 26 |
+| Ruby | 13 | 12 | 26 |
 | PHP | 15 | 9 | 18 |
 | Lua | 12 | 6 | 25 |
 | Perl | 13 | 9 | 26 |
-| Dart | 12 | 7 | 23 |
+| Dart | 12 | 8 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 10 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |
-| TypeScript | 44 | 35 | 5 |
+| TypeScript | 44 | 36 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

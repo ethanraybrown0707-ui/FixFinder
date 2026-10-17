@@ -456,6 +456,18 @@ internal static class BracePatternGuides
             console.log(Math.max(...marks));
             """),
 
+        GuideFor(["logic-js-rows-shared"], "A grid whose rows are one row",
+            "new Array(3).fill(new Array(3).fill(0)) makes one row and fills the grid with that one row three times. " +
+            "Every row is the same array, so grid[0][0] = 1 changes the first item of every row. Node says nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid is [[1,0,0],[1,0,0],[1,0,0]].",
+            "Make each row its own array: Array.from({ length: 3 }, () => new Array(3).fill(0)) makes a new row for " +
+            "each.",
+            """
+            const grid = Array.from({ length: 3 }, () => new Array(3).fill(0));
+            grid[0][0] = 1;
+            console.log(JSON.stringify(grid));
+            """),
+
         GuideFor(["logic-js-array-shared"], "A second name for an array is not a copy",
             "const backup = marks does not copy the array: it gives the same array a second name. A change made through either name " +
             "- marks.push(100) - is a change to the one array, so backup shows it too. Node says nothing.",

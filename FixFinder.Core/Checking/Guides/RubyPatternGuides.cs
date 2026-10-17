@@ -141,5 +141,18 @@ internal static class RubyPatternGuides
             marks << 100
             p backup
             """),
+
+        GuideFor(["logic-ruby-rows-shared"], "A grid whose rows are one row",
+            "Array.new(3, Array.new(3, 0)) makes one row and fills the grid with that one row three times. Every row " +
+            "is the same array, so grid[0][0] = 1 changes the first item of every row. ruby -w says nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, p grid prints [[1, 0, 0], [1, 0, 0], [1, " +
+            "0, 0]].",
+            "Make each row its own array: Array.new(3) { Array.new(3, 0) } runs the block for each row, making a new " +
+            "one each time.",
+            """
+            grid = Array.new(3) { Array.new(3, 0) }
+            grid[0][0] = 1
+            p grid
+            """),
     ];
 }
