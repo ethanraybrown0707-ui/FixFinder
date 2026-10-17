@@ -780,27 +780,28 @@ item: `for...in` gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total 
 In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is
 false in both - and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or
 `for (let mark of marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position
-compared with `> 0`, which takes a match at the very start, position 0, for no match. In C and C++ it finds a line read
-with `fgets` compared with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after
-`nextInt`, which reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart,
-Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which
-compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says
-anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In
-Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with
-`+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and
-which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in text that
-puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"`
-with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'`
-in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not
-its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
-finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
-`"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
-ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript,
-Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is
-false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their
-toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust
-warn of it themselves. When an expected output was given, it also runs changed copies of the program to find the one
-that prints it:
+compared with `> 0`, which takes a match at the very start, position 0, for no match. In C++ it finds an array of
+numbers sent to `cout` - `std::cout << marks` - which writes the address of its first item, such as `0x1a535ffcf8`, not
+its items; g++ says nothing, and the change writes each item in a loop. In C and C++ it finds a line read with `fgets`
+compared with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after `nextInt`, which
+reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and
+Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which compares two whole
+numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says anything of it. The
+change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In Java, C#, JavaScript
+and TypeScript it finds text and then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working
+from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers
+first. It finds a value meant to be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f`
+before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"` with no `s`, JavaScript's and TypeScript's
+`"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'` in single quotes, and PHP's and Perl's
+`'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not its value, and the change adds the `f`,
+the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it finds `typeof` compared with a word it
+never gives - `typeof marks === "array"`, false for an array, as `typeof` gives `"object"` for it - and in Python
+`type(age) == "int"`, which compares a type with text and is false for 21; the changes ask what was meant, with
+`Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala,
+F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is false even when the
+value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their toolchains says anything
+of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust warn of it themselves. When
+an expected output was given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1096,7 +1097,7 @@ Python, Java and C# are checked most thoroughly.
 | Java | 54 | 36 | 46 |
 | C# | 47 | 34 | 49 |
 | C | 46 | 21 | 39 |
-| C++ | 45 | 26 | 39 |
+| C++ | 45 | 27 | 39 |
 | JavaScript | 42 | 32 | 16 |
 | Go | 38 | 10 | 18 |
 | Scala | 6 | 8 | 28 |

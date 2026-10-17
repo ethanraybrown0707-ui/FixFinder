@@ -45,6 +45,7 @@ public static class LogicPatterns
         .. TypeNamePatterns.All,
         .. NaNComparisonPatterns.All,
         .. HiddenOuterVariablePatterns.All,
+        .. CppOutputPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

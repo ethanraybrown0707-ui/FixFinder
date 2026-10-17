@@ -271,6 +271,23 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-cpp-array-printed"], "An array sent to cout",
+            "cout writes a number, a string or a char array as text - but an array of numbers sent to it with << becomes the address " +
+            "of its first item, and cout writes that address, such as 0x1a535ffcf8. g++ says nothing.",
+            "The output shows an address instead of the items - a different one from run to run - which looks broken to anyone using " +
+            "the program.",
+            "Write each item in a loop: for (int mark : marks) std::cout << mark << \" \";",
+            """
+            #include <iostream>
+
+            int main() {
+                int marks[] = {70, 80, 90};
+                std::cout << "Marks: ";
+                for (int mark : marks) std::cout << mark << " ";
+                std::cout << "\n";
+            }
+            """),
+
         GuideFor(["logic-java-equals-overload"], "equals that takes the wrong type",
             "Java's collections look for a method called equals that takes any Object. A method equals(Point other) has a " +
             "different parameter, so Java treats it as a separate method - and the collections never call it.",
