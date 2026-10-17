@@ -166,6 +166,22 @@ internal static class ManagedPatternGuides
             foreach (var mark in marks) { Console.WriteLine(mark); }
             """),
 
+        GuideFor(["logic-java-round-divided-as-whole-number"], "Rounding to two places that loses them",
+            "Math.round gives a whole number - a long - so Math.round(price * 100) / 100 divides a whole number by a whole number, " +
+            "which cuts off the fraction: for a price of 12.345 it is 12.0, not 12.35. javac says nothing, as a long can be stored " +
+            "in a double.",
+            "The places the rounding was meant to keep are lost: every result comes out as a whole number, with .0 after it.",
+            "Divide by 100.0 - a double - so the division keeps its fraction: Math.round(price * 100) / 100.0 is 12.35.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    double price = 12.345;
+                    double rounded = Math.round(price * 100) / 100.0;
+                    System.out.println(rounded);
+                }
+            }
+            """),
+
         GuideFor(["logic-java-array-shared"], "A second name for an array is not a copy",
             "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
             "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List. javac says nothing.",

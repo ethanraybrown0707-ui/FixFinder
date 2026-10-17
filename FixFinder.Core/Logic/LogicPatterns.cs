@@ -48,6 +48,7 @@ public static class LogicPatterns
         .. CppOutputPatterns.All,
         .. LazyMapPatterns.All,
         .. SharedListPatterns.All,
+        .. RoundingPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
