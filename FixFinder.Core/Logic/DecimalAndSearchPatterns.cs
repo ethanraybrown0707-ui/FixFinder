@@ -8,7 +8,9 @@ namespace FixFinder.Core.Logic;
 /// Two mistakes that run without a word in every language they are checked in, each seen by running it: a decimal worked
 /// out by arithmetic and then compared exactly - in Python 0.1 + 0.2 == 0.3 is False, and in JavaScript 0.1 + 0.2 === 0.3
 /// is false - and a search's position compared with > 0, which is false when what was looked for is at the very start:
-/// "apple".indexOf("a") is 0 in Java and JavaScript, "apple".IndexOf("a") in C#, and "apple".find("a") in Python.
+/// "apple".indexOf("a") is 0 in Java and JavaScript, "apple".IndexOf("a") in C#, and "apple".find("a") in Python. A search's
+/// position taken as true or false is wrong both ways: in Node, if (marks.indexOf(70)) took 70 at the start for no match and
+/// if (marks.indexOf(99)) took 99, not there, for a match, and Python's if name.find("A"): did the same.
 /// DecimalAndSearchLiveTests runs each mistake, and its change, in each of these languages.
 /// </summary>
 public static partial class DecimalAndSearchPatterns
@@ -23,6 +25,8 @@ public static partial class DecimalAndSearchPatterns
         new CodePattern("logic-js-float-equality", Script, Syntax.CLike, ScriptDecimalCompared, Severity.Warning, Confidence.Likely),
         new CodePattern("logic-index-of-above-zero", Searching, Syntax.CLike, IndexOfAboveZero, Severity.Warning, Confidence.Possible),
         new CodePattern("logic-python-find-above-zero", Python, Syntax.Python, FindAboveZero, Severity.Warning, Confidence.Possible),
+        new CodePattern("logic-js-search-as-condition", Script, Syntax.CLike, ScriptSearchAsCondition, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-python-find-as-condition", Python, Syntax.Python, PythonFindAsCondition, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary>A decimal with a fraction that is not 0 - 0.3, 2.75 - and nothing after it that makes it part of a name.</summary>
@@ -114,6 +118,73 @@ public static partial class DecimalAndSearchPatterns
 
     private static IEnumerable<LogicFinding> FindAboveZero(string id, SourceFile source, IReadOnlyList<string> masked) =>
         AboveZero(id, source, masked, PythonFindAboveZero());
+
+    /// <summary>
+    /// <c>if (marks.indexOf(70))</c>, <c>while (!text.indexOf("x"))</c> or <c>marks.indexOf(70) ? ... : ...</c> - a search's
+    /// position as the whole of a condition.
+    /// </summary>
+    [GeneratedRegex(@"(?:\b(?:if|while)\s*\(\s*(?<not>!\s*)?(?<subject>[A-Za-z_$][\w$.]*(?:\[[^\]]*\])?)\.(?<method>indexOf|lastIndexOf)\((?<arguments>(?:[^()]|\([^()]*\))*)\)(?=\s*\))|(?<![\w$.!])(?<not>!\s*)?(?<subject>[A-Za-z_$][\w$.]*(?:\[[^\]]*\])?)\.(?<method>indexOf|lastIndexOf)\((?<arguments>(?:[^()]|\([^()]*\))*)\)(?=\s*\?))")]
+    private static partial Regex ScriptSearchCondition();
+
+    /// <summary><c>if name.find("A"):</c> or <c>while not text.find("x"):</c>, with the one argument in can take.</summary>
+    [GeneratedRegex(@"\b(?:if|elif|while)\s+(?<not>not\s+)?(?<subject>[A-Za-z_][\w.]*(?:\[[^\]]*\])?)\.(?<method>find|rfind)\((?<arguments>[^(),]+)\)\s*:")]
+    private static partial Regex PythonFindCondition();
+
+    private static string AsConditionMessage(string method) =>
+        $"`{method}` gives a position - 0 when what it looks for is at the very start, -1 when it is not there at all - and as a condition 0 " +
+        "is false and -1 is true: the condition is false for a match at the start and true when nothing is found";
+
+    /// <summary>
+    /// A search's position taken as true or false: a match at the start, position 0, is false, and no match at all, -1, is true.
+    /// The change asks whether it is there with includes, which arrays and text both have.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ScriptSearchAsCondition(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            foreach (Match found in ScriptSearchCondition().Matches(masked[index]))
+            {
+                var line = source.Lines[index];
+                var not = found.Groups["not"];
+                var subject = found.Groups["subject"].Value;
+                var arguments = line.Substring(found.Groups["arguments"].Index, found.Groups["arguments"].Length);
+                var start = not.Success ? not.Index : found.Groups["subject"].Index;
+                var end = found.Groups["arguments"].Index + found.Groups["arguments"].Length + 1;
+                var asked = $"{(not.Success ? "!" : "")}{subject}.includes({arguments})";
+
+                yield return new LogicFinding(id, index + 1, AsConditionMessage(found.Groups["method"].Value),
+                    LocalFix.ReplaceLine(id, $"Ask whether it is there: {asked}",
+                        "includes is true when what it looks for is anywhere - at the very start too - and false only when it is not there.",
+                        source.Path, index + 1, line[..start] + asked + line[end..]));
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Python's find taken as true or false, as JavaScript's indexOf is: 0, a match at the start, is false, and -1 is true. The
+    /// change asks with in.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PythonFindAsCondition(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (PythonFindCondition().Match(masked[index]) is not { Success: true } found) continue;
+
+            var line = source.Lines[index];
+            var not = found.Groups["not"];
+            var subject = found.Groups["subject"].Value;
+            var looked = line.Substring(found.Groups["arguments"].Index, found.Groups["arguments"].Length).Trim();
+            var start = not.Success ? not.Index : found.Groups["subject"].Index;
+            var end = found.Groups["arguments"].Index + found.Groups["arguments"].Length + 1;
+            var asked = $"{looked} {(not.Success ? "not in" : "in")} {subject}";
+
+            yield return new LogicFinding(id, index + 1, AsConditionMessage(found.Groups["method"].Value),
+                LocalFix.ReplaceLine(id, $"Ask whether it is there: {asked}",
+                    "in is True when what it looks for is anywhere in the text - at the very start too - and False only when it is not there.",
+                    source.Path, index + 1, line[..start] + asked + line[end..]));
+        }
+    }
 
     /// <summary>
     /// A search's position compared with &gt; 0: positions start at 0, so a match at the very start counts as not found.

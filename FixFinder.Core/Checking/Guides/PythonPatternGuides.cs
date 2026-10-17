@@ -299,6 +299,18 @@ internal static class PythonPatternGuides
                 print("equal")
             """),
 
+        GuideFor(["logic-python-find-as-condition"], "A search's position used as true or false",
+            "find gives a position: 0 when what it looks for is at the very start, and -1 when it is not there at all. As a " +
+            "condition, 0 is False and -1 is True - so if name.find(\"A\"): is False for \"Ada\", and if name.find(\"z\"): is " +
+            "True. Python says nothing.",
+            "The condition is wrong both ways: a match at the start counts as none, and no match counts as one.",
+            "Ask whether it is there with in: \"A\" in name is True wherever it is, the start too, and False only when it is not there.",
+            """
+            name = "Ada"
+            if "A" in name:
+                print("has A")
+            """),
+
         GuideFor(["logic-python-find-above-zero"], "A match at the start taken for no match",
             "find gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A match " +
             "at the very start is at position 0, so find(...) > 0 is False for it - as if it were not there.",

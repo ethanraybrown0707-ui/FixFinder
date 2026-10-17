@@ -501,7 +501,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 33 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 34 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -786,36 +786,39 @@ item: `for...in` gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total 
 In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is
 false in both - and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or
 `for (let mark of marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position
-compared with `> 0`, which takes a match at the very start, position 0, for no match. In C++ it finds an array of
-numbers sent to `cout` - `std::cout << marks` - which writes the address of its first item, such as `0x1a535ffcf8`, not
-its items; g++ says nothing, and the change writes each item in a loop. In C and C++ it finds a line read with `fgets`
-compared with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after `nextInt`, which
-reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and
-Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which compares two whole
-numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says anything of it. The
-change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In Java, C#, JavaScript
-and TypeScript it finds text and then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working
-from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers
-first. It finds a value meant to be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f`
-before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"` with no `s`, JavaScript's and TypeScript's
-`"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'` in single quotes, and PHP's and Perl's
-`'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not its value, and the change adds the `f`,
-the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it finds `typeof` compared with a word it
-never gives - `typeof marks === "array"`, false for an array, as `typeof` gives `"object"` for it - and in Python
-`type(age) == "int"`, which compares a type with text and is false for 21; the changes ask what was meant, with
-`Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala,
-F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is false even when the
-value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their toolchains says anything
-of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust warn of it themselves. In
-Python, C# and Dart it finds a map run for what its function does, on a line of its own - `map(print, marks)`,
-`marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which works each item out only
-when its result is read; nothing reads it, so nothing is printed, and none of the three says anything. The change is a
-loop, which runs straight away. In Python, Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds
-a second name for a list or an array - `backup = marks` - taken as a copy: the list is changed through one name and the
-other read after it, though both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`.
-The change makes a copy in the language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`,
-`marks.dup`, `append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. When an expected output was
-given, it also runs changed copies of the program to find the one that prints it:
+compared with `> 0`, which takes a match at the very start, position 0, for no match - and in Python, JavaScript and
+TypeScript a search's position used as true or false, `if (marks.indexOf(70))`, which is wrong both ways: a match at the
+start, 0, is false, and no match, -1, is true. The change asks whether it is there, with `includes` or `in`. In C++ it
+finds an array of numbers sent to `cout` - `std::cout << marks` - which writes the address of its first item, such as
+`0x1a535ffcf8`, not its items; g++ says nothing, and the change writes each item in a loop. In C and C++ it finds a line
+read with `fgets` compared with `strcmp`, though its newline is still in it, and in Java a `nextLine` straight after
+`nextInt`, which reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart,
+Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which
+compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says
+anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In
+Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with
+`+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and
+which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in text that
+puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"`
+with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'`
+in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not
+its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
+finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
+`"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
+ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript,
+Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is
+false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their
+toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust
+warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its
+own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
+`marks.map((mark) => print(mark))` - which works each item out only when its result is read; nothing reads it, so
+nothing is printed, and none of the three says anything. The change is a loop, which runs straight away. In Python,
+Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a second name for a list or an
+array - `backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though
+both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a copy in
+the language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`, `marks.dup`,
+`append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. When an expected output was given, it also
+runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1107,12 +1110,12 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 41 | 41 |
+| Python | 88 | 42 | 41 |
 | Java | 54 | 37 | 46 |
 | C# | 47 | 36 | 49 |
 | C | 46 | 21 | 39 |
 | C++ | 45 | 27 | 39 |
-| JavaScript | 42 | 33 | 16 |
+| JavaScript | 42 | 34 | 16 |
 | Go | 38 | 11 | 18 |
 | Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1127,7 +1130,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |
-| TypeScript | 44 | 33 | 5 |
+| TypeScript | 44 | 34 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

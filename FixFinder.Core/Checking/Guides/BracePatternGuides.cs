@@ -310,6 +310,19 @@ internal static class BracePatternGuides
             System.out.println("" + first + second);
             """),
 
+        GuideFor(["logic-js-search-as-condition"], "A search's position used as true or false",
+            "indexOf gives a position: 0 when what it looks for is at the very start, and -1 when it is not there at all. As a " +
+            "condition, 0 is false and -1 is true - so if (marks.indexOf(70)) is false when 70 is the first mark, and " +
+            "if (marks.indexOf(99)) is true when 99 is not there. Node says nothing.",
+            "The condition is wrong both ways: a match at the start counts as none, and no match counts as one.",
+            "Ask whether it is there: marks.includes(70) is true wherever 70 is, the start too, and false only when it is not there.",
+            """
+            const marks = [70, 80];
+            if (marks.includes(70)) {
+              console.log("found 70");
+            }
+            """),
+
         GuideFor(["logic-index-of-above-zero"], "A match at the start taken for no match",
             "indexOf gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A " +
             "match at the very start is at position 0, so indexOf(...) > 0 is false for it - as if it were not there. The same " +
