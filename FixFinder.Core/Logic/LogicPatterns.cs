@@ -49,6 +49,7 @@ public static class LogicPatterns
         .. LazyMapPatterns.All,
         .. SharedListPatterns.All,
         .. RoundingPatterns.All,
+        .. SpreadArgumentPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

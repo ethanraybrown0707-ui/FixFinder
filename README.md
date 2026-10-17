@@ -501,7 +501,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 34 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 35 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -810,12 +810,14 @@ in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as
 its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
 finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
 `"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
-ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript,
-Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is
-false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their
-toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust
-warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its
-own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
+ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
+`Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
+`70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
+TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with
+NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
+nothing, not even itself; none of their toolchains says anything of it, and the change is the language's own test, such
+as `math.isnan(value)`. Dart and Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its
+function does, on a line of its own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
 `marks.map((mark) => print(mark))` - which works each item out only when its result is read; nothing reads it, so
 nothing is printed, and none of the three says anything. The change is a loop, which runs straight away. In Python,
 Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a second name for a list or an
@@ -1120,7 +1122,7 @@ Python, Java and C# are checked most thoroughly.
 | C# | 47 | 37 | 49 |
 | C | 46 | 23 | 39 |
 | C++ | 45 | 30 | 39 |
-| JavaScript | 42 | 34 | 16 |
+| JavaScript | 42 | 35 | 16 |
 | Go | 38 | 11 | 18 |
 | Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1135,7 +1137,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |
-| TypeScript | 44 | 34 | 5 |
+| TypeScript | 44 | 35 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

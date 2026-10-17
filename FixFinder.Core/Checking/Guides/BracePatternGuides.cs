@@ -445,6 +445,17 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-js-math-max-of-array"], "Math.max given an array",
+            "Math.max and Math.min take numbers one by one - Math.max(70, 85, 90). Given an array, they turn it into one number from " +
+            "its text, and the text of [70, 85, 90] is 70,85,90, which is no number: the answer is NaN. Node says nothing - and an " +
+            "array of one item happens to work, which hides the mistake until there are more.",
+            "The highest or lowest mark comes out as NaN, and every sum or comparison made with it is NaN or false too.",
+            "Spread the array into its items with ...: Math.max(...marks) is 90.",
+            """
+            const marks = [70, 85, 90];
+            console.log(Math.max(...marks));
+            """),
+
         GuideFor(["logic-js-array-shared"], "A second name for an array is not a copy",
             "const backup = marks does not copy the array: it gives the same array a second name. A change made through either name " +
             "- marks.push(100) - is a change to the one array, so backup shows it too. Node says nothing.",
