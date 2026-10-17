@@ -41,6 +41,7 @@ public static class LogicPatterns
         .. InputPatterns.All,
         .. LoopCopyPatterns.All,
         .. NumbersJoinedAsTextPatterns.All,
+        .. TextHolePatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

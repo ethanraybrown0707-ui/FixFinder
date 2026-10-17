@@ -130,6 +130,19 @@ internal static class ManagedPatternGuides
             }
             """),
 
+        GuideFor(["logic-csharp-text-without-dollar"], "Braces in C# text with no $",
+            "C# puts a value into text only when the text is interpolated - when a $ comes before its opening quote, as in " +
+            "$\"Total: {total}\". Without the $, the braces are ordinary characters: {total} is printed as it is written, braces and " +
+            "all. The compiler does not read inside the text: the most it says is warning CS0219, that total is assigned but its " +
+            "value is never used - and only when total was given a fixed value, and the text was the one place meant to use it.",
+            "The output shows {total} instead of the total, which looks broken to anyone using the program.",
+            "Put a $ before the opening quote. Text that is given values to fill in - Console.WriteLine(\"{0}\", total) - uses " +
+            "numbers in its braces, and needs no $.",
+            """
+            int total = 150;
+            Console.WriteLine($"Total: {total}");
+            """),
+
         GuideFor(["logic-loop-steps-away"], "A loop that counts the wrong way",
             "A counting loop needs its counter to move towards the limit that ends it. Here the condition keeps the loop going " +
             "while i is below the limit, but each step makes i smaller - moving away from it - so the loop never reaches its " +

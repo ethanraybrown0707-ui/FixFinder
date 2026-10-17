@@ -296,14 +296,16 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by eight checks `ruby -w` says nothing of: `(total / count).to_f` of two
-whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy -
-`name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
+run. Ruby's code is read for logic mistakes by nine checks `ruby -w` says nothing of: `(total / count).to_f` of two
+whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
+copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
-compared with text, though it still ends with its newline, `each` where `map` was meant -
-`doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked out, and
-`elif`, which Ruby reads as a call to a method of that name, inside the `if`'s own branch - when the `if`'s condition is
-false, nothing runs and nothing is said. Ruby is tested with Ruby 3.3.12.
+compared with text, though it still ends with its newline, `each` where `map` was
+meant - `doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked
+out, and `elif`, which Ruby reads as a call to a method of that name, inside the `if`'s own branch - when the `if`'s
+condition is false, nothing runs and nothing is said - and `'Hello, #{name}'`, whose `#{name}` is printed as it is
+written, as only text in double quotes has a value put into it; the change makes the quotes double. Ruby is tested with
+Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -766,10 +768,14 @@ with `fgets` compared with `strcmp`, though its newline is still in it, and in J
 Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which
 compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says
 anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In
-Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with `+` - `"Total: " + first + second` -
-which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of; brackets
-add the numbers first. When an expected output was given, it also runs changed copies of the program to find the one
-that prints it:
+Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with
+`+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and
+which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in text that
+puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s with no `$`, JavaScript's and TypeScript's
+`"Hello, ${name}"` in quotes rather than backticks, and Ruby's `'Hello, #{name}'` in single quotes. Each prints its
+braces and the name as they are written - `Hello, {name}` - not the value, and the change adds the `f` or the `$`, or
+changes the quotes. When an expected output was given, it also runs changed copies of the program to find the one that
+prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1063,7 +1069,7 @@ Python, Java and C# are checked most thoroughly.
 |---|---:|---:|---:|
 | Python | 88 | 37 | 41 |
 | Java | 54 | 36 | 46 |
-| C# | 47 | 33 | 49 |
+| C# | 47 | 34 | 49 |
 | C | 46 | 20 | 39 |
 | C++ | 45 | 25 | 39 |
 | JavaScript | 42 | 30 | 16 |
@@ -1071,7 +1077,7 @@ Python, Java and C# are checked most thoroughly.
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 13 | 8 | 26 |
+| Ruby | 13 | 9 | 26 |
 | PHP | 15 | 7 | 18 |
 | Lua | 12 | 4 | 25 |
 | Perl | 13 | 7 | 26 |

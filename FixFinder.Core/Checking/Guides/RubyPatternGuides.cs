@@ -90,6 +90,19 @@ internal static class RubyPatternGuides
             p doubled
             """),
 
+        GuideFor(["logic-ruby-interpolation-in-single-quotes"], "#{...} inside single quotes",
+            "Ruby puts a value into text only when the text is in double quotes: \"Hello, #{name}\" becomes Hello, Ada. In single " +
+            "quotes, nothing in the text is worked out - #{name} is ordinary characters, and is printed as it is written. Ruby does " +
+            "not read inside the text: with its warnings on - ruby -w, as FixFinder runs it - the most it says is that name is " +
+            "assigned but unused, and only when the text was the one place meant to use it.",
+            "The output shows #{name} instead of the name, which looks broken to anyone using the program.",
+            "Put the text in double quotes. Text that has a \" or a \\ of its own needs those written differently first, as double " +
+            "quotes read them differently.",
+            """
+            name = "Ada"
+            puts "Hello, #{name}"
+            """),
+
         GuideFor(["logic-ruby-elif"], "elif, which Ruby does not have",
             "Ruby writes \"else if\" as elsif. elif is Python's word, and Ruby reads a line starting with it as a call to a method called " +
             "elif - inside the if's own branch, not as a branch of its own.",
