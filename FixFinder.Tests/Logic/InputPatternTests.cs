@@ -33,9 +33,38 @@ public class InputPatternTests : IDisposable
     [InlineData("Main.java", "class Main {\n    void read(java.util.Scanner scanner) {\n        int age = scanner.nextInt();\n        int height = scanner.nextInt();\n    }\n}\n")]
     [InlineData("main.ps1", "$age = Read-Host \"Age\"\nif ($age -eq 7) { Write-Output \"seven\" }\n")]
     [InlineData("main.c", "#include <stdio.h>\n\nint main(void) {\n    char line[20];\n    fgets(line, sizeof line, stdin);\n    printf(\"%s\", line);\n    return 0;\n}\n")]
+    // The newline skipped already: by std::ws, by ignore, by a format ending in a space, or by getchar.
+    [InlineData("main.cpp", "#include <iostream>\n#include <string>\nint main() {\n    int age;\n    std::string name;\n    std::cin >> age;\n    std::getline(std::cin >> std::ws, name);\n}\n")]
+    [InlineData("main.cpp", "#include <iostream>\n#include <string>\nint main() {\n    int age;\n    std::string name;\n    std::cin >> age;\n    std::cin.ignore(1000, '\\n');\n    std::getline(std::cin, name);\n}\n")]
+    [InlineData("main.c", "#include <stdio.h>\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d \", &age);\n    fgets(name, sizeof name, stdin);\n    return 0;\n}\n")]
+    [InlineData("main.c", "#include <stdio.h>\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d\", &age);\n    getchar();\n    fgets(name, sizeof name, stdin);\n    return 0;\n}\n")]
     public void InputReadAndUsedAsItIsIsLeftAlone(string fileName, string code) =>
         Assert.DoesNotContain(Scan(fileName, code), finding => finding.PatternId.Contains("input", StringComparison.Ordinal) ||
-                                                               finding.PatternId is "logic-c-fgets-newline" or "logic-java-nextline-after-nextint" or "logic-powershell-read-host-compared-as-text");
+                                                               finding.PatternId is "logic-c-fgets-newline" or "logic-java-nextline-after-nextint" or "logic-powershell-read-host-compared-as-text"
+                                                                   or "logic-cpp-getline-after-cin" or "logic-c-fgets-after-scanf");
+
+    [Fact]
+    public void CppGetlineAfterCinIsFoundAndSkipsTheNewlineFirst()
+    {
+        var found = Assert.Single(Scan("main.cpp",
+            "#include <iostream>\n#include <string>\nusing namespace std;\nint main() {\n    int age;\n    string name;\n    cin >> age;\n    getline(cin, name);\n}\n"),
+            finding => finding.PatternId == "logic-cpp-getline-after-cin");
+
+        Assert.Equal(8, found.Line);
+        Assert.Equal("    getline(cin >> ws, name);", found.Fix!.NewLines.Single());
+    }
+
+    [Fact]
+    public void CFgetsAfterScanfIsFoundAndTheRestOfTheLineIsReadFirst()
+    {
+        var found = Assert.Single(Scan("main.c",
+            "#include <stdio.h>\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d\", &age);\n    fgets(name, sizeof name, stdin);\n    return 0;\n}\n"),
+            finding => finding.PatternId == "logic-c-fgets-after-scanf");
+
+        Assert.Equal(6, found.Line);
+        Assert.Equal((6, 0), (found.Fix!.StartLine, found.Fix.RemoveCount));
+        Assert.Equal("    for (int rest = getchar(); rest != '\\n' && rest != EOF; rest = getchar()) { }", found.Fix.NewLines.Single());
+    }
 
     [Fact]
     public void AGoLineComparedWithoutStringsImportedIsFoundWithNoChange()
@@ -93,6 +122,16 @@ public class InputLiveTests(ITestOutputHelper output) : IDisposable
             "Java", "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n" +
                     "        int age = scanner.nextInt();\n        String name = scanner.nextLine();\n        System.out.println(\"Name: [\" + name + \"] age \" + age);\n    }\n}\n",
             "36\nAda\n", "logic-java-nextline-after-nextint", 7, "Name: [] age 36", "Name: [Ada] age 36"
+        },
+        {
+            "C++", "#include <iostream>\n#include <string>\n\nint main() {\n    int age;\n    std::string name;\n    std::cin >> age;\n    std::getline(std::cin, name);\n" +
+                   "    std::cout << \"Name: [\" << name << \"] age \" << age << \"\\n\";\n}\n",
+            "21\nAda\n", "logic-cpp-getline-after-cin", 8, "Name: [] age 21", "Name: [Ada] age 21"
+        },
+        {
+            "C", "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d\", &age);\n    fgets(name, sizeof name, stdin);\n" +
+                 "    name[strcspn(name, \"\\n\")] = 0;\n    printf(\"Name: [%s] age %d\\n\", name, age);\n    return 0;\n}\n",
+            "21\nAda\n", "logic-c-fgets-after-scanf", 8, "Name: [] age 21", "Name: [Ada] age 21"
         },
         {
             "PowerShell", "$age = Read-Host \"Age\"\nif ($age -gt 17) {\n    Write-Output \"adult\"\n} else {\n    Write-Output \"child\"\n}\n",

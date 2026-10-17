@@ -375,6 +375,48 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-cpp-getline-after-cin"], "getline after cin >> reads nothing",
+            "std::cin >> age reads the number and stops just before the newline typed after it, which is left waiting. The getline " +
+            "after it reads up to the next newline - and that is the one already waiting, so it reads the rest of the number's line: " +
+            "nothing. g++ says nothing.",
+            "The line read is always empty: with 21 and then Ada typed, name is empty and Ada is never read.",
+            "Skip the newline first: std::getline(std::cin >> std::ws, name) reads past the newline - and any spaces - before the line.",
+            """
+            #include <iostream>
+            #include <string>
+
+            int main() {
+                int age;
+                std::string name;
+                std::cin >> age;
+                std::getline(std::cin >> std::ws, name);
+                std::cout << "Name: [" << name << "] age " << age << "\n";
+            }
+            """),
+
+        GuideFor(["logic-c-fgets-after-scanf"], "fgets after scanf reads nothing",
+            "scanf(\"%d\", &age) reads the number and stops just before the newline typed after it, which is left waiting. The fgets " +
+            "after it reads up to the next newline - and that is the one already waiting, so it reads the rest of the number's line: " +
+            "the newline alone. gcc says nothing.",
+            "The line read holds nothing that was typed: with 21 and then Ada typed, name is empty and Ada is never read.",
+            "Read the rest of the number's line before fgets, up to and with its newline - stopping at the end of the input too, so it " +
+            "never waits: for (int rest = getchar(); rest != '\\n' && rest != EOF; rest = getchar()) { }",
+            """
+            #include <stdio.h>
+            #include <string.h>
+
+            int main(void) {
+                int age;
+                char name[50];
+                scanf("%d", &age);
+                for (int rest = getchar(); rest != '\n' && rest != EOF; rest = getchar()) { }
+                fgets(name, sizeof name, stdin);
+                name[strcspn(name, "\n")] = 0;
+                printf("Name: [%s] age %d\n", name, age);
+                return 0;
+            }
+            """),
+
         GuideFor(["logic-java-nextline-after-nextint"], "nextLine after nextInt reads nothing",
             "nextInt reads the number and stops - before the newline from pressing Enter after it. The nextLine that follows reads to the " +
             "end of that line: it finds the newline straight away, and gives back empty text, without waiting for the next line typed.",

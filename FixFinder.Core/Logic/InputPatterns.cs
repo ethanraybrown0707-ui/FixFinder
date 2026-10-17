@@ -8,7 +8,8 @@ namespace FixFinder.Core.Logic;
 /// What a program reads in, used as if it were something else - each run with the language's own toolchain, typing the input,
 /// and its own checks said nothing of any: Go's ReadString('\n'), Ruby's gets, PHP's fgets, C's fgets and Rust's read_line
 /// keep the newline that ended the line, so "yes\n" never equals "yes" and the program said no to yes; Java's nextInt stops
-/// before the newline, so the nextLine after it reads nothing, and the name was empty; and PowerShell's Read-Host gives text,
+/// before the newline, so the nextLine after it reads nothing, and the name was empty - as did C++'s getline after cin &gt;&gt;,
+/// and C's fgets after scanf, for 21 and then Ada typed; and PowerShell's Read-Host gives text,
 /// which -gt compares as text, so "7" -gt 17 was true. InputLiveTests runs each mistake, typing its input, and its change.
 /// </summary>
 public static partial class InputPatterns
@@ -21,6 +22,8 @@ public static partial class InputPatterns
         new CodePattern("logic-c-fgets-newline", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike, CFgets, Severity.Error, Confidence.Certain),
         new CodePattern("logic-rust-input-not-trimmed", CodePattern.Files(".rs"), Syntax.CLike, RustReadLine, Severity.Error, Confidence.Certain),
         new CodePattern("logic-java-nextline-after-nextint", CodePattern.Files(".java"), Syntax.CLike, JavaNextLineAfterNumber, Severity.Error),
+        new CodePattern("logic-cpp-getline-after-cin", CodePattern.Files(".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike, CppGetlineAfterCin, Severity.Error),
+        new CodePattern("logic-c-fgets-after-scanf", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike, CFgetsAfterScanf, Severity.Error),
         new CodePattern("logic-powershell-read-host-compared-as-text", CodePattern.Files(".ps1"), Syntax.Python, PowerShellReadHost, Severity.Error, Confidence.Certain),
     ];
 
@@ -208,6 +211,98 @@ public static partial class InputPatterns
                 LocalFix.Insert(id, $"Read the rest of the number's line first: {scanner}.nextLine();",
                     $"{scanner}.nextLine() on its own reads the newline the number left, so the next nextLine reads the line typed after it.",
                     source.Path, index + 2, [$"{read.Groups["indent"].Value}{scanner}.nextLine();"]));
+        }
+    }
+
+    /// <summary><c>std::cin &gt;&gt; age;</c> - a value read with &gt;&gt;, and the line it was on left unread.</summary>
+    [GeneratedRegex(@"^\s*(?:std::)?cin\s*>>(?!.*\bgetline\b).*;\s*$")]
+    private static partial Regex CinRead();
+
+    /// <summary>A line that reads from cin in any way: &gt;&gt;, getline, ignore, get.</summary>
+    [GeneratedRegex(@"\b(?:std::)?cin\b")]
+    private static partial Regex ReadsCin();
+
+    /// <summary><c>std::getline(std::cin, name)</c>, with nothing in it that skips the newline first.</summary>
+    [GeneratedRegex(@"\bgetline\s*\(\s*(?<stream>(?:std::)?cin)\s*,\s*(?<name>[A-Za-z_]\w*)\s*\)")]
+    private static partial Regex GetlineFromCin();
+
+    /// <summary>
+    /// cin &gt;&gt; followed by getline from cin: &gt;&gt; stops before the newline that ended the value's line, so the getline after
+    /// it reads what is left of that line - nothing - and the name read is empty. The change skips that newline, and any spaces,
+    /// with std::ws before getline reads.
+    /// </summary>
+    private static IEnumerable<LogicFinding> CppGetlineAfterCin(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (!CinRead().IsMatch(masked[index])) continue;
+
+            // The next line that reads from cin.
+            var next = Enumerable.Range(index + 1, masked.Count - index - 1).FirstOrDefault(line => ReadsCin().IsMatch(masked[line]), -1);
+            if (next < 0 || GetlineFromCin().Match(masked[next]) is not { Success: true } getline) continue;
+
+            var line = source.Lines[next];
+            var stream = getline.Groups["stream"];
+            var skip = stream.Value.StartsWith("std::", StringComparison.Ordinal) ? "std::ws" : "ws";
+            var name = getline.Groups["name"].Value;
+
+            yield return new LogicFinding(id, next + 1,
+                $">> on line {index + 1} reads the value and stops before the newline typed after it, so this getline reads what is left of " +
+                $"that line - nothing - and {name} is empty",
+                LocalFix.ReplaceLine(id, $"Skip the newline first: getline({stream.Value} >> {skip}, {name})",
+                    $"{stream.Value} >> {skip} reads past the newline the value left, and any spaces, so getline reads the line typed after it.",
+                    source.Path, next + 1, line[..stream.Index] + $"{stream.Value} >> {skip}" + line[(stream.Index + stream.Length)..]));
+        }
+    }
+
+    /// <summary><c>scanf("%d", &amp;age);</c> - the opening quote of its format, which masking blanks.</summary>
+    [GeneratedRegex(@"^\s*scanf\s*\(\s*""")]
+    private static partial Regex ScanfCall();
+
+    /// <summary>A line that reads input in any of C's ways.</summary>
+    [GeneratedRegex(@"\b(?:scanf|fgets|getchar|gets|getline|fgetc|getc)\s*\(")]
+    private static partial Regex ReadsInput();
+
+    /// <summary><c>fgets(name, sizeof name, stdin)</c>.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*).*\bfgets\s*\(\s*(?<buffer>[A-Za-z_]\w*)\s*,.*\bstdin\b")]
+    private static partial Regex FgetsFromStdin();
+
+    /// <summary>
+    /// scanf followed by fgets from stdin: scanf stops before the newline that ended the number's line - unless its format ends
+    /// with a space or \n, which skip it - so the fgets after it reads what is left of that line, the newline alone. The change
+    /// reads the rest of that line, up to and with its newline, before fgets - and stops at the end of the input, so it never waits.
+    /// </summary>
+    private static IEnumerable<LogicFinding> CFgetsAfterScanf(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var namesInCode = masked.SelectMany(code => Regex.Matches(code, @"[A-Za-z_]\w*")).Select(found => found.Value).ToHashSet(StringComparer.Ordinal);
+        var rest = new[] { "rest", "leftover", "skipped" }.FirstOrDefault(name => !namesInCode.Contains(name));
+        if (rest is null) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (ScanfCall().Match(masked[index]) is not { Success: true } scanf) continue;
+
+            // The format, read from the line as written: one whose end skips the newline leaves nothing for fgets.
+            var line = source.Lines[index];
+            var close = line.IndexOf('"', scanf.Index + scanf.Length);
+            if (close < 0) continue;
+            var format = line[(scanf.Index + scanf.Length)..close];
+            if (!format.Contains('%') || format.EndsWith(' ') || format.EndsWith("\\n", StringComparison.Ordinal)) continue;
+
+            // The next line that reads input.
+            var next = Enumerable.Range(index + 1, masked.Count - index - 1).FirstOrDefault(later => ReadsInput().IsMatch(masked[later]), -1);
+            if (next < 0 || FgetsFromStdin().Match(masked[next]) is not { Success: true } fgets) continue;
+
+            var buffer = fgets.Groups["buffer"].Value;
+            var indent = fgets.Groups["indent"].Value;
+
+            yield return new LogicFinding(id, next + 1,
+                $"scanf on line {index + 1} reads the number and stops before the newline typed after it, so this fgets reads what is left of " +
+                $"that line - the newline alone - and {buffer} holds nothing that was typed",
+                LocalFix.Insert(id, "Read the rest of the number's line first",
+                    $"The loop reads what is left of the number's line, up to and with its newline - stopping at the end of the input too - so " +
+                    "fgets reads the line typed after it.",
+                    source.Path, next + 1, [$"{indent}for (int {rest} = getchar(); {rest} != '\\n' && {rest} != EOF; {rest} = getchar()) {{ }}"]));
         }
     }
 
