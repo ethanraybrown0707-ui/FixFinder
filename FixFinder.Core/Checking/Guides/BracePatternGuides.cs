@@ -288,6 +288,23 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-cast-divided-as-whole-number"], "Rounding by hand that loses the places",
+            "(int)(price * 100 + 0.5) rounds a price to a whole number of hundredths - 1235 for 12.345 - and dividing that by 100, " +
+            "a whole number too, is whole-number division, which cuts the fraction off again: the result is 12. C, C++, Java and C# " +
+            "all do the same, and none of their compilers says anything.",
+            "The places the rounding was meant to keep are lost: 12.345 rounded to two places comes out as 12.",
+            "Divide by 100.0 - a double - so the division keeps its fraction: (int)(price * 100 + 0.5) / 100.0 is 12.35.",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                double price = 12.345;
+                double rounded = (int)(price * 100 + 0.5) / 100.0;
+                printf("%.2f\n", rounded);
+                return 0;
+            }
+            """),
+
         GuideFor(["logic-java-equals-overload"], "equals that takes the wrong type",
             "Java's collections look for a method called equals that takes any Object. A method equals(Point other) has a " +
             "different parameter, so Java treats it as a separate method - and the collections never call it.",

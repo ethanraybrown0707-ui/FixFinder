@@ -44,6 +44,31 @@ public class RoundingPatternTests : IDisposable
     // A whole number, on purpose.
     [InlineData("        long pounds = Math.round(price * 100) / 100;\n        int halves = Math.round(3.4f) / 2;\n")]
     public void RoundingWhoseResultIsMeantToBeWholeIsLeftAlone(string body) => Assert.Empty(Scan(body));
+
+    private IReadOnlyList<LogicFinding> ScanForCasts(string fileName, string code)
+    {
+        var path = Path.Combine(_temp.Path, fileName);
+        File.WriteAllText(path, code);
+        return LogicPatterns.Scan(SourceFile.Read(path)!).Where(finding => finding.PatternId == "logic-cast-divided-as-whole-number").ToList();
+    }
+
+    [Theory]
+    [InlineData("main.c", "int main(void) {\n    double price = 12.345;\n    double rounded = (int)(price * 100 + 0.5) / 100;\n", "    double rounded = (int)(price * 100 + 0.5) / 100.0;")]
+    [InlineData("main.cpp", "int main() {\n    double price = 12.345;\n    double rounded = (long)(price * 100 + 0.5) / 100;\n", "    double rounded = (long)(price * 100 + 0.5) / 100.0;")]
+    [InlineData("Main.java", "class Main { static void show(double price) {\n    double rounded;\n    rounded = (int) (price * 100 + 0.5) / 100;\n", "    rounded = (int) (price * 100 + 0.5) / 100.0;")]
+    [InlineData("main.cs", "double price = 12.345;\nfloat share = 0;\nshare = (int)(price * 10) / 10;\n", "share = (int)(price * 10) / 10.0;")]
+    public void RoundingByHandGivenToADecimalIsFoundAndDividesAsDecimals(string fileName, string code, string changedTo)
+    {
+        var found = Assert.Single(ScanForCasts(fileName, code));
+        Assert.Equal(3, found.Line);
+        Assert.Equal(changedTo, found.Fix!.NewLines.Single());
+    }
+
+    [Theory]
+    // Dividing as decimals already, and a whole number kept as one.
+    [InlineData("main.c", "int main(void) {\n    double price = 12.345;\n    double rounded = (int)(price * 100 + 0.5) / 100.0;\n    int pounds = (int)(price * 100) / 100;\n    printf(\"%d\", (int)(price * 100) / 100);\n")]
+    public void RoundingByHandThatKeepsItsPlacesOrIsMeantWholeIsLeftAlone(string fileName, string code) =>
+        Assert.Empty(ScanForCasts(fileName, code));
 }
 
 /// <summary>
@@ -87,5 +112,42 @@ public class RoundingLiveTests(ITestOutputHelper output) : IDisposable
 
         Assert.True(wrong.Shows(Behaviour.Printing("12.0")), wrong.Said("Java"));
         Assert.True(right.Shows(Behaviour.Printing("12.35")), right.Said("Java"));
+    }
+
+    public static TheoryData<string, string, string, int, string> RoundedByHand => new()
+    {
+        { "C", "main.c", "#include <stdio.h>\n\nint main(void) {\n    double price = 12.345;\n    double rounded = (int)(price * 100 + 0.5) / 100;\n    printf(\"%.2f\\n\", rounded);\n    return 0;\n}\n", 5, "12.00" },
+        { "C++", "main.cpp", "#include <iostream>\n\nint main() {\n    double price = 12.345;\n    double rounded = (int)(price * 100 + 0.5) / 100;\n    std::cout << rounded << \"\\n\";\n}\n", 5, "12" },
+        { "Java", "Main.java", "public class Main {\n    public static void main(String[] args) {\n        double price = 12.345;\n        double rounded = (int) (price * 100 + 0.5) / 100;\n        System.out.println(rounded);\n    }\n}\n", 4, "12.0" },
+        { "C#", "main.cs", "double price = 12.345;\ndouble rounded = (int)(price * 100 + 0.5) / 100;\nConsole.WriteLine(rounded);\n", 2, "12" },
+    };
+
+    [Theory]
+    [MemberData(nameof(RoundedByHand))]
+    public async Task RoundingByHandLosesThePlacesAndTheChangeKeepsThem(string languageName, string fileName, string code, int line, string mistakePrints)
+    {
+        var path = Path.Combine(_temp.Path, fileName);
+        File.WriteAllText(path, code);
+
+        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId == "logic-cast-divided-as-whole-number");
+        Assert.Equal(line, found.Line);
+
+        var lines = code.TrimEnd('\n').Split('\n').ToList();
+        lines[found.Fix!.StartLine - 1] = found.Fix.NewLines.Single();
+        var changed = string.Join("\n", lines) + "\n";
+
+        var language = CodeLanguage.All.Single(each => each.Name == languageName);
+        var wrong = await SnippetRunner.RunAsync(language, code);
+        if (!wrong.Ran)
+        {
+            output.WriteLine($"Not run on this computer: {wrong.WhyNotRun}");
+            return;
+        }
+
+        var right = await SnippetRunner.RunAsync(language, changed);
+        output.WriteLine($"the mistake: {wrong.Said(languageName)}\nthe change:  {right.Said(languageName)}");
+
+        Assert.True(wrong.Shows(Behaviour.Printing(mistakePrints)), wrong.Said(languageName));
+        Assert.True(right.Shows(Behaviour.Printing("12.35")), right.Said(languageName));
     }
 }
