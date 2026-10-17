@@ -185,5 +185,27 @@ internal static class GoPatternGuides
             	fmt.Println(total)
             }
             """),
+
+        GuideFor(["logic-go-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == math.NaN() is false even when value is NaN. " +
+            "Neither go build nor go vet says anything of it.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with math.IsNaN(value).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"math"
+            )
+
+            func main() {
+            	value := math.NaN()
+            	if math.IsNaN(value) {
+            		fmt.Println("not a number")
+            	}
+            }
+            """),
     ];
 }

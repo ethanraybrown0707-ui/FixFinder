@@ -707,10 +707,12 @@ public static partial class CLikeReviewPatterns
             var line = source.Lines[i];
             var name = match.Groups["name"].Value;
             var check = string.Format(test, name);
-            if (match.Groups["op"].Value.StartsWith('!')) check = "!" + check;
+            var negated = match.Groups["op"].Value.StartsWith('!');
+            if (negated) check = "!" + check;
 
             yield return new LogicFinding(id, i + 1,
-                "NaN is not equal to anything, not even itself, so comparing with it is always false",
+                $"NaN is not equal to anything, not even itself, so {match.Value.Trim()} is always {(negated ? "true" : "false")} - even when the " +
+                "value is NaN",
                 Replace(id, $"Test for NaN: {check}",
                     "By definition NaN is unequal to every value, including another NaN, so `== NaN` can never be true. The language's own NaN test " +
                     "is the only reliable check.",

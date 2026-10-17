@@ -73,5 +73,17 @@ internal static class ScalaPatternGuides
               val name = "Ada"
               println(s"Hello, $name")
             """),
+
+        GuideFor(["logic-scala-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == Double.NaN is false even when value is NaN. " +
+            "Neither Scala 3.8.4 nor Scala 2.13.18 says anything of it.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with value.isNaN.",
+            """
+            @main def run(): Unit =
+              val value = Double.NaN
+              if value.isNaN then println("not a number")
+            """),
     ];
 }

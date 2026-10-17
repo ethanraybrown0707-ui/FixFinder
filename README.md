@@ -249,11 +249,12 @@ rather than its errors reported as mistakes in the code. Scala's code is read fo
 as nothing here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in
 `xs`, two Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same
 items - a whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted`
-made on a line of its own and kept nowhere, `.get` taken from an Option nothing checked first, and text with `$name` in
-it but no `s` before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s`
-puts a value into text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and
-Scala 2.13.18, and neither warns about it - of the text, the most either says is that the name is never used - E198 in
-Scala 3 - when the text was the one place meant to use it.
+made on a line of its own and kept nowhere, `.get` taken from an Option nothing checked first, `value == Double.NaN`,
+which is false even when the value is NaN, and text with `$name` in it but no `s` before its
+quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into text; the
+change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and neither
+warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the text was
+the one place meant to use it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -299,16 +300,16 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by nine checks `ruby -w` says nothing of: `(total / count).to_f` of two
-whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
+run. Ruby's code is read for logic mistakes by ten checks `ruby -w` says nothing of: `(total / count).to_f` of two whole
+numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
 compared with text, though it still ends with its newline, `each` where `map` was
 meant - `doubled = marks.each { |mark| mark * 2 }` - which gives back the list it went over, not what its block worked
 out, and `elif`, which Ruby reads as a call to a method of that name, inside the `if`'s own branch - when the `if`'s
-condition is false, nothing runs and nothing is said - and `'Hello, #{name}'`, whose `#{name}` is printed as it is
-written, as only text in double quotes has a value put into it; the change makes the quotes double. Ruby is tested with
-Ruby 3.3.12.
+condition is false, nothing runs and nothing is said - `value == Float::NAN`, which is false even when the value is NaN,
+and `'Hello, #{name}'`, whose `#{name}` is printed as it is written, as only text in double quotes has a value put into
+it; the change makes the quotes double. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -322,13 +323,14 @@ indentation - a string left open is closed, a misspelt function becomes the near
 PHP here lists its own - and a misspelt method the nearest one its class has, a property used inside a method without
 `$this->` gets it, a key an array does not have gets `?? 0` where it is added to, `$student.name` becomes
 `$student->name`, `elif` becomes `elseif`, and an array joined to text is joined with `implode`; each change is checked
-in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by eight checks `php -l` says nothing of: a
+in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by nine checks `php -l` says nothing of: a
 loop to `<= count($marks)` that uses its number as a position, an `=` in a condition, a decimal worked out by arithmetic
 and then compared exactly, `strpos(...) == false`, which is true for a match at the very start as well as for none, `^`
 written as a power, a line read with `fgets` compared with text, though it still ends with its newline, a `foreach` that
-gives its copy of each item a new value - `$mark += 5` - which leaves the array as it was, and a variable inside single
-quotes - `'Hello, $name'` - which PHP prints as it is written, `$name` and all, as only double quotes put a value into
-text; the change makes the quotes double. PHP is tested with PHP 8.4.24.
+gives its copy of each item a new value - `$mark += 5` - which leaves the array as it was, `$value == NAN`, which is
+false even when `$value` is NaN, and a variable inside single quotes - `'Hello, $name'` - which PHP prints as it is
+written, `$name` and all, as only double quotes put a value into text; the change makes the quotes double. PHP is tested
+with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
@@ -404,13 +406,14 @@ or PowerShell has, `.Add` on a fixed-size array `+=`, a division by zero gets an
 variable written without its `$` gets it, a `{` left open is closed where its indentation ends - PowerShell names the
 outer block, and each `}` is taken to close the `{` at its own indentation - and a string or a bracket left open is
 closed; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by
-eight checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+nine checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
 text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
 is true; text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back with
 that value as part of the function's result when the result is kept; `"$marks.Count"` in double quotes, which puts in
-the value of `$marks` alone and prints `70 80 90.Count`; and a variable in single quotes, `'Hello, $name'`, which is
-printed as it is written. PowerShell is tested with Windows PowerShell 5.1.
+the value of `$marks` alone and prints `70 80 90.Count`; a variable in single quotes, `'Hello, $name'`, which is printed
+as it is written; and `$value -eq [double]::NaN`, which is false even when `$value` is NaN. PowerShell is tested with
+Windows PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -464,13 +467,14 @@ one for its value's type, `area(3, 4)` becomes `area 3 4`, a number joined to te
 left open is closed, `[70, 80, 90]` - one tuple - becomes `[70; 80; 90]`, `count = count + 1` inside a function becomes
 `count <- count + 1`, a whole number divided by zero gets an answer for when the divisor is zero, and a loop to
 `marks.Length` stops at `marks.Length - 1`; each change is checked in a copy - with `dotnet fsi --typecheck-only`,
-through the script that loads it when another does - and run. F#'s code is read for logic mistakes by seven checks F#
+through the script that loads it when another does - and run. F#'s code is read for logic mistakes by eight checks F#
 says nothing of: `total = total + 70` on a line of the script's own, which compares and changes nothing;
 `List.sort marks` on a line of its own there, whose new list is lost; `float (total / count)` of two whole numbers; a
 loop to `marks.Length` that reads `marks.[index]`; a decimal worked out by arithmetic and then compared exactly; a line
-read with `stdin.ReadLine()` compared with a number in quotes, which compares the two as text; and text with `{name}` in
-it but no `$` before its quote - `printfn "Hello, {name}"` - which prints `Hello, {name}`, braces and all. F# is tested
-with F# Interactive 15.2, F# 10, from the .NET SDK 10.0.400.
+read with `stdin.ReadLine()` compared with a number in quotes, which compares the two as text; `value = nan` in a
+condition, which is false even when the value is NaN; and text with `{name}` in it but no `$` before its
+quote - `printfn "Hello, {name}"` - which prints `Hello, {name}`, braces and all. F# is tested with F# Interactive 15.2,
+F# 10, from the .NET SDK 10.0.400.
 
 A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js itself, which runs TypeScript by taking
 its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
@@ -786,8 +790,12 @@ in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as
 its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
 finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
 `"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
-ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. When an expected output was given, it also
-runs changed copies of the program to find the one that prints it:
+ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript,
+Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is
+false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their
+toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust
+warn of it themselves. When an expected output was given, it also runs changed copies of the program to find the one
+that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1079,26 +1087,26 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 38 | 41 |
+| Python | 88 | 39 | 41 |
 | Java | 54 | 36 | 46 |
 | C# | 47 | 34 | 49 |
-| C | 46 | 20 | 39 |
-| C++ | 45 | 25 | 39 |
+| C | 46 | 21 | 39 |
+| C++ | 45 | 26 | 39 |
 | JavaScript | 42 | 32 | 16 |
-| Go | 38 | 9 | 18 |
-| Scala | 6 | 6 | 28 |
+| Go | 38 | 10 | 18 |
+| Scala | 6 | 7 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 13 | 9 | 26 |
-| PHP | 15 | 8 | 18 |
+| Ruby | 13 | 10 | 26 |
+| PHP | 15 | 9 | 18 |
 | Lua | 12 | 4 | 25 |
 | Perl | 13 | 8 | 26 |
 | Dart | 12 | 5 | 23 |
 | Fortran | 8 | 4 | 17 |
-| PowerShell | 9 | 8 | 15 |
+| PowerShell | 9 | 9 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
-| F# | 16 | 7 | 33 |
+| F# | 16 | 8 | 33 |
 | TypeScript | 44 | 32 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has

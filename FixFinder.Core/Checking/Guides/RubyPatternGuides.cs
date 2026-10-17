@@ -116,5 +116,16 @@ internal static class RubyPatternGuides
               puts "pass"
             end
             """),
+
+        GuideFor(["logic-ruby-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == Float::NAN is false even when value is NaN. " +
+            "ruby -w says nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with value.nan?.",
+            """
+            value = Float::NAN
+            puts "not a number" if value.nan?
+            """),
     ];
 }

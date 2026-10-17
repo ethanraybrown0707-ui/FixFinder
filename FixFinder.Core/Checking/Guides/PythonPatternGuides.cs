@@ -331,5 +331,19 @@ internal static class PythonPatternGuides
                 marks[index] += 5
             print(marks)
             """),
+
+        GuideFor(["logic-python-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == float(\"nan\") is false even when value is " +
+            "NaN. Python says nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with math.isnan(value), with import math at the top of the file - or numpy's isnan for numpy's nan.",
+            """
+            import math
+
+            value = float("nan")
+            if math.isnan(value):
+                print("not a number")
+            """),
     ];
 }

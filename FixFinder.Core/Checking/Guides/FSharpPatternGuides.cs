@@ -89,5 +89,16 @@ internal static class FSharpPatternGuides
             let name = "Ada"
             printfn $"Hello, {name}"
             """),
+
+        GuideFor(["logic-fsharp-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value = nan is false even when value is NaN. dotnet " +
+            "fsi says nothing.",
+            "A comparison with = is always false, and with <> always true, so a value that is NaN is never noticed.",
+            "Test with System.Double.IsNaN value.",
+            """
+            let value = nan
+            if System.Double.IsNaN value then printfn "not a number"
+            """),
     ];
 }

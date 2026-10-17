@@ -109,5 +109,19 @@ internal static class PowerShellPatternGuides
             $name = "Ada"
             Write-Output "Hello, $name"
             """),
+
+        GuideFor(["logic-powershell-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so $value -eq [double]::NaN is false even when value is " +
+            "NaN. PowerShell says nothing.",
+            "A comparison with -eq is always false, and with -ne always true, so a value that is NaN is never " +
+            "noticed.",
+            "Test with [double]::IsNaN($value).",
+            """
+            $value = [double]::NaN
+            if ([double]::IsNaN($value)) {
+                Write-Output "not a number"
+            }
+            """),
     ];
 }

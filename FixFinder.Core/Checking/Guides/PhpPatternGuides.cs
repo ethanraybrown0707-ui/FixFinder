@@ -115,5 +115,20 @@ internal static class PhpPatternGuides
             $name = "Ada";
             echo "Hello, $name\n";
             """),
+
+        GuideFor(["logic-php-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so $value == NAN is false even when value is NaN. php -l " +
+            "says nothing, and neither does PHP as it runs.",
+            "A comparison with == or === is always false, and with != or !== always true, so a value that is NaN is " +
+            "never noticed.",
+            "Test with is_nan($value).",
+            """
+            <?php
+            $value = NAN;
+            if (is_nan($value)) {
+                echo "not a number\n";
+            }
+            """),
     ];
 }

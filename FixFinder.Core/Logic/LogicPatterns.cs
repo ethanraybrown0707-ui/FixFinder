@@ -43,6 +43,7 @@ public static class LogicPatterns
         .. NumbersJoinedAsTextPatterns.All,
         .. TextHolePatterns.All,
         .. TypeNamePatterns.All,
+        .. NaNComparisonPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

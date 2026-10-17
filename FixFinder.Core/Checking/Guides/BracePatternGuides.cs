@@ -226,11 +226,48 @@ internal static class BracePatternGuides
         GuideFor(["logic-nan-comparison"], "Comparing with NaN",
             "NaN means 'not a number' - the result of a calculation that failed, like 0 / 0. By the rules, NaN is not equal " +
             "to anything, not even itself, so x == NaN is false even when x is NaN.",
-            "The comparison is always false, so a failed calculation is never noticed.",
+            "A comparison with == is always false, and with != always true, so a failed calculation is never noticed.",
             "Use Number.isNaN (JavaScript), Double.isNaN (Java) or double.IsNaN (C#).",
             """
             if (Number.isNaN(value)) {
               console.log("not a number");
+            }
+            """),
+
+        GuideFor(["logic-c-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == NAN is false even when value is NaN. gcc says " +
+            "nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with isnan(value), from math.h.",
+            """
+            #include <math.h>
+            #include <stdio.h>
+
+            int main(void) {
+                double value = NAN;
+                if (isnan(value)) {
+                    printf("not a number\n");
+                }
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-cpp-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == NAN is false even when value is NaN. g++ says " +
+            "nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with std::isnan(value), from cmath.",
+            """
+            #include <cmath>
+            #include <iostream>
+
+            int main() {
+                double value = NAN;
+                if (std::isnan(value)) {
+                    std::cout << "not a number\n";
+                }
             }
             """),
 
