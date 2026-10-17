@@ -76,5 +76,19 @@ internal static class LuaPatternGuides
             end
             print("Total: " .. total)
             """),
+
+        GuideFor(["logic-lua-table-shared"], "A second name for a table is not a copy",
+            "local backup = marks does not copy the table: it gives the same table a second name. A change made " +
+            "through either name - marks[1] = 100 - is a change to the one table, so backup shows it too. Lua says " +
+            "nothing.",
+            "The second name does not keep the values the table had: after marks[1] = 100, backup[1] prints 100.",
+            "Make a copy of a list: local backup = {table.unpack(marks)} makes a new table with the same items, in " +
+            "order, and a change to one no longer shows in the other.",
+            """
+            local marks = {70, 80, 90}
+            local backup = {table.unpack(marks)}
+            marks[1] = 100
+            print(backup[1])
+            """),
     ];
 }

@@ -39,6 +39,11 @@ public class SharedListPatternTests : IDisposable
     [InlineData("main.ts", "logic-js-array-shared", "const marks: number[] = [70, 80];\nconst backup = marks;\nmarks.push(100);\nconsole.log(`${backup}`);\n", 2, "const backup = [...marks];")]
     [InlineData("main.cs", "logic-csharp-array-shared", "int[] marks = { 70, 80, 90 };\nint[] backup = marks;\nmarks[0] = 100;\nConsole.WriteLine(backup[0]);\n", 2, "int[] backup = marks.ToArray();")]
     [InlineData("main.cs", "logic-csharp-array-shared", "var marks = new List<int> { 70 };\nvar backup = marks;\nmarks.Add(100);\nConsole.WriteLine(backup.Count);\n", 2, "var backup = marks.ToList();")]
+    [InlineData("main.rb", "logic-ruby-array-shared", "marks = [70, 80, 90]\nbackup = marks\nmarks << 100\np backup\n", 2, "backup = marks.dup")]
+    [InlineData("main.dart", "logic-dart-list-shared", "  var marks = [70, 80, 90];\n  var backup = marks;\n  marks.add(100);\n  print(backup);\n", 2, "  var backup = [...marks];")]
+    [InlineData("main.go", "logic-go-slice-shared", "\tmarks := []int{70, 80, 90}\n\tbackup := marks\n\tmarks[0] = 100\n\tfmt.Println(backup)\n", 2, "\tbackup := append([]int{}, marks...)")]
+    [InlineData("main.lua", "logic-lua-table-shared", "local marks = {70, 80, 90}\nlocal backup = marks\nmarks[1] = 100\nprint(backup[1])\n", 2, "local backup = {table.unpack(marks)}")]
+    [InlineData("main.ps1", "logic-powershell-array-shared", "$marks = @(70, 80, 90)\n$backup = $marks\n$marks[0] = 100\nWrite-Output $backup[0]\n", 2, "$backup = $marks.Clone()")]
     public void ASecondNameForAListThatIsChangedIsFoundAndBecomesACopy(string fileName, string patternId, string code, int line, string changedTo)
     {
         var found = Assert.Single(Scan(fileName, fileName == "Main.java" ? InsideJavaMain(code) : code, patternId));
@@ -59,6 +64,10 @@ public class SharedListPatternTests : IDisposable
     [InlineData("main.py", "logic-python-list-shared", "marks = [70, 80]\nbackup = marks.copy()\nmarks.append(1)\nprint(backup)\n")]
     [InlineData("main.js", "logic-js-array-shared", "const marks = [70, 80];\nconst backup = [...marks];\nmarks.push(1);\nconsole.log(backup);\n")]
     [InlineData("main.cs", "logic-csharp-array-shared", "int[] marks = { 70, 80 };\nint[] backup = marks.ToArray();\nmarks[0] = 1;\nConsole.WriteLine(backup[0]);\n")]
+    // A Lua table of named fields, which table.unpack would not copy, is not taken for a list.
+    [InlineData("main.lua", "logic-lua-table-shared", "local student = {name = \"Ada\"}\nlocal saved = student\nstudent[\"name\"] = \"Grace\"\nprint(saved.name)\n")]
+    // PowerShell's += makes a new array, so $backup keeps the old one.
+    [InlineData("main.ps1", "logic-powershell-array-shared", "$marks = @(70, 80)\n$backup = $marks\n$marks += 100\nWrite-Output $backup.Count\n")]
     public void ASecondNameNothingShowsToBeTheSameListIsLeftAlone(string fileName, string patternId, string code) =>
         Assert.Empty(Scan(fileName, code, patternId));
 }
@@ -94,6 +103,17 @@ public class SharedListLiveTests(ITestOutputHelper output) : IDisposable
         { "JavaScript", "main.js", "logic-js-array-shared", "const marks = [70, 80, 90];\nconst backup = marks;\nmarks.push(100);\nconsole.log(backup);\n", 2, "[ 70, 80, 90, 100 ]", "[ 70, 80, 90 ]" },
         { "TypeScript", "main.ts", "logic-js-array-shared", "const marks: number[] = [70, 80, 90];\nconst backup = marks;\nmarks.push(100);\nconsole.log(backup);\n", 2, "[ 70, 80, 90, 100 ]", "[ 70, 80, 90 ]" },
         { "C#", "main.cs", "logic-csharp-array-shared", "int[] marks = { 70, 80, 90 };\nint[] backup = marks;\nmarks[0] = 100;\nConsole.WriteLine(backup[0]);\n", 2, "100", "70" },
+        { "Ruby", "main.rb", "logic-ruby-array-shared", "marks = [70, 80, 90]\nbackup = marks\nmarks << 100\np backup\n", 2, "[70, 80, 90, 100]", "[70, 80, 90]" },
+        {
+            "Dart", "main.dart", "logic-dart-list-shared",
+            "void main() {\n  var marks = [70, 80, 90];\n  var backup = marks;\n  marks.add(100);\n  print(backup);\n}\n", 3, "[70, 80, 90, 100]", "[70, 80, 90]"
+        },
+        {
+            "Go", "main.go", "logic-go-slice-shared",
+            "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\tbackup := marks\n\tmarks[0] = 100\n\tfmt.Println(backup)\n}\n", 7, "[100 80 90]", "[70 80 90]"
+        },
+        { "Lua", "main.lua", "logic-lua-table-shared", "local marks = {70, 80, 90}\nlocal backup = marks\nmarks[1] = 100\nprint(backup[1])\n", 2, "100", "70" },
+        { "PowerShell", "main.ps1", "logic-powershell-array-shared", "$marks = @(70, 80, 90)\n$backup = $marks\n$marks[0] = 100\nWrite-Output $backup[0]\n", 2, "100", "70" },
     };
 
     [Theory]

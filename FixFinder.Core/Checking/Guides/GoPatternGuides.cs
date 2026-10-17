@@ -207,5 +207,25 @@ internal static class GoPatternGuides
             	}
             }
             """),
+
+        GuideFor(["logic-go-slice-shared"], "A second name for a slice is not a copy",
+            "backup := marks does not copy the slice: both names share the one array of items beneath it. A change to " +
+            "an item through either name - marks[0] = 100 - shows in the other. Neither go build nor go vet says " +
+            "anything of it.",
+            "The second name does not keep the values the slice had: after marks[0] = 100, backup prints [100 80 90].",
+            "Make a copy: backup := append([]int{}, marks...) makes a new slice with the same items, and a change to " +
+            "one no longer shows in the other.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	backup := append([]int{}, marks...)
+            	marks[0] = 100
+            	fmt.Println(backup)
+            }
+            """),
     ];
 }

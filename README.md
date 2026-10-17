@@ -301,8 +301,8 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by ten checks `ruby -w` says nothing of: `(total / count).to_f` of two whole
-numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
+run. Ruby's code is read for logic mistakes by eleven checks `ruby -w` says nothing of: `(total / count).to_f` of two
+whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
 compared with text, though it still ends with its newline, `each` where `map` was
@@ -310,7 +310,8 @@ meant - `doubled = marks.each { |mark| mark * 2 }` - which gives back the list i
 out, and `elif`, which Ruby reads as a call to a method of that name, inside the `if`'s own branch - when the `if`'s
 condition is false, nothing runs and nothing is said - `value == Float::NAN`, which is false even when the value is NaN,
 and `'Hello, #{name}'`, whose `#{name}` is printed as it is written, as only text in double quotes has a value put into
-it; the change makes the quotes double. Ruby is tested with Ruby 3.3.12.
+it; the change makes the quotes double. The eleventh is `backup = marks` taken as a copy: both names are one array, so
+after `marks << 100`, `p backup` prints `[70, 80, 90, 100]`; the change is `marks.dup`. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -344,12 +345,13 @@ or a bracket left open is closed. While it runs, a name that is nil because it i
 file gives a value to, a `+` joining text becomes `..`, a whole number divided by zero with `//` or `%` gets an answer
 for when the divisor is zero, and `name.upper()` - a string's own function called with a dot, which gives it nothing to
 work on - becomes `name:upper()`; each change is checked in a copy - with `luac -p` - and run. Lua's code is read for
-logic mistakes by five checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared
+logic mistakes by six checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared
 with `==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and then compared exactly;
 `table.remove` in a loop going forward over the same list, which skips the item after each one it removes; and
 `local total = total + mark` inside a loop, which declares a new `total` for the loop alone each time round and leaves
-the one outside it as it was - `Total: 0` for marks of 70, 80 and 90; the change takes `local` away. Lua is tested with
-Lua 5.4.6.
+the one outside it as it was - `Total: 0` for marks of 70, 80 and 90; the change takes `local` away. The sixth is
+`local backup = marks` taken as a copy: both names are one table, so after `marks[1] = 100`, `backup[1]` prints 100; the
+change, for a table made as a list, is `{table.unpack(marks)}`. Lua is tested with Lua 5.4.6.
 
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
@@ -383,12 +385,13 @@ an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a n
 `=` in a condition becomes `==`, a `final` variable set again becomes `var`, a named parameter whose type does not allow
 the null it has when left out is made `required`, and a variable given `null` whose type does not allow it gets a type
 that does - `String?`; and while it runs, a whole number divided by zero gets an answer for when the divisor is zero.
-Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by six checks
+Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by seven checks
 the analyzer says nothing of: a loop to `<= marks.length`, two lists compared with `==`, a decimal worked out by
 arithmetic and then compared exactly, `^` written as a power, `'$marks.length'` in text, which puts in the value of
 `marks` alone and prints `[70, 80, 90].length`, and `marks.map((mark) => print(mark));` on a line of its own, which
-prints nothing: `map` works each item out only when its result is read, and nothing reads it. Dart is tested with Dart
-3.13.2.
+prints nothing: `map` works each item out only when its result is read, and nothing reads it. The seventh is
+`var backup = marks;` taken as a copy: both names are one list, so after `marks.add(100)`, `backup` prints
+`[70, 80, 90, 100]`; the change is `[...marks]`. Dart is tested with Dart 3.13.2.
 
 A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
 files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
@@ -413,14 +416,15 @@ or PowerShell has, `.Add` on a fixed-size array `+=`, a division by zero gets an
 variable written without its `$` gets it, a `{` left open is closed where its indentation ends - PowerShell names the
 outer block, and each `}` is taken to close the `{` at its own indentation - and a string or a bracket left open is
 closed; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by
-nine checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+ten checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
 text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
 is true; text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back with
 that value as part of the function's result when the result is kept; `"$marks.Count"` in double quotes, which puts in
 the value of `$marks` alone and prints `70 80 90.Count`; a variable in single quotes, `'Hello, $name'`, which is printed
-as it is written; and `$value -eq [double]::NaN`, which is false even when `$value` is NaN. PowerShell is tested with
-Windows PowerShell 5.1.
+as it is written; and `$value -eq [double]::NaN`, which is false even when `$value` is NaN. The tenth is
+`$backup = $marks` taken as a copy: both names are one array, so after `$marks[0] = 100`, `$backup[0]` prints 100; the
+change is `$marks.Clone()`. PowerShell is tested with Windows PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -806,11 +810,12 @@ of it, and the change is the language's own test, such as `math.isnan(value)`. D
 Python, C# and Dart it finds a map run for what its function does, on a line of its own - `map(print, marks)`,
 `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which works each item out only
 when its result is read; nothing reads it, so nothing is printed, and none of the three says anything. The change is a
-loop, which runs straight away. In Python, Java, C#, JavaScript and TypeScript it finds a second name for a list or an
-array - `backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though
-both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a
-copy - `marks.copy()`, `marks.clone()`, `[...marks]` or `marks.ToArray()`. When an expected output was given, it also
-runs changed copies of the program to find the one that prints it:
+loop, which runs straight away. In Python, Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds
+a second name for a list or an array - `backup = marks` - taken as a copy: the list is changed through one name and the
+other read after it, though both are the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`.
+The change makes a copy in the language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`,
+`marks.dup`, `append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. When an expected output was
+given, it also runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1108,17 +1113,17 @@ Python, Java and C# are checked most thoroughly.
 | C | 46 | 21 | 39 |
 | C++ | 45 | 27 | 39 |
 | JavaScript | 42 | 33 | 16 |
-| Go | 38 | 10 | 18 |
+| Go | 38 | 11 | 18 |
 | Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 13 | 10 | 26 |
+| Ruby | 13 | 11 | 26 |
 | PHP | 15 | 9 | 18 |
-| Lua | 12 | 5 | 25 |
+| Lua | 12 | 6 | 25 |
 | Perl | 13 | 9 | 26 |
-| Dart | 12 | 6 | 23 |
+| Dart | 12 | 7 | 23 |
 | Fortran | 8 | 4 | 17 |
-| PowerShell | 9 | 9 | 15 |
+| PowerShell | 9 | 10 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |

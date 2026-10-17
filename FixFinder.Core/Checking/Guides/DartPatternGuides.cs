@@ -85,5 +85,22 @@ internal static class DartPatternGuides
               for (var mark in marks) print(mark);
             }
             """),
+
+        GuideFor(["logic-dart-list-shared"], "A second name for a list is not a copy",
+            "var backup = marks; does not copy the list: it gives the same list a second name. A change made through " +
+            "either name - marks.add(100) - is a change to the one list, so backup shows it too. dart analyze says " +
+            "nothing.",
+            "The second name does not keep the values the list had: after marks.add(100), backup prints [70, 80, 90, " +
+            "100].",
+            "Make a copy: var backup = [...marks]; The copy is a new list with the same items, and a change to one no " +
+            "longer shows in the other.",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              var backup = [...marks];
+              marks.add(100);
+              print(backup);
+            }
+            """),
     ];
 }

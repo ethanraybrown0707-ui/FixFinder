@@ -127,5 +127,19 @@ internal static class RubyPatternGuides
             value = Float::NAN
             puts "not a number" if value.nan?
             """),
+
+        GuideFor(["logic-ruby-array-shared"], "A second name for an array is not a copy",
+            "backup = marks does not copy the array: it gives the same array a second name. A change made through " +
+            "either name - marks << 100 - is a change to the one array, so backup shows it too. ruby -w says nothing.",
+            "The second name does not keep the values the array had: after marks << 100, p backup prints [70, 80, 90, " +
+            "100].",
+            "Make a copy: backup = marks.dup. The copy is a new array with the same items, and a change to one no " +
+            "longer shows in the other.",
+            """
+            marks = [70, 80, 90]
+            backup = marks.dup
+            marks << 100
+            p backup
+            """),
     ];
 }

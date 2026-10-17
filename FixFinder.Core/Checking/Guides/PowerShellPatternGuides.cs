@@ -123,5 +123,19 @@ internal static class PowerShellPatternGuides
                 Write-Output "not a number"
             }
             """),
+
+        GuideFor(["logic-powershell-array-shared"], "A second name for an array is not a copy",
+            "$backup = $marks does not copy the array: it gives the same array a second name. A change to an item " +
+            "through either name - $marks[0] = 100 - is a change to the one array, so $backup shows it too. " +
+            "PowerShell says nothing.",
+            "The second name does not keep the values the array had: after $marks[0] = 100, $backup[0] prints 100.",
+            "Make a copy: $backup = $marks.Clone(). The copy is a new array with the same items, and a change to one " +
+            "no longer shows in the other.",
+            """
+            $marks = @(70, 80, 90)
+            $backup = $marks.Clone()
+            $marks[0] = 100
+            Write-Output $backup[0]
+            """),
     ];
 }

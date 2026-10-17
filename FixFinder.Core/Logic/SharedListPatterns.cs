@@ -7,17 +7,22 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// backup = marks, taken as a copy of a list or an array, when it is the same list under a second name - each run with its
 /// language's own toolchain, which said nothing: after marks.append(100), Python's backup printed [70, 80, 90, 100]; after
-/// marks[0] = 100, Java's and C#'s backup[0] printed 100; after marks.push(100), JavaScript's backup printed [ 70, 80, 90, 100 ].
+/// marks[0] = 100, Java's and C#'s backup[0] printed 100; after marks.push(100), JavaScript's backup printed [ 70, 80, 90, 100 ];
+/// and Ruby, Dart, Go, Lua and PowerShell showed the change through the second name in the same way.
 /// </summary>
 public static partial class SharedListPatterns
 {
+    /// <summary>A list the code makes: whether it is a list - Java's List, C#'s List&lt;T&gt; - rather than an array, and the type of its items, where the code names one.</summary>
+    private sealed record MadeList(bool IsList, string ItemType);
+
     /// <summary>
-    /// How one language makes a list or an array, gives it a second name, and changes it - and the copy that keeps its values,
-    /// for a list and for an array - with what the language calls its plain array: a list in Python, an array elsewhere.
+    /// How one language makes a list or an array, gives it a second name, and changes it - and the copy that keeps its values -
+    /// with what the language calls its plain array, a list in Python, Ruby and Dart, and the sigil its variables are written
+    /// with, PowerShell's $.
     /// </summary>
     private sealed record Sharing(
         string Id, IReadOnlySet<string> Extensions, Syntax Syntax, string ArrayIsCalled, Regex Made, Regex SecondName,
-        Func<string, Regex> Changes, Func<string, bool, string> Copy);
+        Func<string, Regex> Changes, Func<string, MadeList, string> Copy, string Sigil = "");
 
     private static readonly Sharing[] Languages =
     [
@@ -30,7 +35,7 @@ public static partial class SharedListPatterns
             new Regex(@"\b[A-Za-z_]\w*\s*\[\s*\]\s+(?<name>[A-Za-z_]\w*)\s*=|\b[A-Za-z_]\w*\s+(?<name>[A-Za-z_]\w*)\s*\[\s*\]\s*=|\b(?<list>List|ArrayList|LinkedList)\s*<[^<>]*>\s+(?<name>[A-Za-z_]\w*)\s*="),
             new Regex(@"^\s*(?:[A-Za-z_][\w<>\[\], ]*?\s+)?(?<copy>[A-Za-z_]\w*)\s*=\s*(?<original>[A-Za-z_]\w*)\s*;\s*$"),
             name => new Regex($@"(?<![\w.]){name}\s*(?:\[[^\]]*\]\s*(?:[-+*/%]?=(?!=)|\+\+|--)|\.\s*(?:add|addAll|remove|removeIf|set|clear|sort|replaceAll)\s*\()|\b(?:Arrays|Collections)\s*\.\s*(?:sort|fill|reverse|shuffle)\s*\(\s*{name}\b|(?:\+\+|--){name}\s*\["),
-            (original, isList) => isList ? $"new java.util.ArrayList<>({original})" : $"{original}.clone()"),
+            (original, made) => made.IsList ? $"new java.util.ArrayList<>({original})" : $"{original}.clone()"),
         new("logic-js-array-shared", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, "array",
             new Regex(@"\b(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?<list>\[|Array\.from\(|[^;\n]*?\.(?:split|map|filter|slice|concat)\()"),
             new Regex(@"^\s*(?:(?:const|let|var)\s+)?(?<copy>[A-Za-z_$][\w$]*)\s*=\s*(?<original>[A-Za-z_$][\w$]*)\s*;?\s*$"),
@@ -40,7 +45,34 @@ public static partial class SharedListPatterns
             new Regex(@"\b[A-Za-z_]\w*\s*\[\s*\]\s+(?<name>[A-Za-z_]\w*)\s*=|\bvar\s+(?<name>[A-Za-z_]\w*)\s*=\s*new\s*(?:[A-Za-z_]\w*\s*)?\[|\b(?<list>List)\s*<[^<>]*>\s+(?<name>[A-Za-z_]\w*)\s*=|\bvar\s+(?<name>[A-Za-z_]\w*)\s*=\s*new\s+(?<list>List)\s*<"),
             new Regex(@"^\s*(?:[A-Za-z_][\w<>\[\], ]*?\s+)?(?<copy>[A-Za-z_]\w*)\s*=\s*(?<original>[A-Za-z_]\w*)\s*;\s*$"),
             name => new Regex($@"(?<![\w.]){name}\s*(?:\[[^\]]*\]\s*(?:[-+*/%]?=(?!=)|\+\+|--)|\.\s*(?:Add|AddRange|Insert|Remove|RemoveAt|RemoveAll|Clear|Sort|Reverse)\s*\()|\bArray\s*\.\s*(?:Sort|Reverse|Fill|Clear)\s*\(\s*{name}\b"),
-            (original, isList) => isList ? $"{original}.ToList()" : $"{original}.ToArray()"),
+            (original, made) => made.IsList ? $"{original}.ToList()" : $"{original}.ToArray()"),
+        new("logic-ruby-array-shared", CodePattern.Files(".rb"), Syntax.Python, "array",
+            new Regex(@"^\s*(?<name>[A-Za-z_]\w*)\s*=\s*(?<list>\[|Array\.new|.+?\.(?:split|map|select|to_a|sort)\b)"),
+            new Regex(@"^\s*(?<copy>[A-Za-z_]\w*)\s*=\s*(?<original>[A-Za-z_]\w*)\s*$"),
+            name => new Regex($@"(?<![\w.@$]){name}\s*(?:<<|\.(?:push|append|pop|shift|unshift|insert|delete|delete_at|clear|sort!|reverse!|map!|concat)(?![\w?])|\[[^\]]*\]\s*[-+*/]?=(?!=))"),
+            (original, _) => $"{original}.dup"),
+        new("logic-dart-list-shared", CodePattern.Files(".dart"), Syntax.CLike, "list",
+            new Regex(@"\b(?:var|final|List\s*<[^<>]*>)\s+(?<name>[A-Za-z_]\w*)\s*=\s*(?<list>\[|<[^<>]*>\s*\[|List\s*\.)"),
+            new Regex(@"^\s*(?:(?:var|final|List\s*<[^<>]*>)\s+)?(?<copy>[A-Za-z_]\w*)\s*=\s*(?<original>[A-Za-z_]\w*)\s*;\s*$"),
+            name => new Regex($@"(?<![\w.]){name}\s*(?:\.\s*(?:add|addAll|insert|remove|removeAt|removeLast|clear|sort|shuffle)\s*\(|\[[^\]]*\]\s*(?:[-+*/~]?=(?!=)|\+\+|--))"),
+            (original, _) => $"[...{original}]"),
+        // A slice: changing an item through either name changes the one array both share. append may give a new array, so it is not counted.
+        new("logic-go-slice-shared", CodePattern.Files(".go"), Syntax.CLike, "slice",
+            new Regex(@"\b(?<name>[A-Za-z_]\w*)\s*:?=\s*\[\](?<type>[\w.]+)\s*\{|\bvar\s+(?<name>[A-Za-z_]\w*)\s+\[\](?<type>[\w.]+)"),
+            new Regex(@"^\s*(?<copy>[A-Za-z_]\w*)\s*:?=\s*(?<original>[A-Za-z_]\w*)\s*$"),
+            name => new Regex($@"(?<![\w.]){name}\s*\[[^\]]*\]\s*(?:[-+*/]?=(?!=)|\+\+|--)|\b(?:sort\.(?:Ints|Strings|Float64s)|slices\.(?:Sort|Reverse))\(\s*{name}\s*\)"),
+            (original, made) => $"append([]{made.ItemType}{{}}, {original}...)"),
+        // A table made as a list - {70, 80, 90}, not {name = "Ada"} - whose items table.unpack gives, in order.
+        new("logic-lua-table-shared", CodePattern.Files(".lua"), Syntax.Lua, "table",
+            new Regex(@"^\s*(?:local\s+)?(?<name>[A-Za-z_]\w*)\s*=\s*(?<list>\{(?!\s*[A-Za-z_]\w*\s*=))"),
+            new Regex(@"^\s*(?:local\s+)?(?<copy>[A-Za-z_]\w*)\s*=\s*(?<original>[A-Za-z_]\w*)\s*$"),
+            name => new Regex($@"(?<![\w.:]){name}\s*\[[^\]]*\]\s*=(?!=)|\btable\.(?:insert|remove|sort)\(\s*{name}\b"),
+            (original, _) => $"{{table.unpack({original})}}"),
+        new("logic-powershell-array-shared", CodePattern.Files(".ps1"), Syntax.Python, "array",
+            new Regex(@"^\s*\$(?<name>[A-Za-z_]\w*)\s*=\s*(?<list>@\(|\d+\s*,)"),
+            new Regex(@"^\s*\$(?<copy>[A-Za-z_]\w*)\s*=\s*\$(?<original>[A-Za-z_]\w*)\s*$"),
+            name => new Regex($@"\${name}\s*\[[^\]]*\]\s*=(?!=)|\[(?:array|System\.Array)\]::(?:Sort|Reverse)\(\s*\${name}\b", RegexOptions.IgnoreCase),
+            (original, _) => $"{original}.Clone()", Sigil: "$"),
     ];
 
     public static IReadOnlyList<ILogicPattern> All { get; } =
@@ -53,12 +85,13 @@ public static partial class SharedListPatterns
     /// </summary>
     private static IEnumerable<LogicFinding> SharedList(string id, SourceFile source, IReadOnlyList<string> masked, Sharing language)
     {
-        // Each list the code makes, and whether it is a list - as Java's List or C#'s List<T> - rather than an array.
-        var lists = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var lists = new Dictionary<string, MadeList>(StringComparer.Ordinal);
         foreach (Match made in masked.SelectMany(code => language.Made.Matches(code)))
-            lists[made.Groups["name"].Value] = made.Groups["list"].Success && made.Groups["list"].Value is "List" or "ArrayList" or "LinkedList";
+            lists[made.Groups["name"].Value] = new MadeList(made.Groups["list"].Value is "List" or "ArrayList" or "LinkedList", made.Groups["type"].Value);
 
         if (lists.Count == 0) yield break;
+
+        var sigil = Regex.Escape(language.Sigil);
 
         for (var index = 0; index < masked.Count; index++)
         {
@@ -66,14 +99,15 @@ public static partial class SharedListPatterns
 
             var copy = named.Groups["copy"].Value;
             var original = named.Groups["original"];
-            if (!lists.TryGetValue(original.Value, out var isList) || copy == original.Value) continue;
+            if (!lists.TryGetValue(original.Value, out var made) || copy == original.Value) continue;
 
             // The first later line that changes the list through either name - before either is given another list.
+            var givenAgain = new Regex($@"^\s*(?:[A-Za-z_][\w<>\[\], ]*?\s+)?{sigil}(?:{Regex.Escape(copy)}|{Regex.Escape(original.Value)})\s*:?=(?!=)");
             int? changedAt = null;
             var changedThrough = "";
             for (var later = index + 1; later < masked.Count && changedAt is null; later++)
             {
-                if (Regex.IsMatch(masked[later], $@"^\s*(?:[A-Za-z_][\w<>\[\], ]*?\s+)?(?:{Regex.Escape(copy)}|{Regex.Escape(original.Value)})\s*=(?!=)")) break;
+                if (givenAgain.IsMatch(masked[later])) break;
 
                 foreach (var name in new[] { original.Value, copy })
                 {
@@ -88,18 +122,21 @@ public static partial class SharedListPatterns
 
             // The other name read after the change - read from the lines as written, so f"{backup}" and `${backup}` count.
             var other = changedThrough == copy ? original.Value : copy;
-            var otherRead = new Regex($@"(?<![\w$.]){Regex.Escape(other)}\b(?!\s*=(?!=))");
+            var otherRead = new Regex($@"(?<![\w$.]){sigil}{Regex.Escape(other)}\b(?!\s*=(?!=))");
             if (!Enumerable.Range(change + 1, masked.Count - change - 1).Any(after => otherRead.IsMatch(source.Lines[after]))) continue;
 
             var line = source.Lines[index];
-            var kind = isList ? "list" : language.ArrayIsCalled;
+            var kind = made.IsList ? "list" : language.ArrayIsCalled;
+            string Shown(string name) => language.Sigil + name;
+            var copied = language.Copy(original.Value, made);
 
             yield return new LogicFinding(id, index + 1,
-                $"{copy} = {original.Value} does not copy the {kind}: both names are the same {kind}, so changing it through {changedThrough} on " +
-                $"line {change + 1} changes {other} too - and {other}, read after that, does not hold the values it had",
-                LocalFix.ReplaceLine(id, $"Make a copy: {copy} = {language.Copy(original.Value, isList)}",
-                    $"{language.Copy(original.Value, isList)} makes a new {kind} with the same items, so a change to one no longer shows in the other.",
-                    source.Path, index + 1, line[..original.Index] + language.Copy(original.Value, isList) + line[(original.Index + original.Length)..]));
+                $"{Shown(copy)} = {Shown(original.Value)} does not copy the {kind}: both names are the same {kind}, so changing it through " +
+                $"{Shown(changedThrough)} on line {change + 1} changes {Shown(other)} too - and {Shown(other)}, read after that, does not hold the " +
+                "values it had",
+                LocalFix.ReplaceLine(id, $"Make a copy: {Shown(copy)} = {language.Sigil}{copied}",
+                    $"{language.Sigil}{copied} makes a new {kind} with the same items, so a change to one no longer shows in the other.",
+                    source.Path, index + 1, line[..original.Index] + copied + line[(original.Index + original.Length)..]));
         }
     }
 }
