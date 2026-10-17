@@ -348,12 +348,16 @@ number - so every warning a run prints is a finding of its own, once however oft
 become fixes: a missing `;` is put at the end of the line before, an `if` gets the brackets its condition needs, a
 variable `use strict` refused becomes the nearest declared name or is declared with `my`, `elseif` becomes `elsif`, `=`
 in a condition `==` or `eq`, a comparison of text with `==` or `<` becomes `eq` or `lt`, a `+` joining text becomes `.`,
-a division by zero gets an answer for when the divisor is zero, and a misspelt sub becomes the nearest one the file has;
-each change is checked in a copy - with `perl -c` - and run. Perl's code is read for logic mistakes by six checks: a
-loop to `<= scalar(@marks)` that uses its number as a position, text compared with `==`, a line read from `<STDIN>` and
-compared with `eq` without `chomp`, a decimal worked out by arithmetic and then compared exactly, `length(@marks)`,
-which counts the digits of the array's count - Perl warns of it too, and the warning and the check are one finding,
-whose change is `scalar(@marks)` - and `^` written as a power. Perl is tested with Strawberry Perl 5.42.2.
+a division by zero gets an answer for when the divisor is zero, a misspelt sub becomes the nearest one the file has, a
+variable written without its `$` gets it - with `my` under `use strict` when nothing declares it - a `{` left open is
+closed where its indentation ends, and a string left open is closed on the line it starts on, which Perl's own hint
+names when a later quote stopped it; each change is checked in a copy - with `perl -c` - and run. Perl's code is read
+for logic mistakes by seven checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
+`==`, a line read from `<STDIN>` and compared with `eq` without `chomp`, a decimal worked out by arithmetic and then
+compared exactly, `length(@marks)`, which counts the digits of the array's count - Perl warns of it too, and the warning
+and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, and a method called inside
+text, `"Name: $student->name"`, which Perl does not call: it prints the object, `Student=HASH(0x...)`, and `->name`
+after it. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -1067,7 +1071,7 @@ Python, Java and C# are checked most thoroughly.
 | Ruby | 13 | 8 | 26 |
 | PHP | 15 | 7 | 18 |
 | Lua | 12 | 4 | 25 |
-| Perl | 10 | 6 | 25 |
+| Perl | 13 | 7 | 26 |
 | Dart | 12 | 5 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 8 | 15 |

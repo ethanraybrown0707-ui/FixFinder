@@ -96,5 +96,23 @@ internal static class PerlPatternGuides
             my $side = 5;
             print $side ** 2, "\n";
             """),
+
+        GuideFor(["logic-perl-method-in-string"], "A method called inside text",
+            "Perl puts a variable's value into text in double quotes, but it calls no method there. In \"Name: $student->name\" it puts " +
+            "in $student - an object, which it writes as its class and where it is kept - and writes ->name after it as it is.",
+            "The text holds something like Student=HASH(0x...)->name, with no error.",
+            "Call the method outside the quotes, and join what it gives back to the text with . on each side.",
+            """
+            use strict;
+            use warnings;
+
+            package Student;
+            sub new { my ($class, $name) = @_; return bless { name => $name }, $class; }
+            sub name { return $_[0]{name}; }
+
+            package main;
+            my $student = Student->new("Ada");
+            print "Name: " . $student->name . "\n";
+            """),
     ];
 }

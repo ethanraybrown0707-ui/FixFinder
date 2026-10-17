@@ -90,6 +90,18 @@ internal static class PerlGuides
             print "$name\n";
             """),
 
+        Refused(@"^Can't find string terminator",
+            "A string's closing quote is missing, so Perl read on to the end of the file inside it, looking for one. When a quote comes " +
+            "further down, Perl stops there instead, at something it cannot make sense of, and says where the runaway string started.",
+            "Close the string on the line where it starts - before the line's ; or ).",
+            """
+            use strict;
+            use warnings;
+
+            my $name = "Ada";
+            print $name, "\n";
+            """),
+
         Refused(@"^Can't modify constant item",
             "A constant made with use constant can never be given another value, and Perl will not even read a line that tries.",
             "Leave the constant as it is, or use a variable, declared with my, if the value has to change.",
