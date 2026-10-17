@@ -345,5 +345,16 @@ internal static class PythonPatternGuides
             if math.isnan(value):
                 print("not a number")
             """),
+
+        GuideFor(["logic-python-map-never-run"], "A map that never runs",
+            "map does not run its function straight away: it gives back an iterator that works each item out only when something " +
+            "reads it. On a line of its own - map(print, marks) - nothing reads it, so print is never called. Python says nothing.",
+            "Nothing the function does happens: the marks are never printed.",
+            "Use a for loop, which runs its body for each item straight away: for mark in marks: print(mark).",
+            """
+            marks = [70, 80, 90]
+            for mark in marks:
+                print(mark)
+            """),
     ];
 }

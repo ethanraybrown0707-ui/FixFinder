@@ -154,5 +154,16 @@ internal static class ManagedPatternGuides
                 System.out.println(i);
             }
             """),
+
+        GuideFor(["logic-csharp-select-never-run"], "A Select that never runs",
+            "Select does not run its lambda straight away: it gives back a sequence that works each item out only when something " +
+            "reads it. On a line of its own, nothing reads it, so the lambda is never run - Console.WriteLine inside it prints " +
+            "nothing. dotnet build says nothing.",
+            "Nothing the lambda does happens: the marks are never printed.",
+            "Use a foreach loop, which runs its body for each item straight away - and needs no value given back.",
+            """
+            var marks = new[] { 70, 80, 90 };
+            foreach (var mark in marks) { Console.WriteLine(mark); }
+            """),
     ];
 }

@@ -383,10 +383,12 @@ an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a n
 `=` in a condition becomes `==`, a `final` variable set again becomes `var`, a named parameter whose type does not allow
 the null it has when left out is made `required`, and a variable given `null` whose type does not allow it gets a type
 that does - `String?`; and while it runs, a whole number divided by zero gets an answer for when the divisor is zero.
-Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by five checks
+Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by six checks
 the analyzer says nothing of: a loop to `<= marks.length`, two lists compared with `==`, a decimal worked out by
-arithmetic and then compared exactly, `^` written as a power, and `'$marks.length'` in text, which puts in the value of
-`marks` alone and prints `[70, 80, 90].length`. Dart is tested with Dart 3.13.2.
+arithmetic and then compared exactly, `^` written as a power, `'$marks.length'` in text, which puts in the value of
+`marks` alone and prints `[70, 80, 90].length`, and `marks.map((mark) => print(mark));` on a line of its own, which
+prints nothing: `map` works each item out only when its result is read, and nothing reads it. Dart is tested with Dart
+3.13.2.
 
 A **Fortran** program - a `.f90`, `.f95`, `.f03` or `.f08` file - is built with the `gfortran` on PATH, together with the
 files beside it that define the modules it uses, each before the files that use it. It is built into FixFinder's own build
@@ -800,8 +802,12 @@ never gives - `typeof marks === "array"`, false for an array, as `typeof` gives 
 `Array.isArray(marks)` and `isinstance(age, int)`. In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala,
 F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")` - which is false even when the
 value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of their toolchains says anything
-of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust warn of it themselves. When
-an expected output was given, it also runs changed copies of the program to find the one that prints it:
+of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and Rust warn of it themselves. In
+Python, C# and Dart it finds a map run for what its function does, on a line of its own - `map(print, marks)`,
+`marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which works each item out only
+when its result is read; nothing reads it, so nothing is printed, and none of the three says anything. The change is a
+loop, which runs straight away. When an expected output was given, it also runs changed copies of the program to find
+the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1093,9 +1099,9 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 39 | 41 |
+| Python | 88 | 40 | 41 |
 | Java | 54 | 36 | 46 |
-| C# | 47 | 34 | 49 |
+| C# | 47 | 35 | 49 |
 | C | 46 | 21 | 39 |
 | C++ | 45 | 27 | 39 |
 | JavaScript | 42 | 32 | 16 |
@@ -1107,7 +1113,7 @@ Python, Java and C# are checked most thoroughly.
 | PHP | 15 | 9 | 18 |
 | Lua | 12 | 5 | 25 |
 | Perl | 13 | 9 | 26 |
-| Dart | 12 | 5 | 23 |
+| Dart | 12 | 6 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 9 | 15 |
 | Elixir | 11 | 6 | 29 |

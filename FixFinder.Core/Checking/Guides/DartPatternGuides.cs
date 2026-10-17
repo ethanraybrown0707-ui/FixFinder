@@ -72,5 +72,18 @@ internal static class DartPatternGuides
               print('Marks counted: ${marks.length}');
             }
             """),
+
+        GuideFor(["logic-dart-map-never-run"], "A map that never runs",
+            "map does not run its function straight away: it gives back a list-like Iterable that works each item out only when " +
+            "something reads it. On a line of its own - marks.map((mark) => print(mark)); - nothing reads it, so print is never " +
+            "called. dart analyze says nothing.",
+            "Nothing the function does happens: the marks are never printed, and a total added to inside it stays as it was.",
+            "Use a for loop, which runs its body for each item straight away: for (var mark in marks) print(mark);",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              for (var mark in marks) print(mark);
+            }
+            """),
     ];
 }
