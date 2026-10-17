@@ -62,6 +62,19 @@ internal static class PythonPatternGuides
                 print(count)
             """),
 
+        GuideFor(["logic-python-randint-past-end"], "A random position one past the end",
+            "random.randint(0, 3) gives 0, 1, 2 or 3 - both ends are included, unlike range. So randint(0, len(marks)) for three marks " +
+            "can give 3, one past the last position, 2, and marks[3] stops with IndexError. Python says nothing until a run draws it.",
+            "The program fails now and then, and works on the other runs - the hardest kind of mistake to find by trying it.",
+            "Stop at the last position: random.randint(0, len(marks) - 1). random.choice(marks) picks an item without any position.",
+            """
+            import random
+
+            marks = [70, 80, 90]
+            pick = marks[random.randint(0, len(marks) - 1)]
+            print(pick in marks)
+            """),
+
         GuideFor(["logic-python-method-not-called"], "A method used without calling it",
             "The round brackets after a method's name are what make it run. Without them, name.upper is the method itself - " +
             "like naming a recipe instead of cooking it - so you get the method, not its answer.",

@@ -810,14 +810,16 @@ out as ints and wrap round, to `1471228928`, before they are stored in the long;
 Java, C#, JavaScript and TypeScript it finds a loop run while its counter `!=` its end, whose steps go over the
 end - `count != 10` counting from 0 by 3, which is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the loop never
 ended; an `int` counter in Java, C and C# ran on until it wrapped round past the largest `int`, and landed on 10 only
-after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In C, C++, Java, C#,
-JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side
-squared - where `^` is exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none
-of their compilers or interpreters says anything of it. The change multiplies the number by itself - or, in Python,
-Ruby, PHP and Perl, raises it with `**`. In Java, C#, JavaScript and TypeScript it finds text and then two numbers
-joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70
-and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in
-text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's
+after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In Python it finds
+`marks[random.randint(0, len(marks))]`: `randint` includes both ends, so it can draw `len(marks)`, one past the last
+position, and the program stops with `IndexError` only on the runs that draw it; the change ends at `len(marks) - 1`. In
+C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2`
+for side squared - where `^` is exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25,
+and none of their compilers or interpreters says anything of it. The change multiplies the number by itself - or, in
+Python, Ruby, PHP and Perl, raises it with `**`. In Java, C#, JavaScript and TypeScript it finds text and then two
+numbers joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080`
+for 70 and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to be put into
+text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's
 `"Hello, $name"` with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's
 `'Hello, #{name}'` in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is
 written - `Hello, {name}` - not its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double.
@@ -1133,7 +1135,7 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 44 | 41 |
+| Python | 88 | 45 | 41 |
 | Java | 54 | 41 | 46 |
 | C# | 47 | 38 | 49 |
 | C | 46 | 24 | 39 |

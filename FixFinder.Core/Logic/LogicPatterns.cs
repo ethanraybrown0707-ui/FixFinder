@@ -53,6 +53,7 @@ public static class LogicPatterns
         .. SharedRowPatterns.All,
         .. ConstantOverflowPatterns.All,
         .. StepOverEndPatterns.All,
+        .. RandomPositionPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
