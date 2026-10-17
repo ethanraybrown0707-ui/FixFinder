@@ -45,7 +45,8 @@ public sealed partial class PerlParser : IStackTraceParser
     [GeneratedRegex(
         @"^(?:Use of uninitialized value|Argument "".*"" isn't numeric|Found = in conditional|Name "".*"" used only once|Useless use of|" +
         @"Odd number of elements in|Deep recursion on|Scalar value .* better written as|Possible precedence|Unquoted string|"".*"" variable .* masks earlier|" +
-        @"Possible unintended interpolation|readline\(\) on (?:closed|unopened) filehandle|print\(\) on (?:closed|unopened) filehandle|Misplaced _ in number)")]
+        @"Possible unintended interpolation|readline\(\) on (?:closed|unopened) filehandle|print\(\) on (?:closed|unopened) filehandle|Misplaced _ in number|" +
+        @"length\(\) used on @)")]
     private static partial Regex WarningPattern();
 
     public int Detect(IReadOnlyList<string> lines)
@@ -79,8 +80,10 @@ public sealed partial class PerlParser : IStackTraceParser
         var stopping = headers.Where(header => !IsWarning(header.Match.Groups["msg"].Value)).ToList();
 
         // A compilation error is the first Perl found - the ones after it can follow from it; what stopped a running program is
-        // the last thing it printed of the kind.
-        if (lines.Any(line => CompilationFailedPattern().IsMatch(line.Text)) && stopping.Count > 0)
+        // the last thing it printed of the kind. A string with no closing quote and nothing after it is found as Perl reads the file,
+        // though Perl says only "Can't find string terminator", with no "had compilation errors" after it.
+        if ((lines.Any(line => CompilationFailedPattern().IsMatch(line.Text)) ||
+             stopping.Any(header => header.Match.Groups["msg"].Value.StartsWith("Can't find string terminator", StringComparison.Ordinal))) && stopping.Count > 0)
             return Read(lines, stopping[0].Index, stopping[0].Match, CompilationError);
 
         if (stopping.Count > 0) return Read(lines, stopping[^1].Index, stopping[^1].Match, null);

@@ -1,5 +1,8 @@
+using FixFinder.Core;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Logic;
+using FixFinder.Core.Teaching;
+using Xunit.Abstractions;
 
 namespace FixFinder.Tests;
 
@@ -55,6 +58,26 @@ public class ScalaLogicPatternTests : IDisposable
         Assert.Equal("    if (first.sameElements(second)) println(\"same\")", finding.Fix?.NewLines.Single());
     }
 
+    [Theory]
+    [InlineData("    val marks = Array(70, 80, 90)\n    println(marks)\n", "    println(marks.mkString(\", \"))")]
+    [InlineData("    val marks = Array(70, 80, 90)\n    println(\"Marks: \" + marks)\n", "    println(\"Marks: \" + marks.mkString(\", \"))")]
+    [InlineData("    val marks = Array(70, 80, 90)\n    println(s\"Marks: $marks\")\n", "    println(s\"Marks: ${marks.mkString(\", \")}\")")]
+    public void AnArrayPrintedAsItIsIsFoundAndPrintsItsItemsInstead(string body, string fixedLine)
+    {
+        var finding = Assert.Single(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-array-printed");
+
+        Assert.Equal(4, finding.Line);
+        Assert.Equal(fixedLine, finding.Fix?.NewLines.Single());
+    }
+
+    [Theory]
+    // A List prints its items.
+    [InlineData("    val marks = List(70, 80, 90)\n    println(marks)\n")]
+    // The array's items, its length or one item of it.
+    [InlineData("    val marks = Array(70, 80, 90)\n    println(marks.mkString(\", \"))\n    println(marks.length)\n    println(marks(0))\n    println(s\"First: ${marks(0)}\")\n")]
+    public void AnArraysItemsPrintedAreLeftAlone(string body) =>
+        Assert.DoesNotContain(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-array-printed");
+
     [Fact]
     public void ListsComparedWithEqualsAreLeftAlone() =>
         Assert.DoesNotContain(Scan(InsideMain("    val first = List(1, 2, 3)\n    val second = List(1, 2, 3)\n    if (first == second) println(\"same\")\n")),
@@ -106,5 +129,50 @@ public class ScalaLogicPatternTests : IDisposable
         Assert.Equal(4, finding.Line);
         Assert.Contains("`.get(\"Bob\").get`", finding.Message);
         Assert.DoesNotContain(checkedFirst, finding => finding.PatternId == "logic-scala-option-get");
+    }
+}
+
+/// <summary>
+/// An Array printed as it is, run with Scala as FixFinder Learn runs a lesson, and the check's change run the same way: the
+/// mistake prints [I@ and a code, and the change the items. Passed over, and said to be, where this computer cannot run Scala.
+/// </summary>
+public class ScalaArrayPrintedLiveTests(ITestOutputHelper output) : IDisposable
+{
+    private readonly TempFolder _temp = new();
+
+    public void Dispose()
+    {
+        _temp.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public async Task TheMistakePrintsACodeAndTheChangeTheItems()
+    {
+        const string code = "@main def run(): Unit =\n  val marks = Array(70, 80, 90)\n  println(marks)\n";
+        var path = Path.Combine(_temp.Path, "main.scala");
+        File.WriteAllText(path, code);
+
+        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId == "logic-scala-array-printed");
+        Assert.Equal(3, found.Line);
+
+        var lines = code.TrimEnd('\n').Split('\n').ToList();
+        lines[found.Fix!.StartLine - 1] = found.Fix.NewLines.Single();
+        var changed = string.Join("\n", lines) + "\n";
+
+        var scala = CodeLanguage.All.Single(each => each.Name == "Scala");
+        var wrong = await SnippetRunner.RunAsync(scala, code);
+        if (!wrong.Ran)
+        {
+            output.WriteLine($"Not run on this computer: {wrong.WhyNotRun}");
+            return;
+        }
+
+        var right = await SnippetRunner.RunAsync(scala, changed);
+        output.WriteLine($"the mistake: {wrong.Said("Scala")}\nthe change:  {right.Said("Scala")}");
+
+        // The code after [I@ is not the same in every program - [I@4563e9ab in one run, [I@5e025e70 in another - so only its start is checked.
+        Assert.True(wrong.Error is null && wrong.Printed is { } printed && printed.StartsWith("[I@", StringComparison.Ordinal), wrong.Said("Scala"));
+        Assert.True(right.Shows(Behaviour.Printing("70, 80, 90")), right.Said("Scala"));
     }
 }

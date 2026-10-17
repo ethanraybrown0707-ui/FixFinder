@@ -35,6 +35,12 @@ public static class CompileCheck
         ".lua" => true,
         ".pl" or ".pm" => true,
         ".dart" => true,
+        ".ps1" => true,
+        ".exs" or ".ex" => true,
+        ".f90" or ".f95" or ".f03" or ".f08" => true,
+        ".erl" => true,
+        ".fsx" => true,
+        ".ts" or ".mts" or ".cts" => true,
         ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" => true,
         ".h" or ".hpp" or ".hh" or ".hxx" => true,
         _ => false,
@@ -69,6 +75,7 @@ public static class CompileCheck
                 ".java" => await CompileJavaAsync(spec, copy, source.Path, folder, cancellationToken),
                 ".go" when ProgramLayout.GoPackageOf(source.Path).IsSingleFile && GoDirectBuild.KeyFor(Path.GetFileName(copy), Encoding.UTF8.GetString(bytes)) is { } plan =>
                     await CompileGoAsync(spec, copy, folder, plan, bytes, cancellationToken),
+                ".fsx" => FSharpChecked(await CompileAsync(spec, direct: false, cancellationToken)),
                 _ => await CompileAsync(spec, direct: false, cancellationToken),
             };
 
@@ -97,6 +104,25 @@ public static class CompileCheck
             }
         }
     }
+
+    /// <summary>
+    /// An F# check read as F# writes its errors - and one that failed only for "Undefined value 'it'", which --typecheck-only
+    /// says of a script that is one expression and nothing else, and which runs as it should, counts as one that passed.
+    /// </summary>
+    private static CheckResult FSharpChecked(CheckResult check)
+    {
+        if (!check.Ran) return check;
+
+        var errors = new Parsing.Parsers.FSharpParser().ParseAll(check.Lines);
+        var onlyCheckOnly = errors.Count == 0 && check.ExitCode != 0 &&
+                            check.Lines.Any(line => line.Text.EndsWith($"error FS0971: {Parsing.Parsers.FSharpParser.CheckOnlyMessage}", StringComparison.Ordinal));
+
+        return check with { ExitCode = onlyCheckOnly ? 0 : check.ExitCode, Errors = errors };
+    }
+
+    /// <summary>Whether two paths name the same file, as Windows compares them.</summary>
+    private static bool SamePath(string first, string second) =>
+        string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
 
     private static async Task<CheckResult> CompileAsync(TargetSpec spec, bool direct, CancellationToken cancellationToken)
     {
@@ -249,7 +275,8 @@ public static class CompileCheck
         foreach (var (name, value) in spec.ExtraEnvironment.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             key.Append(name).Append('=').Append(value).Append('\n');
 
-        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs")
+        if (extension is ".java" or ".c" or ".cpp" or ".cc" or ".cxx" or ".c++" or ".go" or ".h" or ".hpp" or ".hh" or ".hxx" or ".scala" or ".sc" or ".ml" or ".rs" or
+            ".f90" or ".f95" or ".f03" or ".f08" or ".erl")
         {
             if (extension != ".java" && directives.Any(line => line.Contains("..", StringComparison.Ordinal)))
                 return null;
@@ -276,6 +303,8 @@ public static class CompileCheck
         if (extension is ".scala" or ".sc") return [ScalaProgram.SbtSourceRoot(Path.GetFullPath(original)) ?? Path.GetDirectoryName(original)!];
         if (extension == ".ml") return [Path.GetDirectoryName(original)!];
         if (extension == ".rs") return RustProgram.Of(original).Files.Select(file => Path.GetDirectoryName(file)!).Distinct(StringComparer.OrdinalIgnoreCase);
+        if (FortranBuild.Extensions.Contains(extension)) return [Path.GetDirectoryName(original)!];
+        if (extension == ".erl") return [Path.GetDirectoryName(original)!];
 
         var build = extension is ".h" or ".hpp" or ".hh" or ".hxx" ? NativeBuild.ForHeader(original) : NativeBuild.For(original).Build;
         IEnumerable<string> folders = build is null ? [Path.GetDirectoryName(original)!] : [Path.GetDirectoryName(original)!, build.Folder, .. build.IncludeFolders];
@@ -462,6 +491,42 @@ public static class CompileCheck
                 // dart analyze reads the copy and runs none of it, failing only for an error.
                 return ScriptLanguages.CheckOf(ScriptLanguages.Dart, copy, Timeout);
 
+            case ".ps1":
+                // PowerShell's parser reads the copy and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.PowerShell, copy, Timeout);
+
+            case ".exs" or ".ex":
+                // Elixir compiles the copy and runs none of it but what sits directly inside a defmodule, as running it would.
+                return ScriptLanguages.CheckOf(ScriptLanguages.Elixir, copy, Timeout);
+
+            case ".ts" or ".mts" or ".cts":
+                // Node.js strips the copy's types and compiles what is left, and runs none of it.
+                return ScriptLanguages.CheckOf(ScriptLanguages.TypeScript, copy, Timeout);
+
+            case ".fsx":
+            {
+                // A file another script in its folder loads is checked through that script, with the copy in its place: a file
+                // made to be loaded need not check on its own - one that starts with module Helpers does not.
+                var loader = Directory.EnumerateFiles(originalFolder, "*.fsx")
+                    .Where(script => !SamePath(script, original))
+                    .FirstOrDefault(script => FSharpScript.Loaded(script).Any(loaded => SamePath(loaded, original)));
+                var checkedScript = loader ?? original;
+
+                // F# Interactive checks the files a script loads along with it, so each is copied beside the copy, as far from it
+                // as from the script, where #load finds it; one outside the script's folder is not, and the check says so.
+                foreach (var file in Checking.ProgramFiles.Of(checkedScript).Where(file => !SamePath(file, original)))
+                {
+                    var placed = Path.GetRelativePath(originalFolder, file);
+                    if (placed.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(placed)) continue;
+
+                    var into = Path.Combine(folder, placed);
+                    Directory.CreateDirectory(Path.GetDirectoryName(into)!);
+                    File.Copy(file, into, overwrite: false);
+                }
+
+                return ScriptLanguages.CheckOf(ScriptLanguages.FSharp, Path.Combine(folder, Path.GetFileName(checkedScript)), Timeout);
+            }
+
             case ".rs":
             {
                 if (RustToolchains.Usual is not { } rustc) return null;
@@ -485,6 +550,48 @@ public static class CompileCheck
                 return Spec(rustc.Program,
                     RustBuild.CompileArguments(RustBuild.EditionFor(layout, rustc), Path.GetRelativePath(layout.Folder, layout.Root), Path.Combine(folder, "check.exe")),
                     crate);
+            }
+
+            case ".erl":
+            {
+                if (ErlangBuild.Erlc() is not { } erlc) return null;
+
+                // The modules of the program the changed module calls come with the copy, and the compiled modules are
+                // written into the check's own folder.
+                var whole = Path.GetFullPath(original);
+                var checkFolder = Path.GetDirectoryName(copy)!;
+                var checkedFiles = new List<string>();
+
+                foreach (var file in ErlangBuild.Files(original))
+                {
+                    if (!file.Equals(whole, StringComparison.OrdinalIgnoreCase))
+                        File.Copy(file, Path.Combine(checkFolder, Path.GetFileName(file)), overwrite: true);
+
+                    checkedFiles.Add(file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(copy) : Path.GetFileName(file));
+                }
+
+                return Spec(erlc, ErlangBuild.CompileArguments(checkFolder, checkedFiles), checkFolder);
+            }
+
+            case ".f90" or ".f95" or ".f03" or ".f08":
+            {
+                if (FortranBuild.Gfortran() is not { } gfortran) return null;
+
+                // The files of the program whose modules the changed file uses come with the copy, each before the files that
+                // use it, and gfortran's .mod files are kept in the check's own folder.
+                var whole = Path.GetFullPath(original);
+                var checkFolder = Path.GetDirectoryName(copy)!;
+                var checkedFiles = new List<string>();
+
+                foreach (var file in FortranBuild.Files(original))
+                {
+                    if (!file.Equals(whole, StringComparison.OrdinalIgnoreCase))
+                        File.Copy(file, Path.Combine(checkFolder, Path.GetFileName(file)), overwrite: true);
+
+                    checkedFiles.Add(file.Equals(whole, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(copy) : Path.GetFileName(file));
+                }
+
+                return Spec(gfortran, FortranBuild.CheckArguments(checkFolder, checkedFiles), checkFolder);
             }
 
             case ".cs":

@@ -5,7 +5,7 @@ internal static class DivisionByZeroLessons
 {
     private static Concept Concept => Concepts.DivisionByZero;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, C, Cpp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python refuses to divide by zero whether the numbers are whole numbers or decimals: it stops with ZeroDivisionError " +
@@ -698,5 +698,167 @@ internal static class DivisionByZeroLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "/ by zero gives Infinity rather than stopping the program, so nothing says it went wrong - the fixed line checks for zero itself."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A whole number divided by zero stops a Fortran program with SIGFPE - which, on Windows, names no line. Reals divided by zero " +
+        "do not stop it: the answer is Infinity, and the program carries on with it.",
+        [
+            new WorkedExample("Sharing between nobody",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      total = 70
+                      count = 0
+                      print '(I0)', total / count
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.StoppingOnNoLine("SIGFPE"),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total, count
+                      total = 70
+                      count = 0
+                      if (count == 0) then
+                        print '(I0)', 0
+                      else
+                        print '(I0)', total / count
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed code divides only when count is not zero, and gives 0 otherwise."),
+            new WorkedExample("Dividing reals",
+                Broken: """
+                    program marks
+                      implicit none
+                      real :: total, count
+                      total = 70.0
+                      count = 0.0
+                      print '(F0.1)', total / count
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Printing("Inf"),
+                Fixed: """
+                    program marks
+                      implicit none
+                      real :: total, count
+                      total = 70.0
+                      count = 0.0
+                      if (count == 0.0) then
+                        print '(F0.1)', 0.0
+                      else
+                        print '(F0.1)', total / count
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing(".0"),
+                WhatChanged: "Reals divided by zero give Infinity rather than stopping the program, so the fixed code checks for zero itself."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "Dividing by zero prints \"Attempted to divide by zero.\" - and then PowerShell carries on with the next line, without the " +
+        "line's result, so the variable it was to set holds nothing.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    $marks = @()
+                    $average = 100 / $marks.Count
+                    Write-Output $average
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $marks = @()
+                    $average = $(if ($marks.Count -eq 0) { 0 } else { 100 / $marks.Count })
+                    Write-Output $average
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("0\ndone"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Dividing by zero stops an Elixir program with ArithmeticError - for /, saying no more than bad argument in arithmetic " +
+        "expression; for div and rem, showing the call.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    marks = []
+                    IO.puts(Enum.sum(marks) / length(marks))
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    marks = []
+                    IO.puts(if length(marks) == 0, do: 0, else: Enum.sum(marks) / length(marks))
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when there are marks, and gives 0 otherwise."),
+            new WorkedExample("Sweets left over",
+                Broken: """
+                    sweets = 7
+                    people = 0
+                    IO.puts(rem(sweets, people))
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 3),
+                Fixed: """
+                    sweets = 7
+                    people = 0
+                    IO.puts(if people == 0, do: 0, else: rem(sweets, people))
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line works out the remainder only when there are people to share between."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Dividing by zero stops an Erlang program with badarith - an error occurred when evaluating an arithmetic expression - in the " +
+        "function that divided.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([])]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarith", 4),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) ->
+                        case length(Marks) of
+                            0 -> 0;
+                            Count -> lists:sum(Marks) / Count
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [average([])]).
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed function divides only when there are marks, and gives 0 otherwise."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "Dividing a whole number by zero stops an F# script with System.DivideByZeroException, on the line that divides. A " +
+        "decimal divided by zero gives infinity instead, and stops nothing.",
+        [
+            new WorkedExample("An average of no marks",
+                Broken: """
+                    let marks : int list = []
+                    printfn "%d" (List.sum marks / List.length marks)
+                    """,
+                BrokenDoes: Behaviour.Stopping("DivideByZeroException", 2),
+                Fixed: """
+                    let marks : int list = []
+                    printfn "%d" (if List.isEmpty marks then 0 else List.sum marks / List.length marks)
+                    """,
+                FixedDoes: Behaviour.Printing("0"),
+                WhatChanged: "The fixed line divides only when the list has marks in it, and gives 0 when it is empty."),
         ]);
 }

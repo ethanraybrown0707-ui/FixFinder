@@ -1,4 +1,5 @@
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Logic;
@@ -18,7 +19,7 @@ internal sealed class CodePattern(
     public IReadOnlySet<string> Extensions => extensions;
 
     public IEnumerable<LogicFinding> Find(SourceFile source) =>
-        find(id, source, CodeText.MaskAll(source.Lines, syntax))
+        (LogicLines.Of(source) is { } lines ? find(id, source, CodeText.MaskAll(lines, syntax)) : [])
             .Select(finding => finding with
             {
                 Severity = finding.Severity == Severity.Warning ? severity : finding.Severity,
@@ -28,6 +29,18 @@ internal sealed class CodePattern(
 
     public static IReadOnlySet<string> Files(params string[] extensions) =>
         new HashSet<string>(extensions, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>The lines a logic check reads: a file's own - or, for TypeScript, the JavaScript Node.js runs once it has taken the types out.</summary>
+internal static class LogicLines
+{
+    /// <summary>
+    /// The file's lines as written - or, for a TypeScript file, its lines with every type replaced by spaces by Node.js itself, so
+    /// each line and column is where it was and a check's change is cut from the lines as written; null when Node cannot do so,
+    /// and nothing is read.
+    /// </summary>
+    public static IReadOnlyList<string>? Of(SourceFile source) =>
+        TypeScriptCheck.IsTypeScript(source.Path) ? TypeScriptCheck.StrippedLines(source.Lines) : source.Lines;
 }
 
 /// <summary>Reading Python's indented blocks from masked lines.</summary>

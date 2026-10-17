@@ -1,0 +1,5 @@
+** (ArgumentError) the Access module does not support accessing lists by index, got: 0
+
+Accessing a list by index is typically discouraged in Elixir, instead we prefer to use the Enum module to manipulate lists as a whole. If you really must access a list element by index, you can use Enum.at/2 or the functions in the List module
+    (elixir 1.20.4) lib/access.ex:351: Access.get/3
+    main.exs:2: (file)

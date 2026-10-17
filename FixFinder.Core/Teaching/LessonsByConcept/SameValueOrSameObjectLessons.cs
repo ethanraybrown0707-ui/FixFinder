@@ -5,7 +5,7 @@ internal static class SameValueOrSameObjectLessons
 {
     private static Concept Concept => Concepts.SameValueOrSameObject;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, Python, JavaScript, Scala, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "For objects - Strings among them - == asks whether two names are the very same object, and equals asks whether they hold " +
@@ -250,5 +250,75 @@ internal static class SameValueOrSameObjectLessons
                     """,
                 FixedDoes: Behaviour.Printing("true"),
                 WhatChanged: "== asked whether they are the same list; the fixed line compares the items one by one."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "-eq compares text without minding capital letters, so \"Ada\" -eq \"ada\" is true. -ceq compares it letter for letter, capitals " +
+        "and all - and so on for each comparison: -cne, -clt, -cgt.",
+        [
+            new WorkedExample("Two spellings of a name",
+                Broken: """
+                    if ("Ada" -eq "ada") {
+                        Write-Output "same"
+                    } else {
+                        Write-Output "different"
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("same"),
+                Fixed: """
+                    if ("Ada" -ceq "ada") {
+                        Write-Output "same"
+                    } else {
+                        Write-Output "different"
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("different"),
+                WhatChanged: "-ceq counts a capital A as different from a small a."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Text in single quotes is not text in Elixir but a charlist - a list of character codes - so 'Ada' == \"Ada\" is false: the " +
+        "two hold the same letters as different kinds of value. Elixir warns that single quotes for text are deprecated.",
+        [
+            new WorkedExample("Is the name Ada?",
+                Broken: """
+                    name = 'Ada'
+                    IO.puts(name == "Ada")
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    name = "Ada"
+                    IO.puts(name == "Ada")
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "In double quotes the name is text, the same kind of value as \"Ada\", so the two are equal."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "yes without quotes is an atom - a fixed value of its own - and \"yes\" in double quotes is text. They look alike, but they are " +
+        "different kinds of value, so they are never equal.",
+        [
+            new WorkedExample("Did they say yes?",
+                Broken: """
+                    -module(answers).
+                    -export([main/0]).
+
+                    agreed(Answer) -> Answer == yes.
+
+                    main() ->
+                        io:format("~p~n", [agreed("yes")]).
+                    """,
+                BrokenDoes: Behaviour.Printing("false"),
+                Fixed: """
+                    -module(answers).
+                    -export([main/0]).
+
+                    agreed(Answer) -> Answer == "yes".
+
+                    main() ->
+                        io:format("~p~n", [agreed("yes")]).
+                    """,
+                FixedDoes: Behaviour.Printing("true"),
+                WhatChanged: "The answer is compared with the text \"yes\", the kind of value it is."),
         ]);
 }

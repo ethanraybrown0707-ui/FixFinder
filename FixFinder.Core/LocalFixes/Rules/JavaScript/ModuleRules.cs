@@ -69,6 +69,55 @@ public sealed partial class JsCoreModuleTypo : ILocalFixRule
     }
 }
 
+/// <summary>
+/// <c>Cannot find module 'C:\marks\helpers' imported from C:\marks\main.mjs</c>: an import names a file of the program's own
+/// without its extension. Node.js finds an ES module - and a TypeScript file, which it runs as one - only by its whole name,
+/// adding no extension of its own. When exactly one file of that name with an extension Node runs is there, the import that
+/// names it gets that extension.
+/// </summary>
+public sealed partial class JsImportExtension : ILocalFixRule
+{
+    public string Id => "js-import-extension";
+
+    [GeneratedRegex(@"^Cannot find module '(?<missing>[^']+)' imported from (?<from>.+?)\s*$")]
+    private static partial Regex Message();
+
+    [GeneratedRegex(@"(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(?<quote>[""'])(?<path>\.{1,2}/[^""']+)\k<quote>")]
+    private static partial Regex ImportedPath();
+
+    private static readonly string[] ExtensionsNodeRuns = [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"];
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (JavaScriptCode.ErrorMessage(context.Error, "Error", Message()) is not { } message) return null;
+
+        var missing = message.Groups["missing"].Value;
+        if (!Path.IsPathRooted(missing) || Path.HasExtension(missing)) return null;
+
+        var there = ExtensionsNodeRuns.Where(extension => File.Exists(missing + extension)).ToList();
+        if (there is not [var extension]) return null;
+
+        var from = message.Groups["from"].Value;
+        if (from.StartsWith("file:", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(from, UriKind.Absolute, out var url)) from = url.LocalPath;
+        if (context.Read(from) is not { } source || !JavaScriptCode.IsJavaScript(source)) return null;
+
+        var folder = Path.GetDirectoryName(source.Path)!;
+        var importing = Enumerable.Range(0, source.Count)
+            .SelectMany(index => ImportedPath().Matches(source.Lines[index]).Select(found => (Index: index, Path: found.Groups["path"])))
+            .Where(import => string.Equals(Path.GetFullPath(Path.Combine(folder, import.Path.Value)), Path.GetFullPath(missing), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (importing is not [var import]) return null;
+
+        var line = source.Lines[import.Index];
+        var named = import.Path.Value + extension;
+
+        return LocalFix.ReplaceLine(Id, $"Name the file whole: '{named}'",
+            $"Node.js finds a module of the program's own only by its whole file name, and adds no extension of its own - so " +
+            $"'{import.Path.Value}' is no file, and '{named}', the one beside it, is the file meant.",
+            source.Path, import.Index + 1, line[..(import.Path.Index + import.Path.Length)] + extension + line[(import.Path.Index + import.Path.Length)..]);
+    }
+}
+
 /// <summary><c>does not provide an export named 'readFileSnyc'</c> - a misspelt import from a core module.</summary>
 public sealed partial class JsNamedExportTypo : ILocalFixRule
 {

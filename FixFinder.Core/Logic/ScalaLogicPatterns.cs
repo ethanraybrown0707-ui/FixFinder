@@ -7,8 +7,9 @@ namespace FixFinder.Core.Logic;
 
 /// <summary>
 /// Mistakes Scala programs make that still compile. Each is a behaviour seen in Scala 3.8.4 and Scala 2.13.18 alike, and
-/// neither compiler warns about any of them: two arrays with the same items are not ==, a whole-number average stored in
-/// a Double has already lost its fraction, and xs.sorted on a line of its own leaves xs as it was.
+/// neither compiler warns about any of them: two arrays with the same items are not ==, an array printed shows [I@ and a
+/// code rather than its items, a whole-number average stored in a Double has already lost its fraction, and xs.sorted on a
+/// line of its own leaves xs as it was.
 /// </summary>
 public static partial class ScalaLogicPatterns
 {
@@ -23,6 +24,7 @@ public static partial class ScalaLogicPatterns
     [
         Pattern("logic-scala-range-to-length", RangeToLength, Severity.Error),
         Pattern("logic-scala-array-equals", ArrayEquals, Severity.Error),
+        Pattern("logic-scala-array-printed", ArrayPrinted, Severity.Error, Confidence.Certain),
         Pattern("logic-scala-integer-average", IntegerAverage, Severity.Error),
         Pattern("logic-scala-result-discarded", ResultDiscarded),
         Pattern("logic-scala-option-get", OptionGet, confidence: Confidence.Possible),
@@ -82,17 +84,69 @@ public static partial class ScalaLogicPatterns
     [GeneratedRegex(@"(?<![\w$.])(?<left>[A-Za-z_]\w*)\s*(?<comparison>==|!=)\s*(?<right>[A-Za-z_]\w*)(?![\w$.(\[])")]
     private static partial Regex Comparison();
 
+    /// <summary>The names the code gives an Array: made with Array(...), new Array, .toArray, or declared with an Array type.</summary>
+    private static HashSet<string> ArrayNames(IReadOnlyList<string> masked) =>
+        masked
+            .SelectMany(line => ArrayMade().Matches(line).Concat(ArrayTyped().Matches(line)))
+            .Select(match => match.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary><c>println(</c> or <c>print(</c>.</summary>
+    [GeneratedRegex(@"\bprint(?:ln)?\s*\(")]
+    private static partial Regex PrintCall();
+
+    /// <summary>
+    /// An Array printed as it is - println(marks), println("Marks: " + marks), println(s"Marks: $marks"). An Array has no text of
+    /// its own for its items, so it is printed as its kind and a code - [I@4563e9ab - not as 70, 80, 90; a List prints its items.
+    /// The change prints them with mkString.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ArrayPrinted(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var arrays = ArrayNames(masked);
+        if (arrays.Count == 0) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            var call = PrintCall().Match(masked[index]);
+            if (!call.Success || Brackets.ClosingParenthesis(masked[index], call.Index + call.Length - 1) is not { } close) continue;
+
+            var line = source.Lines[index];
+            var start = call.Index + call.Length;
+            var arguments = masked[index][start..close];
+            bool AtTopLevel(int at) => arguments[..at].Count(c => c == '(') == arguments[..at].Count(c => c == ')');
+
+            // The array itself, in the call's own brackets - not its length, an item of it, or a call on it.
+            var printed = Regex.Matches(arguments, @"(?<![\w$.""])(?<name>[A-Za-z_]\w*)(?![\w.(\[])")
+                .FirstOrDefault(found => AtTopLevel(found.Index) && arrays.Contains(found.Groups["name"].Value));
+
+            // $marks in s"..." - read from the line as written, as masking blanks the text.
+            var hole = line[start..close].Contains("s\"", StringComparison.Ordinal)
+                ? Regex.Matches(line[start..close], @"\$(?<name>[A-Za-z_]\w*)(?![\w.(\[])").FirstOrDefault(found => arrays.Contains(found.Groups["name"].Value))
+                : null;
+
+            if (printed is null && hole is null) continue;
+
+            var name = (printed ?? hole)!.Groups["name"].Value;
+            var corrected = printed is not null
+                ? line[..(start + printed.Index)] + $"{name}.mkString(\", \")" + line[(start + printed.Index + printed.Length)..]
+                : line[..(start + hole!.Index)] + $"${{{name}.mkString(\", \")}}" + line[(start + hole.Index + hole.Length)..];
+
+            yield return new LogicFinding(id, index + 1,
+                $"{name} is an Array, and an Array printed as it is shows its kind and a code - such as [I@4563e9ab - not its items",
+                LocalFix.ReplaceLine(id, $"Print its items: {name}.mkString(\", \")",
+                    "mkString writes each item of the array, with \", \" between them. An Array has no text of its own for its items, " +
+                    "as a List has.",
+                    source.Path, index + 1, corrected));
+        }
+    }
+
     /// <summary>
     /// Two arrays compared with == or !=: an Array is compared as the very same array, not by its items - unlike a List - so
     /// two arrays made apart are never ==, whatever they hold. sameElements compares the items.
     /// </summary>
     private static IEnumerable<LogicFinding> ArrayEquals(string id, SourceFile source, IReadOnlyList<string> masked)
     {
-        var arrays = masked
-            .SelectMany(line => ArrayMade().Matches(line).Concat(ArrayTyped().Matches(line)))
-            .Select(match => match.Groups["name"].Value)
-            .ToHashSet(StringComparer.Ordinal);
-
+        var arrays = ArrayNames(masked);
         if (arrays.Count < 2) yield break;
 
         for (var index = 0; index < masked.Count; index++)

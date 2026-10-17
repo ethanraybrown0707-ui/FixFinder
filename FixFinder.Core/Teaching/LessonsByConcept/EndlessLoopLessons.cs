@@ -5,7 +5,7 @@ internal static class EndlessLoopLessons
 {
     private static Concept Concept => Concepts.EndlessLoop;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A while loop runs until its condition is false, and nothing makes the condition change but the loop's own lines. " +
@@ -210,5 +210,144 @@ internal static class EndlessLoopLessons
                     """,
                 FixedDoes: Behaviour.Printing("6"),
                 WhatChanged: "count++ moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A do while loop runs for as long as its condition is true, so something inside it has to change what the condition checks. " +
+        "When nothing does, the loop never ends: Fortran gives no error, and the program has to be stopped.",
+        [
+            new WorkedExample("Adding up to three",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: count, total
+                      count = 1
+                      total = 0
+                      do while (count <= 3)
+                        total = total + count
+                      end do
+                      print '(I0)', total
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: count, total
+                      count = 1
+                      total = 0
+                      do while (count <= 3)
+                        total = total + count
+                        count = count + 1
+                      end do
+                      print '(I0)', total
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "count = count + 1 moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "A while loop runs for as long as its condition is true, so something inside it has to change what the condition checks. " +
+        "When nothing does, the loop never ends: PowerShell gives no error, and the script has to be stopped.",
+        [
+            new WorkedExample("Adding up to three",
+                Broken: """
+                    $count = 1
+                    $total = 0
+                    while ($count -le 3) {
+                        $total += $count
+                    }
+                    Write-Output $total
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    $count = 1
+                    $total = 0
+                    while ($count -le 3) {
+                        $total += $count
+                        $count++
+                    }
+                    Write-Output $total
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "$count++ moves the count on each time, so the condition is false once it passes 3."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir has no while loop: a function that calls itself is its loop. When the call that should stop it never comes - from(0), " +
+        "when n goes 5, 3, 1, -1 - it calls itself for ever, and as calling itself is the last thing each call does, it never runs out of room.",
+        [
+            new WorkedExample("A countdown in twos",
+                Broken: """
+                    defmodule Countdown do
+                      def from(0), do: IO.puts("lift off")
+                      def from(n), do: from(n - 2)
+                    end
+
+                    Countdown.from(5)
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    defmodule Countdown do
+                      def from(n) when n <= 0, do: IO.puts("lift off")
+                      def from(n), do: from(n - 2)
+                    end
+
+                    Countdown.from(5)
+                    """,
+                FixedDoes: Behaviour.Printing("lift off"),
+                WhatChanged: "The first clause now stops for any n of 0 or less, so the countdown stops at -1."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Erlang has no while loop: a function that calls itself is its loop. When the clause that should stop it never matches - from(0), " +
+        "when N goes 5, 3, 1, -1 - it calls itself for ever, and as calling itself is the last thing each call does, it never runs out of room.",
+        [
+            new WorkedExample("A countdown in twos",
+                Broken: """
+                    -module(countdown).
+                    -export([main/0]).
+
+                    from(0) -> io:format("lift off~n");
+                    from(N) -> from(N - 2).
+
+                    main() ->
+                        from(5).
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    -module(countdown).
+                    -export([main/0]).
+
+                    from(N) when N =< 0 -> io:format("lift off~n");
+                    from(N) -> from(N - 2).
+
+                    main() ->
+                        from(5).
+                    """,
+                FixedDoes: Behaviour.Printing("lift off"),
+                WhatChanged: "The first clause now stops for any N of 0 or less, so the countdown stops at -1."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A while loop runs for as long as its condition is true, so a loop that never changes what its condition checks runs " +
+        "for ever.",
+        [
+            new WorkedExample("Printing the first three numbers",
+                Broken: """
+                    let mutable count = 0
+                    while count < 3 do
+                        printfn "%d" count
+                    """,
+                BrokenDoes: Behaviour.Running(),
+                Fixed: """
+                    let mutable count = 0
+                    while count < 3 do
+                        printfn "%d" count
+                        count <- count + 1
+                    """,
+                FixedDoes: Behaviour.Printing("0\n1\n2"),
+                WhatChanged: "count goes up by one on each pass, so after three passes count < 3 is false and the loop ends."),
         ]);
 }

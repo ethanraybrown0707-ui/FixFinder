@@ -50,7 +50,28 @@ public sealed record CodeLanguage(
     /// <summary>Dart: what dart analyze says before it runs, and the exceptions that stop its programs.</summary>
     public static CodeLanguage Dart { get; } = new("Dart", [".dart"], ["dart"], ["dart-"]);
 
-    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    /// <summary>Fortran: what gfortran says as it builds a program, and what stops the program it built.</summary>
+    public static CodeLanguage Fortran { get; } = new("Fortran", [".f90", ".f95", ".f03", ".f08"], ["fortran"], ["fortran-"]);
+
+    /// <summary>PowerShell: what its parser says before a script runs, and the errors a script prints as it carries on.</summary>
+    public static CodeLanguage PowerShell { get; } = new("PowerShell", [".ps1"], ["powershell"], ["powershell-"]);
+
+    /// <summary>Elixir: what it says as it compiles a program, run none of it, and what stops the program it runs.</summary>
+    public static CodeLanguage Elixir { get; } = new("Elixir", [".exs", ".ex"], ["elixir"], ["elixir-"]);
+
+    /// <summary>Erlang: what erlc says as it compiles a program, and what stops the program it compiled.</summary>
+    public static CodeLanguage Erlang { get; } = new("Erlang", [".erl"], ["erlang"], ["erlang-"]);
+
+    /// <summary>F#: what F# Interactive says as it checks a script, and the .NET exceptions that stop the script it runs.</summary>
+    public static CodeLanguage FSharp { get; } = new("F#", [".fsx"], ["fsharp"], ["fsharp-"]);
+
+    /// <summary>
+    /// TypeScript: run by Node.js, which strips its types, so its messages are Node's - and JavaScript's fix rules read it as they
+    /// read JavaScript, which is what it is once its types are gone.
+    /// </summary>
+    public static CodeLanguage TypeScript { get; } = new("TypeScript", [".ts", ".mts", ".cts"], ["node"], ["js-", "ts-"]);
+
+    public static IReadOnlyList<CodeLanguage> All { get; } = [Any, Python, Java, C, Cpp, CSharp, JavaScript, Go, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     public bool IsAny => ParserIds.Count == 0;
 

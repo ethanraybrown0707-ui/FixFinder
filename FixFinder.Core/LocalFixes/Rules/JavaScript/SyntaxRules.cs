@@ -34,7 +34,8 @@ public sealed partial class JsMissingClosingParen : ILocalFixRule
 {
     public string Id => "js-missing-closing-paren";
 
-    [GeneratedRegex(@"^missing \) after argument list$")]
+    // V8's words for JavaScript, and Node's for TypeScript it reads before stripping the types: Expected ',', got ';'.
+    [GeneratedRegex(@"^missing \) after argument list$|^Expected ',', got ';'$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -61,7 +62,8 @@ public sealed partial class JsUnclosedString : ILocalFixRule
 {
     public string Id => "js-unclosed-string";
 
-    [GeneratedRegex(@"^Invalid or unexpected token$")]
+    // V8's words for JavaScript, and Node's for TypeScript: Unterminated string constant.
+    [GeneratedRegex(@"^Invalid or unexpected token$|^Unterminated string constant$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -78,7 +80,8 @@ public sealed partial class JsMissingClosingBrace : ILocalFixRule
 {
     public string Id => "js-missing-closing-brace";
 
-    [GeneratedRegex(@"^Unexpected end of input$")]
+    // V8's words for JavaScript, and Node's for TypeScript: Expected '}', got '<eof>'.
+    [GeneratedRegex(@"^Unexpected end of input$|^Expected '\}', got '<eof>'$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)

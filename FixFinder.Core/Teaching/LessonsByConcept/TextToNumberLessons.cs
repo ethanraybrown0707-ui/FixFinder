@@ -5,7 +5,7 @@ internal static class TextToNumberLessons
 {
     private static Concept Concept => Concepts.TextToNumber;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, CSharp, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "int turns text such as \"12\" into a number, and stops the program with ValueError when the text is not a whole number. " +
@@ -274,5 +274,126 @@ internal static class TextToNumberLessons
                     """,
                 FixedDoes: Behaviour.Printing("Please type a number"),
                 WhatChanged: "int.tryParse gives null for text that is not a number, and the fixed line checks for it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "Fortran turns text into a number by reading it - read(text, *) number - and stops the program when the text is not one. " +
+        "iostat= keeps it going instead, and is set to something other than 0 when the reading failed.",
+        [
+            new WorkedExample("An age written in words",
+                Broken: """
+                    program marks
+                      implicit none
+                      character(len=10) :: typed = 'twenty'
+                      integer :: age
+                      read(typed, *) age
+                      print '(I0)', age + 1
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Stopping("Bad integer for item 1 in list input", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      character(len=10) :: typed = 'twenty'
+                      integer :: age, status
+                      read(typed, *, iostat=status) age
+                      if (status /= 0) then
+                        print '(A)', 'Please type a number'
+                      else
+                        print '(I0)', age + 1
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "iostat= catches the failed reading, and the fixed code says so rather than stopping."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "[int] turns text into a whole number, and prints an error when the text is not one - then PowerShell carries on, with " +
+        "nothing in the variable, so the script goes on to a wrong answer. -as [int] gives $null instead, which can be checked for.",
+        [
+            new WorkedExample("An age typed in words",
+                Broken: """
+                    $typed = "twenty"
+                    $age = [int]$typed
+                    Write-Output ($age + 1)
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    $typed = "twenty"
+                    $age = $typed -as [int]
+                    if ($null -eq $age) {
+                        Write-Output "Please type a number"
+                    } else {
+                        Write-Output ($age + 1)
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Please type a number"),
+                WhatChanged: "-as [int] gives $null for text that is not a number, and the fixed code checks for it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "String.to_integer reads text that is a whole number and nothing else. A line read with IO.gets still has its newline on the " +
+        "end - \"12\\n\" - and String.to_integer stops the program with ArgumentError for it.",
+        [
+            new WorkedExample("Adding one to what was typed",
+                Broken: """
+                    typed = "12\n"
+                    IO.puts(String.to_integer(typed) + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentError", 2),
+                Fixed: """
+                    typed = "12\n"
+                    IO.puts(String.to_integer(String.trim(typed)) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("13"),
+                WhatChanged: "String.trim takes the newline off before the text is read as a number."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "list_to_integer reads text that is a whole number and nothing else. A line read with io:get_line still has its newline on the " +
+        "end - \"12\\n\" - and list_to_integer stops the program with badarg for it.",
+        [
+            new WorkedExample("Adding one to what was typed",
+                Broken: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(Typed) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("12\n")]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarg", 4),
+                Fixed: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(string:trim(Typed)) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("12\n")]).
+                    """,
+                FixedDoes: Behaviour.Printing("13"),
+                WhatChanged: "string:trim takes the newline off before the text is read as a number."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A number typed in arrives as text, and a number in quotes is text too. Compared with > they are put in order letter " +
+        "by letter, as a dictionary orders words - so \"7\" > \"10\" is true, as \"7\" comes after \"1\".",
+        [
+            new WorkedExample("Is the number bigger than ten?",
+                Broken: """
+                    let typed = "7"
+                    if typed > "10" then printfn "big" else printfn "small"
+                    """,
+                BrokenDoes: Behaviour.Printing("big"),
+                Fixed: """
+                    let typed = "7"
+                    if int typed > 10 then printfn "big" else printfn "small"
+                    """,
+                FixedDoes: Behaviour.Printing("small"),
+                WhatChanged: "int turns the text into a whole number, and 10 without quotes is a number, so > compares the two as " +
+                    "numbers."),
         ]);
 }

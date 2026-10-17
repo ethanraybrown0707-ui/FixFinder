@@ -16,6 +16,9 @@ public static partial class PastedCode
     [GeneratedRegex(@"^\s*package\s+(?<name>[A-Za-z_][\w]*(?:\s*\.\s*[A-Za-z_]\w*)*)\s*;", RegexOptions.Multiline)]
     private static partial Regex JavaPackage();
 
+    [GeneratedRegex(@"^\s*-module\(\s*(?<name>[a-z]\w*)\s*\)\s*\.", RegexOptions.Multiline)]
+    private static partial Regex ErlangModule();
+
     /// <summary>A class, interface, enum or record declared in Java, and whether it is public.</summary>
     [GeneratedRegex(@"^[ \t]*(?<public>public\s+)?(?:(?:abstract|final|sealed|non-sealed|strictfp|static)\s+)*(?:class|interface|enum|record)\s+(?<name>[A-Za-z_$][\w$]*)", RegexOptions.Multiline)]
     private static partial Regex JavaTypeDeclaration();
@@ -41,10 +44,14 @@ public static partial class PastedCode
 
     /// <summary>
     /// Where in its folder the code is saved, and as what: pasted.py, pasted.c and so on - except Java, whose file has to
-    /// be named for its class, the one with main if it has one, and sit under the folders of its package, in src.
+    /// be named for its class, the one with main if it has one, and sit under the folders of its package, in src; and
+    /// Erlang, whose file erlc will compile only under its module's name.
     /// </summary>
     public static string RelativePathFor(string code, CodeLanguage language)
     {
+        if (language == CodeLanguage.Erlang)
+            return (ErlangModule().Match(code) is { Success: true } module ? module.Groups["name"].Value : "pasted") + ".erl";
+
         if (language != CodeLanguage.Java) return "pasted" + language.Extensions[0];
 
         var types = JavaTypeDeclaration().Matches(code).Cast<Match>().ToList();
@@ -126,6 +133,34 @@ public static partial class PastedCode
             // Text in single quotes with a $name in it: Dart's way, as PHP and Perl put nothing into single-quoted text.
             new(@"'[^'\n]*\$\{?[A-Za-z_]"), new(@"^\s*(?:late|final)\s+\w+(?:<[^>]*>)?\??\s+\w+", RegexOptions.Multiline),
             new(@"\b(?:String|int|double)\?\s+\w+")]),
+        (CodeLanguage.Fortran, [
+            new(@"^\s*program\s+\w+\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase), new(@"\bimplicit\s+none\b", RegexOptions.IgnoreCase),
+            new(@"^\s*end\s+(?:program|do|if|subroutine|function)\b", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"^\s*print\s*\*\s*,", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"^\s*(?:integer|real|character|logical|double\s+precision)\b[^:\n]*::", RegexOptions.Multiline | RegexOptions.IgnoreCase)]),
+        (CodeLanguage.PowerShell, [
+            new(@"\b(?:Write-Output|Write-Host|Read-Host|Get-Content|Set-Content|ForEach-Object|Where-Object|Get-ChildItem|Test-Path)\b", RegexOptions.IgnoreCase),
+            new(@"\s-(?:eq|ne|lt|le|gt|ge|and|or|like|match)\s", RegexOptions.IgnoreCase), new(@"^\s*param\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+            new(@"\$_\b|\$PSScriptRoot\b|\$null\b"), new(@"\bforeach\s*\(\s*\$\w+\s+in\s+\$", RegexOptions.IgnoreCase)]),
+        (CodeLanguage.Elixir, [
+            new(@"^\s*defmodule\s+[A-Z][\w.]*\s+do\b", RegexOptions.Multiline), new(@"^\s*defp?\s+[a-z_]\w*[?!]?(?:\([^)]*\))?\s*(?:when\b.*)?(?:,\s*do:|\s+do\b)", RegexOptions.Multiline),
+            new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\(")]),
+        (CodeLanguage.Erlang, [
+            new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
+            new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
+        // TypeScript: JavaScript with types - a value, a parameter or what a function gives back written with its type, an
+        // interface, a type, as const. JavaScript has none of them.
+        (CodeLanguage.TypeScript, [
+            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w<>\[\]|]+\s*=", RegexOptions.Multiline),
+            new(@"\(\s*\w+\s*:\s*(?:number|string|boolean|any|unknown)(?:\[\])?\s*[,)]"),
+            new(@"\)\s*:\s*(?:number|string|boolean|void|any|Promise<[^>]*>)(?:\[\])?\s*(?:\{|=>)"),
+            new(@"^\s*(?:export\s+)?interface\s+[A-Z]\w*", RegexOptions.Multiline),
+            new(@"^\s*(?:export\s+)?type\s+[A-Z]\w*(?:<[^>]*>)?\s*=", RegexOptions.Multiline),
+            new(@"\bas\s+const\b")]),
+        // F#: printfn and let mutable are its own; OCaml writes Printf.printf, and has no List.sum or #load.
+        (CodeLanguage.FSharp, [
+            new(@"\bprintfn\s+[$@]?"""), new(@"^\s*let\s+mutable\s+\w+", RegexOptions.Multiline), new(@"\b(?:List|Seq|Array)\.(?:sum|average|max|min|sumBy)\b"),
+            new(@"^\s*#load\s+""", RegexOptions.Multiline), new(@"^\s*open\s+System\b", RegexOptions.Multiline), new(@"\[<EntryPoint>\]")]),
     ];
 
     /// <summary>

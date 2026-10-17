@@ -84,7 +84,7 @@ public static class ConceptMap
         new(Concepts.NeverUsed) { ExceptionTypes = ["compile warning"], Message = Words(@"^assigned but unused variable") },
         new(Concepts.UnclosedPair) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unterminated (?:quoted )?string") },
         new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
-        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded", "logic-ruby-each-for-map", "logic-powershell-function-output-returned"] },
 
         // PHP: its fatal errors by their words, and the warnings it carries on past.
         new(Concepts.NothingThere) { ExceptionTypes = ["Error"], Message = Words(@"^Call to a member function \w+\(\) on null") },
@@ -122,6 +122,7 @@ public static class ConceptMap
         new(Concepts.ReadBeforeSet) { Message = Words(@"^Use of uninitialized value") },
         new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-perl-text-compared-as-numbers"] },
         new(Concepts.TextToNumber) { CheckIds = ["logic-perl-line-not-chomped"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-perl-length-of-array"], Message = Words(@"^length\(\) used on @") },
 
         // Dart: the analyzer's diagnostics by their names, and the exceptions that stop a program.
         new(Concepts.StatementEnd) { Codes = ["expected_token"], Message = Words(@"^Expected to find ';'") },
@@ -141,6 +142,97 @@ public static class ConceptMap
         new(Concepts.EndlessRecursion) { Message = Words(@"^Stack Overflow$") },
         new(Concepts.SameValueOrSameObject) { CheckIds = ["logic-dart-lists-compared-with-equals"] },
 
+        // Fortran: gfortran's messages by their words, and what stopped the program it built.
+        new(Concepts.UndefinedName) { ExceptionTypes = ["compile error"], Message = Words(@"has no IMPLICIT type") },
+        new(Concepts.AssignOrCompare) { ExceptionTypes = ["compile error"], Message = Words(@"^Syntax error in IF-expression") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["compile error"], Message = Words(@"^Expecting END (?:DO|IF) statement|^Unterminated character constant") },
+        new(Concepts.WrongType) { ExceptionTypes = ["compile error"], Message = Words(@"^Cannot convert \S+ to \S+") },
+        new(Concepts.Arguments) { ExceptionTypes = ["compile error"], Message = Words(@"^Missing actual argument for argument") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["compile error"], Message = Words(@"^Named constant '\w+' in variable definition context|^Dummy argument '\w+' with INTENT\(IN\)") },
+        new(Concepts.OffByOne) { ExceptionTypes = [Parsing.Parsers.FortranParser.RuntimeError], Message = Words(@"^Index '-?\d+' of dimension \d+ of array") },
+        new(Concepts.OffByOne) { ExceptionTypes = ["compile warning"], Message = Words(@"^Array reference at \(1\) out of bounds") },
+        new(Concepts.TextToNumber) { ExceptionTypes = [Parsing.Parsers.FortranParser.RuntimeError], Message = Words(@"^Bad \w+ for item \d+ in list input") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["SIGFPE"] },
+        new(Concepts.ReadBeforeSet) { ExceptionTypes = ["compile warning"], Message = Words(@"may be used uninitialized") },
+        new(Concepts.ReturnValues) { ExceptionTypes = ["compile warning"], Message = Words(@"^Return value of function '\w+' at \(1\) not set") },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fortran-whole-number-division"] },
+        new(Concepts.UndefinedName) { CheckIds = ["logic-fortran-no-implicit-none"] },
+        new(Concepts.ReadBeforeSet) { CheckIds = ["logic-fortran-total-not-started"] },
+
+        // PowerShell: its parser's and its errors' ids, and the logic checks of its scripts.
+        new(Concepts.UnclosedPair) { Codes = ["MissingEndCurlyBrace", "TerminatorExpectedAtEndOfString"] },
+        new(Concepts.AssignOrCompare) { Codes = ["RedirectionNotSupported", "InvalidEndOfLine"] },
+        new(Concepts.UndefinedName) { Codes = ["CommandNotFoundException", "VariableIsUndefined"] },
+        new(Concepts.NothingThere) { Codes = ["InvokeMethodOnNull"] },
+        new(Concepts.DivisionByZero) { Codes = ["RuntimeException"], Message = Words(@"^Attempted to divide by zero") },
+        new(Concepts.TextToNumber) { Codes = ["InvalidCastFromStringToInteger"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-powershell-greater-than-writes-a-file", "logic-powershell-assignment-in-condition"] },
+        new(Concepts.Arguments) { CheckIds = ["logic-powershell-function-called-with-brackets"] },
+
+        // Elixir: its errors by their kinds, what it refuses to compile and warns of by its words, and the logic checks of its programs.
+        new(Concepts.UndefinedName) { ExceptionTypes = [Parsing.Parsers.ElixirParser.CompileError], Message = Words(@"^undefined (?:variable ""|function )") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["UndefinedFunctionError"] },
+        new(Concepts.UnclosedPair) { ExceptionTypes = ["TokenMissingError", "MismatchedDelimiterError"] },
+        new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"^unexpected reserved word: end") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArithmeticError"], Message = Words(@"^bad argument in arithmetic expression: (?:nil [-+*/]|.+ [-+*/] nil$)") },
+        new(Concepts.DivisionByZero) { ExceptionTypes = ["ArithmeticError"], Message = Words(@"^bad argument in arithmetic expression(?:: (?:div|rem)\(.+, 0\))?$") },
+        new(Concepts.WrongType) { ExceptionTypes = ["ArithmeticError", "ArgumentError", "Protocol.UndefinedError"] },
+        new(Concepts.NothingThere) { ExceptionTypes = ["BadMapError"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["FunctionClauseError", "CaseClauseError"] },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^variable ""\w+"" is unused \(there is a variable with the same name in the context") },
+        new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^variable ""\w+"" is unused \(if the variable|^function \S+ is unused|^this clause for .+ cannot match|^the following clause is redundant") },
+        new(Concepts.WrongType) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^using single-quoted strings to represent charlists") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-elixir-input-not-trimmed"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-elixir-result-discarded"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-elixir-assignment-in-condition"] },
+        new(Concepts.ChangingAConstant) { CheckIds = ["logic-elixir-new-variable-in-block"] },
+
+        // Erlang: erlc's messages by their words, what stops a program by Erlang's own name for its reason, and the logic checks.
+        new(Concepts.UndefinedName) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^variable '\w+' is unbound|^function \S+ undefined") },
+        new(Concepts.UndefinedName) { ExceptionTypes = ["undef"] },
+        new(Concepts.StatementEnd) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^syntax error before: |^head mismatch") },
+        new(Concepts.UnclosedPair) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileError], Message = Words(@"^unterminated string") },
+        new(Concepts.ChangingAConstant) { ExceptionTypes = ["badmatch"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["function_clause", "case_clause", "if_clause"] },
+        new(Concepts.WrongType) { ExceptionTypes = ["badarg", "badmap"] },
+        new(Concepts.MissingKey) { ExceptionTypes = ["badkey"] },
+        new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ErlangParser.CompileWarning], Message = Words(@"^variable '\w+' is unused|^function \S+ is unused|^this clause cannot match because a previous clause") },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-erlang-text-compared-with-number", "logic-erlang-input-not-trimmed"] },
+
+        // What a program reads in, used as if it were something else - in seven languages.
+        new(Concepts.TextToNumber)
+        {
+            CheckIds =
+            [
+                "logic-go-input-not-trimmed", "logic-ruby-input-not-chomped", "logic-php-input-not-trimmed", "logic-c-fgets-newline",
+                "logic-rust-input-not-trimmed", "logic-java-nextline-after-nextint", "logic-powershell-read-host-compared-as-text",
+            ],
+        },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-erlang-result-discarded"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-erlang-number-joined-to-text", "logic-erlang-list-printed-as-text"] },
+
+        // F#: what it refuses and warns of by its own numbers - FS0039 - what stops a script by .NET's names where F#'s own
+        // library gives them, and the logic checks of its scripts. .NET's other exceptions are the rows further down.
+        new(Concepts.UndefinedName) { Codes = ["FS0039"] },
+        new(Concepts.ChangingAConstant) { Codes = ["FS0027"] },
+        new(Concepts.AssignOrCompare) { Codes = ["FS0043"] },
+        new(Concepts.AssignOrCompare) { Codes = ["FS0020"], Message = Words(@"If you intended to mutate a value") },
+        new(Concepts.ReturnValues) { Codes = ["FS0020", "FS0748"] },
+        new(Concepts.Blocks) { Codes = ["FS3123", "FS0589", "FS0010"] },
+        new(Concepts.UnclosedPair) { Codes = ["FS0583"] },
+        new(Concepts.MissedCase) { Codes = ["FS0025"] },
+        new(Concepts.MissedCase) { ExceptionTypes = ["MatchFailureException"] },
+        new(Concepts.WrongType) { Codes = ["FS0001", "FS3886"] },
+        new(Concepts.PositionOutOfRange) { ExceptionTypes = ["ArgumentException"], Message = Words(@"^The index was outside the range of elements in the list") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArgumentException"], Message = Words(@"^The input list was empty") },
+        new(Concepts.NothingThere) { ExceptionTypes = ["ArgumentNullException"] },
+        new(Concepts.AssignOrCompare) { CheckIds = ["logic-fsharp-comparison-for-assignment"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-fsharp-result-discarded"] },
+        new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fsharp-whole-number-division"] },
+        new(Concepts.TextToNumber) { CheckIds = ["logic-fsharp-input-compared-as-text"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-fsharp-loop-to-length"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-numbers-joined-as-text"] },
+
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
         {
@@ -159,7 +251,11 @@ public static class ConceptMap
 
         new(Concepts.ChangingWhileLooping)
         {
-            CheckIds = ["analysis-changed-while-looping", "logic-python-modified-while-looping", "logic-modified-while-looping", "logic-remove-while-counting-up"],
+            CheckIds =
+            [
+                "analysis-changed-while-looping", "logic-python-modified-while-looping", "logic-modified-while-looping",
+                "logic-remove-while-counting-up", "logic-lua-remove-while-looping-forward",
+            ],
             ExceptionTypes = ["ConcurrentModificationException"],
         },
         new(Concepts.ChangingWhileLooping) { Message = Words(@"changed size during iteration|Collection was modified") },
@@ -189,7 +285,7 @@ public static class ConceptMap
         new(Concepts.EndlessRecursion) { Message = Words(@"Maximum call stack size exceeded|goroutine stack exceeds|stack overflow") },
 
         // A call given the wrong arguments, before the wider TypeError and type mismatches it is also reported as.
-        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments"], Codes = ["CS7036", "CS1501", "CS1503", "ignored-partial-application"] },
+        new(Concepts.Arguments) { CheckIds = ["analysis-wrong-arguments", "logic-go-replace-none"], Codes = ["CS7036", "CS1501", "CS1503", "ignored-partial-application"] },
         new(Concepts.Arguments) { Message = Words(@"missing \d+ required (?:positional|keyword-only) argument|takes \d+ positional arguments? but \d+ (?:were|was) given|got an unexpected keyword argument|cannot be applied to given types|no suitable (?:method|constructor) found|too (?:few|many) arguments|not enough arguments|missing argument") },
 
         new(Concepts.TextToNumber)
@@ -217,7 +313,7 @@ public static class ConceptMap
 
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-integer-division", "logic-python-floor-division-average", "logic-scala-integer-average", "logic-ocaml-integer-average", "logic-go-integer-average", "logic-rust-integer-average", "logic-ruby-integer-average"] },
 
-        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length"] },
+        new(Concepts.OffByOne) { CheckIds = ["logic-off-by-one-length", "logic-python-range-skips-last", "logic-scala-range-to-length", "logic-ocaml-for-to-length", "logic-go-loop-to-length", "logic-rust-range-to-length", "logic-ruby-range-to-length", "logic-php-loop-to-count", "logic-lua-loop-from-zero", "logic-perl-loop-to-count", "logic-dart-loop-to-length", "logic-powershell-loop-to-count", "logic-elixir-range-to-length"] },
 
         new(Concepts.EndlessLoop)
         {
@@ -241,7 +337,7 @@ public static class ConceptMap
             [
                 "logic-java-string-equals", "logic-c-string-equals", "logic-java-wrapper-equality", "logic-js-loose-equality",
                 "logic-python-is-literal", "logic-js-compare-with-new-array", "logic-python-none-comparison", "logic-scala-array-equals",
-                "logic-ocaml-physical-equality",
+                "logic-ocaml-physical-equality", "logic-php-search-compared-with-false",
             ],
         },
         new(Concepts.SameValueOrSameObject) { Codes = ["CS0252", "CS0253"] },

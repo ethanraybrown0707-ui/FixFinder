@@ -1,0 +1,6 @@
+System.ArgumentException: The index was outside the range of elements in the list. (Parameter 'index')
+   at Microsoft.FSharp.Collections.ListModule.Item[T](Int32 index, FSharpList`1 list) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\list.fs:line 188
+   at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\marks\main.fsx:line 2
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+Stopped due to error

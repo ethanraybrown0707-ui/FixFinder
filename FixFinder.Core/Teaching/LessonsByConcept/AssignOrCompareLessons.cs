@@ -5,7 +5,7 @@ internal static class AssignOrCompareLessons
 {
     private static Concept Concept => Concepts.AssignOrCompare;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, C, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python does not allow = in an if's condition at all: it refuses the program with SyntaxError before any of it runs. == " +
@@ -245,5 +245,188 @@ internal static class AssignOrCompareLessons
                     """,
                 FixedDoes: Behaviour.Printing("70"),
                 WhatChanged: "== compares the mark with 40, giving true or false, without changing it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "In Fortran, = gives a variable a value and == compares; \"is not equal to\" is /=. gfortran refuses = in an if's condition " +
+        "before any of the program runs. != is refused too, for another reason: ! starts a comment, so gfortran reads only as far as it.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 70
+                      if (mark = 40) then
+                        print '(A)', 'forty'
+                      end if
+                      print '(I0)', mark
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Syntax error in IF-expression", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 70
+                      if (mark == 40) then
+                        print '(A)', 'forty'
+                      end if
+                      print '(I0)', mark
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== compares the mark with 40 without changing it."),
+            new WorkedExample("A mark that is not forty",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 50
+                      if (mark != 40) then
+                        print '(A)', 'not forty'
+                      end if
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing ')' in statement", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: mark
+                      mark = 50
+                      if (mark /= 40) then
+                        print '(A)', 'not forty'
+                      end if
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("not forty"),
+                WhatChanged: "/= is Fortran's \"is not equal to\"; with !, everything after the ! was a comment."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "PowerShell compares with words - -eq, -gt, -lt - and its symbols mean other things: = gives a variable a value, and > sends " +
+        "output to a file. In an if, neither is an error: = changes the variable and the if is taken, and > writes a file, leaving " +
+        "the condition empty, so false.",
+        [
+            new WorkedExample("Checking a mark",
+                Broken: """
+                    $mark = 70
+                    if ($mark = 40) {
+                        Write-Output "forty"
+                    }
+                    Write-Output $mark
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    $mark = 70
+                    if ($mark -eq 40) {
+                        Write-Output "forty"
+                    }
+                    Write-Output $mark
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "-eq compares the mark with 40 without changing it."),
+            new WorkedExample("A mark over forty",
+                Broken: """
+                    $mark = 50
+                    if ($mark > 40) {
+                        Write-Output "pass"
+                    }
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $mark = 50
+                    if ($mark -gt 40) {
+                        Write-Output "pass"
+                    }
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("pass\ndone"),
+                WhatChanged: "-gt compares; > wrote 50 to a file named 40, and the if had nothing to test."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "= in Elixir matches. In an if's condition it gives the variable the value, and the condition is then that value - true for " +
+        "anything but false and nil - so the block always runs. Elixir warns only that the value the variable had first is never used.",
+        [
+            new WorkedExample("Is the mark forty?",
+                Broken: """
+                    mark = 70
+
+                    if mark = 40 do
+                      IO.puts("forty")
+                    end
+
+                    IO.puts(mark)
+                    """,
+                BrokenDoes: Behaviour.Printing("forty\n40"),
+                Fixed: """
+                    mark = 70
+
+                    if mark == 40 do
+                      IO.puts("forty")
+                    end
+
+                    IO.puts(mark)
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "== asks whether mark is 40 and leaves it as it was, so the if is skipped and mark is still 70."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "= in Erlang matches, and an if's condition may only compare - so Mark = 40 in an if is an illegal guard expression, and erlc " +
+        "refuses the module before any of it runs.",
+        [
+            new WorkedExample("Is the mark forty?",
+                Broken: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    is_forty(Mark) ->
+                        if
+                            Mark = 40 -> true;
+                            true -> false
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [is_forty(70)]).
+                    """,
+                BrokenDoes: Behaviour.Refused("illegal guard expression", 6),
+                Fixed: """
+                    -module(grades).
+                    -export([main/0]).
+
+                    is_forty(Mark) ->
+                        if
+                            Mark == 40 -> true;
+                            true -> false
+                        end.
+
+                    main() ->
+                        io:format("~p~n", [is_forty(70)]).
+                    """,
+                FixedDoes: Behaviour.Printing("false"),
+                WhatChanged: "== asks whether Mark is 40, and leaves Mark as it was."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "In F# = compares two values, and <- gives a mutable value a new one. total = total + 70 on a line of the script's " +
+        "own works out true or false, and F# throws the answer away without a word - so total keeps its old value.",
+        [
+            new WorkedExample("Adding a mark to a total",
+                Broken: """
+                    let mutable total = 0
+                    total = total + 70
+                    printfn "%d" total
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    let mutable total = 0
+                    total <- total + 70
+                    printfn "%d" total
+                    """,
+                FixedDoes: Behaviour.Printing("70"),
+                WhatChanged: "<- gives total its new value; = only compared total with total + 70."),
         ]);
 }

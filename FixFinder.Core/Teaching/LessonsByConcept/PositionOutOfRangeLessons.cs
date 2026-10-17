@@ -5,7 +5,7 @@ internal static class PositionOutOfRangeLessons
 {
     private static Concept Concept => Concepts.PositionOutOfRange;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Rust];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Rust, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "A list's positions run from 0 to one less than its length, and asking for a position past that stops the program with " +
@@ -128,5 +128,23 @@ internal static class PositionOutOfRangeLessons
                     """,
                 FixedDoes: Behaviour.Printing("90"),
                 WhatChanged: "The last position is one less than the length: marks.len() - 1, which is 2."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "List.item reads the item at a position, counting from 0, and a position the list does not have stops the script with " +
+        "ArgumentException - The index was outside the range of elements in the list.",
+        [
+            new WorkedExample("The last of three marks",
+                Broken: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.item 3 marks)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentException", 2),
+                Fixed: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.item 2 marks)
+                    """,
+                FixedDoes: Behaviour.Printing("90"),
+                WhatChanged: "A list of three items has positions 0, 1 and 2, so its last item is at 2."),
         ]);
 }

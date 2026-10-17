@@ -1,0 +1,9 @@
+    error: undefined variable "totl"
+    │
+  3 │ IO.puts(totl)
+    │         ^^^^
+    │
+    └─ main.exs:3:9
+
+** (CompileError) main.exs: cannot compile file (errors have been logged)
+

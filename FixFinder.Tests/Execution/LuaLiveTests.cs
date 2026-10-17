@@ -93,6 +93,12 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local count = 0\ncount++\nprint(count)\n", "lua-compound-assignment", 2, 2, "count = count + 1", "1")]
     [InlineData("local mark = 50\nif mark > 40\n  print(\"pass\")\nend\n", "lua-missing-then-or-do", 3, 2, "if mark > 40 then", "pass")]
     [InlineData("local count = 0\nwhile count < 3\n  count = count + 1\nend\nprint(count)\n", "lua-missing-then-or-do", 3, 2, "while count < 3 do", "3")]
+    // Lua names the function on line 1; the block left open is the for loop, and its end goes after the loop's body.
+    [InlineData("local function total(marks)\n  local sum = 0\n  for _, mark in ipairs(marks) do\n    sum = sum + mark\n  return sum\nend\n\nprint(total({70, 80}))\n",
+        "lua-missing-end", 9, 5, "  end", "150")]
+    [InlineData("local mark = 70\nif mark > 80 then\n  print(\"high\")\nelse if mark > 50 then\n  print(\"pass\")\nend\n", "lua-elseif", 7, 4, "elseif mark > 50 then", "pass")]
+    [InlineData("local name = \"Ada\nprint(name)\n", "lua-unfinished-string", 1, 1, "local name = \"Ada\"", "Ada")]
+    [InlineData("print(math.max(70, 80)\nprint(\"done\")\n", "lua-closing-bracket", 2, 1, "print(math.max(70, 80))", "80\ndone")]
     public async Task ASyntaxErrorIsFoundBeforeItRunsAndItsChangeReadsAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Lua() is not { } lua) return;
@@ -113,6 +119,7 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local total = 12\nprint(\"Total: \" + total)\n", "lua-join-text", 2, "print(\"Total: \" .. total)", "Total: 12")]
     [InlineData("local sweets = 7\nlocal people = 0\nprint(sweets // people)\n", "lua-division-guard", 3, "print((people == 0 and 0 or sweets // people))", "0")]
     [InlineData("local sweets = 7\nlocal people = 0\nprint(sweets % people)\n", "lua-division-guard", 3, "print((people == 0 and 0 or sweets % people))", "0")]
+    [InlineData("local name = \"ada\"\nprint(name.upper())\n", "lua-colon-for-method", 2, "print(name:upper())", "ADA")]
     public async Task ARuntimeErrorGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Lua() is not { } lua) return;
@@ -131,6 +138,7 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local marks = {70, 80, 90}\nfor i = 0, #marks - 1 do\n  print(marks[i])\nend\n", "logic-lua-loop-from-zero", 2, "70\n80\n90")]
     [InlineData("local typed = \"5\"\nif typed == 5 then\n  print(\"five\")\nelse\n  print(\"not five\")\nend\n", "logic-lua-text-compared-with-number", 2, "five")]
     [InlineData("local total = 0.1 + 0.2\nif total == 0.3 then\n  print(\"equal\")\nelse\n  print(\"not equal\")\nend\n", "logic-lua-float-equality", 2, "equal")]
+    [InlineData("local marks = {70, 40, 40, 90}\nfor i = 1, #marks do\n  if marks[i] == 40 then\n    table.remove(marks, i)\n  end\nend\nprint(table.concat(marks, \" \"))\n", "logic-lua-remove-while-looping-forward", 2, "70 90")]
     public async Task ALogicMistakeLuaSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Lua() is not { } lua) return;

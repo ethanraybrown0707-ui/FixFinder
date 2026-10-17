@@ -492,14 +492,18 @@ public static partial class ManagedReviewPatterns
     private static IEnumerable<LogicFinding> LoopCopyAssigned(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var cpp = IsCpp(source);
-        var header = Path.GetExtension(source.Path).ToLowerInvariant() is ".js" or ".mjs" or ".cjs"
-            ? @"\bfor\s*\(\s*(?:let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s+of\s+(?<items>[^)]+)\)"
+        var script = Path.GetExtension(source.Path).ToLowerInvariant() is ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts";
+        var header = script
+            ?@"\bfor\s*\(\s*(?:let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s+of\s+(?<items>[^)]+)\)"
             : @"\bfor\s*\(\s*(?:final\s+|const\s+)?(?<type>[\w:<>\[\],.?]+)\s+(?<name>[A-Za-z_]\w*)\s*:\s*(?<items>[^):][^)]*)\)";
 
         for (var i = 0; i < masked.Count; i++)
         {
             var loop = Regex.Match(masked[i], header);
             if (!loop.Success || BraceBlocks.Body(masked, i) is not { } body) continue;
+
+            // A one-statement loop over an array that is read after it is the JavaScript loop check's, which changes it.
+            if (script && LoopCopyPatterns.FindsScriptLoop(masked, i)) continue;
 
             var name = loop.Groups["name"].Value;
             var word = Word(name);

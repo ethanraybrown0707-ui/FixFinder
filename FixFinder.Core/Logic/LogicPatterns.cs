@@ -1,4 +1,5 @@
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Parsing;
 
@@ -36,17 +37,41 @@ public static class LogicPatterns
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
+        .. CaretAsPowerPatterns.All,
+        .. InputPatterns.All,
+        .. LoopCopyPatterns.All,
+        .. NumbersJoinedAsTextPatterns.All,
+        .. TextHolePatterns.All,
+        .. TypeNamePatterns.All,
+        .. NaNComparisonPatterns.All,
+        .. HiddenOuterVariablePatterns.All,
+        .. CppOutputPatterns.All,
+        .. LazyMapPatterns.All,
+        .. SharedListPatterns.All,
+        .. RoundingPatterns.All,
+        .. SpreadArgumentPatterns.All,
+        .. SharedRowPatterns.All,
+        .. ConstantOverflowPatterns.All,
+        .. StepOverEndPatterns.All,
+        .. RandomPositionPatterns.All,
+        .. RegexArgumentPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,
         .. LuaLogicPatterns.All,
         .. PerlLogicPatterns.All,
         .. DartLogicPatterns.All,
+        .. FortranLogicPatterns.All,
+        .. PowerShellLogicPatterns.All,
+        .. ElixirLogicPatterns.All,
+        .. ErlangLogicPatterns.All,
+        .. FSharpLogicPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)
     {
-        var extension = Path.GetExtension(source.Path).ToLowerInvariant();
+        // TypeScript is read by JavaScript's checks, in the JavaScript Node.js runs once it has taken the types out.
+        var extension = TypeScriptCheck.IsTypeScript(source.Path) ? ".js" : Path.GetExtension(source.Path).ToLowerInvariant();
         var findings = new List<LogicFinding>();
 
         foreach (var pattern in All.Where(p => p.Extensions.Contains(extension)))

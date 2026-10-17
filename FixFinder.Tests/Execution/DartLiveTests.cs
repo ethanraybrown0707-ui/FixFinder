@@ -98,6 +98,8 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("void main() {\n  var total = 12;\n  print(\"Total: \" + total);\n}\n", "dart-number-to-text", 3, 3, "  print(\"Total: \" + total.toString());", "Total: 12")]
     [InlineData("void main() {\n  var mark = 70;\n  if (mark = 40) {\n    print(\"forty\");\n  }\n  print(mark);\n}\n", "dart-compare-with-double-equals", 3, 3, "  if (mark == 40) {", "70")]
     [InlineData("void main() {\n  final passMark = 40;\n  passMark = 50;\n  print(passMark);\n}\n", "dart-final-changed", 3, 2, "  var passMark = 40;", "50")]
+    [InlineData("void greet({String name}) {\n  print('Hello, $name');\n}\n\nvoid main() {\n  greet(name: 'Ada');\n}\n", "dart-required-parameter", 1, 1, "void greet({required String name}) {", "Hello, Ada")]
+    [InlineData("void main() {\n  String name = null;\n  print(name);\n}\n", "dart-nullable-type", 2, 2, "  String? name = null;", "null")]
     public async Task WhatTheAnalyzerFindsIsFoundBeforeItRunsAndItsChangeAnalyzesAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Dart() is not { } dart) return;
@@ -158,6 +160,9 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     [Theory]
     [InlineData("void main() {\n  var first = [70, 80];\n  var second = [70, 80];\n  print(first == second);\n}\n", "logic-dart-lists-compared-with-equals", 4, "true")]
     [InlineData("void main() {\n  var total = 0.1 + 0.2;\n  print(total == 0.3);\n}\n", "logic-dart-float-equality", 3, "true")]
+    // Dart puts in $marks alone - the mistake printed "Marks counted: [70, 80, 90].length" and "First: [70, 80, 90][0]".
+    [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('Marks counted: $marks.length');\n}\n", "logic-dart-interpolated-property", 3, "Marks counted: 3")]
+    [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('First: $marks[0]');\n}\n", "logic-dart-interpolated-property", 3, "First: 70")]
     public async Task ALogicMistakeTheAnalyzerSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Dart() is not { } dart) return;

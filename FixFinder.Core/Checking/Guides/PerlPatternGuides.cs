@@ -70,5 +70,80 @@ internal static class PerlPatternGuides
                 print "equal\n";
             }
             """),
+
+        GuideFor(["logic-perl-length-of-array"], "length of an array",
+            "length counts the characters of a piece of text. Given an array, it is given the array's count as text, and counts that " +
+            "text's digits - so for an array of 12 items length(@marks) is 2, and for 3 items it is 1.",
+            "The count is wrong for every array, with no error - only a warning, and only with use warnings.",
+            "Count an array's items with scalar(@marks).",
+            """
+            use strict;
+            use warnings;
+
+            my @marks = (70, 80, 90);
+            print scalar(@marks), "\n";
+            """),
+
+        GuideFor(["logic-perl-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Perl ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and Perl says nothing of it, even with use warnings.",
+            "Use Perl's power, **: $side ** 2.",
+            """
+            use strict;
+            use warnings;
+
+            my $side = 5;
+            print $side ** 2, "\n";
+            """),
+
+        GuideFor(["logic-perl-method-in-string"], "A method called inside text",
+            "Perl puts a variable's value into text in double quotes, but it calls no method there. In \"Name: $student->name\" it puts " +
+            "in $student - an object, which it writes as its class and where it is kept - and writes ->name after it as it is.",
+            "The text holds something like Student=HASH(0x...)->name, with no error.",
+            "Call the method outside the quotes, and join what it gives back to the text with . on each side.",
+            """
+            use strict;
+            use warnings;
+
+            package Student;
+            sub new { my ($class, $name) = @_; return bless { name => $name }, $class; }
+            sub name { return $_[0]{name}; }
+
+            package main;
+            my $student = Student->new("Ada");
+            print "Name: " . $student->name . "\n";
+            """),
+
+        GuideFor(["logic-perl-variable-in-single-quotes"], "A variable inside single quotes",
+            "Perl puts a variable's value into text only when the text is in double quotes: \"Hello, $name\" becomes Hello, Ada. In " +
+            "single quotes, nothing in the text is worked out - $name is ordinary characters, and is printed as it is written. Perl " +
+            "says nothing, even with use strict and use warnings, as the text is still text.",
+            "The output shows $name instead of the name, which looks broken to anyone using the program.",
+            "Put the text in double quotes. Text that has a \", a \\ or an @ of its own needs those written differently first: " +
+            "double quotes read a \\ as the start of an escape, and an @ as an array to put into the text.",
+            """
+            use strict;
+            use warnings;
+            my $name = "Ada";
+            print "Hello, $name\n";
+            """),
+
+        GuideFor(["logic-perl-my-hides-outer"], "my inside a loop hides the outer variable",
+            "my declares a new variable, which lasts until the end of the block it is in. Inside a loop, my $total = $total + $mark " +
+            "declares a new $total each time round, worked out from the $total outside the loop - which is never changed. Perl says " +
+            "nothing, even with use strict and use warnings, as the new variable is in a block of its own.",
+            "The $total outside the loop keeps the value it started with: adding up 70, 80 and 90 prints Total: 0.",
+            "Take my away inside the loop - $total = $total + $mark - so the line changes the $total declared before it.",
+            """
+            use strict;
+            use warnings;
+            my @marks = (70, 80, 90);
+            my $total = 0;
+            foreach my $mark (@marks) {
+                $total = $total + $mark;
+            }
+            print "Total: $total\n";
+            """),
     ];
 }

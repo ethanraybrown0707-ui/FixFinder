@@ -298,6 +298,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         {
             ".php" => Parsing.Parsers.PhpParser.RunWarnings(run.Lines),
             ".pl" => Parsing.Parsers.PerlParser.RunWarnings(run.Lines),
+            ".ps1" => Parsing.Parsers.PowerShellParser.RunErrors(run.Lines).Where(error => CarriedOnPast.WhatItWas(error) is not null).ToList(),
+            ".exs" or ".ex" => Parsing.Parsers.ElixirParser.Warnings(run.Lines),
             _ => [],
         };
 
@@ -823,7 +825,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var what = FindingFactory.TitleOf(error);
 
         if (error.ExceptionType == JavaStackTraceParser.LauncherError) return $"Java could not start it: {error.Message}";
-        if (CarriedOnPast.WhatItWas(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
+        if (run is { ExitCode: 0 } && CarriedOnPast.WhatItWas(error) is { } carriedOnPast) return $"It printed {carriedOnPast} and carried on: {error.Message ?? what}";
         if (run is { ExitCode: 0 }) return $"It ran to the end, but printed an exception: {what}";
 
         var crashCode = run?.ExitCode is { } code && RunClassifier.IsKnownCrash(code);
@@ -1398,7 +1400,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             if (twin is not null)
             {
-                var better = Rank(finding) > Rank(twin) ? finding : twin;
+                var better = Outranks(finding, twin) ? finding : twin;
                 var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
                 finding = better with { Confidence = surest };
@@ -1528,6 +1530,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     private static int Rank(Finding finding) =>
         (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
+
+    /// <summary>
+    /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when
+    /// the other is not, as a warning Perl printed and the check on length(@marks) both offer scalar(@marks). A run's warning
+    /// and a logic check's answer can arrive in either order, so without this the one kept would depend on which came first.
+    /// </summary>
+    private static bool Outranks(Finding finding, Finding twin) =>
+        Rank(finding) != Rank(twin) ? Rank(finding) > Rank(twin) : finding.Kind == FindingKind.Logic && twin.Kind != FindingKind.Logic;
 
     /// <summary>
     /// Says how many of a program's files its code was not read from for logic mistakes, when it has more than are read - so

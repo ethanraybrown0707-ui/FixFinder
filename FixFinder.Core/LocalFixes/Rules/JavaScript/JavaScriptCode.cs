@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using FixFinder.Core.Execution;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Core.LocalFixes.Rules;
@@ -22,8 +23,9 @@ internal static partial class JavaScriptCode
         "clearInterval", "structuredClone", "globalThis", "Buffer", "URL", "fetch",
     ];
 
+    /// <summary>Whether a file is JavaScript - or TypeScript, which Node.js runs as JavaScript once it has stripped the types.</summary>
     public static bool IsJavaScript(SourceFile source) =>
-        Path.GetExtension(source.Path).ToLowerInvariant() is ".js" or ".mjs" or ".cjs";
+        Path.GetExtension(source.Path).ToLowerInvariant() is ".js" or ".mjs" or ".cjs" || TypeScriptCheck.IsTypeScript(source.Path);
 
     public static Match? ErrorMessage(ParsedError error, string type, Regex message) =>
         error.LanguageId == "node" && error.ExceptionType == type && message.Match(error.Message ?? "") is { Success: true } m ? m : null;

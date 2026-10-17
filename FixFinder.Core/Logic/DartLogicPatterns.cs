@@ -24,6 +24,7 @@ public static partial class DartLogicPatterns
         Pattern("logic-dart-loop-to-length", LoopToLength, Severity.Error),
         Pattern("logic-dart-lists-compared-with-equals", ListsComparedWithEquals, Severity.Error, Confidence.Certain),
         Pattern("logic-dart-float-equality", FloatEquality),
+        Pattern("logic-dart-interpolated-property", InterpolatedProperty, Severity.Error, Confidence.Certain),
     ];
 
     private static IEnumerable<LogicFinding> LoopToLength(string id, SourceFile source, IReadOnlyList<string> masked)
@@ -114,6 +115,57 @@ public static partial class DartLogicPatterns
                 LocalFix.ReplaceLine(id, $"Compare within a tiny tolerance: {close}",
                     $"{close} is true when {name} is {value} to within a billionth, which arithmetic's tiny errors stay inside.",
                     source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
+
+    /// <summary><c>$marks.length</c> or <c>$marks[0]</c> inside text - a name with a property or a position after it, not in ${ }.</summary>
+    [GeneratedRegex(@"(?<!\\)\$(?<name>[A-Za-z_]\w*)(?<after>\.[A-Za-z_]\w*|\[[^\]]+\])")]
+    private static partial Regex InterpolatedWithMore();
+
+    /// <summary>The text on a line, between ' or " - with \ escaping - and not raw text, r'...', where $ is only a $.</summary>
+    private static IEnumerable<(int Start, int End)> TextIn(string line)
+    {
+        for (var index = 0; index < line.Length; index++)
+        {
+            if (line[index] == '/' && index + 1 < line.Length && line[index + 1] == '/') yield break;
+            if (line[index] is not ('"' or '\'')) continue;
+
+            var quote = line[index];
+            var raw = index > 0 && line[index - 1] == 'r';
+            var end = index + 1;
+            while (end < line.Length && line[end] != quote) end += line[end] == '\\' ? 2 : 1;
+            if (end >= line.Length) yield break;
+
+            if (!raw) yield return (index + 1, end);
+            index = end;
+        }
+    }
+
+    /// <summary>
+    /// '$marks.length' in text: Dart puts in the value of the name after $ alone - $marks - and writes .length after it as it is, so
+    /// Dart 3.13 printed [70, 80, 90].length. ${ } puts in the value of the whole expression.
+    /// </summary>
+    private static IEnumerable<LogicFinding> InterpolatedProperty(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < source.Lines.Count; index++)
+        {
+            var line = source.Lines[index];
+            var found = TextIn(line)
+                .SelectMany(text => InterpolatedWithMore().Matches(line[text.Start..text.End]).Select(match => (Match: match, At: text.Start + match.Index)))
+                .ToList();
+            if (found.Count == 0) continue;
+
+            var changed = line;
+            foreach (var (match, at) in Enumerable.Reverse(found))
+                changed = changed[..at] + "${" + match.Value[1..] + "}" + changed[(at + match.Length)..];
+
+            var first = found[0].Match;
+            yield return new LogicFinding(id, index + 1,
+                $"in text Dart puts in the value of ${first.Groups["name"].Value} alone, and writes the {first.Groups["after"].Value} after it as it " +
+                "is - so the text holds the whole of the value, and then the words",
+                LocalFix.ReplaceLine(id, $"Put the whole expression in: ${{{first.Value[1..]}}}",
+                    $"${{ }} puts in the value of everything between its braces - {first.Value[1..]}, not {first.Groups["name"].Value} alone.",
+                    source.Path, index + 1, changed));
         }
     }
 }

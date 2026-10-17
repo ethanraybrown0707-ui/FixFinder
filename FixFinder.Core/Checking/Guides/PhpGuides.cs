@@ -159,5 +159,96 @@ internal static class PhpGuides
                 echo $mark . "\n";
             }
             """),
+
+        Thrown("ParseError", @"^syntax error, unexpected (?:double|single)-quote mark",
+            "A string's closing quote is missing, so PHP read on inside the text - into the lines after it - and stopped at the next " +
+            "quote it found, further down than the mistake.",
+            "Find the line above whose quote is never closed, and close it where the text ends - before the line's ; or ).",
+            """
+            <?php
+            $name = "Ada";
+            echo $name . "\n";
+            """),
+
+        Thrown("Error", @"^Undefined constant",
+            "PHP read a name with no $ and no brackets as a constant, and there is no constant by that name. Often it is a variable " +
+            "missing its $, or an object's property written with . - PHP reaches a property with ->, and . joins text.",
+            "Put the $ before a variable's name, or reach a property with ->: $student->name.",
+            """
+            <?php
+            class Student {
+                public $name = "Ada";
+            }
+            $student = new Student();
+            echo $student->name . "\n";
+            """),
+
+        Thrown("Warning", @"^Array to string conversion",
+            "An array was joined to text, or echoed, and an array cannot become text: PHP writes the word Array in its place, and " +
+            "carries on.",
+            "Join its items into text first - implode(\", \", $marks) - or print it whole with print_r($marks).",
+            """
+            <?php
+            $marks = [70, 80];
+            echo "Marks: " . implode(", ", $marks) . "\n";
+            """),
+
+        new GuideEntry
+        {
+            RuleIds = ["php-missing-dollar"],
+            Guide = new MistakeGuide(
+                "Every PHP variable's name starts with $. Without it, PHP reads the name as a constant - a name for a value that never " +
+                "changes - and a constant cannot be given a value with =.",
+                NothingRuns,
+                "Put the $ before the variable's name: $total = ....",
+                """
+                <?php
+                $marks = [70, 80];
+                $total = array_sum($marks);
+                echo $total . "\n";
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["php-elseif"],
+            Guide = new MistakeGuide(
+                "PHP writes \"else if\" as elseif, or else if. elif is Python's word, and PHP read elif ( ... ) as a call to a function - " +
+                "which no { can follow.",
+                NothingRuns,
+                "Write elseif.",
+                """
+                <?php
+                $mark = 70;
+                if ($mark > 80) {
+                    echo "high\n";
+                } elseif ($mark > 50) {
+                    echo "pass\n";
+                }
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["php-this-property"],
+            Guide = new MistakeGuide(
+                "Inside a method, $count is a variable of the method's own, made fresh each time it runs - not the object's property " +
+                "called $count. A method reaches its object's property as $this->count.",
+                CarriesOn,
+                "Write $this->count wherever the method means the object's property.",
+                """
+                <?php
+                class Counter {
+                    private $count = 0;
+                    public function add() {
+                        $this->count = $this->count + 1;
+                        return $this->count;
+                    }
+                }
+                $counter = new Counter();
+                $counter->add();
+                echo $counter->add() . "\n";
+                """),
+        },
     ];
 }

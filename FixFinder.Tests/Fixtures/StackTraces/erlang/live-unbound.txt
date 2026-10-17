@@ -1,0 +1,8 @@
+marks.erl:7:24: variable 'Totl' is unbound, did you mean 'Total'?
+%    7|     io:format("~p~n", [Totl]).
+%     |                        ^
+
+marks.erl:6:5: Warning: variable 'Total' is unused
+%    6|     Total = lists:sum(Marks),
+%     |     ^
+

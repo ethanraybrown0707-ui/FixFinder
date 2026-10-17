@@ -10,7 +10,8 @@ namespace FixFinder.Core.Logic;
 /// pass; <c>float64(total / count)</c> of two ints has lost its fraction before it becomes a float; a new value given to
 /// a range loop's value, and not used after, changes only the loop's copy; strconv's Atoi and Parse functions give back 0
 /// - or false - for text that is not a number, which the error thrown away with _ would have said; and a strings function
-/// such as <c>strings.ToUpper(name)</c> on a line of its own leaves name as it was.
+/// such as <c>strings.ToUpper(name)</c> on a line of its own leaves name as it was; and <c>strings.Replace</c> with a count
+/// of 0 replaces nothing.
 /// </summary>
 public static partial class GoLogicPatterns
 {
@@ -28,6 +29,7 @@ public static partial class GoLogicPatterns
         Pattern("logic-go-range-value-changed", RangeValueChanged, Severity.Error),
         Pattern("logic-go-parse-error-ignored", ParseErrorIgnored, confidence: Confidence.Possible),
         Pattern("logic-go-result-discarded", ResultDiscarded),
+        Pattern("logic-go-replace-none", ReplaceNone, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary><c>for i := 0; i &lt;= len(xs); i++</c>.</summary>
@@ -303,6 +305,28 @@ public static partial class GoLogicPatterns
                 $"strings.{function} gives back a new, changed string and leaves {text} as it was - Go's strings never change - so on a " +
                 "line of its own it changes nothing",
                 fix);
+        }
+    }
+
+    /// <summary><c>strings.Replace(text, old, new, 0)</c>: its last argument is how many to replace, and 0 is none.</summary>
+    [GeneratedRegex(@"\bstrings\.Replace\((?<arguments>[^()]*?),\s*0\s*\)")]
+    private static partial Regex ReplaceNoneCall();
+
+    private static IEnumerable<LogicFinding> ReplaceNone(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (ReplaceNoneCall().Match(masked[index]) is not { Success: true } call) continue;
+
+            var line = source.Lines[index];
+            var arguments = call.Groups["arguments"];
+            var replaceAll = $"strings.ReplaceAll({line.Substring(arguments.Index, arguments.Length)})";
+
+            yield return new LogicFinding(id, index + 1,
+                "strings.Replace's last argument is how many to replace, and 0 replaces none - so the text comes back exactly as it was",
+                LocalFix.ReplaceLine(id, "Replace every one: strings.ReplaceAll",
+                    "strings.ReplaceAll replaces every one, as a count of -1 does; a count of 1 or more replaces at most that many, from the start.",
+                    source.Path, index + 1, line[..call.Index] + replaceAll + line[(call.Index + call.Length)..]));
         }
     }
 }

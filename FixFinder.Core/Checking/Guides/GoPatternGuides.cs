@@ -112,5 +112,120 @@ internal static class GoPatternGuides
             	fmt.Println(name)
             }
             """),
+
+        GuideFor(["logic-go-replace-none"], "strings.Replace with a count of 0",
+            "strings.Replace's last argument is how many times to replace, counting from the start: 1 replaces the first match, -1 " +
+            "every one - and 0 none at all.",
+            "The text comes back exactly as it was, and neither Go nor go vet says anything of it.",
+            "Use strings.ReplaceAll to replace every match, or give strings.Replace the count wanted.",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"strings"
+            )
+
+            func main() {
+            	fmt.Println(strings.ReplaceAll("a-b-c", "-", "+"))
+            }
+            """),
+
+        GuideFor(["logic-go-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Go ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and neither Go nor go vet says anything of it.",
+            "Multiply the number by itself: side * side. For a decimal power, math.Pow works with float64s.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	side := 5
+            	fmt.Println(side * side)
+            }
+            """),
+
+        GuideFor(["logic-go-input-not-trimmed"], "A line read with its newline still on it",
+            "ReadString('\\n') reads up to the newline from pressing Enter, and gives back the line with that newline still on the end: " +
+            "typing yes gives \"yes\\n\". Compared with \"yes\", it is not equal.",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Trim the line as it is read: answer = strings.TrimSpace(answer).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"strings"
+            )
+
+            func main() {
+            	answer := strings.TrimSpace("yes\n")
+            	fmt.Println(answer == "yes")
+            }
+            """),
+
+        GuideFor(["logic-go-range-index-as-value"], "range with one variable gives positions",
+            "range over a slice gives two values each time round: the position, and the item at it. With one variable, that variable is " +
+            "the position - 0, 1, 2 - not the item, so for mark := range marks makes mark a position.",
+            "The loop works with positions where it means items, with no error: the total of 70, 80 and 90 comes out as 3.",
+            "Take the item as range's second variable, and leave the position unused with _: for _, mark := range marks.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	total := 0
+            	for _, mark := range marks {
+            		total += mark
+            	}
+            	fmt.Println(total)
+            }
+            """),
+
+        GuideFor(["logic-go-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == math.NaN() is false even when value is NaN. " +
+            "Neither go build nor go vet says anything of it.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with math.IsNaN(value).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"math"
+            )
+
+            func main() {
+            	value := math.NaN()
+            	if math.IsNaN(value) {
+            		fmt.Println("not a number")
+            	}
+            }
+            """),
+
+        GuideFor(["logic-go-slice-shared"], "A second name for a slice is not a copy",
+            "backup := marks does not copy the slice: both names share the one array of items beneath it. A change to " +
+            "an item through either name - marks[0] = 100 - shows in the other. Neither go build nor go vet says " +
+            "anything of it.",
+            "The second name does not keep the values the slice had: after marks[0] = 100, backup prints [100 80 90].",
+            "Make a copy: backup := append([]int{}, marks...) makes a new slice with the same items, and a change to " +
+            "one no longer shows in the other.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	backup := append([]int{}, marks...)
+            	marks[0] = 100
+            	fmt.Println(backup)
+            }
+            """),
     ];
 }

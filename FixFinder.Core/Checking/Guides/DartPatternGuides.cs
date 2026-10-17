@@ -48,5 +48,73 @@ internal static class DartPatternGuides
               print((total - 0.3).abs() < 1e-9);
             }
             """),
+
+        GuideFor(["logic-dart-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Dart ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and dart analyze says nothing of it.",
+            "Multiply the number by itself: side * side. pow, from dart:math, raises a number to any power: pow(side, 2).",
+            """
+            void main() {
+              var side = 5;
+              print(side * side);
+            }
+            """),
+
+        GuideFor(["logic-dart-interpolated-property"], "A property after $ in text",
+            "In text, $marks puts in the value of the name after the $ - and only the name. In '$marks.length' Dart puts in marks, " +
+            "and writes .length after it as it is; the same goes for $marks[0].",
+            "The text holds the whole list followed by the words, with no error - [70, 80, 90].length.",
+            "Put the whole expression in ${ }: '${marks.length}' puts in the value of everything between the braces.",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              print('Marks counted: ${marks.length}');
+            }
+            """),
+
+        GuideFor(["logic-dart-map-never-run"], "A map that never runs",
+            "map does not run its function straight away: it gives back a list-like Iterable that works each item out only when " +
+            "something reads it. On a line of its own - marks.map((mark) => print(mark)); - nothing reads it, so print is never " +
+            "called. dart analyze says nothing.",
+            "Nothing the function does happens: the marks are never printed, and a total added to inside it stays as it was.",
+            "Use a for loop, which runs its body for each item straight away: for (var mark in marks) print(mark);",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              for (var mark in marks) print(mark);
+            }
+            """),
+
+        GuideFor(["logic-dart-list-shared"], "A second name for a list is not a copy",
+            "var backup = marks; does not copy the list: it gives the same list a second name. A change made through " +
+            "either name - marks.add(100) - is a change to the one list, so backup shows it too. dart analyze says " +
+            "nothing.",
+            "The second name does not keep the values the list had: after marks.add(100), backup prints [70, 80, 90, " +
+            "100].",
+            "Make a copy: var backup = [...marks]; The copy is a new list with the same items, and a change to one no " +
+            "longer shows in the other.",
+            """
+            void main() {
+              var marks = [70, 80, 90];
+              var backup = [...marks];
+              marks.add(100);
+              print(backup);
+            }
+            """),
+
+        GuideFor(["logic-dart-rows-shared"], "A grid whose rows are one row",
+            "List.filled(3, List.filled(3, 0)) makes one row and fills the grid with that one row three times. Every " +
+            "row is the same list, so grid[0][0] = 1 changes the first item of every row. dart analyze says nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid prints [[1, 0, 0], [1, 0, 0], " +
+            "[1, 0, 0]].",
+            "Make each row its own list: List.generate(3, (_) => List.filled(3, 0)) makes a new row for each.",
+            """
+            void main() {
+              var grid = List.generate(3, (_) => List.filled(3, 0));
+              grid[0][0] = 1;
+              print(grid);
+            }
+            """),
     ];
 }

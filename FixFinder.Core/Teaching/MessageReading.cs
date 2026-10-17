@@ -69,6 +69,16 @@ public static class MessageReading
             "The first line names the kind of error - TypeError, ReferenceError - and its message. Each line under it that " +
             "starts with at is a function that was running, the one that failed first, with its file, line and column in " +
             "brackets; the ones in node: files are Node's own, and can be passed over.",
+        [("TypeScript", MessagePhase.BeforeRunning)] =
+            "Node.js runs TypeScript by taking its types out. The message names the file and the line, shows the line with ^ under " +
+            "the place, then SyntaxError and, in brackets, Node's code for it: ERR_INVALID_TYPESCRIPT_SYNTAX for TypeScript it could " +
+            "not read, with what it expected, and ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX for a part of TypeScript that is more than types, " +
+            "such as an enum. None of the file ran. The lines under it that start with at are inside Node itself, and can be passed over.",
+        [("TypeScript", MessagePhase.WhileRunning)] =
+            "Once its types are taken out, the program runs as JavaScript, so this is JavaScript's message: the kind of error - " +
+            "TypeError, ReferenceError - and its message, then a line starting with at for each function that was running, the one " +
+            "that failed first, with its file, line and column - the lines of your .ts file, as written. The ones in node: files are " +
+            "Node's own, and can be passed over.",
         [("Go", MessagePhase.BeforeRunning)] =
             "Go names the file, the line and the column - main.go:7:5 is line 7, column 5 - and what is wrong. Go refuses " +
             "to build a program with even one such error, so none of it ran.",
@@ -135,6 +145,50 @@ public static class MessageReading
             "Unhandled exception: comes first, then the exception - such as RangeError - and what went wrong, or the message alone. " +
             "Each line under it that starts with # is a call that was running, the latest first: #1 main (file:///C:/marks/main.dart:3:12) " +
             "is line 3, column 12 of main.dart, in main. The ones in dart: files are inside Dart itself.",
+        [("Fortran", MessagePhase.BeforeRunning)] =
+            "gfortran names the file, the line and the column - marks.f90:5:15 is line 5, column 15 - then shows the line, with a 1 " +
+            "under the place it means, then Error: or Warning: and what is wrong, calling that place (1). It often says which declared " +
+            "name it thinks was meant. gfortran will not build a program with even one error, so none of it ran.",
+        [("Fortran", MessagePhase.WhileRunning)] =
+            "At line and the file say where the program stopped; Fortran runtime error: says what went wrong - for a position outside " +
+            "an array, which position, which array and its bounds. A program stopped by a signal - SIGFPE, for a whole number divided " +
+            "by zero - names no line of its own on Windows.",
+        [("PowerShell", MessagePhase.BeforeRunning)] =
+            "PowerShell reads a whole script before it runs any of it. FixFinder's check names the file, the line and the column - " +
+            "marks.ps1:4:7 is line 4, column 7 - then PowerShell's own name for the mistake, such as MissingStatementBlockAfterElse, " +
+            "and what is wrong. Run, the script shows the place after At, the line with ~ under it, and the message.",
+        [("PowerShell", MessagePhase.WhileRunning)] =
+            "The message comes first - after the command's name and a colon, when a command gave it - then after At the file, the " +
+            "line and, after char:, the column; then the line itself with ~ under the part it means, and after FullyQualifiedErrorId " +
+            "PowerShell's own name for the error. PowerShell carries on with the next line, so a script can print several.",
+        [("Elixir", MessagePhase.BeforeRunning)] =
+            "Elixir compiles a whole file before it runs any of it. Its message starts with error: and what is wrong, shows the line " +
+            "with ^ marks under the place, and ends with └─ and the file, the line and the column - marks.exs:3:9 is line 3, column 9 " +
+            "- and, in a module, the function it is in. Code it cannot read at all starts with its kind, such as ** (TokenMissingError), " +
+            "and └ unclosed delimiter marks where a bracket or a do was opened. A warning is laid out the same way, after warning:.",
+        [("Erlang", MessagePhase.BeforeRunning)] =
+            "erlc names the file, the line and the column - marks.erl:7:24 is line 7, column 24 - then what is wrong, often ending with " +
+            "did you mean and the name it knows. Under it is the line itself, each line of it starting with %, with ^ under the place. " +
+            "A warning says Warning: before its message, and the program is compiled all the same.",
+        [("Erlang", MessagePhase.WhileRunning)] =
+            "After ** exception error: comes what went wrong, in Erlang's words. Then come the functions it was in, the latest first - in " +
+            "function, then in call from - each as module:function/number of arguments, with its file and line in brackets. Under one of " +
+            "Erlang's own functions, called as shows what it was given, and *** which argument was wrong.",
+        [("Elixir", MessagePhase.WhileRunning)] =
+            "After ** comes the kind of error in brackets, such as (ArithmeticError), and what went wrong - for some kinds on the lines " +
+            "below too, with the value it had and, after Did you mean:, what Elixir suggests. Then come the calls that led there, the " +
+            "latest first: the file and the line, then the function - (file) for the file's own lines. Lines starting with a bracket, " +
+            "such as (elixir 1.20.4), are inside Elixir, and lines starting with : are inside Erlang, which Elixir runs on.",
+        [("F#", MessagePhase.BeforeRunning)] =
+            "F# names the file, then the line and the column in brackets - main.fsx(3,15) is line 3, column 15 - then error, warning " +
+            "or info, F#'s own number for the message, such as FS0039, and what is wrong. The lines under it belong to it: after Maybe " +
+            "you want one of the following:, the names F# thinks were meant; and for two types that do not match, the type F# expected " +
+            "and the one it found. F# checks the whole script before it runs any of it, and stops at its first error.",
+        [("F#", MessagePhase.WhileRunning)] =
+            "The first line names what stopped the script - .NET's name for it, such as System.DivideByZeroException - and after the colon " +
+            "what went wrong. The lines starting with at are the calls that led there, the latest first, each with in, the file and " +
+            ":line and the line number - FSI_0001.average is the script's function average, and main@ is the script's own lines. Lines " +
+            "with no file of yours, and the ones after the script's - System.Reflection and FSharp.Compiler - are F#'s and .NET's own.",
         [("OCaml", MessagePhase.BeforeRunning)] =
             "OCaml names the file, the line and the characters it means - characters 20-26 are the 21st to the 26th of the " +
             "line, as it counts the first one as 0 - shows the line with ^ marks under them, then Error: or Warning and " +

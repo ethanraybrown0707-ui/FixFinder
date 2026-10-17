@@ -33,7 +33,7 @@ public static class Guidebook
     /// </summary>
     internal static IEnumerable<IReadOnlyList<GuideEntry>> AllTables =>
     [
-        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, RubyGuides.All, PhpGuides.All, LuaGuides.All, PerlGuides.All, DartGuides.All, LogicGuides.All,
+        PythonGuides.All, JavaTable, CSharpTable, NativeTable, JavaScriptTable, GoTable, ScalaGuides.All, OCamlGuides.All, RustGuides.All, RubyGuides.All, PhpGuides.All, LuaGuides.All, PerlGuides.All, DartGuides.All, FortranGuides.All, PowerShellGuides.All, ElixirGuides.All, ErlangGuides.All, FSharpGuides.All, TypeScriptGuides.All, LogicGuides.All,
     ];
 
     private static readonly IReadOnlyList<GuideEntry> JavaTable = [.. JavaGuides.All, .. AnalysisGuides.Java];
@@ -41,6 +41,9 @@ public static class Guidebook
     private static readonly IReadOnlyList<GuideEntry> NativeTable = [.. NativeGuides.All, .. AnalysisGuides.Native];
     private static readonly IReadOnlyList<GuideEntry> JavaScriptTable = [.. JavaScriptGuides.All, .. AnalysisGuides.JavaScript];
     private static readonly IReadOnlyList<GuideEntry> GoTable = [.. GoGuides.All, .. AnalysisGuides.Go];
+
+    /// <summary>TypeScript's own messages first, then JavaScript's - what a TypeScript program is once its types are stripped.</summary>
+    private static readonly IReadOnlyList<GuideEntry> TypeScriptTable = [.. TypeScriptGuides.All, .. JavaScriptGuides.All];
 
     private static IReadOnlyList<GuideEntry> TableFor(string file) => Path.GetExtension(file).ToLowerInvariant() switch
     {
@@ -58,6 +61,12 @@ public static class Guidebook
         ".lua" => LuaGuides.All,
         ".pl" or ".pm" => PerlGuides.All,
         ".dart" => DartGuides.All,
+        ".f90" or ".f95" or ".f03" or ".f08" => FortranGuides.All,
+        ".ps1" => PowerShellGuides.All,
+        ".exs" or ".ex" => ElixirGuides.All,
+        ".erl" => ErlangGuides.All,
+        ".fsx" => FSharpGuides.All,
+        ".ts" or ".mts" or ".cts" => TypeScriptTable,
         _ => [],
     };
 
@@ -78,6 +87,12 @@ public static class Guidebook
         ".lua" => "Lua",
         ".pl" or ".pm" => "Perl",
         ".dart" => "Dart",
+        ".f90" or ".f95" or ".f03" or ".f08" => "Fortran",
+        ".ps1" => "PowerShell",
+        ".exs" or ".ex" => "Elixir",
+        ".erl" => "Erlang",
+        ".fsx" => "F#",
+        ".ts" or ".mts" or ".cts" => "TypeScript",
         _ => "the program",
     };
 }

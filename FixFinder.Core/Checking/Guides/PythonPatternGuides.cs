@@ -39,6 +39,42 @@ internal static class PythonPatternGuides
             print(f"Hello {name}, you scored {score}")
             """),
 
+        GuideFor(["logic-python-type-compared-with-text"], "A type compared with its name as text",
+            "type(age) gives the type itself - printed, it shows <class 'int'> - not the word \"int\". A type and a piece of text " +
+            "are never equal, so type(age) == \"int\" is always false, whatever age holds, and Python says nothing.",
+            "The condition is always false - or always true with != - so the same branch runs whatever the value is.",
+            "Ask with isinstance, naming the type as it is written in code, with no quotes: isinstance(age, int).",
+            """
+            age = 21
+            if isinstance(age, int):
+                print("a whole number")
+            """),
+
+        GuideFor(["logic-python-loop-steps-over-end"], "A loop that steps over its end",
+            "while count != 10: keeps the loop going until count is exactly 10. Counting from 0 by 3, count is 3, 6, 9, 12, 15 - it " +
+            "steps over 10 without ever being it - so the test stays True and the loop never ends. Python says nothing.",
+            "The program never finishes: it counts on and on, doing the loop's work for numbers far past the end.",
+            "Stop once the counter reaches the end or passes it: while count < 10: when counting up, while count > 10: when counting down.",
+            """
+            count = 0
+            while count < 10:
+                count += 3
+                print(count)
+            """),
+
+        GuideFor(["logic-python-randint-past-end"], "A random position one past the end",
+            "random.randint(0, 3) gives 0, 1, 2 or 3 - both ends are included, unlike range. So randint(0, len(marks)) for three marks " +
+            "can give 3, one past the last position, 2, and marks[3] stops with IndexError. Python says nothing until a run draws it.",
+            "The program fails now and then, and works on the other runs - the hardest kind of mistake to find by trying it.",
+            "Stop at the last position: random.randint(0, len(marks) - 1). random.choice(marks) picks an item without any position.",
+            """
+            import random
+
+            marks = [70, 80, 90]
+            pick = marks[random.randint(0, len(marks) - 1)]
+            print(pick in marks)
+            """),
+
         GuideFor(["logic-python-method-not-called"], "A method used without calling it",
             "The round brackets after a method's name are what make it run. Without them, name.upper is the method itself - " +
             "like naming a recipe instead of cooking it - so you get the method, not its answer.",
@@ -288,6 +324,18 @@ internal static class PythonPatternGuides
                 print("equal")
             """),
 
+        GuideFor(["logic-python-find-as-condition"], "A search's position used as true or false",
+            "find gives a position: 0 when what it looks for is at the very start, and -1 when it is not there at all. As a " +
+            "condition, 0 is False and -1 is True - so if name.find(\"A\"): is False for \"Ada\", and if name.find(\"z\"): is " +
+            "True. Python says nothing.",
+            "The condition is wrong both ways: a match at the start counts as none, and no match counts as one.",
+            "Ask whether it is there with in: \"A\" in name is True wherever it is, the start too, and False only when it is not there.",
+            """
+            name = "Ada"
+            if "A" in name:
+                print("has A")
+            """),
+
         GuideFor(["logic-python-find-above-zero"], "A match at the start taken for no match",
             "find gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A match " +
             "at the very start is at position 0, so find(...) > 0 is False for it - as if it were not there.",
@@ -297,6 +345,80 @@ internal static class PythonPatternGuides
             text = "apple"
             if text.find("a") >= 0:
                 print("found")
+            """),
+
+        GuideFor(["logic-python-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in Python ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - and Python says nothing of it.",
+            "Use Python's power, **: side ** 2.",
+            """
+            side = 5
+            print(side ** 2)
+            """),
+
+        GuideFor(["logic-python-loop-variable-changed"], "A loop that changes its own copy",
+            "for mark in marks gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
+            "variable, not the item in the list - so after the loop, marks is just as it was.",
+            "The list is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Change the item itself, at its position: for index, mark in enumerate(marks): marks[index] += 5.",
+            """
+            marks = [70, 80, 90]
+            for index, mark in enumerate(marks):
+                marks[index] += 5
+            print(marks)
+            """),
+
+        GuideFor(["logic-python-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == float(\"nan\") is false even when value is " +
+            "NaN. Python says nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with math.isnan(value), with import math at the top of the file - or numpy's isnan for numpy's nan.",
+            """
+            import math
+
+            value = float("nan")
+            if math.isnan(value):
+                print("not a number")
+            """),
+
+        GuideFor(["logic-python-map-never-run"], "A map that never runs",
+            "map does not run its function straight away: it gives back an iterator that works each item out only when something " +
+            "reads it. On a line of its own - map(print, marks) - nothing reads it, so print is never called. Python says nothing.",
+            "Nothing the function does happens: the marks are never printed.",
+            "Use a for loop, which runs its body for each item straight away: for mark in marks: print(mark).",
+            """
+            marks = [70, 80, 90]
+            for mark in marks:
+                print(mark)
+            """),
+
+        GuideFor(["logic-python-list-shared"], "A second name for a list is not a copy",
+            "backup = marks does not copy the list: it gives the same list a second name. A change made through either name - " +
+            "marks.append(100) - is a change to the one list, so backup shows it too. Python says nothing, as both names are " +
+            "allowed to point at one list.",
+            "The second name does not keep the values the list had: after marks.append(100), backup prints [70, 80, 90, 100].",
+            "Make a copy: backup = marks.copy(). The copy is a new list with the same items, and a change to one no longer shows " +
+            "in the other.",
+            """
+            marks = [70, 80, 90]
+            backup = marks.copy()
+            marks.append(100)
+            print(backup)
+            """),
+
+        GuideFor(["logic-python-rows-shared"], "A grid whose rows are one row",
+            "[[0] * 3] * 3 does not make three rows: it makes one row, [0, 0, 0], and a list that holds it three " +
+            "times. Every row is that one list, so grid[0][0] = 1 changes the first item of every row. Python says " +
+            "nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid prints [[1, 0, 0], [1, 0, 0], " +
+            "[1, 0, 0]].",
+            "Make each row its own list: [[0] * 3 for _ in range(3)] works the row out again for each row.",
+            """
+            grid = [[0] * 3 for _ in range(3)]
+            grid[0][0] = 1
+            print(grid)
             """),
     ];
 }

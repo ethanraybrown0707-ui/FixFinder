@@ -5,7 +5,7 @@ internal static class WrongTypeLessons
 {
     private static Concept Concept => Concepts.WrongType;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python will not join a piece of text and a number with +: it stops with TypeError when the line runs. str turns the " +
@@ -225,5 +225,108 @@ internal static class WrongTypeLessons
                     """,
                 FixedDoes: Behaviour.Printing("Total: 12"),
                 WhatChanged: "$total inside the text puts the number in as text."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "+ takes its type from its left side: with a number on the left, PowerShell tries to turn the text on the right into a number, " +
+        "and prints an error when it cannot - then carries on. Text with the number written inside it, \"$total marks\", needs no +.",
+        [
+            new WorkedExample("A total with its word",
+                Broken: """
+                    $total = 12
+                    Write-Output ($total + " marks")
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $total = 12
+                    Write-Output "$total marks"
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("12 marks\ndone"),
+                WhatChanged: "The number is written inside the text, which turns it into text."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "+ adds numbers only. Given text, it stops the program with ArithmeticError, and the message shows the sum it was given: " +
+        "\"Total: \" + 10.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    total = 10
+                    IO.puts("Total: " + total)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    total = 10
+                    IO.puts("Total: " <> to_string(total))
+                    """,
+                FixedDoes: Behaviour.Printing("Total: 10"),
+                WhatChanged: "<> joins text, and to_string turns the number into text first."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "+ adds numbers only. Given text, it stops the program with badarith, and Erlang shows what + was called as: \"5\" + 1.",
+        [
+            new WorkedExample("Adding one",
+                Broken: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> Typed + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("5")]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badarith", 4),
+                Fixed: """
+                    -module(numbers).
+                    -export([main/0]).
+
+                    next(Typed) -> list_to_integer(Typed) + 1.
+
+                    main() ->
+                        io:format("~p~n", [next("5")]).
+                    """,
+                FixedDoes: Behaviour.Printing("6"),
+                WhatChanged: "list_to_integer turns the text into a number before it is added to."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "F# never turns one type into another by itself: text + a number is refused before the script runs, with error FS0001 " +
+        "- the type 'int' does not match the type 'string'. string turns a number into text.",
+        [
+            new WorkedExample("Writing a mark with its label",
+                Broken: """
+                    let mark = 70
+                    printfn "%s" ("Mark: " + mark)
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0001", 2),
+                Fixed: """
+                    let mark = 70
+                    printfn "%s" ("Mark: " + string mark)
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70"),
+                WhatChanged: "string mark is the text \"70\", and + joins two pieces of text."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js runs TypeScript by taking the types out without checking them, so a type written on a value does not make it " +
+        "that type. + on two pieces of text joins them: \"4\" + \"4\" is \"44\", even where the type says number.",
+        [
+            new WorkedExample("Doubling a number typed in",
+                Broken: """
+                    const typed: string = "4";
+                    const doubled: number = typed + typed;
+                    console.log(doubled);
+                    """,
+                BrokenDoes: Behaviour.Printing("44"),
+                Fixed: """
+                    const typed: string = "4";
+                    const doubled: number = Number(typed) + Number(typed);
+                    console.log(doubled);
+                    """,
+                FixedDoes: Behaviour.Printing("8"),
+                WhatChanged: "Number turns the text into a number before +, so + adds two numbers."),
         ]);
 }

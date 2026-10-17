@@ -96,7 +96,11 @@ public static class TargetFactory
         [".js"] = new("node"),
         [".mjs"] = new("node"),
         [".cjs"] = new("node"),
-        [".ts"] = new("npx", "tsx", "ts-node"),
+        // TypeScript is run by Node.js itself, which strips its types - not by npx tsx, which installs tsx when it is not there,
+        // without asking when no one is at a terminal, and FixFinder never downloads.
+        [".ts"] = new("node"),
+        [".mts"] = new("node"),
+        [".cts"] = new("node"),
 
         [".jar"] = new("java", "-jar"),
         [".rb"] = new("ruby"),
@@ -111,6 +115,8 @@ public static class TargetFactory
         // FixFinder never downloads. Run as dart <file>, a program whose packages were never fetched says so, and fails.
         [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
+        [".ex"] = new("elixir"),
+        [".fsx"] = new("dotnet", FSharpScript.RunArguments),
     };
 
     public static string FileDialogFilter
@@ -118,7 +124,7 @@ public static class TargetFactory
         get
         {
             var all = ByExtension.Keys
-                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml", ".rs"])
+                .Concat([".c", ".cpp", ".cc", ".cxx", ".java", ".ipynb", ".scala", ".sc", ".ml", ".rs", ".f90", ".f95", ".f03", ".f08", ".erl"])
                 .OrderBy(e => e, StringComparer.Ordinal);
 
             var extensions = string.Join(";", all.Select(e => "*" + e));
@@ -161,6 +167,24 @@ public static class TargetFactory
             };
         }
 
+        // An Elixir script that installs its packages with Mix.install fetches them as it runs - and Mix can ask to install Hex
+        // first, reading the answer from what is typed in - and FixFinder never downloads.
+        if (extension.ToLowerInvariant() is ".exs" or ".ex" && InstallsElixirPackages(full))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} installs packages with Mix.install as it runs, which downloads them, and FixFinder never " +
+                "downloads anything - so it is not run here.");
+        }
+
+        // An F# script that brings in a NuGet package with #r "nuget: ..." has F# Interactive download it as the script starts,
+        // and FixFinder never downloads.
+        if (extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) && FSharpScript.FetchesPackages(full))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} brings in a NuGet package with #r \"nuget: ...\", which F# Interactive downloads as the script " +
+                "starts, and FixFinder never downloads anything - so it is not run here.");
+        }
+
         if (!ByExtension.TryGetValue(extension, out var runner))
         {
             return new LaunchPlan(
@@ -190,7 +214,7 @@ public static class TargetFactory
         // the code's own needs ask for.
         var python = isPython ? PythonSetup.For(full, environment, windowed) : null;
         var go = extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ? GoSetup.For(full) : null;
-        var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" ? NodeSetup.For(full) : null;
+        var node = extension.ToLowerInvariant() is ".js" or ".mjs" or ".cjs" || TypeScriptCheck.IsTypeScript(full) ? NodeSetup.For(full) : null;
 
         var found = python?.Interpreter ?? go?.Go ?? node?.Node ?? environment?.Interpreter ?? Resolve(runner);
 
@@ -205,6 +229,14 @@ public static class TargetFactory
                 $"{Path.GetFileName(full)} needs {names} to run it, and that is not installed - " +
                 $"or at least not on this account's PATH.\n\n" +
                 $"Install it, or pick a program that runs on its own such as an .exe.");
+        }
+
+        if (TypeScriptCheck.IsTypeScript(full) && !TypeScriptCheck.NodeRunsTypeScript(found))
+        {
+            return LaunchPlan.Failed(
+                $"{Path.GetFileName(full)} is TypeScript, which FixFinder runs with Node.js itself, and the Node.js that would run it - " +
+                $"{found} - does not run TypeScript: its process.features.typescript says it cannot strip types. FixFinder never " +
+                "downloads a package such as tsx to run it.\n\nA newer Node.js runs TypeScript itself.");
         }
 
         var viaDotnet =
@@ -260,6 +292,16 @@ public static class TargetFactory
                 arguments = $"\"{Path.GetFileName(full)}\"";
                 break;
 
+            case ".exs" or ".ex":
+                // Run from its own folder by its name, Elixir names the file in what it prints as its check names it.
+                arguments = $"\"{Path.GetFileName(full)}\"";
+                break;
+
+            case ".fsx":
+                // Run from its own folder by its name, F# Interactive names the file in its messages as its check names it.
+                arguments = $"{runner.ArgumentPrefix} \"{Path.GetFileName(full)}\"";
+                break;
+
             case ".py" when ProgramLayout.PythonModule(full) is { } module:
                 arguments = $"-m {module.Module}";
                 workingDirectory = module.Folder;
@@ -277,12 +319,27 @@ public static class TargetFactory
             ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
         };
 
-        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
+        // dotnet runs an F# script through F# Interactive, which is what is named.
+        var fsharp = extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) ? "F# Interactive, dotnet fsi" : null;
+        var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
             : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
+    }
+
+    /// <summary>Whether an Elixir file calls Mix.install - outside its comments and text - to install the packages it uses.</summary>
+    private static bool InstallsElixirPackages(string file)
+    {
+        try
+        {
+            return LocalFixes.CodeText.MaskAll(File.ReadAllLines(file), LocalFixes.Syntax.Python).Any(line => line.Contains("Mix.install(", StringComparison.Ordinal));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The warning filter, in Python's own form, for the warning matplotlib gives when a plot is made with no window.</summary>

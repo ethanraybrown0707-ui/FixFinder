@@ -25,6 +25,8 @@ public static class FrameClassifier
         // Dart's own libraries: dart:core-patch/integers.dart. (package: is not here - a Dart package's own files are named so too.)
         "dart:",
         "/microsoft.netcore.app/",
+        // F#'s own library, at the path it was built from: D:\a\_work\1\s\src\fsharp\src\FSharp.Core\list.fs.
+        "/src/fsharp.core/",
         "/microsoft.windowsdesktop.app/",
         "/library/std/src/",
         "/rustc/",

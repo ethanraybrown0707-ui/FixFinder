@@ -181,6 +181,8 @@ public static class Toolchains
         DescribeScala(),
         OCamlToolchains.Usual is { } ocaml ? $"OCaml      : {ocaml.Description}: {ocaml.Ocamlc}" : "OCaml      : not found",
         RustToolchains.Usual is { } rust ? $"Rust       : {rust.Description}, editions up to {rust.NewestEdition}: {rust.Program}" : "Rust       : not found",
+        FortranBuild.Gfortran() is { } gfortran ? $"Fortran    : {FortranBuild.Version() ?? "gfortran"}: {gfortran}" : "Fortran    : not found",
+        ErlangBuild.Erlc() is { } erlc ? $"Erlang     : {ErlangBuild.Version() ?? "erlc"}: {erlc}" : "Erlang     : not found",
         .. ScriptLanguages.All.Select(ScriptLanguages.Describe),
     ];
 

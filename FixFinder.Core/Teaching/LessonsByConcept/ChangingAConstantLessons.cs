@@ -5,7 +5,7 @@ internal static class ChangingAConstantLessons
 {
     private static Concept Concept => Concepts.ChangingAConstant;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Java => new(Concept, CodeLanguage.Java,
         "A variable declared final can be given a value once. javac refuses a line that gives it another, before any of the " +
@@ -217,5 +217,120 @@ internal static class ChangingAConstantLessons
                     """,
                 FixedDoes: Behaviour.Printing("50"),
                 WhatChanged: "var lets passMark be given a new value."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A parameter is a constant, set where it is declared and never changed, and gfortran refuses a program that gives it another " +
+        "value. An argument declared intent(in) is a promise to only read it, kept the same way.",
+        [
+            new WorkedExample("Raising the pass mark",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer, parameter :: pass_mark = 40
+                      pass_mark = 50
+                      print '(I0)', pass_mark
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Named constant 'pass_mark' in variable definition context", 4),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: pass_mark = 40
+                      pass_mark = 50
+                      print '(I0)', pass_mark
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("50"),
+                WhatChanged: "Without parameter, pass_mark is a variable, which can be given a new value."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir's variables never change. = inside an fn makes a new variable, which lasts only until the fn ends - so a total added " +
+        "to inside Enum.each is still 0 afterwards. Elixir only warns that the new total is unused.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    marks = [70, 80, 90]
+                    total = 0
+                    Enum.each(marks, fn mark -> total = total + mark end)
+                    IO.puts(total)
+                    """,
+                BrokenDoes: Behaviour.Printing("0"),
+                Fixed: """
+                    marks = [70, 80, 90]
+                    total = 0
+                    total = Enum.reduce(marks, total, fn mark, total -> total + mark end)
+                    IO.puts(total)
+                    """,
+                FixedDoes: Behaviour.Printing("240"),
+                WhatChanged: "Enum.reduce passes the total on from one mark to the next and gives back the last one, which is given to total."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "An Erlang variable is given its value once. = after that matches rather than changes it, so Total = Total + Mark asks whether 0 " +
+        "is 70 - and stops the program with badmatch.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Total = 0,
+                        lists:foreach(fun(Mark) -> Total = Total + Mark end, [70, 80]),
+                        io:format("~p~n", [Total]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("badmatch", 6),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Total = lists:foldl(fun(Mark, Sum) -> Sum + Mark end, 0, [70, 80]),
+                        io:format("~p~n", [Total]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "lists:foldl passes the sum on from one mark to the next, and gives back the last one, which is given to Total once."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "A value given with let keeps the value it was given. F# refuses <- on it before the script runs, with error FS0027 - " +
+        "This value is not mutable - so a value that changes is declared with let mutable.",
+        [
+            new WorkedExample("Counting up",
+                Broken: """
+                    let count = 0
+                    count <- count + 1
+                    printfn "%d" count
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0027", 2),
+                Fixed: """
+                    let mutable count = 0
+                    count <- count + 1
+                    printfn "%d" count
+                    """,
+                FixedDoes: Behaviour.Printing("1"),
+                WhatChanged: "count is declared with let mutable, so <- can give it a new value."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "A value declared with const keeps the value it was given. Node.js does not check that before it runs, so giving it " +
+        "another stops the program at that line with TypeError: Assignment to constant variable.",
+        [
+            new WorkedExample("Changing a total",
+                Broken: """
+                    const total: number = 10;
+                    total = 20;
+                    console.log(total);
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 2),
+                Fixed: """
+                    let total: number = 10;
+                    total = 20;
+                    console.log(total);
+                    """,
+                FixedDoes: Behaviour.Printing("20"),
+                WhatChanged: "total is declared with let, so it can be given a new value."),
         ]);
 }

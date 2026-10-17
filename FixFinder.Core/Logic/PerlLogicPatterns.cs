@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Checking;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 
 namespace FixFinder.Core.Logic;
 
@@ -8,7 +9,8 @@ namespace FixFinder.Core.Logic;
 /// Mistakes Perl programs make that Perl runs without stopping - each run with Strawberry Perl 5.42, where without use
 /// warnings Perl says nothing of any of them: a loop to <c>$i &lt;= scalar(@marks)</c> reads one position past the end;
 /// text compared with == - "yes" == "no" is true, as both become 0; a line read from STDIN keeps its newline until chomp
-/// takes it off, so it never eq the text typed; and a decimal worked out by arithmetic, compared exactly.
+/// takes it off, so it never eq the text typed; a decimal worked out by arithmetic, compared exactly; and
+/// <c>length(@marks)</c>, which counts the digits of the array's count - 2 for 12 items.
 /// </summary>
 public static partial class PerlLogicPatterns
 {
@@ -25,6 +27,8 @@ public static partial class PerlLogicPatterns
         Pattern("logic-perl-text-compared-as-numbers", TextComparedAsNumbers, Severity.Error, Confidence.Certain),
         Pattern("logic-perl-line-not-chomped", LineNotChomped, Severity.Error),
         Pattern("logic-perl-float-equality", FloatEquality),
+        Pattern("logic-perl-length-of-array", LengthOfArray, Severity.Error, Confidence.Certain),
+        Pattern("logic-perl-method-in-string", MethodInString, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary><c>for (my $i = 0; $i &lt;= scalar(@marks); $i++)</c>, or <c>$i &lt;= @marks</c>: one step past the last position.</summary>
@@ -149,6 +153,68 @@ public static partial class PerlLogicPatterns
                 LocalFix.ReplaceLine(id, $"Compare within a tiny tolerance: {close}",
                     $"{close} is true when ${name} is {value} to within a billionth, which arithmetic's tiny errors stay inside.",
                     source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
+
+    /// <summary>length(@marks): the number of digits in the array's count, not the count.</summary>
+    private static IEnumerable<LogicFinding> LengthOfArray(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (PerlArrays.LengthOfArray().Match(masked[index]) is not { Success: true } length) continue;
+
+            var array = length.Groups["array"].Value;
+
+            yield return new LogicFinding(id, index + 1,
+                $"length counts the characters of text, so given @{array} it counts the characters of the array's count - " +
+                $"length(@{array}) is how many digits the count has: 2 for an array of 12 items",
+                PerlArrays.CountFix(id, source, index + 1, length));
+        }
+    }
+
+    /// <summary><c>$student-&gt;name</c> - a method call - not ->{ or ->[, which Perl does put into text.</summary>
+    [GeneratedRegex(@"(?<!\\)\$(?<object>[A-Za-z_]\w*)->(?<method>[A-Za-z_]\w*)(?:\(\))?(?![\w\[{(])")]
+    private static partial Regex MethodCall();
+
+    /// <summary>
+    /// "Name: $student->name" in double quotes: Perl puts in the value of $student - an object, written as Student=HASH(0x...) -
+    /// and writes ->name after it as it is; it calls no method inside text. The call is taken out of the text and joined to it
+    /// with . on each side.
+    /// </summary>
+    private static IEnumerable<LogicFinding> MethodInString(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < source.Lines.Count; index++)
+        {
+            var line = source.Lines[index];
+
+            for (var start = line.IndexOf('"'); start >= 0 && start < masked[index].Length; start = line.IndexOf('"', start + 1))
+            {
+                // A double quote in the code - the masked line keeps it - that opens text, and where that text ends.
+                if (masked[index][start] != '"') continue;
+                var end = start + 1;
+                while (end < line.Length && line[end] != '"') end += line[end] == '\\' ? 2 : 1;
+                if (end >= line.Length) break;
+
+                var text = line[(start + 1)..end];
+                if (MethodCall().Match(text) is not { Success: true } call)
+                {
+                    start = end;
+                    continue;
+                }
+
+                var before = text[..call.Index];
+                var after = text[(call.Index + call.Length)..];
+                var methodCall = $"${call.Groups["object"].Value}->{call.Groups["method"].Value}";
+                var joined = (before.Length > 0 ? $"\"{before}\" . " : "") + methodCall + (after.Length > 0 ? $" . \"{after}\"" : "");
+
+                yield return new LogicFinding(id, index + 1,
+                    $"Perl calls no method inside text: it puts in the value of ${call.Groups["object"].Value} - an object, which it writes as its " +
+                    $"class and where it is kept, such as Student=HASH(0x...) - and writes ->{call.Groups["method"].Value} after it as it is",
+                    LocalFix.ReplaceLine(id, $"Call {methodCall} outside the text, and join it with .",
+                        "Outside the quotes the method is called, and . joins what it gives back to the text on each side.",
+                        source.Path, index + 1, line[..start] + joined + line[(end + 1)..]));
+                break;
+            }
         }
     }
 }

@@ -100,6 +100,14 @@ public class PerlLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Strict + "my $total = 10;\nprint $totl + 1, \"\\n\";\n", "perl-undeclared-variable", 5, 5, "print $total + 1, \"\\n\";", "11")]
     [InlineData(Strict + "$total = 10;\nprint \"$total\\n\";\n", "perl-undeclared-variable", 4, 4, "my $total = 10;", "10")]
     [InlineData(Strict + "my $mark = 50;\nif ($mark > 70) {\n    print \"high\\n\";\n} elseif ($mark > 40) {\n    print \"pass\\n\";\n}\n", "perl-elsif", 7, 7, "} elsif ($mark > 40) {", "pass")]
+    // Perl names the end of the file; the { left open is the foreach's, and its } goes after the foreach's body.
+    [InlineData(Strict + "sub total {\n    my @marks = @_;\n    my $sum = 0;\n    foreach my $mark (@marks) {\n        $sum += $mark;\n    return $sum;\n}\n\nprint total(70, 80), \"\\n\";\n",
+        "perl-closing-brace", 12, 9, "    }", "150")]
+    // With a quote further on, Perl stops there - and says where the string that ran away started.
+    [InlineData(Strict + "my $name = \"Ada;\nprint $name, \"\\n\";\n", "perl-closing-quote", 5, 4, "my $name = \"Ada\";", "Ada")]
+    [InlineData(Strict + "my $name = \"Ada;\nprint $name;\n", "perl-closing-quote", 4, 4, "my $name = \"Ada\";", "Ada")]
+    [InlineData(Strict + "my @marks = (70, 80);\ntotal = $marks[0] + $marks[1];\nprint \"$total\\n\";\n", "perl-missing-sigil", 5, 5, "my $total = $marks[0] + $marks[1];", "150")]
+    [InlineData(Strict + "my $total = 0;\ntotal = 150;\nprint \"$total\\n\";\n", "perl-missing-sigil", 5, 5, "$total = 150;", "150")]
     public async Task ACompilationErrorIsFoundBeforeItRunsAndItsChangeCompilesAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Perl() is not { } perl) return;
@@ -136,6 +144,7 @@ public class PerlLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Strict + "my $answer = \"yes\";\nif ($answer == \"no\") {\n    print \"no\\n\";\n} else {\n    print \"yes\\n\";\n}\n", "logic-perl-text-compared-as-numbers", 5, "if ($answer eq \"no\") {", "yes")]
     [InlineData(Strict + "my $name = \"bob\";\nif ($name < \"carol\") {\n    print \"before\\n\";\n} else {\n    print \"after\\n\";\n}\n", "perl-text-comparison", 5, "if ($name lt \"carol\") {", "before")]
     [InlineData(Strict + "my $total = 12;\nprint \"Total: \" + $total, \"\\n\";\n", "perl-join-text", 5, "print \"Total: \" . $total, \"\\n\";", "Total: 12")]
+    [InlineData(Strict + "my @marks = (70, 80, 90, 65, 72, 88, 91, 55, 60, 77, 82, 95);\nprint length(@marks), \"\\n\";\n", "logic-perl-length-of-array", 5, "print scalar(@marks), \"\\n\";", "12")]
     public async Task AWarningPerlCarriedOnPastGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Perl() is not { } perl) return;
@@ -165,6 +174,9 @@ public class PerlLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Strict + "my @marks = (70, 80, 90);\nfor (my $i = 0; $i <= scalar(@marks); $i++) {\n    print $marks[$i], \"\\n\";\n}\n", "logic-perl-loop-to-count", 5, "", "70\n80\n90")]
     [InlineData(Strict + "print \"Type 5: \";\nmy $typed = <STDIN>;\nif ($typed eq \"5\") {\n    print \"five\\n\";\n} else {\n    print \"not five\\n\";\n}\n", "logic-perl-line-not-chomped", 5, "5\n", "Type 5: five")]
     [InlineData(Strict + "my $total = 0.1 + 0.2;\nif ($total == 0.3) {\n    print \"equal\\n\";\n} else {\n    print \"not equal\\n\";\n}\n", "logic-perl-float-equality", 5, "", "equal")]
+    // Perl calls no method inside text: the mistake printed "Name: Student=HASH(0x...)->name".
+    [InlineData(Strict + "package Student;\nsub new { my ($class, $name) = @_; return bless { name => $name }, $class; }\nsub name { return $_[0]{name}; }\n\npackage main;\nmy $student = Student->new(\"Ada\");\nprint \"Name: $student->name\\n\";\n",
+        "logic-perl-method-in-string", 10, "", "Name: Ada")]
     public async Task ALogicMistakeIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string input, string fixedPrints)
     {
         if (Perl() is not { } perl) return;

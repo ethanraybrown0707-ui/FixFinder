@@ -17,6 +17,11 @@ internal static class FunctionLessons
         ArgumentsInLua, RecursionInLua,
         ArgumentsInPerl,
         ArgumentsInDart, ReturnsInDart, RecursionInDart,
+        ArgumentsInFortran,
+        ArgumentsInElixir, ReturnsInElixir,
+        ArgumentsInErlang, ReturnsInErlang,
+        ArgumentsInPowerShell,
+        RecursionInFSharp, ReturnsInFSharp, ArgumentsInFSharp,
     ];
 
     private static Lesson ArgumentsInPython => new(Concepts.Arguments, CodeLanguage.Python,
@@ -565,5 +570,231 @@ internal static class FunctionLessons
                     """,
                 FixedDoes: Behaviour.Printing("3"),
                 WhatChanged: "When n reaches 0 the function gives 0 without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ArgumentsInFortran => new(Concepts.Arguments, CodeLanguage.Fortran,
+        "A call has to give a function a value for each of its arguments, and gfortran refuses a call that gives too few before the " +
+        "program runs, naming the argument with no value.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    program marks
+                      implicit none
+                      print '(I0)', area(3)
+                    contains
+                      integer function area(width, height)
+                        integer, intent(in) :: width, height
+                        area = width * height
+                      end function area
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing actual argument for argument 'height'", 3),
+                Fixed: """
+                    program marks
+                      implicit none
+                      print '(I0)', area(3, 4)
+                    contains
+                      integer function area(width, height)
+                        integer, intent(in) :: width, height
+                        area = width * height
+                      end function area
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "The call gives both the width and the height."),
+        ]);
+
+    private static Lesson ArgumentsInPowerShell => new(Concepts.Arguments, CodeLanguage.PowerShell,
+        "PowerShell calls a function by its name, then its values, apart: Area 3 4. Written Area(3, 4), as other languages write it, " +
+        "the brackets and comma make one value - the list 3, 4 - which goes to the first parameter, and the second gets nothing.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    function Area($width, $height) {
+                        return $width * $height
+                    }
+                    Write-Output (Area(3, 4))
+                    """,
+                BrokenDoes: Behaviour.Printing(""),
+                Fixed: """
+                    function Area($width, $height) {
+                        return $width * $height
+                    }
+                    Write-Output (Area 3 4)
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "Area 3 4 gives the width and the height a value each."),
+        ]);
+
+    private static Lesson ArgumentsInElixir => new(Concepts.Arguments, CodeLanguage.Elixir,
+        "An Elixir function is known by its name and by how many arguments it takes - average/1 takes one - so calling it with two calls " +
+        "a function that does not exist. Elixir stops the program with UndefinedFunctionError, and suggests the one it has.",
+        [
+            new WorkedExample("An average of two marks",
+                Broken: """
+                    defmodule Marks do
+                      def average(marks), do: Enum.sum(marks) / length(marks)
+                    end
+
+                    IO.puts(Marks.average([70, 80], 2))
+                    """,
+                BrokenDoes: Behaviour.Stopping("UndefinedFunctionError", 5),
+                Fixed: """
+                    defmodule Marks do
+                      def average(marks), do: Enum.sum(marks) / length(marks)
+                    end
+
+                    IO.puts(Marks.average([70, 80]))
+                    """,
+                FixedDoes: Behaviour.Printing("75.0"),
+                WhatChanged: "average/1 is given the one argument it takes: the list, which knows its own length."),
+        ]);
+
+    private static Lesson ReturnsInElixir => new(Concepts.ReturnValues, CodeLanguage.Elixir,
+        "An Elixir function gives back the value of its last line, and there is no return. Written on a line of its own, return is read " +
+        "as a call to a function called return - and as there is none, Elixir refuses to compile the file.",
+        [
+            new WorkedExample("The total of the marks",
+                Broken: """
+                    defmodule Marks do
+                      def total(marks) do
+                        return Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                BrokenDoes: Behaviour.Refused("undefined function return/1", 3),
+                Fixed: """
+                    defmodule Marks do
+                      def total(marks) do
+                        Enum.sum(marks)
+                      end
+                    end
+
+                    IO.puts(Marks.total([70, 80]))
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The sum is the function's last line, so it is what the function gives back."),
+        ]);
+
+    private static Lesson ArgumentsInErlang => new(Concepts.Arguments, CodeLanguage.Erlang,
+        "An Erlang function is known by its name and by how many arguments it takes - average/1 takes one - so calling it with two calls " +
+        "a function that does not exist, and erlc refuses the module, suggesting the one it has.",
+        [
+            new WorkedExample("An average of two marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([70, 80], 2)]).
+                    """,
+                BrokenDoes: Behaviour.Refused("function average/2 undefined", 7),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    average(Marks) -> lists:sum(Marks) / length(Marks).
+
+                    main() ->
+                        io:format("~p~n", [average([70, 80])]).
+                    """,
+                FixedDoes: Behaviour.Printing("75.0"),
+                WhatChanged: "average/1 is given the one argument it takes: the list, which knows its own length."),
+        ]);
+
+    private static Lesson ReturnsInErlang => new(Concepts.ReturnValues, CodeLanguage.Erlang,
+        "An Erlang function gives back the value of its last expression, and there is no return. Written before it, return is just a " +
+        "word erlc cannot make sense of there, and it refuses the module.",
+        [
+            new WorkedExample("The total of the marks",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    total(Marks) ->
+                        return lists:sum(Marks).
+
+                    main() ->
+                        io:format("~p~n", [total([70, 80])]).
+                    """,
+                BrokenDoes: Behaviour.Refused("syntax error before: lists", 5),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    total(Marks) ->
+                        lists:sum(Marks).
+
+                    main() ->
+                        io:format("~p~n", [total([70, 80])]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The sum is the function's last expression, so it is what the function gives back."),
+        ]);
+
+    private static Lesson RecursionInFSharp => new(Concepts.EndlessRecursion, CodeLanguage.FSharp,
+        "Each call still in progress takes room, so a function that never stops calling itself runs out of room, and the " +
+        "script stops with a stack overflow - for which .NET names the function it repeated, and no line.",
+        [
+            new WorkedExample("Counting down",
+                Broken: """
+                    let rec countDown number =
+                        1 + countDown (number - 1)
+
+                    printfn "%d" (countDown 3)
+                    """,
+                BrokenDoes: Behaviour.StoppingOnNoLine("StackOverflowException"),
+                Fixed: """
+                    let rec countDown number =
+                        if number = 0 then 0 else 1 + countDown (number - 1)
+
+                    printfn "%d" (countDown 3)
+                    """,
+                FixedDoes: Behaviour.Printing("3"),
+                WhatChanged: "When the number reaches 0 the function gives back 0 without calling itself, so the calls stop."),
+        ]);
+
+    private static Lesson ReturnsInFSharp => new(Concepts.ReturnValues, CodeLanguage.FSharp,
+        "F#'s lists never change: List.sort gives back a new, sorted list. On a line of the script's own, F# throws that list " +
+        "away without a word, and the old one is what the script prints.",
+        [
+            new WorkedExample("Sorting the marks",
+                Broken: """
+                    let marks = [80; 70; 90]
+                    List.sort marks
+                    printfn "%A" marks
+                    """,
+                BrokenDoes: Behaviour.Printing("[80; 70; 90]"),
+                Fixed: """
+                    let marks = [80; 70; 90]
+                    let sortedMarks = List.sort marks
+                    printfn "%A" sortedMarks
+                    """,
+                FixedDoes: Behaviour.Printing("[70; 80; 90]"),
+                WhatChanged: "let keeps the sorted list List.sort gives back, under a name of its own, and that is what is printed."),
+        ]);
+
+    private static Lesson ArgumentsInFSharp => new(Concepts.Arguments, CodeLanguage.FSharp,
+        "An F# function takes its arguments one after another, separated by spaces. area(3, 4) gives it one argument - the " +
+        "pair (3, 4) - and F# refuses the script with error FS0001: a tuple where a number was expected.",
+        [
+            new WorkedExample("The area of a rectangle",
+                Broken: """
+                    let area (width: int) (height: int) = width * height
+                    let result = area(3, 4)
+                    printfn "%d" result
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0001", 2),
+                Fixed: """
+                    let area (width: int) (height: int) = width * height
+                    let result = area 3 4
+                    printfn "%d" result
+                    """,
+                FixedDoes: Behaviour.Printing("12"),
+                WhatChanged: "area is given 3 and then 4, apart by a space, as it is defined to take them."),
         ]);
 }

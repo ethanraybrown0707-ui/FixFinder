@@ -18,6 +18,8 @@ public sealed class ParserRegistry
     {
         Parsers = parsers?.ToArray() ??
         [
+            // Before .NET's: an F# script's crash is .NET's exception, and F#'s own words are what tell the two apart.
+            new FSharpParser(),
             new DotNetStackTraceParser(),
             new PythonTracebackParser(),
             new NodeStackTraceParser(),
@@ -41,6 +43,8 @@ public sealed class ParserRegistry
             new ElixirParser(),
             new PerlParser(),
             new LuaParser(),
+            new FortranParser(),
+            new ErlangParser(),
             new GenericFileLineParser(),
         ];
     }

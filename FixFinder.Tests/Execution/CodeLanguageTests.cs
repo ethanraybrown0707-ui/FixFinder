@@ -45,6 +45,14 @@ public class CodeLanguageTests : IDisposable
     [InlineData("Lua", "lua-", "php-")]
     [InlineData("Perl", "perl-", "php-")]
     [InlineData("Dart", "dart-", "perl-")]
+    [InlineData("Fortran", "fortran-", "dart-")]
+    [InlineData("PowerShell", "powershell-", "fortran-")]
+    [InlineData("Elixir", "elixir-", "powershell-")]
+    [InlineData("Erlang", "erlang-", "elixir-")]
+    [InlineData("F#", "fsharp-", "erlang-")]
+    // TypeScript reads JavaScript's rules too: once its types are stripped, it is JavaScript.
+    [InlineData("TypeScript", "ts-", "fsharp-")]
+    [InlineData("TypeScript", "js-", "python-")]
     public void ALanguageKeepsItsOwnRulesAndNoOthers(string name, string own, string other)
     {
         var language = CodeLanguage.All.Single(l => l.Name == name);

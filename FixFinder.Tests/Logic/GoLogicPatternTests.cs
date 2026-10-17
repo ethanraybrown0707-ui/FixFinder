@@ -150,4 +150,25 @@ public class GoLogicPatternTests : IDisposable
 
         Assert.DoesNotContain(findings, finding => finding.PatternId == "logic-go-result-discarded");
     }
+
+    [Fact]
+    public void AReplaceOfNoneIsFoundAndMadeAReplaceAll()
+    {
+        var findings = Scan(InsideMain("\tfmt.Println(strings.Replace(\"a-b-c\", \"-\", \"+\", 0))\n", "import (\n\t\"fmt\"\n\t\"strings\"\n)\n\n"));
+
+        var none = Assert.Single(findings, finding => finding.PatternId == "logic-go-replace-none");
+        Assert.Equal(9, none.Line);
+        Assert.Equal("\tfmt.Println(strings.ReplaceAll(\"a-b-c\", \"-\", \"+\"))", none.Fix?.NewLines.Single());
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("1")]
+    [InlineData("10")]
+    public void AReplaceOfSomeIsLeftAlone(string count)
+    {
+        var findings = Scan(InsideMain($"\tfmt.Println(strings.Replace(\"a-b-c\", \"-\", \"+\", {count}))\n", "import (\n\t\"fmt\"\n\t\"strings\"\n)\n\n"));
+
+        Assert.DoesNotContain(findings, finding => finding.PatternId == "logic-go-replace-none");
+    }
 }

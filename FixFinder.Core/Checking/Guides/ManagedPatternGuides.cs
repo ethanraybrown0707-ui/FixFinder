@@ -130,6 +130,36 @@ internal static class ManagedPatternGuides
             }
             """),
 
+        GuideFor(["logic-csharp-text-without-dollar"], "Braces in C# text with no $",
+            "C# puts a value into text only when the text is interpolated - when a $ comes before its opening quote, as in " +
+            "$\"Total: {total}\". Without the $, the braces are ordinary characters: {total} is printed as it is written, braces and " +
+            "all. The compiler does not read inside the text: the most it says is warning CS0219, that total is assigned but its " +
+            "value is never used - and only when total was given a fixed value, and the text was the one place meant to use it.",
+            "The output shows {total} instead of the total, which looks broken to anyone using the program.",
+            "Put a $ before the opening quote. Text that is given values to fill in - Console.WriteLine(\"{0}\", total) - uses " +
+            "numbers in its braces, and needs no $.",
+            """
+            int total = 150;
+            Console.WriteLine($"Total: {total}");
+            """),
+
+        GuideFor(["logic-loop-steps-over-end"], "A loop that steps over its end",
+            "count != 10 keeps the loop going until count is exactly 10. Counting from 0 by 3, count is 0, 3, 6, 9, 12, 15 - it " +
+            "steps over 10 without ever being it - so the test stays true. In JavaScript the loop never ends. An int in Java, C# " +
+            "and C runs on until it passes the largest int and wraps round to the smallest, and lands on 10 only after " +
+            "2,863,311,534 passes. None of their compilers says anything.",
+            "The loop does its work for numbers far past the end - billions of times over, or for ever.",
+            "Stop once the counter reaches the end or passes it: count < 10 when counting up, count > 10 when counting down.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    for (int count = 0; count < 10; count += 3) {
+                        System.out.println(count);
+                    }
+                }
+            }
+            """),
+
         GuideFor(["logic-loop-steps-away"], "A loop that counts the wrong way",
             "A counting loop needs its counter to move towards the limit that ends it. Here the condition keeps the loop going " +
             "while i is below the limit, but each step makes i smaller - moving away from it - so the loop never reaches its " +
@@ -140,6 +170,96 @@ internal static class ManagedPatternGuides
             for (int i = 10; i > 0; i--) {
                 System.out.println(i);
             }
+            """),
+
+        GuideFor(["logic-csharp-select-never-run"], "A Select that never runs",
+            "Select does not run its lambda straight away: it gives back a sequence that works each item out only when something " +
+            "reads it. On a line of its own, nothing reads it, so the lambda is never run - Console.WriteLine inside it prints " +
+            "nothing. dotnet build says nothing.",
+            "Nothing the lambda does happens: the marks are never printed.",
+            "Use a foreach loop, which runs its body for each item straight away - and needs no value given back.",
+            """
+            var marks = new[] { 70, 80, 90 };
+            foreach (var mark in marks) { Console.WriteLine(mark); }
+            """),
+
+        GuideFor(["logic-java-round-divided-as-whole-number"], "Rounding to two places that loses them",
+            "Math.round gives a whole number - a long - so Math.round(price * 100) / 100 divides a whole number by a whole number, " +
+            "which cuts off the fraction: for a price of 12.345 it is 12.0, not 12.35. javac says nothing, as a long can be stored " +
+            "in a double.",
+            "The places the rounding was meant to keep are lost: every result comes out as a whole number, with .0 after it.",
+            "Divide by 100.0 - a double - so the division keeps its fraction: Math.round(price * 100) / 100.0 is 12.35.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    double price = 12.345;
+                    double rounded = Math.round(price * 100) / 100.0;
+                    System.out.println(rounded);
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-constant-overflow"], "Whole numbers too big for an int",
+            "365 * 24 * 60 * 60 * 1000 is worked out in ints, because every number in it is one - and an int holds nothing above " +
+            "2,147,483,647. The product, 31,536,000,000, wraps round to 1,471,228,928 before it is stored anywhere, even in a long. " +
+            "javac says nothing.",
+            "The number is wrong, and nothing says so: the milliseconds in a year come out as 1471228928.",
+            "Make the first number a long with an L - 365L * 24 * 60 * 60 * 1000 - so the arithmetic is done in longs, and store it " +
+            "in a long.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    long millisPerYear = 365L * 24 * 60 * 60 * 1000;
+                    System.out.println(millisPerYear);
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-regex-character-as-text"], "A character split on that means something else",
+            "split, replaceAll and replaceFirst read their first text as a regular expression, where some characters mean something " +
+            "else: . is any character, | is \"or\", and $ is the end of the text. So \"3.14\".split(\".\") gives no parts at all, " +
+            "\"a|b\".split(\"|\") splits between every character, and \"3.14\".replaceAll(\".\", \",\") gives ,,,,. javac says nothing.",
+            "The text is split or replaced in the wrong places, with no error - a list of numbers read from a line comes back empty.",
+            "Escape the character - split(\"\\\\.\") - so it means itself, or use replace, which takes its text as it is: " +
+            "\"3.14\".replace(\".\", \",\") is 3,14.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    String[] parts = "3.14".split("\\.");
+                    System.out.println(parts.length);
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-array-shared"], "A second name for an array is not a copy",
+            "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List. javac says nothing.",
+            "The second name does not keep the values the array had: after marks[0] = 100, backup[0] prints 100.",
+            "Make a copy: marks.clone() for an array, new ArrayList<>(marks) for a List. The copy has the same items, and a change " +
+            "to one no longer shows in the other.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    int[] marks = {70, 80, 90};
+                    int[] backup = marks.clone();
+                    marks[0] = 100;
+                    System.out.println(backup[0]);
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-array-shared"], "A second name for an array is not a copy",
+            "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List<T>. dotnet build says " +
+            "nothing.",
+            "The second name does not keep the values the array had: after marks[0] = 100, backup[0] prints 100.",
+            "Make a copy: marks.ToArray() for an array, marks.ToList() for a List<T>. The copy has the same items, and a change to " +
+            "one no longer shows in the other.",
+            """
+            int[] marks = { 70, 80, 90 };
+            int[] backup = marks.ToArray();
+            marks[0] = 100;
+            Console.WriteLine(backup[0]);
             """),
     ];
 }

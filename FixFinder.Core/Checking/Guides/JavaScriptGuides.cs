@@ -161,6 +161,16 @@ internal static class JavaScriptGuides
             const slots = new Array(Math.max(0, Math.floor(count)));
             """),
 
+        Entry("Error", @"^Cannot find module '[^']+' imported from ",
+            "An import names a file Node.js could not find. Node finds an ES module of your own - and a TypeScript file - only by " +
+            "its whole name, and adds no extension of its own, so './helpers' is not the file helpers.mjs or helpers.ts beside it.",
+            "The program stops before any of it runs.",
+            "Name the file whole, extension and all: './helpers.mjs', or './helpers.ts'.",
+            """
+            import { average } from "./helpers.mjs";
+            console.log(average([70, 80]));
+            """),
+
         Entry("Error", @"Cannot find module",
             "require and import look for the file or package you name. Node could not find this one: a package may not be " +
             "installed yet, or the path to one of your own files is wrong - your own files start with ./ or ../.",

@@ -19,6 +19,18 @@ namespace FixFinder.Core.Execution;
 /// dart analyze lists every error and warning in a file, and runs none of it; with --no-fatal-warnings it fails only for an
 /// error. Unlike dart run, it never fetches a package's dependencies.
 /// </para>
+/// <para>
+/// Elixir has no check of its own that runs none of a script, so FixFinder's check script has Elixir compile the file
+/// without running it: Elixir writes every error and warning it would give as the program ran, and fails for an error.
+/// </para>
+/// <para>
+/// F# Interactive, dotnet fsi, checks an F# script with --typecheck-only - the script and the files it loads - and runs none
+/// of it: it writes its first error, and the warnings before it, and fails for an error.
+/// </para>
+/// <para>
+/// TypeScript is checked by Node.js itself, through FixFinder's small check: Node strips the types, saying where it cannot,
+/// and compiles what is left as a module, running none of it.
+/// </para>
 /// The check runs in the file's own folder and is given the file's name, so what it says names the file as it is there.
 /// </remarks>
 public static class ScriptLanguages
@@ -40,7 +52,20 @@ public static class ScriptLanguages
 
     public static ScriptLanguage Dart { get; } = new("Dart", "dart", [".dart"], "dart", "analyze --no-fatal-warnings", "dart", "--version");
 
-    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart];
+    /// <summary>Windows PowerShell, checked by its own parser through FixFinder's small check script, which runs none of the script.</summary>
+    public static ScriptLanguage PowerShell { get; } =
+        new("PowerShell", "powershell", [".ps1"], "powershell", PowerShellCheck.Arguments, "powershell", "-NoProfile -Command $PSVersionTable.PSVersion.ToString()");
+
+    /// <summary>Elixir, compiled through FixFinder's small check script, which runs none of the program.</summary>
+    public static ScriptLanguage Elixir { get; } = new("Elixir", "elixir", [".exs", ".ex"], "elixir", ElixirCheck.Arguments, "elixir", "--short-version");
+
+    /// <summary>F#'s scripts, checked by F# Interactive with --typecheck-only, which runs none of the script.</summary>
+    public static ScriptLanguage FSharp { get; } = new("F#", "fsharp", [".fsx"], "dotnet", FSharpScript.CheckArguments, "dotnet", "fsi --version");
+
+    /// <summary>TypeScript, checked by Node.js itself through FixFinder's small check, which strips its types and runs none of it.</summary>
+    public static ScriptLanguage TypeScript { get; } = new("TypeScript", "node", [".ts", ".mts", ".cts"], "node", TypeScriptCheck.Arguments, "node", "--version");
+
+    public static IReadOnlyList<ScriptLanguage> All { get; } = [Ruby, Php, Perl, Lua, Dart, PowerShell, Elixir, FSharp, TypeScript];
 
     public static ScriptLanguage? Of(string file)
     {

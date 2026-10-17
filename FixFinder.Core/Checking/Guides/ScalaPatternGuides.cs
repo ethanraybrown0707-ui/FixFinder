@@ -51,6 +51,18 @@ internal static class ScalaPatternGuides
             println(sortedMarks)
             """),
 
+        GuideFor(["logic-scala-array-printed"], "An Array printed as it is",
+            "A List prints its items - List(70, 80, 90) - but an Array has no text of its own for them. Printed as it is - on its " +
+            "own, joined to text with + or put into s\"...\" - it shows its kind and a code, such as [I@4563e9ab. Neither Scala " +
+            "3.8.4 nor Scala 2.13.18 says anything of it.",
+            "The output shows [I@ and a code instead of the items, which looks broken to anyone using the program.",
+            "Print the items with mkString: marks.mkString(\", \") writes 70, 80, 90.",
+            """
+            @main def run(): Unit =
+              val marks = Array(70, 80, 90)
+              println(marks.mkString(", "))
+            """),
+
         GuideFor(["logic-scala-option-get"], "A value taken out of an Option without checking",
             "An Option holds a value - Some(value) - or nothing - None. A Map's get gives back None for a key that is not there, and " +
             "find gives back None when nothing matches. .get takes the value out without checking which it is, so when it is a None, " +
@@ -59,6 +71,56 @@ internal static class ScalaPatternGuides
             "Use getOrElse with a value for when there is none, or match on Some and None.",
             """
             val age = ages.getOrElse("Bob", 0)
+            """),
+
+        GuideFor(["logic-scala-text-without-s"], "$ in Scala text with no s",
+            "Scala puts a value into text only through an interpolator - a letter before the opening quote, most often s, as in " +
+            "s\"Hello, $name\". Without it, $name is ordinary characters, and is printed as it is written; so is ${...}. The compiler " +
+            "does not read inside the text: the most it says is that the name is never used - Scala 3's warning E198, unused local " +
+            "definition, or Scala 2.13's local val name is never used - and only when the text was the one place meant to use it.",
+            "The output shows $name instead of the name, which looks broken to anyone using the program.",
+            "Put an s before the opening quote.",
+            """
+            @main def run(): Unit =
+              val name = "Ada"
+              println(s"Hello, $name")
+            """),
+
+        GuideFor(["logic-scala-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == Double.NaN is false even when value is NaN. " +
+            "Neither Scala 3.8.4 nor Scala 2.13.18 says anything of it.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with value.isNaN.",
+            """
+            @main def run(): Unit =
+              val value = Double.NaN
+              if value.isNaN then println("not a number")
+            """),
+
+        GuideFor(["logic-scala-constant-overflow"], "Whole numbers too big for an Int",
+            "365 * 24 * 60 * 60 * 1000 is worked out in Ints, because every number in it is one - and an Int holds nothing above " +
+            "2,147,483,647. The product, 31,536,000,000, wraps round to 1,471,228,928 before it is stored anywhere, even in a Long. " +
+            "Scala says nothing.",
+            "The number is wrong, and nothing says so: the milliseconds in a year come out as 1471228928.",
+            "Make the first number a Long with an L - 365L * 24 * 60 * 60 * 1000 - so the arithmetic is done in Longs.",
+            """
+            @main def run(): Unit =
+              val millisPerYear: Long = 365L * 24 * 60 * 60 * 1000
+              println(millisPerYear)
+            """),
+
+        GuideFor(["logic-scala-regex-character-as-text"], "A character split on that means something else",
+            "split, replaceAll and replaceFirst read their first text as a regular expression, as Java's do, where . is any character, " +
+            "| is \"or\" and $ is the end of the text. So \"3.14\".split(\".\") gives no parts at all, and " +
+            "\"3.14\".replaceAll(\".\", \",\") gives ,,,,. Scala says nothing.",
+            "The text is split or replaced in the wrong places, with no error - a list of numbers read from a line comes back empty.",
+            "Escape the character - split(\"\\\\.\") - so it means itself, or use replace, which takes its text as it is: " +
+            "\"3.14\".replace(\".\", \",\") is 3,14.",
+            """
+            @main def run(): Unit =
+              val parts = "3.14".split("\\.")
+              println(parts.length)
             """),
     ];
 }

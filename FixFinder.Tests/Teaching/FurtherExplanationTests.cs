@@ -164,7 +164,21 @@ public class MessageReadingLiveTests(ITestOutputHelper output)
         { "Perl", "my @marks = ();\nprint 100 / scalar(@marks), \"\\n\";\n", ["Illegal division by zero at ", "pasted.pl line 2."] },
         { "Dart", "void main() {\n  var total = 10;\n  print(totl + 1);\n}\n", ["pasted.dart:3:9: Error: Undefined name 'totl'.", "^"] },
         { "Dart", "void main() {\n  var marks = <int>[];\n  print(70 ~/ marks.length);\n}\n", ["Unhandled exception:", "IntegerDivisionByZeroException", "main (file:///", "pasted.dart:3:"] },
+        { "Fortran", "program marks\n  implicit none\n  integer :: total\n  total = 10\n  print *, totl + 1\nend program marks\n", ["pasted.f90:5:15:", "|               1", "Error: Symbol 'totl' at (1) has no IMPLICIT type", "did you mean 'total'?"] },
+        { "Fortran", "program marks\n  implicit none\n  integer :: scores(3) = [70, 80, 90]\n  integer :: i\n  do i = 0, 3\n    print *, scores(i)\n  end do\nend program marks\n", ["At line 6 of file pasted.f90", "Fortran runtime error: Index '0' of dimension 1 of array 'scores' below lower bound of 1"] },
+        { "PowerShell", "$mark = 50\nif ($mark -gt 70) {\n    Write-Output \"high\"\n} else if ($mark -gt 40) {\n    Write-Output \"pass\"\n}\n", ["At ", "pasted.ps1:4 char:7", "~", "Missing statement block after 'else' keyword."] },
+        { "PowerShell", "$ErrorActionPreference = \"Stop\"\n$name = $null\nWrite-Output $name.ToUpper()\n", ["You cannot call a method on a null-valued expression.", "pasted.ps1:3 char:1", "~", "FullyQualifiedErrorId : InvokeMethodOnNull"] },
         { "PHP", "<?php\n$marks = [];\necho array_sum($marks) / count($marks);\n", ["Fatal error:", "Uncaught DivisionByZeroError", "pasted.php:3", "Stack trace:", "{main}", "thrown in"] },
+        { "Erlang", "-module(pasted).\n-export([main/0]).\n\nmain() ->\n    Total = 10,\n    io:format(\"~p~n\", [Totl]).\n", ["pasted.erl:6:24: variable 'Totl' is unbound, did you mean 'Total'?", "%    6|", "^"] },
+        { "Erlang", "-module(pasted).\n-export([main/0]).\n\naverage(Marks) -> lists:sum(Marks) / length(Marks).\n\nmain() ->\n    io:format(\"~p~n\", [average([])]).\n", ["** exception error: an error occurred when evaluating an arithmetic expression", "in function  pasted:average/1 (pasted.erl:4)", "in call from pasted:main/0 (pasted.erl:7)"] },
+        { "Elixir", "marks = [70, 80]\nIO.puts(totl)\n", ["error: undefined variable \"totl\"", "^^^^", "└─ pasted.exs:2:9"] },
+        { "Elixir", "IO.puts(Enum.sum([1, 2])\n", ["** (TokenMissingError)", "error: missing terminator: )", "└ unclosed delimiter", "└─ pasted.exs:1:25"] },
+        { "Elixir", "marks = []\nIO.puts(Enum.sum(marks) / length(marks))\n", ["** (ArithmeticError) bad argument in arithmetic expression", "pasted.exs:2: (file)"] },
+        { "Elixir", "person = %{name: \"Ada\", age: 36}\nIO.puts(person.agee)\n", ["** (KeyError) key :agee not found in:", "Did you mean:", "* :age", "pasted.exs:2: (file)"] },
+        { "TypeScript", "const total: number = 10;\nconsole.log(total;\n", ["SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got ';'", "node:internal/modules/typescript"] },
+        { "TypeScript", "interface Person { name: string }\nconst people: Person[] = [];\nconsole.log(people[0].name);\n", ["TypeError: Cannot read properties of undefined (reading 'name')", "    at ", "pasted.ts:3:"] },
+        { "F#", "let total = 10\nprintfn \"%d\" (totl + 1)\n", ["pasted.fsx(2,15): error FS0039: The value or constructor 'totl' is not defined.", "Maybe you want one of the following:", "   total"] },
+        { "F#", "let marks : int list = []\nprintfn \"%d\" (List.sum marks / List.length marks)\n", ["System.DivideByZeroException: Attempted to divide by zero.", "   at ", "pasted.fsx:line 2"] },
     };
 
     [Theory]

@@ -1,0 +1,16 @@
+    error: undefined function avrage/1 (expected Marks to define such a function or for it to be imported, but none are available)
+    │
+  2 │   def a(x), do: avrage(x)
+    │                 ^^^^^^
+    │
+    └─ main.exs:2:17: Marks.a/1
+
+    error: undefined function totl/1 (expected Marks to define such a function or for it to be imported, but none are available)
+    │
+  3 │   def b(x), do: totl(x)
+    │                 ^^^^
+    │
+    └─ main.exs:3:17: Marks.b/1
+
+** (CompileError) main.exs: cannot compile module Marks (errors have been logged)
+

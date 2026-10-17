@@ -1,0 +1,9 @@
+** (SyntaxError) invalid syntax found on main.exs:5:1:
+    error: unexpected reserved word: end
+    hint: the "end" on line 4 may not have a matching "do" defined before it (based on indentation)
+    │
+  5 │ end
+    │ ^
+    │
+    └─ main.exs:5:1
+    (elixir 1.20.4) lib/code.ex:1639: Code.require_file/2

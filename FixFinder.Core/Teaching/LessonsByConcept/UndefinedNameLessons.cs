@@ -5,7 +5,7 @@ internal static class UndefinedNameLessons
 {
     private static Concept Concept => Concepts.UndefinedName;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python looks a name up only when the line using it runs, so a misspelt name stops the program with NameError at that " +
@@ -254,5 +254,138 @@ internal static class UndefinedNameLessons
                     """,
                 FixedDoes: Behaviour.Printing("11"),
                 WhatChanged: "The name is spelt the way its declaration spells it."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "With implicit none at the top, every name has to be declared before it is used, and gfortran refuses the program before " +
+        "any of it runs when one is not - often saying which declared name it thinks was meant. Without implicit none, a misspelt " +
+        "name would be a new variable instead, with no value.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10
+                      print '(I0)', totl + 1
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Symbol 'totl' at (1) has no IMPLICIT type", 5),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: total
+                      total = 10
+                      print '(I0)', total + 1
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way its declaration spells it."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "A variable PowerShell has never seen a value for is $null, with no error - so a misspelt name is simply nothing, and the " +
+        "script carries on with it. Set-StrictMode -Version Latest at the top makes PowerShell say so instead.",
+        [
+            new WorkedExample("Adding one to a total",
+                Broken: """
+                    $total = 10
+                    Write-Output ($totl + 1)
+                    """,
+                BrokenDoes: Behaviour.Printing("1"),
+                Fixed: """
+                    $total = 10
+                    Write-Output ($total + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("11"),
+                WhatChanged: "The name is spelt the way the line that sets it spells it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir compiles the whole file before running any of it, and a variable used without ever being given a value - often a name " +
+        "spelt differently - stops it compiling, with undefined variable.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    marks = [70, 80]
+                    total = Enum.sum(marks)
+                    IO.puts(totl)
+                    """,
+                BrokenDoes: Behaviour.Refused("undefined variable", 3),
+                Fixed: """
+                    marks = [70, 80]
+                    total = Enum.sum(marks)
+                    IO.puts(total)
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The name is spelt as it was when it was given its value."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "erlc compiles the whole module before any of it runs, and a variable used without being given a value - often a name spelt " +
+        "differently - stops it compiling. erlc compares the name with the variables it knows, and suggests one after did you mean.",
+        [
+            new WorkedExample("Printing the total",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Marks = [70, 80],
+                        Total = lists:sum(Marks),
+                        io:format("~p~n", [Totl]).
+                    """,
+                BrokenDoes: Behaviour.Refused("variable 'Totl' is unbound", 7),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    main() ->
+                        Marks = [70, 80],
+                        Total = lists:sum(Marks),
+                        io:format("~p~n", [Total]).
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The name is spelt as it was when it was given its value - Total, as erlc suggested."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "F# checks the whole script before it runs any of it, and a name it does not know at that point stops it there with " +
+        "error FS0039 - the value is not defined - often with the names F# thinks were meant.",
+        [
+            new WorkedExample("Dividing a total by a count",
+                Broken: """
+                    let total = 150
+                    let count = 2
+                    printfn "%d" (totl / count)
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0039", 3),
+                Fixed: """
+                    let total = 150
+                    let count = 2
+                    printfn "%d" (total / count)
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "totl is now total, the name the first line defines - the one F# suggested."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js runs TypeScript by taking its types out, and checks nothing else first - so a name it does not know stops " +
+        "the program only when that line runs, with ReferenceError: the name is not defined.",
+        [
+            new WorkedExample("Dividing a total by a count",
+                Broken: """
+                    const total: number = 150;
+                    const count: number = 2;
+                    console.log(totl / count);
+                    """,
+                BrokenDoes: Behaviour.Stopping("ReferenceError", 3),
+                Fixed: """
+                    const total: number = 150;
+                    const count: number = 2;
+                    console.log(total / count);
+                    """,
+                FixedDoes: Behaviour.Printing("75"),
+                WhatChanged: "totl is now total, the name the first line defines."),
         ]);
 }

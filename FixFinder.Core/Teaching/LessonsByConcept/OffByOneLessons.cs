@@ -5,7 +5,7 @@ internal static class OffByOneLessons
 {
     private static Concept Concept => Concepts.OffByOne;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, Scala, OCaml, Rust, Ruby, Php, Lua, Perl, Dart, Fortran, PowerShell, Elixir, Erlang, FSharp];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "range(a, b) counts from a up to but not including b, so range(1, 5) gives 1, 2, 3 and 4 - not 5. And a loop over " +
@@ -276,5 +276,135 @@ internal static class OffByOneLessons
                     """,
                 FixedDoes: Behaviour.Printing("70\n80\n90"),
                 WhatChanged: "< stops the loop at the last position, 2."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A Fortran array's positions start at 1, not 0: an array of 3 has positions 1, 2 and 3. A loop from 0 asks for position 0, " +
+        "and a program built with run-time checks, as FixFinder builds it, stops there.",
+        [
+            new WorkedExample("Printing every score",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: scores(3) = [70, 80, 90]
+                      integer :: i
+                      do i = 0, 3
+                        print '(I0)', scores(i)
+                      end do
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Stopping("Index '0' of dimension 1 of array 'scores' below lower bound of 1", 6),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: scores(3) = [70, 80, 90]
+                      integer :: i
+                      do i = 1, size(scores)
+                        print '(I0)', scores(i)
+                      end do
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The loop counts from 1 to size(scores), the array's own positions."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "An array's positions start at 0, so the last is one less than its Count. A loop that runs while $i -le $marks.Count takes one " +
+        "pass too many, and PowerShell gives $null for the position past the end, with no error.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    $marks = 70, 80, 90
+                    for ($i = 0; $i -le $marks.Count; $i++) {
+                        Write-Output ("Mark: " + $marks[$i])
+                    }
+                    """,
+                BrokenDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90\nMark:"),
+                Fixed: """
+                    $marks = 70, 80, 90
+                    for ($i = 0; $i -lt $marks.Count; $i++) {
+                        Write-Output ("Mark: " + $marks[$i])
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
+                WhatChanged: "-lt stops the loop at the last position, one less than the Count."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Elixir's ranges take in their end, so 0..length(marks) runs one past the last position - where Enum.at gives nil, with no " +
+        "error, and nil is printed as nothing.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    marks = [70, 80, 90]
+
+                    for i <- 0..length(marks) do
+                      IO.puts("Mark: #{Enum.at(marks, i)}")
+                    end
+                    """,
+                BrokenDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90\nMark:"),
+                Fixed: """
+                    marks = [70, 80, 90]
+
+                    for i <- 0..(length(marks) - 1)//1 do
+                      IO.puts("Mark: #{Enum.at(marks, i)}")
+                    end
+                    """,
+                FixedDoes: Behaviour.Printing("Mark: 70\nMark: 80\nMark: 90"),
+                WhatChanged: "length(marks) - 1 is the last position, and //1 makes the range count up - so an empty list gives no passes at all."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "Erlang's lists count their positions from 1, not 0. lists:nth(0, Marks) has no clause that takes a 0, so a loop over " +
+        "lists:seq(0, length(Marks) - 1) stops at its very first position, with function_clause.",
+        [
+            new WorkedExample("Printing every mark",
+                Broken: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    show(Marks) ->
+                        lists:foreach(fun(Position) -> io:format("~p~n", [lists:nth(Position, Marks)]) end, lists:seq(0, length(Marks) - 1)).
+
+                    main() ->
+                        show([70, 80, 90]).
+                    """,
+                BrokenDoes: Behaviour.Stopping("function_clause", 5),
+                Fixed: """
+                    -module(marks).
+                    -export([main/0]).
+
+                    show(Marks) ->
+                        lists:foreach(fun(Position) -> io:format("~p~n", [lists:nth(Position, Marks)]) end, lists:seq(1, length(Marks))).
+
+                    main() ->
+                        show([70, 80, 90]).
+                    """,
+                FixedDoes: Behaviour.Printing("70\n80\n90"),
+                WhatChanged: "The positions run from 1 to length(Marks), the positions the list has."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "An array's positions run from 0 to its Length - 1, and an F# loop to marks.Length counts to Length itself - so on " +
+        "its last pass it reads one past the end, and the script stops with IndexOutOfRangeException.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    let marks = [|70; 80; 90|]
+                    let mutable total = 0
+                    for index in 0 .. marks.Length do
+                        total <- total + marks.[index]
+                    printfn "%d" total
+                    """,
+                BrokenDoes: Behaviour.Stopping("IndexOutOfRangeException", 4),
+                Fixed: """
+                    let marks = [|70; 80; 90|]
+                    let mutable total = 0
+                    for index in 0 .. marks.Length - 1 do
+                        total <- total + marks.[index]
+                    printfn "%d" total
+                    """,
+                FixedDoes: Behaviour.Printing("240"),
+                WhatChanged: "The loop stops at marks.Length - 1, the last position the array has."),
         ]);
 }

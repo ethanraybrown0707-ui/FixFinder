@@ -1,0 +1,6 @@
+** exception error: bad argument
+  in function  list_to_integer/1
+     called as list_to_integer("12\n")
+     *** argument 1: not a textual representation of an integer
+  in call from marks:next/1 (marks.erl:4)
+  in call from marks:main/0 (marks.erl:7)

@@ -318,6 +318,11 @@ internal static class LogicGuides
         .. LuaPatternGuides.All,
         .. PerlPatternGuides.All,
         .. DartPatternGuides.All,
+        .. FortranPatternGuides.All,
+        .. PowerShellPatternGuides.All,
+        .. ElixirPatternGuides.All,
+        .. FSharpPatternGuides.All,
+        .. ErlangPatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

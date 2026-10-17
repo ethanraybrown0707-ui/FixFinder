@@ -5,7 +5,7 @@ internal static class UnclosedPairLessons
 {
     private static Concept Concept => Concepts.UnclosedPair;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Php, Lua, Perl, Fortran, PowerShell, Elixir, Erlang, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python reads on from an opening bracket looking for the one that closes it - over line ends too - and refuses the " +
@@ -156,5 +156,137 @@ internal static class UnclosedPairLessons
                     """,
                 FixedDoes: Behaviour.Printing("80"),
                 WhatChanged: "The if gets a } of its own, so the last } closes the foreach."),
+        ]);
+
+    private static Lesson Fortran => new(Concept, CodeLanguage.Fortran,
+        "A do loop is closed with end do, and a block if with end if. When one is missing, gfortran reaches a line that ends something " +
+        "else - often the end of the program - still inside it, and refuses the program before any of it runs.",
+        [
+            new WorkedExample("Counting to three",
+                Broken: """
+                    program marks
+                      implicit none
+                      integer :: i
+                      do i = 1, 3
+                        print '(I0)', i
+                    end program marks
+                    """,
+                BrokenDoes: Behaviour.Refused("Expecting END DO statement", 6),
+                Fixed: """
+                    program marks
+                      implicit none
+                      integer :: i
+                      do i = 1, 3
+                        print '(I0)', i
+                      end do
+                    end program marks
+                    """,
+                FixedDoes: Behaviour.Printing("1\n2\n3"),
+                WhatChanged: "end do closes the loop where its lines finish."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "Every { needs a } to close it. When one is missing, PowerShell reaches the end of the script still waiting for it, and " +
+        "refuses the whole script before any of it runs - naming the line of the { left open.",
+        [
+            new WorkedExample("Printing the higher marks",
+                Broken: """
+                    $marks = 70, 80
+                    foreach ($mark in $marks) {
+                        if ($mark -gt 75) {
+                            Write-Output $mark
+                    }
+                    """,
+                BrokenDoes: Behaviour.Refused("Missing closing '}' in statement block or type definition", 2),
+                Fixed: """
+                    $marks = 70, 80
+                    foreach ($mark in $marks) {
+                        if ($mark -gt 75) {
+                            Write-Output $mark
+                        }
+                    }
+                    """,
+                FixedDoes: Behaviour.Printing("80"),
+                WhatChanged: "The if gets a } of its own, so the last } closes the foreach - the { PowerShell said was left open, on line 2."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Every bracket needs its pair. When one is missing, Elixir reads on to the end of the file looking for it and refuses the whole " +
+        "file before any of it runs, with TokenMissingError - naming the bracket it expected, and the line where it gave up.",
+        [
+            new WorkedExample("Adding up the marks",
+                Broken: """
+                    marks = [70, 80]
+                    IO.puts(Enum.sum(marks)
+                    """,
+                BrokenDoes: Behaviour.Refused("TokenMissingError", 2),
+                Fixed: """
+                    marks = [70, 80]
+                    IO.puts(Enum.sum(marks))
+                    """,
+                FixedDoes: Behaviour.Printing("150"),
+                WhatChanged: "The ) that closes IO.puts( is added after the one that closes Enum.sum(."),
+        ]);
+
+    private static Lesson Erlang => new(Concept, CodeLanguage.Erlang,
+        "A string started with \" and never closed runs on to the end of the file, and erlc refuses the module before any of it runs, " +
+        "saying where the string started.",
+        [
+            new WorkedExample("Saying hello",
+                Broken: """
+                    -module(hello).
+                    -export([main/0]).
+
+                    main() ->
+                        io:format("hello~n).
+                    """,
+                BrokenDoes: Behaviour.Refused("unterminated string", 5),
+                Fixed: """
+                    -module(hello).
+                    -export([main/0]).
+
+                    main() ->
+                        io:format("hello~n").
+                    """,
+                FixedDoes: Behaviour.Printing("hello"),
+                WhatChanged: "The string is closed with \" before the bracket that closes io:format."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "Every bracket opened in F# has to be closed. One left open stops F# before the script runs, with error FS0583 - " +
+        "Unmatched '(' - at the bracket.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.sum marks
+                    printfn "done"
+                    """,
+                BrokenDoes: Behaviour.Refused("FS0583", 2),
+                Fixed: """
+                    let marks = [70; 80; 90]
+                    printfn "%d" (List.sum marks)
+                    printfn "done"
+                    """,
+                FixedDoes: Behaviour.Printing("240\ndone"),
+                WhatChanged: "The bracket opened before List.sum is closed after marks."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "Node.js reads a whole TypeScript file before it runs any of it, so a bracket left open stops it before anything " +
+        "runs: SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX], saying what it expected where the statement ended.",
+        [
+            new WorkedExample("Printing a total",
+                Broken: """
+                    const total: number = 10;
+                    console.log(total;
+                    """,
+                BrokenDoes: Behaviour.Refused("ERR_INVALID_TYPESCRIPT_SYNTAX", 2),
+                Fixed: """
+                    const total: number = 10;
+                    console.log(total);
+                    """,
+                FixedDoes: Behaviour.Printing("10"),
+                WhatChanged: "The bracket opened after console.log is closed before the ;."),
         ]);
 }

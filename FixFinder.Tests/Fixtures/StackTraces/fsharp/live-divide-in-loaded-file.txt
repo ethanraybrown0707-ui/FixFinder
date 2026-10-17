@@ -1,0 +1,7 @@
+75
+System.DivideByZeroException: Attempted to divide by zero.
+   at FSI_0001.Helpers.average(FSharpList`1 marks) in C:\marks\helpers.fsx:line 2
+   at <StartupCode$FSI_0002>.$FSI_0002.main@() in C:\marks\main.fsx:line 3
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+Stopped due to error

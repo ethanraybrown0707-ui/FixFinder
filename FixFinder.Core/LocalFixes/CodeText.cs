@@ -28,6 +28,21 @@ public enum Syntax
 
     /// <summary>Perl's: # to the end of a line - but not the # of $#marks, the last position of @marks.</summary>
     Perl,
+
+    /// <summary>Fortran's: ! to the end of a line - which is why if (mark != 40) is read as if (mark, and a comment.</summary>
+    Fortran,
+
+    /// <summary>
+    /// Erlang's: % to the end of a line, text in double quotes and atoms in single ones - but $% and $" are characters, and code.
+    /// </summary>
+    Erlang,
+
+    /// <summary>
+    /// F#'s: OCaml's comments between (* and *) and its quotes - 'a' is a character, 'a a type variable and x' a name - and
+    /// also // to the end of a line, text in """ that runs on over as many lines as it needs, and verbatim text, @"C:\marks",
+    /// whose backslashes are only backslashes. (*) is the multiplication operator, not the start of a comment.
+    /// </summary>
+    FSharp,
 }
 
 /// <summary>Small, exact readings of source lines, shared by every rule.</summary>
@@ -85,22 +100,44 @@ public static partial class CodeText
                 }
             }
 
-            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (commentsLikeC && c == '/' && next == '/'))
+            // An Erlang character - $a, $%, $", $\n - is code, whatever character it is.
+            if (syntax == Syntax.Erlang && c == '$')
+            {
+                i += next == '\\' ? 3 : 2;
+                continue;
+            }
+
+            if ((syntax == Syntax.Python && c == '#') || (syntax == Syntax.Perl && IsPerlComment(line, i)) || (syntax == Syntax.Fortran && c == '!') ||
+                (syntax == Syntax.Erlang && c == '%') || ((commentsLikeC || syntax == Syntax.FSharp) && c == '/' && next == '/'))
             {
                 for (var k = i; k < chars.Length; k++) chars[k] = ' ';
                 break;
             }
 
-            if ((commentsLikeC && c == '/' && next == '*') || (syntax == Syntax.OCaml && c == '(' && next == '*'))
+            if ((commentsLikeC && c == '/' && next == '*') || OpensMLComment(line, i, syntax))
             {
                 chars[i] = ' ';
                 chars[i + 1] = ' ';
-                open = syntax == Syntax.OCaml ? "(*" : "/*";
+                open = syntax is Syntax.OCaml or Syntax.FSharp ? "(*" : "/*";
                 i += 2;
                 continue;
             }
 
-            var tripleQuoted = syntax == Syntax.Python ? c is '"' or '\'' : syntax == Syntax.Scala && c == '"';
+            // F#'s verbatim text, @"C:\marks": a backslash is a backslash, and "" is a quote inside it.
+            if (syntax == Syntax.FSharp && c == '@' && next == '"')
+            {
+                var j = i + 2;
+
+                while (j < line.Length && (line[j] != '"' || (j + 1 < line.Length && line[j + 1] == '"')))
+                    j += line[j] == '"' ? 2 : 1;
+
+                for (var k = i + 2; k < Math.Min(j, chars.Length); k++) chars[k] = ' ';
+
+                i = Math.Min(j + 1, chars.Length);
+                continue;
+            }
+
+            var tripleQuoted = syntax == Syntax.Python ? c is '"' or '\'' : syntax is Syntax.Scala or Syntax.FSharp && c == '"';
 
             if (tripleQuoted && i + 2 < line.Length && line[i + 1] == c && line[i + 2] == c)
             {
@@ -112,7 +149,7 @@ public static partial class CodeText
                 continue;
             }
 
-            if (syntax == Syntax.OCaml && c == '\'')
+            if (syntax is Syntax.OCaml or Syntax.FSharp && c == '\'')
             {
                 // A character between quotes is masked; a quote that ends a name, or starts a type variable, is code.
                 var characterEnd = i > 0 && IsWordChar(line[i - 1]) ? -1 : OCamlCharacterEnd(line, i);
@@ -182,6 +219,11 @@ public static partial class CodeText
         return (equalsSigns + 2, "]" + new string('=', equalsSigns) + "]");
     }
 
+    /// <summary>Whether (* at <paramref name="at"/> opens an OCaml or F# comment - in F#, (*) is the multiplication operator.</summary>
+    private static bool OpensMLComment(string line, int at, Syntax syntax) =>
+        syntax is Syntax.OCaml or Syntax.FSharp && line[at] == '(' && at + 1 < line.Length && line[at + 1] == '*' &&
+        !(syntax == Syntax.FSharp && at + 2 < line.Length && line[at + 2] == ')');
+
     /// <summary>Whether the # at <paramref name="at"/> starts a Perl comment, rather than being the # of $#marks.</summary>
     private static bool IsPerlComment(string line, int at) => line[at] == '#' && (at == 0 || line[at - 1] != '$');
 
@@ -215,10 +257,16 @@ public static partial class CodeText
         {
             var c = line[i];
 
-            if (syntax == Syntax.OCaml && c == '\'')
+            if (syntax is Syntax.OCaml or Syntax.FSharp && c == '\'')
             {
                 var characterEnd = i > 0 && IsWordChar(line[i - 1]) ? -1 : OCamlCharacterEnd(line, i);
                 if (characterEnd > i) i = characterEnd;
+                continue;
+            }
+
+            if (syntax == Syntax.Erlang && c == '$')
+            {
+                i += i + 1 < line.Length && line[i + 1] == '\\' ? 2 : 1;
                 continue;
             }
 
@@ -238,9 +286,12 @@ public static partial class CodeText
 
             if (syntax == Syntax.Python && c == '#') return i;
             if (syntax is Syntax.CLike or Syntax.Scala && c == '/' && i + 1 < line.Length && line[i + 1] is '/' or '*') return i;
-            if (syntax == Syntax.OCaml && c == '(' && i + 1 < line.Length && line[i + 1] == '*') return i;
+            if (OpensMLComment(line, i, syntax)) return i;
+            if (syntax == Syntax.FSharp && c == '/' && i + 1 < line.Length && line[i + 1] == '/') return i;
             if (syntax == Syntax.Lua && c == '-' && i + 1 < line.Length && line[i + 1] == '-') return i;
             if (syntax == Syntax.Perl && IsPerlComment(line, i)) return i;
+            if (syntax == Syntax.Fortran && c == '!') return i;
+            if (syntax == Syntax.Erlang && c == '%') return i;
         }
 
         return null;

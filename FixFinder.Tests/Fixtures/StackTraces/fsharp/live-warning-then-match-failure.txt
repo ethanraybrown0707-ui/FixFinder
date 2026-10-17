@@ -1,0 +1,10 @@
+
+
+main.fsx(2,11): warning FS0025: Incomplete pattern matches on this expression. For example, the value '1' may indicate a case not covered by the pattern(s).
+
+Microsoft.FSharp.Core.MatchFailureException: The match cases were incomplete
+   at FSI_0001.describe(Int32 mark) in C:\marks\main.fsx:line 4
+   at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\marks\main.fsx:line 5
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+Stopped due to error

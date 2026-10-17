@@ -7,8 +7,9 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Mistakes Ruby programs make that run without a word - each run with Ruby 3.3, and ruby -w said nothing of any of them:
 /// <c>(total / count).to_f</c> of two whole numbers has lost its fraction before it becomes a decimal - (3 / 2).to_f is
-/// 1.0; a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false; and a method that gives back a
-/// changed copy - name.upcase, marks.sort - called on a line of its own, which leaves the value as it was.
+/// 1.0; a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false; a method that gives back a
+/// changed copy - name.upcase, marks.sort - called on a line of its own, which leaves the value as it was; and a range with
+/// two dots to an array's length, 0..marks.length, whose last number is one past the last position - marks[i] is nil.
 /// </summary>
 public static partial class RubyLogicPatterns
 {
@@ -24,6 +25,8 @@ public static partial class RubyLogicPatterns
         Pattern("logic-ruby-integer-average", IntegerAverage, Severity.Error),
         Pattern("logic-ruby-float-equality", FloatEquality),
         Pattern("logic-ruby-result-discarded", ResultDiscarded),
+        Pattern("logic-ruby-range-to-length", RangeToLength, Severity.Error),
+        Pattern("logic-ruby-elif", ElifForElsif, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary><c>(total / count).to_f</c>: a division made a decimal afterwards.</summary>
@@ -139,6 +142,81 @@ public static partial class RubyLogicPatterns
                 LocalFix.ReplaceLine(id, $"Keep the copy in {name}",
                     $"{name}.{method} gives back the changed copy; giving it to {name} keeps it.",
                     source.Path, index + 1, $"{call.Groups["indent"].Value}{name} = {name}.{method}"));
+        }
+    }
+
+    /// <summary>
+    /// <c>(0..marks.length).each do |i|</c>, or <c>for i in 0..marks.length</c>: a range with two dots, which takes in its
+    /// end - not 0..marks.length - 1, which stops at the last position.
+    /// </summary>
+    [GeneratedRegex(
+        @"\(\s*0\s*(?<dots>\.\.)(?!\.)\s*(?<array>[a-z_]\w*)\.(?:length|size|count)\s*\)\.each\s*(?:do\b|\{)\s*\|\s*(?<variable>[a-z_]\w*)\s*\||" +
+        @"\bfor\s+(?<variable>[a-z_]\w*)\s+in\s+0\s*(?<dots>\.\.)(?!\.)\s*(?<array>[a-z_]\w*)\.(?:length|size|count)\b(?!\s*-)")]
+    private static partial Regex RangeToLengthHeading();
+
+    /// <summary>
+    /// A range to the length whose number is used as a position in the array: on the last pass the position is one past the
+    /// end, which Ruby gives as nil. The position is looked for in the lines as written - "#{marks[i]}" is inside a string.
+    /// </summary>
+    private static IEnumerable<LogicFinding> RangeToLength(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (RangeToLengthHeading().Match(masked[index]) is not { Success: true } range) continue;
+
+            // The block: the heading's own line, for { }, and the lines indented under it, for do ... end.
+            var headingIndent = CodeText.Indentation(masked[index]).Length;
+            var blockEnd = index + 1;
+            while (blockEnd < masked.Count && (masked[blockEnd].Trim().Length == 0 || CodeText.Indentation(masked[blockEnd]).Length > headingIndent)) blockEnd++;
+
+            var array = range.Groups["array"].Value;
+            var variable = range.Groups["variable"].Value;
+            var position = new Regex($@"(?<![\w.]){Regex.Escape(array)}\s*\[\s*{Regex.Escape(variable)}\s*\]");
+            if (!Enumerable.Range(index, blockEnd - index).Any(line => position.IsMatch(source.Lines[line]))) continue;
+
+            var line = source.Lines[index];
+            var dots = range.Groups["dots"];
+
+            yield return new LogicFinding(id, index + 1,
+                $"0..{array}.length has two dots, so it takes in {array}.length itself - one past the last position, as positions start " +
+                $"at 0 - and on the last pass {array}[{variable}] is nil, with no error",
+                LocalFix.ReplaceLine(id, $"Stop before the length: 0...{array}.length",
+                    $"A range with three dots stops before its end, so {variable} goes over {array}'s positions and no further.",
+                    source.Path, index + 1, line[..dots.Index] + "..." + line[(dots.Index + dots.Length)..]));
+        }
+    }
+
+    /// <summary><c>elif mark &gt; 50</c> at the start of a line.</summary>
+    [GeneratedRegex(@"^(?<lead>\s*)elif\b")]
+    private static partial Regex Elif();
+
+    /// <summary>
+    /// elif, as Python writes it, inside an if: Ruby has no elif, and reads the line as a call to a method called elif, in the if's
+    /// own branch. When the if's condition is false nothing runs, with no error - Ruby 3.3 ran it and printed nothing - and when it
+    /// is true, Ruby stops there with NoMethodError. The change is Ruby's elsif.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ElifForElsif(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 1; index < masked.Count; index++)
+        {
+            if (Elif().Match(masked[index]) is not { Success: true } elif) continue;
+
+            var indent = elif.Groups["lead"].Length;
+            var inIf = Enumerable.Range(0, index).Reverse()
+                .Where(above => masked[above].Trim().Length > 0)
+                .Select(above => masked[above])
+                .FirstOrDefault(above => CodeText.Indentation(above).Length <= indent) is { } heading &&
+                Regex.IsMatch(heading, @"^\s*(?:if|unless|elsif)\b");
+            if (!inIf) continue;
+
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                "Ruby has no elif, so it reads this line as a call to a method called elif, inside the if's own branch - when the condition " +
+                "above is false, neither branch runs, with no error, and when it is true Ruby stops here",
+                LocalFix.ReplaceLine(id, "Write elsif",
+                    "Ruby writes \"else if\" as elsif, which starts the next branch of the if.",
+                    source.Path, index + 1, elif.Groups["lead"].Value + "elsif" + line[(elif.Groups["lead"].Length + "elif".Length)..]));
         }
     }
 }

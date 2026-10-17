@@ -226,11 +226,82 @@ internal static class BracePatternGuides
         GuideFor(["logic-nan-comparison"], "Comparing with NaN",
             "NaN means 'not a number' - the result of a calculation that failed, like 0 / 0. By the rules, NaN is not equal " +
             "to anything, not even itself, so x == NaN is false even when x is NaN.",
-            "The comparison is always false, so a failed calculation is never noticed.",
+            "A comparison with == is always false, and with != always true, so a failed calculation is never noticed.",
             "Use Number.isNaN (JavaScript), Double.isNaN (Java) or double.IsNaN (C#).",
             """
             if (Number.isNaN(value)) {
               console.log("not a number");
+            }
+            """),
+
+        GuideFor(["logic-c-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == NAN is false even when value is NaN. gcc says " +
+            "nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with isnan(value), from math.h.",
+            """
+            #include <math.h>
+            #include <stdio.h>
+
+            int main(void) {
+                double value = NAN;
+                if (isnan(value)) {
+                    printf("not a number\n");
+                }
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-cpp-nan-comparison"], "Comparing with NaN",
+            "NaN means 'not a number' - a value a calculation gives when it has no answer as a number. By the rules, " +
+            "NaN is not equal to anything, not even itself, so value == NAN is false even when value is NaN. g++ says " +
+            "nothing.",
+            "A comparison with == is always false, and with != always true, so a value that is NaN is never noticed.",
+            "Test with std::isnan(value), from cmath.",
+            """
+            #include <cmath>
+            #include <iostream>
+
+            int main() {
+                double value = NAN;
+                if (std::isnan(value)) {
+                    std::cout << "not a number\n";
+                }
+            }
+            """),
+
+        GuideFor(["logic-cpp-array-printed"], "An array sent to cout",
+            "cout writes a number, a string or a char array as text - but an array of numbers sent to it with << becomes the address " +
+            "of its first item, and cout writes that address, such as 0x1a535ffcf8. g++ says nothing.",
+            "The output shows an address instead of the items - a different one from run to run - which looks broken to anyone using " +
+            "the program.",
+            "Write each item in a loop: for (int mark : marks) std::cout << mark << \" \";",
+            """
+            #include <iostream>
+
+            int main() {
+                int marks[] = {70, 80, 90};
+                std::cout << "Marks: ";
+                for (int mark : marks) std::cout << mark << " ";
+                std::cout << "\n";
+            }
+            """),
+
+        GuideFor(["logic-cast-divided-as-whole-number"], "Rounding by hand that loses the places",
+            "(int)(price * 100 + 0.5) rounds a price to a whole number of hundredths - 1235 for 12.345 - and dividing that by 100, " +
+            "a whole number too, is whole-number division, which cuts the fraction off again: the result is 12. C, C++, Java and C# " +
+            "all do the same, and none of their compilers says anything.",
+            "The places the rounding was meant to keep are lost: 12.345 rounded to two places comes out as 12.",
+            "Divide by 100.0 - a double - so the division keeps its fraction: (int)(price * 100 + 0.5) / 100.0 is 12.35.",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                double price = 12.345;
+                double rounded = (int)(price * 100 + 0.5) / 100.0;
+                printf("%.2f\n", rounded);
+                return 0;
             }
             """),
 
@@ -256,6 +327,19 @@ internal static class BracePatternGuides
             System.out.println("" + first + second);
             """),
 
+        GuideFor(["logic-js-search-as-condition"], "A search's position used as true or false",
+            "indexOf gives a position: 0 when what it looks for is at the very start, and -1 when it is not there at all. As a " +
+            "condition, 0 is false and -1 is true - so if (marks.indexOf(70)) is false when 70 is the first mark, and " +
+            "if (marks.indexOf(99)) is true when 99 is not there. Node says nothing.",
+            "The condition is wrong both ways: a match at the start counts as none, and no match counts as one.",
+            "Ask whether it is there: marks.includes(70) is true wherever 70 is, the start too, and false only when it is not there.",
+            """
+            const marks = [70, 80];
+            if (marks.includes(70)) {
+              console.log("found 70");
+            }
+            """),
+
         GuideFor(["logic-index-of-above-zero"], "A match at the start taken for no match",
             "indexOf gives the position where what it looks for starts, counting from 0, and -1 when it is not there at all. A " +
             "match at the very start is at position 0, so indexOf(...) > 0 is false for it - as if it were not there. The same " +
@@ -265,6 +349,178 @@ internal static class BracePatternGuides
             """
             if (text.indexOf("a") >= 0) {
                 System.out.println("found");
+            }
+            """),
+
+        GuideFor(["logic-caret-as-power"], "^ used as a power",
+            "In maths side^2 means side squared, but in C, C++, Java, C# and JavaScript ^ is exclusive or: it compares two whole numbers bit by bit " +
+            "and keeps the bits that differ. 5 is 101 in binary and 2 is 010, so 5 ^ 2 is 111 - which is 7, not 25.",
+            "The program runs and works out a number - just the wrong one - with no error or warning.",
+            "Multiply the number by itself: side * side, or side * side * side for a cube. Java and C# also have Math.pow and " +
+            "Math.Pow, and JavaScript has **: side ** 2.",
+            """
+            int area = side * side;
+            """),
+
+        GuideFor(["logic-c-fgets-newline"], "A line read with its newline still in it",
+            "fgets keeps the newline from pressing Enter at the end of the text it reads: typing yes leaves \"yes\\n\" in the buffer. " +
+            "strcmp compares every character, the newline too, so it never finds the buffer equal to \"yes\".",
+            "The comparison is false whatever was typed, so the program takes the other branch every time.",
+            "Cut the text at its newline after reading it: answer[strcspn(answer, \"\\n\")] = '\\0'; - strcspn, from <string.h>, finds where it is.",
+            """
+            fgets(answer, sizeof answer, stdin);
+            answer[strcspn(answer, "\n")] = '\0';
+            if (strcmp(answer, "yes") == 0) {
+                printf("yes\n");
+            }
+            """),
+
+        GuideFor(["logic-cpp-getline-after-cin"], "getline after cin >> reads nothing",
+            "std::cin >> age reads the number and stops just before the newline typed after it, which is left waiting. The getline " +
+            "after it reads up to the next newline - and that is the one already waiting, so it reads the rest of the number's line: " +
+            "nothing. g++ says nothing.",
+            "The line read is always empty: with 21 and then Ada typed, name is empty and Ada is never read.",
+            "Skip the newline first: std::getline(std::cin >> std::ws, name) reads past the newline - and any spaces - before the line.",
+            """
+            #include <iostream>
+            #include <string>
+
+            int main() {
+                int age;
+                std::string name;
+                std::cin >> age;
+                std::getline(std::cin >> std::ws, name);
+                std::cout << "Name: [" << name << "] age " << age << "\n";
+            }
+            """),
+
+        GuideFor(["logic-c-fgets-after-scanf"], "fgets after scanf reads nothing",
+            "scanf(\"%d\", &age) reads the number and stops just before the newline typed after it, which is left waiting. The fgets " +
+            "after it reads up to the next newline - and that is the one already waiting, so it reads the rest of the number's line: " +
+            "the newline alone. gcc says nothing.",
+            "The line read holds nothing that was typed: with 21 and then Ada typed, name is empty and Ada is never read.",
+            "Read the rest of the number's line before fgets, up to and with its newline - stopping at the end of the input too, so it " +
+            "never waits: for (int rest = getchar(); rest != '\\n' && rest != EOF; rest = getchar()) { }",
+            """
+            #include <stdio.h>
+            #include <string.h>
+
+            int main(void) {
+                int age;
+                char name[50];
+                scanf("%d", &age);
+                for (int rest = getchar(); rest != '\n' && rest != EOF; rest = getchar()) { }
+                fgets(name, sizeof name, stdin);
+                name[strcspn(name, "\n")] = 0;
+                printf("Name: [%s] age %d\n", name, age);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-java-nextline-after-nextint"], "nextLine after nextInt reads nothing",
+            "nextInt reads the number and stops - before the newline from pressing Enter after it. The nextLine that follows reads to the " +
+            "end of that line: it finds the newline straight away, and gives back empty text, without waiting for the next line typed.",
+            "The text read is empty, so whatever was typed on the next line is never read where it was meant to be.",
+            "Read the rest of the number's line with a nextLine of its own before reading the next line.",
+            """
+            int age = scanner.nextInt();
+            scanner.nextLine();
+            String name = scanner.nextLine();
+            """),
+
+        GuideFor(["logic-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ adds two numbers, and joins text - and it works from left to right. In \"Total: \" + first + second, the text is joined " +
+            "to first, which makes more text, and that text is then joined to second: with first 70 and second 80 it is Total: 7080. " +
+            "Java, C# and JavaScript all do the same, and none of them warns.",
+            "The two numbers are written side by side rather than added - and \"Next: \" + count + 1 writes 31 for a count of 3.",
+            "Put the numbers that are to be added in brackets - \"Total: \" + (first + second) - so they are added before their sum " +
+            "joins the text.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    int first = 70;
+                    int second = 80;
+                    System.out.println("Total: " + (first + second));
+                }
+            }
+            """),
+
+        GuideFor(["logic-js-math-max-of-array"], "Math.max given an array",
+            "Math.max and Math.min take numbers one by one - Math.max(70, 85, 90). Given an array, they turn it into one number from " +
+            "its text, and the text of [70, 85, 90] is 70,85,90, which is no number: the answer is NaN. Node says nothing - and an " +
+            "array of one item happens to work, which hides the mistake until there are more.",
+            "The highest or lowest mark comes out as NaN, and every sum or comparison made with it is NaN or false too.",
+            "Spread the array into its items with ...: Math.max(...marks) is 90.",
+            """
+            const marks = [70, 85, 90];
+            console.log(Math.max(...marks));
+            """),
+
+        GuideFor(["logic-js-rows-shared"], "A grid whose rows are one row",
+            "new Array(3).fill(new Array(3).fill(0)) makes one row and fills the grid with that one row three times. " +
+            "Every row is the same array, so grid[0][0] = 1 changes the first item of every row. Node says nothing.",
+            "A change to one row shows in all of them: after grid[0][0] = 1, the grid is [[1,0,0],[1,0,0],[1,0,0]].",
+            "Make each row its own array: Array.from({ length: 3 }, () => new Array(3).fill(0)) makes a new row for " +
+            "each.",
+            """
+            const grid = Array.from({ length: 3 }, () => new Array(3).fill(0));
+            grid[0][0] = 1;
+            console.log(JSON.stringify(grid));
+            """),
+
+        GuideFor(["logic-js-array-shared"], "A second name for an array is not a copy",
+            "const backup = marks does not copy the array: it gives the same array a second name. A change made through either name " +
+            "- marks.push(100) - is a change to the one array, so backup shows it too. Node says nothing.",
+            "The second name does not keep the values the array had: after marks.push(100), backup prints [ 70, 80, 90, 100 ].",
+            "Make a copy: const backup = [...marks]. The copy is a new array with the same items, and a change to one no longer " +
+            "shows in the other.",
+            """
+            const marks = [70, 80, 90];
+            const backup = [...marks];
+            marks.push(100);
+            console.log(backup);
+            """),
+
+        GuideFor(["logic-js-typeof-never-gives"], "typeof compared with a word it never gives",
+            "typeof gives one of eight words: \"undefined\", \"object\", \"boolean\", \"number\", \"bigint\", \"string\", " +
+            "\"symbol\" and \"function\". An array is an object, so typeof gives \"object\" for it - and for null - and \"number\" " +
+            "for every number, whole or not. A comparison with any other word, such as \"array\", \"integer\" or \"String\", can " +
+            "never be true, and Node says nothing.",
+            "The condition is always false - or always true with !== - so the same branch runs whatever the value is.",
+            "Ask what was meant: Array.isArray(marks) for an array, Number.isInteger(count) for a whole number, value === null for " +
+            "null, and typeof's own words, all in small letters, for the rest.",
+            """
+            const marks = [70, 80];
+            if (Array.isArray(marks)) {
+              console.log("an array");
+            }
+            """),
+
+        GuideFor(["logic-js-for-in-over-array"], "for...in over an array gives positions",
+            "for...in goes over the names of an object's properties - and an array's are its positions, given as text: \"0\", " +
+            "\"1\", \"2\". So for (const mark in marks) makes mark a position written as text, not the item there. for...of is " +
+            "the loop that gives the items.",
+            "The loop works with positions where it means items, with no error - and as the positions are text, + joins them: " +
+            "adding up 70, 80 and 90 with total += mark comes out as 0012.",
+            "Go over the items with for...of: for (const mark of marks). A loop that uses the position to read the item at it - " +
+            "marks[mark] - works, and FixFinder leaves it alone.",
+            """
+            const marks = [70, 80, 90];
+            let total = 0;
+            for (const mark of marks) {
+              total += mark;
+            }
+            console.log("Total: " + total);
+            """),
+
+        GuideFor(["logic-js-loop-copy-changed"], "A loop that changes its own copy",
+            "for (let mark of marks) gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
+            "variable, not the item in the array - so after the loop, marks is just as it was.",
+            "The array is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Go over the positions and change the item at each: marks[index] += 5 - or make a new array with map.",
+            """
+            for (let index = 0; index < marks.length; index++) {
+              marks[index] += 5;
             }
             """),
     ];

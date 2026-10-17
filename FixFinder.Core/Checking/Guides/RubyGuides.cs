@@ -190,6 +190,75 @@ internal static class RubyGuides
             end
             """),
 
+        new GuideEntry
+        {
+            RuleIds = ["ruby-else-if"],
+            Guide = new MistakeGuide(
+                "Ruby writes \"else if\" as one word, elsif. else if is an else with a new if inside it - and that if needs an end of its " +
+                "own, so Ruby reached the end of the file still looking for it.",
+                NothingRuns,
+                "Write elsif, which starts the next branch of the same if.",
+                """
+                mark = 70
+                if mark > 80
+                  puts "high"
+                elsif mark > 50
+                  puts "pass"
+                end
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["ruby-missing-do"],
+            Guide = new MistakeGuide(
+                "A block given to a method - each, times, map - starts with do, and the |mark| that names each item comes after it. " +
+                "Without the do, Ruby read the |mark| as more of the call, and stopped on the line after it.",
+                NothingRuns,
+                "Put do before the |mark|: [70, 80].each do |mark|.",
+                """
+                [70, 80].each do |mark|
+                  puts mark
+                end
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["ruby-python-colon"],
+            Guide = new MistakeGuide(
+                "Ruby's def, if and while lines end with nothing after them - no colon, as Python has - and the block they start is " +
+                "closed by end.",
+                NothingRuns,
+                "Take the colon off the end of the line.",
+                """
+                def total(marks)
+                  marks.sum
+                end
+
+                puts total([70, 80])
+                """),
+        },
+
+        new GuideEntry
+        {
+            RuleIds = ["ruby-total-starts-at-zero"],
+            Guide = new MistakeGuide(
+                "A variable first given a value inside a loop's block is a new variable on each pass, and on the right of its first = it " +
+                "is nil - Ruby's value for nothing - which cannot be added to. It is gone again once the block ends.",
+                Stops,
+                "Give the variable its starting value before the loop: total = 0. Then every pass adds to the one variable, and it is " +
+                "still there after the loop.",
+                """
+                marks = [70, 80]
+                total = 0
+                marks.each do |mark|
+                  total = total + mark
+                end
+                puts total
+                """),
+        },
+
         Syntax(@"unexpected end-of-input|expected an `end`|expecting `end'|expecting 'end'",
             "Every def, if, while, do and class in Ruby is closed by its own end. One is missing, so Ruby reached the end of the file " +
             "still waiting for it - and only noticed there, so the line it names is the last one, not where the end belongs.",

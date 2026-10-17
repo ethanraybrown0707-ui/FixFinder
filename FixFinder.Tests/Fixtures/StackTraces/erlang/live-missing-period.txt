@@ -1,0 +1,8 @@
+marks.erl:6:1: syntax error before: main
+%    6| main() ->
+%     | ^
+
+marks.erl:2:2: function main/0 undefined
+%    2| -export([main/0]).
+%     |  ^
+

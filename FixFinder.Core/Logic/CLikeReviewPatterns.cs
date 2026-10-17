@@ -53,7 +53,7 @@ public static partial class CLikeReviewPatterns
 
     private static string Extension(SourceFile source) => Path.GetExtension(source.Path).ToLowerInvariant();
 
-    private static bool IsScript(SourceFile source) => Extension(source) is ".js" or ".mjs" or ".cjs";
+    private static bool IsScript(SourceFile source) => Extension(source) is ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts";
 
     private static IEnumerable<LogicFinding> SelfAssignment(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -267,7 +267,7 @@ public static partial class CLikeReviewPatterns
                 fix = fix.Value with { Header = allmanHeader.TrimEnd('{').TrimEnd() + "\n" + CodeText.Indentation(source.Lines[i]) + "{" };
 
             var anything = what.Length == 0 || Regex.IsMatch(what, @"^(?:System\.)?(?:Exception|Throwable|Error)\b|^\.\.\.$") ||
-                           (IsScript(source) && Regex.IsMatch(what, @"^[A-Za-z_$]\w*$"));
+                           (IsScript(source) && Regex.IsMatch(what, @"^[A-Za-z_$]\w*(?:\s*:\s*(?:unknown|any))?$"));
 
             yield return new LogicFinding(id, i + 1,
                 "this `catch` catches an error and does nothing with it, so when something goes wrong the program carries on as if it had not",
@@ -304,10 +304,11 @@ public static partial class CLikeReviewPatterns
                 return ($"{lead}catch ({type} {name}) {{", $"{inner}Console.Error.WriteLine($\"Something went wrong: {{{name}.Message}}\");");
             }
 
-            case ".js" or ".mjs" or ".cjs":
+            case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts":
             {
-                var name = what.Length > 0 ? what : "error";
-                return ($"{lead}catch ({name}) {{", $"{inner}console.error(\"Something went wrong:\", {name});");
+                // TypeScript can give the error a type - catch (err: unknown) - which stays as written; the name is before the colon.
+                var name = what.Length > 0 ? what.Split(':')[0].Trim() : "error";
+                return ($"{lead}catch ({(what.Length > 0 ? what : name)}) {{", $"{inner}console.error(\"Something went wrong:\", {name});");
             }
 
             default:
@@ -706,10 +707,12 @@ public static partial class CLikeReviewPatterns
             var line = source.Lines[i];
             var name = match.Groups["name"].Value;
             var check = string.Format(test, name);
-            if (match.Groups["op"].Value.StartsWith('!')) check = "!" + check;
+            var negated = match.Groups["op"].Value.StartsWith('!');
+            if (negated) check = "!" + check;
 
             yield return new LogicFinding(id, i + 1,
-                "NaN is not equal to anything, not even itself, so comparing with it is always false",
+                $"NaN is not equal to anything, not even itself, so {match.Value.Trim()} is always {(negated ? "true" : "false")} - even when the " +
+                "value is NaN",
                 Replace(id, $"Test for NaN: {check}",
                     "By definition NaN is unequal to every value, including another NaN, so `== NaN` can never be true. The language's own NaN test " +
                     "is the only reliable check.",

@@ -5,7 +5,7 @@ internal static class NothingThereLessons
 {
     private static Concept Concept => Concepts.NothingThere;
 
-    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart];
+    public static IReadOnlyList<Lesson> All { get; } = [Python, Java, JavaScript, Scala, Rust, Ruby, Php, Lua, Perl, Dart, PowerShell, Elixir, FSharp, TypeScript];
 
     private static Lesson Python => new(Concept, CodeLanguage.Python,
         "Python's value for nothing is None. A dictionary's get gives it back for a key the dictionary does not have, and a " +
@@ -358,5 +358,92 @@ internal static class NothingThereLessons
                     """,
                 FixedDoes: Behaviour.Printing("0"),
                 WhatChanged: "name ?? '' gives empty text when name is null, so there is always a length to take."),
+        ]);
+
+    private static Lesson PowerShell => new(Concept, CodeLanguage.PowerShell,
+        "$null is PowerShell's value for \"nothing here\". Calling a method on it prints \"You cannot call a method on a null-valued " +
+        "expression\", and PowerShell carries on without the line's result.",
+        [
+            new WorkedExample("A name never given",
+                Broken: """
+                    $name = $null
+                    Write-Output $name.ToUpper()
+                    Write-Output "done"
+                    """,
+                BrokenDoes: Behaviour.Printing("done"),
+                Fixed: """
+                    $name = $null
+                    if ($null -ne $name) {
+                        Write-Output $name.ToUpper()
+                    } else {
+                        Write-Output "No name"
+                    }
+                    Write-Output "done"
+                    """,
+                FixedDoes: Behaviour.Printing("No name\ndone"),
+                WhatChanged: "The fixed code checks $name holds something before calling a method on it."),
+        ]);
+
+    private static Lesson Elixir => new(Concept, CodeLanguage.Elixir,
+        "Enum.at gives nil - nothing - for a position past the end of a list, with no error. The error comes when the nil is used: " +
+        "nil + 1 stops the program with ArithmeticError.",
+        [
+            new WorkedExample("The second mark, plus one",
+                Broken: """
+                    marks = [70, 80]
+                    IO.puts(Enum.at(marks, 2) + 1)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArithmeticError", 2),
+                Fixed: """
+                    marks = [70, 80]
+                    IO.puts(Enum.at(marks, 1) + 1)
+                    """,
+                FixedDoes: Behaviour.Printing("81"),
+                WhatChanged: "Positions count from 0, so the second mark is at 1."),
+        ]);
+
+    private static Lesson FSharp => new(Concept, CodeLanguage.FSharp,
+        "List.head gives a list's first item, and an empty list has none: it stops the script with ArgumentException - The " +
+        "input list was empty. List.tryHead gives None instead.",
+        [
+            new WorkedExample("The first mark of none",
+                Broken: """
+                    let marks : int list = []
+                    printfn "%d" (List.head marks)
+                    """,
+                BrokenDoes: Behaviour.Stopping("ArgumentException", 2),
+                Fixed: """
+                    let marks : int list = []
+                    match List.tryHead marks with
+                    | Some first -> printfn "%d" first
+                    | None -> printfn "no marks"
+                    """,
+                FixedDoes: Behaviour.Printing("no marks"),
+                WhatChanged: "List.tryHead gives Some with the first mark, or None for an empty list, and the match says what to do " +
+                    "for each."),
+        ]);
+
+    private static Lesson TypeScript => new(Concept, CodeLanguage.TypeScript,
+        "A type says what a value should be, and Node.js does not check it: people[0] of an empty list is undefined whatever " +
+        "its type says, and reading .name of undefined stops the program with TypeError.",
+        [
+            new WorkedExample("The first person's name",
+                Broken: """
+                    interface Person {
+                      name: string;
+                    }
+                    const people: Person[] = [];
+                    console.log(people[0].name);
+                    """,
+                BrokenDoes: Behaviour.Stopping("TypeError", 5),
+                Fixed: """
+                    interface Person {
+                      name: string;
+                    }
+                    const people: Person[] = [];
+                    console.log(people.length > 0 ? people[0].name : "no people");
+                    """,
+                FixedDoes: Behaviour.Printing("no people"),
+                WhatChanged: "The name is read only when the list has someone in it."),
         ]);
 }
