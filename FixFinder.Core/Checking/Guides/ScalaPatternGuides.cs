@@ -51,6 +51,18 @@ internal static class ScalaPatternGuides
             println(sortedMarks)
             """),
 
+        GuideFor(["logic-scala-array-printed"], "An Array printed as it is",
+            "A List prints its items - List(70, 80, 90) - but an Array has no text of its own for them. Printed as it is - on its " +
+            "own, joined to text with + or put into s\"...\" - it shows its kind and a code, such as [I@4563e9ab. Neither Scala " +
+            "3.8.4 nor Scala 2.13.18 says anything of it.",
+            "The output shows [I@ and a code instead of the items, which looks broken to anyone using the program.",
+            "Print the items with mkString: marks.mkString(\", \") writes 70, 80, 90.",
+            """
+            @main def run(): Unit =
+              val marks = Array(70, 80, 90)
+              println(marks.mkString(", "))
+            """),
+
         GuideFor(["logic-scala-option-get"], "A value taken out of an Option without checking",
             "An Option holds a value - Some(value) - or nothing - None. A Map's get gives back None for a key that is not there, and " +
             "find gives back None when nothing matches. .get takes the value out without checking which it is, so when it is a None, " +

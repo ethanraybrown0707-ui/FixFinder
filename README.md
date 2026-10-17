@@ -248,13 +248,14 @@ to run. A library a `//> using dep` directive or the build.sbt names that is not
 rather than its errors reported as mistakes in the code. Scala's code is read for logic mistakes by checks of its own,
 as nothing here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in
 `xs`, two Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same
-items - a whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted`
-made on a line of its own and kept nowhere, `.get` taken from an Option nothing checked first, `value == Double.NaN`,
-which is false even when the value is NaN, and text with `$name` in it but no `s` before its
-quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into text; the
-change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and neither
-warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the text was
-the one place meant to use it.
+items - an Array printed as it is - `println(marks)` - which shows its kind and a code, such as `[I@4563e9ab`, rather
+than its items, and whose change prints them with `mkString(", ")`, a whole-number average given to a Double, which has
+lost its fraction already, a copy such as `marks.sorted` made on a line of its own and kept nowhere, `.get` taken from
+an Option nothing checked first, `value == Double.NaN`, which is false even when the value is NaN, and text with `$name`
+in it but no `s` before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s`
+puts a value into text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and
+Scala 2.13.18, and neither warns about it - of the text, the most either says is that the name is never used - E198 in
+Scala 3 - when the text was the one place meant to use it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -1098,7 +1099,7 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 45 | 26 | 39 |
 | JavaScript | 42 | 32 | 16 |
 | Go | 38 | 10 | 18 |
-| Scala | 6 | 7 | 28 |
+| Scala | 6 | 8 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 10 | 26 |
