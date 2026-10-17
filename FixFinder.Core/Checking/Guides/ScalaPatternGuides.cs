@@ -97,5 +97,17 @@ internal static class ScalaPatternGuides
               val value = Double.NaN
               if value.isNaN then println("not a number")
             """),
+
+        GuideFor(["logic-scala-constant-overflow"], "Whole numbers too big for an Int",
+            "365 * 24 * 60 * 60 * 1000 is worked out in Ints, because every number in it is one - and an Int holds nothing above " +
+            "2,147,483,647. The product, 31,536,000,000, wraps round to 1,471,228,928 before it is stored anywhere, even in a Long. " +
+            "Scala says nothing.",
+            "The number is wrong, and nothing says so: the milliseconds in a year come out as 1471228928.",
+            "Make the first number a Long with an L - 365L * 24 * 60 * 60 * 1000 - so the arithmetic is done in Longs.",
+            """
+            @main def run(): Unit =
+              val millisPerYear: Long = 365L * 24 * 60 * 60 * 1000
+              println(millisPerYear)
+            """),
     ];
 }

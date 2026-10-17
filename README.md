@@ -251,11 +251,13 @@ as nothing here follows a Scala program's values: a loop over `0 to xs.length` t
 items - an Array printed as it is - `println(marks)` - which shows its kind and a code, such as `[I@4563e9ab`, rather
 than its items, and whose change prints them with `mkString(", ")`, a whole-number average given to a Double, which has
 lost its fraction already, a copy such as `marks.sorted` made on a line of its own and kept nowhere, `.get` taken from
-an Option nothing checked first, `value == Double.NaN`, which is false even when the value is NaN, and text with `$name`
-in it but no `s` before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s`
-puts a value into text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and
-Scala 2.13.18, and neither warns about it - of the text, the most either says is that the name is never used - E198 in
-Scala 3 - when the text was the one place meant to use it.
+an Option nothing checked first, whole numbers whose product is too big for an Int - `365 * 24 * 60 * 60 * 1000`, which
+wraps round to `1471228928` even when it is stored in a Long, and whose change is `365L * ...` - `value == Double.NaN`,
+which is false even when the value is NaN, and text with `$name` in it but no `s` before its
+quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into text; the
+change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and neither
+warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the text was
+the one place meant to use it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -801,24 +803,27 @@ reads the rest of the number's line - nothing, with 21 and then Ada typed - whos
 and in Java `Math.round(price * 100) / 100` given to a double, which divides two whole numbers and prints `12.0` for
 12.345; the change divides by `100.0`. In C, C++, Java and C# it finds rounding by hand that does the
 same - `(int)(price * 100 + 0.5) / 100` given to a double - which printed `12.00` in C, `12` in C++ and C#, and `12.0`
-in Java, and none of their compilers said anything; the change divides by `100.0` too. In C, C++, Java, C#, JavaScript,
-Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is
-exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or
-interpreters says anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises
-it with `**`. In Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with
-`+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and
-which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in text that
-puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"`
-with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'`
-in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not
-its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
-finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
-`"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
-ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
-`Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
-`70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
-TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with
-NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
+in Java, and none of their compilers said anything; the change divides by `100.0` too. In Java and Scala it finds whole
+numbers whose sum or product is too big for an int - `long millisPerYear = 365 * 24 * 60 * 60 * 1000` - which are worked
+out as ints and wrap round, to `1471228928`, before they are stored in the long; the change works it out in longs,
+`365L * ...`. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In C, C++, Java, C#,
+JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side
+squared - where `^` is exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none
+of their compilers or interpreters says anything of it. The change multiplies the number by itself - or, in Python,
+Ruby, PHP and Perl, raises it with `**`. In Java, C#, JavaScript and TypeScript it finds text and then two numbers
+joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70
+and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in
+text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's
+`"Hello, $name"` with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's
+`'Hello, #{name}'` in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is
+written - `Hello, {name}` - not its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double.
+In JavaScript and TypeScript it finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false
+for an array, as `typeof` gives `"object"` for it - and in Python `type(age) == "int"`, which compares a type with text
+and is false for 21; the changes ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In
+JavaScript and TypeScript it also finds `Math.max(marks)` given an array, which takes numbers one by one and so turns
+the array into one number from its text, `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`.
+In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared
+with NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
 nothing, not even itself; none of their toolchains says anything of it, and the change is the language's own test, such
 as `math.isnan(value)`. Dart and Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its
 function does, on a line of its own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
@@ -1125,13 +1130,13 @@ Python, Java and C# are checked most thoroughly.
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
 | Python | 88 | 43 | 41 |
-| Java | 54 | 39 | 46 |
+| Java | 54 | 40 | 46 |
 | C# | 47 | 37 | 49 |
 | C | 46 | 23 | 39 |
 | C++ | 45 | 30 | 39 |
 | JavaScript | 42 | 36 | 16 |
 | Go | 38 | 11 | 18 |
-| Scala | 6 | 8 | 28 |
+| Scala | 6 | 9 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 12 | 26 |

@@ -182,6 +182,22 @@ internal static class ManagedPatternGuides
             }
             """),
 
+        GuideFor(["logic-java-constant-overflow"], "Whole numbers too big for an int",
+            "365 * 24 * 60 * 60 * 1000 is worked out in ints, because every number in it is one - and an int holds nothing above " +
+            "2,147,483,647. The product, 31,536,000,000, wraps round to 1,471,228,928 before it is stored anywhere, even in a long. " +
+            "javac says nothing.",
+            "The number is wrong, and nothing says so: the milliseconds in a year come out as 1471228928.",
+            "Make the first number a long with an L - 365L * 24 * 60 * 60 * 1000 - so the arithmetic is done in longs, and store it " +
+            "in a long.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    long millisPerYear = 365L * 24 * 60 * 60 * 1000;
+                    System.out.println(millisPerYear);
+                }
+            }
+            """),
+
         GuideFor(["logic-java-array-shared"], "A second name for an array is not a copy",
             "int[] backup = marks; does not copy the array: it gives the same array a second name. A change made through either name " +
             "- marks[0] = 100 - is a change to the one array, so backup shows it too; the same is so of a List. javac says nothing.",
