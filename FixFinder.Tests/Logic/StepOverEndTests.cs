@@ -81,9 +81,11 @@ public class StepOverEndPatternTests : IDisposable
 
 /// <summary>
 /// The mistake and its change run with each language's own toolchain, as FixFinder Learn runs a lesson, counting the loop's
-/// passes. The change stops after 4. The mistake is still running when its time runs out - or, with an int in Java, C and C#,
-/// which wrap round, it may finish first, after the 2,863,311,534 passes each printed here. A language this computer cannot run
-/// is passed over, and said to be.
+/// passes. The counter counts odd numbers - 1, 3, 5, 7, 9, 11 - so it never lands on 10, not even in an int, which wraps round
+/// and stays odd: the mistake is still running when its time runs out, in every language, and the change stops after 5.
+/// (Counting from 0 by 3 instead, an int lands on 10 after 2,863,311,534 passes - Java took about ten seconds for them on CI,
+/// as long as the time a run is given here, and once ended with nothing printed - so these runs count where nothing lands.)
+/// A language this computer cannot run is passed over, and said to be.
 /// </summary>
 public class StepOverEndLiveTests(ITestOutputHelper output) : IDisposable
 {
@@ -97,22 +99,22 @@ public class StepOverEndLiveTests(ITestOutputHelper output) : IDisposable
 
     public static TheoryData<string, string, string, string, int> Mistakes => new()
     {
-        { "Python", "main.py", "logic-python-loop-steps-over-end", "count = 0\npasses = 0\nwhile count != 10:\n    count += 3\n    passes += 1\nprint(passes)\n", 3 },
-        { "JavaScript", "main.js", "logic-loop-steps-over-end", "let passes = 0;\nfor (let count = 0; count != 10; count += 3) {\n  passes++;\n}\nconsole.log(passes);\n", 2 },
+        { "Python", "main.py", "logic-python-loop-steps-over-end", "count = 1\npasses = 0\nwhile count != 10:\n    count += 2\n    passes += 1\nprint(passes)\n", 3 },
+        { "JavaScript", "main.js", "logic-loop-steps-over-end", "let passes = 0;\nfor (let count = 1; count != 10; count += 2) {\n  passes++;\n}\nconsole.log(passes);\n", 2 },
         {
             "Java", "Main.java", "logic-loop-steps-over-end",
-            "public class Main {\n    public static void main(String[] args) {\n        long passes = 0;\n        for (int count = 0; count != 10; count += 3) {\n            passes++;\n        }\n        System.out.println(passes);\n    }\n}\n", 4
+            "public class Main {\n    public static void main(String[] args) {\n        long passes = 0;\n        for (int count = 1; count != 10; count += 2) {\n            passes++;\n        }\n        System.out.println(passes);\n    }\n}\n", 4
         },
-        { "C#", "main.cs", "logic-loop-steps-over-end", "long passes = 0;\nfor (int count = 0; count != 10; count += 3)\n{\n    passes++;\n}\nConsole.WriteLine(passes);\n", 2 },
+        { "C#", "main.cs", "logic-loop-steps-over-end", "long passes = 0;\nfor (int count = 1; count != 10; count += 2)\n{\n    passes++;\n}\nConsole.WriteLine(passes);\n", 2 },
         {
             "C", "main.c", "logic-loop-steps-over-end",
-            "#include <stdio.h>\n\nint main(void) {\n    volatile long long passes = 0;\n    for (int count = 0; count != 10; count += 3) {\n        passes++;\n    }\n    printf(\"%lld\\n\", passes);\n    return 0;\n}\n", 5
+            "#include <stdio.h>\n\nint main(void) {\n    volatile long long passes = 0;\n    for (int count = 1; count != 10; count += 2) {\n        passes++;\n    }\n    printf(\"%lld\\n\", passes);\n    return 0;\n}\n", 5
         },
     };
 
     [Theory]
     [MemberData(nameof(Mistakes))]
-    public async Task TheMistakeRunsFarPastItsEndAndTheChangeStopsAfterFourPasses(string languageName, string fileName, string patternId, string code, int line)
+    public async Task TheMistakeNeverEndsAndTheChangeStopsAfterFivePasses(string languageName, string fileName, string patternId, string code, int line)
     {
         var path = Path.Combine(_temp.Path, fileName);
         File.WriteAllText(path, code);
@@ -135,8 +137,7 @@ public class StepOverEndLiveTests(ITestOutputHelper output) : IDisposable
         var right = await SnippetRunner.RunAsync(language, changed);
         output.WriteLine($"the mistake: {wrong.Said(languageName)}\nthe change:  {right.Said(languageName)}");
 
-        var wraps = languageName is "Java" or "C#" or "C";
-        Assert.True(wrong.Shows(Behaviour.Running()) || (wraps && wrong.Shows(Behaviour.Printing("2863311534"))), wrong.Said(languageName));
-        Assert.True(right.Shows(Behaviour.Printing("4")), right.Said(languageName));
+        Assert.True(wrong.Shows(Behaviour.Running()), wrong.Said(languageName));
+        Assert.True(right.Shows(Behaviour.Printing("5")), right.Said(languageName));
     }
 }
