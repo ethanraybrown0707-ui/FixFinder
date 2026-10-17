@@ -478,7 +478,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 29 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 30 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -765,8 +765,11 @@ with `fgets` compared with `strcmp`, though its newline is still in it, and in J
 `nextInt`, which reads the rest of the number's line - nothing. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart,
 Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which
 compares two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says
-anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`.
-When an expected output was given, it also runs changed copies of the program to find the one that prints it:
+anything of it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In
+Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with `+` - `"Total: " + first + second` -
+which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of; brackets
+add the numbers first. When an expected output was given, it also runs changed copies of the program to find the one
+that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1059,11 +1062,11 @@ Python, Java and C# are checked most thoroughly.
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
 | Python | 88 | 37 | 41 |
-| Java | 54 | 35 | 46 |
-| C# | 47 | 32 | 49 |
+| Java | 54 | 36 | 46 |
+| C# | 47 | 33 | 49 |
 | C | 46 | 20 | 39 |
 | C++ | 45 | 25 | 39 |
-| JavaScript | 42 | 29 | 16 |
+| JavaScript | 42 | 30 | 16 |
 | Go | 38 | 9 | 18 |
 | Scala | 6 | 5 | 28 |
 | OCaml | 6 | 3 | 26 |
@@ -1078,7 +1081,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 6 | 33 |
-| TypeScript | 44 | 29 | 5 |
+| TypeScript | 44 | 30 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

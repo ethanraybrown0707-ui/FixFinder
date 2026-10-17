@@ -40,6 +40,7 @@ public static class LogicPatterns
         .. CaretAsPowerPatterns.All,
         .. InputPatterns.All,
         .. LoopCopyPatterns.All,
+        .. NumbersJoinedAsTextPatterns.All,
         .. RustLogicPatterns.All,
         .. RubyLogicPatterns.All,
         .. PhpLogicPatterns.All,

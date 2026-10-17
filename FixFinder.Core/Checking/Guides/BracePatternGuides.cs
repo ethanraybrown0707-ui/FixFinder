@@ -302,6 +302,23 @@ internal static class BracePatternGuides
             String name = scanner.nextLine();
             """),
 
+        GuideFor(["logic-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ adds two numbers, and joins text - and it works from left to right. In \"Total: \" + first + second, the text is joined " +
+            "to first, which makes more text, and that text is then joined to second: with first 70 and second 80 it is Total: 7080. " +
+            "Java, C# and JavaScript all do the same, and none of them warns.",
+            "The two numbers are written side by side rather than added - and \"Next: \" + count + 1 writes 31 for a count of 3.",
+            "Put the numbers that are to be added in brackets - \"Total: \" + (first + second) - so they are added before their sum " +
+            "joins the text.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    int first = 70;
+                    int second = 80;
+                    System.out.println("Total: " + (first + second));
+                }
+            }
+            """),
+
         GuideFor(["logic-js-loop-copy-changed"], "A loop that changes its own copy",
             "for (let mark of marks) gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
             "variable, not the item in the array - so after the loop, marks is just as it was.",

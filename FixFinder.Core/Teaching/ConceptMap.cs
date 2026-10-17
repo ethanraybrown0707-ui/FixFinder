@@ -231,6 +231,7 @@ public static class ConceptMap
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fsharp-whole-number-division"] },
         new(Concepts.TextToNumber) { CheckIds = ["logic-fsharp-input-compared-as-text"] },
         new(Concepts.OffByOne) { CheckIds = ["logic-fsharp-loop-to-length"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-numbers-joined-as-text"] },
 
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)
