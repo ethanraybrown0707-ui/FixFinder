@@ -38,7 +38,10 @@ public class TypeScriptLogicTests(ITestOutputHelper output) : IDisposable
         return path;
     }
 
-    /// <summary>Runs a TypeScript file with Node.js and gives back what it printed, failing on anything Node said or a run of over ten seconds.</summary>
+    /// <summary>
+    /// Runs a TypeScript file with Node.js and gives back what it printed, failing on anything Node said. The minute allowed is
+    /// only against a run that never ends: CI's busy runner once took over ten seconds to run a two-line program with Node.
+    /// </summary>
     private static async Task<string> RunAsync(string node, string file)
     {
         using var running = Process.Start(new ProcessStartInfo(node, $"\"{Path.GetFileName(file)}\"")
@@ -49,7 +52,7 @@ public class TypeScriptLogicTests(ITestOutputHelper output) : IDisposable
         var printed = running.StandardOutput.ReadToEndAsync();
         var said = running.StandardError.ReadToEndAsync();
 
-        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(1));
         await running.WaitForExitAsync(limit.Token);
 
         Assert.True(running.ExitCode == 0 && (await said).Trim().Length == 0, $"{file}: Node.js said:\n{await said}");
