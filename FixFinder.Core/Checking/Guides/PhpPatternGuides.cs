@@ -102,5 +102,18 @@ internal static class PhpPatternGuides
             }
             echo implode(" ", $marks), "\n";
             """),
+
+        GuideFor(["logic-php-variable-in-single-quotes"], "A variable inside single quotes",
+            "PHP puts a variable's value into text only when the text is in double quotes: \"Hello, $name\" becomes Hello, Ada. In " +
+            "single quotes, nothing in the text is worked out - $name is ordinary characters, and is printed as it is written. php -l " +
+            "says nothing, and neither does PHP as it runs, as the text is still text.",
+            "The output shows $name instead of the name, which looks broken to anyone using the program.",
+            "Put the text in double quotes. Text that has a \" or a \\ of its own needs those written differently first, as double " +
+            "quotes read them differently.",
+            """
+            <?php
+            $name = "Ada";
+            echo "Hello, $name\n";
+            """),
     ];
 }

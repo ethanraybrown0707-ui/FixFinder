@@ -27,8 +27,20 @@ public class LoopCopyPatternTests : IDisposable
     private static readonly string[] Checks =
     [
         "logic-python-loop-variable-changed", "logic-js-loop-copy-changed", "logic-php-foreach-copy-changed", "logic-ruby-each-for-map",
-        "logic-go-range-index-as-value", "logic-powershell-function-output-returned",
+        "logic-go-range-index-as-value", "logic-powershell-function-output-returned", "logic-js-for-in-over-array",
     ];
+
+    [Theory]
+    [InlineData("main.js", "const marks = [70, 80];\nlet total = 0;\nfor (let mark in marks) {\n  total += mark;\n}\n", "for (let mark of marks) {")]
+    [InlineData("main.ts", "const marks: number[] = [70, 80];\nlet total = 0;\nfor (const mark in marks) {\n  total += mark;\n}\n", "for (const mark of marks) {")]
+    [InlineData("main.js", "const text = \"Ada Grace\";\nconst names = text.split(\" \");\nfor (const name in names) {\n  console.log(name);\n}\n", "for (const name of names) {")]
+    [InlineData("main.js", "const student = { name: \"Ada\", mark: 70 };\nconst fields = Object.keys(student);\nfor (const field in fields) {\n  console.log(field);\n}\n", "for (const field of fields) {")]
+    public void ForInOverAnArrayWhoseVariableIsUsedAsAnItemIsFoundAndBecomesForOf(string fileName, string code, string changedTo)
+    {
+        var found = Assert.Single(Scan(fileName, code), finding => finding.PatternId == "logic-js-for-in-over-array");
+        Assert.Equal(3, found.Line);
+        Assert.Equal(changedTo, found.Fix!.NewLines.Single());
+    }
 
     [Theory]
     // The loop's variable read, not given a new value.
@@ -41,6 +53,12 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80}\n\ttotal := 0\n\tfor i := range marks {\n\t\ttotal += marks[i]\n\t}\n\tfmt.Println(total)\n}\n")]
     // range over a map gives its keys.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tages := map[string]int{\"Ada\": 36}\n\tfor name := range ages {\n\t\tfmt.Println(name)\n\t}\n}\n")]
+    // for...in's variable used as a position, to read the item at it.
+    [InlineData("main.js", "const marks = [70, 80];\nlet total = 0;\nfor (const i in marks) {\n  total += marks[i];\n}\nconsole.log(total);\n")]
+    // for...in over an object gives its keys, as meant.
+    [InlineData("main.js", "const student = { name: \"Ada\", mark: 70 };\nfor (const key in student) {\n  console.log(key);\n}\n")]
+    // for...in over a parameter, which may be an object: nothing says it is an array.
+    [InlineData("main.js", "function show(items) {\n  for (const item in items) {\n    console.log(item);\n  }\n}\nshow({ a: 1 });\n")]
     // A function that writes and gives back nothing with return.
     [InlineData("main.ps1", "function Show-Total($marks) {\n    Write-Output \"Total\"\n}\n\n$shown = Show-Total @(70)\n")]
     public void ALoopThatDoesWhatItSaysIsLeftAlone(string fileName, string code) =>
@@ -73,6 +91,14 @@ public class LoopCopyLiveTests(ITestOutputHelper output) : IDisposable
         {
             "Go", "main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\ttotal := 0\n\tfor mark := range marks {\n\t\ttotal += mark\n\t}\n\tfmt.Println(total)\n}\n",
             "logic-go-range-index-as-value", 8, "3", "240"
+        },
+        {
+            "JavaScript", "main.js", "const marks = [70, 80, 90];\nlet total = 0;\nfor (const mark in marks) {\n  total += mark;\n}\nconsole.log(\"Total: \" + total);\n",
+            "logic-js-for-in-over-array", 3, "Total: 0012", "Total: 240"
+        },
+        {
+            "TypeScript", "main.ts", "const marks: number[] = [70, 80, 90];\nlet total = 0;\nfor (const mark in marks) {\n  total += mark;\n}\nconsole.log(\"Total: \" + total);\n",
+            "logic-js-for-in-over-array", 3, "Total: 0012", "Total: 240"
         },
         {
             "PowerShell", "main.ps1",

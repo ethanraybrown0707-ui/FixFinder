@@ -114,5 +114,19 @@ internal static class PerlPatternGuides
             my $student = Student->new("Ada");
             print "Name: " . $student->name . "\n";
             """),
+
+        GuideFor(["logic-perl-variable-in-single-quotes"], "A variable inside single quotes",
+            "Perl puts a variable's value into text only when the text is in double quotes: \"Hello, $name\" becomes Hello, Ada. In " +
+            "single quotes, nothing in the text is worked out - $name is ordinary characters, and is printed as it is written. Perl " +
+            "says nothing, even with use strict and use warnings, as the text is still text.",
+            "The output shows $name instead of the name, which looks broken to anyone using the program.",
+            "Put the text in double quotes. Text that has a \", a \\ or an @ of its own needs those written differently first: " +
+            "double quotes read a \\ as the start of an escape, and an @ as an array to put into the text.",
+            """
+            use strict;
+            use warnings;
+            my $name = "Ada";
+            print "Hello, $name\n";
+            """),
     ];
 }

@@ -77,5 +77,17 @@ internal static class FSharpPatternGuides
             let answer = "7"
             if int answer > 10 then printfn "big" else printfn "small"
             """),
+
+        GuideFor(["logic-fsharp-text-without-dollar"], "Braces in F# text with no $",
+            "F# puts a value into text only when the text is interpolated - when a $ comes before its opening quote, as in " +
+            "$\"Hello, {name}\". Without the $, the braces are ordinary characters: printfn \"Hello, {name}\" prints Hello, {name}, " +
+            "braces and all. dotnet fsi says nothing, as the text is still text.",
+            "The output shows {name} instead of the name, which looks broken to anyone using the program.",
+            "Put a $ before the opening quote. Text written for printfn's own placeholders - printfn \"Hello, %s\" name - has its " +
+            "values after it, and needs no $.",
+            """
+            let name = "Ada"
+            printfn $"Hello, {name}"
+            """),
     ];
 }

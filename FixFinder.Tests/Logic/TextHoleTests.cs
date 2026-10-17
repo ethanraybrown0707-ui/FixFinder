@@ -86,6 +86,45 @@ public class TextHolePatternTests : IDisposable
     [InlineData("name = \"Ada\"\n# puts 'Hello, #{name}'\n")]
     public void RubySingleQuotesMeantAsTheyAreAreLeftAlone(string code) =>
         Assert.Empty(Scan("main.rb", code, "logic-ruby-interpolation-in-single-quotes"));
+
+    [Theory]
+    [InlineData("main.php", "logic-php-variable-in-single-quotes", "<?php\n$name = \"Ada\";\necho 'Hello, $name';\n", 3, "echo \"Hello, $name\";")]
+    [InlineData("main.php", "logic-php-variable-in-single-quotes", "<?php\n$marks = [70, 80];\nforeach ($marks as $mark) {\n    echo 'Mark: $mark' . \"\\n\";\n}\n", 4, "    echo \"Mark: $mark\" . \"\\n\";")]
+    [InlineData("main.pl", "logic-perl-variable-in-single-quotes", "use strict;\nuse warnings;\nmy $name = \"Ada\";\nprint 'Hello, $name';\n", 4, "print \"Hello, $name\";")]
+    [InlineData("main.fsx", "logic-fsharp-text-without-dollar", "let name = \"Ada\"\nprintfn \"Hello, {name}\"\n", 2, "printfn $\"Hello, {name}\"")]
+    [InlineData("main.fsx", "logic-fsharp-text-without-dollar", "let total = 150\nlet message = \"Total: {total}\"\nprintfn \"%s\" message\n", 2, "let message = $\"Total: {total}\"")]
+    [InlineData("main.scala", "logic-scala-text-without-s", "@main def run(): Unit =\n  val name = \"Ada\"\n  println(\"Hello, $name\")\n", 3, "  println(s\"Hello, $name\")")]
+    [InlineData("main.scala", "logic-scala-text-without-s", "@main def run(): Unit =\n  val marks = List(70, 80)\n  println(\"Total: ${marks.sum}\")\n", 3, "  println(s\"Total: ${marks.sum}\")")]
+    public void ANameInTextThatPutsNothingInIsFoundAndChanged(string fileName, string patternId, string code, int line, string changedTo)
+    {
+        var found = Assert.Single(Scan(fileName, code, patternId));
+        Assert.Equal(line, found.Line);
+        Assert.Equal(changedTo, found.Fix!.NewLines.Single());
+    }
+
+    [Theory]
+    // A " of its own, which double quotes would end the text at.
+    [InlineData("main.php", "logic-php-variable-in-single-quotes", "<?php\n$name = \"Ada\";\necho 'She said \"hi\" to $name';\n", 3)]
+    // An @ of its own, which Perl's double quotes would read as an array.
+    [InlineData("main.pl", "logic-perl-variable-in-single-quotes", "use strict;\nuse warnings;\nmy $name = \"Ada\";\nprint 'Mail $name at ada@example.com';\n", 4)]
+    public void TextThatDoubleQuotesWouldReadDifferentlyIsFoundWithNoChange(string fileName, string patternId, string code, int line)
+    {
+        var found = Assert.Single(Scan(fileName, code, patternId));
+        Assert.Equal(line, found.Line);
+        Assert.Null(found.Fix);
+    }
+
+    [Theory]
+    // PHP: double quotes already; a $ before a number; a variable the program never has; a comment.
+    [InlineData("main.php", "logic-php-variable-in-single-quotes", "<?php\n$name = \"Ada\";\necho \"Hello, $name\";\necho 'Price: $5';\necho 'Hello, $nobody';\n// echo 'Hello, $name';\n")]
+    // Perl: the same, with Perl's comment.
+    [InlineData("main.pl", "logic-perl-variable-in-single-quotes", "use strict;\nuse warnings;\nmy $name = \"Ada\";\nprint \"Hello, $name\";\nprint 'Price: $5';\n# print 'Hello, $name';\n")]
+    // F#: interpolated already; a printf format, whose values follow it; a name the program never uses; a comment.
+    [InlineData("main.fsx", "logic-fsharp-text-without-dollar", "let name = \"Ada\"\nprintfn $\"Hello, {name}\"\nprintfn \"Hello, %s {name}\" name\nprintfn \"Write {braces} around a name\"\n// printfn \"Hello, {name}\"\n")]
+    // Scala: s, f and raw already; a $ before a number; a name the program never uses.
+    [InlineData("main.scala", "logic-scala-text-without-s", "@main def run(): Unit =\n  val name = \"Ada\"\n  val total = 1.5\n  println(s\"Hello, $name\")\n  println(f\"$total%.2f\")\n  println(raw\"$name\")\n  println(\"Costs $5\")\n  println(\"Hello, $nobody\")\n")]
+    public void TextMeantAsItIsOrAlreadyFilledInIsLeftAlone(string fileName, string patternId, string code) =>
+        Assert.Empty(Scan(fileName, code, patternId));
 }
 
 /// <summary>
@@ -106,6 +145,11 @@ public class TextHoleLiveTests(ITestOutputHelper output) : IDisposable
     {
         { "C#", "main.cs", "logic-csharp-text-without-dollar", "int first = 70;\nint second = 80;\nint total = first + second;\nConsole.WriteLine(\"Total: {total}\");\n", 4, "Total: {total}", "Total: 150" },
         { "Ruby", "main.rb", "logic-ruby-interpolation-in-single-quotes", "name = \"Ada\"\nputs 'Hello, #{name}'\n", 2, "Hello, #{name}", "Hello, Ada" },
+        { "PHP", "main.php", "logic-php-variable-in-single-quotes", "<?php\n$name = \"Ada\";\necho 'Hello, $name';\n", 3, "Hello, $name", "Hello, Ada" },
+        { "Perl", "main.pl", "logic-perl-variable-in-single-quotes", "use strict;\nuse warnings;\nmy $name = \"Ada\";\nprint 'Hello, $name';\n", 4, "Hello, $name", "Hello, Ada" },
+        { "F#", "main.fsx", "logic-fsharp-text-without-dollar", "let name = \"Ada\"\nprintfn \"Hello, {name}\"\n", 2, "Hello, {name}", "Hello, Ada" },
+        // name is used again after the text, so the build has no unused-name warning to print before the program's output.
+        { "Scala", "main.scala", "logic-scala-text-without-s", "@main def run(): Unit =\n  val name = \"Ada\"\n  println(\"Hello, $name\")\n  println(name.length)\n", 3, "Hello, $name\n3", "Hello, Ada\n3" },
     };
 
     [Theory]

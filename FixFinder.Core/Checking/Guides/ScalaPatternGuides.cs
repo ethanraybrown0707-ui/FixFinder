@@ -60,5 +60,18 @@ internal static class ScalaPatternGuides
             """
             val age = ages.getOrElse("Bob", 0)
             """),
+
+        GuideFor(["logic-scala-text-without-s"], "$ in Scala text with no s",
+            "Scala puts a value into text only through an interpolator - a letter before the opening quote, most often s, as in " +
+            "s\"Hello, $name\". Without it, $name is ordinary characters, and is printed as it is written; so is ${...}. The compiler " +
+            "does not read inside the text: the most it says is that the name is never used - Scala 3's warning E198, unused local " +
+            "definition, or Scala 2.13's local val name is never used - and only when the text was the one place meant to use it.",
+            "The output shows $name instead of the name, which looks broken to anyone using the program.",
+            "Put an s before the opening quote.",
+            """
+            @main def run(): Unit =
+              val name = "Ada"
+              println(s"Hello, $name")
+            """),
     ];
 }

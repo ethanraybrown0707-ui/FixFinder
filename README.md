@@ -229,28 +229,31 @@ so and how to install one.
 A **Scala** program - a `.scala` file, or a Scala CLI script, `.sc` - is built and run by **Scala CLI**, which FixFinder
 finds on PATH, in its Windows installer's folder in Program Files, in Coursier's folder of installed applications or in
 Scoop's shims. It is run offline, as FixFinder never downloads anything, and without Scala CLI's compile server, which
-would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written into
-the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt and
-Metals keep what they download; Settings lists them. The version is the one the program asks for - in a
+would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written
+into the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt
+and Metals keep what they download; Settings lists them. The version is the one the program asks for - in a
 `//> using scala` directive, or as its build.sbt's `scalaVersion` - when that one is in the cache, or else the newest of
-the same series there: any Scala 3 for a Scala 3, the same 2.13 or 2.12 for a Scala 2. How it ran says which and why, and
-a program that asks for a series that is not in the cache is not built: the note says how to download it. A program that
-asks for nothing is built with the newest Scala 3 there - unless its code does not compile as Scala 3 and the newest Scala
-2 there compiles it with no error, as Scala 3 refuses some of what Scala 2 allowed, such as `def main(args:
-Array[String]) {` without `: Unit =`. Then it is Scala 2 code, it is built and run as Scala 2, and a note says so in the
-compiler's own words. A file under an sbt project's `src/main/scala` is built with every Scala file there, with the
-libraries its build.sbt's `libraryDependencies` name - other than those only its tests use - and runs from the folder
-holding build.sbt, as sbt runs it; anything there FixFinder cannot read, such as a version worked out by code, is named
-in how it ran. Anywhere else, a program is the chosen file and the Scala files beside it that its code uses, and a file
-that defines a name the chosen one defines too - another exercise's `object Main` - is another program. When the files
-built together hold several mains, the chosen file's is run; a file with no main is said to have nothing to run. A
-library a `//> using dep` directive or the build.sbt names that is not in the cache is said once, in a note, rather than
-its errors reported as mistakes in the code. Scala's code is read for logic mistakes by checks of its own, as nothing
-here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in `xs`, two
-Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same items - a
-whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted` made on a line
-of its own and kept nowhere, and `.get` taken from an Option nothing checked first. Each does what it is said to do in
-Scala 3.8.4 and Scala 2.13.18, and neither warns about it.
+the same series there: any Scala 3 for a Scala 3, the same 2.13 or 2.12 for a Scala 2. How it ran says which and why,
+and a program that asks for a series that is not in the cache is not built: the note says how to download it. A program
+that asks for nothing is built with the newest Scala 3 there - unless its code does not compile as Scala 3 and the
+newest Scala 2 there compiles it with no error, as Scala 3 refuses some of what Scala 2 allowed, such as
+`def main(args: Array[String]) {` without `: Unit =`. Then it is Scala 2 code, it is built and run as Scala 2, and a
+note says so in the compiler's own words. A file under an sbt project's `src/main/scala` is built with every Scala file
+there, with the libraries its build.sbt's `libraryDependencies` name - other than those only its tests use - and runs
+from the folder holding build.sbt, as sbt runs it; anything there FixFinder cannot read, such as a version worked out by
+code, is named in how it ran. Anywhere else, a program is the chosen file and the Scala files beside it that its code
+uses, and a file that defines a name the chosen one defines too - another exercise's `object Main` - is another program.
+When the files built together hold several mains, the chosen file's is run; a file with no main is said to have nothing
+to run. A library a `//> using dep` directive or the build.sbt names that is not in the cache is said once, in a note,
+rather than its errors reported as mistakes in the code. Scala's code is read for logic mistakes by checks of its own,
+as nothing here follows a Scala program's values: a loop over `0 to xs.length` that uses its number as a position in
+`xs`, two Arrays compared with `==` - which asks whether they are one and the same array, not whether they hold the same
+items - a whole-number average given to a Double, which has lost its fraction already, a copy such as `marks.sorted`
+made on a line of its own and kept nowhere, `.get` taken from an Option nothing checked first, and text with `$name` in
+it but no `s` before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s`
+puts a value into text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and
+Scala 2.13.18, and neither warns about it - of the text, the most either says is that the name is never used - E198 in
+Scala 3 - when the text was the one place meant to use it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -319,12 +322,13 @@ indentation - a string left open is closed, a misspelt function becomes the near
 PHP here lists its own - and a misspelt method the nearest one its class has, a property used inside a method without
 `$this->` gets it, a key an array does not have gets `?? 0` where it is added to, `$student.name` becomes
 `$student->name`, `elif` becomes `elseif`, and an array joined to text is joined with `implode`; each change is checked
-in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by seven checks `php -l` says nothing of: a
+in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by eight checks `php -l` says nothing of: a
 loop to `<= count($marks)` that uses its number as a position, an `=` in a condition, a decimal worked out by arithmetic
 and then compared exactly, `strpos(...) == false`, which is true for a match at the very start as well as for none, `^`
-written as a power, a line read with `fgets` compared with text, though it still ends with its newline, and a `foreach`
-that gives its copy of each item a new value - `$mark += 5` - which leaves the array as it was. PHP is tested with PHP
-8.4.24.
+written as a power, a line read with `fgets` compared with text, though it still ends with its newline, a `foreach` that
+gives its copy of each item a new value - `$mark += 5` - which leaves the array as it was, and a variable inside single
+quotes - `'Hello, $name'` - which PHP prints as it is written, `$name` and all, as only double quotes put a value into
+text; the change makes the quotes double. PHP is tested with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names them -
@@ -354,12 +358,13 @@ a division by zero gets an answer for when the divisor is zero, a misspelt sub b
 variable written without its `$` gets it - with `my` under `use strict` when nothing declares it - a `{` left open is
 closed where its indentation ends, and a string left open is closed on the line it starts on, which Perl's own hint
 names when a later quote stopped it; each change is checked in a copy - with `perl -c` - and run. Perl's code is read
-for logic mistakes by seven checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
+for logic mistakes by eight checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
 `==`, a line read from `<STDIN>` and compared with `eq` without `chomp`, a decimal worked out by arithmetic and then
 compared exactly, `length(@marks)`, which counts the digits of the array's count - Perl warns of it too, and the warning
-and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, and a method called inside
-text, `"Name: $student->name"`, which Perl does not call: it prints the object, `Student=HASH(0x...)`, and `->name`
-after it. Perl is tested with Strawberry Perl 5.42.2.
+and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, a variable inside single
+quotes - `'Hello, $name'` - which Perl prints as it is written, `$name` and all, even with `use warnings`, and a method
+called inside text, `"Name: $student->name"`, which Perl does not call: it prints the object, `Student=HASH(0x...)`, and
+`->name` after it. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -448,23 +453,24 @@ checks the script and the files it loads with `#load` and runs none of it. F# st
 one, with the warnings and notes it gave before it; each is a finding, with F#'s own number for it - `FS0039` - at the
 line and column it names. The one message that is not the script's - `FS0971: Undefined value 'it'`, which the check
 gives a script that is one expression and nothing else - is left out, as that script runs as it should. The script is
-run by F# Interactive with `--optimize-`, as optimised F# can name the wrong line for a crash, and what stops it -
-.NET's own exception, such as `System.DivideByZeroException` - is placed at its line, in a file the script loads too; a
-function that calls itself for ever is named by the call .NET saw repeated, as .NET gives that no line. A script that
-brings in a NuGet package with `#r "nuget: ..."` is not run, as F# Interactive would download it. F#'s own words become
-fixes: its "Maybe you want one of the following" is the change, a function that calls itself gets `rec`, a value given a
-new one with `<-` is declared `mutable`, `!=` and `==` become `<>` and `=`, `return` is taken out, a `for` with no `do`
-and an `if` with no `then` get them, `!finished` becomes `not finished`, a `%` in a printf format becomes the one for
-its value's type, `area(3, 4)` becomes `area 3 4`, a number joined to text with `+` gets `string`, a bracket left open
-is closed, `[70, 80, 90]` - one tuple - becomes `[70; 80; 90]`, `count = count + 1` inside a function becomes
+run by F# Interactive with `--optimize-`, as optimised F# can name the wrong line for a crash, and what stops
+it - .NET's own exception, such as `System.DivideByZeroException` - is placed at its line, in a file the script loads
+too; a function that calls itself for ever is named by the call .NET saw repeated, as .NET gives that no line. A script
+that brings in a NuGet package with `#r "nuget: ..."` is not run, as F# Interactive would download it. F#'s own words
+become fixes: its "Maybe you want one of the following" is the change, a function that calls itself gets `rec`, a value
+given a new one with `<-` is declared `mutable`, `!=` and `==` become `<>` and `=`, `return` is taken out, a `for` with
+no `do` and an `if` with no `then` get them, `!finished` becomes `not finished`, a `%` in a printf format becomes the
+one for its value's type, `area(3, 4)` becomes `area 3 4`, a number joined to text with `+` gets `string`, a bracket
+left open is closed, `[70, 80, 90]` - one tuple - becomes `[70; 80; 90]`, `count = count + 1` inside a function becomes
 `count <- count + 1`, a whole number divided by zero gets an answer for when the divisor is zero, and a loop to
 `marks.Length` stops at `marks.Length - 1`; each change is checked in a copy - with `dotnet fsi --typecheck-only`,
-through the script that loads it when another does - and run. F#'s code is read for logic mistakes by six checks F# says
-nothing of: `total = total + 70` on a line of the script's own, which compares and changes nothing; `List.sort marks` on
-a line of its own there, whose new list is lost; `float (total / count)` of two whole numbers; a loop to `marks.Length`
-that reads `marks.[index]`; a decimal worked out by arithmetic and then compared exactly; and a line read with
-`stdin.ReadLine()` compared with a number in quotes, which compares the two as text. F# is tested with F# Interactive
-15.2, F# 10, from the .NET SDK 10.0.400.
+through the script that loads it when another does - and run. F#'s code is read for logic mistakes by seven checks F#
+says nothing of: `total = total + 70` on a line of the script's own, which compares and changes nothing;
+`List.sort marks` on a line of its own there, whose new list is lost; `float (total / count)` of two whole numbers; a
+loop to `marks.Length` that reads `marks.[index]`; a decimal worked out by arithmetic and then compared exactly; a line
+read with `stdin.ReadLine()` compared with a number in quotes, which compares the two as text; and text with `{name}` in
+it but no `$` before its quote - `printfn "Hello, {name}"` - which prints `Hello, {name}`, braces and all. F# is tested
+with F# Interactive 15.2, F# 10, from the .NET SDK 10.0.400.
 
 A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js itself, which runs TypeScript by taking
 its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
@@ -480,7 +486,7 @@ JavaScript's, at the lines of the `.ts` file as written, in a file it imports to
 TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
 `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
 quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 30 logic checks read it too, in the JavaScript Node runs - its lines
+copy - by the same check - and run. JavaScript's 32 logic checks read it too, in the JavaScript Node runs - its lines
 with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
 a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
 becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
@@ -759,7 +765,10 @@ a list. In Go, where neither `go build` nor `go vet` says anything of them, it f
 `strconv.Atoi` thrown away with `_`, `strings.ToUpper(name)` on a line of its own, `strings.Replace` with a count of 0,
 which replaces nothing, a line read with `ReadString('\n')` compared with text, though it still ends with its newline,
 and a `range` loop with one variable - `for mark := range marks` - which gives the position, 0, 1, 2, not the item. In
-Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is
+JavaScript and TypeScript it finds the same in `for (const mark in marks)` over an array, whose variable is used as an
+item: `for...in` gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total += mark` joins them, and Node prints
+`Total: 0012` for marks of 70, 80 and 90; the change is `for...of`, and a loop that reads `marks[mark]` is left alone.
+In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is
 false in both - and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or
 `for (let mark of marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position
 compared with `> 0`, which takes a match at the very start, position 0, for no match. In C and C++ it finds a line read
@@ -771,11 +780,14 @@ anything of it. The change multiplies the number by itself - or, in Python, Ruby
 Java, C#, JavaScript and TypeScript it finds text and then two numbers joined with
 `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and
 which none of them warns of; brackets add the numbers first. It finds a value meant to be put into text, in text that
-puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s with no `$`, JavaScript's and TypeScript's
-`"Hello, ${name}"` in quotes rather than backticks, and Ruby's `'Hello, #{name}'` in single quotes. Each prints its
-braces and the name as they are written - `Hello, {name}` - not the value, and the change adds the `f` or the `$`, or
-changes the quotes. When an expected output was given, it also runs changed copies of the program to find the one that
-prints it:
+puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"`
+with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'`
+in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not
+its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it
+finds `typeof` compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives
+`"object"` for it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes
+ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. When an expected output was given, it also
+runs changed copies of the program to find the one that prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1067,27 +1079,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 37 | 41 |
+| Python | 88 | 38 | 41 |
 | Java | 54 | 36 | 46 |
 | C# | 47 | 34 | 49 |
 | C | 46 | 20 | 39 |
 | C++ | 45 | 25 | 39 |
-| JavaScript | 42 | 30 | 16 |
+| JavaScript | 42 | 32 | 16 |
 | Go | 38 | 9 | 18 |
-| Scala | 6 | 5 | 28 |
+| Scala | 6 | 6 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
 | Ruby | 13 | 9 | 26 |
-| PHP | 15 | 7 | 18 |
+| PHP | 15 | 8 | 18 |
 | Lua | 12 | 4 | 25 |
-| Perl | 13 | 7 | 26 |
+| Perl | 13 | 8 | 26 |
 | Dart | 12 | 5 | 23 |
 | Fortran | 8 | 4 | 17 |
 | PowerShell | 9 | 8 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
-| F# | 16 | 6 | 33 |
-| TypeScript | 44 | 30 | 5 |
+| F# | 16 | 7 | 33 |
+| TypeScript | 44 | 32 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

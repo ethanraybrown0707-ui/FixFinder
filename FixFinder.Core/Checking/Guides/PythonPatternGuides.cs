@@ -39,6 +39,17 @@ internal static class PythonPatternGuides
             print(f"Hello {name}, you scored {score}")
             """),
 
+        GuideFor(["logic-python-type-compared-with-text"], "A type compared with its name as text",
+            "type(age) gives the type itself - printed, it shows <class 'int'> - not the word \"int\". A type and a piece of text " +
+            "are never equal, so type(age) == \"int\" is always false, whatever age holds, and Python says nothing.",
+            "The condition is always false - or always true with != - so the same branch runs whatever the value is.",
+            "Ask with isinstance, naming the type as it is written in code, with no quotes: isinstance(age, int).",
+            """
+            age = 21
+            if isinstance(age, int):
+                print("a whole number")
+            """),
+
         GuideFor(["logic-python-method-not-called"], "A method used without calling it",
             "The round brackets after a method's name are what make it run. Without them, name.upper is the method itself - " +
             "like naming a recipe instead of cooking it - so you get the method, not its answer.",

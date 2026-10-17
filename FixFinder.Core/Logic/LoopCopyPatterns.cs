@@ -21,6 +21,7 @@ public static partial class LoopCopyPatterns
         new CodePattern("logic-php-foreach-copy-changed", CodePattern.Files(".php"), Syntax.CLike, PhpForeachCopy, Severity.Error),
         new CodePattern("logic-ruby-each-for-map", CodePattern.Files(".rb"), Syntax.Python, RubyEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-go-range-index-as-value", CodePattern.Files(".go"), Syntax.CLike, GoRangeIndex, Severity.Error),
+        new CodePattern("logic-js-for-in-over-array", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptForInOverArray, Severity.Error),
         new CodePattern("logic-powershell-function-output-returned", CodePattern.Files(".ps1"), Syntax.Python, PowerShellOutputReturned, Severity.Error),
     ];
 
@@ -242,6 +243,48 @@ public static partial class LoopCopyPatterns
                 LocalFix.ReplaceLine(id, $"Take the item as range's second variable: for _, {variable} := range {slice}",
                     $"range gives the position and then the item; _ leaves the position unused, and {variable} is the item.",
                     source.Path, index + 1, $"{loop.Groups["indent"].Value}for _, {variable} := range {slice} {{"));
+        }
+    }
+
+    /// <summary><c>for (const mark in marks) {</c>.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)for\s*\(\s*(?<kind>const|let|var)\s+(?<variable>[A-Za-z_$][\w$]*)\s+in\s+(?<list>[A-Za-z_$][\w$]*)\s*\)\s*\{\s*$")]
+    private static partial Regex ScriptForInHeading();
+
+    /// <summary>
+    /// JavaScript's for...in over an array, whose variable is used as an item - added up, printed - and never as a position in
+    /// the array: for...in gives each position, as text - "0", "1", "2" - so total += mark joins text, and Node printed Total: 0012
+    /// for marks of 70, 80 and 90. The change goes over the items with for...of.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ScriptForInOverArray(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var code = string.Join("\n", masked);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (ScriptForInHeading().Match(masked[index]) is not { Success: true } loop || BraceBlocks.Body(masked, index) is not { } body) continue;
+
+            var variable = loop.Groups["variable"].Value;
+            var list = loop.Groups["list"].Value;
+
+            // An array - made with [...], Array.from, new Array, Object.keys or values, or a method that gives one - not an object,
+            // whose for...in gives its keys.
+            if (!Regex.IsMatch(code,
+                    $@"(?<![\w$.]){Regex.Escape(list)}\s*=\s*(?:\[|Array\.from\(|new Array\(|Object\.(?:keys|values)\(|[^;\n]*?\.(?:split|map|filter|slice|concat)\()")) continue;
+
+            var asPosition = new Regex($@"\[\s*{Regex.Escape(variable)}\s*\]");
+            var used = new Regex($@"(?<![\w$.]){Regex.Escape(variable)}(?![\w$])");
+            var lines = Enumerable.Range(body.First, body.End - body.First).Select(line => masked[line]).ToList();
+            if (lines.Any(asPosition.IsMatch) || !lines.Any(used.IsMatch)) continue;
+
+            var line = source.Lines[index];
+            var heading = Regex.Match(line, $@"\b{loop.Groups["kind"].Value}\s+{Regex.Escape(variable)}\s+in\b");
+
+            yield return new LogicFinding(id, index + 1,
+                $"for...in goes over the positions in {list} - \"0\", \"1\", \"2\", as text - not its items, so {variable} is a position " +
+                $"written as text, and the loop works with positions where it means items: adding {variable} to a number joins the two as text",
+                LocalFix.ReplaceLine(id, $"Go over the items with for...of: for ({loop.Groups["kind"].Value} {variable} of {list})",
+                    $"for...of gives each item in {list} in turn, so {variable} is the item itself, not its position.",
+                    source.Path, index + 1, line[..heading.Index] + heading.Value[..^2] + "of" + line[(heading.Index + heading.Length)..]));
         }
     }
 

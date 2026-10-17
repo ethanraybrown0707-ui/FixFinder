@@ -319,6 +319,38 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-js-typeof-never-gives"], "typeof compared with a word it never gives",
+            "typeof gives one of eight words: \"undefined\", \"object\", \"boolean\", \"number\", \"bigint\", \"string\", " +
+            "\"symbol\" and \"function\". An array is an object, so typeof gives \"object\" for it - and for null - and \"number\" " +
+            "for every number, whole or not. A comparison with any other word, such as \"array\", \"integer\" or \"String\", can " +
+            "never be true, and Node says nothing.",
+            "The condition is always false - or always true with !== - so the same branch runs whatever the value is.",
+            "Ask what was meant: Array.isArray(marks) for an array, Number.isInteger(count) for a whole number, value === null for " +
+            "null, and typeof's own words, all in small letters, for the rest.",
+            """
+            const marks = [70, 80];
+            if (Array.isArray(marks)) {
+              console.log("an array");
+            }
+            """),
+
+        GuideFor(["logic-js-for-in-over-array"], "for...in over an array gives positions",
+            "for...in goes over the names of an object's properties - and an array's are its positions, given as text: \"0\", " +
+            "\"1\", \"2\". So for (const mark in marks) makes mark a position written as text, not the item there. for...of is " +
+            "the loop that gives the items.",
+            "The loop works with positions where it means items, with no error - and as the positions are text, + joins them: " +
+            "adding up 70, 80 and 90 with total += mark comes out as 0012.",
+            "Go over the items with for...of: for (const mark of marks). A loop that uses the position to read the item at it - " +
+            "marks[mark] - works, and FixFinder leaves it alone.",
+            """
+            const marks = [70, 80, 90];
+            let total = 0;
+            for (const mark of marks) {
+              total += mark;
+            }
+            console.log("Total: " + total);
+            """),
+
         GuideFor(["logic-js-loop-copy-changed"], "A loop that changes its own copy",
             "for (let mark of marks) gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
             "variable, not the item in the array - so after the loop, marks is just as it was.",
