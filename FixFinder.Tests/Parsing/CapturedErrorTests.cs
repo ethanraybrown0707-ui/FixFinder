@@ -1,5 +1,6 @@
 using FixFinder.Core;
 using FixFinder.Core.Execution;
+using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Parsing;
 
 namespace FixFinder.Tests;
@@ -33,9 +34,17 @@ namespace FixFinder.Tests;
 /// F#'s for JavaScript, by let, and one of TypeScript's, its string | null not seen as a type.
 /// </para>
 /// </remarks>
-public class CapturedErrorTests
+public class CapturedErrorTests : IDisposable
 {
     private const string CapturedFolder = @"C:\Users\Public\FixFinderCapture";
+
+    private readonly TempFolder _temp = new();
+
+    public void Dispose()
+    {
+        _temp.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>The folder a language's programs are kept in: its name in small letters, with C#, C++ and F# spelt out.</summary>
     private static string FolderOf(string language) => language switch
@@ -526,5 +535,44 @@ public class CapturedErrorTests
 
         // A file ending in a newline has one line more after it, empty - where a tool says it reached the end still reading.
         Assert.InRange(line, 0, program.Split('\n').Length);
+    }
+
+    [Theory]
+    [MemberData(nameof(Captured))]
+    public void EveryFixRuleAnswersTheErrorAndAnyChangeItOffersFitsTheProgram(string language, string caseName, string file, string reader, string kind, int line)
+    {
+        // The program copied to a folder of its own, and the output made to name that folder where it named the one it ran in -
+        // with \ or /, and with \\ as gcc writes the file of a change it suggests.
+        var copy = Path.Combine(_temp.Path, FolderOf(language), caseName);
+        Directory.CreateDirectory(copy);
+        File.Copy(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file), Path.Combine(copy, file));
+        var ranIn = SourceRoots(language, caseName)[0];
+        var output = Output(language, caseName)
+            .Select(captured => captured with
+            {
+                Text = captured.Text.Replace(ranIn.Replace(@"\", @"\\"), copy.Replace(@"\", @"\\"), StringComparison.OrdinalIgnoreCase)
+                    .Replace(ranIn, copy, StringComparison.OrdinalIgnoreCase)
+                    .Replace(ranIn.Replace('\\', '/'), copy.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase),
+            })
+            .ToList();
+
+        var languageRead = CodeLanguage.All.Single(each => each.Name == language);
+        var readers = languageRead.Parsers();
+        var error = readers.Parse(output, [copy]);
+        Assert.NotNull(error);
+        var context = new LocalFixContext { Error = error, Others = readers.Others(error, output, [copy]), Output = output, SourceRoot = copy, Language = languageRead };
+        var program = SourceFile.Read(Path.Combine(copy, file))!;
+
+        foreach (var rule in LocalFixEngine.Rules.Where(languageRead.Reads))
+        {
+            // A rule that throws fails the test, with what it threw.
+            if (rule.Propose(context) is not { } change) continue;
+
+            Assert.Equal(Path.GetFullPath(Path.Combine(copy, file)), Path.GetFullPath(change.File), StringComparer.OrdinalIgnoreCase);
+            Assert.InRange(change.StartLine, 1, program.Count + 1);
+            Assert.True(change.StartLine - 1 + change.RemoveCount <= program.Count, $"{rule.Id} removes lines past the end of {file}");
+            Assert.DoesNotContain(change.NewLines, newLine => newLine.Contains('\n') || newLine.Contains('\r'));
+            Assert.False(change.ApplyTo(program)!.SequenceEqual(program.Lines), $"{rule.Id} offers a change that changes nothing");
+        }
     }
 }
