@@ -23,13 +23,17 @@ public static class CulpritFrameSelector
     {
         if (frames.Count == 0) return null;
 
-        // The program's own frame that names a line comes before one of its own that names none - as Dart names a late field's
-        // getter, "total (file:///.../main.dart)", above the line of main that read it.
+        // A frame that names a line comes before one that names none - as Dart names a late field's getter,
+        // "total (file:///.../main.dart)", above the line of main that read it. The program's own frames come first, then
+        // frames of files no one has said whose they are, which is every frame of a run told no folder for the program.
         foreach (var frame in frames)
             if (frame.Origin == FrameOrigin.FirstParty && frame.Line is not null) return frame;
 
         foreach (var frame in frames)
             if (frame.Origin == FrameOrigin.FirstParty) return frame;
+
+        foreach (var frame in frames)
+            if (frame.Origin == FrameOrigin.Unknown && frame.File is not null && frame.Line is not null) return frame;
 
         foreach (var frame in frames)
             if (frame.Origin == FrameOrigin.Unknown && frame.File is not null) return frame;

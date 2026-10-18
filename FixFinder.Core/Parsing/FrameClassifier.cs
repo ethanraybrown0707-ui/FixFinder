@@ -22,6 +22,8 @@ public static class FrameClassifier
     private static readonly string[] RuntimeSegments =
     [
         "node:",
+        // Ruby's own methods written in Ruby: <internal:kernel>:307:in `Integer', above the program's line that called it.
+        "<internal:",
         // Dart's own libraries: dart:core-patch/integers.dart. (package: is not here - a Dart package's own files are named so too.)
         "dart:",
         "/microsoft.netcore.app/",

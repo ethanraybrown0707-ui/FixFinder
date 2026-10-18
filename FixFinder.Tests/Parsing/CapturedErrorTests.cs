@@ -550,6 +550,16 @@ public class CapturedErrorTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Captured))]
+    public void ItIsReadTheSameWhenNotToldWhereTheProgramIs(string language, string caseName, string file, string reader, string kind, int line)
+    {
+        // As the window's run reads it: its frames are of no one's files in particular, as no folder is named for the program.
+        var error = CodeLanguage.All.Single(each => each.Name == language).Parsers().Parse(Output(language, caseName));
+
+        AssertNamesTheErrorAndItsLine(error, reader, file, kind, line);
+    }
+
+    [Theory]
+    [MemberData(nameof(Captured))]
     public void EveryReaderTogetherReadsItTheSameWhenTheLanguageIsLeftToFixFinder(string language, string caseName, string file, string reader, string kind, int line)
     {
         var error = new ParserRegistry().Parse(Output(language, caseName), SourceRoots(language, caseName));
