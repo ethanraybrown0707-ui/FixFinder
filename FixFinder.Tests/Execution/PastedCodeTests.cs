@@ -113,6 +113,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     // A line marks = [70, 80] is Python's and Ruby's too, but defmodule, IO.puts, |> and fn ... -> are Elixir's alone.
     [InlineData("defmodule Marks do\n  def total(marks), do: Enum.sum(marks)\nend\n\nIO.puts(Marks.total([70, 80]))\n", "Elixir")]
     [InlineData("marks = [70, 80]\n\nmarks\n|> Enum.map(fn mark -> mark + 5 end)\n|> IO.inspect()\n", "Elixir")]
+    // end on a line of its own and #{} are Elixir's as much as Ruby's, so IO.puts settles it - and a def with no do, Ruby.
+    [InlineData("marks = [70, 80, 0]\nfor mark <- marks do\n  IO.puts(\"Mark: #{mark}\")\nend\n", "Elixir")]
+    [InlineData("def total(marks)\n  marks.sum\nend\n", "Ruby")]
     // A function's -> is Elixir's too, but -module, -export, io:format and ~p are Erlang's alone.
     [InlineData("-module(marks).\n-export([main/0]).\n\nmain() ->\n    Marks = [70, 80],\n    io:format(\"~p~n\", [lists:sum(Marks)]).\n", "Erlang")]
     // let and [70; 80] are OCaml's too, but printfn, let mutable and List.sum are F#'s alone.

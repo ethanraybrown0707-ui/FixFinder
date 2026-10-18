@@ -116,9 +116,11 @@ public static partial class PastedCode
             new(@"^\s*(?:pub\s+)?fn\s+\w+\s*(?:<[^>]*>)?\s*\(", RegexOptions.Multiline), new(@"\b(?:println|print|format|vec|panic)!\s*[(\[]"),
             new(@"^\s*let\s+mut\s+\w+", RegexOptions.Multiline), new(@"^\s*use\s+std::", RegexOptions.Multiline),
             new(@"\b(?:Vec|String|HashMap)::(?:new|from)\s*\(")]),
+        // A def line with neither do nor a colon after it is Ruby's: Elixir's needs do, and Python's a colon.
         (CodeLanguage.Ruby, [
             new(@"^\s*puts\b", RegexOptions.Multiline), new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"\.each\s+do\s*\|"),
-            new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}")]),
+            new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}"),
+            new(@"^\s*def\s+\w+[?!]?(?:\([^)]*\))?[ \t]*$", RegexOptions.Multiline)]),
         // A line $total = 10 is PowerShell's as much as PHP's, but PHP ends each statement with a semicolon and PowerShell needs none.
         (CodeLanguage.Php, [
             new(@"<\?php\b"), new(@"^\s*\$\w+\s*=(?!=).*;\s*$", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
@@ -151,7 +153,9 @@ public static partial class PastedCode
             new(@"\$\w+\.[A-Z]\w*\s*\(")]),
         (CodeLanguage.Elixir, [
             new(@"^\s*defmodule\s+[A-Z][\w.]*\s+do\b", RegexOptions.Multiline), new(@"^\s*defp?\s+[a-z_]\w*[?!]?(?:\([^)]*\))?\s*(?:when\b.*)?(?:,\s*do:|\s+do\b)", RegexOptions.Multiline),
-            new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\(")]),
+            new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\("),
+            // A block's end on a line of its own, and #{} putting a value into text, are Elixir's as much as Ruby's.
+            new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"#\{[^}]*\}")]),
         (CodeLanguage.Erlang, [
             new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
             new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
