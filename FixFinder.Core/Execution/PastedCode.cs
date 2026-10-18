@@ -158,7 +158,7 @@ public static partial class PastedCode
         // TypeScript: JavaScript with types - a value, a parameter or what a function gives back written with its type (string |
         // null among them), an interface, a type, as const, as any. JavaScript has none of them.
         (CodeLanguage.TypeScript, [
-            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w<>\[\]]+(?:\s*\|\s*[\w<>\[\]]+)*\s*=", RegexOptions.Multiline),
+            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w\[\]]+(?:<[^<>=\n]*>)?(?:\[\])*(?:\s*\|\s*[\w\[\]]+(?:<[^<>=\n]*>)?(?:\[\])*)*\s*=", RegexOptions.Multiline),
             new(@"\(\s*\w+\s*:\s*(?:number|string|boolean|any|unknown)(?:\[\])?\s*[,)]"),
             new(@"\)\s*:\s*(?:number|string|boolean|void|any|Promise<[^>]*>)(?:\[\])?\s*(?:\{|=>)"),
             new(@"^\s*(?:export\s+)?interface\s+[A-Z]\w*", RegexOptions.Multiline),
@@ -173,7 +173,7 @@ public static partial class PastedCode
     /// <summary>
     /// The language code looks to be written in, from marks only one language writes - or null when it has none, or as many
     /// of another's: then the person says which, rather than FixFinder guessing. C++ is taken over C when it has a mark of
-    /// its own, since most C is C++ too.
+    /// its own, since most C is C++ too - and TypeScript over JavaScript, since all JavaScript is TypeScript.
     /// </summary>
     public static CodeLanguage? LanguageOf(string code)
     {
@@ -183,6 +183,7 @@ public static partial class PastedCode
             .ToList();
 
         if (counted.Any(entry => entry.Language == CodeLanguage.Cpp)) counted.RemoveAll(entry => entry.Language == CodeLanguage.C);
+        if (counted.Any(entry => entry.Language == CodeLanguage.TypeScript)) counted.RemoveAll(entry => entry.Language == CodeLanguage.JavaScript);
         if (counted.Count == 0) return null;
 
         var most = counted.Max(entry => entry.Count);

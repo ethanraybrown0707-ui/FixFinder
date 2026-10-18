@@ -122,6 +122,9 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("const marks: number[] = [70, 80];\nfunction average(values: number[]): number {\n  return values.length;\n}\nconsole.log(average(marks));\n", "TypeScript")]
     [InlineData("interface Student {\n  name: string;\n}\nconst ada: Student = { name: \"Ada\" };\nconsole.log(ada.name);\n", "TypeScript")]
     [InlineData("const name: string | null = null;\nconsole.log((name as any).length);\n", "TypeScript")]
+    // All JavaScript is TypeScript: one mark of TypeScript's own outweighs any number of JavaScript's.
+    [InlineData("interface Student {\n  name: string;\n}\nconst ada = JSON.parse(\"null\") as Student;\nconsole.log(ada.name);\n", "TypeScript")]
+    [InlineData("const ages: Record<string, number> = { Ada: 36 };\nconsole.log(ages[\"Bob\"].toFixed(1));\n", "TypeScript")]
     // PHP ends each statement with a semicolon, and PowerShell's need none - nor do they need [int] or $word.Size() to be PHP's.
     [InlineData("$total = 10\n$count = 0\n$total / $count\n", "PowerShell")]
     [InlineData("$mark = [int]\"abc\"\n", "PowerShell")]
