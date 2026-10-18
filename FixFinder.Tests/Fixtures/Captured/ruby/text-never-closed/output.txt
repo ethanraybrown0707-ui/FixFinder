@@ -1,0 +1,10 @@
+err| C:/Users/Public/FixFinderCapture/ruby/text-never-closed/main.rb: --> C:/Users/Public/FixFinderCapture/ruby/text-never-closed/main.rb
+err| 
+err| expected a closing delimiter for the string literal
+err| 
+err| > 1  puts "hi
+err| 
+err| C:/Users/Public/FixFinderCapture/ruby/text-never-closed/main.rb:1: unterminated string meets end of file (SyntaxError)
+err| puts "hi
+err|         ^
+err| 

@@ -1,0 +1,5 @@
+err| main.f90:4:2:
+err| 
+err|     4 |   total = 20
+err|       |  1
+err| Error: Named constant 'total' in variable definition context (assignment) at (1)

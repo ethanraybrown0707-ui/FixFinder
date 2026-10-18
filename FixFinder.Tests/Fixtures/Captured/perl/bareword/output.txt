@@ -1,0 +1,2 @@
+err| Bareword "seventy" not allowed while "strict subs" in use at C:\Users\Public\FixFinderCapture\perl\bareword\main.pl line 3.
+err| Execution of C:\Users\Public\FixFinderCapture\perl\bareword\main.pl aborted due to compilation errors.

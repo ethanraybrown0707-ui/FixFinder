@@ -1,0 +1,7 @@
+err| Get-ChildItem : A parameter cannot be found that matches parameter name 'Filterr'.
+err| At C:\Users\Public\FixFinderCapture\powershell\parameter-not-there\main.ps1:1 char:15
+err| + Get-ChildItem -Filterr "*.txt"
+err| +               ~~~~~~~~
+err|     + CategoryInfo          : InvalidArgument: (:) [Get-ChildItem], ParameterBindingException
+err|     + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.GetChildItemCommand
+err|  

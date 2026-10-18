@@ -1,0 +1,6 @@
+err| fatal error: all goroutines are asleep - deadlock!
+err| 
+err| goroutine 1 [chan send]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/deadlock/main.go:5 +0x28
+err| exit status 2

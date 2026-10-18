@@ -5,7 +5,7 @@ using FixFinder.Core.Parsing;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What 259 small programs printed when they failed, in every language FixFinder runs here, read back as FixFinder reads a run:
+/// What 350 small programs printed when they failed, in every language FixFinder runs here, read back as FixFinder reads a run:
 /// by the reader of the program's language, and by every reader when the language is left to FixFinder - naming what went
 /// wrong, the program's own file, and the line it went wrong on.
 /// </summary>
@@ -21,14 +21,16 @@ namespace FixFinder.Tests;
 /// otherwise the row says what the tool said: C# calls int total = 10 with no semicolon CS1003, "',' expected", as it reads on
 /// into the next line; Node reports a function never closed at the line after the file's last. Line 0 is an error that names
 /// its file and no line, as gfortran does for a file that ends with no end line. Lua names itself by the path it was started
-/// from, which held this computer's user name; those lines say "student" in its place.
+/// from, and gfortran's linker names the folder it built in, and both held this computer's user name; those lines say
+/// "student" in its place.
 /// </para>
 /// <para>
-/// Running them found two readings to put right: Perl's "BEGIN failed--compilation aborted", below the "Can't locate
-/// Missing/Marks.pm in @INC" a use line stopped for, was taken as the error, and gfortran's lone "Unexpected end of file" was
-/// read by no reader of Fortran's. And five programs, pasted in, would have been taken for another language's code: three of
-/// PowerShell's for PHP, by their $total = 10 lines, one of F#'s for JavaScript, by let, and one of TypeScript's, its
-/// string | null not seen as a type.
+/// Running them found four readings to put right. Perl's "BEGIN failed--compilation aborted", below the "Can't locate
+/// Missing/Marks.pm in @INC" a use line stopped for, was taken as the error. gfortran's lone "Unexpected end of file" was read
+/// by no reader of Fortran's, and nor was its linker's "undefined reference to `show_'", for a subroutine never written. And
+/// Dart's late field, named first in its trace with no line, hid the line of main that read it. Five programs, pasted in,
+/// would also have been taken for another language's code: three of PowerShell's for PHP, by their $total = 10 lines, one of
+/// F#'s for JavaScript, by let, and one of TypeScript's, its string | null not seen as a type.
 /// </para>
 /// </remarks>
 public class CapturedErrorTests
@@ -87,6 +89,11 @@ public class CapturedErrorTests
         { "Python", "sorting-mixed-values", "main.py", "python", "TypeError", 1 },
         { "Python", "break-outside-loop", "main.py", "python", "SyntaxError", 2 },
         { "Python", "return-outside-function", "main.py", "python", "SyntaxError", 1 },
+        { "Python", "dictionary-changed-while-looping", "main.py", "python", "RuntimeError", 2 },
+        { "Python", "letter-of-text-changed", "main.py", "python", "TypeError", 2 },
+        { "Python", "number-from-none", "main.py", "python", "TypeError", 2 },
+        { "Python", "square-root-of-negative", "main.py", "python", "ValueError", 2 },
+        { "Python", "list-as-dictionary-key", "main.py", "python", "TypeError", 1 },
 
         // Java
         { "Java", "division-by-zero", "Main.java", "java", "ArithmeticException", 5 },
@@ -116,6 +123,11 @@ public class CapturedErrorTests
         { "Java", "exception-not-declared", "Main.java", "java", "unreported exception", 3 },
         { "Java", "remainder-by-zero", "Main.java", "java", "ArithmeticException", 4 },
         { "Java", "error-inside-a-method", "Main.java", "java", "ArithmeticException", 3 },
+        { "Java", "abstract-class-made", "Main.java", "java", "abstract; cannot be instantiated", 6 },
+        { "Java", "next-of-empty-iterator", "Main.java", "java", "NoSuchElementException", 6 },
+        { "Java", "number-too-big-for-int", "Main.java", "java", "NumberFormatException", 3 },
+        { "Java", "character-into-text", "Main.java", "java", "incompatible types", 3 },
+        { "Java", "text-never-closed", "Main.java", "java", "unclosed string literal", 3 },
 
         // C#
         { "C#", "division-by-zero", "main.cs", "csharp", "DivideByZeroException", 3 },
@@ -139,6 +151,11 @@ public class CapturedErrorTests
         { "C#", "checked-overflow", "main.cs", "csharp", "OverflowException", 2 },
         { "C#", "decimal-into-int", "main.cs", "msvc", "CS0266", 1 },
         { "C#", "remainder-by-zero", "main.cs", "csharp", "DivideByZeroException", 2 },
+        { "C#", "letter-past-the-end", "main.cs", "csharp", "IndexOutOfRangeException", 2 },
+        { "C#", "abstract-class-made", "main.cs", "msvc", "CS0144", 1 },
+        { "C#", "using-missing", "main.cs", "msvc", "CS0246", 1 },
+        { "C#", "text-returned-as-number", "main.cs", "msvc", "CS0029", 5 },
+        { "C#", "argument-thrown", "main.cs", "csharp", "ArgumentException", 2 },
 
         // C
         { "C", "misspelt-name", "main.c", "gcc", "undeclared", 5 },
@@ -153,6 +170,10 @@ public class CapturedErrorTests
         { "C", "break-outside-loop", "main.c", "gcc", "break statement not within loop or switch", 5 },
         { "C", "member-not-there", "main.c", "gcc", "has no member named 'y'", 7 },
         { "C", "function-misspelt", "main.c", "gcc", "prnt", 4 },
+        { "C", "struct-never-defined", "main.c", "gcc", "storage size of 'p' isn't known", 4 },
+        { "C", "case-twice", "main.c", "gcc", "duplicate case value", 9 },
+        { "C", "void-result-used", "main.c", "gcc", "void value not ignored", 8 },
+        { "C", "too-many-arguments", "main.c", "gcc", "too many arguments", 8 },
 
         // C++
         { "C++", "cout-without-std", "main.cpp", "gcc", "was not declared", 4 },
@@ -166,6 +187,10 @@ public class CapturedErrorTests
         { "C++", "constant-changed", "main.cpp", "gcc", "assignment of read-only variable 'total'", 5 },
         { "C++", "text-as-number-argument", "main.cpp", "gcc", "invalid conversion", 8 },
         { "C++", "brace-never-closed", "main.cpp", "gcc", "end of input", 5 },
+        { "C++", "private-member-read", "main.cpp", "gcc", "private within this context", 9 },
+        { "C++", "no-matching-function", "main.cpp", "gcc", "no matching function for call", 5 },
+        { "C++", "semicolon-missing-after-class", "main.cpp", "gcc", "expected ';' after class definition", 5 },
+        { "C++", "abstract-class-made", "main.cpp", "gcc", "abstract type", 8 },
 
         // JavaScript
         { "JavaScript", "misspelt-name", "main.js", "node", "ReferenceError", 2 },
@@ -186,6 +211,11 @@ public class CapturedErrorTests
         { "JavaScript", "assigned-to-a-number", "main.js", "node", "SyntaxError", 2 },
         { "JavaScript", "error-inside-a-function", "main.js", "node", "TypeError", 2 },
         { "JavaScript", "unexpected-end", "main.js", "node", "SyntaxError", 3 },
+        { "JavaScript", "class-called-without-new", "main.js", "node", "TypeError", 2 },
+        { "JavaScript", "pattern-never-closed", "main.js", "node", "SyntaxError", 1 },
+        { "JavaScript", "used-before-declared", "main.js", "node", "ReferenceError", 1 },
+        { "JavaScript", "digits-out-of-range", "main.js", "node", "RangeError", 2 },
+        { "JavaScript", "bigint-and-number-mixed", "main.js", "node", "TypeError", 2 },
 
         // TypeScript
         { "TypeScript", "misspelt-name", "main.ts", "node", "ReferenceError", 2 },
@@ -197,6 +227,11 @@ public class CapturedErrorTests
         { "TypeScript", "endless-recursion", "main.ts", "node", "RangeError", 2 },
         { "TypeScript", "number-called", "main.ts", "node", "TypeError", 2 },
         { "TypeScript", "constant-changed", "main.ts", "node", "TypeError", 2 },
+        { "TypeScript", "missing-key-used", "main.ts", "node", "TypeError", 2 },
+        { "TypeScript", "item-of-empty-array-used", "main.ts", "node", "TypeError", 2 },
+        { "TypeScript", "text-method-on-a-number", "main.ts", "node", "TypeError", 2 },
+        { "TypeScript", "null-read-as-an-interface", "main.ts", "node", "TypeError", 5 },
+        { "TypeScript", "used-before-declared", "main.ts", "node", "ReferenceError", 1 },
 
         // Go
         { "Go", "misspelt-name", "main.go", "go", "undefined", 7 },
@@ -212,6 +247,10 @@ public class CapturedErrorTests
         { "Go", "slice-past-the-end", "main.go", "go", "slice bounds out of range", 8 },
         { "Go", "panic-called", "main.go", "go", "mark out of range", 4 },
         { "Go", "assigned-before-declared", "main.go", "go", "undefined: total", 6 },
+        { "Go", "mismatched-number-types", "main.go", "go", "mismatched types", 8 },
+        { "Go", "constant-index-past-the-end", "main.go", "go", "out of bounds", 7 },
+        { "Go", "nil-channel-closed", "main.go", "go", "close of nil channel", 5 },
+        { "Go", "deadlock", "main.go", "go", "deadlock", 5 },
 
         // Rust
         { "Rust", "misspelt-name", "main.rs", "rust", "E0425", 3 },
@@ -227,6 +266,10 @@ public class CapturedErrorTests
         { "Rust", "argument-missing", "main.rs", "rust", "E0061", 6 },
         { "Rust", "changed-without-mut", "main.rs", "rust", "E0596", 3 },
         { "Rust", "missing-semicolon", "main.rs", "rust", "expected `;`", 2 },
+        { "Rust", "borrowed-mutably-twice", "main.rs", "rust", "E0499", 4 },
+        { "Rust", "match-not-exhaustive", "main.rs", "rust", "E0004", 3 },
+        { "Rust", "semicolon-ends-the-result", "main.rs", "rust", "E0308", 1 },
+        { "Rust", "text-indexed", "main.rs", "rust", "E0277", 3 },
 
         // Ruby
         { "Ruby", "division-by-zero", "main.rb", "ruby", "ZeroDivisionError", 3 },
@@ -241,6 +284,10 @@ public class CapturedErrorTests
         { "Ruby", "argument-missing", "main.rb", "ruby", "ArgumentError", 1 },
         { "Ruby", "method-of-a-number", "main.rb", "ruby", "NoMethodError", 2 },
         { "Ruby", "constant-misspelt", "main.rb", "ruby", "NameError", 1 },
+        { "Ruby", "text-times-text", "main.rb", "ruby", "TypeError", 1 },
+        { "Ruby", "remainder-by-zero", "main.rb", "ruby", "ZeroDivisionError", 2 },
+        { "Ruby", "text-never-closed", "main.rb", "generic", "unterminated string", 1 },
+        { "Ruby", "endless-recursion", "main.rb", "ruby", "SystemStackError", 2 },
 
         // PHP
         { "PHP", "division-by-zero", "main.php", "php", "DivisionByZeroError", 4 },
@@ -253,6 +300,10 @@ public class CapturedErrorTests
         { "PHP", "brace-never-closed", "main.php", "php", "Unclosed '{'", 4 },
         { "PHP", "class-not-there", "main.php", "php", "not found", 2 },
         { "PHP", "argument-missing", "main.php", "php", "ArgumentCountError", 2 },
+        { "PHP", "method-not-there", "main.php", "php", "Call to undefined method", 4 },
+        { "PHP", "abstract-class-made", "main.php", "php", "Cannot instantiate abstract class", 3 },
+        { "PHP", "text-for-an-int-parameter", "main.php", "php", "must be of type int", 2 },
+        { "PHP", "undefined-variable", "main.php", "php", "Undefined variable", 3 },
 
         // Lua
         { "Lua", "arithmetic-on-nil", "main.lua", "lua", "arithmetic on a nil value", 2 },
@@ -265,6 +316,10 @@ public class CapturedErrorTests
         { "Lua", "field-not-there-called", "main.lua", "lua", "attempt to call a nil value", 2 },
         { "Lua", "error-inside-a-function", "main.lua", "lua", "no winners", 2 },
         { "Lua", "length-of-nil", "main.lua", "lua", "attempt to get length of a nil value", 2 },
+        { "Lua", "arithmetic-on-text", "main.lua", "lua", "attempt to add a 'string' with a 'number'", 2 },
+        { "Lua", "number-called", "main.lua", "lua", "attempt to call a number value", 2 },
+        { "Lua", "number-indexed", "main.lua", "lua", "attempt to index a number value", 2 },
+        { "Lua", "then-missing", "main.lua", "lua", "'then' expected", 3 },
 
         // Perl
         { "Perl", "division-by-zero", "main.pl", "perl", "Illegal division by zero", 5 },
@@ -277,6 +332,10 @@ public class CapturedErrorTests
         { "Perl", "text-used-as-a-list", "main.pl", "perl", "Can't use string", 4 },
         { "Perl", "error-inside-a-sub", "main.pl", "perl", "Illegal division by zero", 6 },
         { "Perl", "brace-never-closed", "main.pl", "perl", "Missing right curly", 4 },
+        { "Perl", "text-used-as-a-hash", "main.pl", "perl", "Can't use string", 4 },
+        { "Perl", "bareword", "main.pl", "perl", "Bareword", 3 },
+        { "Perl", "list-named-as-scalar", "main.pl", "perl", "Global symbol", 4 },
+        { "Perl", "bracket-never-closed", "main.pl", "perl", "syntax error", 4 },
 
         // Dart
         { "Dart", "misspelt-name", "main.dart", "dart", "totl", 3 },
@@ -289,6 +348,10 @@ public class CapturedErrorTests
         { "Dart", "thrown-exception", "main.dart", "dart", "mark out of range", 2 },
         { "Dart", "first-of-empty", "main.dart", "dart", "No element", 3 },
         { "Dart", "error-inside-a-function", "main.dart", "dart", "RangeError", 2 },
+        { "Dart", "text-cast-to-int", "main.dart", "dart", "is not a subtype of type 'int'", 3 },
+        { "Dart", "late-never-given-a-value", "main.dart", "dart", "LateInitializationError", 4 },
+        { "Dart", "missing-key-null-checked", "main.dart", "dart", "Null check operator", 3 },
+        { "Dart", "method-not-there", "main.dart", "dart", "size", 3 },
 
         // Fortran
         { "Fortran", "index-past-the-end", "main.f90", "fortran", "upper bound", 7 },
@@ -297,6 +360,12 @@ public class CapturedErrorTests
         { "Fortran", "end-missing", "main.f90", "fortran", "Unexpected end of file", 0 },
         { "Fortran", "bracket-never-closed", "main.f90", "fortran", "Expected", 3 },
         { "Fortran", "wrong-argument-type", "main.f90", "fortran", "Type mismatch", 3 },
+        { "Fortran", "input-ended", "main.f90", "fortran", "End of file", 4 },
+        { "Fortran", "argument-missing", "main.f90", "fortran", "Missing actual argument", 3 },
+        { "Fortran", "constant-changed", "main.f90", "fortran", "Named constant", 4 },
+        { "Fortran", "text-never-closed", "main.f90", "fortran", "Unterminated character constant", 3 },
+        { "Fortran", "index-below-the-start", "main.f90", "fortran", "below lower bound", 7 },
+        { "Fortran", "subroutine-never-written", "main.f90", "fortran", "show", 3 },
 
         // PowerShell
         { "PowerShell", "misspelt-command", "main.ps1", "powershell", "CommandNotFoundException", 1 },
@@ -307,6 +376,11 @@ public class CapturedErrorTests
         { "PowerShell", "method-not-there", "main.ps1", "powershell", "does not contain a method named 'Size'", 2 },
         { "PowerShell", "text-to-number", "main.ps1", "powershell", "Cannot convert value", 1 },
         { "PowerShell", "brace-never-closed", "main.ps1", "powershell", "Missing closing '}'", 2 },
+        { "PowerShell", "file-not-there", "main.ps1", "powershell", "Cannot find path", 1 },
+        { "PowerShell", "index-past-the-end-set", "main.ps1", "powershell", "Index was outside the bounds of the array", 2 },
+        { "PowerShell", "parameter-not-there", "main.ps1", "powershell", "A parameter cannot be found that matches parameter name 'Filterr'", 1 },
+        { "PowerShell", "text-added-to-a-number", "main.ps1", "powershell", "Cannot convert value", 1 },
+        { "PowerShell", "bracket-never-closed", "main.ps1", "powershell", "Unexpected token '{'", 2 },
 
         // Elixir
         { "Elixir", "division-by-zero", "main.exs", "elixir", "ArithmeticError", 3 },
@@ -317,6 +391,11 @@ public class CapturedErrorTests
         { "Elixir", "function-misspelt", "main.exs", "elixir", "UndefinedFunctionError", 1 },
         { "Elixir", "match-failed", "main.exs", "elixir", "MatchError", 1 },
         { "Elixir", "end-missing", "main.exs", "elixir", "missing terminator", 2 },
+        { "Elixir", "text-to-number", "main.exs", "elixir", "ArgumentError", 1 },
+        { "Elixir", "function-never-written", "main.exs", "elixir", "undefined function", 2 },
+        { "Elixir", "number-not-a-list", "main.exs", "elixir", "Protocol.UndefinedError", 1 },
+        { "Elixir", "text-plus-number", "main.exs", "elixir", "ArithmeticError", 2 },
+        { "Elixir", "no-case-matches", "main.exs", "elixir", "CaseClauseError", 2 },
 
         // Erlang
         { "Erlang", "division-by-zero", "main.erl", "erlang", "badarith", 6 },
@@ -326,6 +405,11 @@ public class CapturedErrorTests
         { "Erlang", "function-misspelt", "main.erl", "erlang", "undef", 5 },
         { "Erlang", "no-case-matches", "main.erl", "erlang", "case_clause", 6 },
         { "Erlang", "full-stop-missing", "main.erl", "erlang", "syntax error", 5 },
+        { "Erlang", "function-never-written", "main.erl", "erlang", "undefined", 5 },
+        { "Erlang", "text-to-number", "main.erl", "erlang", "badarg", 5 },
+        { "Erlang", "head-of-empty", "main.erl", "erlang", "badarg", 6 },
+        { "Erlang", "no-if-matches", "main.erl", "erlang", "if_clause", 6 },
+        { "Erlang", "text-plus-number", "main.erl", "erlang", "badarith", 6 },
 
         // F#
         { "F#", "division-by-zero", "main.fsx", "fsharp", "DivideByZeroException", 3 },
@@ -337,6 +421,11 @@ public class CapturedErrorTests
         { "F#", "failwith-called", "main.fsx", "fsharp", "mark out of range", 2 },
         { "F#", "text-to-number", "main.fsx", "fsharp", "FormatException", 1 },
         { "F#", "argument-of-the-wrong-type", "main.fsx", "fsharp", "FS0001", 2 },
+        { "F#", "item-past-the-end", "main.fsx", "fsharp", "ArgumentException", 2 },
+        { "F#", "option-value-of-none", "main.fsx", "fsharp", "ArgumentException", 2 },
+        { "F#", "function-misspelt", "main.fsx", "fsharp", "FS0039", 2 },
+        { "F#", "number-too-big", "main.fsx", "fsharp", "OverflowException", 1 },
+        { "F#", "text-plus-number", "main.fsx", "fsharp", "FS0001", 1 },
 
         // Scala
         { "Scala", "division-by-zero", "main.scala", "scala", "ArithmeticException", 4 },
@@ -348,6 +437,10 @@ public class CapturedErrorTests
         { "Scala", "text-to-number", "main.scala", "scala", "NumberFormatException", 2 },
         { "Scala", "head-of-empty", "main.scala", "scala", "NoSuchElementException", 3 },
         { "Scala", "thrown-exception", "main.scala", "scala", "IllegalArgumentException", 3 },
+        { "Scala", "method-on-null", "main.scala", "scala", "NullPointerException", 3 },
+        { "Scala", "wrong-cast", "main.scala", "scala", "ClassCastException", 3 },
+        { "Scala", "text-for-an-int-parameter", "main.scala", "scala", "Required: Int", 4 },
+        { "Scala", "no-case-matches", "main.scala", "scala", "MatchError", 4 },
     };
 
     private static IReadOnlyList<CapturedLine> Output(string language, string caseName) => Fixtures.LoadCaptured(FolderOf(language), caseName);

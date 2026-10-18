@@ -1,0 +1,9 @@
+err|     error: undefined function summ/1 (expected Marks to define such a function or for it to be imported, but none are available)
+err|     │
+err|   2 │   def total(marks), do: summ(marks)
+err|     │                         ^^^^
+err|     │
+err|     └─ main.exs:2:25: Marks.total/1
+err| 
+err| ** (CompileError) main.exs: cannot compile module Marks (errors have been logged)
+err| 

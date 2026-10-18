@@ -1,0 +1,5 @@
+err| ** exception error: bad argument
+err|   in function  hd/1
+err|      called as hd([])
+err|      *** argument 1: not a nonempty list
+err|   in call from main:main/0 (main.erl:6)

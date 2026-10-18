@@ -1,0 +1,4 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:2: attempt to index a number value (local 'total')
+err| stack traceback:
+err| 	main.lua:2: in main chunk
+err| 	[C]: in ?

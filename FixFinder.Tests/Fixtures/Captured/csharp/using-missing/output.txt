@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\using-missing\main.cs(1,16): error CS0246: The type or namespace name 'StringBuilder' could not be found (are you missing a using directive or an assembly reference?)
+err| 
+err| The build failed. Fix the build errors and run again.

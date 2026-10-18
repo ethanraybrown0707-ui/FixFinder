@@ -1,0 +1,6 @@
+err| ** (CaseClauseError) no case clause matching:
+err| 
+err|     3
+err| 
+err|     main.exs:2: (file)
+err|     (elixir 1.20.4) lib/code.ex:1639: Code.require_file/2

@@ -1,0 +1,4 @@
+err| main.dart:3:14: Error: The method 'size' isn't defined for the type 'String'.
+err| Try correcting the name to the name of an existing method, or defining a method named 'size'.
+err|   print(word.size());
+err|              ^^^^

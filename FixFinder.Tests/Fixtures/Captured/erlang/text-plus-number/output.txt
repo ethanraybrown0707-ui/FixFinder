@@ -1,0 +1,4 @@
+err| ** exception error: an error occurred when evaluating an arithmetic expression
+err|   in operator  +/2
+err|      called as "abc" + 1
+err|   in call from main:main/0 (main.erl:6)

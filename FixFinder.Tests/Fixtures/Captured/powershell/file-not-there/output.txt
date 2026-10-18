@@ -1,0 +1,9 @@
+err| Get-Content : Cannot find path 'C:\Users\Public\FixFinderCapture\powershell\file-not-there\marks.txt' because it does 
+err| not exist.
+err| At C:\Users\Public\FixFinderCapture\powershell\file-not-there\main.ps1:1 char:10
+err| + $marks = Get-Content "marks.txt"
+err| +          ~~~~~~~~~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : ObjectNotFound: (C:\Users\Public...there\marks.txt:String) [Get-Content], ItemNotFoundEx 
+err|    ception
+err|     + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+err|  

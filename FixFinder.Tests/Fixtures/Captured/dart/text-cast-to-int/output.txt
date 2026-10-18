@@ -1,0 +1,5 @@
+err| Unhandled exception:
+err| type 'String' is not a subtype of type 'int'
+err| #0      main (file:///C:/Users/Public/FixFinderCapture/dart/text-cast-to-int/main.dart:3:7)
+err| #1      _delayEntrypointInvocation.<anonymous closure> (dart:isolate-patch/isolate_patch.dart:313:19)
+err| #2      _RawReceivePort._handleMessage (dart:isolate-patch/isolate_patch.dart:192:12)

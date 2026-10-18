@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\character-into-text\Main.java:3: error: incompatible types: char cannot be converted to String
+err|         String letter = 'a';
+err|                         ^
+err| 1 error

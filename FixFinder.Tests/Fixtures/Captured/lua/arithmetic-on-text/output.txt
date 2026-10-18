@@ -1,0 +1,5 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:2: attempt to add a 'string' with a 'number'
+err| stack traceback:
+err| 	[C]: in metamethod 'add'
+err| 	main.lua:2: in main chunk
+err| 	[C]: in ?

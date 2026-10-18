@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\letter-of-text-changed\main.py", line 2, in <module>
+err|     word[0] = "b"
+err|     ~~~~^^^
+err| TypeError: 'str' object does not support item assignment

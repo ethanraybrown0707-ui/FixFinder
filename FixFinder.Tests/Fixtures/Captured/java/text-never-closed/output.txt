@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\text-never-closed\Main.java:3: error: unclosed string literal
+err|         System.out.println("hi);
+err|                            ^
+err| 1 error

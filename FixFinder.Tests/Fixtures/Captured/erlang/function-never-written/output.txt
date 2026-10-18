@@ -1,0 +1,4 @@
+err| main.erl:5:24: function total/1 undefined
+err| %    5|     io:format("~p~n", [total([70, 80])]).
+err| %     |                        ^
+err| 

@@ -1,0 +1,2 @@
+err| C:/Users/Public/FixFinderCapture/ruby/remainder-by-zero/main.rb:2:in `%': divided by 0 (ZeroDivisionError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/remainder-by-zero/main.rb:2:in `<main>'

@@ -1,0 +1,5 @@
+err| ** exception error: bad argument
+err|   in function  list_to_integer/1
+err|      called as list_to_integer("abc")
+err|      *** argument 1: not a textual representation of an integer
+err|   in call from main:main/0 (main.erl:5)

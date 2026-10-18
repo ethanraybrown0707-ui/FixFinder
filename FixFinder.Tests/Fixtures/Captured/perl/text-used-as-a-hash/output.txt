@@ -1,0 +1,1 @@
+err| Can't use string ("70") as a HASH ref while "strict refs" in use at C:\Users\Public\FixFinderCapture\perl\text-used-as-a-hash\main.pl line 4.

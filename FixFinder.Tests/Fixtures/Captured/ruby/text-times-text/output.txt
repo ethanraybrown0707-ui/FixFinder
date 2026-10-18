@@ -1,0 +1,5 @@
+err| C:/Users/Public/FixFinderCapture/ruby/text-times-text/main.rb:1:in `*': no implicit conversion of String into Integer (TypeError)
+err| 
+err| line = "-" * "3"
+err|              ^^^
+err| 	from C:/Users/Public/FixFinderCapture/ruby/text-times-text/main.rb:1:in `<main>'

@@ -1,0 +1,8 @@
+err| System.OverflowException: Value was either too large or too small for an Int32.
+err|    at System.Number.ThrowOverflowException[TInteger]()
+err|    at System.Int32.Parse(String s, NumberStyles style, IFormatProvider provider)
+err|    at Microsoft.FSharp.Core.LanguagePrimitives.ParseInt32(String s) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\prim-types.fs:line 2619
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\number-too-big\main.fsx:line 1
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

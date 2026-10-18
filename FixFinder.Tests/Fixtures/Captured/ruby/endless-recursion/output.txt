@@ -1,0 +1,14 @@
+err| C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down': stack level too deep (SystemStackError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	 ... 10908 levels...
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:2:in `count_down'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/endless-recursion/main.rb:5:in `<main>'
