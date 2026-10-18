@@ -1,0 +1,5 @@
+err| main.f90:3:17:
+err| 
+err|     3 |   print *, (1 + 2
+err|       |                 1
+err| Error: Expected a right parenthesis in expression at (1)

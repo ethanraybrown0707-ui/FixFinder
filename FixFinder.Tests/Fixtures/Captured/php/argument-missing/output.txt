@@ -1,0 +1,6 @@
+out| 
+out| Fatal error: Uncaught ArgumentCountError: Too few arguments to function area(), 1 passed in C:\Users\Public\FixFinderCapture\php\argument-missing\main.php on line 5 and exactly 2 expected in C:\Users\Public\FixFinderCapture\php\argument-missing\main.php:2
+out| Stack trace:
+out| #0 C:\Users\Public\FixFinderCapture\php\argument-missing\main.php(5): area(3)
+out| #1 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\argument-missing\main.php on line 2

@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\never-given-a-value\main.cs(2,19): error CS0165: Use of unassigned local variable 'total'
+err| 
+err| The build failed. Fix the build errors and run again.

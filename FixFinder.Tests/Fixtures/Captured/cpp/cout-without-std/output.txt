@@ -1,0 +1,10 @@
+err| C:\Users\Public\FixFinderCapture\cpp\cout-without-std\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\cout-without-std\main.cpp:4:5: error: 'cout' was not declared in this scope; did you mean 'std::cout'?
+err|     4 |     cout << "hi\n";
+err|       |     ^~~~
+err|       |     std::cout
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\cpp\\cout-without-std\\main.cpp":{4:5-4:9}:"std::cout"
+err| In file included from C:\Users\Public\FixFinderCapture\cpp\cout-without-std\main.cpp:1:
+err| C:/Strawberry/c/include/c++/13.2.0/iostream:63:18: note: 'std::cout' declared here
+err|    63 |   extern ostream cout;          ///< Linked to standard output
+err|       |                  ^~~~

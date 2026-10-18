@@ -1,0 +1,7 @@
+err| Cannot index into a null array.
+err| At C:\Users\Public\FixFinderCapture\powershell\index-into-null\main.ps1:2 char:1
+err| + $marks[0]
+err| + ~~~~~~~~~
+err|     + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : NullArray
+err|  

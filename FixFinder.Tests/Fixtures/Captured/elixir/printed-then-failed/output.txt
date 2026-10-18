@@ -1,0 +1,11 @@
+out| Mark: 70
+out| Share: 1
+out| Mark: 80
+out| Share: 1
+out| Mark: 0
+err| ** (ArithmeticError) bad argument in arithmetic expression: div(100, 0)
+err|     :erlang.div(100, 0)
+err|     main.exs:4: anonymous fn/1 in :elixir_compiler_0.__FILE__/1
+err|     (elixir 1.20.4) lib/enum.ex:1725: Enum."-map/2-lists^map/1-1-"/2
+err|     (elixir 1.20.4) lib/enum.ex:1725: Enum."-map/2-lists^map/1-1-"/2
+err|     main.exs:2: (file)

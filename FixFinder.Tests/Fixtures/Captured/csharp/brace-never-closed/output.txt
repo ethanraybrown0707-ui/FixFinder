@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\brace-never-closed\main.cs(3,26): error CS1513: } expected
+err| 
+err| The build failed. Fix the build errors and run again.

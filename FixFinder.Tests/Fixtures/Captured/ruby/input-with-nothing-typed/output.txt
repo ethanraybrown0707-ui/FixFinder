@@ -1,0 +1,4 @@
+err| C:/Users/Public/FixFinderCapture/ruby/input-with-nothing-typed/main.rb:1:in `<main>': undefined method `chomp' for nil (NoMethodError)
+err| 
+err| name = gets.chomp
+err|            ^^^^^^

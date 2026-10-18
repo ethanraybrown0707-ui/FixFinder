@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught DivisionByZeroError: Division by zero in C:\Users\Public\FixFinderCapture\php\division-by-zero\main.php:4
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\division-by-zero\main.php on line 4

@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\exception-not-declared\Main.java:3: error: unreported exception Exception; must be caught or declared to be thrown
+err|         throw new Exception("mark out of range");
+err|         ^
+err| 1 error

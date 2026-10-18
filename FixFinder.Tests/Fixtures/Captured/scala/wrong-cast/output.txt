@@ -1,0 +1,4 @@
+err| Exception in thread "main" java.lang.ClassCastException: class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap')
+err| 	at scala.runtime.BoxesRunTime.unboxToInt(BoxesRunTime.java:99)
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

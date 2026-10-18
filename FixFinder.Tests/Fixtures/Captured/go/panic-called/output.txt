@@ -1,0 +1,6 @@
+err| panic: mark out of range
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/panic-called/main.go:4 +0x25
+err| exit status 2

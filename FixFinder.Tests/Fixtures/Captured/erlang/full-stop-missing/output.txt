@@ -1,0 +1,8 @@
+err| main.erl:5:21: syntax error before: 
+err| %    5|     io:format("hi~n")
+err| %     |                     ^
+err| 
+err| main.erl:2:2: function main/0 undefined
+err| %    2| -export([main/0]).
+err| %     |  ^
+err| 

@@ -1,0 +1,5 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:2: mark out of range
+err| stack traceback:
+err| 	[C]: in function 'error'
+err| 	main.lua:2: in main chunk
+err| 	[C]: in ?

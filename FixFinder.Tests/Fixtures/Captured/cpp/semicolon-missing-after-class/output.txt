@@ -1,0 +1,5 @@
+err| C:\Users\Public\FixFinderCapture\cpp\semicolon-missing-after-class\main.cpp:5:2: error: expected ';' after class definition
+err|     5 | }
+err|       |  ^
+err|       |  ;
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\cpp\\semicolon-missing-after-class\\main.cpp":{5:2-5:2}:";"

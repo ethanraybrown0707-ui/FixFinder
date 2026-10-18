@@ -1,0 +1,5 @@
+err| C:\Users\Public\FixFinderCapture\c\struct-never-defined\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\struct-never-defined\main.c:4:18: error: storage size of 'p' isn't known
+err|     4 |     struct point p;
+err|       |                  ^
+err| C:\Users\Public\FixFinderCapture\c\struct-never-defined\main.c:4:18: warning: unused variable 'p' [-Wunused-variable]

@@ -1,0 +1,12 @@
+err| Exception in thread "main" java.lang.StringIndexOutOfBoundsException: Index 5 out of bounds for length 3
+err| 	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+err| 	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+err| 	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+err| 	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+err| 	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+err| 	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckIndex(Preconditions.java:106)
+err| 	at java.base/jdk.internal.util.Preconditions.checkIndex(Preconditions.java:302)
+err| 	at java.base/java.lang.String.checkIndex(String.java:4822)
+err| 	at java.base/java.lang.StringLatin1.charAt(StringLatin1.java:46)
+err| 	at java.base/java.lang.String.charAt(String.java:1544)
+err| 	at Main.main(Main.java:4)

@@ -1,0 +1,9 @@
+err| 
+err| 
+err| main.fsx(2,1): error FS0039: The value or constructor 'prntfn' is not defined. Maybe you want one of the following:
+err|    printfn
+err|    eprintfn
+err|    fprintfn
+err|    printf
+err|    Printf
+err| 

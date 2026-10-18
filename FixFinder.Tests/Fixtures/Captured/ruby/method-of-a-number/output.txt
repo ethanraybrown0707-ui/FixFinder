@@ -1,0 +1,4 @@
+err| C:/Users/Public/FixFinderCapture/ruby/method-of-a-number/main.rb:2:in `<main>': undefined method `upcase' for an instance of Integer (NoMethodError)
+err| 
+err| puts mark.upcase
+err|          ^^^^^^^

@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\abstract-class-made\main.cs(1,13): error CS0144: Cannot create an instance of the abstract type or interface 'Shape'
+err| 
+err| The build failed. Fix the build errors and run again.

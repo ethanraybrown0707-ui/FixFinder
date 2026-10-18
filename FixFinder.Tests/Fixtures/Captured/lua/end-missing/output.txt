@@ -1,0 +1,1 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:3: 'end' expected (to close 'if' at line 1) near <eof>

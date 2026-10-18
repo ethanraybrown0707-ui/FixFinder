@@ -1,0 +1,6 @@
+err| System.ArgumentException: The option value was None (Parameter 'option')
+err|    at Microsoft.FSharp.Core.OptionModule.GetValue[T](FSharpOption`1 option) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\option.fs:line 13
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\option-value-of-none\main.fsx:line 2
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

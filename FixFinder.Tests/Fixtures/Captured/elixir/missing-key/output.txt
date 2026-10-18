@@ -1,0 +1,6 @@
+err| ** (KeyError) key "Bob" not found in:
+err| 
+err|     %{"Ada" => 36}
+err| 
+err|     :erlang.map_get("Bob", %{"Ada" => 36})
+err|     main.exs:2: (file)

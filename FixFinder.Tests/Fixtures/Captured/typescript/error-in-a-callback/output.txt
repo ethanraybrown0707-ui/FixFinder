@@ -1,0 +1,17 @@
+err| file:///C:/Users/Public/FixFinderCapture/typescript/error-in-a-callback/main.ts:3
+err|   console.log(mark.toUpperCase());
+err|                    ^
+err| 
+err| TypeError: mark.toUpperCase is not a function
+err|     at file:///C:/Users/Public/FixFinderCapture/typescript/error-in-a-callback/main.ts:3:20
+err|     at Array.forEach (<anonymous>)
+err|     at Object.<anonymous> (file:///C:/Users/Public/FixFinderCapture/typescript/error-in-a-callback/main.ts:2:7)
+err|     at Module._compile (node:internal/modules/cjs/loader:1872:14)
+err|     at Object..js (node:internal/modules/cjs/loader:2003:10)
+err|     at Module.load (node:internal/modules/cjs/loader:1594:32)
+err|     at Module._load (node:internal/modules/cjs/loader:1396:12)
+err|     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+err|     at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+err|     at node:internal/main/run_main_module:33:47
+err| 
+err| Node.js v24.19.0

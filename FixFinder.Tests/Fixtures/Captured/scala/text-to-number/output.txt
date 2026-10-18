@@ -1,0 +1,7 @@
+err| Exception in thread "main" java.lang.NumberFormatException: For input string: "abc"
+err| 	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67)
+err| 	at java.base/java.lang.Integer.parseInt(Integer.java:662)
+err| 	at java.base/java.lang.Integer.parseInt(Integer.java:778)
+err| 	at scala.collection.StringOps$.toInt$extension(StringOps.scala:890)
+err| 	at main$package$.run(main.scala:2)
+err| 	at run.main(main.scala:1)

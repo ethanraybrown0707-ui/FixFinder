@@ -1,0 +1,4 @@
+err| 
+err| 
+err| main.fsx(1,24): error FS0001: The type 'int' does not match the type 'string'
+err| 

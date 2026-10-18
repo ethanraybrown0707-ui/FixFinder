@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\class-name-not-the-file-name\Main.java:1: error: class Marks is public, should be declared in a file named Marks.java
+err| public class Marks {
+err|        ^
+err| 1 error

@@ -1,0 +1,6 @@
+out| 
+out| Fatal error: Uncaught TypeError: twice(): Argument #1 ($n) must be of type int, string given, called in C:\Users\Public\FixFinderCapture\php\text-for-an-int-parameter\main.php on line 5 and defined in C:\Users\Public\FixFinderCapture\php\text-for-an-int-parameter\main.php:2
+out| Stack trace:
+out| #0 C:\Users\Public\FixFinderCapture\php\text-for-an-int-parameter\main.php(5): twice('abc')
+out| #1 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\text-for-an-int-parameter\main.php on line 2

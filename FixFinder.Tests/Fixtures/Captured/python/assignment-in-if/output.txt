@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\assignment-in-if\main.py", line 2
+err|     if mark = 70:
+err|        ^^^^^^^^^
+err| SyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?

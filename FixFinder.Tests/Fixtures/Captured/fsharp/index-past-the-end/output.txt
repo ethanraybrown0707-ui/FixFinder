@@ -1,0 +1,5 @@
+err| System.IndexOutOfRangeException: Index was outside the bounds of the array.
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\index-past-the-end\main.fsx:line 2
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

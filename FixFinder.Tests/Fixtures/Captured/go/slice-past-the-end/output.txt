@@ -1,0 +1,6 @@
+err| panic: runtime error: slice bounds out of range [:5] with capacity 2
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/slice-past-the-end/main.go:8 +0x39
+err| exit status 2

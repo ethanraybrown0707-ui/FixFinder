@@ -1,0 +1,11 @@
+out| Mark: 70
+out| Share: 1
+out| Mark: 80
+out| Share: 1
+out| Mark: 0
+err| panic: runtime error: integer divide by zero
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/printed-then-failed/main.go:9 +0x14b
+err| exit status 2

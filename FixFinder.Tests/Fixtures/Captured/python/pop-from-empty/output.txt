@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\pop-from-empty\main.py", line 2, in <module>
+err|     marks.pop()
+err|     ~~~~~~~~~^^
+err| IndexError: pop from empty list

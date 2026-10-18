@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\cpp\brace-never-closed\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\brace-never-closed\main.cpp:5:14: error: expected '}' at end of input
+err|     5 |     return 0;
+err|       |              ^
+err| C:\Users\Public\FixFinderCapture\cpp\brace-never-closed\main.cpp:3:12: note: to match this '{'
+err|     3 | int main() {
+err|       |            ^

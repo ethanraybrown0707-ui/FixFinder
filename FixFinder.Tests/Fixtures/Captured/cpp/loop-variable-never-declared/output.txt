@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\cpp\loop-variable-never-declared\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\loop-variable-never-declared\main.cpp:5:10: error: 'i' was not declared in this scope
+err|     5 |     for (i = 0; i < 3; i++) {
+err|       |          ^

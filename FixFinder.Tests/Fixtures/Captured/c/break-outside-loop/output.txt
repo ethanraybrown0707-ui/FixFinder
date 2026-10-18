@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\c\break-outside-loop\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\break-outside-loop\main.c:5:5: error: break statement not within loop or switch
+err|     5 |     break;
+err|       |     ^~~~~

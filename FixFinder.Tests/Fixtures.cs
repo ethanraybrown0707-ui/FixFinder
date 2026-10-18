@@ -18,6 +18,19 @@ internal static class Fixtures
         ToLines(stdOutLines.Select(text => (StreamKind.StdOut, text))
             .Concat(ReadLines(stdErrFixture).Select(text => (StreamKind.StdErr, text))));
 
+    /// <summary>
+    /// What a program printed when it was run, kept in Fixtures/Captured/(language)/(case)/output.txt - each line marked with
+    /// the stream it came on, "out| " or "err| ".
+    /// </summary>
+    public static IReadOnlyList<CapturedLine> LoadCaptured(string language, string caseName)
+    {
+        var full = Path.Combine(Root, "Captured", language, caseName, "output.txt");
+        if (!File.Exists(full)) throw new FileNotFoundException($"Fixture not found: {full}", full);
+
+        return ToLines(File.ReadAllText(full).ReplaceLineEndings("\n").TrimEnd('\n').Split('\n')
+            .Select(line => (line.StartsWith("out| ", StringComparison.Ordinal) ? StreamKind.StdOut : StreamKind.StdErr, line[5..])));
+    }
+
     public static IReadOnlyList<CapturedLine> FromText(string text) =>
         ToLines(text.ReplaceLineEndings("\n").Split('\n').Select(line => (StreamKind.StdErr, line)));
 

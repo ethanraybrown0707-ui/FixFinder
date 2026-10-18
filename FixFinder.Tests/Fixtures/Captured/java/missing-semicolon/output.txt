@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\missing-semicolon\Main.java:3: error: ';' expected
+err|         int total = 10
+err|                       ^
+err| 1 error

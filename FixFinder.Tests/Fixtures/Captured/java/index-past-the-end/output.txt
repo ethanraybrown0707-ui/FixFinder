@@ -1,0 +1,2 @@
+err| Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 2 out of bounds for length 2
+err| 	at Main.main(Main.java:4)

@@ -33,8 +33,9 @@ public static partial class FSharpLogicPatterns
         Pattern("logic-fsharp-input-compared-as-text", InputComparedAsText, Severity.Error),
     ];
 
-    /// <summary><c>let mutable total = 0</c>.</summary>
-    private static Regex MutableBinding(string name) => new($@"^\s*let\s+mutable\s+{Regex.Escape(name)}\b");
+    /// <summary><c>let mutable total = 0</c> - and the name it declares.</summary>
+    [GeneratedRegex(@"^\s*let\s+mutable\s+(?<name>[A-Za-z_][\w']*)\b")]
+    private static partial Regex MutableDeclaration();
 
     /// <summary><c>total = total + 70</c>, at the start of a line of the script's top level.</summary>
     [GeneratedRegex(@"^(?<name>[a-z_][\w']*)\s*=(?!=)\s*\S")]
@@ -47,12 +48,19 @@ public static partial class FSharpLogicPatterns
     /// </summary>
     private static IEnumerable<LogicFinding> ComparisonForAssignment(string id, SourceFile source, IReadOnlyList<string> masked)
     {
+        // Where each mutable value is first declared, read once: asking every line above each line again took a 5,000-line
+        // script longer than twenty seconds.
+        var declaredOn = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var index = 0; index < masked.Count; index++)
+            if (MutableDeclaration().Match(masked[index]) is { Success: true } declared)
+                declaredOn.TryAdd(declared.Groups["name"].Value, index);
+
         for (var index = 0; index < masked.Count; index++)
         {
             if (TopLevelComparison().Match(masked[index]) is not { Success: true } compared) continue;
 
             var name = compared.Groups["name"].Value;
-            if (name is "let" or "do" || !masked.Take(index).Any(line => MutableBinding(name).IsMatch(line))) continue;
+            if (name is "let" or "do" || !declaredOn.TryGetValue(name, out var declaredAt) || declaredAt >= index) continue;
             if (FSharpAssignments.ArrowFix(id, source, index + 1, name) is not { } fix) continue;
 
             yield return new LogicFinding(id, index + 1,

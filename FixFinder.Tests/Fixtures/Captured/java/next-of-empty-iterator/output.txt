@@ -1,0 +1,3 @@
+err| Exception in thread "main" java.util.NoSuchElementException
+err| 	at java.base/java.util.ArrayList$Itr.next(ArrayList.java:1052)
+err| 	at Main.main(Main.java:6)

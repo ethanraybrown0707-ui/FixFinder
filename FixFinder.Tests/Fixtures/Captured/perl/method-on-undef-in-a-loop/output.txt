@@ -1,0 +1,1 @@
+err| Can't call method "name" on an undefined value at C:\Users\Public\FixFinderCapture\perl\method-on-undef-in-a-loop\main.pl line 5.

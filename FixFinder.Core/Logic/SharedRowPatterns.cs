@@ -22,19 +22,19 @@ public static partial class SharedRowPatterns
     private static readonly Repeating[] Languages =
     [
         new("logic-python-rows-shared", CodePattern.Files(".py", ".pyw"), Syntax.Python,
-            new Regex(@"(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>\[\s*(?<row>\[(?:[^\[\]]|\[[^\[\]]*\])*\](?:\s*\*\s*[\w.()]+)?)\s*\]\s*\*\s*(?<rows>[\w.()]+))"),
+            new Regex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>\[\s*(?<row>\[(?:[^\[\]]|\[[^\[\]]*\])*\](?:\s*\*\s*[\w.()]+)?)\s*\]\s*\*\s*(?<rows>[\w.()]+))"),
             name => new Regex($@"(?<![\w.]){name}\s*\[[^\]]+\]\s*(?:\[[^\]]+\]\s*[-+*/]?=(?!=)|\.\s*(?:append|extend|insert|remove|pop|sort|clear)\s*\()"),
             (row, rows) => $"[{row} for _ in range({rows})]"),
         new("logic-js-rows-shared", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike,
-            new Regex(@"(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?<grid>(?:new\s+)?Array\(\s*(?<rows>[^()]+?)\s*\)\.fill\(\s*(?<row>\[[^\[\]]*\]|(?:new\s+)?Array\([^()]*\)(?:\.fill\([^()]*\))?)\s*\))"),
+            new Regex(@"(?<![\w$])(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?<grid>(?:new\s+)?Array\(\s*(?<rows>[^()]+?)\s*\)\.fill\(\s*(?<row>\[[^\[\]]*\]|(?:new\s+)?Array\([^()]*\)(?:\.fill\([^()]*\))?)\s*\))"),
             name => new Regex($@"(?<![\w$.]){Regex.Escape(name)}\s*\[[^\]]+\]\s*(?:\[[^\]]+\]\s*[-+*/]?=(?!=)|\.\s*(?:push|pop|shift|unshift|splice|fill|sort)\s*\()"),
             (row, rows) => $"Array.from({{ length: {rows} }}, () => {row})"),
         new("logic-ruby-rows-shared", CodePattern.Files(".rb"), Syntax.Python,
-            new Regex(@"(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>Array\.new\(\s*(?<rows>[^,()]+?)\s*,\s*(?<row>\[[^\[\]]*\]|Array\.new\([^()]*\))\s*\))"),
+            new Regex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>Array\.new\(\s*(?<rows>[^,()]+?)\s*,\s*(?<row>\[[^\[\]]*\]|Array\.new\([^()]*\))\s*\))"),
             name => new Regex($@"(?<![\w.]){name}\s*\[[^\]]+\]\s*(?:\[[^\]]+\]\s*[-+*/]?=(?!=)|<<|\.\s*(?:push|pop|shift|unshift|insert|delete|clear)\b)"),
             (row, rows) => $"Array.new({rows}) {{ {row} }}"),
         new("logic-dart-rows-shared", CodePattern.Files(".dart"), Syntax.CLike,
-            new Regex(@"(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>List\.filled\(\s*(?<rows>[^,()]+?)\s*,\s*(?<row>(?:<[^<>]*>)?\[[^\[\]]*\]|List\.filled\([^()]*\))\s*\))"),
+            new Regex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*=\s*(?<grid>List\.filled\(\s*(?<rows>[^,()]+?)\s*,\s*(?<row>(?:<[^<>]*>)?\[[^\[\]]*\]|List\.filled\([^()]*\))\s*\))"),
             name => new Regex($@"(?<![\w.]){name}\s*\[[^\]]+\]\s*(?:\[[^\]]+\]\s*[-+*/~]?=(?!=)|\.\s*(?:add|addAll|insert|remove|removeAt|removeLast|clear|sort)\s*\()"),
             (row, rows) => $"List.generate({rows}, (_) => {row})"),
     ];

@@ -1,0 +1,10 @@
+out| Mark: 70
+out| Share: 1.4285714285714286
+out| Mark: 80
+out| Share: 1.25
+out| Mark: 0
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\printed-then-failed\main.py", line 4, in <module>
+err|     print("Share:", 100 / mark)
+err|                     ~~~~^~~~~~
+err| ZeroDivisionError: division by zero

@@ -1,0 +1,6 @@
+err| ** (ArgumentError) errors were found at the given arguments:
+err| 
+err|   * 1st argument: not a textual representation of an integer
+err| 
+err|     erlang.erl:13498: :erlang.binary_to_integer("abc")
+err|     main.exs:1: (file)

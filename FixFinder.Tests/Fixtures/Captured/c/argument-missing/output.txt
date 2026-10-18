@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\argument-missing\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\argument-missing\main.c:8:20: error: too few arguments to function 'area'
+err|     8 |     printf("%d\n", area(3));
+err|       |                    ^~~~
+err| C:\Users\Public\FixFinderCapture\c\argument-missing\main.c:3:5: note: declared here
+err|     3 | int area(int width, int height) {
+err|       |     ^~~~

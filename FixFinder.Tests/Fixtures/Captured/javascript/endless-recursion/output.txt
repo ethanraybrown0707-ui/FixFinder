@@ -1,0 +1,17 @@
+err| C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2
+err|   return countDown(n - 1);
+err|   ^
+err| 
+err| RangeError: Maximum call stack size exceeded
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:3)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err|     at countDown (C:\Users\Public\FixFinderCapture\javascript\endless-recursion\main.js:2:10)
+err| 
+err| Node.js v24.19.0

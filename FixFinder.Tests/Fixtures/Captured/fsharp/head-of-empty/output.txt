@@ -1,0 +1,6 @@
+err| System.ArgumentException: The input list was empty. (Parameter 'list')
+err|    at Microsoft.FSharp.Collections.ListModule.Head[T](FSharpList`1 list) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\list.fs:line 156
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\head-of-empty\main.fsx:line 2
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

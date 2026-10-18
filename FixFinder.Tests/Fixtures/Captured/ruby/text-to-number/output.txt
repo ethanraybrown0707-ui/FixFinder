@@ -1,0 +1,2 @@
+err| <internal:kernel>:307:in `Integer': invalid value for Integer(): "abc" (ArgumentError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/text-to-number/main.rb:1:in `<main>'

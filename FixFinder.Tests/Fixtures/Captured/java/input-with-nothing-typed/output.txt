@@ -1,0 +1,6 @@
+err| Exception in thread "main" java.util.NoSuchElementException
+err| 	at java.base/java.util.Scanner.throwFor(Scanner.java:945)
+err| 	at java.base/java.util.Scanner.next(Scanner.java:1602)
+err| 	at java.base/java.util.Scanner.nextInt(Scanner.java:2267)
+err| 	at java.base/java.util.Scanner.nextInt(Scanner.java:2221)
+err| 	at Main.main(Main.java:6)

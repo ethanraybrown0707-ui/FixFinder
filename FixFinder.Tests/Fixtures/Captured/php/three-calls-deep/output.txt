@@ -1,0 +1,7 @@
+out| 
+out| Fatal error: Uncaught DivisionByZeroError: Division by zero in C:\Users\Public\FixFinderCapture\php\three-calls-deep\main.php:3
+out| Stack trace:
+out| #0 C:\Users\Public\FixFinderCapture\php\three-calls-deep\main.php(6): average(Array)
+out| #1 C:\Users\Public\FixFinderCapture\php\three-calls-deep\main.php(8): report(Array)
+out| #2 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\three-calls-deep\main.php on line 3

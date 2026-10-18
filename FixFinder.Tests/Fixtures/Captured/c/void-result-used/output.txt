@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\c\void-result-used\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\void-result-used\main.c:8:18: error: void value not ignored as it ought to be
+err|     8 |     int result = greet();
+err|       |                  ^~~~~

@@ -171,11 +171,19 @@ public sealed partial class PhpUnclosedString : ILocalFixRule
 
 /// <summary>
 /// "Call to undefined function strlenn()": no function has this name - not the file's own, and not PHP's. When one of them is
-/// within two letters of it, and only one, the name becomes that one. PHP's own functions are the ones its PHP lists.
+/// within two letters of it, and only one, the name becomes that one. PHP's own functions are the ones its PHP lists, and the
+/// words PHP writes like a call that are not functions - echo("hi") - so that echoo("hi") becomes echo("hi"), not chop("hi"),
+/// which runs as well and prints nothing.
 /// </summary>
 public sealed partial class PhpNearestFunction : ILocalFixRule
 {
     public string Id => "php-nearest-function";
+
+    /// <summary>
+    /// PHP's words written like a call that are part of the language, not functions - PHP 8.4's function_exists says false of
+    /// each. (exit and die are functions as of PHP 8.4, and are in its list already.)
+    /// </summary>
+    private static readonly string[] WrittenLikeCalls = ["echo", "print", "isset", "unset", "empty", "eval", "list", "array"];
 
     [GeneratedRegex(@"^Call to undefined function (?<name>\w+)\(\)$")]
     private static partial Regex Message();
@@ -187,7 +195,7 @@ public sealed partial class PhpNearestFunction : ILocalFixRule
 
         var wrong = said.Groups["name"].Value;
         var own = Regex.Matches(string.Join("\n", PhpLines.Masked(at.Source)), @"\bfunction\s+(?<name>\w+)\s*\(").Select(found => found.Groups["name"].Value);
-        if (CodeText.Nearest(wrong, own.Concat(PhpRuntime.InternalFunctions()).Distinct()) is not { } right || right == wrong) return null;
+        if (CodeText.Nearest(wrong, own.Concat(PhpRuntime.InternalFunctions()).Concat(WrittenLikeCalls).Distinct()) is not { } right || right == wrong) return null;
         if (CodeText.ReplaceWord(at.Line, wrong, right, Syntax.CLike) is not { } corrected) return null;
 
         return LocalFix.ReplaceLine(Id, $"Change {wrong} to {right}",

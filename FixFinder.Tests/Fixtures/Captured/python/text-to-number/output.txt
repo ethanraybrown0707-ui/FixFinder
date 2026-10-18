@@ -1,0 +1,4 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\text-to-number\main.py", line 2, in <module>
+err|     number = int(typed)
+err| ValueError: invalid literal for int() with base 10: 'abc'

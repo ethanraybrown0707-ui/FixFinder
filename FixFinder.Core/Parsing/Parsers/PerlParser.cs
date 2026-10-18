@@ -38,7 +38,11 @@ public sealed partial class PerlParser : IStackTraceParser
     [GeneratedRegex(@"^\s+(?<sym>[\w:]+)\(.*\)\s+called at\s+(?<file>.+?)\s+line\s+(?<line>\d+)\.?\s*$")]
     private static partial Regex FramePattern();
 
-    [GeneratedRegex(@"(?:had compilation errors|aborted due to compilation errors|compilation aborted)\.?\s*$")]
+    /// <summary>
+    /// What Perl adds after the errors that stopped it compiling - and after one a use line raised, which runs as Perl compiles:
+    /// <c>BEGIN failed--compilation aborted at marks.pl line 3.</c>, below the <c>Can't locate Missing/Marks.pm in @INC</c> it stopped for.
+    /// </summary>
+    [GeneratedRegex(@"(?:had compilation errors|aborted due to compilation errors|compilation aborted)\.?\s*$|^BEGIN failed--compilation aborted\b")]
     private static partial Regex CompilationFailedPattern();
 
     /// <summary>The start of each warning Perl 5.42 was seen to print and carry on past.</summary>

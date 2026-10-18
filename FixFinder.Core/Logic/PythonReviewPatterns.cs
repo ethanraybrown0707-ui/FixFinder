@@ -155,7 +155,7 @@ public static partial class PythonReviewPatterns
     private static IEnumerable<LogicFinding> MissingFPrefix(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         var defined = DefinedNames(masked);
-        var formatted = masked.SelectMany(l => Regex.Matches(l, @"(?<name>[A-Za-z_]\w*)\.format(?:_map)?\(")).Select(m => m.Groups["name"].Value).ToHashSet();
+        var formatted = masked.SelectMany(l => Regex.Matches(l, @"(?<![\w.])(?<name>[A-Za-z_]\w*)\.format(?:_map)?\(")).Select(m => m.Groups["name"].Value).ToHashSet();
 
         for (var i = 0; i < masked.Count; i++)
         {

@@ -1,0 +1,6 @@
+err| C:\Users\Public\FixFinderCapture\java\method-misspelt\Main.java:4: error: cannot find symbol
+err|         System.out.println(word.size());
+err|                                ^
+err|   symbol:   method size()
+err|   location: variable word of type String
+err| 1 error

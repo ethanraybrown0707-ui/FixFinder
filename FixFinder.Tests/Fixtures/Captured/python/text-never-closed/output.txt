@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\text-never-closed\main.py", line 1
+err|     print("hi)
+err|           ^
+err| SyntaxError: unterminated string literal (detected at line 1)

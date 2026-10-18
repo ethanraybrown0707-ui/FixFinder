@@ -1,0 +1,4 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\none-plus-number\main.py", line 2, in <module>
+err|     total += 1
+err| TypeError: unsupported operand type(s) for +=: 'NoneType' and 'int'

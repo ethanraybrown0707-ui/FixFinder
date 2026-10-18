@@ -1,0 +1,12 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\endless-recursion\main.py", line 4, in <module>
+err|     count_down(3)
+err|     ~~~~~~~~~~^^^
+err|   File "C:\Users\Public\FixFinderCapture\python\endless-recursion\main.py", line 2, in count_down
+err|     return count_down(n - 1)
+err|   File "C:\Users\Public\FixFinderCapture\python\endless-recursion\main.py", line 2, in count_down
+err|     return count_down(n - 1)
+err|   File "C:\Users\Public\FixFinderCapture\python\endless-recursion\main.py", line 2, in count_down
+err|     return count_down(n - 1)
+err|   [Previous line repeated 996 more times]
+err| RecursionError: maximum recursion depth exceeded

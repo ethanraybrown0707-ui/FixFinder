@@ -1,0 +1,7 @@
+err| ** (UndefinedFunctionError) function String.upcas/1 is undefined or private. Did you mean:
+err| 
+err|     * upcase/1
+err|     * upcase/2
+err| 
+err|     (elixir 1.20.4) String.upcas("ada")
+err|     main.exs:1: (file)

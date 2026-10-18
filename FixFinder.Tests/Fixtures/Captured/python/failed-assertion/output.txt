@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\failed-assertion\main.py", line 2, in <module>
+err|     assert mark <= 100, "mark too high"
+err|            ^^^^^^^^^^^
+err| AssertionError: mark too high

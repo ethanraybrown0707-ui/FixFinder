@@ -1,0 +1,2 @@
+err| Global symbol "$marks" requires explicit package name (did you forget to declare "my $marks"?) at C:\Users\Public\FixFinderCapture\perl\list-named-as-scalar\main.pl line 4.
+err| Execution of C:\Users\Public\FixFinderCapture\perl\list-named-as-scalar\main.pl aborted due to compilation errors.

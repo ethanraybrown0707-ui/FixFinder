@@ -1,0 +1,7 @@
+err| Attempted to divide by zero.
+err| At C:\Users\Public\FixFinderCapture\powershell\inside-a-function\main.ps1:2 char:12
+err| +     return $prize / $winners
+err| +            ~~~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : NotSpecified: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : RuntimeException
+err|  

@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\return-outside-function\main.py", line 1
+err|     return 5
+err|     ^^^^^^^^
+err| SyntaxError: 'return' outside function

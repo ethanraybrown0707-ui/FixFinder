@@ -1,0 +1,4 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\raised-error\main.py", line 3, in <module>
+err|     raise ValueError("mark out of range")
+err| ValueError: mark out of range

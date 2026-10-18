@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\input-with-nothing-typed\main.py", line 1, in <module>
+err|     name = input("Name: ")
+err| EOFError: EOF when reading a line
+out| Name: 

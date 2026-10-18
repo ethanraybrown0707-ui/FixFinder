@@ -23,6 +23,25 @@ internal static class Brackets
         return depths;
     }
 
+    /// <summary>
+    /// The text with whatever is inside its round brackets blanked, the same length, so a search finds only what is outside
+    /// them: the == in <c>first == second</c>, not the one in <c>"Same: " + (first == second)</c>.
+    /// </summary>
+    public static string OutsideBrackets(string masked)
+    {
+        var outside = masked.ToCharArray();
+        var depth = 0;
+
+        for (var i = 0; i < outside.Length; i++)
+        {
+            if (outside[i] == '(') depth++;
+            else if (outside[i] == ')') depth = Math.Max(0, depth - 1);
+            else if (depth > 0) outside[i] = ' ';
+        }
+
+        return new string(outside);
+    }
+
     public static int? ClosingParenthesis(string masked, int open)
     {
         var depth = 0;

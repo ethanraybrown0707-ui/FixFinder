@@ -1,0 +1,13 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\three-calls-deep\main.py", line 10, in <module>
+err|     main()
+err|     ~~~~^^
+err|   File "C:\Users\Public\FixFinderCapture\python\three-calls-deep\main.py", line 8, in main
+err|     print(report([]))
+err|           ~~~~~~^^^^
+err|   File "C:\Users\Public\FixFinderCapture\python\three-calls-deep\main.py", line 5, in report
+err|     return average(marks)
+err|   File "C:\Users\Public\FixFinderCapture\python\three-calls-deep\main.py", line 2, in average
+err|     return sum(marks) / len(marks)
+err|            ~~~~~~~~~~~^~~~~~~~~~~~
+err| ZeroDivisionError: division by zero

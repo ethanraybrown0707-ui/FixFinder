@@ -1,0 +1,6 @@
+err| C:\Users\Public\FixFinderCapture\java\misspelt-name\Main.java:4: error: cannot find symbol
+err|         System.out.println(totl);
+err|                            ^
+err|   symbol:   variable totl
+err|   location: class Main
+err| 1 error

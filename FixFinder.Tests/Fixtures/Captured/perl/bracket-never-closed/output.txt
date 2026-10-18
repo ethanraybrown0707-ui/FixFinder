@@ -1,0 +1,2 @@
+err| syntax error at C:\Users\Public\FixFinderCapture\perl\bracket-never-closed\main.pl line 4, near "50 {"
+err| Execution of C:\Users\Public\FixFinderCapture\perl\bracket-never-closed\main.pl aborted due to compilation errors.

@@ -38,10 +38,14 @@ public class InputPatternTests : IDisposable
     [InlineData("main.cpp", "#include <iostream>\n#include <string>\nint main() {\n    int age;\n    std::string name;\n    std::cin >> age;\n    std::cin.ignore(1000, '\\n');\n    std::getline(std::cin, name);\n}\n")]
     [InlineData("main.c", "#include <stdio.h>\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d \", &age);\n    fgets(name, sizeof name, stdin);\n    return 0;\n}\n")]
     [InlineData("main.c", "#include <stdio.h>\nint main(void) {\n    int age;\n    char name[50];\n    scanf(\"%d\", &age);\n    getchar();\n    fgets(name, sizeof name, stdin);\n    return 0;\n}\n")]
+    // The checks' own changes, made already: the newline cut off before strcmp, and the rest of a number's line read and thrown away.
+    [InlineData("main.c", "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char answer[20];\n    fgets(answer, sizeof answer, stdin);\n    answer[strcspn(answer, \"\\n\")] = '\\0';\n    if (strcmp(answer, \"yes\") == 0) {\n        printf(\"matched\\n\");\n    }\n    return 0;\n}\n")]
+    [InlineData("main.c", "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char answer[20];\n    fgets(answer, sizeof answer, stdin);\n    strtok(answer, \"\\n\");\n    if (strcmp(answer, \"yes\") == 0) {\n        printf(\"matched\\n\");\n    }\n    return 0;\n}\n")]
+    [InlineData("Main.java", "import java.util.Scanner;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner scanner = new Scanner(System.in);\n        int age = scanner.nextInt();\n        scanner.nextLine();\n        String name = scanner.nextLine();\n        System.out.println(\"[\" + name + \"] is \" + age);\n    }\n}\n")]
     public void InputReadAndUsedAsItIsIsLeftAlone(string fileName, string code) =>
         Assert.DoesNotContain(Scan(fileName, code), finding => finding.PatternId.Contains("input", StringComparison.Ordinal) ||
-                                                               finding.PatternId is "logic-c-fgets-newline" or "logic-java-nextline-after-nextint" or "logic-powershell-read-host-compared-as-text"
-                                                                   or "logic-cpp-getline-after-cin" or "logic-c-fgets-after-scanf");
+                                                               finding.PatternId is "logic-c-fgets-newline" or "logic-java-nextline-after-nextint" or "logic-java-scanner-skips-line"
+                                                                   or "logic-powershell-read-host-compared-as-text" or "logic-cpp-getline-after-cin" or "logic-c-fgets-after-scanf");
 
     [Fact]
     public void CppGetlineAfterCinIsFoundAndSkipsTheNewlineFirst()

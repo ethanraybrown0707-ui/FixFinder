@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\missing-semicolon\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\missing-semicolon\main.c:5:5: error: expected ',' or ';' before 'printf'
+err|     5 |     printf("%d\n", total);
+err|       |     ^~~~~~
+err| C:\Users\Public\FixFinderCapture\c\missing-semicolon\main.c:4:9: warning: unused variable 'total' [-Wunused-variable]
+err|     4 |     int total = 10
+err|       |         ^~~~~

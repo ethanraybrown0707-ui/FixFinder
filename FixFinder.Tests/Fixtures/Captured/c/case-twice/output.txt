@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\case-twice\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\case-twice\main.c:9:5: error: duplicate case value
+err|     9 |     case 1:
+err|       |     ^~~~
+err| C:\Users\Public\FixFinderCapture\c\case-twice\main.c:6:5: note: previously used here
+err|     6 |     case 1:
+err|       |     ^~~~

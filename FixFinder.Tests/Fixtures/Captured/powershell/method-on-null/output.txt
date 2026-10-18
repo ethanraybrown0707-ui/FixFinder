@@ -1,0 +1,7 @@
+err| You cannot call a method on a null-valued expression.
+err| At C:\Users\Public\FixFinderCapture\powershell\method-on-null\main.ps1:2 char:1
+err| + $name.ToUpper()
+err| + ~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : InvokeMethodOnNull
+err|  

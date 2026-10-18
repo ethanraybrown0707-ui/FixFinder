@@ -1,0 +1,6 @@
+err| panic: interface conversion: interface {} is string, not int
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/wrong-type-assertion/main.go:7 +0x28
+err| exit status 2

@@ -1,0 +1,5 @@
+err| main.f90:3:13:
+err| 
+err|     3 |   print *, "hello
+err|       |             1
+err| Error: Unterminated character constant beginning at (1)

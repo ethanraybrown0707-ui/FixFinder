@@ -1,0 +1,6 @@
+err| C:\Users\Public\FixFinderCapture\cpp\text-into-number\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\text-into-number\main.cpp:4:16: error: invalid conversion from 'const char*' to 'int' [-fpermissive]
+err|     4 |     int mark = "seventy";
+err|       |                ^~~~~~~~~
+err|       |                |
+err|       |                const char*

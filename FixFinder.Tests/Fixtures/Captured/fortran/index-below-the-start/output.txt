@@ -1,0 +1,16 @@
+err| At line 7 of file main.f90
+err| Fortran runtime error: Index '0' of dimension 1 of array 'marks' below lower bound of 1
+err| 
+err| Error termination. Backtrace:
+err| 
+err| Could not print backtrace: libbacktrace could not find executable to open
+err| #0  0xf090fbda
+err| #1  0xf0895b51
+err| #2  0xf0852c2a
+err| #3  0x93f01791
+err| #4  0x93f01837
+err| #5  0x93f0133f
+err| #6  0x93f01145
+err| #7  0xc1cedda6
+err| #8  0xc2b9ee4b
+err| #9  0xffffffff

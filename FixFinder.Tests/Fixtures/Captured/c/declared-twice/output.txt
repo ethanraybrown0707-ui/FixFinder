@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\declared-twice\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\declared-twice\main.c:5:9: error: redefinition of 'total'
+err|     5 |     int total = 2;
+err|       |         ^~~~~
+err| C:\Users\Public\FixFinderCapture\c\declared-twice\main.c:4:9: note: previous definition of 'total' with type 'int'
+err|     4 |     int total = 1;
+err|       |         ^~~~~

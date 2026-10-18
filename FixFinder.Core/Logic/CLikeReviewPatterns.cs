@@ -401,7 +401,8 @@ public static partial class CLikeReviewPatterns
                 var (before, beforeIsLine) = reads[k - 1];
                 var (after, afterIsLine) = reads[k];
 
-                if (beforeIsLine || !afterIsLine || before == after) continue;
+                // A nextLine on a line of its own, its text thrown away, is the change below already made.
+                if (beforeIsLine || !afterIsLine || before == after || InputPatterns.RestOfLineThrownAway(masked[after], scanner)) continue;
 
                 var lead = CodeText.Indentation(source.Lines[before]);
 

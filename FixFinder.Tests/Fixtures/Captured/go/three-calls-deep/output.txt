@@ -1,0 +1,10 @@
+err| panic: runtime error: index out of range [0] with length 0
+err| 
+err| goroutine 1 [running]:
+err| main.first(...)
+err| 	C:/Users/Public/FixFinderCapture/go/three-calls-deep/main.go:6
+err| main.report(...)
+err| 	C:/Users/Public/FixFinderCapture/go/three-calls-deep/main.go:10
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/three-calls-deep/main.go:14 +0xb
+err| exit status 2

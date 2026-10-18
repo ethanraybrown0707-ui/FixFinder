@@ -1,0 +1,6 @@
+err| Illegal division by zero at C:\Users\Public\FixFinderCapture\perl\printed-then-failed\main.pl line 6.
+out| Mark: 70
+out| Share: 1.42857142857143
+out| Mark: 80
+out| Share: 1.25
+out| Mark: 0

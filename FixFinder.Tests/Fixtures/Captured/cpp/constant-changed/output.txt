@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\cpp\constant-changed\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\constant-changed\main.cpp:5:11: error: assignment of read-only variable 'total'
+err|     5 |     total = 2;
+err|       |     ~~~~~~^~~

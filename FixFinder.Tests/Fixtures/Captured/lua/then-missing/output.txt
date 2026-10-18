@@ -1,0 +1,1 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:3: 'then' expected near 'print'

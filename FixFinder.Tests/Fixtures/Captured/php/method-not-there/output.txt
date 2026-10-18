@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Error: Call to undefined method Student::greet() in C:\Users\Public\FixFinderCapture\php\method-not-there\main.php:4
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\method-not-there\main.php on line 4

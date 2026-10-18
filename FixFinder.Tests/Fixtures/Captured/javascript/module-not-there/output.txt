@@ -1,0 +1,24 @@
+err| node:internal/modules/cjs/loader:1520
+err|   throw err;
+err|   ^
+err| 
+err| Error: Cannot find module './marks'
+err| Require stack:
+err| - C:\Users\Public\FixFinderCapture\javascript\module-not-there\main.js
+err|     at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15)
+err|     at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+err|     at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)
+err|     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)
+err|     at Module._load (node:internal/modules/cjs/loader:1294:5)
+err|     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+err|     at Module.require (node:internal/modules/cjs/loader:1617:12)
+err|     at require (node:internal/modules/helpers:153:16)
+err|     at Object.<anonymous> (C:\Users\Public\FixFinderCapture\javascript\module-not-there\main.js:1:15)
+err|     at Module._compile (node:internal/modules/cjs/loader:1872:14) {
+err|   code: 'MODULE_NOT_FOUND',
+err|   requireStack: [
+err|     'C:\\Users\\Public\\FixFinderCapture\\javascript\\module-not-there\\main.js'
+err|   ]
+err| }
+err| 
+err| Node.js v24.19.0

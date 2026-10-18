@@ -1,0 +1,8 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\error-inside-a-function\main.py", line 4, in <module>
+err|     print(share(120, 0))
+err|           ~~~~~^^^^^^^^
+err|   File "C:\Users\Public\FixFinderCapture\python\error-inside-a-function\main.py", line 2, in share
+err|     return prize / winners
+err|            ~~~~~~^~~~~~~~~
+err| ZeroDivisionError: division by zero

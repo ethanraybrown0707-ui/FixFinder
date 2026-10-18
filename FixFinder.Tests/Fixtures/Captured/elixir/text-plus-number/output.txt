@@ -1,0 +1,3 @@
+err| ** (ArithmeticError) bad argument in arithmetic expression: "abc" + 1
+err|     :erlang.+("abc", 1)
+err|     main.exs:2: (file)

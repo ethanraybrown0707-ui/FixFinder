@@ -1,0 +1,17 @@
+err| file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2
+err|   return countDown(n - 1);
+err|   ^
+err| 
+err| RangeError: Maximum call stack size exceeded
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:3)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err|     at countDown (file:///C:/Users/Public/FixFinderCapture/typescript/endless-recursion/main.ts:2:10)
+err| 
+err| Node.js v24.19.0

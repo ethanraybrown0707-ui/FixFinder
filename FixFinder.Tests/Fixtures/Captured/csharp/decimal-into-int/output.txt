@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\decimal-into-int\main.cs(1,12): error CS0266: Cannot implicitly convert type 'double' to 'int'. An explicit conversion exists (are you missing a cast?)
+err| 
+err| The build failed. Fix the build errors and run again.

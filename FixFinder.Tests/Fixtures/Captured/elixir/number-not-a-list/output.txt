@@ -1,0 +1,10 @@
+err| ** (Protocol.UndefinedError) protocol Enumerable not implemented for Integer
+err| 
+err| Got value:
+err| 
+err|     70
+err| 
+err|     (elixir 1.20.4) lib/enum.ex:5: Enumerable.impl_for!/1
+err|     (elixir 1.20.4) lib/enum.ex:184: Enumerable.reduce/3
+err|     (elixir 1.20.4) lib/enum.ex:4667: Enum.sum/1
+err|     main.exs:1: (file)

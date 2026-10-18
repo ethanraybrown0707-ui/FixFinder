@@ -1,0 +1,7 @@
+err| Index was outside the bounds of the array.
+err| At C:\Users\Public\FixFinderCapture\powershell\index-past-the-end-set\main.ps1:2 char:1
+err| + $marks[5] = 90
+err| + ~~~~~~~~~~~~~~
+err|     + CategoryInfo          : OperationStopped: (:) [], IndexOutOfRangeException
+err|     + FullyQualifiedErrorId : System.IndexOutOfRangeException
+err|  

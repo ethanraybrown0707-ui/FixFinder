@@ -1,0 +1,4 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\file-not-there\main.py", line 1, in <module>
+err|     marks = open("marks.txt")
+err| FileNotFoundError: [Errno 2] No such file or directory: 'marks.txt'

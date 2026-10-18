@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\argument-missing\main.cs(1,19): error CS7036: There is no argument given that corresponds to the required parameter 'height' of 'Area(int, int)'
+err| 
+err| The build failed. Fix the build errors and run again.

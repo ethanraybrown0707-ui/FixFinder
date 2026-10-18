@@ -1,0 +1,11 @@
+err| At C:\Users\Public\FixFinderCapture\powershell\bracket-never-closed\main.ps1:2 char:18
+err| + if ($mark -gt 50 {
+err| +                  ~
+err| Unexpected token '{' in expression or statement.
+err| At C:\Users\Public\FixFinderCapture\powershell\bracket-never-closed\main.ps1:2 char:18
+err| + if ($mark -gt 50 {
+err| +                  ~
+err| Missing closing ')' after expression in 'if' statement.
+err|     + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+err|     + FullyQualifiedErrorId : UnexpectedToken
+err|  

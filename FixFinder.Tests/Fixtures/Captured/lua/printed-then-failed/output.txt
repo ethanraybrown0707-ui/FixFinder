@@ -1,0 +1,6 @@
+out| Student: Ada
+out| Student: Bob
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:3: attempt to index a nil value (field '?')
+err| stack traceback:
+err| 	main.lua:3: in main chunk
+err| 	[C]: in ?

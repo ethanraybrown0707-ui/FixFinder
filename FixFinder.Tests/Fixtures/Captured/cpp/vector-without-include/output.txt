@@ -1,0 +1,15 @@
+err| C:\Users\Public\FixFinderCapture\cpp\vector-without-include\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\vector-without-include\main.cpp:4:10: error: 'vector' is not a member of 'std'
+err|     4 |     std::vector<int> marks = {70, 80};
+err|       |          ^~~~~~
+err| C:\Users\Public\FixFinderCapture\cpp\vector-without-include\main.cpp:2:1: note: 'std::vector' is defined in header '<vector>'; did you forget to '#include <vector>'?
+err|     1 | #include <iostream>
+err|   +++ |+#include <vector>
+err|     2 | 
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\cpp\\vector-without-include\\main.cpp":{2:1-2:1}:"#include <vector>\n"
+err| C:\Users\Public\FixFinderCapture\cpp\vector-without-include\main.cpp:4:17: error: expected primary-expression before 'int'
+err|     4 |     std::vector<int> marks = {70, 80};
+err|       |                 ^~~
+err| C:\Users\Public\FixFinderCapture\cpp\vector-without-include\main.cpp:5:18: error: 'marks' was not declared in this scope
+err|     5 |     std::cout << marks.size() << "\n";
+err|       |                  ^~~~~

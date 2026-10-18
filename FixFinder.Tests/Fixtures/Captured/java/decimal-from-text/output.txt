@@ -1,0 +1,5 @@
+err| Exception in thread "main" java.lang.NumberFormatException: For input string: "ten"
+err| 	at java.base/jdk.internal.math.FloatingDecimal.readJavaFormatString(FloatingDecimal.java:2054)
+err| 	at java.base/jdk.internal.math.FloatingDecimal.parseDouble(FloatingDecimal.java:110)
+err| 	at java.base/java.lang.Double.parseDouble(Double.java:792)
+err| 	at Main.main(Main.java:3)

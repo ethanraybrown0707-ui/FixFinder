@@ -1,0 +1,25 @@
+err| C:\Users\Public\FixFinderCapture\c\unknown-type\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\unknown-type\main.c:4:5: error: unknown type name 'string'; did you mean 'stdin'?
+err|     4 |     string name = "Ada";
+err|       |     ^~~~~~
+err|       |     stdin
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\unknown-type\\main.c":{4:5-4:11}:"stdin"
+err| C:\Users\Public\FixFinderCapture\c\unknown-type\main.c:4:19: warning: initialization of 'int' from 'char *' makes integer from pointer without a cast [-Wint-conversion]
+err|     4 |     string name = "Ada";
+err|       |                   ^~~~~
+err| C:\Users\Public\FixFinderCapture\c\unknown-type\main.c:5:14: warning: format '%s' expects argument of type 'char *', but argument 2 has type 'int' [-Wformat=]
+err|     5 |     printf("%s\n", name);
+err|       |             ~^     ~~~~
+err|       |              |     |
+err|       |              |     int
+err|       |              char *
+err|       |             %d
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\unknown-type\\main.c":{5:13-5:15}:"%d"
+err| C:\Users\Public\FixFinderCapture\c\unknown-type\main.c:5:14: warning: format '%s' expects argument of type 'char *', but argument 2 has type 'int' [-Wformat=]
+err|     5 |     printf("%s\n", name);
+err|       |             ~^     ~~~~
+err|       |              |     |
+err|       |              |     int
+err|       |              char *
+err|       |             %d
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\unknown-type\\main.c":{5:13-5:15}:"%d"

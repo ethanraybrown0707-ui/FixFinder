@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\pointer-to-int-returned\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\pointer-to-int-returned\main.c:6:19: error: request for member 'value' in something not a structure or union
+err|     6 |     return pointer.value;
+err|       |                   ^
+err| C:\Users\Public\FixFinderCapture\c\pointer-to-int-returned\main.c:5:10: warning: variable 'pointer' set but not used [-Wunused-but-set-variable]
+err|     5 |     int *pointer = &mark;
+err|       |          ^~~~~~~

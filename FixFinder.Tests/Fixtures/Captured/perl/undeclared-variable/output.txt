@@ -1,0 +1,2 @@
+err| Global symbol "$totl" requires explicit package name (did you forget to declare "my $totl"?) at C:\Users\Public\FixFinderCapture\perl\undeclared-variable\main.pl line 3.
+err| Execution of C:\Users\Public\FixFinderCapture\perl\undeclared-variable\main.pl aborted due to compilation errors.

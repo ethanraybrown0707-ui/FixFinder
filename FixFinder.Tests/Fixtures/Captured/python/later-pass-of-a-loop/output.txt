@@ -1,0 +1,7 @@
+out| ADA
+out| BOB
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\later-pass-of-a-loop\main.py", line 3, in <module>
+err|     print(name.upper())
+err|           ^^^^^^^^^^
+err| AttributeError: 'NoneType' object has no attribute 'upper'

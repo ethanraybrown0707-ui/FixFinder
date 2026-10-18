@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\character-past-the-end\main.py", line 2, in <module>
+err|     print(word[5])
+err|           ~~~~^^^
+err| IndexError: string index out of range

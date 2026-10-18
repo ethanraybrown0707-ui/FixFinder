@@ -1,0 +1,2 @@
+$word = "abc"
+$word.Size()

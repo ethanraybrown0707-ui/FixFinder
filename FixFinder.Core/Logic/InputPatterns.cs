@@ -124,7 +124,9 @@ public static partial class InputPatterns
 
     /// <summary>
     /// A line read with fgets and compared with strcmp: fgets keeps the newline in the buffer, so strcmp never finds it equal
-    /// to the text. The change cuts the line at its newline on the line after - strcspn, from &lt;string.h&gt;, finds it.
+    /// to the text. The change cuts the line at its newline on the line after - strcspn, from &lt;string.h&gt;, finds it. Text
+    /// cut short before it is compared - answer[strcspn(answer, "\n")] = '\0', or strtok(answer, "\n") - is what the change
+    /// does, and is not found.
     /// </summary>
     private static IEnumerable<LogicFinding> CFgets(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -133,7 +135,13 @@ public static partial class InputPatterns
             if (CFgetsLine().Match(masked[index]) is not { Success: true } read || masked[index].TrimStart().StartsWith("if", StringComparison.Ordinal)) continue;
 
             var buffer = read.Groups["buffer"].Value;
-            if (!ComparedWithTextLater(masked, index, $@"\bstrcmp\(\s*{Regex.Escape(buffer)}\s*,\s*""|\bstrcmp\(\s*""[^""]*""\s*,\s*{Regex.Escape(buffer)}\s*\)")) continue;
+            var bufferPattern = Regex.Escape(buffer);
+            var comparison = new Regex($@"\bstrcmp\(\s*{bufferPattern}\s*,\s*""|\bstrcmp\(\s*""[^""]*""\s*,\s*{bufferPattern}\s*\)");
+            var comparedOn = Enumerable.Range(index + 1, masked.Count - index - 1).FirstOrDefault(line => comparison.IsMatch(masked[line]), -1);
+            if (comparedOn < 0) continue;
+
+            var cutShort = new Regex($@"(?<![\w.]){bufferPattern}\s*\[[^\]]*\]\s*=(?!=)|\bstrtok\s*\(\s*{bufferPattern}\s*,");
+            if (Enumerable.Range(index + 1, comparedOn - index - 1).Any(line => cutShort.IsMatch(masked[line]))) continue;
 
             var fix = IncludesString().IsMatch(string.Join("\n", source.Lines))
                 ? LocalFix.Insert(id, $"Cut the newline off: {buffer}[strcspn({buffer}, \"\\n\")] = '\\0';",
@@ -183,6 +191,13 @@ public static partial class InputPatterns
         }
     }
 
+    /// <summary>
+    /// <c>scanner.nextLine();</c> on a line of its own - the rest of a number's line read and thrown away, which is how the
+    /// newline a number leaves is put out of the way.
+    /// </summary>
+    internal static bool RestOfLineThrownAway(string maskedLine, string scanner) =>
+        Regex.IsMatch(maskedLine, $@"^\s*{Regex.Escape(scanner)}\s*\.\s*nextLine\s*\(\s*\)\s*;\s*$");
+
     /// <summary><c>int age = scanner.nextInt();</c> - a number read, and the line it was on left unread.</summary>
     [GeneratedRegex(@"^(?<indent>\s*)(?:[\w<>\[\]]+\s+)?[A-Za-z_]\w*\s*=\s*(?<scanner>[A-Za-z_]\w*)\.next(?:Int|Double|Long|Float|Short|Byte|Boolean)?\(\)\s*;\s*$")]
     private static partial Regex NumberRead();
@@ -190,7 +205,8 @@ public static partial class InputPatterns
     /// <summary>
     /// A Scanner's nextInt - or nextDouble, or next - followed by its nextLine: nextInt stops before the newline that ended the
     /// number's line, so the nextLine after it reads what is left of that line - nothing. The change reads that rest of the
-    /// line, and leaves it, before the nextLine.
+    /// line, and leaves it, before the nextLine - so a nextLine whose text is thrown away, a line of its own, is that change
+    /// already made, and is not found.
     /// </summary>
     private static IEnumerable<LogicFinding> JavaNextLineAfterNumber(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -203,7 +219,7 @@ public static partial class InputPatterns
 
             // The next line that reads from the same scanner.
             var next = Enumerable.Range(index + 1, masked.Count - index - 1).FirstOrDefault(line => readNext.IsMatch(masked[line]), -1);
-            if (next < 0 || readNext.Match(masked[next]).Groups["what"].Value != "Line") continue;
+            if (next < 0 || readNext.Match(masked[next]).Groups["what"].Value != "Line" || RestOfLineThrownAway(masked[next], scanner)) continue;
 
             yield return new LogicFinding(id, next + 1,
                 $"{scanner}.next... on line {index + 1} reads the number and stops before the newline after it, so this nextLine reads what is left " +

@@ -1,0 +1,9 @@
+err| -- [E007] Type Mismatch Error: C:\Users\Public\FixFinderCapture\scala\text-for-an-int-parameter\main.scala:4:16 
+err| 4 |  println(twice("three"))
+err|   |                ^^^^^^^
+err|   |                Found:    ("three" : String)
+err|   |                Required: Int
+err|   |
+err|   | longer explanation available when compiling with `-explain`
+err| 1 error found
+err| Compilation failed

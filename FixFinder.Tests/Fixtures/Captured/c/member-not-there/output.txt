@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\member-not-there\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\member-not-there\main.c:7:21: error: 'struct point' has no member named 'y'
+err|     7 |     printf("%d\n", p.y);
+err|       |                     ^
+err| C:\Users\Public\FixFinderCapture\c\member-not-there\main.c:6:18: warning: variable 'p' set but not used [-Wunused-but-set-variable]
+err|     6 |     struct point p = { 1 };
+err|       |                  ^

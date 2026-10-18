@@ -106,6 +106,8 @@ public class PhpLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("<?php\n$marks = [];\n$average = array_sum($marks) / count($marks);\necho $average;\n", "php-division-guard", 3, null, "0")]
     [InlineData("<?php\n$total = 150;\necho \"Total: \" + $total;\n", "php-join-with-dot", 3, null, "Total: 150")]
     [InlineData("<?php\n$name = \"Ada\";\necho strlenn($name);\n", "php-nearest-function", 3, null, "3")]
+    // echo is not a function, so not in PHP's list: without it, the nearest was chop, which runs and prints nothing.
+    [InlineData("<?php\nechoo(\"hi\");\n", "php-nearest-function", 2, null, "hi")]
     [InlineData("<?php\nclass Student {\n    public function greet() { return \"hi\"; }\n}\n$student = new Student();\necho $student->gret();\n", "php-nearest-method", 6, null, "hi")]
     [InlineData("<?php\nclass Student {\n    public $name = \"Ada\";\n}\n$student = new Student();\necho $student.name;\n", "php-arrow-for-dot", 6, null, "Ada")]
     // Without $this, each call adds 1 to a $count of its own, null: both print 1. With it, the second call prints 2.

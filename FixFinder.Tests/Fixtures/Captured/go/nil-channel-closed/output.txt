@@ -1,0 +1,6 @@
+err| panic: close of nil channel
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/nil-channel-closed/main.go:5 +0x15
+err| exit status 2

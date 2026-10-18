@@ -1,0 +1,1 @@
+marks = open("marks.txt")

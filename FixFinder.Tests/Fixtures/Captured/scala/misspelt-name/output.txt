@@ -1,0 +1,8 @@
+err| -- [E006] Not Found Error: C:\Users\Public\FixFinderCapture\scala\misspelt-name\main.scala:3:10 
+err| 3 |  println(totl)
+err|   |          ^^^^
+err|   |          Not found: totl - did you mean total?
+err|   |
+err|   | longer explanation available when compiling with `-explain`
+err| 1 error found
+err| Compilation failed

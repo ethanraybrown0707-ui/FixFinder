@@ -1,0 +1,7 @@
+err| Method invocation failed because [System.String] does not contain a method named 'Size'.
+err| At C:\Users\Public\FixFinderCapture\powershell\method-not-there\main.ps1:2 char:1
+err| + $word.Size()
+err| + ~~~~~~~~~~~~
+err|     + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : MethodNotFound
+err|  

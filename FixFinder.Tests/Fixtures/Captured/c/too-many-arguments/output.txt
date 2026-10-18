@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\c\too-many-arguments\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\too-many-arguments\main.c:8:20: error: too many arguments to function 'area'
+err|     8 |     printf("%d\n", area(3, 4, 5));
+err|       |                    ^~~~
+err| C:\Users\Public\FixFinderCapture\c\too-many-arguments\main.c:3:5: note: declared here
+err|     3 | int area(int width, int height) {
+err|       |     ^~~~

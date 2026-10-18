@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Error: Cannot instantiate abstract class Shape in C:\Users\Public\FixFinderCapture\php\abstract-class-made\main.php:3
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\abstract-class-made\main.php on line 3

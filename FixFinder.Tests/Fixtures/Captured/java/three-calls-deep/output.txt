@@ -1,0 +1,4 @@
+err| Exception in thread "main" java.lang.ArithmeticException: / by zero
+err| 	at Main.average(Main.java:5)
+err| 	at Main.report(Main.java:9)
+err| 	at Main.main(Main.java:13)

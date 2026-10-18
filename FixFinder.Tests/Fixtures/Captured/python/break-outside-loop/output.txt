@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\break-outside-loop\main.py", line 2
+err|     break
+err|     ^^^^^
+err| SyntaxError: 'break' outside loop
