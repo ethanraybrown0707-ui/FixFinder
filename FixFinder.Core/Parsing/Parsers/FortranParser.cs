@@ -12,7 +12,8 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// place (and a 2 under a second place, on its own line, when the message names two), then <c>Error: Symbol 'totl' at (1) has
 /// no IMPLICIT type; did you mean 'total'?</c>, or <c>Warning: ...</c>, its flag in brackets at the end when it has one.
 /// A <c>note:</c> block says more of the message before it. After the last error the compiler itself may add
-/// <c>f951.exe: Error: Unexpected end of file in 'marks.f90'</c>, which names no line.
+/// <c>f951.exe: Error: Unexpected end of file in 'marks.f90'</c>, which names no line - and when a file ends with no end line
+/// at all, for its program or a subroutine in it, that is all gfortran says, and it is read as the error, in that file.
 /// </para>
 /// <para>
 /// A program built with -fcheck=all stops at a check that fails with <c>At line 6 of file marks.f90</c> and
@@ -47,6 +48,10 @@ public sealed partial class FortranParser : IStackTraceParser, IMultiErrorParser
     [GeneratedRegex(@"^Program received signal (?<signal>SIG[A-Z]+): (?<msg>.+?)\.?\s*$")]
     private static partial Regex SignalPattern();
 
+    /// <summary><c>f951.exe: Error: Unexpected end of file in 'marks.f90'</c> - the compiler's own error, naming a file and no line.</summary>
+    [GeneratedRegex(@"^(?:f951|gfortran)(?:\.exe)?: (?:Fatal )?Error: (?<msg>.+?)(?: in '(?<file>[^']+)')?\s*$")]
+    private static partial Regex CompilerItselfPattern();
+
     public int Detect(IReadOnlyList<string> lines)
     {
         var score = 0;
@@ -55,14 +60,41 @@ public sealed partial class FortranParser : IStackTraceParser, IMultiErrorParser
         {
             if (LocationPattern().IsMatch(line)) score += 30;
             if (VerdictPattern().IsMatch(line)) score += 30;
-            if (RuntimeErrorPattern().IsMatch(line) || SignalPattern().IsMatch(line)) score += 70;
+            if (RuntimeErrorPattern().IsMatch(line) || SignalPattern().IsMatch(line) || CompilerItselfPattern().IsMatch(line)) score += 70;
             if (RuntimeLocationPattern().IsMatch(line)) score += 30;
         }
 
         return Math.Min(score, 100);
     }
 
-    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) => ParseAll(lines).FirstOrDefault() ?? Runtime(lines);
+    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) => ParseAll(lines).FirstOrDefault() ?? Runtime(lines) ?? FromTheCompilerItself(lines);
+
+    /// <summary>
+    /// The compiler's own error, when it is all gfortran said: the file ended with no end line for what it opened. After errors
+    /// of a block's own it is not read, as it follows from them.
+    /// </summary>
+    private ParsedError? FromTheCompilerItself(IReadOnlyList<CapturedLine> lines)
+    {
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (CompilerItselfPattern().Match(lines[index].Text) is not { Success: true } error) continue;
+
+            return new ParsedError
+            {
+                LanguageId = LanguageId,
+                Confidence = 90,
+                RawText = ParserHelpers.RawTextOf(lines, index, index + 1),
+                FirstLineSequence = lines[index].Sequence,
+                ExceptionType = "compile error",
+                Message = error.Groups["msg"].Value,
+                Frames = error.Groups["file"].Success
+                    ? [new ErrorFrame { Order = 0, File = ParserHelpers.CleanFilePath(error.Groups["file"].Value), RawLine = lines[index].Text }]
+                    : [],
+            };
+        }
+
+        return null;
+    }
 
     public IReadOnlyList<ParsedError> ParseAll(IReadOnlyList<CapturedLine> lines) => Compiled(lines, "Error", "compile error");
 

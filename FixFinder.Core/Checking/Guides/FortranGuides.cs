@@ -42,6 +42,23 @@ internal static class FortranGuides
 
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
+        Compiled(@"^Unexpected end of file",
+            "The file ended while something in it was still open. A program runs from its program line to its own end program line, " +
+            "and a subroutine or function inside it to its own end line - and the file finished before that line. gfortran names no " +
+            "line, as the line it wanted is the one that is not there.",
+            "Add the missing end line where what it closes ends: end program, end subroutine or end function, with its name.",
+            """
+            program marks
+              implicit none
+              call show(70)
+            contains
+              subroutine show(mark)
+                integer, intent(in) :: mark
+                print *, mark
+              end subroutine show
+            end program marks
+            """),
+
         Compiled(@"has no IMPLICIT type",
             "With implicit none, every name has to be declared before it is used, and this one never was - often because it is spelt " +
             "differently from where it was declared. gfortran often says which declared name it thinks was meant.",
