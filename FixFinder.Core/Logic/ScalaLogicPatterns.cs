@@ -98,7 +98,8 @@ public static partial class ScalaLogicPatterns
     /// <summary>
     /// An Array printed as it is - println(marks), println("Marks: " + marks), println(s"Marks: $marks"). An Array has no text of
     /// its own for its items, so it is printed as its kind and a code - [I@4563e9ab - not as 70, 80, 90; a List prints its items.
-    /// The change prints them with mkString.
+    /// The change prints them with mkString. An array compared in the call - println(first == second) - is not printed: the
+    /// comparison's true or false is.
     /// </summary>
     private static IEnumerable<LogicFinding> ArrayPrinted(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -115,9 +116,14 @@ public static partial class ScalaLogicPatterns
             var arguments = masked[index][start..close];
             bool AtTopLevel(int at) => arguments[..at].Count(c => c == '(') == arguments[..at].Count(c => c == ')');
 
+            // println(first == second) prints true or false, whatever first and second are.
+            var printsAComparison = Regex.IsMatch(Brackets.OutsideBrackets(arguments), @"[=!<>]=|(?<![<>=-])[<>](?![<>=])|\b(?:eq|ne)\b");
+
             // The array itself, in the call's own brackets - not its length, an item of it, or a call on it.
-            var printed = Regex.Matches(arguments, @"(?<![\w$.""])(?<name>[A-Za-z_]\w*)(?![\w.(\[])")
-                .FirstOrDefault(found => AtTopLevel(found.Index) && arrays.Contains(found.Groups["name"].Value));
+            var printed = printsAComparison
+                ? null
+                : Regex.Matches(arguments, @"(?<![\w$.""])(?<name>[A-Za-z_]\w*)(?![\w.(\[])")
+                    .FirstOrDefault(found => AtTopLevel(found.Index) && arrays.Contains(found.Groups["name"].Value));
 
             // $marks in s"..." - read from the line as written, as masking blanks the text.
             var hole = line[start..close].Contains("s\"", StringComparison.Ordinal)

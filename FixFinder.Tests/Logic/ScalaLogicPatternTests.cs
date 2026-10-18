@@ -75,6 +75,8 @@ public class ScalaLogicPatternTests : IDisposable
     [InlineData("    val marks = List(70, 80, 90)\n    println(marks)\n")]
     // The array's items, its length or one item of it.
     [InlineData("    val marks = Array(70, 80, 90)\n    println(marks.mkString(\", \"))\n    println(marks.length)\n    println(marks(0))\n    println(s\"First: ${marks(0)}\")\n")]
+    // Two arrays compared: what is printed is true or false.
+    [InlineData("    val first = Array(70, 80)\n    val second = Array(70, 80)\n    println(first == second)\n    println(first != second)\n    println(first eq second)\n")]
     public void AnArraysItemsPrintedAreLeftAlone(string body) =>
         Assert.DoesNotContain(Scan(InsideMain(body)), finding => finding.PatternId == "logic-scala-array-printed");
 

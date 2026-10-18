@@ -162,6 +162,8 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-float-equality", "App.java", "        int total = 3;\n        if (total == 3) {\n", null)]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        int age = in.nextInt();\n        String name = in.nextLine();\n", "        int age = in.nextInt();¦        in.nextLine();¦        String name = in.nextLine();")]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        String name = in.nextLine();\n        int age = in.nextInt();\n", null)]
+    // The change made already: the rest of the number's line read and thrown away.
+    [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        int age = in.nextInt();\n        in.nextLine();\n        String name = in.nextLine();\n", null)]
     [InlineData("logic-java-random-always-zero", "App.java", "        int roll = (int) Math.random() * 6 + 1;\n", "        int roll = (int) (Math.random() * 6) + 1;")]
     [InlineData("logic-java-random-always-zero", "App.java", "        int roll = (int) (Math.random() * 6) + 1;\n", null)]
     [InlineData("logic-java-wrapper-equality", "App.java", "        Integer a = 1000;\n        Integer b = 1000;\n        if (a == b) {\n", "        if (a.equals(b)) {")]
@@ -225,6 +227,9 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-collection-printed", "Program.cs", "var names = new List<string> { \"Ada\", \"Grace\" };\nConsole.WriteLine(names);\n", "Console.WriteLine(string.Join(\", \", names));")]
     [InlineData("logic-collection-printed", "App.java", "        int[] scores = {3, 5, 8};\n        System.out.println(Arrays.toString(scores));\n", null)]
     [InlineData("logic-collection-printed", "Program.cs", "int[] scores = { 3, 5, 8 };\nConsole.WriteLine(scores.Length);\n", null)]
+    // Two arrays compared: what is printed is true or false.
+    [InlineData("logic-collection-printed", "App.java", "        int[] first = {70, 80};\n        int[] second = {70, 80};\n        System.out.println(first == second);\n        System.out.println(first != second);\n", null)]
+    [InlineData("logic-collection-printed", "Program.cs", "int[] first = { 70, 80 };\nint[] second = { 70, 80 };\nConsole.WriteLine(first == second);\n", null)]
     [InlineData("logic-local-hides-field", "Student.java", "class Student {\n    private String name;\n\n    public Student(String n) {\n        String name = n;\n    }\n}\n", "        this.name = n;")]
     [InlineData("logic-local-hides-field", "Student.cs", "class Student\n{\n    private string name;\n\n    public Student(string n)\n    {\n        string name = n;\n    }\n}\n", "        this.name = n;")]
     [InlineData("logic-local-hides-field", "Student.java", "class Student {\n    private String name;\n\n    public Student(String n) {\n        String name = n.trim();\n        this.name = name;\n    }\n}\n", null)]

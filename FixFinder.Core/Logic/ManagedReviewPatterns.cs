@@ -363,9 +363,14 @@ public static partial class ManagedReviewPatterns
             var arguments = masked[i][start..close];
             bool TopLevel(int index) => arguments[..index].Count(c => c == '(') == arguments[..index].Count(c => c == ')');
 
-            var printed = Regex.Matches(arguments, @"(?<![\w.""$])(?<name>[A-Za-z_]\w*)(?![\w\[.(])")
-                .Where(m => TopLevel(m.Index) && arrays.TryGetValue(m.Groups["name"].Value, out var depth) && (java || depth == 1))
-                .ToList();
+            // println(first == second) prints true or false, whatever first and second are.
+            var printsAComparison = Regex.IsMatch(Brackets.OutsideBrackets(arguments), @"[=!<>]=|(?<![<>=-])[<>](?![<>=])");
+
+            var printed = printsAComparison
+                ? []
+                : Regex.Matches(arguments, @"(?<![\w.""$])(?<name>[A-Za-z_]\w*)(?![\w\[.(])")
+                    .Where(m => TopLevel(m.Index) && arrays.TryGetValue(m.Groups["name"].Value, out var depth) && (java || depth == 1))
+                    .ToList();
 
             var holes = java || !line[start..close].TrimStart().StartsWith("$\"", StringComparison.Ordinal)
                 ? []
