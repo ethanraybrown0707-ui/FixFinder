@@ -44,6 +44,7 @@ public class LogicCheckRobustnessTests : IDisposable
             "if else for while def class return int string var let const fn func end do then elif elsif foreach in of switch case break continue try catch except finally import using\n", 300)),
         ["one 60,000-character line of code"] = string.Concat(Enumerable.Repeat("x = x + 1; ", 5_000)) + "\n",
         ["400 levels of indentation"] = string.Concat(Enumerable.Range(0, 400).Select(depth => new string(' ', depth * 2) + "if x:\n")),
+        ["a line ending in a quote and a backslash"] = "let letter = '\\\nlet other = 'a'\n",
     };
 
     /// <summary>Each logic check, each kind of file it reads, and each piece of awkward code.</summary>

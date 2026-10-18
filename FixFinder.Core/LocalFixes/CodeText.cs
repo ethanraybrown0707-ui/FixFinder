@@ -191,12 +191,12 @@ public static partial class CodeText
 
     /// <summary>
     /// Where the closing quote of an OCaml character starting at <paramref name="start"/> is - 'a', '\n', '\'', '\065',
-    /// '\x41' - or -1 when the quote starts no character, as in the type variable 'a.
+    /// '\x41' - or -1 when the quote starts no character, as in the type variable 'a, or a line ends straight after '\.
     /// </summary>
     private static int OCamlCharacterEnd(string line, int start)
     {
         if (start + 2 < line.Length && line[start + 1] != '\\' && line[start + 2] == '\'') return start + 2;
-        if (start + 1 >= line.Length || line[start + 1] != '\\') return -1;
+        if (start + 1 >= line.Length || line[start + 1] != '\\' || start + 3 > line.Length) return -1;
 
         var closing = line.IndexOf('\'', start + 3);
         return closing > start && closing - start <= 5 ? closing : -1;
