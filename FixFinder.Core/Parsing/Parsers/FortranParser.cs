@@ -14,6 +14,8 @@ namespace FixFinder.Core.Parsing.Parsers;
 /// A <c>note:</c> block says more of the message before it. After the last error the compiler itself may add
 /// <c>f951.exe: Error: Unexpected end of file in 'marks.f90'</c>, which names no line - and when a file ends with no end line
 /// at all, for its program or a subroutine in it, that is all gfortran says, and it is read as the error, in that file.
+/// A call to a subroutine no file holds builds, and the linker then says <c>marks.f90:3:(.text+0x40): undefined reference to
+/// `show_'</c>, at the line of the call - its name with the _ gfortran adds to it.
 /// </para>
 /// <para>
 /// A program built with -fcheck=all stops at a check that fails with <c>At line 6 of file marks.f90</c> and
@@ -52,6 +54,13 @@ public sealed partial class FortranParser : IStackTraceParser, IMultiErrorParser
     [GeneratedRegex(@"^(?:f951|gfortran)(?:\.exe)?: (?:Fatal )?Error: (?<msg>.+?)(?: in '(?<file>[^']+)')?\s*$")]
     private static partial Regex CompilerItselfPattern();
 
+    /// <summary>
+    /// <c>marks.f90:3:(.text+0x40): undefined reference to `show_'</c> - the linker, finding no subroutine or function by a name
+    /// the program calls, at the line of the call. gfortran adds _ to the end of every such name: show is show_.
+    /// </summary>
+    [GeneratedRegex(@"^(?<file>(?:[A-Za-z]:)?[^:\r\n]+?\.(?:f|for|ftn|f77|f90|f95|f03|f08)):(?:(?<line>\d+):)?\([^)]*\):\s*undefined reference to [`'‘](?<symbol>[^'`’]+)['’]\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex LinkerPattern();
+
     public int Detect(IReadOnlyList<string> lines)
     {
         var score = 0;
@@ -60,14 +69,46 @@ public sealed partial class FortranParser : IStackTraceParser, IMultiErrorParser
         {
             if (LocationPattern().IsMatch(line)) score += 30;
             if (VerdictPattern().IsMatch(line)) score += 30;
-            if (RuntimeErrorPattern().IsMatch(line) || SignalPattern().IsMatch(line) || CompilerItselfPattern().IsMatch(line)) score += 70;
+            if (RuntimeErrorPattern().IsMatch(line) || SignalPattern().IsMatch(line) || CompilerItselfPattern().IsMatch(line) || LinkerPattern().IsMatch(line)) score += 70;
             if (RuntimeLocationPattern().IsMatch(line)) score += 30;
         }
 
         return Math.Min(score, 100);
     }
 
-    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) => ParseAll(lines).FirstOrDefault() ?? Runtime(lines) ?? FromTheCompilerItself(lines);
+    public ParsedError? Parse(IReadOnlyList<CapturedLine> lines) =>
+        ParseAll(lines).FirstOrDefault() ?? Runtime(lines) ?? FromTheCompilerItself(lines) ?? Linked(lines);
+
+    /// <summary>What the linker could not find - a subroutine or function the program calls and no file of it holds - at the call.</summary>
+    private ParsedError? Linked(IReadOnlyList<CapturedLine> lines)
+    {
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (LinkerPattern().Match(lines[index].Text) is not { Success: true } linker) continue;
+
+            return new ParsedError
+            {
+                LanguageId = LanguageId,
+                Confidence = 90,
+                RawText = ParserHelpers.RawTextOf(lines, index, index + 1),
+                FirstLineSequence = lines[index].Sequence,
+                ExceptionType = "link error",
+                Message = $"undefined reference to '{linker.Groups["symbol"].Value}'",
+                Frames =
+                [
+                    new ErrorFrame
+                    {
+                        Order = 0,
+                        File = ParserHelpers.CleanFilePath(linker.Groups["file"].Value),
+                        Line = linker.Groups["line"].Success ? int.Parse(linker.Groups["line"].Value) : null,
+                        RawLine = lines[index].Text,
+                    },
+                ],
+            };
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The compiler's own error, when it is all gfortran said: the file ended with no end line for what it opened. After errors

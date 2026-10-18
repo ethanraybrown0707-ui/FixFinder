@@ -23,6 +23,11 @@ public static class CulpritFrameSelector
     {
         if (frames.Count == 0) return null;
 
+        // The program's own frame that names a line comes before one of its own that names none - as Dart names a late field's
+        // getter, "total (file:///.../main.dart)", above the line of main that read it.
+        foreach (var frame in frames)
+            if (frame.Origin == FrameOrigin.FirstParty && frame.Line is not null) return frame;
+
         foreach (var frame in frames)
             if (frame.Origin == FrameOrigin.FirstParty) return frame;
 

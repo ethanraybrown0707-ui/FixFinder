@@ -59,6 +59,30 @@ internal static class FortranGuides
             end program marks
             """),
 
+        new GuideEntry
+        {
+            ExceptionTypes = ["link error"],
+            Message = new Regex(@"^undefined reference to"),
+            Guide = new MistakeGuide(
+                "Building a program takes two steps: gfortran compiles the code, then links it into a program. The call compiled, as Fortran " +
+                "lets a program call a subroutine another file holds; the linker then found no subroutine by that name in any file of the " +
+                "build - it is spelt differently where it is written, never written, or in a file that is not part of the build. gfortran " +
+                "adds _ to the end of the name, so show is named show_.",
+                NothingRuns,
+                "Write the subroutine - after contains, inside the program - or spell the call as it is written.",
+                """
+                program marks
+                  implicit none
+                  call show(70)
+                contains
+                  subroutine show(mark)
+                    integer, intent(in) :: mark
+                    print *, mark
+                  end subroutine show
+                end program marks
+                """),
+        },
+
         Compiled(@"has no IMPLICIT type",
             "With implicit none, every name has to be declared before it is used, and this one never was - often because it is spelt " +
             "differently from where it was declared. gfortran often says which declared name it thinks was meant.",
