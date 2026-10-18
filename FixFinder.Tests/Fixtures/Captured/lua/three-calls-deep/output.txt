@@ -1,0 +1,6 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:2: attempt to index a nil value (field 'integer index')
+err| stack traceback:
+err| 	main.lua:2: in function <main.lua:1>
+err| 	(...tail calls...)
+err| 	main.lua:9: in main chunk
+err| 	[C]: in ?

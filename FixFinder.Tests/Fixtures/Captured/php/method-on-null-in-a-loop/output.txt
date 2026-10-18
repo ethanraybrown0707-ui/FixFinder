@@ -1,0 +1,6 @@
+out| Ada
+out| 
+out| Fatal error: Uncaught Error: Call to a member function name() on null in C:\Users\Public\FixFinderCapture\php\method-on-null-in-a-loop\main.php:7
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\method-on-null-in-a-loop\main.php on line 7

@@ -1,0 +1,9 @@
+out| ADA
+out| BOB
+err| You cannot call a method on a null-valued expression.
+err| At C:\Users\Public\FixFinderCapture\powershell\printed-then-failed\main.ps1:3 char:5
+err| +     Write-Output $name.ToUpper()
+err| +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : InvalidOperation: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : InvokeMethodOnNull
+err|  

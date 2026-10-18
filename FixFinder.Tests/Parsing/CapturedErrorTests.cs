@@ -6,7 +6,7 @@ using FixFinder.Core.Parsing;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What 350 small programs printed when they failed, in every language FixFinder runs here, read back as FixFinder reads a run:
+/// What 415 small programs printed when they failed, in every language FixFinder runs here, read back as FixFinder reads a run:
 /// by the reader of the program's language, and by every reader when the language is left to FixFinder - naming what went
 /// wrong, the program's own file, and the line it went wrong on.
 /// </summary>
@@ -103,6 +103,11 @@ public class CapturedErrorTests : IDisposable
         { "Python", "number-from-none", "main.py", "python", "TypeError", 2 },
         { "Python", "square-root-of-negative", "main.py", "python", "ValueError", 2 },
         { "Python", "list-as-dictionary-key", "main.py", "python", "TypeError", 1 },
+        { "Python", "printed-then-failed", "main.py", "python", "ZeroDivisionError", 4 },
+        { "Python", "input-with-nothing-typed", "main.py", "python", "EOFError", 1 },
+        { "Python", "three-calls-deep", "main.py", "python", "ZeroDivisionError", 2 },
+        { "Python", "later-pass-of-a-loop", "main.py", "python", "AttributeError", 3 },
+        { "Python", "number-typed-as-input-missing", "main.py", "python", "EOFError", 1 },
 
         // Java
         { "Java", "division-by-zero", "Main.java", "java", "ArithmeticException", 5 },
@@ -137,6 +142,11 @@ public class CapturedErrorTests : IDisposable
         { "Java", "number-too-big-for-int", "Main.java", "java", "NumberFormatException", 3 },
         { "Java", "character-into-text", "Main.java", "java", "incompatible types", 3 },
         { "Java", "text-never-closed", "Main.java", "java", "unclosed string literal", 3 },
+        { "Java", "printed-then-failed", "Main.java", "java", "ArithmeticException", 6 },
+        { "Java", "input-with-nothing-typed", "Main.java", "java", "NoSuchElementException", 6 },
+        { "Java", "three-calls-deep", "Main.java", "java", "ArithmeticException", 5 },
+        { "Java", "later-pass-of-a-loop", "Main.java", "java", "NullPointerException", 5 },
+        { "Java", "line-read-with-nothing-typed", "Main.java", "java", "NoSuchElementException", 6 },
 
         // C#
         { "C#", "division-by-zero", "main.cs", "csharp", "DivideByZeroException", 3 },
@@ -165,6 +175,10 @@ public class CapturedErrorTests : IDisposable
         { "C#", "using-missing", "main.cs", "msvc", "CS0246", 1 },
         { "C#", "text-returned-as-number", "main.cs", "msvc", "CS0029", 5 },
         { "C#", "argument-thrown", "main.cs", "csharp", "ArgumentException", 2 },
+        { "C#", "printed-then-failed", "main.cs", "csharp", "DivideByZeroException", 5 },
+        { "C#", "input-with-nothing-typed", "main.cs", "csharp", "ArgumentNullException", 2 },
+        { "C#", "three-calls-deep", "main.cs", "csharp", "DivideByZeroException", 7 },
+        { "C#", "later-pass-of-a-loop", "main.cs", "csharp", "NullReferenceException", 4 },
 
         // C
         { "C", "misspelt-name", "main.c", "gcc", "undeclared", 5 },
@@ -183,6 +197,9 @@ public class CapturedErrorTests : IDisposable
         { "C", "case-twice", "main.c", "gcc", "duplicate case value", 9 },
         { "C", "void-result-used", "main.c", "gcc", "void value not ignored", 8 },
         { "C", "too-many-arguments", "main.c", "gcc", "too many arguments", 8 },
+        { "C", "printf-of-a-name-never-declared", "main.c", "gcc", "undeclared", 6 },
+        { "C", "function-used-before-its-type-known", "main.c", "gcc", "conflicting types", 9 },
+        { "C", "pointer-to-int-returned", "main.c", "gcc", "request for member", 6 },
 
         // C++
         { "C++", "cout-without-std", "main.cpp", "gcc", "was not declared", 4 },
@@ -200,6 +217,9 @@ public class CapturedErrorTests : IDisposable
         { "C++", "no-matching-function", "main.cpp", "gcc", "no matching function for call", 5 },
         { "C++", "semicolon-missing-after-class", "main.cpp", "gcc", "expected ';' after class definition", 5 },
         { "C++", "abstract-class-made", "main.cpp", "gcc", "abstract type", 8 },
+        { "C++", "method-on-a-pointer-with-dot", "main.cpp", "gcc", "request for member", 7 },
+        { "C++", "loop-variable-never-declared", "main.cpp", "gcc", "was not declared", 5 },
+        { "C++", "const-method-changes-a-member", "main.cpp", "gcc", "read-only object", 6 },
 
         // JavaScript
         { "JavaScript", "misspelt-name", "main.js", "node", "ReferenceError", 2 },
@@ -225,6 +245,10 @@ public class CapturedErrorTests : IDisposable
         { "JavaScript", "used-before-declared", "main.js", "node", "ReferenceError", 1 },
         { "JavaScript", "digits-out-of-range", "main.js", "node", "RangeError", 2 },
         { "JavaScript", "bigint-and-number-mixed", "main.js", "node", "TypeError", 2 },
+        { "JavaScript", "printed-then-failed", "main.js", "node", "TypeError", 3 },
+        { "JavaScript", "three-calls-deep", "main.js", "node", "TypeError", 2 },
+        { "JavaScript", "error-in-a-callback", "main.js", "node", "TypeError", 3 },
+        { "JavaScript", "error-in-a-class-method", "main.js", "node", "TypeError", 6 },
 
         // TypeScript
         { "TypeScript", "misspelt-name", "main.ts", "node", "ReferenceError", 2 },
@@ -241,6 +265,9 @@ public class CapturedErrorTests : IDisposable
         { "TypeScript", "text-method-on-a-number", "main.ts", "node", "TypeError", 2 },
         { "TypeScript", "null-read-as-an-interface", "main.ts", "node", "TypeError", 5 },
         { "TypeScript", "used-before-declared", "main.ts", "node", "ReferenceError", 1 },
+        { "TypeScript", "printed-then-failed", "main.ts", "node", "TypeError", 3 },
+        { "TypeScript", "three-calls-deep", "main.ts", "node", "TypeError", 2 },
+        { "TypeScript", "error-in-a-callback", "main.ts", "node", "TypeError", 3 },
 
         // Go
         { "Go", "misspelt-name", "main.go", "go", "undefined", 7 },
@@ -260,6 +287,9 @@ public class CapturedErrorTests : IDisposable
         { "Go", "constant-index-past-the-end", "main.go", "go", "out of bounds", 7 },
         { "Go", "nil-channel-closed", "main.go", "go", "close of nil channel", 5 },
         { "Go", "deadlock", "main.go", "go", "deadlock", 5 },
+        { "Go", "printed-then-failed", "main.go", "go", "integer divide by zero", 9 },
+        { "Go", "three-calls-deep", "main.go", "go", "index out of range", 6 },
+        { "Go", "later-pass-of-a-loop", "main.go", "go", "index out of range", 8 },
 
         // Rust
         { "Rust", "misspelt-name", "main.rs", "rust", "E0425", 3 },
@@ -279,6 +309,9 @@ public class CapturedErrorTests : IDisposable
         { "Rust", "match-not-exhaustive", "main.rs", "rust", "E0004", 3 },
         { "Rust", "semicolon-ends-the-result", "main.rs", "rust", "E0308", 1 },
         { "Rust", "text-indexed", "main.rs", "rust", "E0277", 3 },
+        { "Rust", "printed-then-failed", "main.rs", "rust", "index out of bounds", 4 },
+        { "Rust", "three-calls-deep", "main.rs", "rust", "index out of bounds", 2 },
+        { "Rust", "input-parsed-with-nothing-typed", "main.rs", "rust", "ParseIntError", 6 },
 
         // Ruby
         { "Ruby", "division-by-zero", "main.rb", "ruby", "ZeroDivisionError", 3 },
@@ -297,6 +330,9 @@ public class CapturedErrorTests : IDisposable
         { "Ruby", "remainder-by-zero", "main.rb", "ruby", "ZeroDivisionError", 2 },
         { "Ruby", "text-never-closed", "main.rb", "generic", "unterminated string", 1 },
         { "Ruby", "endless-recursion", "main.rb", "ruby", "SystemStackError", 2 },
+        { "Ruby", "printed-then-failed", "main.rb", "ruby", "ZeroDivisionError", 4 },
+        { "Ruby", "input-with-nothing-typed", "main.rb", "ruby", "NoMethodError", 1 },
+        { "Ruby", "three-calls-deep", "main.rb", "ruby", "ZeroDivisionError", 2 },
 
         // PHP
         { "PHP", "division-by-zero", "main.php", "php", "DivisionByZeroError", 4 },
@@ -313,6 +349,9 @@ public class CapturedErrorTests : IDisposable
         { "PHP", "abstract-class-made", "main.php", "php", "Cannot instantiate abstract class", 3 },
         { "PHP", "text-for-an-int-parameter", "main.php", "php", "must be of type int", 2 },
         { "PHP", "undefined-variable", "main.php", "php", "Undefined variable", 3 },
+        { "PHP", "printed-then-failed", "main.php", "php", "DivisionByZeroError", 5 },
+        { "PHP", "three-calls-deep", "main.php", "php", "DivisionByZeroError", 3 },
+        { "PHP", "method-on-null-in-a-loop", "main.php", "php", "Call to a member function", 7 },
 
         // Lua
         { "Lua", "arithmetic-on-nil", "main.lua", "lua", "arithmetic on a nil value", 2 },
@@ -329,6 +368,9 @@ public class CapturedErrorTests : IDisposable
         { "Lua", "number-called", "main.lua", "lua", "attempt to call a number value", 2 },
         { "Lua", "number-indexed", "main.lua", "lua", "attempt to index a number value", 2 },
         { "Lua", "then-missing", "main.lua", "lua", "'then' expected", 3 },
+        { "Lua", "printed-then-failed", "main.lua", "lua", "attempt to index a nil value", 3 },
+        { "Lua", "input-with-nothing-typed", "main.lua", "lua", "attempt to perform arithmetic on a nil value", 2 },
+        { "Lua", "three-calls-deep", "main.lua", "lua", "attempt to index a nil value", 2 },
 
         // Perl
         { "Perl", "division-by-zero", "main.pl", "perl", "Illegal division by zero", 5 },
@@ -345,6 +387,9 @@ public class CapturedErrorTests : IDisposable
         { "Perl", "bareword", "main.pl", "perl", "Bareword", 3 },
         { "Perl", "list-named-as-scalar", "main.pl", "perl", "Global symbol", 4 },
         { "Perl", "bracket-never-closed", "main.pl", "perl", "syntax error", 4 },
+        { "Perl", "printed-then-failed", "main.pl", "perl", "Illegal division by zero", 6 },
+        { "Perl", "three-calls-deep", "main.pl", "perl", "Illegal division by zero", 8 },
+        { "Perl", "method-on-undef-in-a-loop", "main.pl", "perl", "Can't call method", 5 },
 
         // Dart
         { "Dart", "misspelt-name", "main.dart", "dart", "totl", 3 },
@@ -361,6 +406,9 @@ public class CapturedErrorTests : IDisposable
         { "Dart", "late-never-given-a-value", "main.dart", "dart", "LateInitializationError", 4 },
         { "Dart", "missing-key-null-checked", "main.dart", "dart", "Null check operator", 3 },
         { "Dart", "method-not-there", "main.dart", "dart", "size", 3 },
+        { "Dart", "printed-then-failed", "main.dart", "dart", "RangeError", 4 },
+        { "Dart", "three-calls-deep", "main.dart", "dart", "No element", 2 },
+        { "Dart", "input-with-nothing-typed", "main.dart", "dart", "Null check operator", 5 },
 
         // Fortran
         { "Fortran", "index-past-the-end", "main.f90", "fortran", "upper bound", 7 },
@@ -375,6 +423,9 @@ public class CapturedErrorTests : IDisposable
         { "Fortran", "text-never-closed", "main.f90", "fortran", "Unterminated character constant", 3 },
         { "Fortran", "index-below-the-start", "main.f90", "fortran", "below lower bound", 7 },
         { "Fortran", "subroutine-never-written", "main.f90", "fortran", "show", 3 },
+        { "Fortran", "printed-then-failed", "main.f90", "fortran", "above upper bound", 7 },
+        { "Fortran", "text-typed-as-a-number-missing", "main.f90", "fortran", "End of file", 5 },
+        { "Fortran", "inside-a-subroutine", "main.f90", "fortran", "above upper bound", 10 },
 
         // PowerShell
         { "PowerShell", "misspelt-command", "main.ps1", "powershell", "CommandNotFoundException", 1 },
@@ -390,6 +441,9 @@ public class CapturedErrorTests : IDisposable
         { "PowerShell", "parameter-not-there", "main.ps1", "powershell", "A parameter cannot be found that matches parameter name 'Filterr'", 1 },
         { "PowerShell", "text-added-to-a-number", "main.ps1", "powershell", "Cannot convert value", 1 },
         { "PowerShell", "bracket-never-closed", "main.ps1", "powershell", "Unexpected token '{'", 2 },
+        { "PowerShell", "printed-then-failed", "main.ps1", "powershell", "null-valued expression", 3 },
+        { "PowerShell", "inside-a-function", "main.ps1", "powershell", "divide by zero", 2 },
+        { "PowerShell", "thrown-in-a-function", "main.ps1", "powershell", "mark out of range", 2 },
 
         // Elixir
         { "Elixir", "division-by-zero", "main.exs", "elixir", "ArithmeticError", 3 },
@@ -405,6 +459,9 @@ public class CapturedErrorTests : IDisposable
         { "Elixir", "number-not-a-list", "main.exs", "elixir", "Protocol.UndefinedError", 1 },
         { "Elixir", "text-plus-number", "main.exs", "elixir", "ArithmeticError", 2 },
         { "Elixir", "no-case-matches", "main.exs", "elixir", "CaseClauseError", 2 },
+        { "Elixir", "printed-then-failed", "main.exs", "elixir", "ArithmeticError", 4 },
+        { "Elixir", "input-with-nothing-typed", "main.exs", "elixir", "FunctionClauseError", 2 },
+        { "Elixir", "three-calls-deep", "main.exs", "elixir", "ArithmeticError", 2 },
 
         // Erlang
         { "Erlang", "division-by-zero", "main.erl", "erlang", "badarith", 6 },
@@ -419,6 +476,8 @@ public class CapturedErrorTests : IDisposable
         { "Erlang", "head-of-empty", "main.erl", "erlang", "badarg", 6 },
         { "Erlang", "no-if-matches", "main.erl", "erlang", "if_clause", 6 },
         { "Erlang", "text-plus-number", "main.erl", "erlang", "badarith", 6 },
+        { "Erlang", "printed-then-failed", "main.erl", "erlang", "badarith", 8 },
+        { "Erlang", "three-calls-deep", "main.erl", "erlang", "badarith", 4 },
 
         // F#
         { "F#", "division-by-zero", "main.fsx", "fsharp", "DivideByZeroException", 3 },
@@ -435,6 +494,9 @@ public class CapturedErrorTests : IDisposable
         { "F#", "function-misspelt", "main.fsx", "fsharp", "FS0039", 2 },
         { "F#", "number-too-big", "main.fsx", "fsharp", "OverflowException", 1 },
         { "F#", "text-plus-number", "main.fsx", "fsharp", "FS0001", 1 },
+        { "F#", "printed-then-failed", "main.fsx", "fsharp", "DivideByZeroException", 4 },
+        { "F#", "three-calls-deep", "main.fsx", "fsharp", "DivideByZeroException", 1 },
+        { "F#", "input-with-nothing-typed", "main.fsx", "fsharp", "NullReferenceException", 2 },
 
         // Scala
         { "Scala", "division-by-zero", "main.scala", "scala", "ArithmeticException", 4 },
@@ -450,6 +512,9 @@ public class CapturedErrorTests : IDisposable
         { "Scala", "wrong-cast", "main.scala", "scala", "ClassCastException", 3 },
         { "Scala", "text-for-an-int-parameter", "main.scala", "scala", "Required: Int", 4 },
         { "Scala", "no-case-matches", "main.scala", "scala", "MatchError", 4 },
+        { "Scala", "printed-then-failed", "main.scala", "scala", "ArithmeticException", 5 },
+        { "Scala", "three-calls-deep", "main.scala", "scala", "ArithmeticException", 1 },
+        { "Scala", "input-with-nothing-typed", "main.scala", "scala", "Exception", 4 },
     };
 
     private static IReadOnlyList<CapturedLine> Output(string language, string caseName) => Fixtures.LoadCaptured(FolderOf(language), caseName);
@@ -536,6 +601,11 @@ public class CapturedErrorTests : IDisposable
         // A file ending in a newline has one line more after it, empty - where a tool says it reached the end still reading.
         Assert.InRange(line, 0, program.Split('\n').Length);
     }
+
+    [Theory]
+    [MemberData(nameof(Captured))]
+    public void EveryLogicCheckReadsTheProgramAndPointsOnlyInsideIt(string language, string caseName, string file, string reader, string kind, int line) =>
+        LogicCheckRobustnessTests.AssertEveryCheckReadsItAndPointsOnlyInsideIt(SourceFile.Read(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file))!);
 
     [Theory]
     [MemberData(nameof(Captured))]

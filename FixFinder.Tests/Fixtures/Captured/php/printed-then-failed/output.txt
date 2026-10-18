@@ -1,0 +1,10 @@
+out| Mark: 70
+out| Share: 1.4285714285714
+out| Mark: 80
+out| Share: 1.25
+out| Mark: 0
+out| 
+out| Fatal error: Uncaught DivisionByZeroError: Division by zero in C:\Users\Public\FixFinderCapture\php\printed-then-failed\main.php:5
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\printed-then-failed\main.php on line 5

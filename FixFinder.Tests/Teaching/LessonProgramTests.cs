@@ -87,6 +87,15 @@ public class LessonProgramTests : IDisposable
     }
 
     [Theory]
+    [MemberData(nameof(EveryLessonProgram))]
+    public void EveryLogicCheckReadsALessonProgramAndPointsOnlyInsideIt(string language, string concept, int example, string which)
+    {
+        var lesson = LessonOf(language, concept);
+
+        LogicCheckRobustnessTests.AssertEveryCheckReadsItAndPointsOnlyInsideIt(Saved(lesson, CodeOf(lesson.Examples[example - 1], which)));
+    }
+
+    [Theory]
     [MemberData(nameof(EveryExample))]
     public void ALessonsProgramPutRightHoldsNoMistakeAnyCheckFinds(string language, string concept, int example)
     {

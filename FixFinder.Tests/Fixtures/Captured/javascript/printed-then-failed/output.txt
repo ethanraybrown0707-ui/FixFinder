@@ -1,0 +1,17 @@
+out| Student: Ada
+out| Student: Bob
+err| C:\Users\Public\FixFinderCapture\javascript\printed-then-failed\main.js:3
+err|   console.log("Student:", student.name);
+err|                                   ^
+err| 
+err| TypeError: Cannot read properties of null (reading 'name')
+err|     at Object.<anonymous> (C:\Users\Public\FixFinderCapture\javascript\printed-then-failed\main.js:3:35)
+err|     at Module._compile (node:internal/modules/cjs/loader:1872:14)
+err|     at Object..js (node:internal/modules/cjs/loader:2003:10)
+err|     at Module.load (node:internal/modules/cjs/loader:1594:32)
+err|     at Module._load (node:internal/modules/cjs/loader:1396:12)
+err|     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+err|     at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+err|     at node:internal/main/run_main_module:33:47
+err| 
+err| Node.js v24.19.0

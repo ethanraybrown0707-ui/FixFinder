@@ -1,0 +1,9 @@
+err| C:/Users/Public/FixFinderCapture/ruby/printed-then-failed/main.rb:4:in `/': divided by 0 (ZeroDivisionError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/printed-then-failed/main.rb:4:in `block in <main>'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/printed-then-failed/main.rb:2:in `each'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/printed-then-failed/main.rb:2:in `<main>'
+out| Mark: 70
+out| Share: 1
+out| Mark: 80
+out| Share: 1
+out| Mark: 0

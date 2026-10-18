@@ -1,0 +1,4 @@
+err| C:/Users/Public/FixFinderCapture/ruby/three-calls-deep/main.rb:2:in `/': divided by 0 (ZeroDivisionError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/three-calls-deep/main.rb:2:in `average'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/three-calls-deep/main.rb:6:in `report'
+err| 	from C:/Users/Public/FixFinderCapture/ruby/three-calls-deep/main.rb:9:in `<main>'

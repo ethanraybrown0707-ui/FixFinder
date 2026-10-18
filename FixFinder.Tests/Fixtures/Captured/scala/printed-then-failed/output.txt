@@ -1,0 +1,11 @@
+out| Mark: 70
+out| Share: 1
+out| Mark: 80
+out| Share: 1
+out| Mark: 0
+err| Exception in thread "main" java.lang.ArithmeticException: / by zero
+err| 	at main$package$.run$$anonfun$1(main.scala:5)
+err| 	at scala.runtime.java8.JFunction1$mcVI$sp.apply(JFunction1$mcVI$sp.scala:20)
+err| 	at scala.collection.immutable.List.foreach(List.scala:327)
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

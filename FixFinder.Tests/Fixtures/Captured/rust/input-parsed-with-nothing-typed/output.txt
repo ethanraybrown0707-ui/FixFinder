@@ -1,0 +1,4 @@
+err| 
+err| thread 'main' (57084) panicked at main.rs:6:41:
+err| called `Result::unwrap()` on an `Err` value: ParseIntError { kind: Empty }
+err| note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

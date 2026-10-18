@@ -1,0 +1,5 @@
+err| Exception in thread "main" java.lang.ArithmeticException: / by zero
+err| 	at main$package$.average(main.scala:1)
+err| 	at main$package$.report(main.scala:3)
+err| 	at main$package$.run(main.scala:6)
+err| 	at run.main(main.scala:5)

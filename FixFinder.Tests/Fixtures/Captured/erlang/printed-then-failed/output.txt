@@ -1,0 +1,10 @@
+out| Mark: 70
+out| Share: 1
+out| Mark: 80
+out| Share: 1
+out| Mark: 0
+err| ** exception error: an error occurred when evaluating an arithmetic expression
+err|   in operator  div/2
+err|      called as 100 div 0
+err|   in call from main:'-main/0-fun-0-'/1 (main.erl:8)
+err|   in call from lists:foreach_1/2 (lists.erl:2641)

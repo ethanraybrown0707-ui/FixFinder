@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\number-typed-as-input-missing\main.py", line 1, in <module>
+err|     age = int(input())
+err|               ~~~~~^^
+err| EOFError: EOF when reading a line

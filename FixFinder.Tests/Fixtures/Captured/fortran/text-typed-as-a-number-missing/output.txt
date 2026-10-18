@@ -1,0 +1,21 @@
+out|  Age?
+err| At line 5 of file main.f90 (unit = 5, file = 'stdin')
+err| Fortran runtime error: End of file
+err| 
+err| Error termination. Backtrace:
+err| 
+err| Could not print backtrace: libbacktrace could not find executable to open
+err| #0  0xf090fbda
+err| #1  0xf0895b51
+err| #2  0xf07b962b
+err| #3  0xf0896edc
+err| #4  0xf092dced
+err| #5  0xf089a66f
+err| #6  0xf08834db
+err| #7  0x70b017a2
+err| #8  0x70b0185c
+err| #9  0x70b0133f
+err| #10  0x70b01145
+err| #11  0xc1cedda6
+err| #12  0xc2b9ee4b
+err| #13  0xffffffff

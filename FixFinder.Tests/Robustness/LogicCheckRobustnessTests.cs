@@ -1,4 +1,5 @@
 using FixFinder.Core;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Logic;
 
@@ -53,6 +54,22 @@ public class LogicCheckRobustnessTests : IDisposable
             "for ($i = 0; $i -le $marks.Count; $i++) { Write-Output $marks[$i] }", "for i in 0..=marks.len() { println!(\"{}\", marks[i]); }",
             "function Show($marks) { $marks = @() }", "if (x == 1) { y(); } else { z(); }", "") ,
     };
+
+    /// <summary>
+    /// Every logic check that reads a program's kind of file, run on it straight - not through LogicPatterns.Scan, which passes
+    /// over a check that throws, so one that throws fails here - finding only lines the program has, with changes that fit it.
+    /// </summary>
+    public static void AssertEveryCheckReadsItAndPointsOnlyInsideIt(SourceFile source)
+    {
+        var readAs = TypeScriptCheck.IsTypeScript(source.Path) ? ".js" : Path.GetExtension(source.Path).ToLowerInvariant();
+
+        foreach (var check in LogicPatterns.All.Where(check => check.Extensions.Contains(readAs)))
+            foreach (var finding in check.Find(source).ToList())
+            {
+                Assert.InRange(finding.Line, 1, source.Lines.Count);
+                if (finding.Fix is { } change) Assert.True(change.ApplyTo(source) is not null, $"{check.Id}'s change on line {finding.Line} does not fit the file");
+            }
+    }
 
     /// <summary>Each logic check, each kind of file it reads, and each piece of awkward code.</summary>
     public static TheoryData<string, string, string> EveryCheckOnEveryAwkwardFile()

@@ -1,0 +1,10 @@
+err| C:\Users\Public\FixFinderCapture\c\printf-of-a-name-never-declared\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\printf-of-a-name-never-declared\main.c:6:24: error: 'mark' undeclared (first use in this function); did you mean 'marks'?
+err|     6 |         printf("%d\n", mark[i]);
+err|       |                        ^~~~
+err|       |                        marks
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\printf-of-a-name-never-declared\\main.c":{6:24-6:28}:"marks"
+err| C:\Users\Public\FixFinderCapture\c\printf-of-a-name-never-declared\main.c:6:24: note: each undeclared identifier is reported only once for each function it appears in
+err| C:\Users\Public\FixFinderCapture\c\printf-of-a-name-never-declared\main.c:4:9: warning: unused variable 'marks' [-Wunused-variable]
+err|     4 |     int marks[3] = {70, 80, 90};
+err|       |         ^~~~~

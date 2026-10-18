@@ -1,0 +1,6 @@
+err| Exception in thread "main" java.io.EOFException: Console has reached end of input
+err| 	at scala.io.StdIn.readInt(StdIn.scala:121)
+err| 	at scala.io.StdIn.readInt$(StdIn.scala:23)
+err| 	at scala.io.StdIn$.readInt(StdIn.scala:242)
+err| 	at main$package$.run(main.scala:4)
+err| 	at run.main(main.scala:3)

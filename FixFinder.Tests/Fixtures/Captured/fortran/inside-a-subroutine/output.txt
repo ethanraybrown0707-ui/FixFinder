@@ -1,0 +1,17 @@
+err| At line 10 of file main.f90
+err| Fortran runtime error: Index '4' of dimension 1 of array 'values' above upper bound of 3
+err| 
+err| Error termination. Backtrace:
+err| 
+err| Could not print backtrace: libbacktrace could not find executable to open
+err| #0  0xf090fbda
+err| #1  0xf0895b51
+err| #2  0xf0852c2a
+err| #3  0x139317a4
+err| #4  0x1393185f
+err| #5  0x139318aa
+err| #6  0x1393133f
+err| #7  0x13931145
+err| #8  0xc1cedda6
+err| #9  0xc2b9ee4b
+err| #10  0xffffffff

@@ -1,0 +1,4 @@
+err| ** (ArithmeticError) bad argument in arithmetic expression: div(0, 0)
+err|     :erlang.div(0, 0)
+err|     main.exs:2: Marks.average/1
+err|     main.exs:6: (file)

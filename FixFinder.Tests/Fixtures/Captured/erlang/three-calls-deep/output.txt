@@ -1,0 +1,5 @@
+err| ** exception error: an error occurred when evaluating an arithmetic expression
+err|   in operator  div/2
+err|      called as 0 div 0
+err|   in call from main:average/1 (main.erl:4)
+err|   in call from main:main/0 (main.erl:9)

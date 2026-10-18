@@ -1,0 +1,11 @@
+err| C:\Users\Public\FixFinderCapture\c\function-used-before-its-type-known\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\function-used-before-its-type-known\main.c:4:21: warning: implicit declaration of function 'half' [-Wimplicit-function-declaration]
+err|     4 |     double result = half(3);
+err|       |                     ^~~~
+err| C:\Users\Public\FixFinderCapture\c\function-used-before-its-type-known\main.c: At top level:
+err| C:\Users\Public\FixFinderCapture\c\function-used-before-its-type-known\main.c:9:8: error: conflicting types for 'half'; have 'double(int)'
+err|     9 | double half(int n) {
+err|       |        ^~~~
+err| C:\Users\Public\FixFinderCapture\c\function-used-before-its-type-known\main.c:4:21: note: previous implicit declaration of 'half' with type 'int()'
+err|     4 |     double result = half(3);
+err|       |                     ^~~~

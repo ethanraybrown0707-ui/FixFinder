@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\cpp\const-method-changes-a-member\main.cpp: In member function 'void Counter::add() const':
+err| C:\Users\Public\FixFinderCapture\cpp\const-method-changes-a-member\main.cpp:6:24: error: increment of member 'Counter::count' in read-only object
+err|     6 |     void add() const { count++; }
+err|       |                        ^~~~~

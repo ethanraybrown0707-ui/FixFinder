@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\cpp\method-on-a-pointer-with-dot\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\method-on-a-pointer-with-dot\main.cpp:7:26: error: request for member 'size' in 'pointer', which is of pointer type 'std::string*' {aka 'std::__cxx11::basic_string<char>*'} (maybe you meant to use '->' ?)
+err|     7 |     std::cout << pointer.size() << "\n";
+err|       |                          ^~~~

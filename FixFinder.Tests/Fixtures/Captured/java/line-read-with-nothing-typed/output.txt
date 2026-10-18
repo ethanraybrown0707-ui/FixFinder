@@ -1,0 +1,3 @@
+err| Exception in thread "main" java.util.NoSuchElementException: No line found
+err| 	at java.base/java.util.Scanner.nextLine(Scanner.java:1660)
+err| 	at Main.main(Main.java:6)
