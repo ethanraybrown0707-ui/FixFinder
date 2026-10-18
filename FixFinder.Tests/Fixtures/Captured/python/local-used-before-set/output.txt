@@ -1,0 +1,8 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\local-used-before-set\main.py", line 4, in <module>
+err|     add()
+err|     ~~~^^
+err|   File "C:\Users\Public\FixFinderCapture\python\local-used-before-set\main.py", line 3, in add
+err|     count += 1
+err|     ^^^^^
+err| UnboundLocalError: cannot access local variable 'count' where it is not associated with a value

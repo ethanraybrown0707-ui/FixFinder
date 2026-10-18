@@ -1,0 +1,2 @@
+err| C:/Users/Public/FixFinderCapture/ruby/argument-missing/main.rb:1:in `area': wrong number of arguments (given 1, expected 2) (ArgumentError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/argument-missing/main.rb:5:in `<main>'

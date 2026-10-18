@@ -1,0 +1,2 @@
+<?php
+$marks = new Marks();

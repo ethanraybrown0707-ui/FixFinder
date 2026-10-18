@@ -1,0 +1,7 @@
+err| mark out of range
+err| At C:\Users\Public\FixFinderCapture\powershell\thrown-error\main.ps1:2 char:22
+err| + if ($mark -gt 100) { throw "mark out of range" }
+err| +                      ~~~~~~~~~~~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : OperationStopped: (mark out of range:String) [], RuntimeException
+err|     + FullyQualifiedErrorId : mark out of range
+err|  

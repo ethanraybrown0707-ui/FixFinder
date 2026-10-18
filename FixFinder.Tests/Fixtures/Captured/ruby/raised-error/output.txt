@@ -1,0 +1,4 @@
+err| C:/Users/Public/FixFinderCapture/ruby/raised-error/main.rb:2:in `<main>': mark out of range (ArgumentError)
+err| 
+err| raise ArgumentError, "mark out of range" if mark > 100
+err|       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,2 @@
+err| C:/Users/Public/FixFinderCapture/ruby/missing-key/main.rb:2:in `fetch': key not found: "Bob" (KeyError)
+err| 	from C:/Users/Public/FixFinderCapture/ruby/missing-key/main.rb:2:in `<main>'

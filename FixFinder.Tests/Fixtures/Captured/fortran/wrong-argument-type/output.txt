@@ -1,0 +1,5 @@
+err| main.f90:3:22:
+err| 
+err|     3 |   call show("seventy")
+err|       |                      1
+err| Error: Type mismatch in argument 'mark' at (1); passed CHARACTER(7) to INTEGER(4)

@@ -1,0 +1,12 @@
+err| Unhandled exception:
+err| FormatException: Invalid radix-10 number (at character 1)
+err| abc
+err| ^
+err| 
+err| #0      int._handleFormatError (dart:core-patch/integers_patch.dart:150:5)
+err| #1      int._parseRadix (dart:core-patch/integers_patch.dart:179:14)
+err| #2      int._parse (dart:core-patch/integers_patch.dart:121:12)
+err| #3      int.parse (dart:core-patch/integers_patch.dart:81:12)
+err| #4      main (file:///C:/Users/Public/FixFinderCapture/dart/text-to-number/main.dart:2:20)
+err| #5      _delayEntrypointInvocation.<anonymous closure> (dart:isolate-patch/isolate_patch.dart:313:19)
+err| #6      _RawReceivePort._handleMessage (dart:isolate-patch/isolate_patch.dart:192:12)

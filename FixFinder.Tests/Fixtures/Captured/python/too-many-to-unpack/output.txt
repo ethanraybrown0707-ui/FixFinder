@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\too-many-to-unpack\main.py", line 1, in <module>
+err|     first, second = [1, 2, 3]
+err|     ^^^^^^^^^^^^^
+err| ValueError: too many values to unpack (expected 2)

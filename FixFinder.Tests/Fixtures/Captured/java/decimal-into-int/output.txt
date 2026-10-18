@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\decimal-into-int\Main.java:3: error: incompatible types: possible lossy conversion from double to int
+err|         int half = 3.5;
+err|                    ^
+err| 1 error

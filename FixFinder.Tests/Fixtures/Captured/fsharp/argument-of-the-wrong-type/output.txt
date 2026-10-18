@@ -1,0 +1,7 @@
+err| 
+err| 
+err| main.fsx(2,21): error FS0001: This expression was expected to have type
+err|     'int'    
+err| but here has type
+err|     'string'    
+err| 

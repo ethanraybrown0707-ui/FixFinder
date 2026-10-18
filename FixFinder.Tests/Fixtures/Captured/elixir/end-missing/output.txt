@@ -1,0 +1,10 @@
+err| ** (TokenMissingError) token missing on main.exs:2:40:
+err|     error: missing terminator: end
+err|     │
+err|   1 │ defmodule Marks do
+err|     │                 └ unclosed delimiter
+err|   2 │   def total(marks), do: Enum.sum(marks)
+err|     │                                        └ missing closing delimiter (expected "end")
+err|     │
+err|     └─ main.exs:2:40
+err|     (elixir 1.20.4) lib/code.ex:1639: Code.require_file/2

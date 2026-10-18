@@ -1,0 +1,8 @@
+err| Write-Hostt : The term 'Write-Hostt' is not recognized as the name of a cmdlet, function, script file, or operable 
+err| program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+err| At C:\Users\Public\FixFinderCapture\powershell\misspelt-command\main.ps1:1 char:1
+err| + Write-Hostt "hi"
+err| + ~~~~~~~~~~~
+err|     + CategoryInfo          : ObjectNotFound: (Write-Hostt:String) [], CommandNotFoundException
+err|     + FullyQualifiedErrorId : CommandNotFoundException
+err|  

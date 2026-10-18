@@ -1,0 +1,4 @@
+err| 
+err| thread 'main' (57320) panicked at main.rs:2:5:
+err| mark out of range
+err| note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

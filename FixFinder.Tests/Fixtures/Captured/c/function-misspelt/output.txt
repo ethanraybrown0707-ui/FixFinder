@@ -1,0 +1,9 @@
+err| C:\Users\Public\FixFinderCapture\c\function-misspelt\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\function-misspelt\main.c:4:5: warning: implicit declaration of function 'prnt'; did you mean 'printf'? [-Wimplicit-function-declaration]
+err|     4 |     prnt("hi\n");
+err|       |     ^~~~
+err|       |     printf
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\function-misspelt\\main.c":{4:5-4:9}:"printf"
+err| C:/Strawberry/c/bin/../lib/gcc/x86_64-w64-mingw32/13.2.0/../../../../x86_64-w64-mingw32/bin/ld.exe: C:\Users\student\AppData\Local\Temp\ccUjAgMu.o: in function `main':
+err| C:/Users/Public/FixFinderCapture/c/function-misspelt/main.c:4:(.text+0x18): undefined reference to `prnt'
+err| collect2.exe: error: ld returned 1 exit status

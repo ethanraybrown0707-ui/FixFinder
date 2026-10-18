@@ -1,0 +1,4 @@
+err| Exception in thread "main" java.util.ConcurrentModificationException
+err| 	at java.base/java.util.ArrayList$Itr.checkForComodification(ArrayList.java:1095)
+err| 	at java.base/java.util.ArrayList$Itr.next(ArrayList.java:1049)
+err| 	at Main.main(Main.java:6)

@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\c\brace-never-closed\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\brace-never-closed\main.c:5:5: error: expected declaration or statement at end of input
+err|     5 |     return 0;
+err|       |     ^~~~~~

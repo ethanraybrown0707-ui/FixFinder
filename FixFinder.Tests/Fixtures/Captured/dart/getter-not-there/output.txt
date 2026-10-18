@@ -1,0 +1,4 @@
+err| main.dart:3:14: Error: The getter 'size' isn't defined for the type 'String'.
+err| Try correcting the name to the name of an existing getter, or defining a getter or field named 'size'.
+err|   print(word.size);
+err|              ^^^^

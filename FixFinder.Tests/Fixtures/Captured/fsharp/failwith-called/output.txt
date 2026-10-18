@@ -1,0 +1,5 @@
+err| System.Exception: mark out of range
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\failwith-called\main.fsx:line 2
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

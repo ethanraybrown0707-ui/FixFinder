@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\cpp\member-not-there\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\member-not-there\main.cpp:7:20: error: 'struct Point' has no member named 'y'
+err|     7 |     std::cout << p.y << "\n";
+err|       |                    ^

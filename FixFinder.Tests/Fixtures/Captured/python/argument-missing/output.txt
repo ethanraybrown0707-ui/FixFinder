@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\argument-missing\main.py", line 4, in <module>
+err|     print(area(3))
+err|           ~~~~^^^
+err| TypeError: area() missing 1 required positional argument: 'height'

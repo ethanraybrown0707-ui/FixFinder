@@ -1,0 +1,7 @@
+err| Unhandled exception:
+err| RangeError (length): Invalid value: Valid value range is empty: 0
+err| #0      List.[] (dart:core-patch/growable_array.dart)
+err| #1      first (file:///C:/Users/Public/FixFinderCapture/dart/error-inside-a-function/main.dart:2:15)
+err| #2      main (file:///C:/Users/Public/FixFinderCapture/dart/error-inside-a-function/main.dart:6:9)
+err| #3      _delayEntrypointInvocation.<anonymous closure> (dart:isolate-patch/isolate_patch.dart:313:19)
+err| #4      _RawReceivePort._handleMessage (dart:isolate-patch/isolate_patch.dart:192:12)

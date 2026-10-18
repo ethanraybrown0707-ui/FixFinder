@@ -1,0 +1,2 @@
+out| 
+out| Parse error: Unclosed '{' on line 2 in C:\Users\Public\FixFinderCapture\php\brace-never-closed\main.php on line 4

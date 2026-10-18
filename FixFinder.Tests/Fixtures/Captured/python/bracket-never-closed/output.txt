@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\bracket-never-closed\main.py", line 1
+err|     marks = [70, 80
+err|             ^
+err| SyntaxError: '[' was never closed

@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Error: Call to undefined function echoo() in C:\Users\Public\FixFinderCapture\php\misspelt-function\main.php:2
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\misspelt-function\main.php on line 2

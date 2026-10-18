@@ -1,0 +1,5 @@
+err| C:/Users/Public/FixFinderCapture/ruby/misspelt-name/main.rb:2:in `<main>': undefined local variable or method `totl' for main (NameError)
+err| 
+err| puts totl
+err|      ^^^^
+err| Did you mean?  total

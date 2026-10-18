@@ -1,0 +1,2 @@
+$name = $null
+$name.ToUpper()

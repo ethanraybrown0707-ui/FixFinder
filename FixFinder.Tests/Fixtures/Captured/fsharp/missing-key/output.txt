@@ -1,0 +1,8 @@
+err| System.Collections.Generic.KeyNotFoundException: The given key was not present in the dictionary.
+err|    at Microsoft.FSharp.Collections.MapTreeModule.throwKeyNotFound[a]() in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\map.fs:line 181
+err|    at Microsoft.FSharp.Collections.MapTreeModule.find[TKey,TValue](IComparer`1 comparer, TKey k, MapTree`2 m) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\map.fs:line 190
+err|    at Microsoft.FSharp.Collections.MapModule.Find[TKey,T](TKey key, FSharpMap`2 table) in D:\a\_work\1\s\src\fsharp\src\FSharp.Core\map.fs:line 1166
+err|    at <StartupCode$FSI_0001>.$FSI_0001.main@() in C:\Users\Public\FixFinderCapture\fsharp\missing-key\main.fsx:line 2
+err|    at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+err|    at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+err| Stopped due to error

@@ -1,0 +1,5 @@
+err| main.f90:4:9:
+err| 
+err|     4 |   mark = "seventy"
+err|       |         1
+err| Error: Cannot convert CHARACTER(7) to INTEGER(4) at (1)

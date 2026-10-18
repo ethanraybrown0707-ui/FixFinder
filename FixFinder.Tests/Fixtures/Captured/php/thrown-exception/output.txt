@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Exception: mark out of range in C:\Users\Public\FixFinderCapture\php\thrown-exception\main.php:2
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\thrown-exception\main.php on line 2

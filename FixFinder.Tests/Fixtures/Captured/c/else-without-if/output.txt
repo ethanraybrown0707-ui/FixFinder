@@ -1,0 +1,13 @@
+err| C:\Users\Public\FixFinderCapture\c\else-without-if\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\else-without-if\main.c:5:19: warning: suggest braces around empty body in an 'if' statement [-Wempty-body]
+err|     5 |     if (mark > 50);
+err|       |                   ^
+err| C:\Users\Public\FixFinderCapture\c\else-without-if\main.c:5:5: warning: this 'if' clause does not guard... [-Wmisleading-indentation]
+err|     5 |     if (mark > 50);
+err|       |     ^~
+err| C:\Users\Public\FixFinderCapture\c\else-without-if\main.c:6:9: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the 'if'
+err|     6 |         printf("pass\n");
+err|       |         ^~~~~~
+err| C:\Users\Public\FixFinderCapture\c\else-without-if\main.c:7:5: error: 'else' without a previous 'if'
+err|     7 |     else
+err|       |     ^~~~

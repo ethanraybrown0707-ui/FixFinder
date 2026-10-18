@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Error: Class "Marks" not found in C:\Users\Public\FixFinderCapture\php\class-not-there\main.php:2
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\class-not-there\main.php on line 2

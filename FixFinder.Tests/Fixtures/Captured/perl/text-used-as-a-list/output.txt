@@ -1,0 +1,1 @@
+err| Can't use string ("70") as an ARRAY ref while "strict refs" in use at C:\Users\Public\FixFinderCapture\perl\text-used-as-a-list\main.pl line 4.

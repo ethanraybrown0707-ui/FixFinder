@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\sorting-mixed-values\main.py", line 1, in <module>
+err|     print(sorted([1, "a"]))
+err|           ~~~~~~^^^^^^^^^^
+err| TypeError: '<' not supported between instances of 'str' and 'int'

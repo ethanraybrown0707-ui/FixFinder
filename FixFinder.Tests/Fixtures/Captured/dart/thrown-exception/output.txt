@@ -1,0 +1,5 @@
+err| Unhandled exception:
+err| Exception: mark out of range
+err| #0      main (file:///C:/Users/Public/FixFinderCapture/dart/thrown-exception/main.dart:2:3)
+err| #1      _delayEntrypointInvocation.<anonymous closure> (dart:isolate-patch/isolate_patch.dart:313:19)
+err| #2      _RawReceivePort._handleMessage (dart:isolate-patch/isolate_patch.dart:192:12)

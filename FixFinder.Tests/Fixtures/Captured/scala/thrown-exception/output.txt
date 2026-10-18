@@ -1,0 +1,3 @@
+err| Exception in thread "main" java.lang.IllegalArgumentException: mark out of range
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

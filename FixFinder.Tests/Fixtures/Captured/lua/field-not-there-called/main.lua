@@ -1,0 +1,2 @@
+local student = {}
+student.greet()

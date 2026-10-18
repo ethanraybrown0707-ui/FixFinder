@@ -1,0 +1,2 @@
+err| # command-line-arguments
+err| .\main.go:6:17: cannot use "seventy" (untyped string constant) as int value in variable declaration

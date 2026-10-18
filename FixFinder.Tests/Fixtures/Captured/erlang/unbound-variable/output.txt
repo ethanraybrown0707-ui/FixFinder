@@ -1,0 +1,4 @@
+err| main.erl:5:24: variable 'Totl' is unbound
+err| %    5|     io:format("~p~n", [Totl]).
+err| %     |                        ^
+err| 

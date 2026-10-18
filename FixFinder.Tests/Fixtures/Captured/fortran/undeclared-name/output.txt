@@ -1,0 +1,5 @@
+err| main.f90:3:7:
+err| 
+err|     3 |   total = 10
+err|       |       1
+err| Error: Symbol 'total' at (1) has no IMPLICIT type

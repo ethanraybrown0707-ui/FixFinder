@@ -1,0 +1,6 @@
+err| panic: runtime error: index out of range [2] with length 2
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/index-past-the-end/main.go:8 +0x9
+err| exit status 2

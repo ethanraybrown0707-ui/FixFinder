@@ -1,0 +1,10 @@
+err| C:\Users\Public\FixFinderCapture\c\misspelt-name\main.c: In function 'main':
+err| C:\Users\Public\FixFinderCapture\c\misspelt-name\main.c:5:20: error: 'totl' undeclared (first use in this function); did you mean 'total'?
+err|     5 |     printf("%d\n", totl);
+err|       |                    ^~~~
+err|       |                    total
+err| fix-it:"C:\\Users\\Public\\FixFinderCapture\\c\\misspelt-name\\main.c":{5:20-5:24}:"total"
+err| C:\Users\Public\FixFinderCapture\c\misspelt-name\main.c:5:20: note: each undeclared identifier is reported only once for each function it appears in
+err| C:\Users\Public\FixFinderCapture\c\misspelt-name\main.c:4:9: warning: unused variable 'total' [-Wunused-variable]
+err|     4 |     int total = 10;
+err|       |         ^~~~~

@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\cpp\argument-missing\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\argument-missing\main.cpp:8:22: error: too few arguments to function 'int area(int, int)'
+err|     8 |     std::cout << area(3) << "\n";
+err|       |                  ~~~~^~~
+err| C:\Users\Public\FixFinderCapture\cpp\argument-missing\main.cpp:3:5: note: declared here
+err|     3 | int area(int width, int height) {
+err|       |     ^~~~

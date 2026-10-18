@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught TypeError: Unsupported operand types: array + int in C:\Users\Public\FixFinderCapture\php\array-plus-number\main.php:3
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\array-plus-number\main.php on line 3

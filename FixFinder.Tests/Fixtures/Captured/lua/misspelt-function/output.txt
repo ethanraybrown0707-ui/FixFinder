@@ -1,0 +1,4 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:1: attempt to call a nil value (global 'prnt')
+err| stack traceback:
+err| 	main.lua:1: in main chunk
+err| 	[C]: in ?

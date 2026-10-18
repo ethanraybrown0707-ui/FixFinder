@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught Error: Call to a member function name() on null in C:\Users\Public\FixFinderCapture\php\method-on-null\main.php:3
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\method-on-null\main.php on line 3

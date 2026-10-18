@@ -1,0 +1,7 @@
+err| At C:\Users\Public\FixFinderCapture\powershell\brace-never-closed\main.ps1:2 char:19
+err| + if ($mark -gt 50) {
+err| +                   ~
+err| Missing closing '}' in statement block or type definition.
+err|     + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+err|     + FullyQualifiedErrorId : MissingEndCurlyBrace
+err|  

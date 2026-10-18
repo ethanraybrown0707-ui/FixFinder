@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\block-not-indented\main.py", line 2
+err|     print("hi")
+err|     ^^^^^
+err| IndentationError: expected an indented block after function definition on line 1

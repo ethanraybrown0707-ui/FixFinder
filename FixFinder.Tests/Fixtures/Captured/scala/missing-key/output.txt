@@ -1,0 +1,4 @@
+err| Exception in thread "main" java.util.NoSuchElementException: key not found: Bob
+err| 	at scala.collection.immutable.Map$Map1.apply(Map.scala:272)
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

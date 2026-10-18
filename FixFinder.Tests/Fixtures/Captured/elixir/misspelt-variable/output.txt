@@ -1,0 +1,9 @@
+err|     error: undefined variable "totl"
+err|     │
+err|   2 │ IO.puts(totl)
+err|     │         ^^^^
+err|     │
+err|     └─ main.exs:2:9
+err| 
+err| ** (CompileError) main.exs: cannot compile file (errors have been logged)
+err| 

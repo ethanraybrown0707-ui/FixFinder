@@ -1,0 +1,2 @@
+<?php
+echoo("hi");

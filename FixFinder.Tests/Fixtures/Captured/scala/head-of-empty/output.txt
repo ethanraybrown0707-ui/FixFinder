@@ -1,0 +1,5 @@
+err| Exception in thread "main" java.util.NoSuchElementException: head of empty list
+err| 	at scala.collection.immutable.Nil$.head(List.scala:660)
+err| 	at scala.collection.immutable.Nil$.head(List.scala:660)
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

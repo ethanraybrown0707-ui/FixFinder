@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\instance-method-from-static\Main.java:7: error: non-static method twice(int) cannot be referenced from a static context
+err|         System.out.println(twice(3));
+err|                            ^
+err| 1 error

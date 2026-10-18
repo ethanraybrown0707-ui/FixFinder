@@ -1,0 +1,3 @@
+err| main.dart:2:15: Error: Expected ';' after this.
+err|   var total = 10
+err|               ^^

@@ -1,0 +1,5 @@
+err| Exception in thread "main" java.util.NoSuchElementException: None.get
+err| 	at scala.None$.get(Option.scala:628)
+err| 	at scala.None$.get(Option.scala:628)
+err| 	at main$package$.run(main.scala:3)
+err| 	at run.main(main.scala:1)

@@ -1,0 +1,2 @@
+err| # command-line-arguments
+err| .\main.go:7:21: undefined: totl

@@ -1,0 +1,9 @@
+err| -- [E007] Type Mismatch Error: C:\Users\Public\FixFinderCapture\scala\text-into-number\main.scala:2:18 
+err| 2 |  val mark: Int = "seventy"
+err|   |                  ^^^^^^^^^
+err|   |                  Found:    ("seventy" : String)
+err|   |                  Required: Int
+err|   |
+err|   | longer explanation available when compiling with `-explain`
+err| 1 error found
+err| Compilation failed

@@ -1,0 +1,9 @@
+err| C:\Users\Public\FixFinderCapture\cpp\text-as-number-argument\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\text-as-number-argument\main.cpp:8:24: error: invalid conversion from 'const char*' to 'int' [-fpermissive]
+err|     8 |     std::cout << twice("three") << "\n";
+err|       |                        ^~~~~~~
+err|       |                        |
+err|       |                        const char*
+err| C:\Users\Public\FixFinderCapture\cpp\text-as-number-argument\main.cpp:3:15: note:   initializing argument 1 of 'int twice(int)'
+err|     3 | int twice(int n) {
+err|       |           ~~~~^

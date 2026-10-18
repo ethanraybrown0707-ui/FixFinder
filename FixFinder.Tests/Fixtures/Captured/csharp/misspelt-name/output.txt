@@ -1,0 +1,4 @@
+out| C:\Users\Public\FixFinderCapture\csharp\misspelt-name\main.cs(2,19): error CS0103: The name 'totl' does not exist in the current context
+err| 
+out| C:\Users\Public\FixFinderCapture\csharp\misspelt-name\main.cs(1,5): warning CS0219: The variable 'total' is assigned but its value is never used
+err| The build failed. Fix the build errors and run again.

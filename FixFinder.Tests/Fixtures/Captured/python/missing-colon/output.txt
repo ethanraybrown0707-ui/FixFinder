@@ -1,0 +1,4 @@
+err|   File "C:\Users\Public\FixFinderCapture\python\missing-colon\main.py", line 2
+err|     if mark > 50
+err|                 ^
+err| SyntaxError: expected ':'

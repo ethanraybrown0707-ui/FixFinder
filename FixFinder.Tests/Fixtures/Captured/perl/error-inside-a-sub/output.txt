@@ -1,0 +1,1 @@
+err| Illegal division by zero at C:\Users\Public\FixFinderCapture\perl\error-inside-a-sub\main.pl line 6.

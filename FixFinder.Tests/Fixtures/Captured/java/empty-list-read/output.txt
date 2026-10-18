@@ -1,0 +1,7 @@
+err| Exception in thread "main" java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0
+err| 	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:100)
+err| 	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckIndex(Preconditions.java:106)
+err| 	at java.base/jdk.internal.util.Preconditions.checkIndex(Preconditions.java:302)
+err| 	at java.base/java.util.Objects.checkIndex(Objects.java:385)
+err| 	at java.base/java.util.ArrayList.get(ArrayList.java:427)
+err| 	at Main.main(Main.java:6)

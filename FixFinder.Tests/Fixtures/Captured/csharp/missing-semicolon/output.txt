@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\missing-semicolon\main.cs(1,15): error CS1003: Syntax error, ',' expected
+err| 
+err| The build failed. Fix the build errors and run again.

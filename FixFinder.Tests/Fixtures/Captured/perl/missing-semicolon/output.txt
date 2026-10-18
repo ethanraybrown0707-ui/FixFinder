@@ -1,0 +1,2 @@
+err| syntax error at C:\Users\Public\FixFinderCapture\perl\missing-semicolon\main.pl line 4, near "print"
+err| Execution of C:\Users\Public\FixFinderCapture\perl\missing-semicolon\main.pl aborted due to compilation errors.

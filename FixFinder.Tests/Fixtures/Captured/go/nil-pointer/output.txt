@@ -1,0 +1,7 @@
+err| panic: runtime error: invalid memory address or nil pointer dereference
+err| [signal 0xc0000005 code=0x0 addr=0x0 pc=0x7ff6de315216]
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/nil-pointer/main.go:9 +0x16
+err| exit status 2

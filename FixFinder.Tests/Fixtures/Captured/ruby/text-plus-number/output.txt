@@ -1,0 +1,5 @@
+err| C:/Users/Public/FixFinderCapture/ruby/text-plus-number/main.rb:2:in `+': no implicit conversion of Integer into String (TypeError)
+err| 
+err| puts "Age: " + age
+err|                ^^^
+err| 	from C:/Users/Public/FixFinderCapture/ruby/text-plus-number/main.rb:2:in `<main>'

@@ -1,0 +1,7 @@
+err| C:\Users\Public\FixFinderCapture\cpp\declared-twice\main.cpp: In function 'int main()':
+err| C:\Users\Public\FixFinderCapture\cpp\declared-twice\main.cpp:5:9: error: redeclaration of 'int total'
+err|     5 |     int total = 2;
+err|       |         ^~~~~
+err| C:\Users\Public\FixFinderCapture\cpp\declared-twice\main.cpp:4:9: note: 'int total' previously declared here
+err|     4 |     int total = 1;
+err|       |         ^~~~~

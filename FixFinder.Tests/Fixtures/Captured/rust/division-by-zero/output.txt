@@ -1,0 +1,4 @@
+err| 
+err| thread 'main' (12852) panicked at main.rs:3:20:
+err| attempt to divide by zero
+err| note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

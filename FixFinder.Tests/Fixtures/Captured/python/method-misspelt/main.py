@@ -1,0 +1,2 @@
+ages = {}
+ages.add("Ada")

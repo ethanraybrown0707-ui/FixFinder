@@ -1,0 +1,6 @@
+err| panic: assignment to entry in nil map
+err| 
+err| goroutine 1 [running]:
+err| main.main()
+err| 	C:/Users/Public/FixFinderCapture/go/nil-map-write/main.go:5 +0x28
+err| exit status 2

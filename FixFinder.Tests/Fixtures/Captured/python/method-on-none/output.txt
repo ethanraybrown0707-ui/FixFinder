@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\method-on-none\main.py", line 2, in <module>
+err|     print(name.upper())
+err|           ^^^^^^^^^^
+err| AttributeError: 'NoneType' object has no attribute 'upper'

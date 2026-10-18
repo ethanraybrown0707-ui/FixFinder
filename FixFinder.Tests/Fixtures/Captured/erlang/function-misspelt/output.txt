@@ -1,0 +1,2 @@
+err| ** exception error: undefined function lists:summ/1
+err|   in function  main:main/0 (main.erl:5)

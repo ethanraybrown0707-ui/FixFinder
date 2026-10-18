@@ -1,0 +1,5 @@
+out| 
+out| Fatal error: Uncaught TypeError: strlen(): Argument #1 ($string) must be of type string, array given in C:\Users\Public\FixFinderCapture\php\wrong-argument-type\main.php:2
+out| Stack trace:
+out| #0 {main}
+out|   thrown in C:\Users\Public\FixFinderCapture\php\wrong-argument-type\main.php on line 2

@@ -1,0 +1,2 @@
+local marks
+print(#marks)

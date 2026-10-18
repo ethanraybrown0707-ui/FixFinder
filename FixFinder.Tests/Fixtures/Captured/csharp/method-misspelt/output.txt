@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\method-misspelt\main.cs(1,9): error CS0117: 'Console' does not contain a definition for 'WriteLin'
+err| 
+err| The build failed. Fix the build errors and run again.

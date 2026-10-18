@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\brace-never-closed\Main.java:4: error: reached end of file while parsing
+err|     }
+err|      ^
+err| 1 error

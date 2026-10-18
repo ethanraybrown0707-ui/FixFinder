@@ -1,0 +1,5 @@
+err| C:/Users/Public/FixFinderCapture/ruby/constant-misspelt/main.rb:1:in `<main>': uninitialized constant Strng (NameError)
+err| 
+err| name = Strng.new("Ada")
+err|        ^^^^^
+err| Did you mean?  String

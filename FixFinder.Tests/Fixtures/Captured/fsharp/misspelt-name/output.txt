@@ -1,0 +1,5 @@
+err| 
+err| 
+err| main.fsx(2,14): error FS0039: The value or constructor 'totl' is not defined. Maybe you want one of the following:
+err|    total
+err| 

@@ -1,0 +1,4 @@
+err| C:\Users\Public\FixFinderCapture\java\never-given-a-value\Main.java:4: error: variable total might not have been initialized
+err|         System.out.println(total);
+err|                            ^
+err| 1 error

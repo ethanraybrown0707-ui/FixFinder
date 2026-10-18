@@ -1,0 +1,6 @@
+err| C:\Users\student\AppData\Local\Programs\Lua\bin\lua.EXE: main.lua:2: no winners
+err| stack traceback:
+err| 	[C]: in function 'error'
+err| 	main.lua:2: in local 'share'
+err| 	main.lua:6: in main chunk
+err| 	[C]: in ?

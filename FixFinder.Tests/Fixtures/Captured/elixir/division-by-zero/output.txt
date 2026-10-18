@@ -1,0 +1,3 @@
+err| ** (ArithmeticError) bad argument in arithmetic expression: div(10, 0)
+err|     :erlang.div(10, 0)
+err|     main.exs:3: (file)

@@ -1,0 +1,7 @@
+err| Attempted to divide by zero.
+err| At C:\Users\Public\FixFinderCapture\powershell\division-by-zero\main.ps1:3 char:1
+err| + $total / $count
+err| + ~~~~~~~~~~~~~~~
+err|     + CategoryInfo          : NotSpecified: (:) [], RuntimeException
+err|     + FullyQualifiedErrorId : RuntimeException
+err|  

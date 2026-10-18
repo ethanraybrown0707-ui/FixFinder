@@ -41,7 +41,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Captured crash output, recorded HTTP responses, sample diffs and source trees. -->
+    <!--
+      Captured crash output, recorded HTTP responses, sample diffs and source trees. The C# programs among them are what was
+      run to capture an output, not part of the tests, so they are copied and never compiled.
+    -->
+    <Compile Remove="Fixtures\**" />
     <Content Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

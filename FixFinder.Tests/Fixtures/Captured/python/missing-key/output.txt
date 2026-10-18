@@ -1,0 +1,5 @@
+err| Traceback (most recent call last):
+err|   File "C:\Users\Public\FixFinderCapture\python\missing-key\main.py", line 2, in <module>
+err|     print(ages["Bob"])
+err|           ~~~~^^^^^^^
+err| KeyError: 'Bob'

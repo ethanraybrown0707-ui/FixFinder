@@ -1,0 +1,3 @@
+out| C:\Users\Public\FixFinderCapture\csharp\text-into-number\main.cs(1,12): error CS0029: Cannot implicitly convert type 'string' to 'int'
+err| 
+err| The build failed. Fix the build errors and run again.
