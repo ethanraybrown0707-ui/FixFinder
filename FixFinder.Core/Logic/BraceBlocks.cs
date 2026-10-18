@@ -12,6 +12,11 @@ internal static partial class BraceBlocks
     [GeneratedRegex(@"^\s*(?:(?:public|private|protected|internal|static|final|virtual|override|async|abstract|sealed|synchronized|explicit|inline|constexpr)\s+)*[\w<>\[\],.?:*&\s]*?\b(?<name>[A-Za-z_]\w*)\s*\([^;]*$")]
     private static partial Regex MethodHeader();
 
+    /// <summary>
+    /// The lines inside the block a header opens - from the line after its { to the line of its }, not counting that one - or
+    /// the one statement under a header with no braces. A block that opens and closes on one line, class Empty {} or a loop
+    /// written on one line, has no lines of its own, and is given none.
+    /// </summary>
     public static (int First, int End)? Body(IReadOnlyList<string> masked, int header)
     {
         var start = masked[header].Contains('{') ? header : NextCode(masked, header + 1);
@@ -20,7 +25,7 @@ internal static partial class BraceBlocks
         if (!masked[start].TrimStart().StartsWith('{') && start != header)
             return (start, start + 1);
 
-        return Brackets.BlockEnd(masked, start) is { } end ? (start + 1, end) : null;
+        return Brackets.BlockEnd(masked, start) is { } end && end > start ? (start + 1, end) : null;
     }
 
     public static string IndentStep(IReadOnlyList<string> lines)

@@ -45,6 +45,13 @@ public class LogicCheckRobustnessTests : IDisposable
         ["one 60,000-character line of code"] = string.Concat(Enumerable.Repeat("x = x + 1; ", 5_000)) + "\n",
         ["400 levels of indentation"] = string.Concat(Enumerable.Range(0, 400).Select(depth => new string(' ', depth * 2) + "if x:\n")),
         ["a line ending in a quote and a backslash"] = "let letter = '\\\nlet other = 'a'\n",
+        ["blocks opened and closed on one line"] = string.Join("\n",
+            "class Empty {}", "static async void Save() { await Task.Delay(1); }", "for (int i = 0; i <= marks.length; i++) { total += marks[i]; }",
+            "foreach (var mark in marks) { marks.Remove(mark); }", "for i := 0; i <= len(marks); i++ { fmt.Println(marks[i]) }",
+            "for _, mark := range marks { mark = 0 }", "for (let i = 0; i <= marks.length; i++) { console.log(marks[i]); }",
+            "foreach ($marks as $mark) { echo $mark; }", "for my $i (0 .. scalar(@marks)) { print $marks[$i]; }",
+            "for ($i = 0; $i -le $marks.Count; $i++) { Write-Output $marks[$i] }", "for i in 0..=marks.len() { println!(\"{}\", marks[i]); }",
+            "function Show($marks) { $marks = @() }", "if (x == 1) { y(); } else { z(); }", "") ,
     };
 
     /// <summary>Each logic check, each kind of file it reads, and each piece of awkward code.</summary>
