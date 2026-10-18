@@ -26,7 +26,9 @@ namespace FixFinder.Tests;
 /// <para>
 /// Running them found two readings to put right: Perl's "BEGIN failed--compilation aborted", below the "Can't locate
 /// Missing/Marks.pm in @INC" a use line stopped for, was taken as the error, and gfortran's lone "Unexpected end of file" was
-/// read by no reader of Fortran's.
+/// read by no reader of Fortran's. And five programs, pasted in, would have been taken for another language's code: three of
+/// PowerShell's for PHP, by their $total = 10 lines, one of F#'s for JavaScript, by let, and one of TypeScript's, its
+/// string | null not seen as a type.
 /// </para>
 /// </remarks>
 public class CapturedErrorTests
@@ -409,6 +411,18 @@ public class CapturedErrorTests
 
         Assert.NotNull(error);
         Assert.True(CulpritFrameSelector.CulpritIsFirstParty(error), $"{language} {caseName}: put down to {error.CulpritFrame?.Origin} code, {error.CulpritFrame?.File}");
+    }
+
+    [Theory]
+    [MemberData(nameof(Captured))]
+    public void TheProgramIsNeverTakenForAnotherLanguagesCode(string language, string caseName, string file, string reader, string kind, int line)
+    {
+        var program = File.ReadAllText(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file));
+
+        var guessed = PastedCode.LanguageOf(program);
+
+        // Unsure is the person's to settle; a wrong guess would run their code as another language's.
+        Assert.True(guessed is null || guessed.Name == language, $"{language} {caseName} was taken for {guessed?.Name}");
     }
 
     [Theory]

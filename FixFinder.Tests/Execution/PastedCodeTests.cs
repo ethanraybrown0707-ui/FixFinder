@@ -121,6 +121,11 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     // console.log is JavaScript's too, but a value or a parameter written with its type, and an interface, are TypeScript's alone.
     [InlineData("const marks: number[] = [70, 80];\nfunction average(values: number[]): number {\n  return values.length;\n}\nconsole.log(average(marks));\n", "TypeScript")]
     [InlineData("interface Student {\n  name: string;\n}\nconst ada: Student = { name: \"Ada\" };\nconsole.log(ada.name);\n", "TypeScript")]
+    [InlineData("const name: string | null = null;\nconsole.log((name as any).length);\n", "TypeScript")]
+    // PHP ends each statement with a semicolon, and PowerShell's need none - nor do they need [int] or $word.Size() to be PHP's.
+    [InlineData("$total = 10\n$count = 0\n$total / $count\n", "PowerShell")]
+    [InlineData("$mark = [int]\"abc\"\n", "PowerShell")]
+    [InlineData("$word = \"abc\"\n$word.Size()\n", "PowerShell")]
     public void TheLanguageIsWorkedOutFromWhatOnlyItWrites(string code, string expected) =>
         Assert.Equal(expected, PastedCode.LanguageOf(code)?.Name);
 
@@ -129,6 +134,8 @@ public class PastedCodeTests(ITestOutputHelper output) : IDisposable
     [InlineData("x = 1\ny = 2\n")]
     // As many marks of one language as of another: which it is is the person's to say.
     [InlineData("console.log(1);\nSystem.out.println(1);\n")]
+    // let with no semicolon is F#'s and OCaml's as much as JavaScript's, and failwith is both F#'s and OCaml's.
+    [InlineData("let mark = 120\nif mark > 100 then failwith \"mark out of range\"\n")]
     public void CodeThatSaysNothingOfItsLanguageIsLeftForThePersonToName(string code) =>
         Assert.Null(PastedCode.LanguageOf(code));
 

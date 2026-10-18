@@ -97,9 +97,10 @@ public static partial class PastedCode
             new(@"^\s*#\s*include\s*<(?:stdio|stdlib|string|math|ctype|stdbool)\.h>", RegexOptions.Multiline),
             // Not as a method - Java's System.out.printf is not C's.
             new(@"(?<![.\w])(?:printf|scanf|malloc|free)\s*\(")]),
+        // let x = 120 is F#'s and OCaml's as much as JavaScript's: a let is counted when its line ends with a semicolon.
         (CodeLanguage.JavaScript, [
             new(@"\bconsole\.(?:log|error|warn)\s*\("), new(@"\brequire\s*\(\s*['""][^'""]+['""]\s*\)"),
-            new(@"^\s*(?:const|let)\s+\w+\s*=", RegexOptions.Multiline), new(@"\bfunction\s+\w+\s*\([^)]*\)\s*\{")]),
+            new(@"^\s*const\s+\w+\s*=|^\s*let\s+\w+\s*=.*;\s*$", RegexOptions.Multiline), new(@"\bfunction\s+\w+\s*\([^)]*\)\s*\{")]),
         (CodeLanguage.Go, [
             new(@"^\s*package\s+main\s*$", RegexOptions.Multiline), new(@"^\s*func\s+\w+\s*\(", RegexOptions.Multiline),
             new(@"\bfmt\.(?:Print|Sprint|Fprint|Scan)")]),
@@ -118,8 +119,9 @@ public static partial class PastedCode
         (CodeLanguage.Ruby, [
             new(@"^\s*puts\b", RegexOptions.Multiline), new(@"^\s*end\s*$", RegexOptions.Multiline), new(@"\.each\s+do\s*\|"),
             new(@"^\s*require(?:_relative)?\s+['""]", RegexOptions.Multiline), new(@"\b(?:elsif|unless)\b"), new(@"#\{[^}]*\}")]),
+        // A line $total = 10 is PowerShell's as much as PHP's, but PHP ends each statement with a semicolon and PowerShell needs none.
         (CodeLanguage.Php, [
-            new(@"<\?php\b"), new(@"^\s*\$\w+\s*=", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
+            new(@"<\?php\b"), new(@"^\s*\$\w+\s*=(?!=).*;\s*$", RegexOptions.Multiline), new(@"^\s*echo\s", RegexOptions.Multiline),
             new(@"\bfunction\s+\w+\s*\([^)]*\$\w+")]),
         (CodeLanguage.Lua, [
             new(@"^\s*local\s+(?:function\s+)?[A-Za-z_]\w*", RegexOptions.Multiline), new(@"\b(?:ipairs|pairs)\s*\("),
@@ -141,22 +143,27 @@ public static partial class PastedCode
         (CodeLanguage.PowerShell, [
             new(@"\b(?:Write-Output|Write-Host|Read-Host|Get-Content|Set-Content|ForEach-Object|Where-Object|Get-ChildItem|Test-Path)\b", RegexOptions.IgnoreCase),
             new(@"\s-(?:eq|ne|lt|le|gt|ge|and|or|like|match)\s", RegexOptions.IgnoreCase), new(@"^\s*param\s*\(", RegexOptions.Multiline | RegexOptions.IgnoreCase),
-            new(@"\$_\b|\$PSScriptRoot\b|\$null\b"), new(@"\bforeach\s*\(\s*\$\w+\s+in\s+\$", RegexOptions.IgnoreCase)]),
+            new(@"\$_\b|\$PSScriptRoot\b|\$null\b"), new(@"\bforeach\s*\(\s*\$\w+\s+in\s+\$", RegexOptions.IgnoreCase),
+            // $total = 10 with no semicolon at its end - nor a bracket opened, which PHP's own lines can end with - a type
+            // given in square brackets, [int]"42", and a .NET method called on a variable, $word.ToUpper().
+            new(@"^\s*\$\w+\s*=(?!=)[^;\n]*[^;\s\[({,]\s*$", RegexOptions.Multiline),
+            new(@"\[(?:int|long|double|decimal|string|char|bool|array|hashtable|datetime)\]\s*[$""'\d(]", RegexOptions.IgnoreCase),
+            new(@"\$\w+\.[A-Z]\w*\s*\(")]),
         (CodeLanguage.Elixir, [
             new(@"^\s*defmodule\s+[A-Z][\w.]*\s+do\b", RegexOptions.Multiline), new(@"^\s*defp?\s+[a-z_]\w*[?!]?(?:\([^)]*\))?\s*(?:when\b.*)?(?:,\s*do:|\s+do\b)", RegexOptions.Multiline),
             new(@"\|>"), new(@"\bIO\.(?:puts|inspect|gets)\b"), new(@"\bfn\s+[\w,\s]*->"), new(@"\bEnum\.(?:map|each|reduce|sum|filter|at)\(")]),
         (CodeLanguage.Erlang, [
             new(@"^\s*-module\(\s*\w+\s*\)\s*\.", RegexOptions.Multiline), new(@"^\s*-export\(\s*\[", RegexOptions.Multiline),
             new(@"\bio:(?:format|fwrite|get_line)\("), new(@"\blists:(?:map|foldl|foreach|sum|seq|nth|reverse|sort)\("), new(@"~[pswn]")]),
-        // TypeScript: JavaScript with types - a value, a parameter or what a function gives back written with its type, an
-        // interface, a type, as const. JavaScript has none of them.
+        // TypeScript: JavaScript with types - a value, a parameter or what a function gives back written with its type (string |
+        // null among them), an interface, a type, as const, as any. JavaScript has none of them.
         (CodeLanguage.TypeScript, [
-            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w<>\[\]|]+\s*=", RegexOptions.Multiline),
+            new(@"^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*:\s*[\w<>\[\]]+(?:\s*\|\s*[\w<>\[\]]+)*\s*=", RegexOptions.Multiline),
             new(@"\(\s*\w+\s*:\s*(?:number|string|boolean|any|unknown)(?:\[\])?\s*[,)]"),
             new(@"\)\s*:\s*(?:number|string|boolean|void|any|Promise<[^>]*>)(?:\[\])?\s*(?:\{|=>)"),
             new(@"^\s*(?:export\s+)?interface\s+[A-Z]\w*", RegexOptions.Multiline),
             new(@"^\s*(?:export\s+)?type\s+[A-Z]\w*(?:<[^>]*>)?\s*=", RegexOptions.Multiline),
-            new(@"\bas\s+const\b")]),
+            new(@"\bas\s+(?:const|any|unknown)\b")]),
         // F#: printfn and let mutable are its own; OCaml writes Printf.printf, and has no List.sum or #load.
         (CodeLanguage.FSharp, [
             new(@"\bprintfn\s+[$@]?"""), new(@"^\s*let\s+mutable\s+\w+", RegexOptions.Multiline), new(@"\b(?:List|Seq|Array)\.(?:sum|average|max|min|sumBy)\b"),
