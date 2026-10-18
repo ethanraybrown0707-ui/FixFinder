@@ -17,7 +17,7 @@ public static partial class RandomPositionPatterns
     ];
 
     /// <summary><c>marks[random.randint(0, len(marks))]</c> - a random position, up to the length itself, used in the same list.</summary>
-    [GeneratedRegex(@"(?<list>[A-Za-z_]\w*)\s*\[\s*(?<call>(?:random\s*\.\s*)?randint)\s*\(\s*0\s*,\s*(?<length>len\(\s*\k<list>\s*\))\s*\)\s*\]")]
+    [GeneratedRegex(@"(?<![\w.])(?<list>[A-Za-z_]\w*)\s*\[\s*(?<call>(?:random\s*\.\s*)?randint)\s*\(\s*0\s*,\s*(?<length>len\(\s*\k<list>\s*\))\s*\)\s*\]")]
     private static partial Regex PositionUsedAtOnce();
 
     /// <summary><c>pick = random.randint(0, len(marks))</c> - a random position, up to the length itself, given a name.</summary>

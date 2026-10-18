@@ -78,7 +78,7 @@ public static partial class ScalaLogicPatterns
     [GeneratedRegex(@"\b(?:val|var)\s+(?<name>[A-Za-z_]\w*)\s*(?::\s*Array\s*\[[^\]]*\]\s*)?=\s*(?:Array\s*(?:\.\s*\w+\s*)?(?:\[[^\]]*\]\s*)?\(|new\s+Array\s*\[|[\w.]+\.toArray\b)")]
     private static partial Regex ArrayMade();
 
-    [GeneratedRegex(@"(?<name>[A-Za-z_]\w*)\s*:\s*Array\s*\[")]
+    [GeneratedRegex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*:\s*Array\s*\[")]
     private static partial Regex ArrayTyped();
 
     [GeneratedRegex(@"(?<![\w$.])(?<left>[A-Za-z_]\w*)\s*(?<comparison>==|!=)\s*(?<right>[A-Za-z_]\w*)(?![\w$.(\[])")]
@@ -176,16 +176,16 @@ public static partial class ScalaLogicPatterns
     [GeneratedRegex(@"\b(?:val|var)\s+(?<name>[A-Za-z_]\w*)\s*(?::\s*(?:List|Array|Seq|Vector|IndexedSeq)\s*\[\s*(?:Int|Long)\s*\]\s*)?=\s*(?:List|Array|Seq|Vector|IndexedSeq)\s*\(\s*-?\d+(?:\s*,\s*-?\d+)*\s*\)")]
     private static partial Regex WholeNumbersMade();
 
-    [GeneratedRegex(@"(?<name>[A-Za-z_]\w*)\s*:\s*(?:List|Array|Seq|Vector|IndexedSeq)\s*\[\s*(?:Int|Long)\s*\]")]
+    [GeneratedRegex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*:\s*(?:List|Array|Seq|Vector|IndexedSeq)\s*\[\s*(?:Int|Long)\s*\]")]
     private static partial Regex WholeNumbersTyped();
 
     [GeneratedRegex(@"\b(?:val|var)\s+(?<name>[A-Za-z_]\w*)\s*(?::\s*(?:Int|Long)\s*)?=\s*-?\d+\s*$")]
     private static partial Regex WholeNumberMade();
 
-    [GeneratedRegex(@"(?<name>[A-Za-z_]\w*)\s*:\s*(?:Int|Long)\b(?!\s*\])")]
+    [GeneratedRegex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*:\s*(?:Int|Long)\b(?!\s*\])")]
     private static partial Regex WholeNumberTyped();
 
-    [GeneratedRegex(@"(?<name>[A-Za-z_]\w*)\s*:\s*(?:Double|Float|BigDecimal)\b")]
+    [GeneratedRegex(@"(?<![\w$])(?<name>[A-Za-z_]\w*)\s*:\s*(?:Double|Float|BigDecimal)\b")]
     private static partial Regex DecimalTyped();
 
     /// <summary>A val, var or method declared as a Double or a Float, and the value it is given on the same line.</summary>
