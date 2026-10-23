@@ -89,7 +89,7 @@ public class FixRuleRobustnessTests(OddReportFiles files) : IClassFixture<OddRep
 
     [Theory]
     [MemberData(nameof(EveryRuleGivenEveryOddReport))]
-    public void AFixRuleAnswersAnOddlyShapedReportWithoutThrowing(string ruleId, string languageName, string parserId, string report)
+    public async Task AFixRuleAnswersAnOddlyShapedReportWithoutThrowing(string ruleId, string languageName, string parserId, string report)
     {
         var language = CodeLanguage.All.Single(each => each.Name == languageName);
         var (type, message, frames) = Report(report, language.Extensions[0]);
@@ -99,10 +99,8 @@ public class FixRuleRobustnessTests(OddReportFiles files) : IClassFixture<OddRep
         };
         var context = new LocalFixContext { Error = error, SourceRoot = files.Folder, Language = language };
 
+        // A rule that throws fails the test, with what it threw.
         foreach (var rule in LocalFixEngine.Rules.Where(each => each.Id == ruleId))
-        {
-            var answering = Task.Run(() => rule.Propose(context));
-            Assert.True(answering.Wait(TimeSpan.FromMinutes(1)), $"{ruleId} was still answering after a minute");
-        }
+            await TimeLimit.WithinAMinute(Task.Run(() => rule.Propose(context)), $"{ruleId} was still answering");
     }
 }
