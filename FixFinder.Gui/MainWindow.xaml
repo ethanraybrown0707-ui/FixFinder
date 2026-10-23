@@ -511,7 +511,7 @@
                                     <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="5 3" SnapsToDevicePixels="True">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
-                                                <Setter Property="Stroke" Value="#BFCADA"/>
+                                                <Setter Property="Stroke" Value="#B8BBC5"/>
                                                 <Setter Property="Fill" Value="{DynamicResource SubtleBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">

@@ -87,10 +87,10 @@
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsHeader}" Value="True">
                                                     <Setter Property="FontWeight" Value="SemiBold"/>
-                                                    <Setter Property="Foreground" Value="#93C5FD"/>
+                                                    <Setter Property="Foreground" Value="#A0B4F0"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsNote}" Value="True">
-                                                    <Setter Property="Foreground" Value="#94A3B8"/>
+                                                    <Setter Property="Foreground" Value="#9397A3"/>
                                                     <Setter Property="FontStyle" Value="Italic"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
