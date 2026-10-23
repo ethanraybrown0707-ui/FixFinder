@@ -1,6 +1,6 @@
 """Draws the icons of FixFinder and FixFinder Learn. FixFinder's is its logo on a black rounded tile: a white chevron either
 side of a diamond, its upper half blue and its lower half white, with a band of black between them. FixFinder Learn's is a
-white open book on a rounded tile blended from blue through green and yellow to orange.
+white open book on a rounded tile blended from the logo's blue, lightened with white, to its blue darkened with black.
 
     python make-icon.py
 
@@ -17,13 +17,11 @@ SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
 PNG_FROM = 64
 SUPERSAMPLE = 8
 
+# The same stops as Styles.xaml's LogoTileBrush: the logo's blue with 15% white, the blue, and the blue with 55% black.
 BLEND = [
-    (0.00, (0x1A, 0x6D, 0xFF)),
-    (0.30, (0x00, 0xB3, 0xC7)),
-    (0.52, (0x2F, 0xCB, 0x6B)),
-    (0.72, (0xFF, 0xC9, 0x1A)),
-    (0.92, (0xFF, 0x7A, 0x1A)),
-    (1.00, (0xFF, 0x7A, 0x1A)),
+    (0.00, (0x5E, 0x80, 0xE6)),
+    (0.45, (0x42, 0x69, 0xE2)),
+    (1.00, (0x1E, 0x2F, 0x66)),
 ]
 
 WHITE = (255, 255, 255, 255)

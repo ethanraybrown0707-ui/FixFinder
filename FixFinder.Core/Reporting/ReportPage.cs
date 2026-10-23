@@ -303,16 +303,19 @@ public sealed record ReportPage
     private static string Version =>
         typeof(ReportPage).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
 
-    /// <summary>FixFinder's own colours, light and dark, as its window has them; printed, always light.</summary>
+    /// <summary>
+    /// FixFinder's own colours, light and dark, as its window has them - the logo's blue, white and black and blends of them,
+    /// with red, amber and green for what an error, a warning and a success are; printed, always light.
+    /// </summary>
     private const string Style = """
 
-        :root { color-scheme: light dark; --page: #F3F5F9; --card: #FFFFFF; --subtle: #F7F9FC; --border: #E2E7EF; --text: #16202E;
-          --secondary: #4F5B6E; --hint: #7A8599; --accent: #1A6DFF; --error: #D92D20; --error-soft: #FEF3F2; --warning: #C4570B;
-          --warning-soft: #FFF5EB; --suggestion: #1A6DFF; --suggestion-soft: #EEF4FF; --success: #12823B; --success-soft: #ECFDF3; }
+        :root { color-scheme: light dark; --page: #F6F8FE; --card: #FFFFFF; --subtle: #F9FAFE; --border: #DFE2E9; --text: #090B13;
+          --secondary: #4E525E; --hint: #797D89; --accent: #4269E2; --error: #D92D20; --error-soft: #FEF3F2; --warning: #C4570B;
+          --warning-soft: #FFF5EB; --suggestion: #4269E2; --suggestion-soft: #EEF2FC; --success: #12823B; --success-soft: #ECFDF3; }
         @media (prefers-color-scheme: dark) {
-          :root { --page: #11161F; --card: #1A212C; --subtle: #212A37; --border: #2C3646; --text: #E7ECF3; --secondary: #B2BDCD;
-            --hint: #8493A8; --accent: #5B9BFF; --error: #FF8A80; --error-soft: #2E1A1C; --warning: #F4B267; --warning-soft: #2C2318;
-            --suggestion: #5B9BFF; --suggestion-soft: #1B2942; --success: #6FD18F; --success-soft: #16281F; }
+          :root { --page: #030409; --card: #13161D; --subtle: #1A1D26; --border: #2A2E3A; --text: #F2F4F9; --secondary: #B6B9C0;
+            --hint: #8A8D97; --accent: #7B96EB; --error: #FF8A80; --error-soft: #2E1A1C; --warning: #F4B267; --warning-soft: #2C2318;
+            --suggestion: #7B96EB; --suggestion-soft: #1C2541; --success: #6FD18F; --success-soft: #16281F; }
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.55 "Segoe UI", system-ui, sans-serif; }
@@ -363,8 +366,8 @@ public sealed record ReportPage
         a { color: var(--accent); }
         footer { color: var(--hint); font-size: 13px; margin-top: 24px; }
         @media print {
-          :root { color-scheme: light; --page: #FFFFFF; --card: #FFFFFF; --subtle: #F7F9FC; --border: #D5DCE6; --text: #000000; --secondary: #333B47;
-            --hint: #555E6B; --accent: #1A4FB3; --error: #B42318; --warning: #9A4508; --suggestion: #1A4FB3; --success: #0E6B30; }
+          :root { color-scheme: light; --page: #FFFFFF; --card: #FFFFFF; --subtle: #F9FAFE; --border: #D0D2DA; --text: #000000; --secondary: #383B45;
+            --hint: #5C5F69; --accent: #324FAA; --error: #B42318; --warning: #9A4508; --suggestion: #324FAA; --success: #0E6B30; }
           main { max-width: none; padding: 0; }
           section, article { break-inside: avoid; }
         }
