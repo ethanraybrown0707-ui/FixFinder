@@ -44,7 +44,67 @@ public static partial class PythonReviewPatterns
         Pattern("logic-python-type-comparison", TypeComparison, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-python-range-len-loop", RangeLenLoop, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-python-file-not-closed", FileNotClosed, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
+        Pattern("logic-python-except-or", ExceptOr, Severity.Error, Confidence.Certain),
+        Pattern("logic-python-main-never-called", MainNeverCalled, Severity.Error),
     ];
+
+    /// <summary><c>except ValueError or TypeError:</c> - two or more kinds of error joined with or, with as and a name or not.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)except\s+(?<kinds>[A-Z]\w*(?:\.\w+)*(?:\s+or\s+[A-Z]\w*(?:\.\w+)*)+)\s*(?<name>as\s+[A-Za-z_]\w*\s*)?:(?<rest>.*)$")]
+    private static partial Regex ExceptOrRegex();
+
+    /// <summary>
+    /// <c>except ValueError or TypeError:</c>: <c>ValueError or TypeError</c> is worked out first, as a value - or gives back the
+    /// first of the two that counts as true, and every kind of error does - so the except catches ValueError alone, and a
+    /// TypeError stopped the program. The change gives the kinds in brackets, which catches each.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ExceptOr(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var i = 0; i < masked.Count; i++)
+        {
+            if (ExceptOrRegex().Match(masked[i]) is not { Success: true } except) continue;
+
+            var kinds = Regex.Split(except.Groups["kinds"].Value, @"\s+or\s+");
+            var name = except.Groups["name"].Value.TrimEnd();
+            var line = source.Lines[i];
+            var caught = $"({string.Join(", ", kinds)})";
+
+            yield return new LogicFinding(id, i + 1,
+                $"`{except.Groups["kinds"].Value}` is worked out first, as a value, and or gives back the first that counts as true - {kinds[0]} - " +
+                $"so the except catches {kinds[0]} alone, and {Listed(kinds[1..])} {(kinds.Length > 2 ? "are" : "is")} not caught",
+                Replace(id, $"Catch each kind: except {caught}",
+                    "except catches every kind of error in a bracketed list, so each of them is caught.",
+                    source, i + 1, $"{except.Groups["indent"].Value}except {caught}{(name.Length > 0 ? " " + name : "")}:{line[(except.Groups["rest"].Index)..]}"));
+        }
+    }
+
+    private static string Listed(IReadOnlyList<string> items) =>
+        items.Count == 1 ? items[0] : string.Join(", ", items.Take(items.Count - 1)) + " and " + items[^1];
+
+    [GeneratedRegex(@"^def\s+main\s*\(\s*\)\s*(?:->\s*[^:]+)?:")]
+    private static partial Regex MainDefined();
+
+    /// <summary>
+    /// A file that defines main() and never calls it: a def only makes the function, so the program runs to its end having
+    /// done nothing - it printed nothing at all. Left alone wherever main is called - on a line of its own, under
+    /// if __name__ == "__main__":, or anywhere outside main itself. The change calls it at the end of the file, under
+    /// if __name__ == "__main__":, which is true when the file is the one run.
+    /// </summary>
+    private static IEnumerable<LogicFinding> MainNeverCalled(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var defined = Enumerable.Range(0, masked.Count).FirstOrDefault(i => MainDefined().IsMatch(masked[i]), -1);
+        if (defined < 0) yield break;
+
+        var (first, end) = Body(masked, defined);
+        var called = Enumerable.Range(0, masked.Count).Any(i => (i < first || i >= end) && i != defined && Regex.IsMatch(masked[i], @"(?<![\w.])main\s*\("));
+        if (called) yield break;
+
+        yield return new LogicFinding(id, defined + 1,
+            "main is made here and never called - a def only makes a function, and nothing runs it - so the program ends having done nothing",
+            LocalFix.Insert(id, "Call main at the end: if __name__ == \"__main__\": main()",
+                "Python runs a file from top to bottom, and a def only makes the function. Calling main at the end runs it; under " +
+                "if __name__ == \"__main__\": it runs when the file is the one run, and not when another file imports it.",
+                source.Path, source.Count + 1, ["", "", "if __name__ == \"__main__\":", "    main()"]));
+    }
 
     private static LocalFix Replace(string id, string title, string explanation, SourceFile source, int line, string text) =>
         LocalFix.ReplaceLine(id, title, explanation, source.Path, line, text);

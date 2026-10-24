@@ -468,6 +468,58 @@ internal static class BracePatternGuides
             console.log(doubled);
             """),
 
+        GuideFor(["logic-pow-whole-number-fraction"], "A power of 1/2 that is 0",
+            "In Java, C#, C and C++, / of two whole numbers gives a whole number, so 1/2 is 0. Math.pow(side, 1/2) is therefore " +
+            "side to the power 0, which is 1 whatever side is - not its square root.",
+            "The program works out 1 instead of the root, with no error or warning.",
+            "Write the top of the fraction as a decimal, so the division keeps its fraction: Math.pow(side, 1.0 / 2) - or use " +
+            "Math.sqrt(side).",
+            """
+            double root = Math.sqrt(side);
+            """),
+
+        GuideFor(["logic-java-compare-to-one"], "compareTo compared with 1 or -1",
+            "compareTo gives back a negative number when the first comes before the second, zero when they are equal, and a " +
+            "positive number when it comes after - but not only -1 and 1. \"apple\".compareTo(\"cherry\") is -2, as a and c are two " +
+            "letters apart, so == -1 is false although apple does come first.",
+            "The comparison is false for most pairs that do come first or after, with no error or warning.",
+            "Ask for the sign alone: < 0 for before, > 0 for after.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    System.out.println("apple".compareTo("cherry") < 0);
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-array-equals"], "Two arrays compared with equals or ==",
+            "An array's equals is the same as ==: both ask whether two names are the very same array, not whether two arrays " +
+            "hold the same items. Two arrays made separately are never the same array, so they are never equal, even with the " +
+            "same items in the same order.",
+            "The comparison is false for arrays that hold the same items, with no error or warning.",
+            "Compare the items with Arrays.equals(first, second), from java.util.Arrays.",
+            """
+            import java.util.Arrays;
+
+            public class Main {
+                public static void main(String[] args) {
+                    int[] first = {70, 80};
+                    int[] second = {70, 80};
+                    System.out.println(Arrays.equals(first, second));
+                }
+            }
+            """),
+
+        GuideFor(["logic-octal-literal"], "A number written with a 0 in front",
+            "In Java, C and C++ a whole number written with 0 in front is read in octal - base 8, where each place is worth 8 " +
+            "times the one after it - so 010 is 8, and 0123 is 83. It is meant for file modes such as 0755, and rarely anything " +
+            "else.",
+            "The number is not the one written, with no error or warning - often in codes or times written with a leading 0.",
+            "Write the number without the 0 in front: 10.",
+            """
+            int code = 10;
+            """),
+
         GuideFor(["logic-percent-divided-first"], "A percentage that divides first",
             "In C, C++, Java and C#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In " +
             "score / total * 100 the division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",

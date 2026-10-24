@@ -444,3 +444,60 @@ public sealed class CSharpCatchOrder : ILocalFixRule
         };
     }
 }
+
+/// <summary>
+/// CS1656, "Cannot assign to 'mark' because it is a 'foreach iteration variable'": foreach gives each item to a variable C#
+/// will not let change, as changing it would leave the item as it was. For an array or a List the file makes, the loop
+/// becomes a for over the positions, and the variable inside it the item at the position - so the item itself changes.
+/// </summary>
+public sealed partial class CSharpForeachVariableAssigned : ILocalFixRule
+{
+    public string Id => "csharp-foreach-variable-assigned";
+
+    [GeneratedRegex(@"^Cannot assign to '(?<name>\w+)' because it is a 'foreach iteration variable'")]
+    private static partial Regex Message();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!CSharpCode.HasErrorCode(context, "CS1656") || Message().Match(context.Error.Message ?? "") is not { Success: true } said || CSharpCode.Locate(context) is not { } at) return null;
+
+        var name = said.Groups["name"].Value;
+        var lines = at.Source.Lines;
+        var masked = CodeText.MaskAll(lines, Syntax.CLike);
+        var heading = new Regex($@"^(?<indent>\s*)foreach\s*\(\s*(?:var|[\w<>\[\],?]+)\s+{Regex.Escape(name)}\s+in\s+(?<list>[A-Za-z_]\w*)\s*\)(?<rest>\s*\{{?\s*)$");
+
+        // The foreach heading the error's line is in - the nearest above it.
+        var start = Enumerable.Range(0, at.Number).Reverse().Take(40).FirstOrDefault(index => heading.IsMatch(masked[index]), -1);
+        if (start < 0 || Logic.BraceBlocks.Body(masked, start) is not { } body || body.End < at.Number - 1) return null;
+
+        var found = heading.Match(masked[start]);
+        var list = found.Groups["list"].Value;
+        var named = Regex.Escape(list);
+        var count = masked.Any(line => Regex.IsMatch(line, $@"\b(?:{named}\s*=\s*new\s+List<|List<[^>]+>\s+{named}\b)")) ? "Count"
+            : masked.Any(line => Regex.IsMatch(line, $@"\[\]\s+{named}\s*=|\b{named}\s*=\s*new\s+\w+\[|\b{named}\s*=\s*\{{")) ? "Length"
+            : null;
+        if (count is null) return null;
+
+        var position = masked.Any(line => Regex.IsMatch(line, @"\bindex\b")) ? "position" : "index";
+        var item = $"{list}[{position}]";
+        var standing = new Regex($@"(?<![\w.]){Regex.Escape(name)}(?!\w)");
+
+        var changed = new List<string> { $"{found.Groups["indent"].Value}for (int {position} = 0; {position} < {list}.{count}; {position}++){found.Groups["rest"].Value}" };
+        for (var index = start + 1; index < body.End; index++)
+        {
+            var line = lines[index];
+            foreach (var use in standing.Matches(masked[index]).Reverse())
+                line = line[..use.Index] + item + line[(use.Index + use.Length)..];
+            changed.Add(line);
+        }
+
+        return new LocalFix
+        {
+            RuleId = Id,
+            Title = $"Loop over the positions: for (int {position} = 0; {position} < {list}.{count}; {position}++)",
+            Explanation = $"foreach gives each item of {list} to {name}, a variable C# will not let change, as changing it would leave the item " +
+                          $"in {list} as it was. A for loop over the positions reaches each item itself, as {item}, so the change is made to {list}.",
+            File = at.Source.Path, StartLine = start + 1, RemoveCount = changed.Count, NewLines = changed,
+        };
+    }
+}

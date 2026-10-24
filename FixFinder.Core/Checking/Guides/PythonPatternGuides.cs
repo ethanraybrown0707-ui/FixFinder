@@ -450,5 +450,36 @@ internal static class PythonPatternGuides
             average = 150.5
             print(f"Average: {average:.2f}")
             """),
+
+        GuideFor(["logic-python-except-or"], "except A or B",
+            "except ValueError or TypeError reads like it catches both, but Python works out ValueError or TypeError first, as a " +
+            "value - and or gives back the first of the two that counts as true, which every kind of error does. So the except is " +
+            "except ValueError, and a TypeError is not caught.",
+            "The second kind of error still stops the program, as if there were no except for it, and Python says nothing of it.",
+            "Give the kinds in brackets: except (ValueError, TypeError):.",
+            """
+            def read(text):
+                try:
+                    return int(text)
+                except (ValueError, TypeError):
+                    return 0
+
+
+            print(read(None))
+            """),
+
+        GuideFor(["logic-python-main-never-called"], "main made and never called",
+            "def main(): only makes the function - it does not run it. Python runs a file from top to bottom, so a file that makes " +
+            "main and never calls it ends having done nothing at all.",
+            "The program prints nothing and asks for nothing, with no error, which looks as if it is broken.",
+            "Call main at the end of the file, under if __name__ == \"__main__\":, so it runs when the file is the one run.",
+            """
+            def main():
+                print("Hello")
+
+
+            if __name__ == "__main__":
+                main()
+            """),
     ];
 }

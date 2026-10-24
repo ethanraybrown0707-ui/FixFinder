@@ -244,5 +244,39 @@ internal static class GoPatternGuides
             	fmt.Println(score * 100 / total)
             }
             """),
+
+        GuideFor(["logic-go-pow-whole-number-fraction"], "A power of 1/2 that is 0",
+            "In Go, / of two whole numbers gives a whole number, so 1/2 is 0. math.Pow(side, 1/2) is therefore side to the power 0, " +
+            "which is 1 whatever side is - not its square root.",
+            "The program works out 1 instead of the root, and neither go build nor go vet says anything of it.",
+            "Write the top of the fraction as a decimal - math.Pow(side, 1.0/2) - or use math.Sqrt(side).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"math"
+            )
+
+            func main() {
+            	fmt.Println(math.Sqrt(16))
+            }
+            """),
+
+        GuideFor(["logic-go-octal-literal"], "A number written with a 0 in front",
+            "In Go a whole number written with 0 in front is read in octal - base 8 - so 010 is 8, and 0123 is 83. It is meant for " +
+            "file modes such as 0755, and rarely anything else.",
+            "The number is not the one written, and neither go build nor go vet says anything of it.",
+            "Write the number without the 0 in front: 10.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	code := 10
+            	fmt.Println(code)
+            }
+            """),
     ];
 }

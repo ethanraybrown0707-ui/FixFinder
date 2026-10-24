@@ -22,7 +22,48 @@ public static partial class RootPowerPatterns
         Rooted("logic-perl-power-of-one-over", CodePattern.Files(".pl", ".pm"), Syntax.Perl, DollarBase()),
         Rooted("logic-fortran-power-of-one-over", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran, NamedBase()),
         Rooted("logic-lua-power-of-one-over", CodePattern.Files(".lua"), Syntax.Lua, LuaBase()),
+        new CodePattern("logic-pow-whole-number-fraction", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++", ".java", ".cs"), Syntax.CLike, PowWholeNumberFraction, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-go-pow-whole-number-fraction", CodePattern.Files(".go"), Syntax.CLike, PowWholeNumberFraction, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary>
+    /// <c>Math.pow(side, 1/2)</c> - and Math.Pow, pow, std::pow and math.Pow - given a power written as one whole number over
+    /// another.
+    /// </summary>
+    [GeneratedRegex(@"(?<call>\bMath\.pow|\bMath\.Pow|\bmath\.Pow|\bstd::pow|(?<![\w.:])pow)\s*\((?<base>(?:[^(),]|\([^()]*\))+),\s*(?<fraction>(?<top>\d+)\s*/\s*(?<bottom>\d+))\s*\)")]
+    private static partial Regex PowerOfWholeNumbers();
+
+    /// <summary>
+    /// A power of one whole number over another: the division comes first, and in Java, C#, C, C++ and Go two whole numbers
+    /// divide to a whole number - 1/2 is 0 - so Math.pow(16, 1/2) printed 1 in each, with nothing said by javac -Xlint:all,
+    /// gcc -Wall -Wextra or go vet. The change writes the top as a decimal, 1.0 / 2, which printed 4.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PowWholeNumberFraction(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            foreach (Match power in PowerOfWholeNumbers().Matches(masked[index]))
+            {
+                var top = long.Parse(power.Groups["top"].Value);
+                var bottom = long.Parse(power.Groups["bottom"].Value);
+                if (bottom == 0 || top % bottom == 0) continue;
+
+                var line = source.Lines[index];
+                var call = power.Groups["call"].Value;
+                var number = power.Groups["base"].Value.Trim();
+                var fraction = power.Groups["fraction"];
+                var whole = top / bottom;
+
+                yield return new LogicFinding(id, index + 1,
+                    $"{top}/{bottom} divides two whole numbers, which throws the fraction away - it is {whole} - so {call}({number}, {top}/{bottom}) is " +
+                    $"{number} to the power {whole}{whole switch { 0 => $": 1, whatever {number} is", 1 => $": {number} itself", _ => "" }}",
+                    LocalFix.ReplaceLine(id, $"Divide as decimals: {top}.0 / {bottom}",
+                        $"With a decimal point, {top}.0 / {bottom} is worked out as decimals and keeps its fraction - " +
+                        $"{((double)top / bottom).ToString(System.Globalization.CultureInfo.InvariantCulture)}.",
+                        source.Path, index + 1, line[..fraction.Index] + $"{top}.0 / {bottom}" + line[(fraction.Index + fraction.Length)..]));
+            }
+        }
+    }
 
     private static CodePattern Rooted(string id, IReadOnlySet<string> extensions, Syntax syntax, Regex rooted) =>
         new(id, extensions, syntax, (patternId, source, masked) => PowerOfOneOver(patternId, source, masked, rooted), Severity.Error, Confidence.Likely);

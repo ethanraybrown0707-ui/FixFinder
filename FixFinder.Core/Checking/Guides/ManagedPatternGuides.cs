@@ -272,5 +272,19 @@ internal static class ManagedPatternGuides
             int total = 150;
             Console.WriteLine($"Total: {total}");
             """),
+
+        GuideFor(["logic-csharp-array-equals"], "Two arrays compared with Equals or ==",
+            "An array's Equals is the same as ==: both ask whether two names are the very same array, not whether two arrays " +
+            "hold the same items. Two arrays made separately are never the same array, so they are never equal, even with the " +
+            "same items in the same order.",
+            "The comparison is false for arrays that hold the same items, with no error or warning.",
+            "Compare the items with SequenceEqual, from System.Linq: first.SequenceEqual(second).",
+            """
+            using System.Linq;
+
+            int[] first = { 70, 80 };
+            int[] second = { 70, 80 };
+            Console.WriteLine(first.SequenceEqual(second));
+            """),
     ];
 }

@@ -147,5 +147,16 @@ internal static class ScalaPatternGuides
               val total = 60
               println(score * 100 / total)
             """),
+
+        GuideFor(["logic-scala-compare-to-one"], "compareTo compared with 1 or -1",
+            "compareTo gives back a negative number when the first comes before the second, zero when they are equal, and a " +
+            "positive number when it comes after - but not only -1 and 1. \"apple\".compareTo(\"cherry\") is -2, so == -1 is false " +
+            "although apple does come first.",
+            "The comparison is false for most pairs that do come first or after, and the compiler says nothing of it.",
+            "Ask for the sign alone: < 0 for before, > 0 for after.",
+            """
+            @main def run(): Unit =
+              println("apple".compareTo("cherry") < 0)
+            """),
     ];
 }
