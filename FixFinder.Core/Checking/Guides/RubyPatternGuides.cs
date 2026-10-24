@@ -189,5 +189,16 @@ internal static class RubyPatternGuides
             total = 150
             puts format("Total: %d", total)
             """),
+
+        GuideFor(["logic-ruby-percent-divided-first"], "A percentage that divides first",
+            "In Ruby, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and ruby -w says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            score = 45
+            total = 60
+            puts score * 100 / total
+            """),
     ];
 }

@@ -173,5 +173,16 @@ internal static class PowerShellPatternGuides
             $second = 80
             Write-Output ("Total: " + ($first + $second))
             """),
+
+        GuideFor(["logic-powershell-plus-outside-brackets"], "A + given to Write-Host as a word",
+            "Write-Host and Write-Output take each word after them as a thing to write - and a + standing on its own is a word too. " +
+            "So Write-Host \"Total: \" + $total writes three things, with a space between: Total:  + 150. Write-Output writes each " +
+            "on a line of its own.",
+            "The output shows the + and the parts side by side rather than joined, and PowerShell says nothing of it.",
+            "Put the sum in brackets, so it is worked out first and written as one value: Write-Host (\"Total: \" + $total).",
+            """
+            $total = 150
+            Write-Host ("Total: " + $total)
+            """),
     ];
 }

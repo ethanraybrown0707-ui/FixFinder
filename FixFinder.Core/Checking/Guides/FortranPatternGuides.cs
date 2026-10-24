@@ -89,5 +89,20 @@ internal static class FortranPatternGuides
               print *, side ** 0.5
             end program roots
             """),
+
+        GuideFor(["logic-fortran-percent-divided-first"], "A percentage that divides first",
+            "In Fortran, / of two integers gives an integer - the part below 1 is thrown away. In score / total * 100 the division " +
+            "comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and gfortran -Wall says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            program marks
+              implicit none
+              integer :: score, total
+              score = 45
+              total = 60
+              print *, score * 100 / total
+            end program marks
+            """),
     ];
 }

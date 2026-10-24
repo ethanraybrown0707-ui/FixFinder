@@ -411,3 +411,43 @@ public sealed partial class FortranCloseUnits : ILocalFixRule
             source.Path, source.Count + 1, ends);
     }
 }
+
+/// <summary>
+/// "Operands of string concatenation operator at (1) are CHARACTER(7)/INTEGER(4)": // joins two pieces of text, and a number is
+/// not text. A print, or a write with * for its format, writes each item of its list in turn, so there a comma in place of
+/// the // writes the text and then the number.
+/// </summary>
+public sealed partial class FortranConcatenateNumber : ILocalFixRule
+{
+    public string Id => "fortran-concatenate-number";
+
+    [GeneratedRegex(@"^Operands of string concatenation operator at \(1\) are (?:CHARACTER\(\d+\)/(?:INTEGER|REAL|LOGICAL)|(?:INTEGER|REAL|LOGICAL)\(\d+\)/CHARACTER)")]
+    private static partial Regex Message();
+
+    /// <summary><c>print *,</c> or <c>write (*, *)</c> - a statement that writes each item of its list in turn.</summary>
+    [GeneratedRegex(@"^\s*(?:print\s*\*\s*,|write\s*\(\s*\*\s*,\s*\*\s*\))", RegexOptions.IgnoreCase)]
+    private static partial Regex ListDirected();
+
+    [GeneratedRegex(@"\s*//\s*")]
+    private static partial Regex Join();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!FortranCode.IsCompileError(context) || !Message().IsMatch(context.Error.Message ?? "") || FortranCode.Locate(context) is not { } at) return null;
+
+        var masked = CodeText.Mask(at.Line, Syntax.Fortran);
+        if (ListDirected().Match(masked) is not { Success: true } statement) return null;
+
+        var joins = Join().Matches(masked, statement.Length).ToList();
+        if (joins.Count == 0) return null;
+
+        var changed = at.Line;
+        foreach (var join in joins.AsEnumerable().Reverse())
+            changed = changed[..join.Index] + ", " + changed[(join.Index + join.Length)..];
+
+        return LocalFix.ReplaceLine(Id, "Write each item in turn: a comma in place of //",
+            "// joins two pieces of text, and a number is not text, so gfortran will not build the line. A print writes each item of " +
+            "its list in turn, so with a comma between them it writes the text and then the number.",
+            at.Source.Path, at.Number, changed);
+    }
+}

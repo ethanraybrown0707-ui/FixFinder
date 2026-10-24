@@ -135,5 +135,17 @@ internal static class ScalaPatternGuides
               val second = 80
               println("Total: " + (first + second))
             """),
+
+        GuideFor(["logic-scala-percent-divided-first"], "A percentage that divides first",
+            "In Scala, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and the compiler says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            @main def run(): Unit =
+              val score = 45
+              val total = 60
+              println(score * 100 / total)
+            """),
     ];
 }

@@ -456,6 +456,15 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-percent-divided-first"], "A percentage that divides first",
+            "In C, C++, Java and C#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In " +
+            "score / total * 100 the division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, with no error or warning.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            int percent = score * 100 / total;
+            """),
+
         GuideFor(["logic-js-math-max-of-array"], "Math.max given an array",
             "Math.max and Math.min take numbers one by one - Math.max(70, 85, 90). Given an array, they turn it into one number from " +
             "its text, and the text of [70, 85, 90] is 70,85,90, which is no number: the answer is NaN. Node says nothing - and an " +

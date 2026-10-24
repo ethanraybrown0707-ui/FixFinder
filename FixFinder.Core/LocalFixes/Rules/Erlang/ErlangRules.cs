@@ -303,3 +303,51 @@ public sealed partial class ErlangCapitalVariable : ILocalFixRule
         };
     }
 }
+
+/// <summary>
+/// "bad argument ... called as io:format("Total: ~p~n",150) ... argument 2: not a list": io:format takes its values in a list,
+/// one for each ~p, even when there is only one. Erlang names no line of the program - the call was the function's last -
+/// so the change is to the one call in the program's files with that text, given something other than a list: [Total].
+/// </summary>
+public sealed partial class ErlangFormatValuesInList : ILocalFixRule
+{
+    public string Id => "erlang-format-values-list";
+
+    [GeneratedRegex(@"called as io:(?:format|fwrite)\((?<format>""(?:[^""\\]|\\.)*"")\s*,")]
+    private static partial Regex CalledAs();
+
+    [GeneratedRegex(@"(?<![\w@:])io:(?:format|fwrite)\s*\(")]
+    private static partial Regex FormatCall();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!ErlangCode.Is(context, "badarg") || !context.Error.RawText.Contains("argument 2: not a list", StringComparison.Ordinal)) return null;
+        if (CalledAs().Match(context.Error.RawText) is not { Success: true } called || context.SourceRoot is not { } root || !Directory.Exists(root)) return null;
+
+        var format = called.Groups["format"].Value;
+        var found = new List<(SourceFile Source, int Index, (int Start, int End) Value)>();
+
+        foreach (var source in Directory.EnumerateFiles(root, "*.erl").Take(200).Select(SourceFile.Read).OfType<SourceFile>())
+        {
+            for (var index = 0; index < source.Count; index++)
+            {
+                var masked = ErlangCode.Masked(source.Lines[index]);
+                foreach (Match call in FormatCall().Matches(masked))
+                {
+                    if (Logic.FormatCodePatterns.Arguments(masked, call.Index + call.Length, bracketed: true) is not [var first, var second]) continue;
+                    if (!Logic.FormatCodePatterns.IsText(masked, first) || source.Lines[index][first.Start..first.End] != format || masked[second.Start] == '[') continue;
+                    found.Add((source, index, second));
+                }
+            }
+        }
+
+        if (found is not [var (file, line, value)]) return null;
+
+        var text = file.Lines[line];
+        var written = text[value.Start..value.End];
+        return LocalFix.ReplaceLine(Id, $"Give the value in a list: [{written}]",
+            "io:format takes the values for its ~p, ~s and ~w in a list, one item for each - even when there is only one - so a value " +
+            "given on its own is a bad argument. Square brackets make it a list of one.",
+            file.Path, line + 1, text[..value.Start] + $"[{written}]" + text[value.End..]);
+    }
+}
