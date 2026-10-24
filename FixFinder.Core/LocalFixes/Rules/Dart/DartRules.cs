@@ -343,3 +343,65 @@ public sealed partial class DartNearestMember : ILocalFixRule
             at.Source.Path, at.Number, corrected);
     }
 }
+
+/// <summary>
+/// "Too many positional arguments: 1 expected, but 2 found." on <c>print("Total: %d", total)</c>: Dart's print takes one value
+/// and fills nothing in. The change puts each value into the text where its code was, as Dart puts values into text -
+/// <c>$total</c>, or <c>${total + 5}</c> for more than a name - and %.2f as <c>${value.toStringAsFixed(2)}</c>. Left alone where
+/// a code has no such form - a width, %x - or the text already holds a $, which Dart would read as a value to put in.
+/// </summary>
+public sealed partial class DartFormatIntoText : ILocalFixRule
+{
+    public string Id => "dart-format-into-text";
+
+    [GeneratedRegex(@"(?<![\w.])print\s*\(")]
+    private static partial Regex PrintCall();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (DartCode.AnalyzerCode(context) != "extra_positional_arguments" || DartCode.Locate(context) is not { } at) return null;
+
+        var masked = CodeText.Mask(at.Line, Syntax.CLike);
+        if (PrintCall().Matches(masked) is not [var call]) return null;
+        if (Logic.FormatCodePatterns.Arguments(masked, call.Index + call.Length, bracketed: true) is not [var first, .. var rest] ||
+            !Logic.FormatCodePatterns.IsText(masked, first) || rest.Count == 0) return null;
+
+        var format = at.Line[first.Start..first.End];
+        var values = rest.Select(span => at.Line[span.Start..span.End]).ToList();
+        if (format.Contains('$') || Logic.FormatCodePatterns.Codes(format).Count != values.Count || Filled(format, values) is not { } filled) return null;
+
+        return LocalFix.ReplaceLine(Id, $"Put the values into the text: print({filled})",
+            "Dart's print takes one value, and fills in no %d. Dart puts a value into text with $ - $total, or ${...} around anything " +
+            "more than a name - so the values go into the text where their codes were.",
+            at.Source.Path, at.Number, at.Line[..first.Start] + filled + at.Line[rest[^1].End..]);
+    }
+
+    /// <summary>The text with each code replaced by its value, put in with $ - or null where a code has no such form.</summary>
+    private static string? Filled(string format, IReadOnlyList<string> values)
+    {
+        var next = 0;
+        var fillable = true;
+        var filled = Logic.FormatCodePatterns.FormatCode().Replace(format, code =>
+        {
+            if (code.Value == "%%") return "%";
+
+            var kind = code.Groups["kind"].Value;
+            var precision = code.Groups["precision"];
+            if (code.Groups["flags"].Value.Length > 0 || code.Groups["width"].Value.Length > 0 || kind is not ("d" or "i" or "u" or "s" or "f") ||
+                (precision.Success && kind != "f"))
+            {
+                fillable = false;
+                return code.Value;
+            }
+
+            var value = values[next++];
+            var name = Regex.IsMatch(value, @"^[A-Za-z_]\w*$");
+            if (kind == "f") return $"${{{(name ? value : $"({value})")}.toStringAsFixed({(precision.Success ? precision.Value : "6")})}}";
+
+            var followedByNamePart = code.Index + code.Length < format.Length && (char.IsLetterOrDigit(format[code.Index + code.Length]) || format[code.Index + code.Length] == '_');
+            return name && !followedByNamePart ? $"${value}" : $"${{{value}}}";
+        });
+
+        return fillable ? filled : null;
+    }
+}

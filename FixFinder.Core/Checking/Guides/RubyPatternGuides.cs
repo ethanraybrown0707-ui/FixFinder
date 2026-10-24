@@ -178,5 +178,16 @@ internal static class RubyPatternGuides
             grid[0][0] = 1
             p grid
             """),
+
+        GuideFor(["logic-ruby-format-code-printed"], "A %d code that puts does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. puts and print write what they are " +
+            "given and fill nothing in - puts writes each thing on a line of its own - so puts \"Total: %d\", total prints Total: %d, " +
+            "and then 150 on the line below it.",
+            "The output shows the code as it is, with the value on a line of its own, and ruby -w says nothing of it.",
+            "Fill the text in with format - puts format(\"Total: %d\", total) - or put the value into the text: puts \"Total: #{total}\".",
+            """
+            total = 150
+            puts format("Total: %d", total)
+            """),
     ];
 }

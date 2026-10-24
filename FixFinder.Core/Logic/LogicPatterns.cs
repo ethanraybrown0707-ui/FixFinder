@@ -42,6 +42,7 @@ public static class LogicPatterns
         .. InputPatterns.All,
         .. LoopCopyPatterns.All,
         .. ResultKeptPatterns.All,
+        .. FormatCodePatterns.All,
         .. NumbersJoinedAsTextPatterns.All,
         .. TextHolePatterns.All,
         .. TypeNamePatterns.All,

@@ -258,7 +258,8 @@ which wraps round to `1471228928` even when it is stored in a Long, and whose ch
 before its quote - `"Hello, $name"` - which prints `Hello, $name`, as only an interpolator such as `s` puts a value into
 text; the change puts the `s` before the quote. Each does what it is said to do in Scala 3.8.4 and Scala 2.13.18, and
 neither warns about it - of the text, the most either says is that the name is never used - E198 in Scala 3 - when the
-text was the one place meant to use it.
+text was the one place meant to use it. It also finds text and then two numbers joined with `+`, described below with
+the other languages that write it.
 
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
@@ -304,7 +305,7 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by fourteen checks `ruby -w` says nothing of: `(total / count).to_f` of two
+run. Ruby's code is read for logic mistakes by fifteen checks `ruby -w` says nothing of: `(total / count).to_f` of two
 whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
@@ -321,8 +322,9 @@ number - `side ** 1/2`, described below with the other languages that write it -
 gives back, kept: `fixed = name.strip!` changes `name` itself and gives back `nil` when there was nothing to change, so
 `fixed` was `nil` for `"Ada"` - and so it was for each of `uniq!`, `compact!`, `gsub!` and sixteen more, given a value
 they had nothing to change in. The change uses the method without its `!`, which gives back a changed copy every time -
-or, where the value is used again, calls the `!` method on a line of its own and then keeps the value it changed. Ruby
-is tested with Ruby 3.3.12.
+or, where the value is used again, calls the `!` method on a line of its own and then keeps the value it changed. The
+fifteenth is a printf code given to `puts` - `puts "Total: %d", total` - described below with the other languages that
+write it. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -336,7 +338,7 @@ indentation - a string left open is closed, a misspelt function becomes the near
 PHP here lists its own - and a misspelt method the nearest one its class has, a property used inside a method without
 `$this->` gets it, a key an array does not have gets `?? 0` where it is added to, `$student.name` becomes
 `$student->name`, `elif` becomes `elseif`, and an array joined to text is joined with `implode`; each change is checked
-in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by eleven checks `php -l` says nothing of: a
+in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by twelve checks `php -l` says nothing of: a
 loop to `<= count($marks)` that uses its number as a position, an `=` in a condition, a decimal worked out by arithmetic
 and then compared exactly, `strpos(...) == false`, which is true for a match at the very start as well as for none, `^`
 written as a power, a line read with `fgets` compared with text, though it still ends with its newline, a `foreach` that
@@ -346,8 +348,9 @@ written, `$name` and all, as only double quotes put a value into text; the chang
 a root written as a power of one over a number - `$side ** 1/2`, described below with the other languages that write
 it - and the eleventh is what `sort` gives back, kept: `$sorted = sort($marks)` puts `$marks` itself in order and gives
 `$sorted` only `true`, and so did `rsort`, `usort`, `uasort`, `uksort`, `asort`, `arsort`, `ksort`, `krsort`, `shuffle`,
-`natsort` and `natcasesort`. The change sorts the array on a line of its own and then gives `$sorted` the array. PHP is
-tested with PHP 8.4.24.
+`natsort` and `natcasesort`. The change sorts the array on a line of its own and then gives `$sorted` the array. The
+twelfth is a printf code given to `echo` - `echo "Total: %d", $total` - described below with the other languages that
+write it. PHP is tested with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names
@@ -360,7 +363,7 @@ or a bracket left open is closed. While it runs, a name that is nil because it i
 file gives a value to, a `+` joining text becomes `..`, a whole number divided by zero with `//` or `%` gets an answer
 for when the divisor is zero, and `name.upper()` - a string's own function called with a dot, which gives it nothing to
 work on - becomes `name:upper()`; each change is checked in a copy - with `luac -p` - and run. Lua's code is read for
-logic mistakes by eight checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared
+logic mistakes by nine checks Lua says nothing of: a loop from 0 over a list, whose first item is at 1; text compared
 with `==` to a number, which in Lua is never equal; a decimal worked out by arithmetic and then compared exactly;
 `table.remove` in a loop going forward over the same list, which skips the item after each one it removes; and
 `local total = total + mark` inside a loop, which declares a new `total` for the loop alone each time round and leaves
@@ -369,8 +372,9 @@ the one outside it as it was - `Total: 0` for marks of 70, 80 and 90; the change
 change, for a table made as a list, is `{table.unpack(marks)}`. The seventh is `#` of a table given only keyed
 entries - `#ages` of `{Ada = 36, Bob = 20}` is 0, as `#` counts only the items at positions 1, 2, 3 and on - which is
 left alone wherever the table is given items at positions, named again, or given a metatable; the change counts the
-keys with `pairs` on the lines before. The eighth is a root written as a power of one over a number - `side^1/2`,
-described below with the other languages that write it. Lua is tested with Lua 5.4.6.
+keys with `pairs` on the lines before. The eighth is a root written as a power of one over a number - `side^1/2` - and
+the ninth a printf code given to `print` or `io.write` - `print("Total: %d", total)` - both described below with the
+other languages that write them. Lua is tested with Lua 5.4.6.
 
 A **Perl** program - a `.pl` file - is compiled by `perl -wc` before it runs, which runs none of it but its `use` lines
 and `BEGIN` blocks, as running it would: its compilation errors are found there, and its warnings - an `=` in a
@@ -384,7 +388,7 @@ a division by zero gets an answer for when the divisor is zero, a misspelt sub b
 variable written without its `$` gets it - with `my` under `use strict` when nothing declares it - a `{` left open is
 closed where its indentation ends, and a string left open is closed on the line it starts on, which Perl's own hint
 names when a later quote stopped it; each change is checked in a copy - with `perl -c` - and run. Perl's code is read
-for logic mistakes by eleven checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
+for logic mistakes by twelve checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
 `==`, a line read from `<STDIN>` and compared with `eq` without `chomp`, a decimal worked out by arithmetic and then
 compared exactly, `length(@marks)`, which counts the digits of the array's count - Perl warns of it too, and the warning
 and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, a variable inside single
@@ -396,8 +400,8 @@ warning - and the change takes `my` away. The tenth is numbers put in order by `
 compares them as text, character by character: `sort @marks` of `(10, 9, 100)` gave `10 100 9`, with no warning. The
 message names the order the array's own numbers come out in, and the change compares them as numbers -
 `sort { $a <=> $b } @marks`; an array given text anywhere is left alone. The eleventh is a root written as a power of
-one over a number - `$side ** 1/2`, described below with the other languages that write it. Perl is tested with
-Strawberry Perl 5.42.2.
+one over a number - `$side ** 1/2` - and the twelfth a printf code given to `print` - `print "Total: %d", $total` - both
+described below with the other languages that write them. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -407,8 +411,10 @@ first line of the program's own code in its frames, past Dart's own. The analyze
 `;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in
 an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`,
 `=` in a condition becomes `==`, a `final` variable set again becomes `var`, a named parameter whose type does not allow
-the null it has when left out is made `required`, and a variable given `null` whose type does not allow it gets a type
-that does - `String?`; and while it runs, a whole number divided by zero gets an answer for when the divisor is zero.
+the null it has when left out is made `required`, a variable given `null` whose type does not allow it gets a type
+that does - `String?` - and `print` given a printf code and its values - `print("Total: %d", total)`, which has too many
+positional arguments - puts the values into the text, `print("Total: $total")`; and while it runs, a whole number
+divided by zero gets an answer for when the divisor is zero.
 Each change is checked in a copy - with `dart analyze` - and run. Dart's code is read for logic mistakes by eight checks
 the analyzer says nothing of: a loop to `<= marks.length`, two lists compared with `==`, a decimal worked out by
 arithmetic and then compared exactly, `^` written as a power, `'$marks.length'` in text, which puts in the value of
@@ -444,7 +450,7 @@ or PowerShell has, `.Add` on a fixed-size array `+=`, a division by zero gets an
 variable written without its `$` gets it, a `{` left open is closed where its indentation ends - PowerShell names the
 outer block, and each `}` is taken to close the `{` at its own indentation - and a string or a bracket left open is
 closed; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by
-ten checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+thirteen checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
 text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
 is true; text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back with
@@ -452,7 +458,11 @@ that value as part of the function's result when the result is kept; `"$marks.Co
 the value of `$marks` alone and prints `70 80 90.Count`; a variable in single quotes, `'Hello, $name'`, which is printed
 as it is written; and `$value -eq [double]::NaN`, which is false even when `$value` is NaN. The tenth is
 `$backup = $marks` taken as a copy: both names are one array, so after `$marks[0] = 100`, `$backup[0]` prints 100; the
-change is `$marks.Clone()`. PowerShell is tested with Windows PowerShell 5.1.
+change is `$marks.Clone()`. The eleventh is a `foreach` that gives its copy of each item a new value - `$mark += 5` -
+which left `70 80 90` as they were; the change goes over the positions, `$marks[$index] += 5`, for an array the script
+makes itself. The twelfth and thirteenth are a printf code given to `Write-Host` or `Write-Output` - `Write-Host "Total:
+%d" $total` - and text then two numbers joined with `+`, both described below with the other languages that write them.
+PowerShell is tested with Windows PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -849,7 +859,15 @@ side - where the power is worked out before the division, so it is `side ** 1` d
 as `8.0` in Python and Lua, `8.00000000` in Fortran - not 4, and `27 ** 1/3` printed 9, not 3, with nothing said by
 `python -W error`, `ruby -w`, `node --check`, `php -l`, `perl -w`, `gfortran -Wall` or `luac -p`. The change raises the
 number to the fraction - `side ** 0.5`, or `side ** (1.0 / 3)` for a cube root, with `1.0` because Ruby and Fortran
-divide two whole numbers to a whole number: `27 ** (1 / 3)` printed 1. In Java, C#, JavaScript and TypeScript it finds
+divide two whole numbers to a whole number: `27 ** (1 / 3)` printed 1. In Python, Ruby, PHP, Lua, Perl, PowerShell and
+C# it finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills nothing in: `print("Total: %d", total)`
+printed `Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on the line below; PHP's `echo` and Perl's
+`print` printed `Total: %d150`; Lua's `print` put a tab between the two; PowerShell's `Write-Host` put a space; and C#'s
+`Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no total at all - with nothing said by any of them.
+The change fills the text in the language's own way: `%` in Python, `format` in Ruby, `sprintf` in PHP and Perl,
+`string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart refuse such a call - javac finds no `println` that
+takes the values, and Dart has too many positional arguments - and those become changes too: `System.out.printf("Total:
+%d%n", total)`, and Dart's `print("Total: $total")`. In Java, C#, JavaScript, TypeScript, Scala and PowerShell it finds
 text and then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes
 as `Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant
 to be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with
@@ -1168,23 +1186,23 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 88 | 46 | 41 |
-| Java | 54 | 42 | 51 |
-| C# | 47 | 38 | 49 |
+| Python | 88 | 47 | 41 |
+| Java | 55 | 42 | 51 |
+| C# | 47 | 39 | 49 |
 | C | 46 | 24 | 39 |
 | C++ | 45 | 31 | 39 |
 | JavaScript | 42 | 38 | 16 |
 | Go | 38 | 11 | 18 |
-| Scala | 6 | 10 | 28 |
+| Scala | 6 | 11 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 3 | 5 | 33 |
-| Ruby | 13 | 14 | 26 |
-| PHP | 15 | 11 | 18 |
-| Lua | 12 | 8 | 25 |
-| Perl | 13 | 11 | 26 |
-| Dart | 12 | 8 | 23 |
+| Ruby | 13 | 15 | 26 |
+| PHP | 15 | 12 | 18 |
+| Lua | 12 | 9 | 25 |
+| Perl | 13 | 12 | 26 |
+| Dart | 13 | 8 | 23 |
 | Fortran | 11 | 5 | 19 |
-| PowerShell | 9 | 10 | 15 |
+| PowerShell | 9 | 13 | 15 |
 | Elixir | 11 | 7 | 29 |
 | Erlang | 8 | 6 | 23 |
 | F# | 16 | 8 | 33 |

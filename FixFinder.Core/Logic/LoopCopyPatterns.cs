@@ -6,12 +6,12 @@ namespace FixFinder.Core.Logic;
 
 /// <summary>
 /// What a loop seems to change, or give back, and does not - each run with the language's own toolchain, and its own checks
-/// said nothing of any. Python's for mark in marks, JavaScript's for (let mark of marks) and PHP's foreach ($marks as $mark)
-/// give each item to a variable of the loop's own, so mark += 5 left [70, 80, 90] as it was. Ruby's each gives back the list
-/// it went over, not what its block worked out, so doubled was [70, 80] - and Elixir's Enum.each gives back :ok, so doubled
-/// was :ok. Go's range with one variable gives each position, so
-/// the total of 70, 80 and 90 came out as 3. And a PowerShell function gives back everything it outputs, so Write-Output's
-/// text came back with the total. LoopCopyLiveTests runs each mistake, and its change.
+/// said nothing of any. Python's for mark in marks, JavaScript's for (let mark of marks), PHP's foreach ($marks as $mark) and
+/// PowerShell's foreach ($mark in $marks) give each item to a variable of the loop's own, so mark += 5 left 70, 80 and 90 as
+/// they were. Ruby's each gives back the list it went over, not what its block worked out, so doubled was [70, 80] - and
+/// Elixir's Enum.each gives back :ok, so doubled was :ok. Go's range with one variable gives each position, so the total of
+/// 70, 80 and 90 came out as 3. And a PowerShell function gives back everything it outputs, so Write-Output's text came back
+/// with the total. LoopCopyLiveTests runs each mistake, and its change.
 /// </summary>
 public static partial class LoopCopyPatterns
 {
@@ -20,6 +20,7 @@ public static partial class LoopCopyPatterns
         new CodePattern("logic-python-loop-variable-changed", CodePattern.Files(".py", ".pyw"), Syntax.Python, PythonLoopVariable, Severity.Error),
         new CodePattern("logic-js-loop-copy-changed", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptLoopCopy, Severity.Error),
         new CodePattern("logic-php-foreach-copy-changed", CodePattern.Files(".php"), Syntax.CLike, PhpForeachCopy, Severity.Error),
+        new CodePattern("logic-powershell-foreach-copy-changed", CodePattern.Files(".ps1"), Syntax.Python, PowerShellForeachCopy, Severity.Error),
         new CodePattern("logic-ruby-each-for-map", CodePattern.Files(".rb"), Syntax.Python, RubyEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-elixir-each-for-map", CodePattern.Files(".ex", ".exs"), Syntax.Python, ElixirEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-go-range-index-as-value", CodePattern.Files(".go"), Syntax.CLike, GoRangeIndex, Severity.Error),
@@ -180,6 +181,55 @@ public static partial class LoopCopyPatterns
                     [
                         $"{heading.Groups["indent"].Value}foreach (${list} as ${key} => ${variable}) {{",
                         $"{given.Groups["indent"].Value}${list}[${key}] {given.Groups["op"].Value} {value};",
+                    ],
+                });
+        }
+    }
+
+    /// <summary><c>foreach ($mark in $marks) {</c> - PowerShell's words, in any case.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)foreach\s*\(\s*\$(?<variable>\w+)\s+in\s+\$(?<list>\w+)\s*\)\s*\{\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex PowerShellForeachHeading();
+
+    /// <summary><c>$marks = @(70, 80, 90)</c> or <c>$marks = 70, 80, 90</c> - an array, made where it is named.</summary>
+    private static Regex ArrayMade(string list) => new($@"^\s*\${Regex.Escape(list)}\s*=\s*(?:@\(|[^=,]+,)", RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// PowerShell's foreach: the same - the loop's variable given a new value, as the loop's one statement, leaves the array's
+    /// item as it was. Only an array the file makes is changed, as a position in it is then an item. The change goes over the
+    /// positions and changes the item at each.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PowerShellForeachCopy(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index + 2 < masked.Count; index++)
+        {
+            if (PowerShellForeachHeading().Match(masked[index]) is not { Success: true } heading || masked[index + 2].Trim() != "}") continue;
+
+            var variable = heading.Groups["variable"].Value;
+            var list = heading.Groups["list"].Value;
+            if (GivenANewValue(variable, "$").Match(masked[index + 1]) is not { Success: true } given || !ReadAfter(masked, index + 2, list, "$")) continue;
+            if (!masked.Take(index).Any(line => ArrayMade(list).IsMatch(line))) continue;
+
+            var position = PositionName(masked, "$");
+            var valueGroup = given.Groups["value"];
+            var value = source.Lines[index + 1].Substring(valueGroup.Index, valueGroup.Length);
+            foreach (var read in new Regex($@"\${Regex.Escape(variable)}(?!\w)", RegexOptions.IgnoreCase).Matches(masked[index + 1].Substring(valueGroup.Index, valueGroup.Length)).Reverse())
+                value = value[..read.Index] + $"${list}[${position}]" + value[(read.Index + read.Length)..];
+
+            yield return new LogicFinding(id, index + 2,
+                $"foreach gives each item of ${list} to ${variable}, a copy of its own - so giving ${variable} a new value leaves the item in " +
+                $"${list} as it was, and ${list} is unchanged after the loop",
+                new LocalFix
+                {
+                    RuleId = id,
+                    Title = $"Change the item itself: ${list}[${position}] {given.Groups["op"].Value} ...",
+                    Explanation = $"A loop over the positions reaches each item in ${list} itself, so the line changes the item at that position.",
+                    File = source.Path,
+                    StartLine = index + 1,
+                    RemoveCount = 2,
+                    NewLines =
+                    [
+                        $"{heading.Groups["indent"].Value}for (${position} = 0; ${position} -lt ${list}.Count; ${position}++) {{",
+                        $"{given.Groups["indent"].Value}${list}[${position}] {given.Groups["op"].Value} {value}",
                     ],
                 });
         }

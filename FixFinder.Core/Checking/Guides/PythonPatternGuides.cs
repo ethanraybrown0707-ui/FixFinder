@@ -430,5 +430,15 @@ internal static class PythonPatternGuides
             grid[0][0] = 1
             print(grid)
             """),
+
+        GuideFor(["logic-python-format-code-printed"], "A %d code that print does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Python's print does not fill them in - " +
+            "it writes each thing it is given in turn, with a space between - so print(\"Total: %d\", total) prints Total: %d 150.",
+            "The line shows the code as it is, with the value tacked on after it, and Python says nothing of it.",
+            "Fill the text in before it is printed: \"Total: %d\" % total - or put the value into an f-string, f\"Total: {total}\".",
+            """
+            total = 150
+            print(f"Total: {total}")
+            """),
     ];
 }

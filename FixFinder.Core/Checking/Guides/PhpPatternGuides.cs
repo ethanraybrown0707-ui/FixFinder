@@ -157,5 +157,17 @@ internal static class PhpPatternGuides
                 echo "not a number\n";
             }
             """),
+
+        GuideFor(["logic-php-format-code-printed"], "A %d code that echo does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. echo writes each thing it is given side " +
+            "by side and fills nothing in, so echo \"Total: %d\", $total prints Total: %d150.",
+            "The output shows the code as it is, with the value run on after it, and neither php -l nor PHP says anything of it.",
+            "Use printf, which fills the codes in and prints the text - printf(\"Total: %d\\n\", $total) - or give echo the text " +
+            "sprintf fills in: echo sprintf(\"Total: %d\", $total).",
+            """
+            <?php
+            $total = 150;
+            printf("Total: %d\n", $total);
+            """),
     ];
 }

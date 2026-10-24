@@ -261,5 +261,16 @@ internal static class ManagedPatternGuides
             marks[0] = 100;
             Console.WriteLine(backup[0]);
             """),
+
+        GuideFor(["logic-csharp-format-code-printed"], "A %d code that Console.WriteLine does not fill in",
+            "%d and %s are codes from C's printf. Console.WriteLine fills in {0}, {1} and on with the values after the text - not " +
+            "%d - so Console.WriteLine(\"Total: %d\", total) prints Total: %d, and the total is never printed at all.",
+            "The value is missing from the output, with no error or warning.",
+            "Write {0} where the value goes - Console.WriteLine(\"Total: {0}\", total) - or put the value into the text with $: " +
+            "$\"Total: {total}\".",
+            """
+            int total = 150;
+            Console.WriteLine($"Total: {total}");
+            """),
     ];
 }

@@ -137,5 +137,41 @@ internal static class PowerShellPatternGuides
             $marks[0] = 100
             Write-Output $backup[0]
             """),
+
+        GuideFor(["logic-powershell-format-code-printed"], "A %d code that Write-Host does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Write-Host writes each thing it is " +
+            "given with a space between, and Write-Output each on a line of its own - neither fills %d in. PowerShell's own places " +
+            "for values are {0}, {1} and on, and -f fills them in.",
+            "The output shows the code as it is, with the value after it or below it, and PowerShell says nothing of it.",
+            "Write {0} where the value goes, and fill it in with -f: Write-Host (\"Total: {0}\" -f $total).",
+            """
+            $total = 150
+            Write-Host ("Total: {0}" -f $total)
+            """),
+
+        GuideFor(["logic-powershell-foreach-copy-changed"], "A loop that changes its own copy",
+            "foreach gives each item of the array to the loop's variable as a copy of its own. Giving the variable a new value - " +
+            "$mark += 5 - changes that copy, not the item in the array, so after the loop the array is just as it was.",
+            "The array is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Loop over the positions and change the item at each: for ($index = 0; $index -lt $marks.Count; $index++), then " +
+            "$marks[$index] += 5.",
+            """
+            $marks = @(70, 80, 90)
+            for ($index = 0; $index -lt $marks.Count; $index++) {
+                $marks[$index] += 5
+            }
+            Write-Output ($marks -join " ")
+            """),
+
+        GuideFor(["logic-powershell-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ works from left to right. \"Total: \" + $first comes first, and gives text - so the + after it joins $second to that " +
+            "text, rather than adding it to $first. With 70 and 80 the line prints Total: 7080.",
+            "The numbers are written side by side, not added, and PowerShell says nothing of it.",
+            "Put brackets round the numbers, so they are added first: \"Total: \" + ($first + $second).",
+            """
+            $first = 70
+            $second = 80
+            Write-Output ("Total: " + ($first + $second))
+            """),
     ];
 }

@@ -122,5 +122,18 @@ internal static class ScalaPatternGuides
               val parts = "3.14".split("\\.")
               println(parts.length)
             """),
+
+        GuideFor(["logic-scala-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ works from left to right. \"Total: \" + first comes first, and gives text - so the + after it joins second to that " +
+            "text, rather than adding it to first. With 70 and 80 the line prints Total: 7080.",
+            "The numbers are written side by side, not added, and the compiler says nothing of it.",
+            "Put brackets round the numbers, so they are added first: \"Total: \" + (first + second) - or put the sum into the text: " +
+            "s\"Total: ${first + second}\".",
+            """
+            @main def run(): Unit =
+              val first = 70
+              val second = 80
+              println("Total: " + (first + second))
+            """),
     ];
 }

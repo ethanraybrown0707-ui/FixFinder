@@ -27,7 +27,7 @@ public class LoopCopyPatternTests : IDisposable
     private static readonly string[] Checks =
     [
         "logic-python-loop-variable-changed", "logic-js-loop-copy-changed", "logic-php-foreach-copy-changed", "logic-ruby-each-for-map",
-        "logic-elixir-each-for-map", "logic-go-range-index-as-value", "logic-powershell-function-output-returned", "logic-js-for-in-over-array",
+        "logic-elixir-each-for-map", "logic-powershell-foreach-copy-changed", "logic-go-range-index-as-value", "logic-powershell-function-output-returned", "logic-js-for-in-over-array",
     ];
 
     [Theory]
@@ -47,6 +47,9 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.py", "marks = [70, 80]\ntotal = 0\nfor mark in marks:\n    total += mark\nprint(total, marks)\n")]
     [InlineData("main.js", "const marks = [70, 80];\nfor (const mark of marks) {\n  console.log(mark);\n}\nconsole.log(marks);\n")]
     [InlineData("main.php", "<?php\n$marks = [70, 80];\n$total = 0;\nforeach ($marks as $mark) {\n    $total += $mark;\n}\necho $total, count($marks);\n")]
+    [InlineData("main.ps1", "$marks = @(70, 80)\nforeach ($mark in $marks) {\n    Write-Output $mark\n}\nWrite-Output $marks.Count\n")]
+    // An array the file does not make - what Get-Content gives is one line of text when the file has one line.
+    [InlineData("main.ps1", "$lines = Get-Content \"marks.txt\"\nforeach ($line in $lines) {\n    $line = $line.Trim()\n}\nWrite-Output $lines\n")]
     // each run for what its block does, its result not kept.
     [InlineData("main.rb", "marks = [70, 80]\nmarks.each { |mark| puts mark }\n")]
     [InlineData("main.exs", "marks = [70, 80]\nEnum.each(marks, fn mark -> IO.puts(mark) end)\n")]
@@ -67,6 +70,16 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.ps1", "function Show-Total($marks) {\n    Write-Output \"Total\"\n}\n\n$shown = Show-Total @(70)\n")]
     public void ALoopThatDoesWhatItSaysIsLeftAlone(string fileName, string code) =>
         Assert.DoesNotContain(Scan(fileName, code), finding => Checks.Contains(finding.PatternId));
+
+    [Fact]
+    public void PowerShellsLoopVariableReadInItsNewValueBecomesTheItemAtItsPosition()
+    {
+        var found = Assert.Single(Scan("main.ps1", "$marks = 70, 80, 90\nForEach ($mark in $marks) {\n    $mark = $mark * 2\n}\nWrite-Output $marks\n"),
+            finding => finding.PatternId == "logic-powershell-foreach-copy-changed");
+
+        Assert.Equal(3, found.Line);
+        Assert.Equal(["for ($index = 0; $index -lt $marks.Count; $index++) {", "    $marks[$index] = $marks[$index] * 2"], found.Fix!.NewLines);
+    }
 }
 
 /// <summary>
@@ -90,6 +103,10 @@ public class LoopCopyLiveTests(ITestOutputHelper output) : IDisposable
         {
             "PHP", "main.php", "<?php\n$marks = [70, 80, 90];\nforeach ($marks as $mark) {\n    $mark += 5;\n}\necho implode(\" \", $marks), \"\\n\";\n",
             "logic-php-foreach-copy-changed", 4, "70 80 90", "75 85 95"
+        },
+        {
+            "PowerShell", "main.ps1", "$marks = @(70, 80, 90)\nforeach ($mark in $marks) {\n    $mark += 5\n}\nWrite-Output ($marks -join \" \")\n",
+            "logic-powershell-foreach-copy-changed", 3, "70 80 90", "75 85 95"
         },
         { "Ruby", "main.rb", "marks = [70, 80]\ndoubled = marks.each { |mark| mark * 2 }\np doubled\n", "logic-ruby-each-for-map", 2, "[70, 80]", "[140, 160]" },
         { "Elixir", "main.exs", "marks = [70, 80]\ndoubled = Enum.each(marks, fn mark -> mark * 2 end)\nIO.inspect(doubled)\n", "logic-elixir-each-for-map", 2, ":ok", "[140, 160]" },

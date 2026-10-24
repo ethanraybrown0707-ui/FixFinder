@@ -100,6 +100,9 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("void main() {\n  final passMark = 40;\n  passMark = 50;\n  print(passMark);\n}\n", "dart-final-changed", 3, 2, "  var passMark = 40;", "50")]
     [InlineData("void greet({String name}) {\n  print('Hello, $name');\n}\n\nvoid main() {\n  greet(name: 'Ada');\n}\n", "dart-required-parameter", 1, 1, "void greet({required String name}) {", "Hello, Ada")]
     [InlineData("void main() {\n  String name = null;\n  print(name);\n}\n", "dart-nullable-type", 2, 2, "  String? name = null;", "null")]
+    [InlineData("void main() {\n  var total = 150;\n  print(\"Total: %d\", total);\n}\n", "dart-format-into-text", 3, 3, "  print(\"Total: $total\");", "Total: 150")]
+    [InlineData("void main() {\n  var name = \"Ada\";\n  var total = 150;\n  print(\"%s scored %.1f\", name, total / 7);\n}\n", "dart-format-into-text", 4, 4,
+        "  print(\"$name scored ${(total / 7).toStringAsFixed(1)}\");", "Ada scored 21.4")]
     public async Task WhatTheAnalyzerFindsIsFoundBeforeItRunsAndItsChangeAnalyzesAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Dart() is not { } dart) return;

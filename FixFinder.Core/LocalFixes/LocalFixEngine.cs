@@ -177,6 +177,7 @@ public static partial class LocalFixEngine
         new JavaPublicClassName(),
         new JavaOffByOneLoop(),
         new JavaStringConversion(),
+        new JavaPrintfForPrintln(),
 
         new CSharpSmartQuotes(),
         new CSharpDivisionGuard(),
@@ -336,6 +337,7 @@ public static partial class LocalFixEngine
         new DartNearestName(),
         new DartNearestMember(),
         new DartWholeNumberDivision(),
+        new DartFormatIntoText(),
         new DartNullDefault(),
         new DartNumberToText(),
         new DartCompareWithDoubleEquals(),

@@ -117,5 +117,16 @@ internal static class LuaPatternGuides
             end
             print(count)
             """),
+
+        GuideFor(["logic-lua-format-code-printed"], "A %d code that print does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Lua's print writes each thing it is " +
+            "given with a tab between, and io.write side by side - neither fills anything in - so print(\"Total: %d\", total) prints " +
+            "Total: %d, then a tab and 150.",
+            "The output shows the code as it is, with the value after it, and neither luac -p nor Lua says anything of it.",
+            "Fill the text in with string.format first: print(string.format(\"Total: %d\", total)).",
+            """
+            local total = 150
+            print(string.format("Total: %d", total))
+            """),
     ];
 }

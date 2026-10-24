@@ -37,6 +37,11 @@ public class LocalFixLiveTests
         },
         {
             "java", "App.java",
+            "public class App {\n    public static void main(String[] args) {\n        int total = 150;\n        System.out.println(\"Total: %d\", total);\n    }\n}\n",
+            "java-printf-for-println", "System.out.printf(\"Total: %d%n\", total);"
+        },
+        {
+            "java", "App.java",
             "public class App {\n    public static void main(String[] args) {\n        Thread.sleep(10);\n        System.out.println(\"done\");\n    }\n}\n",
             "java-unreported-exception", "main(String[] args) throws InterruptedException {"
         },

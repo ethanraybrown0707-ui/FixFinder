@@ -176,5 +176,19 @@ internal static class PerlPatternGuides
             }
             print "Total: $total\n";
             """),
+
+        GuideFor(["logic-perl-format-code-printed"], "A %d code that print does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. print writes each thing it is given " +
+            "side by side and fills nothing in, so print \"Total: %d\", $total prints Total: %d150.",
+            "The output shows the code as it is, with the value run on after it, and Perl says nothing of it, even with use warnings.",
+            "Use printf, which fills the codes in and prints the text - printf(\"Total: %d\\n\", $total) - or give print the text " +
+            "sprintf fills in: print sprintf(\"Total: %d\", $total).",
+            """
+            use strict;
+            use warnings;
+
+            my $total = 150;
+            printf("Total: %d\n", $total);
+            """),
     ];
 }
