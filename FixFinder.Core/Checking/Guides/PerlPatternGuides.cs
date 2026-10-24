@@ -97,6 +97,37 @@ internal static class PerlPatternGuides
             print $side ** 2, "\n";
             """),
 
+        GuideFor(["logic-perl-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In Perl ** is worked out before /, so " +
+            "$side ** 1/2 is $side ** 1 - $side itself - divided by 2. With 16 it is 8, not 4.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and Perl says nothing of it, even " +
+            "with use warnings.",
+            "Raise it to the fraction itself: $side ** 0.5, or $side ** (1 / 3) for a cube root, with the fraction in brackets - or " +
+            "use sqrt($side).",
+            """
+            use strict;
+            use warnings;
+
+            my $side = 16;
+            print $side ** 0.5, "\n";
+            """),
+
+        GuideFor(["logic-perl-numbers-sorted-as-text"], "Numbers sorted as text",
+            "sort on its own puts things in order as text, comparing them character by character as a dictionary would - so 100 " +
+            "comes before 9, as 1 comes before 9. To put numbers in order by size, sort needs telling how to compare two of them: " +
+            "{ $a <=> $b }, where <=> compares two numbers.",
+            "The numbers come out in the wrong order - 10, 9 and 100 come out as 10 100 9 - and Perl says nothing of it, even with " +
+            "use warnings.",
+            "Compare them as numbers: sort { $a <=> $b } @marks - or sort { $b <=> $a } @marks for the largest first.",
+            """
+            use strict;
+            use warnings;
+
+            my @marks = (10, 9, 100);
+            my @sorted = sort { $a <=> $b } @marks;
+            print "@sorted\n";
+            """),
+
         GuideFor(["logic-perl-method-in-string"], "A method called inside text",
             "Perl puts a variable's value into text in double quotes, but it calls no method there. In \"Name: $student->name\" it puts " +
             "in $student - an object, which it writes as its class and where it is kept - and writes ->name after it as it is.",

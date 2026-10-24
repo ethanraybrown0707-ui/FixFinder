@@ -69,6 +69,30 @@ internal static class RubyPatternGuides
             puts side ** 2
             """),
 
+        GuideFor(["logic-ruby-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In Ruby ** is worked out before /, so " +
+            "side ** 1/2 is side ** 1 - side itself - divided by 2. With 16 it is 8, not 4. Putting 1 / 3 in brackets is not enough " +
+            "either: two whole numbers divide to a whole number in Ruby, so 1 / 3 is 0, and 27 ** (1 / 3) is 1.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and ruby -w says nothing of it.",
+            "Raise it to a decimal fraction: side ** 0.5, or side ** (1.0 / 3) for a cube root.",
+            """
+            side = 16
+            puts side ** 0.5
+            """),
+
+        GuideFor(["logic-ruby-bang-result-kept"], "Keeping what a ! method gives back",
+            "Methods ending in ! - strip!, uniq!, gsub! and their like - change the value they are called on, and give back nil " +
+            "when there was nothing to change: \"Ada\".strip! is nil, as \"Ada\" has no spaces to take off. So fixed = name.strip! " +
+            "makes fixed nil whenever name was already as strip! would leave it.",
+            "The name holds nil for some values and not others - often for input that was typed neatly - so puts prints an empty " +
+            "line, and a method called on it stops the program with NoMethodError. ruby -w says nothing of it.",
+            "Use the method without the !, which gives back a changed copy every time: fixed = name.strip.",
+            """
+            name = "Ada"
+            fixed = name.strip
+            puts fixed
+            """),
+
         GuideFor(["logic-ruby-input-not-chomped"], "A line read with its newline still on it",
             "gets gives back the line that was typed with the newline from pressing Enter still on the end: typing yes gives \"yes\\n\". " +
             "Compared with \"yes\", it is not equal.",

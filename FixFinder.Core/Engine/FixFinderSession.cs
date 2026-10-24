@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FixFinder.Core.Execution;
 using FixFinder.Core.Fingerprinting;
 using FixFinder.Core.Http;
@@ -65,6 +66,12 @@ public sealed record SessionOutcome
     public int LeftOutAsUnrelated { get; init; }
 
     public bool FailedToCompile { get; init; }
+
+    /// <summary>
+    /// Whether the program stopped because it asked for input and there was no more to read - which is said to the person,
+    /// as what to type, rather than reported as a mistake in the program.
+    /// </summary>
+    public bool AskedForInput { get; init; }
 
     public bool CanApply => Plan is { CanApply: true };
 }
@@ -397,7 +404,8 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
             };
         }
 
-        if (AskedForInput(error)) return NeedsInput(run, error, spec, sourceFolder);
+        if (AskedForInput(error, run.Lines, sourceFolder, nothingTyped: string.IsNullOrEmpty(spec.StandardInput)))
+            return NeedsInput(run, error, spec, sourceFolder);
 
         return await SearchForAsync(
             run, error, spec, budget, sourceFolder, failedToCompile,
@@ -442,14 +450,86 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         run.ExitCode is 0 ? null : RefusalMessages.FirstOrDefault(message =>
             run.Lines.Any(line => line.Text.Contains(message, StringComparison.Ordinal)));
 
-    private static bool AskedForInput(ParsedError error) => error.LanguageId switch
+    /// <summary>
+    /// Whether the program stopped because it asked for input and there was no more to read - by what each language does when
+    /// a read finds the input at its end, each seen in a real run with nothing typed. Where the same sign has another cause -
+    /// Lua's io.read("n") gives nil for text that is not a number too, and Rust's ParseIntError { kind: Empty } is a blank line
+    /// as much as no line - it is taken as asking for input only when nothing at all was typed.
+    /// </summary>
+    /// <param name="printed">What the run printed: Elixir names the :eof a read gave back there, not in its message.</param>
+    /// <param name="sourceFolder">Where the program is, for a file the error names by its name alone.</param>
+    internal static bool AskedForInput(ParsedError error, IReadOnlyList<CapturedLine> printed, string? sourceFolder, bool nothingTyped)
     {
-        "python" => error.ExceptionType == "EOFError" &&
-                    (error.Message ?? "").Contains("EOF when reading a line", StringComparison.Ordinal),
-        "java" => error.ExceptionType == "java.util.NoSuchElementException" &&
-                  error.Frames.Any(frame => frame.Symbol?.Contains("Scanner", StringComparison.Ordinal) == true),
-        _ => false,
-    };
+        var message = error.Message ?? "";
+
+        return error.LanguageId switch
+        {
+            "python" => error.ExceptionType == "EOFError" && message.Contains("EOF when reading a line", StringComparison.Ordinal),
+            "java" => error.ExceptionType == "java.util.NoSuchElementException" &&
+                      error.Frames.Any(frame => frame.Symbol?.Contains("Scanner", StringComparison.Ordinal) == true),
+            // java.io.EOFException: Console has reached end of input, at scala.io.StdIn.readInt.
+            "scala" => error.ExceptionType == "java.io.EOFException" &&
+                       error.Frames.Any(frame => frame.Symbol?.StartsWith("scala.io.StdIn", StringComparison.Ordinal) == true),
+            // At line 4 of file main.f90 (unit = 5, file = 'stdin') / Fortran runtime error: End of file.
+            "fortran" => error.ExceptionType == Parsing.Parsers.FortranParser.RuntimeError && message == "End of file" &&
+                         error.RawText.Contains("file = 'stdin'", StringComparison.Ordinal),
+            // The arguments String.trim/1 was given: # 1 :eof - what IO.gets gives back at the end of the input.
+            "elixir" => error.ExceptionType == "FunctionClauseError" && printed.Any(line => line.Text.Trim() == ":eof"),
+            // undefined method `chomp' for nil, on a line that reads with gets - which gives nil at the end of the input.
+            "ruby" => error.ExceptionType == "NoMethodError" && message.Contains("for nil", StringComparison.Ordinal) &&
+                      LineStoppedAt(error, sourceFolder) is { } rubyLine && Regex.IsMatch(rubyLine.Line, @"\bgets\b"),
+            "rust" => nothingTyped && message.Contains("kind: Empty", StringComparison.Ordinal) &&
+                      LineStoppedAt(error, sourceFolder) is { } rustLine && rustLine.Program.Contains("read_line(", StringComparison.Ordinal),
+            // Console.ReadLine() gives null at the end of the input, and int.Parse(null) or typed.Length is where it shows.
+            "csharp" => error.ExceptionType is "System.ArgumentNullException" or "System.NullReferenceException" &&
+                        UsesWhatWasRead(error, sourceFolder, @"(?:System\.)?Console\.ReadLine\(\)"),
+            "fsharp" => error.ExceptionType == "System.NullReferenceException" &&
+                        UsesWhatWasRead(error, sourceFolder, @"(?:(?:System\.)?Console|stdin)\.ReadLine\(\)"),
+            "dart" => message.StartsWith("Null check operator used on a null value", StringComparison.Ordinal) &&
+                      UsesWhatWasRead(error, sourceFolder, @"stdin\.readLineSync\("),
+            "lua" => nothingTyped && Regex.Match(message, @"a nil value \((?:local|global) '(?<name>[A-Za-z_]\w*)'\)") is { Success: true } nil &&
+                     LineStoppedAt(error, sourceFolder) is { } luaLine &&
+                     Regex.IsMatch(luaLine.Program, $@"\b{Regex.Escape(nil.Groups["name"].Value)}\s*=\s*io\.read\("),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Whether the line the program stopped at uses what a read gave it: the read itself, or a name a read was put into -
+    /// <c>string? typed = Console.ReadLine();</c> and then <c>int.Parse(typed!)</c>.
+    /// </summary>
+    private static bool UsesWhatWasRead(ParsedError error, string? sourceFolder, string read)
+    {
+        if (LineStoppedAt(error, sourceFolder) is not { } stopped) return false;
+        if (Regex.IsMatch(stopped.Line, read)) return true;
+
+        return Regex.Matches(stopped.Program, $@"\b(?<name>[A-Za-z_]\w*)\s*=\s*{read}")
+            .Any(assigned => Regex.IsMatch(stopped.Line, $@"\b{Regex.Escape(assigned.Groups["name"].Value)}\b"));
+    }
+
+    /// <summary>
+    /// The line of the program the error stopped at, and the whole program - from the program's folder when the error names
+    /// its file by name alone, as Lua's and Java's do.
+    /// </summary>
+    private static (string Line, string Program)? LineStoppedAt(ParsedError error, string? sourceFolder)
+    {
+        if ((error.CulpritFrame ?? error.Frames.FirstOrDefault()) is not { File: { } file, Line: { } number }) return null;
+
+        var path = Path.IsPathRooted(file) && File.Exists(file)
+            ? file
+            : sourceFolder is null ? null : Path.Combine(sourceFolder, Path.GetFileName(file));
+
+        try
+        {
+            if (path is null || !File.Exists(path)) return null;
+            var lines = File.ReadAllLines(path);
+            return number >= 1 && number <= lines.Length ? (lines[number - 1], string.Join("\n", lines)) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
 
     private static SessionOutcome NeedsInput(TargetRunResult run, ParsedError error, TargetSpec spec, string? sourceFolder)
     {
@@ -460,6 +540,7 @@ public sealed class FixFinderSession(FixFinderHttpClient http, FixSourceRegistry
         return new SessionOutcome
         {
             Result = SessionResult.NothingFound,
+            AskedForInput = true,
             Headline = typed == 0
                 ? "It stopped to ask for input, and there was nobody to type it."
                 : $"It asked for more input than the {typed} line{(typed == 1 ? "" : "s")} you gave it.",

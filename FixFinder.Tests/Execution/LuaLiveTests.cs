@@ -139,6 +139,11 @@ public class LuaLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("local typed = \"5\"\nif typed == 5 then\n  print(\"five\")\nelse\n  print(\"not five\")\nend\n", "logic-lua-text-compared-with-number", 2, "five")]
     [InlineData("local total = 0.1 + 0.2\nif total == 0.3 then\n  print(\"equal\")\nelse\n  print(\"not equal\")\nend\n", "logic-lua-float-equality", 2, "equal")]
     [InlineData("local marks = {70, 40, 40, 90}\nfor i = 1, #marks do\n  if marks[i] == 40 then\n    table.remove(marks, i)\n  end\nend\nprint(table.concat(marks, \" \"))\n", "logic-lua-remove-while-looping-forward", 2, "70 90")]
+    // # of a table given only keys: the mistake printed People: 0, and took the no marks branch.
+    [InlineData("local ages = {Ada = 36, Bob = 20}\nprint(\"People: \" .. #ages)\n", "logic-lua-length-of-keyed-table", 2, "People: 2")]
+    [InlineData("local marks = {\n  [\"maths\"] = 70,\n  art = 80,\n}\nif #marks == 0 then\n  print(\"no marks\")\nelse\n  print(\"marks\")\nend\n", "logic-lua-length-of-keyed-table", 5, "marks")]
+    // A root written as a power of one half: the mistake printed 8.0.
+    [InlineData("local side = 16\nprint(side^1/2)\n", "logic-lua-power-of-one-over", 2, "4.0")]
     public async Task ALogicMistakeLuaSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Lua() is not { } lua) return;

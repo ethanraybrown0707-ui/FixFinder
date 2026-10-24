@@ -177,6 +177,10 @@ public class PerlLiveTests(ITestOutputHelper output) : IDisposable
     // Perl calls no method inside text: the mistake printed "Name: Student=HASH(0x...)->name".
     [InlineData(Strict + "package Student;\nsub new { my ($class, $name) = @_; return bless { name => $name }, $class; }\nsub name { return $_[0]{name}; }\n\npackage main;\nmy $student = Student->new(\"Ada\");\nprint \"Name: $student->name\\n\";\n",
         "logic-perl-method-in-string", 10, "", "Name: Ada")]
+    // sort with nothing to compare by: the mistake printed 10 100 9.
+    [InlineData(Strict + "my @marks = (10, 9, 100);\nmy @sorted = sort @marks;\nprint \"@sorted\\n\";\n", "logic-perl-numbers-sorted-as-text", 5, "", "9 10 100")]
+    // A root written as a power of one half: the mistake printed 8.
+    [InlineData(Strict + "my $side = 16;\nprint $side ** 1/2, \"\\n\";\n", "logic-perl-power-of-one-over", 5, "", "4")]
     public async Task ALogicMistakeIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string input, string fixedPrints)
     {
         if (Perl() is not { } perl) return;

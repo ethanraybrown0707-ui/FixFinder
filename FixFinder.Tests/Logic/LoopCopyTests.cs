@@ -27,7 +27,7 @@ public class LoopCopyPatternTests : IDisposable
     private static readonly string[] Checks =
     [
         "logic-python-loop-variable-changed", "logic-js-loop-copy-changed", "logic-php-foreach-copy-changed", "logic-ruby-each-for-map",
-        "logic-go-range-index-as-value", "logic-powershell-function-output-returned", "logic-js-for-in-over-array",
+        "logic-elixir-each-for-map", "logic-go-range-index-as-value", "logic-powershell-function-output-returned", "logic-js-for-in-over-array",
     ];
 
     [Theory]
@@ -49,6 +49,10 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.php", "<?php\n$marks = [70, 80];\n$total = 0;\nforeach ($marks as $mark) {\n    $total += $mark;\n}\necho $total, count($marks);\n")]
     // each run for what its block does, its result not kept.
     [InlineData("main.rb", "marks = [70, 80]\nmarks.each { |mark| puts mark }\n")]
+    [InlineData("main.exs", "marks = [70, 80]\nEnum.each(marks, fn mark -> IO.puts(mark) end)\n")]
+    // What Enum.each gives back given to a name Elixir keeps for values thrown away, or to one never read.
+    [InlineData("main.exs", "marks = [70, 80]\n_shown = Enum.each(marks, &IO.puts/1)\n")]
+    [InlineData("main.exs", "marks = [70, 80]\nshown = Enum.each(marks, &IO.puts/1)\n")]
     // range's one variable used as a position.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80}\n\ttotal := 0\n\tfor i := range marks {\n\t\ttotal += marks[i]\n\t}\n\tfmt.Println(total)\n}\n")]
     // range over a map gives its keys.
@@ -88,6 +92,8 @@ public class LoopCopyLiveTests(ITestOutputHelper output) : IDisposable
             "logic-php-foreach-copy-changed", 4, "70 80 90", "75 85 95"
         },
         { "Ruby", "main.rb", "marks = [70, 80]\ndoubled = marks.each { |mark| mark * 2 }\np doubled\n", "logic-ruby-each-for-map", 2, "[70, 80]", "[140, 160]" },
+        { "Elixir", "main.exs", "marks = [70, 80]\ndoubled = Enum.each(marks, fn mark -> mark * 2 end)\nIO.inspect(doubled)\n", "logic-elixir-each-for-map", 2, ":ok", "[140, 160]" },
+        { "Elixir", "main.exs", "marks = [70, 80]\ndoubled = marks |> Enum.each(fn mark -> mark * 2 end)\nIO.inspect(doubled)\n", "logic-elixir-each-for-map", 2, ":ok", "[140, 160]" },
         {
             "Go", "main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\ttotal := 0\n\tfor mark := range marks {\n\t\ttotal += mark\n\t}\n\tfmt.Println(total)\n}\n",
             "logic-go-range-index-as-value", 8, "3", "240"

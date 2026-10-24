@@ -298,3 +298,116 @@ public sealed partial class FortranDidYouMean : ILocalFixRule
             at.Source.Path, at.Number, corrected);
     }
 }
+
+/// <summary>
+/// "Unterminated character constant beginning at (1)": text opened with a quote on this line and never closed - gfortran's
+/// text cannot run on to the next line. The same quote closes it at the end of the line.
+/// </summary>
+public sealed class FortranCloseText : ILocalFixRule
+{
+    public string Id => "fortran-close-text";
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!FortranCode.IsCompileError(context) || !FortranCode.Says(context, "Unterminated character constant") || FortranCode.Locate(context) is not { } at) return null;
+        if (OpenQuote(at.Line) is not { } quote) return null;
+
+        return LocalFix.ReplaceLine(Id, $"Close the text with {quote}",
+            $"The text that starts with {quote} on line {at.Number} is never closed, and text in Fortran ends on the line it starts on. " +
+            $"The same {quote} at the end of the line closes it.",
+            at.Source.Path, at.Number, at.Line.TrimEnd() + quote);
+    }
+
+    /// <summary>The quote a line leaves open at its end - a doubled quote inside text is one quote of the text - or null.</summary>
+    private static char? OpenQuote(string line)
+    {
+        char? open = null;
+
+        for (var index = 0; index < line.Length; index++)
+        {
+            var character = line[index];
+            if (open is null)
+            {
+                if (character == '!') return null;
+                if (character is '"' or '\'') open = character;
+            }
+            else if (character == open)
+            {
+                if (index + 1 < line.Length && line[index + 1] == open) index++;
+                else open = null;
+            }
+        }
+
+        return open;
+    }
+}
+
+/// <summary>
+/// "Expected a right parenthesis in expression at (1)": a line that opens more round brackets than it closes. The ones it
+/// leaves open are closed at the end of its code, before any comment.
+/// </summary>
+public sealed class FortranCloseBracket : ILocalFixRule
+{
+    public string Id => "fortran-close-bracket";
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!FortranCode.IsCompileError(context) || !FortranCode.Says(context, "Expected a right parenthesis") || FortranCode.Locate(context) is not { } at) return null;
+
+        var masked = CodeText.Mask(at.Line, Syntax.Fortran);
+        var leftOpen = masked.Count(character => character == '(') - masked.Count(character => character == ')');
+        if (leftOpen <= 0) return null;
+
+        var (code, comment) = CodeText.SplitComment(at.Line, Syntax.Fortran);
+        var closing = new string(')', leftOpen);
+
+        return LocalFix.ReplaceLine(Id, leftOpen == 1 ? "Close the bracket with )" : $"Close the {leftOpen} brackets with {closing}",
+            $"Line {at.Number} opens {leftOpen} round bracket{(leftOpen == 1 ? "" : "s")} more than it closes, so gfortran reached the end " +
+            "of the line still inside one.",
+            at.Source.Path, at.Number, code + closing + comment);
+    }
+}
+
+/// <summary>
+/// "Unexpected end of file in 'marks.f90'", all gfortran says when a file ends with no end line for what it opened: each
+/// program, subroutine, function or module still open at the end gets its end line, the innermost first, named and
+/// indented as its own first line is.
+/// </summary>
+public sealed partial class FortranCloseUnits : ILocalFixRule
+{
+    public string Id => "fortran-close-units";
+
+    /// <summary><c>program marks</c>, <c>subroutine show(mark)</c>, <c>integer function twice(n)</c>, <c>module grades</c>.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)(?:(?:pure|elemental|recursive|impure|integer|real|logical|complex|character|double\s+precision)(?:\s*\([^)]*\))?\s+)*(?<kind>program|subroutine|function|module)\s+(?<name>[A-Za-z]\w*)", RegexOptions.IgnoreCase)]
+    private static partial Regex Opening();
+
+    /// <summary><c>end</c>, or <c>end program marks</c> and the like - not end do, end if, end type, end interface and the rest.</summary>
+    [GeneratedRegex(@"^\s*end\s*(?:(?:program|subroutine|function|module)\b.*)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex Closing();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!FortranCode.IsCompileError(context) || !FortranCode.Says(context, "Unexpected end of file")) return null;
+        if (context.Error.LanguageId != "fortran" || context.Frame is not { File: { } file } || context.Read(file) is not { } source) return null;
+
+        var masked = CodeText.MaskAll(source.Lines, Syntax.Fortran);
+        var open = new Stack<(string Indent, string Kind, string Name)>();
+
+        foreach (var line in masked)
+        {
+            if (Closing().IsMatch(line)) open.TryPop(out _);
+            else if (!line.TrimStart().StartsWith("end", StringComparison.OrdinalIgnoreCase) && Opening().Match(line) is { Success: true } opened)
+                open.Push((opened.Groups["indent"].Value, opened.Groups["kind"].Value.ToLowerInvariant(), opened.Groups["name"].Value));
+        }
+
+        if (open.Count == 0) return null;
+
+        var ends = open.Select(unit => $"{unit.Indent}end {unit.Kind} {unit.Name}").ToList();
+        var named = string.Join(" and ", open.Select(unit => $"the {unit.Kind} {unit.Name}"));
+
+        return LocalFix.Insert(Id, ends.Count == 1 ? $"End {named} with {ends[0].Trim()}" : $"End {named}",
+            $"The file ends with {named} still open: each runs from its first line to its own end line, and gfortran reached the end " +
+            "of the file before that line. The innermost ends first.",
+            source.Path, source.Count + 1, ends);
+    }
+}

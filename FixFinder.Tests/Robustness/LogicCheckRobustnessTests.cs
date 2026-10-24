@@ -59,7 +59,7 @@ public class LogicCheckRobustnessTests : IDisposable
     /// Every logic check that reads a program's kind of file, run on it straight - not through LogicPatterns.Scan, which passes
     /// over a check that throws, so one that throws fails here - finding only lines the program has, with changes that fit it.
     /// </summary>
-    public static void AssertEveryCheckReadsItAndPointsOnlyInsideIt(SourceFile source)
+    internal static void AssertEveryCheckReadsItAndPointsOnlyInsideIt(SourceFile source)
     {
         var readAs = TypeScriptCheck.IsTypeScript(source.Path) ? ".js" : Path.GetExtension(source.Path).ToLowerInvariant();
 
@@ -84,7 +84,7 @@ public class LogicCheckRobustnessTests : IDisposable
 
     [Theory]
     [MemberData(nameof(EveryCheckOnEveryAwkwardFile))]
-    public void ALogicCheckFinishesOnAwkwardCodeAndPointsOnlyAtLinesTheFileHas(string checkId, string extension, string awkwardName)
+    public async Task ALogicCheckFinishesOnAwkwardCodeAndPointsOnlyAtLinesTheFileHas(string checkId, string extension, string awkwardName)
     {
         var path = Path.Combine(_temp.Path, "awkward" + extension);
         File.WriteAllText(path, AwkwardCode[awkwardName]);
@@ -94,10 +94,9 @@ public class LogicCheckRobustnessTests : IDisposable
         // Every check with this name - one reads each language it is named for.
         foreach (var check in LogicPatterns.All.Where(pattern => pattern.Id == checkId && pattern.Extensions.Contains(extension)))
         {
-            var reading = Task.Run(() => check.Find(source).ToList());
-            Assert.True(reading.Wait(TimeSpan.FromMinutes(1)), $"{checkId} was still reading {awkwardName} after a minute");
+            var findings = await TimeLimit.WithinAMinute(Task.Run(() => check.Find(source).ToList()), $"{checkId} was still reading {awkwardName}");
 
-            foreach (var finding in reading.Result)
+            foreach (var finding in findings)
             {
                 Assert.InRange(finding.Line, 1, source.Lines.Count);
                 if (finding.Fix is not { } fix) continue;

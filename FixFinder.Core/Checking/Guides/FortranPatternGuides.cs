@@ -73,5 +73,21 @@ internal static class FortranPatternGuides
               end if
             end program marks
             """),
+
+        GuideFor(["logic-fortran-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In Fortran ** is worked out before /, so " +
+            "side ** 1/2 is side ** 1 - side itself - divided by 2. With 16.0 it is 8.0, not 4.0. Putting 1 / 3 in brackets is not " +
+            "enough either: two whole numbers divide to a whole number in Fortran, so 1 / 3 is 0, and 27.0 ** (1 / 3) is 1.0.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and gfortran -Wall says nothing " +
+            "of it.",
+            "Raise it to a decimal fraction: side ** 0.5, or side ** (1.0 / 3) for a cube root - or use sqrt(side).",
+            """
+            program roots
+              implicit none
+              real :: side
+              side = 16.0
+              print *, side ** 0.5
+            end program roots
+            """),
     ];
 }

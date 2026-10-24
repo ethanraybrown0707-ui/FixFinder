@@ -47,7 +47,7 @@ public class CapturedErrorTests : IDisposable
     }
 
     /// <summary>The folder a language's programs are kept in: its name in small letters, with C#, C++ and F# spelt out.</summary>
-    private static string FolderOf(string language) => language switch
+    internal static string FolderOf(string language) => language switch
     {
         "C#" => "csharp",
         "C++" => "cpp",
@@ -517,6 +517,30 @@ public class CapturedErrorTests : IDisposable
         { "Scala", "input-with-nothing-typed", "main.scala", "scala", "Exception", 4 },
     };
 
+    /// <summary>Each captured program's language and case, from the rows above.</summary>
+    public static TheoryData<string, string> CapturedCases()
+    {
+        var cases = new TheoryData<string, string>();
+        foreach (var row in Captured) cases.Add((string)row[0], (string)row[1]);
+        return cases;
+    }
+
+    /// <summary>Each captured program's language, case and the file it was saved as, from the rows above.</summary>
+    public static TheoryData<string, string, string> CapturedPrograms()
+    {
+        var programs = new TheoryData<string, string, string>();
+        foreach (var row in Captured) programs.Add((string)row[0], (string)row[1], (string)row[2]);
+        return programs;
+    }
+
+    /// <summary>Each captured program's language, case, file, and the line its error is on, from the rows above.</summary>
+    public static TheoryData<string, string, string, int> CapturedLines()
+    {
+        var lines = new TheoryData<string, string, string, int>();
+        foreach (var row in Captured) lines.Add((string)row[0], (string)row[1], (string)row[2], (int)row[5]);
+        return lines;
+    }
+
     private static IReadOnlyList<CapturedLine> Output(string language, string caseName) => Fixtures.LoadCaptured(FolderOf(language), caseName);
 
     private static string[] SourceRoots(string language, string caseName) => [Path.Combine(CapturedFolder, FolderOf(language), caseName)];
@@ -581,8 +605,8 @@ public class CapturedErrorTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(Captured))]
-    public void TheErrorIsPutDownToTheProgramNotToALibrary(string language, string caseName, string file, string reader, string kind, int line)
+    [MemberData(nameof(CapturedCases))]
+    public void TheErrorIsPutDownToTheProgramNotToALibrary(string language, string caseName)
     {
         var error = CodeLanguage.All.Single(each => each.Name == language).Parsers().Parse(Output(language, caseName), SourceRoots(language, caseName));
 
@@ -591,8 +615,8 @@ public class CapturedErrorTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(Captured))]
-    public void TheProgramIsNeverTakenForAnotherLanguagesCode(string language, string caseName, string file, string reader, string kind, int line)
+    [MemberData(nameof(CapturedPrograms))]
+    public void TheProgramIsNeverTakenForAnotherLanguagesCode(string language, string caseName, string file)
     {
         var program = File.ReadAllText(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file));
 
@@ -603,8 +627,8 @@ public class CapturedErrorTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(Captured))]
-    public void TheLineNamedIsALineOfTheProgramThatRan(string language, string caseName, string file, string reader, string kind, int line)
+    [MemberData(nameof(CapturedLines))]
+    public void TheLineNamedIsALineOfTheProgramThatRan(string language, string caseName, string file, int line)
     {
         var program = File.ReadAllText(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file)).ReplaceLineEndings("\n");
 
@@ -613,13 +637,13 @@ public class CapturedErrorTests : IDisposable
     }
 
     [Theory]
-    [MemberData(nameof(Captured))]
-    public void EveryLogicCheckReadsTheProgramAndPointsOnlyInsideIt(string language, string caseName, string file, string reader, string kind, int line) =>
+    [MemberData(nameof(CapturedPrograms))]
+    public void EveryLogicCheckReadsTheProgramAndPointsOnlyInsideIt(string language, string caseName, string file) =>
         LogicCheckRobustnessTests.AssertEveryCheckReadsItAndPointsOnlyInsideIt(SourceFile.Read(Path.Combine(Fixtures.Root, "Captured", FolderOf(language), caseName, file))!);
 
     [Theory]
-    [MemberData(nameof(Captured))]
-    public void EveryFixRuleAnswersTheErrorAndAnyChangeItOffersFitsTheProgram(string language, string caseName, string file, string reader, string kind, int line)
+    [MemberData(nameof(CapturedPrograms))]
+    public void EveryFixRuleAnswersTheErrorAndAnyChangeItOffersFitsTheProgram(string language, string caseName, string file)
     {
         // The program copied to a folder of its own, and the output made to name that folder where it named the one it ran in -
         // with \ or /, and with \\ as gcc writes the file of a change it suggests.
