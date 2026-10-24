@@ -846,10 +846,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (outcome.Error is { } error)
         {
-            // Input running out - Python's EOFError, or Java's Scanner finding nothing more to read - is said rather than reported.
-            // A Scala program's NoSuchElementException is its own mistake: None.get, the head of an empty list, a key not there.
-            if ((error.ExceptionType == "EOFError" || error is { LanguageId: "java", ExceptionType: "java.util.NoSuchElementException" }) &&
-                outcome.Result == SessionResult.NothingFound && outcome.Best is null)
+            // Input running out - in each language as FixFinderSession.AskedForInput reads it - is said rather than reported.
+            if (outcome.AskedForInput)
             {
                 Note($"{outcome.Headline} {outcome.Detail}");
                 return;

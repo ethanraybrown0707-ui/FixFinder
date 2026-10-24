@@ -47,7 +47,7 @@ public class CapturedErrorTests : IDisposable
     }
 
     /// <summary>The folder a language's programs are kept in: its name in small letters, with C#, C++ and F# spelt out.</summary>
-    private static string FolderOf(string language) => language switch
+    internal static string FolderOf(string language) => language switch
     {
         "C#" => "csharp",
         "C++" => "cpp",
