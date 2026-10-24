@@ -137,6 +137,8 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("count = 0\nIO.puts(div(10, count))\n", "elixir-division-guard", 2, "IO.puts((if count == 0, do: 0, else: div(10, count)))", "0")]
     [InlineData("marks = [70, 80]\nIO.puts(marks[0])\n", "elixir-list-index", 2, "IO.puts(Enum.at(marks, 0))", "70")]
     [InlineData("typed = \"12\\n\"\nIO.puts(String.to_integer(typed) + 1)\n", "elixir-trim-input", 2, "IO.puts(String.to_integer(String.trim(typed)) + 1)", "13")]
+    // length of text: "1st argument: not a list".
+    [InlineData("name = \"Ada\"\nIO.puts(length(name))\n", "elixir-string-length", 2, "IO.puts(String.length(name))", "3")]
     public async Task WhatStoppedTheProgramGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Elixir() is not { } elixir) return;

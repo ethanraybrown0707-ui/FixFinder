@@ -554,3 +554,29 @@ public sealed partial class ElixirTrimInput : ILocalFixRule
             at.Line[..conversion.Index] + $"String.to_{kind}(String.trim({text}))" + at.Line[(conversion.Index + conversion.Length)..]);
     }
 }
+
+/// <summary>
+/// ArgumentError "1st argument: not a list" from :erlang.length("Ada"): length counts a list's items, and text in double
+/// quotes is not a list. String.length counts the characters of text.
+/// </summary>
+public sealed partial class ElixirStringLength : ILocalFixRule
+{
+    public string Id => "elixir-string-length";
+
+    /// <summary><c>length(name)</c> - Kernel's length, not String's or another module's.</summary>
+    [GeneratedRegex(@"(?<![\w.])length\(")]
+    private static partial Regex Length();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        var raw = context.Error.RawText;
+        if (!ElixirCode.Is(context, "ArgumentError") || !raw.Contains("not a list", StringComparison.Ordinal) ||
+            !Regex.IsMatch(raw, @":erlang\.length\(""") || ElixirCode.Locate(context) is not { } at) return null;
+        if (Length().Matches(ElixirCode.Masked(at.Line)) is not [var length]) return null;
+
+        return LocalFix.ReplaceLine(Id, "Count the text's characters: String.length(...)",
+            "length counts the items of a list, and text in double quotes is not a list, so Elixir stops. String.length counts the " +
+            "characters of text.",
+            at.Source.Path, at.Number, at.Line[..length.Index] + "String." + at.Line[length.Index..]);
+    }
+}

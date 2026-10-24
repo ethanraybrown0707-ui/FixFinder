@@ -200,5 +200,17 @@ internal static class RubyPatternGuides
             total = 60
             puts score * 100 / total
             """),
+
+        GuideFor(["logic-ruby-each-with-index-order"], "each_with_index's names the wrong way round",
+            "each_with_index gives its block two values: each item first, and its position second. A block written |index, mark| " +
+            "gives index the item and mark the position - the names say the opposite of what they hold.",
+            "The program uses positions as items and items as positions - 70: 0 instead of 0: 70 - and ruby -w says nothing of it.",
+            "Name the item first: each_with_index do |mark, index|.",
+            """
+            marks = [70, 80]
+            marks.each_with_index do |mark, index|
+              puts "#{index}: #{mark}"
+            end
+            """),
     ];
 }

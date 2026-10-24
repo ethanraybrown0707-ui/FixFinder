@@ -286,5 +286,16 @@ internal static class ManagedPatternGuides
             int[] second = { 70, 80 };
             Console.WriteLine(first.SequenceEqual(second));
             """),
+
+        GuideFor(["logic-csharp-chars-added"], "A char added to a number or a char",
+            "A char is a number underneath - each character has a code, and 'A' is 65. Adding a whole number or another char to it " +
+            "adds the codes and gives a number, so grade + 1 is 66, not 'B', and 'a' + 'b' is 195, not \"ab\". Console prints " +
+            "that number.",
+            "A number is printed where a letter or two letters were meant, with no error or warning.",
+            "Turn the sum back into a character with (char)(grade + 1), or start from text to join two characters: \"\" + 'a' + 'b'.",
+            """
+            char grade = 'A';
+            Console.WriteLine((char)(grade + 1));
+            """),
     ];
 }

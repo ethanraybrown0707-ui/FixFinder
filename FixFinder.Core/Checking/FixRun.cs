@@ -26,6 +26,10 @@ public static class FixRun
     /// The file the program is run from - the one chosen - when the fix is in another of its files, such as a class it
     /// uses: the copy of the program is run from there, with the fixed file in its place. Null runs the fixed file itself.
     /// </param>
+    /// <param name="typed">
+    /// What was typed into the program when it failed: a copy run with nothing typed would stop at its first read, before it
+    /// reached what the fix changed, so the plain run is given the same.
+    /// </param>
     public static async Task<Verification> CheckAsync(
         Verification sofar,
         SourceFile source,
@@ -33,7 +37,8 @@ public static class FixRun
         ParsedError? original,
         ExpectedBehaviour? expected,
         CancellationToken cancellationToken,
-        string? program = null)
+        string? program = null,
+        string? typed = null)
     {
         if (fix.ApplyTo(source) is not { } changed) return sofar;
 
@@ -59,7 +64,7 @@ public static class FixRun
                 return sofar.With(VerificationStage.Ran, StageResult.Skipped, "There was nothing on this machine to run it with.");
             }
 
-            return await JudgeAsync(sofar, plan, original, expected, cancellationToken);
+            return await JudgeAsync(sofar, plan, original, expected, cancellationToken, typed);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -109,7 +114,7 @@ public static class FixRun
     }
 
     internal static async Task<Verification> JudgeAsync(
-        Verification sofar, LaunchPlan plan, ParsedError? original, ExpectedBehaviour? expected, CancellationToken cancellationToken)
+        Verification sofar, LaunchPlan plan, ParsedError? original, ExpectedBehaviour? expected, CancellationToken cancellationToken, string? typed = null)
     {
         var runner = new TargetRunner(new ParserRegistry());
 
@@ -129,15 +134,16 @@ public static class FixRun
         }
 
         // One run per thing the person said the program should print, so every one of them is checked - and a single
-        // plain run when they said nothing, because the failure is worth testing either way.
-        var wanted = expected is { IsEmpty: false } ? expected.Runs : [new ExpectedRun(null, "")];
+        // plain run when they said nothing, because the failure is worth testing either way: given what was typed when it
+        // failed, so a program that reads input reaches the line the fix changed.
+        var wanted = expected is { IsEmpty: false } ? expected.Runs : [new ExpectedRun(string.IsNullOrEmpty(typed) ? null : typed, "")];
         var checkingOutput = expected is { IsEmpty: false };
 
         var mismatched = (string?)null;
 
         foreach (var want in wanted)
         {
-            var spec = want.Input is { } typed ? plan.Spec!.WithInput(typed) : plan.Spec!;
+            var spec = want.Input is { } input ? plan.Spec!.WithInput(input) : plan.Spec!;
             var run = await runner.RunAsync(spec, cancellationToken);
 
             if (run.Outcome == RunOutcome.TimedOut)

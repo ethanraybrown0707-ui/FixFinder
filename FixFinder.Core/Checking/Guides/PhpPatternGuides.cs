@@ -181,5 +181,19 @@ internal static class PhpPatternGuides
             array_push($marks, 90);
             echo implode(" ", $marks), "\n";
             """),
+
+        GuideFor(["logic-php-search-as-condition"], "A search's result used as the condition",
+            "strpos and array_search give the position where they found what they looked for, counting from 0, and false when they " +
+            "found nothing. A condition counts 0 as false too, so if (strpos($word, \"a\")) treats a match at the very start - " +
+            "position 0 - as no match.",
+            "Text or an array that starts with what is looked for is treated as not containing it, and neither php -l nor PHP says anything.",
+            "Compare with false strictly: if (strpos($word, \"a\") !== false).",
+            """
+            <?php
+            $word = "apple";
+            if (strpos($word, "a") !== false) {
+                echo "has an a\n";
+            }
+            """),
     ];
 }

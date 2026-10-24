@@ -204,5 +204,20 @@ internal static class PerlPatternGuides
             my @parts = split(/\./, "3.14");
             print join(",", @parts), "\n";
             """),
+
+        GuideFor(["logic-perl-loop-to-last-index"], "A loop that stops below $#array",
+            "$#marks is the last position in @marks - one less than how many items it holds, as positions count from 0. A loop " +
+            "that runs while $i < $#marks stops one position early, so the last item is never read.",
+            "The last item is left out - (70, 80, 90) printed 70 and 80 - and Perl says nothing of it, even with use warnings.",
+            "Go up to the last position itself: $i <= $#marks - or loop over the items with foreach my $mark (@marks).",
+            """
+            use strict;
+            use warnings;
+
+            my @marks = (70, 80, 90);
+            for (my $i = 0; $i <= $#marks; $i++) {
+                print $marks[$i], "\n";
+            }
+            """),
     ];
 }

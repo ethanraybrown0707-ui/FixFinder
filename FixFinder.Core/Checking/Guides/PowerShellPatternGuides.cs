@@ -184,5 +184,17 @@ internal static class PowerShellPatternGuides
             $total = 150
             Write-Host ("Total: " + $total)
             """),
+
+        GuideFor(["logic-powershell-arguments-with-commas"], "A function's values separated by commas",
+            "In PowerShell a comma makes a list. So Get-Area 3, 4 gives the function one value - the list 3, 4 - for its first " +
+            "parameter, and nothing for its second. A function's values are separated by spaces, as a command's are.",
+            "The function works with the wrong values - Get-Area 3, 4 gave back nothing at all - and PowerShell says nothing of it.",
+            "Separate the values with spaces: Get-Area 3 4.",
+            """
+            function Get-Area($width, $height) {
+                return $width * $height
+            }
+            Write-Output (Get-Area 3 4)
+            """),
     ];
 }

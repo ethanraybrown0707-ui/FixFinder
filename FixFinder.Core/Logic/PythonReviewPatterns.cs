@@ -46,7 +46,42 @@ public static partial class PythonReviewPatterns
         Pattern("logic-python-file-not-closed", FileNotClosed, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-python-except-or", ExceptOr, Severity.Error, Confidence.Certain),
         Pattern("logic-python-main-never-called", MainNeverCalled, Severity.Error),
+        Pattern("logic-python-or-before-in", OrBeforeIn, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>"a" or "e" in word</c> - two or more pieces of text joined with or, then in and what they are looked for in.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<texts>(?:""[^""]*""|'[^']*')(?:\s+or\s+(?:""[^""]*""|'[^']*'))+)\s+(?<negated>not\s+)?in\s+(?<container>[A-Za-z_][\w.]*(?:\[[^\[\]]*\]|\(\))?)")]
+    private static partial Regex OrBeforeInRegex();
+
+    /// <summary>
+    /// <c>if "a" or "e" in word:</c>: or is worked out last, so this is "a" or ("e" in word) - and "a", text that is not empty,
+    /// counts as true by itself, so the condition is always true: "sky" was said to have a vowel. The change looks each one
+    /// up in turn.
+    /// </summary>
+    private static IEnumerable<LogicFinding> OrBeforeIn(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var i = 0; i < masked.Count; i++)
+        {
+            foreach (Match match in OrBeforeInRegex().Matches(source.Lines[i]))
+            {
+                // Read from the line as written, as masking blanks text; the match must start in code, not inside text or a comment.
+                if (match.Index >= masked[i].Length || masked[i][match.Index] is not ('"' or '\'')) continue;
+
+                var texts = Regex.Split(match.Groups["texts"].Value, @"\s+or\s+");
+                var container = match.Groups["container"].Value;
+                var negated = match.Groups["negated"].Success;
+                var line = source.Lines[i];
+                var each = string.Join(negated ? " and " : " or ", texts.Select(text => $"{text}{(negated ? " not" : "")} in {container}"));
+
+                yield return new LogicFinding(id, i + 1,
+                    $"or is worked out last, so this is {texts[0]} or ({string.Join(" or ", texts[1..])}{(negated ? " not" : "")} in {container}) - and " +
+                    $"{texts[0]}, text that is not empty, counts as true by itself, so the condition is true whatever {container} holds",
+                    Replace(id, $"Look each one up: {each}",
+                        $"in looks up one value at a time, so each piece of text gets an in {container} of its own.",
+                        source, i + 1, line[..match.Index] + each + line[(match.Index + match.Length)..]));
+            }
+        }
+    }
 
     /// <summary><c>except ValueError or TypeError:</c> - two or more kinds of error joined with or, with as and a name or not.</summary>
     [GeneratedRegex(@"^(?<indent>\s*)except\s+(?<kinds>[A-Z]\w*(?:\.\w+)*(?:\s+or\s+[A-Z]\w*(?:\.\w+)*)+)\s*(?<name>as\s+[A-Za-z_]\w*\s*)?:(?<rest>.*)$")]

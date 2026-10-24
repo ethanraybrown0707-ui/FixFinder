@@ -520,6 +520,23 @@ internal static class BracePatternGuides
             int code = 10;
             """),
 
+        GuideFor(["logic-java-boolean-assigned-in-condition"], "= in a condition on a boolean",
+            "= gives a variable a value, and == compares. Java refuses = in a condition for most variables, but a boolean's value is " +
+            "true or false, which a condition can use - so if (done = true) gives done the value true, and the condition is that " +
+            "value: always true.",
+            "The if always runs - or never, with = false - and the variable is changed as a side effect, with no error or warning.",
+            "Ask for the boolean itself: if (done), or if (!done) for false.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    boolean done = false;
+                    if (done) {
+                        System.out.println("done");
+                    }
+                }
+            }
+            """),
+
         GuideFor(["logic-percent-divided-first"], "A percentage that divides first",
             "In C, C++, Java and C#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In " +
             "score / total * 100 the division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",

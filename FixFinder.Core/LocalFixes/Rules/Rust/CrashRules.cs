@@ -79,3 +79,37 @@ internal static partial class RustLoops
             source.Path, lineNumber, line[..range.Index] + ".." + line[(range.Index + range.Length)..]);
     }
 }
+
+/// <summary>
+/// A panic of "called `Result::unwrap()` on an `Err` value: ParseIntError { kind: InvalidDigit }" on a line that parses
+/// text read_line read: read_line keeps the newline from pressing Enter, and "21\n" is not a number. The text is trimmed of
+/// it before it is parsed.
+/// </summary>
+public sealed partial class RustTrimBeforeParse : ILocalFixRule
+{
+    public string Id => "rust-trim-before-parse";
+
+    [GeneratedRegex(@"Parse(?:Int|Float)Error \{ kind: (?:InvalidDigit|Invalid) \}")]
+    private static partial Regex NotANumber();
+
+    /// <summary><c>text.parse()</c> or <c>text.parse::&lt;i32&gt;()</c> - a name's text parsed with nothing trimmed first.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<name>[a-z_]\w*)(?<parse>\.parse(?:::<[^<>]+>)?\(\))")]
+    private static partial Regex Parsed();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (context.Error.LanguageId != "rust" || context.Error.ExceptionType != "panic" || !NotANumber().IsMatch(context.Error.Message ?? "")) return null;
+        if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source || !RustProgram.IsRust(source.Path)) return null;
+        if (source.Line(number) is not { } line || Parsed().Matches(CodeText.Mask(line, Syntax.CLike)) is not [var parsed]) return null;
+
+        var name = parsed.Groups["name"].Value;
+        var readLine = new Regex($@"\.read_line\(\s*&mut\s+{Regex.Escape(name)}\s*\)");
+        if (!CodeText.MaskAll(source.Lines, Syntax.CLike).Any(readLine.IsMatch)) return null;
+
+        var parse = parsed.Groups["parse"];
+        return LocalFix.ReplaceLine(Id, $"Trim the newline first: {name}.trim(){parse.Value}",
+            $"read_line keeps the newline from pressing Enter on the end of {name} - \"21\\n\" - and parse will not read a newline as part of a " +
+            "number. trim takes it off first.",
+            source.Path, number, line[..parse.Index] + ".trim()" + line[parse.Index..]);
+    }
+}

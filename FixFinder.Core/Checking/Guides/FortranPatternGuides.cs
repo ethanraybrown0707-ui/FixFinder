@@ -104,5 +104,21 @@ internal static class FortranPatternGuides
               print *, score * 100 / total
             end program marks
             """),
+
+        GuideFor(["logic-fortran-single-precision-constant"], "A double given a single-precision decimal",
+            "In Fortran a decimal written plainly - 0.1 - is a default real, single precision, which keeps about seven digits. " +
+            "Given to a double precision variable it is rounded to those seven digits first, so the variable holds " +
+            "0.10000000149011612, not 0.1.",
+            "The double holds a less exact value than written, which shows in the later digits of every sum, and gfortran -Wall " +
+            "says nothing of it.",
+            "Write the decimal as a double, with d0 after it: rate = 0.1d0.",
+            """
+            program marks
+              implicit none
+              double precision :: rate
+              rate = 0.1d0
+              print *, rate
+            end program marks
+            """),
     ];
 }

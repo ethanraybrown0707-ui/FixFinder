@@ -26,7 +26,44 @@ public static partial class FortranLogicPatterns
         Pattern("logic-fortran-no-implicit-none", NoImplicitNone),
         Pattern("logic-fortran-total-not-started", TotalNotStarted),
         Pattern("logic-fortran-float-equality", FloatEquality),
+        Pattern("logic-fortran-single-precision-constant", SinglePrecisionConstant, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>rate = 0.1</c>, or <c>double precision :: rate = 0.1</c> - a decimal written with no d0 or kind after it.</summary>
+    [GeneratedRegex(@"(?:^\s*(?<name>[A-Za-z]\w*)\s*=|::.*?(?<name>[A-Za-z]\w*)\s*=)\s*(?<value>[-+]?(?:\d+\.\d*|\.\d+))(?![\w.])\s*(?:!.*)?$")]
+    private static partial Regex GivenADecimal();
+
+    /// <summary>
+    /// A double precision name given a decimal written with no d0: such a decimal is a default real, single precision, and
+    /// is rounded to about seven digits before it is stored - rate = 0.1 printed 0.10000000149011612, with nothing said by
+    /// gfortran -Wall. Left alone for a decimal single precision holds exactly, such as 0.5. The change writes it as a double,
+    /// 0.1d0, which printed 0.10000000000000001.
+    /// </summary>
+    private static IEnumerable<LogicFinding> SinglePrecisionConstant(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var declared = Declared(masked);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (GivenADecimal().Match(masked[index]) is not { Success: true } given) continue;
+
+            var name = given.Groups["name"].Value;
+            if (!declared.TryGetValue(name, out var kind) || kind.Type != "double precision") continue;
+
+            var value = given.Groups["value"];
+            var exact = double.Parse(value.Value, System.Globalization.CultureInfo.InvariantCulture);
+            if ((double)(float)exact == exact) continue;
+
+            var single = ((double)(float)exact).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"{value.Value} with no d0 is a default real - single precision, about seven digits - so {name} is given {single}, not {value.Value}",
+                LocalFix.ReplaceLine(id, $"Write it as a double: {value.Value}d0",
+                    $"d0 after the number makes it double precision, so {name} is given {value.Value} to the sixteen digits a double holds.",
+                    source.Path, index + 1, line[..(value.Index + value.Length)] + "d0" + line[(value.Index + value.Length)..]));
+        }
+    }
 
     /// <summary>A declaration: its type - integer, real, double precision, real(8) - and the names after ::.</summary>
     [GeneratedRegex(@"^\s*(?<type>integer|real|double\s+precision)\b[^:!]*::\s*(?<names>[^!]+)", RegexOptions.IgnoreCase)]

@@ -481,5 +481,17 @@ internal static class PythonPatternGuides
             if __name__ == "__main__":
                 main()
             """),
+
+        GuideFor(["logic-python-or-before-in"], "\"a\" or \"e\" in word",
+            "if \"a\" or \"e\" in word: reads like it asks whether either letter is in word, but or is worked out last, so it is " +
+            "\"a\" or (\"e\" in word). Text that is not empty counts as true by itself, so \"a\" makes the whole condition true.",
+            "The condition is true whatever word holds - \"sky\" was said to have a vowel - and Python says nothing of it.",
+            "Give each piece of text an in of its own: if \"a\" in word or \"e\" in word: - or, for many, " +
+            "if any(letter in word for letter in \"aeiou\"):.",
+            """
+            word = "sky"
+            if "a" in word or "e" in word:
+                print("has a vowel")
+            """),
     ];
 }

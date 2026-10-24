@@ -27,7 +27,42 @@ public static partial class RubyLogicPatterns
         Pattern("logic-ruby-result-discarded", ResultDiscarded),
         Pattern("logic-ruby-range-to-length", RangeToLength, Severity.Error),
         Pattern("logic-ruby-elif", ElifForElsif, Severity.Error, Confidence.Certain),
+        Pattern("logic-ruby-each-with-index-order", EachWithIndexOrder, Severity.Error),
     ];
+
+    /// <summary><c>each_with_index do |index, mark|</c> or <c>{ |i, mark|</c> - the block's two names.</summary>
+    [GeneratedRegex(@"\.each_with_index\s*(?:do\s*|\{\s*)\|\s*(?<names>(?<first>[a-z_]\w*)\s*,\s*(?<second>[a-z_]\w*))\s*\|")]
+    private static partial Regex EachWithIndexBlock();
+
+    /// <summary>A name for a position: i, j, k, n, index, idx, position, pos, number, num, count.</summary>
+    [GeneratedRegex(@"^(?:i|j|k|n|ind(?:ex)?|idx|pos(?:ition)?|num(?:ber)?|count)$")]
+    private static partial Regex PositionName();
+
+    /// <summary>
+    /// each_with_index gives each item first and its position second, so a block whose first name is a position's and second
+    /// an item's has them the wrong way round - |index, mark| printed 70: 0 for marks [70, 80], with nothing said by ruby -w.
+    /// The change swaps the names.
+    /// </summary>
+    private static IEnumerable<LogicFinding> EachWithIndexOrder(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (EachWithIndexBlock().Match(masked[index]) is not { Success: true } block) continue;
+
+            var first = block.Groups["first"].Value;
+            var second = block.Groups["second"].Value;
+            if (!PositionName().IsMatch(first) || PositionName().IsMatch(second)) continue;
+
+            var names = block.Groups["names"];
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"each_with_index gives each item first and its position second - so {first} is given the item, and {second} its position",
+                LocalFix.ReplaceLine(id, $"Swap them: |{second}, {first}|",
+                    $"With the item named first, {second} holds the item and {first} its position, as each_with_index gives them.",
+                    source.Path, index + 1, line[..names.Index] + $"{second}, {first}" + line[(names.Index + names.Length)..]));
+        }
+    }
 
     /// <summary><c>(total / count).to_f</c>: a division made a decimal afterwards.</summary>
     [GeneratedRegex(@"\(\s*(?<dividend>[a-z_]\w*|\w+\.(?:length|size|count))\s*/\s*(?<divisor>[a-z_]\w*|\w+\.(?:length|size|count))\s*\)\.to_f\b")]

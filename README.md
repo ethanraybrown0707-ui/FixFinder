@@ -94,8 +94,10 @@ the project's folder - the one holding `src`, or `src/main/java` - as an IDE or 
 beside their source, as a program built at a command line does, or, built by a Makefile or CMakeLists.txt, in that file's
 folder, where make is run; the rest start where the program is. When a file the
 program names in quotes is not there but is in another folder it could have been started from, it starts there instead.
-The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so
-a copy reads what the original would; a folder holding more than a program's worth of files is not copied whole.
+The changes FixFinder tries are made and run in a copy of the program's folder, files and all, so a copy reads what the
+original would; a folder holding more than a program's worth of files is not copied whole. The copy is given what was
+typed into the original when it failed - or, for each output it was said it should print, the input given with that
+output - so a program that reads input reaches the line the change is on.
 
 A Python program runs with **its project's own Python** when it has one, as its IDE runs it, so a package installed only
 there is found. FixFinder looks in the program's folder and each one above it, up to the folder that marks the project - one
@@ -290,9 +292,10 @@ comes with the changes rustc itself suggests and how sure it is of each. One it 
 fix - `let mut`, a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name
 it thinks was meant, the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a
 blank in it, or one that only quietens a warning, is never made. Each is compiled in a copy before it is offered. A
-panic is read at the file, line and column Rust names, and a whole-number division by zero, or a loop over
-`0..=v.len()`, gets a change of its own. Rust's code is read for logic mistakes by six checks rustc says nothing of: a
-loop over `0..=v.len()` that uses its number as a position in `v`, `(total / count) as f64` of two whole numbers, a
+panic is read at the file, line and column Rust names, and a whole-number division by zero, a loop over `0..=v.len()`,
+or text from `read_line` parsed with its newline still on - `ParseIntError { kind: InvalidDigit }` for "21" typed - gets
+a change of its own: `text.trim().parse()`. Rust's code is read for logic mistakes by six checks rustc says nothing of:
+a loop over `0..=v.len()` that uses its number as a position in `v`, `(total / count) as f64` of two whole numbers, a
 decimal worked out by arithmetic and then compared exactly, `^` written as a power, and a line read with `read_line`
 compared with text, though it still ends with its newline - and a percentage that divides first, described below with
 the other languages that write it. Rust is tested with rustc 1.98.1.
@@ -306,7 +309,7 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by sixteen checks `ruby -w` says nothing of: `(total / count).to_f` of two
+run. Ruby's code is read for logic mistakes by seventeen checks `ruby -w` says nothing of: `(total / count).to_f` of two
 whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed
 copy - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
@@ -325,7 +328,9 @@ gives back, kept: `fixed = name.strip!` changes `name` itself and gives back `ni
 they had nothing to change in. The change uses the method without its `!`, which gives back a changed copy every time -
 or, where the value is used again, calls the `!` method on a line of its own and then keeps the value it changed. The
 fifteenth is a printf code given to `puts` - `puts "Total: %d", total` - and the sixteenth a percentage that divides
-first, both described below with the other languages that write them. Ruby is tested with Ruby 3.3.12.
+first, both described below with the other languages that write them. The seventeenth is `each_with_index do |index,
+mark|`, whose names are the wrong way round, as each_with_index gives the item first and its position second - it
+printed `70: 0` - and the change swaps them. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -339,7 +344,7 @@ indentation - a string left open is closed, a misspelt function becomes the near
 PHP here lists its own - and a misspelt method the nearest one its class has, a property used inside a method without
 `$this->` gets it, a key an array does not have gets `?? 0` where it is added to, `$student.name` becomes
 `$student->name`, `elif` becomes `elseif`, and an array joined to text is joined with `implode`; each change is checked
-in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by thirteen checks `php -l` says nothing of: a
+in a copy - with `php -l` - and run. PHP's code is read for logic mistakes by fourteen checks `php -l` says nothing of: a
 loop to `<= count($marks)` that uses its number as a position, an `=` in a condition, a decimal worked out by arithmetic
 and then compared exactly, `strpos(...) == false`, which is true for a match at the very start as well as for none, `^`
 written as a power, a line read with `fgets` compared with text, though it still ends with its newline, a `foreach` that
@@ -353,7 +358,9 @@ it - and the eleventh is what `sort` gives back, kept: `$sorted = sort($marks)` 
 twelfth is a printf code given to `echo` - `echo "Total: %d", $total` - described below with the other languages that
 write it. The thirteenth is the array given what `array_push` gives back - `$marks = array_push($marks, 90)` - which is
 how many items it now has, so `$marks` was `int(3)`; the change only adds, `array_push($marks, 90);`, and a count kept
-under another name is left alone. PHP is tested with PHP 8.4.24.
+under another name is left alone. The fourteenth is a search's result as the whole condition - `if (strpos($word, "a"))`
+or `if (array_search(...))` - which counts a match at position 0 as false: "apple" had no a; the change is `!== false`.
+PHP is tested with PHP 8.4.24.
 
 A **Lua** program - a `.lua` file - is read by `luac -p` before it runs, which checks every file of the program and runs
 none of it: the files it brings in with `require` are named from the program's folder, as Lua's own search names
@@ -393,7 +400,7 @@ a division by zero gets an answer for when the divisor is zero, a misspelt sub b
 variable written without its `$` gets it - with `my` under `use strict` when nothing declares it - a `{` left open is
 closed where its indentation ends, and a string left open is closed on the line it starts on, which Perl's own hint
 names when a later quote stopped it; each change is checked in a copy - with `perl -c` - and run. Perl's code is read
-for logic mistakes by thirteen checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
+for logic mistakes by fourteen checks: a loop to `<= scalar(@marks)` that uses its number as a position, text compared with
 `==`, a line read from `<STDIN>` and compared with `eq` without `chomp`, a decimal worked out by arithmetic and then
 compared exactly, `length(@marks)`, which counts the digits of the array's count - Perl warns of it too, and the warning
 and the check are one finding, whose change is `scalar(@marks)` - `^` written as a power, a variable inside single
@@ -408,7 +415,9 @@ message names the order the array's own numbers come out in, and the change comp
 one over a number - `$side ** 1/2` - and the twelfth a printf code given to `print` - `print "Total: %d", $total` - both
 described below with the other languages that write them. The thirteenth is `split` given `.` or `|` as quoted text -
 `split(".", "3.14")`, which gave no parts, as split reads a regular expression, and `split("|", "a|b")`, which split
-between every character, with no warning; the change is `split(/\./, ...)`. Perl is tested with Strawberry Perl 5.42.2.
+between every character, with no warning; the change is `split(/\./, ...)`. The fourteenth is a loop to `$i < $#marks`,
+which stops below the last position - `$#marks` is the last position, not the count - so (70, 80, 90) printed 70 and 80;
+the change is `<=`. Perl is tested with Strawberry Perl 5.42.2.
 
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as
@@ -444,11 +453,14 @@ open, text or a bracket left open on its line, a file that ends with no end line
 an `intent(in)` argument the subroutine changes, a `parameter` given a new value, and a loop that reads outside its
 array, and text joined to a number with `//` in a `print` - `print *, "Total: " // total`, which gfortran refuses -
 becomes a list, `print *, "Total: ", total`; each change is checked in a copy - with `gfortran -fsyntax-only` - and run.
-Fortran's code is read for logic mistakes by six checks gfortran says nothing of: two whole numbers divided and kept in
+Fortran's code is read for logic mistakes by seven checks gfortran says nothing of: two whole numbers divided and kept in
 a `real`, a program with no `implicit none`, a total added to in a loop before it is given a value, a double precision
 decimal worked out by arithmetic and then compared exactly - not a default `real`, where `0.1 + 0.2 == 0.3` is true -
 and a root written as a power of one over a number, `side ** 1/2` - and a percentage that divides first, both described
-below with the other languages that write them. Fortran is tested with gfortran 13.2.0.
+below with the other languages that write them. The seventh is a double precision name given a decimal with no `d0` -
+`rate = 0.1` - which is single precision until it is stored, so `rate` printed `0.10000000149011612`; the change is
+`0.1d0`, and a decimal single precision holds exactly, such as 0.5, is left alone. Fortran is tested with gfortran
+13.2.0.
 
 A **PowerShell** script - a `.ps1` file - is read by PowerShell's own parser before it runs, which runs none of it, and
 every mistake the parser finds is a finding, with PowerShell's name for it; the scripts it dot-sources from its folder
@@ -460,7 +472,7 @@ or PowerShell has, `.Add` on a fixed-size array `+=`, a division by zero gets an
 variable written without its `$` gets it, a `{` left open is closed where its indentation ends - PowerShell names the
 outer block, and each `}` is taken to close the `{` at its own indentation - and a string or a bracket left open is
 closed; each change is checked in a copy - with the parser - and run. PowerShell's code is read for logic mistakes by
-fourteen checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
+fifteen checks it runs without a word: `>` in a condition, which writes a file; `=` in a condition; a loop to
 `-le $marks.Count`; a function called as `Area(3, 4)`, which gives its first parameter both values and the second none;
 text from `Read-Host` compared with a number by `-gt`, `-lt`, `-ge` or `-le`, which compares it as text - `"7" -gt 17`
 is true; text a function writes with `Write-Output` beside the value it gives back with `return`, which comes back with
@@ -474,7 +486,10 @@ makes itself. The twelfth and thirteenth are a printf code given to `Write-Host`
 %d" $total` - and text then two numbers joined with `+`, both described below with the other languages that write them.
 The fourteenth is a `+` given to `Write-Host` as a word of its own - `Write-Host "Total: " + $total` - which wrote
 `Total: + 150`, the `+` and all, as each word after `Write-Host` is a thing to write; the change brackets the sum,
-`Write-Host ("Total: " + $total)`. PowerShell is tested with Windows PowerShell 5.1.
+`Write-Host ("Total: " + $total)`. The fifteenth is a function of the script's own given its values with commas -
+`Get-Area 3, 4` - which a comma makes one list, so the function gave back nothing at all; the change is `Get-Area 3 4`,
+and a call with fewer values than parameters, a list given on purpose, is left alone. PowerShell is tested with Windows
+PowerShell 5.1.
 
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
@@ -485,19 +500,20 @@ are checked with it, and what stops the program in one of them is placed there. 
 `Mix.install` is not run, as that downloads them. Elixir's own words become fixes: an undefined variable or function
 becomes the nearest one the file has, Elixir's own "Did you mean" for a function or a map's key is the change, a `+`
 joining text becomes `<>`, a division by zero gets an answer for when the divisor is zero, `marks[0]` on a list becomes
-`Enum.at(marks, 0)`, a number read from text with its newline still on is trimmed first, a block with no `do` gets one,
-and a block with no `end` gets one, lined up with its start; each change is checked in a copy - compiled by Elixir - and
-run. Elixir's code is read for logic mistakes by eight checks: a range to `0..length(marks)` used with `Enum.at`, which
-takes in the length; a line read with `IO.gets` compared with text, though it still ends with its newline; `Map.put` or
-`String.upcase` on a line of its own, whose changed copy is lost; a decimal worked out by arithmetic and then compared
-exactly; `if mark = 40 do`, which gives `mark` the value; and a variable given a new value inside `fn`, `for` or `if`,
-which leaves the one outside as it was - Elixir warns of it only as an unused variable, and the warning and the check
-are one finding, whose change gives the block's result to the variable. The seventh is `Enum.each` where `Enum.map`
-was meant - `doubled = Enum.each(marks, fn mark -> mark * 2 end)`, or the same through `|>` - which gives back `:ok`, not
-what its function worked out, with no warning; the change is `Enum.map`. The eighth is text compared with a number - a
-line read with `IO.gets`, or text in quotes - which Elixir never counts equal to one, so `"7" == 7` was false, and
-orders after every number, so `"7" > 10` was true; the change is `String.to_integer`, after `String.trim` for a line
-still ending with its newline. Elixir is tested with Elixir 1.20.4 on Erlang/OTP 29.
+`Enum.at(marks, 0)`, a number read from text with its newline still on is trimmed first, `length` given text - "1st
+argument: not a list" - becomes `String.length`, a block with no `do` gets one, and a block with no `end` gets one,
+lined up with its start; each change is checked in a copy - compiled by Elixir - and run. Elixir's code is read for
+logic mistakes by eight checks: a range to `0..length(marks)` used with `Enum.at`, which takes in the length; a line
+read with `IO.gets` compared with text, though it still ends with its newline; `Map.put` or `String.upcase` on a line of
+its own, whose changed copy is lost; a decimal worked out by arithmetic and then compared exactly; `if mark = 40 do`,
+which gives `mark` the value; and a variable given a new value inside `fn`, `for` or `if`, which leaves the one outside
+as it was - Elixir warns of it only as an unused variable, and the warning and the check are one finding, whose change
+gives the block's result to the variable. The seventh is `Enum.each` where `Enum.map` was meant - `doubled =
+Enum.each(marks, fn mark -> mark * 2 end)`, or the same through `|>` - which gives back `:ok`, not what its function
+worked out, with no warning; the change is `Enum.map`. The eighth is text compared with a number - a line read with
+`IO.gets`, or text in quotes - which Elixir never counts equal to one, so `"7" == 7` was false, and orders after every
+number, so `"7" > 10` was true; the change is `String.to_integer`, after `String.trim` for a line still ending with its
+newline. Elixir is tested with Elixir 1.20.4 on Erlang/OTP 29.
 
 An **Erlang** program - an `.erl` file - is compiled by `erlc -Wall` into FixFinder's own build folder, together with
 the modules beside it that it calls, so nothing is written into the program's; every error and warning erlc gives is a
@@ -893,50 +909,55 @@ array - two arrays of 70 and 80 printed false - and the change compares their it
 `first.SequenceEqual(second)`, which printed true. In Python it finds `except ValueError or TypeError:`, which catches
 ValueError alone, as `ValueError or TypeError` is worked out first and gives ValueError - a TypeError stopped the
 program - and the change is `except (ValueError, TypeError):`; and a file that makes `main()` and never calls it, which
-printed nothing at all - the change calls it at the end, under `if __name__ == "__main__":`. Three more mistakes, which
-the compilers refuse, become changes too: a second comparison with no left side - `age > 12 && < 20`, or `age > 12 and <
-20` in Python - is given the first's, in Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a line of
-its own - `count == 0;` or `total + mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count = 0;`
-or `total += mark;`; and C#'s CS1656, a `foreach` variable given a new value, turns the loop into a `for` over the
-positions of the array or List, so `mark += 5` becomes `marks[index] += 5` and the items themselves change. In Python,
-Ruby, PHP, Lua, Perl, PowerShell and C# it finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills
-nothing in: `print("Total: %d", total)` printed `Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on
-the line below; PHP's `echo` and Perl's `print` printed `Total: %d150`; Lua's `print` put a tab between the two;
-PowerShell's `Write-Host` put a space; and C#'s `Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no
-total at all - with nothing said by any of them. The change fills the text in the language's own way: `%` in Python,
-`format` in Ruby, `sprintf` in PHP and Perl, `string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart
-refuse such a call - javac finds no `println` that takes the values, and Dart has too many positional arguments - and
-those become changes too: `System.out.printf("Total: %d%n", total)`, and Dart's `print("Total: $total")`. In Python it
-also finds `f"{average:.2}"`, where `.2` with no letter after it means two significant figures, so 150.5 printed as
-`1.5e+02`; the change asks for decimal places, `.2f`. In JavaScript and TypeScript it finds `const doubled =
-marks.forEach(...)`, which gives back `undefined`, not what the function worked out; the change is `map`. In Java, C#,
-JavaScript, TypeScript, Scala and PowerShell it finds text and then two numbers joined with `+` - `"Total: " + first +
-second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of;
-brackets add the numbers first. It finds a value meant to be put into text, in text that puts nothing in: Python's
-`"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"` with no `s`, JavaScript's
-and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'` in single quotes, and
-PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not its value, and the
-change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it finds `typeof`
-compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives `"object"` for
-it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes ask what was
-meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
-`Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
-`70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
-TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")`
-- which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
-their toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and
-Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its own -
-`map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which
-works each item out only when its result is read; nothing reads it, so nothing is printed, and none of the three says
-anything. The change is a loop, which runs straight away. In Python, Java, C#, JavaScript, TypeScript, Ruby, Dart, Go,
-Lua and PowerShell it finds a second name for a list or an array - `backup = marks` - taken as a copy: the list is
-changed through one name and the other read after it, though both are the same list, so `backup` printed `[70, 80, 90,
-100]` after `marks.append(100)`. The change makes a copy in the language's own way - `marks.copy()`, `marks.clone()`,
-`[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`.
-In Python, JavaScript, TypeScript, Ruby and Dart it finds a grid made by repeating one row - `[[0] * 3] * 3` - and then
-a row of it changed: every row is that one row, so after `grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0,
-0]]`. The change makes each row its own, as `[[0] * 3 for _ in range(3)]` does. When an expected output was given, it
-also runs changed copies of the program to find the one that prints it:
+printed nothing at all - the change calls it at the end, under `if __name__ == "__main__":`. In Python it also finds `if
+"a" or "e" in word:`, which is always true, as `or` is worked out last and `"a"` counts as true by itself - "sky" was
+said to have a vowel - and the change gives each its own `in`. In Java it finds `if (done = true)`, which gives the
+boolean the value instead of comparing, so the `if` always ran; the change asks `if (done)`. In C# it finds a char added
+to a number or a char, which `Console` prints as a number - `grade + 1` printed 66, and `'a' + 'b'` 195 - and the change
+is `(char)(grade + 1)`, or `"" + 'a' + 'b'`. Three more mistakes, which the compilers refuse, become changes too: a
+second comparison with no left side - `age > 12 && < 20`, or `age > 12 and < 20` in Python - is given the first's, in
+Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a line of its own - `count == 0;` or `total +
+mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count = 0;` or `total += mark;`; and C#'s CS1656,
+a `foreach` variable given a new value, turns the loop into a `for` over the positions of the array or List, so `mark +=
+5` becomes `marks[index] += 5` and the items themselves change. In Python, Ruby, PHP, Lua, Perl, PowerShell and C# it
+finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills nothing in: `print("Total: %d", total)` printed
+`Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on the line below; PHP's `echo` and Perl's `print`
+printed `Total: %d150`; Lua's `print` put a tab between the two; PowerShell's `Write-Host` put a space; and C#'s
+`Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no total at all - with nothing said by any of them.
+The change fills the text in the language's own way: `%` in Python, `format` in Ruby, `sprintf` in PHP and Perl,
+`string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart refuse such a call - javac finds no `println` that
+takes the values, and Dart has too many positional arguments - and those become changes too: `System.out.printf("Total:
+%d%n", total)`, and Dart's `print("Total: $total")`. In Python it also finds `f"{average:.2}"`, where `.2` with no
+letter after it means two significant figures, so 150.5 printed as `1.5e+02`; the change asks for decimal places, `.2f`.
+In JavaScript and TypeScript it finds `const doubled = marks.forEach(...)`, which gives back `undefined`, not what the
+function worked out; the change is `map`. In Java, C#, JavaScript, TypeScript, Scala and PowerShell it finds text and
+then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as
+`Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to
+be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no
+`$`, Scala's `"Hello, $name"` with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than
+backticks, Ruby's `'Hello, #{name}'` in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it
+is written - `Hello, {name}` - not its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes
+double. In JavaScript and TypeScript it finds `typeof` compared with a word it never gives - `typeof marks === "array"`,
+false for an array, as `typeof` gives `"object"` for it - and in Python `type(age) == "int"`, which compares a type with
+text and is false for 21; the changes ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In
+JavaScript and TypeScript it also finds `Math.max(marks)` given an array, which takes numbers one by one and so turns
+the array into one number from its text, `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`.
+In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared
+with NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
+nothing, not even itself; none of their toolchains says anything of it, and the change is the language's own test, such
+as `math.isnan(value)`. Dart and Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its
+function does, on a line of its own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
+`marks.map((mark) => print(mark))` - which works each item out only when its result is read; nothing reads it, so
+nothing is printed, and none of the three says anything. The change is a loop, which runs straight away. In Python,
+Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a second name for a list or an array -
+`backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though both are
+the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a copy in the
+language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{},
+marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. In Python, JavaScript, TypeScript, Ruby and Dart it finds a
+grid made by repeating one row - `[[0] * 3] * 3` - and then a row of it changed: every row is that one row, so after
+`grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. The change makes each row its own, as `[[0] * 3 for
+_ in range(3)]` does. When an expected output was given, it also runs changed copies of the program to find the one that
+prints it:
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1228,24 +1249,24 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 89 | 50 | 41 |
-| Java | 57 | 47 | 51 |
-| C# | 50 | 42 | 49 |
+| Python | 89 | 51 | 41 |
+| Java | 57 | 48 | 51 |
+| C# | 50 | 43 | 49 |
 | C | 46 | 27 | 39 |
 | C++ | 45 | 34 | 39 |
 | JavaScript | 43 | 39 | 16 |
 | Go | 38 | 14 | 18 |
 | Scala | 6 | 13 | 28 |
 | OCaml | 6 | 3 | 26 |
-| Rust | 3 | 6 | 33 |
-| Ruby | 13 | 16 | 26 |
-| PHP | 15 | 13 | 18 |
+| Rust | 4 | 6 | 33 |
+| Ruby | 13 | 17 | 26 |
+| PHP | 15 | 14 | 18 |
 | Lua | 12 | 10 | 25 |
-| Perl | 13 | 13 | 26 |
+| Perl | 13 | 14 | 26 |
 | Dart | 13 | 9 | 23 |
-| Fortran | 12 | 6 | 19 |
-| PowerShell | 9 | 14 | 15 |
-| Elixir | 11 | 8 | 29 |
+| Fortran | 12 | 7 | 19 |
+| PowerShell | 9 | 15 | 15 |
+| Elixir | 12 | 8 | 29 |
 | Erlang | 9 | 6 | 23 |
 | F# | 16 | 9 | 33 |
 | TypeScript | 45 | 39 | 5 |
