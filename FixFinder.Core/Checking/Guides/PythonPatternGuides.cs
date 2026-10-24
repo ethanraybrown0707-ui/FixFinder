@@ -357,6 +357,16 @@ internal static class PythonPatternGuides
             print(side ** 2)
             """),
 
+        GuideFor(["logic-python-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In Python ** is worked out before /, so " +
+            "side ** 1/2 is side ** 1 - side itself - divided by 2. With 16 it is 8.0, not 4.0.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and Python says nothing of it.",
+            "Raise it to the fraction itself: side ** 0.5, or side ** (1 / 3) for a cube root, with the fraction in brackets.",
+            """
+            side = 16
+            print(side ** 0.5)
+            """),
+
         GuideFor(["logic-python-loop-variable-changed"], "A loop that changes its own copy",
             "for mark in marks gives each item of marks to mark, a variable of the loop's own. Giving mark a new value changes that " +
             "variable, not the item in the list - so after the loop, marks is just as it was.",

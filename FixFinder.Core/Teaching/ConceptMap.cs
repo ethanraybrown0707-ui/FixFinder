@@ -84,7 +84,7 @@ public static class ConceptMap
         new(Concepts.NeverUsed) { ExceptionTypes = ["compile warning"], Message = Words(@"^assigned but unused variable") },
         new(Concepts.UnclosedPair) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unterminated (?:quoted )?string") },
         new(Concepts.Blocks) { ExceptionTypes = ["SyntaxError"], Message = Words(@"unexpected end-of-input|expected an `end`|expecting [`']end'") },
-        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded", "logic-ruby-each-for-map", "logic-powershell-function-output-returned"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-ruby-result-discarded", "logic-ruby-each-for-map", "logic-ruby-bang-result-kept", "logic-powershell-function-output-returned"] },
 
         // PHP: its fatal errors by their words, and the warnings it carries on past.
         new(Concepts.NothingThere) { ExceptionTypes = ["Error"], Message = Words(@"^Call to a member function \w+\(\) on null") },
@@ -98,6 +98,7 @@ public static class ConceptMap
         new(Concepts.TextToNumber) { ExceptionTypes = ["Warning"], Message = Words(@"^A non-numeric value encountered") },
         new(Concepts.UnclosedPair) { ExceptionTypes = ["ParseError"], Message = Words(@"^Unclosed '|unexpected end of file") },
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-php-assignment-in-condition"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-php-sort-result-kept"] },
 
         // Lua: its errors have no types, so they are told apart by their words alone.
         new(Concepts.UndefinedName) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:call|perform arithmetic on|concatenate) a nil value \(global '") },
@@ -183,7 +184,7 @@ public static class ConceptMap
         new(Concepts.NeverUsed) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^variable ""\w+"" is unused \(if the variable|^function \S+ is unused|^this clause for .+ cannot match|^the following clause is redundant") },
         new(Concepts.WrongType) { ExceptionTypes = [Parsing.Parsers.ElixirParser.Warning], Message = Words(@"^using single-quoted strings to represent charlists") },
         new(Concepts.TextToNumber) { CheckIds = ["logic-elixir-input-not-trimmed"] },
-        new(Concepts.ReturnValues) { CheckIds = ["logic-elixir-result-discarded"] },
+        new(Concepts.ReturnValues) { CheckIds = ["logic-elixir-result-discarded", "logic-elixir-each-for-map"] },
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-elixir-assignment-in-condition"] },
         new(Concepts.ChangingAConstant) { CheckIds = ["logic-elixir-new-variable-in-block"] },
 

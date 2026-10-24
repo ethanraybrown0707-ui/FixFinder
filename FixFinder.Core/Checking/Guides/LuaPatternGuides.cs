@@ -90,5 +90,32 @@ internal static class LuaPatternGuides
             marks[1] = 100
             print(backup[1])
             """),
+
+        GuideFor(["logic-lua-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. Lua's power is ^, and it is worked out " +
+            "before /, so side^1/2 is side ^ 1 - side itself - divided by 2. With 16 it is 8.0, not 4.0.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and neither luac -p nor Lua says " +
+            "anything of it.",
+            "Raise it to the fraction itself: side ^ 0.5, or side ^ (1 / 3) for a cube root, with the fraction in brackets - or use " +
+            "math.sqrt(side).",
+            """
+            local side = 16
+            print(side ^ 0.5)
+            """),
+
+        GuideFor(["logic-lua-length-of-keyed-table"], "# of a table with named keys",
+            "# gives the length of a list: it counts the items at positions 1, 2, 3 and on. A table given its entries by name - " +
+            "{Ada = 36, Bob = 20} - has nothing at position 1, so # counts nothing and gives 0, however many entries it has.",
+            "The count is 0, with no error, so whatever the program works out from it - a total printed, or a check for none - is " +
+            "wrong.",
+            "Count the entries with pairs, which goes through every key a table has: add 1 to a count for each one.",
+            """
+            local ages = {Ada = 36, Bob = 20}
+            local count = 0
+            for _ in pairs(ages) do
+              count = count + 1
+            end
+            print(count)
+            """),
     ];
 }

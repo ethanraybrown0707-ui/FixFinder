@@ -88,5 +88,17 @@ internal static class ElixirPatternGuides
             total = Enum.reduce(marks, 0, fn mark, total -> total + mark end)
             IO.puts(total)
             """),
+
+        GuideFor(["logic-elixir-each-for-map"], "Enum.each where Enum.map was meant",
+            "Enum.each runs its function for every item, for what the function does - printing, say - and then gives back :ok. It " +
+            "keeps nothing the function works out. Enum.map gives back a new list of what the function worked out for each item.",
+            "The name is given :ok instead of a list, with no warning, so printing it shows :ok, and Enum.sum or any other Enum " +
+            "function given it stops the program with Protocol.UndefinedError.",
+            "Use Enum.map when the function works out a new value for each item: doubled = Enum.map(marks, fn mark -> mark * 2 end).",
+            """
+            marks = [70, 80]
+            doubled = Enum.map(marks, fn mark -> mark * 2 end)
+            IO.inspect(doubled)
+            """),
     ];
 }

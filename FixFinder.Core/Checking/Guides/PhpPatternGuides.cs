@@ -78,6 +78,33 @@ internal static class PhpPatternGuides
             echo $side ** 2;
             """),
 
+        GuideFor(["logic-php-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In PHP ** is worked out before /, so " +
+            "$side ** 1/2 is $side ** 1 - $side itself - divided by 2. With 16 it is 8, not 4.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and neither php -l nor PHP says " +
+            "anything of it.",
+            "Raise it to the fraction itself: $side ** 0.5, or $side ** (1 / 3) for a cube root, with the fraction in brackets - or " +
+            "use sqrt($side).",
+            """
+            <?php
+            $side = 16;
+            echo $side ** 0.5, "\n";
+            """),
+
+        GuideFor(["logic-php-sort-result-kept"], "Keeping what sort gives back",
+            "sort puts the array it is given in order - it changes that array - and gives back only true, to say it worked. So " +
+            "$sorted = sort($marks) gives $sorted true, not a sorted array. rsort, usort, asort, ksort, shuffle and the other sorting " +
+            "functions work the same way.",
+            "$sorted holds true - echo shows it as 1 - while $marks is the array that was sorted. Neither php -l nor PHP says anything.",
+            "Sort the array on a line of its own, then use the array: sort($marks); - and $sorted = $marks; after it, if a second " +
+            "name is wanted.",
+            """
+            <?php
+            $marks = [90, 70, 80];
+            sort($marks);
+            echo implode(" ", $marks), "\n";
+            """),
+
         GuideFor(["logic-php-input-not-trimmed"], "A line read with its newline still on it",
             "fgets gives back the line that was typed with the newline from pressing Enter still on the end: typing yes gives \"yes\\n\". " +
             "Compared with \"yes\", it is not equal.",

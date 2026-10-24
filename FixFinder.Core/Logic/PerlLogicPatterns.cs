@@ -9,8 +9,9 @@ namespace FixFinder.Core.Logic;
 /// Mistakes Perl programs make that Perl runs without stopping - each run with Strawberry Perl 5.42, where without use
 /// warnings Perl says nothing of any of them: a loop to <c>$i &lt;= scalar(@marks)</c> reads one position past the end;
 /// text compared with == - "yes" == "no" is true, as both become 0; a line read from STDIN keeps its newline until chomp
-/// takes it off, so it never eq the text typed; a decimal worked out by arithmetic, compared exactly; and
-/// <c>length(@marks)</c>, which counts the digits of the array's count - 2 for 12 items.
+/// takes it off, so it never eq the text typed; a decimal worked out by arithmetic, compared exactly;
+/// <c>length(@marks)</c>, which counts the digits of the array's count - 2 for 12 items; and numbers put in order by
+/// <c>sort @marks</c>, which compares as text - (10, 9, 100) came out 10 100 9, and perl -w said nothing.
 /// </summary>
 public static partial class PerlLogicPatterns
 {
@@ -29,7 +30,80 @@ public static partial class PerlLogicPatterns
         Pattern("logic-perl-float-equality", FloatEquality),
         Pattern("logic-perl-length-of-array", LengthOfArray, Severity.Error, Confidence.Certain),
         Pattern("logic-perl-method-in-string", MethodInString, Severity.Error, Confidence.Certain),
+        Pattern("logic-perl-numbers-sorted-as-text", NumbersSortedAsText, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>my @marks = (10, 9, 100);</c> - an array given only numbers.</summary>
+    [GeneratedRegex(@"(?:\bmy\s+)?@(?<array>\w+)\s*=\s*\((?<values>\s*-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)*\s*,?\s*)\)\s*;")]
+    private static partial Regex GivenOnlyNumbers();
+
+    /// <summary>@marks given a list or items by push or unshift - and whether what it is given holds text: a quote, or qw.</summary>
+    [GeneratedRegex(@"@(?<array>\w+)\s*=(?![=~])(?<given>[^;]*)|\b(?:push|unshift)\s*\(?\s*@(?<array>\w+)\s*,(?<given>[^;]*)")]
+    private static partial Regex GivenSomething();
+
+    [GeneratedRegex(@"[""']|\bqw\b")]
+    private static partial Regex HoldsText();
+
+    /// <summary>
+    /// What sort's text order makes of the numbers an array was given, beside their order by size - where each is a whole
+    /// number written as Perl writes it back, which 1.50 or -0 is not - or null otherwise.
+    /// </summary>
+    private static (string Given, string AsText, string BySize)? Orders(string values)
+    {
+        var numbers = values.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (!numbers.All(number => Regex.IsMatch(number, @"^(?:0|-?[1-9]\d{0,17})$"))) return null;
+
+        return (string.Join(", ", numbers), string.Join(" ", numbers.Order(StringComparer.Ordinal)), string.Join(" ", numbers.OrderBy(long.Parse)));
+    }
+
+    /// <summary><c>sort @marks</c> or <c>sort(@marks)</c> - sort given no block or sub to compare with.</summary>
+    [GeneratedRegex(@"\bsort\s*(?<bracket>\()?\s*@(?<array>\w+)\b")]
+    private static partial Regex SortWithNothingToCompare();
+
+    /// <summary>
+    /// sort @marks, where @marks was given only numbers: sort with nothing to compare by compares as text, character by
+    /// character, so (10, 9, 100) sorted to 10 100 9. Left alone where @marks is given text anywhere. Where it is given its
+    /// numbers once and nothing more, the message names the order they come out in. The change compares them as numbers, with
+    /// &lt;=&gt;.
+    /// </summary>
+    private static IEnumerable<LogicFinding> NumbersSortedAsText(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var givenNumbers = masked.SelectMany(line => GivenOnlyNumbers().Matches(line)).ToLookup(given => given.Groups["array"].Value, StringComparer.Ordinal);
+        if (givenNumbers.Count == 0) yield break;
+
+        var givenAnything = masked.SelectMany(line => GivenSomething().Matches(line)).ToList();
+        var givenText = givenAnything.Where(given => HoldsText().IsMatch(given.Groups["given"].Value)).Select(given => given.Groups["array"].Value).ToHashSet(StringComparer.Ordinal);
+        // How many times each array is given something other than its own items in a new order, as @marks = sort @marks gives.
+        var timesGiven = givenAnything
+            .Where(given => !Regex.IsMatch(given.Groups["given"].Value, $@"^\s*(?:reverse\s+)?sort\b.*@{Regex.Escape(given.Groups["array"].Value)}\b"))
+            .GroupBy(given => given.Groups["array"].Value, StringComparer.Ordinal)
+            .ToDictionary(times => times.Key, times => times.Count(), StringComparer.Ordinal);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (SortWithNothingToCompare().Match(masked[index]) is not { Success: true } sort) continue;
+
+            var array = sort.Groups["array"].Value;
+            if (!givenNumbers.Contains(array) || givenText.Contains(array)) continue;
+
+            var line = source.Lines[index];
+            var listStart = sort.Groups["bracket"].Success ? sort.Groups["bracket"].Index : sort.Groups["array"].Index - 1;
+            var beforeList = line[..listStart].EndsWith(' ') ? line[..listStart] : line[..listStart] + " ";
+            var orders = timesGiven.GetValueOrDefault(array) == 1 ? Orders(givenNumbers[array].Single().Groups["values"].Value) : null;
+            var asText = "sort with nothing to compare by puts things in order as text, character by character";
+
+            yield return new LogicFinding(id, index + 1,
+                orders switch
+                {
+                    { } order when order.AsText != order.BySize => $"{asText} - so {order.Given}, the numbers in @{array}, come out as {order.AsText}, not {order.BySize}",
+                    { } order => $"{asText} - {order.Given}, the numbers in @{array}, happen to come out in order, but as text 100 comes before 9, so other numbers would not",
+                    null => $"{asText} - and @{array} holds numbers, so 10, 9 and 100 would come out as 10 100 9",
+                },
+                LocalFix.ReplaceLine(id, "Compare them as numbers: sort { $a <=> $b }",
+                    "<=> compares two numbers as numbers, and sort { $a <=> $b } puts them in order from smallest to largest.",
+                    source.Path, index + 1, beforeList + "{ $a <=> $b } " + line[listStart..]));
+        }
+    }
 
     /// <summary><c>for (my $i = 0; $i &lt;= scalar(@marks); $i++)</c>, or <c>$i &lt;= @marks</c>: one step past the last position.</summary>
     [GeneratedRegex(@"\bfor(?:each)?\s*\(\s*my\s+\$(?<variable>\w+)\s*=\s*0\s*;\s*\$\k<variable>\s*(?<comparison><=)\s*(?:scalar\s*\(\s*@(?<array>\w+)\s*\)|@(?<array>\w+))\s*;")]

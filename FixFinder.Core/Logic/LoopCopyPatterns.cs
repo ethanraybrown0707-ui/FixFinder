@@ -8,7 +8,8 @@ namespace FixFinder.Core.Logic;
 /// What a loop seems to change, or give back, and does not - each run with the language's own toolchain, and its own checks
 /// said nothing of any. Python's for mark in marks, JavaScript's for (let mark of marks) and PHP's foreach ($marks as $mark)
 /// give each item to a variable of the loop's own, so mark += 5 left [70, 80, 90] as it was. Ruby's each gives back the list
-/// it went over, not what its block worked out, so doubled was [70, 80]. Go's range with one variable gives each position, so
+/// it went over, not what its block worked out, so doubled was [70, 80] - and Elixir's Enum.each gives back :ok, so doubled
+/// was :ok. Go's range with one variable gives each position, so
 /// the total of 70, 80 and 90 came out as 3. And a PowerShell function gives back everything it outputs, so Write-Output's
 /// text came back with the total. LoopCopyLiveTests runs each mistake, and its change.
 /// </summary>
@@ -20,6 +21,7 @@ public static partial class LoopCopyPatterns
         new CodePattern("logic-js-loop-copy-changed", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptLoopCopy, Severity.Error),
         new CodePattern("logic-php-foreach-copy-changed", CodePattern.Files(".php"), Syntax.CLike, PhpForeachCopy, Severity.Error),
         new CodePattern("logic-ruby-each-for-map", CodePattern.Files(".rb"), Syntax.Python, RubyEachForMap, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-elixir-each-for-map", CodePattern.Files(".ex", ".exs"), Syntax.Python, ElixirEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-go-range-index-as-value", CodePattern.Files(".go"), Syntax.CLike, GoRangeIndex, Severity.Error),
         new CodePattern("logic-js-for-in-over-array", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptForInOverArray, Severity.Error),
         new CodePattern("logic-powershell-function-output-returned", CodePattern.Files(".ps1"), Syntax.Python, PowerShellOutputReturned, Severity.Error),
@@ -204,6 +206,35 @@ public static partial class LoopCopyPatterns
                 "the same list again",
                 LocalFix.ReplaceLine(id, "Keep what the block works out: map",
                     "map gives back a new list of what its block worked out for each item.",
+                    source.Path, index + 1, line[..each.Index] + ".map" + line[(each.Index + each.Length)..]));
+        }
+    }
+
+    /// <summary>
+    /// <c>doubled = Enum.each(marks, fn mark -> mark * 2 end)</c>, or <c>doubled = marks |> Enum.each(...)</c> - what
+    /// Enum.each gives back, given to a name that does not begin with _, which Elixir keeps for values thrown away.
+    /// </summary>
+    [GeneratedRegex(@"^\s*(?<name>[a-z]\w*)\s*=\s*(?:[a-z_][\w.]*\s*\|>\s*)?Enum(?<each>\.each)\s*\(")]
+    private static partial Regex EnumEachKept();
+
+    /// <summary>
+    /// What Enum.each gives back, given to a name read later: Enum.each runs its function for each item and gives back :ok,
+    /// not what the function worked out - Enum.map does.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ElixirEachForMap(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (EnumEachKept().Match(masked[index]) is not { Success: true } kept || !ReadAfter(masked, index, kept.Groups["name"].Value)) continue;
+
+            var name = kept.Groups["name"].Value;
+            var each = kept.Groups["each"];
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"Enum.each runs its function for each item and gives back :ok - not what the function worked out - so {name} is :ok",
+                LocalFix.ReplaceLine(id, "Keep what the function works out: Enum.map",
+                    "Enum.map gives back a new list of what its function worked out for each item.",
                     source.Path, index + 1, line[..each.Index] + ".map" + line[(each.Index + each.Length)..]));
         }
     }

@@ -7,8 +7,9 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Mistakes Lua programs make that Lua runs without a word - each run with Lua 5.4.6: a loop from 0 over a list, whose
 /// first item is at 1, so <c>marks[0]</c> is nil; text compared with == to a number, which in Lua is never equal - "5" == 5
-/// is false; a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false; and
-/// <c>table.remove(marks, i)</c> in a loop forward over marks, which skips the item after each one it removes.
+/// is false; a decimal worked out by arithmetic, compared exactly - 0.1 + 0.2 == 0.3 is false;
+/// <c>table.remove(marks, i)</c> in a loop forward over marks, which skips the item after each one it removes; and # of a
+/// table given only keyed entries - #ages of {Ada = 36, Bob = 20} is 0.
 /// </summary>
 public static partial class LuaLogicPatterns
 {
@@ -25,6 +26,7 @@ public static partial class LuaLogicPatterns
         Pattern("logic-lua-text-compared-with-number", TextComparedWithNumber, Severity.Error, Confidence.Certain),
         Pattern("logic-lua-float-equality", FloatEquality),
         Pattern("logic-lua-remove-while-looping-forward", RemoveWhileLoopingForward, Severity.Error),
+        Pattern("logic-lua-length-of-keyed-table", LengthOfKeyedTable, Severity.Error),
     ];
 
     /// <summary><c>for i = 0, #marks do</c>, or <c>for i = 0, #marks - 1 do</c>: counting a list's positions from 0.</summary>
@@ -191,6 +193,135 @@ public static partial class LuaLogicPatterns
                 LocalFix.ReplaceLine(id, $"Loop backwards: for {variable} = #{list}, 1, -1",
                     "Going backwards, a removal only moves items the loop has already been past, so none is skipped.",
                     source.Path, index + 1, line[..range.Index] + $"#{list}, 1, -1" + line[(range.Index + range.Length)..]));
+        }
+    }
+
+    /// <summary><c>local ages = {</c>: a table made where it is named, whose entries follow on this line or the next ones.</summary>
+    [GeneratedRegex(@"^\s*(?:local\s+)?(?<name>[A-Za-z_]\w*)\s*=\s*\{")]
+    private static partial Regex TableMade();
+
+    /// <summary>An entry given a key of its own - <c>Ada = 36</c> or <c>["Ada"] = 36</c> - rather than the next position.</summary>
+    [GeneratedRegex(@"^\s*(?<key>[A-Za-z_]\w*|\[\s*(?:""[^""]*""|'[^']*')\s*\])\s*=(?!=)")]
+    private static partial Regex KeyedEntry();
+
+    /// <summary>A statement a line can begin with, so lines can go before it: not elseif, else, until or end, which close a block.</summary>
+    [GeneratedRegex(@"^\s*(?!(?:elseif|else|until|end)\b)(?:[A-Za-z_]|$)")]
+    private static partial Regex StartsAStatement();
+
+    /// <summary>
+    /// The text between a table's { and the } that closes it, from the line it opens on - with the line it closes on - or null
+    /// if it is never closed: as masked, to find its entries by, and as written, to show their keys from - in the same places,
+    /// as masking only blanks.
+    /// </summary>
+    private static (string Inside, string Written, int Closing)? TableText(IReadOnlyList<string> masked, IReadOnlyList<string> lines, int opening, int braceIndex)
+    {
+        var depth = 0;
+        var inside = new System.Text.StringBuilder();
+        var written = new System.Text.StringBuilder();
+
+        for (var index = opening; index < masked.Count; index++)
+        {
+            var line = masked[index];
+            for (var position = index == opening ? braceIndex : 0; position < line.Length; position++)
+            {
+                var character = line[position];
+                if (character == '{') depth++;
+                if (character == '}' && --depth == 0) return (inside.ToString(), written.ToString(), index);
+                if (depth > 0 && !(depth == 1 && character == '{'))
+                {
+                    inside.Append(character);
+                    written.Append(lines[index][position]);
+                }
+            }
+            inside.Append('\n');
+            written.Append('\n');
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where each of a table's entries is in its text: split at the commas and semicolons between them - not those inside a
+    /// bracket of an entry's own - and leaving out any that are only space.
+    /// </summary>
+    private static List<(int Start, int Length)> Entries(string inside)
+    {
+        var entries = new List<(int Start, int Length)>();
+        var depth = 0;
+        var start = 0;
+
+        for (var position = 0; position <= inside.Length; position++)
+        {
+            var atEnd = position == inside.Length;
+            var character = atEnd ? ' ' : inside[position];
+            if (character is '{' or '(' or '[') depth++;
+            if (character is '}' or ')' or ']') depth--;
+            if (!atEnd && !(depth == 0 && character is ',' or ';')) continue;
+
+            if (inside[start..position].Trim().Length > 0) entries.Add((start, position - start));
+            start = position + 1;
+        }
+
+        return entries;
+    }
+
+    /// <summary>
+    /// #ages where ages was made with only keyed entries - <c>{Ada = 36, Bob = 20}</c> - and nothing puts items at positions 1, 2
+    /// and on. # counts the items from position 1 until the first gap, and such a table has nothing at 1, so #ages is 0. Left
+    /// alone wherever the table is named again, given items by table.insert or by a position, or given a metatable - whose
+    /// __len can change what # says. The change counts the keys with pairs on the lines before, where lines can go before it.
+    /// </summary>
+    private static IEnumerable<LogicFinding> LengthOfKeyedTable(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (TableMade().Match(masked[index]) is not { Success: true } made ||
+                TableText(masked, source.Lines, index, made.Index + made.Length - 1) is not { } table) continue;
+
+            var keyed = Entries(table.Inside).Select(entry => (entry.Start, Key: KeyedEntry().Match(table.Inside, entry.Start, entry.Length))).ToList();
+            if (keyed.Count == 0 || !keyed.All(entry => entry.Key.Success)) continue;
+
+            var name = made.Groups["name"].Value;
+            var named = Regex.Escape(name);
+            // Named again - given a new value, or as a function's parameter or a loop's variable - or given items at positions:
+            // by table.insert, or by an index that is not quoted text.
+            var changedElsewhere = new Regex(
+                $@"^\s*(?:local\s+)?{named}\s*=(?!=)|\bfunction\b[^(]*\([^)]*(?<![\w.]){named}\b|\bfor\b[^=]*(?<![\w.]){named}\b[^=]*\bin\b|" +
+                $@"\btable\.(?:insert|move)\s*\(\s*{named}\b|(?<![\w.]){named}\s*\[\s*(?![""'])[^\]]*\]\s*=(?!=)|\bsetmetatable\s*\(\s*{named}\b");
+            if (Enumerable.Range(0, masked.Count).Any(line => (line < index || line > table.Closing) && changedElsewhere.IsMatch(masked[line]))) continue;
+
+            var keys = keyed.Select(entry => table.Written.Substring(entry.Key.Groups["key"].Index, entry.Key.Groups["key"].Length)).ToList();
+            var lengthOf = new Regex($@"#\s*{named}(?![\w.\[(])");
+            var counted = $"{name}Count";
+            var countNameFree = !masked.Any(line => Regex.IsMatch(line, $@"(?<![\w.]){Regex.Escape(counted)}(?!\w)"));
+
+            for (var use = table.Closing + 1; use < masked.Count; use++)
+            {
+                if (lengthOf.Match(masked[use]) is not { Success: true } length) continue;
+
+                var message = $"`{name}` was given only keyed entries ({string.Join(", ", keys.Take(2))}{(keys.Count > 2 ? ", ..." : "")}), " +
+                              $"and # counts only the items at positions 1, 2, 3 and on - so #{name} is 0, with no error";
+
+                var previous = Enumerable.Range(0, use).Reverse().Select(line => masked[line].TrimEnd()).FirstOrDefault(line => line.Length > 0) ?? "";
+                var continuesALine = Regex.IsMatch(previous, @"(?:[,({=+\-*/<>~]|\.\.|\band|\bor|\bnot)$");
+                if (!countNameFree || continuesALine || !StartsAStatement().IsMatch(masked[use]))
+                {
+                    yield return new LogicFinding(id, use + 1, message, null);
+                    continue;
+                }
+
+                var line = source.Lines[use];
+                var indent = line[..(line.Length - line.TrimStart().Length)];
+                var countedInstead = line[..length.Index] + counted + line[(length.Index + length.Length)..];
+                var countTheKeys = LocalFix.ReplaceLine(id, $"Count its keys with pairs: for _ in pairs({name}) do {counted} = {counted} + 1 end",
+                    "pairs goes through every key a table has, whatever it is, so adding 1 for each counts them all.",
+                    source.Path, use + 1, countedInstead);
+
+                yield return new LogicFinding(id, use + 1, message, countTheKeys with
+                {
+                    NewLines = [$"{indent}local {counted} = 0", $"{indent}for _ in pairs({name}) do {counted} = {counted} + 1 end", countedInstead],
+                });
+            }
         }
     }
 }

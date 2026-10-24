@@ -362,6 +362,17 @@ internal static class BracePatternGuides
             int area = side * side;
             """),
 
+        GuideFor(["logic-js-power-of-one-over"], "A root written as a power of 1 over a number",
+            "In maths the square root of side can be written as side to the power 1/2. In JavaScript ** is worked out before /, so " +
+            "side ** 1/2 is side ** 1 - side itself - divided by 2. With 16 it is 8, not 4.",
+            "The program works out half of the number - or a third, for 1/3 - instead of its root, and node --check says nothing of it.",
+            "Raise it to the fraction itself: side ** 0.5, or side ** (1 / 3) for a cube root, with the fraction in brackets - or use " +
+            "Math.sqrt(side) and Math.cbrt(side).",
+            """
+            const side = 16;
+            console.log(side ** 0.5);
+            """),
+
         GuideFor(["logic-c-fgets-newline"], "A line read with its newline still in it",
             "fgets keeps the newline from pressing Enter at the end of the text it reads: typing yes leaves \"yes\\n\" in the buffer. " +
             "strcmp compares every character, the newline too, so it never finds the buffer equal to \"yes\".",
