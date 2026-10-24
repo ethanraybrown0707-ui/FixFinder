@@ -406,7 +406,8 @@ folder, `.mod` files and all, so nothing is written beside the program, with `-W
 an array stops the program at its line, and gfortran often warns of it before the program runs. A whole number divided by
 zero stops it with SIGFPE, which names no line on Windows. gfortran's own "did you mean" becomes a fix, and so do `=` in
 an `if`'s condition, `!=` - which Fortran reads as the start of a comment - a missing `then`, a do loop or block if left
-open, an `intent(in)` argument the subroutine changes, a `parameter` given a new value, and a loop that reads outside its
+open, text or a bracket left open on its line, a file that ends with no end line for its program or a subroutine in it,
+an `intent(in)` argument the subroutine changes, a `parameter` given a new value, and a loop that reads outside its
 array; each change is checked in a copy - with `gfortran -fsyntax-only` - and run. Fortran's code is read for logic
 mistakes by four checks gfortran says nothing of: two whole numbers divided and kept in a `real`, a program with no
 `implicit none`, a total added to in a loop before it is given a value, and a double precision decimal worked out by
@@ -1140,7 +1141,7 @@ Python, Java and C# are checked most thoroughly.
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
 | Python | 88 | 45 | 41 |
-| Java | 54 | 42 | 46 |
+| Java | 54 | 42 | 51 |
 | C# | 47 | 38 | 49 |
 | C | 46 | 24 | 39 |
 | C++ | 45 | 31 | 39 |
@@ -1154,7 +1155,7 @@ Python, Java and C# are checked most thoroughly.
 | Lua | 12 | 6 | 25 |
 | Perl | 13 | 9 | 26 |
 | Dart | 12 | 8 | 23 |
-| Fortran | 8 | 4 | 17 |
+| Fortran | 11 | 4 | 19 |
 | PowerShell | 9 | 10 | 15 |
 | Elixir | 11 | 6 | 29 |
 | Erlang | 8 | 6 | 23 |
