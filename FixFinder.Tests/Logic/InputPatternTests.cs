@@ -143,6 +143,40 @@ public class InputLiveTests(ITestOutputHelper output) : IDisposable
         },
     };
 
+    /// <summary>
+    /// The same programs with the name given a new value on a line of its own before it is compared - trimmed, chomped, or made
+    /// a number - each answering rightly for what was typed.
+    /// </summary>
+    public static TheoryData<string, string, string, string> MadeRightOnALineOfTheirOwn => new()
+    {
+        {
+            "Go", "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)\n\nfunc main() {\n\treader := bufio.NewReader(os.Stdin)\n\tfmt.Print(\"Continue? \")\n" +
+                  "\tanswer, _ := reader.ReadString('\\n')\n\tanswer = strings.TrimSpace(answer)\n\tif answer == \"yes\" {\n\t\tfmt.Println(\"yes\")\n\t} else {\n\t\tfmt.Println(\"no\")\n\t}\n}\n",
+            "yes\n", "Continue? yes"
+        },
+        {
+            "Ruby", "print \"Continue? \"\nanswer = gets\nanswer = answer.chomp\nif answer == \"yes\"\n  puts \"yes\"\nelse\n  puts \"no\"\nend\n",
+            "yes\n", "Continue? yes"
+        },
+        {
+            "Ruby", "print \"Continue? \"\nanswer = gets\nanswer.chomp!\nif answer == \"yes\"\n  puts \"yes\"\nelse\n  puts \"no\"\nend\n",
+            "yes\n", "Continue? yes"
+        },
+        {
+            "PHP", "<?php\necho \"Continue? \";\n$answer = fgets(STDIN);\n$answer = trim($answer);\nif ($answer == \"yes\") {\n    echo \"yes\\n\";\n} else {\n    echo \"no\\n\";\n}\n",
+            "yes\n", "Continue? yes"
+        },
+        {
+            "Rust", "use std::io;\n\nfn main() {\n    let mut answer = String::new();\n    io::stdin().read_line(&mut answer).unwrap();\n    let answer = answer.trim();\n" +
+                    "    if answer == \"yes\" {\n        println!(\"yes\");\n    } else {\n        println!(\"no\");\n    }\n}\n",
+            "yes\n", "yes"
+        },
+        {
+            "PowerShell", "$age = Read-Host \"Age\"\n$age = [int]$age\nif ($age -gt 17) {\n    Write-Output \"adult\"\n} else {\n    Write-Output \"child\"\n}\n",
+            "7\n", "child"
+        },
+    };
+
     /// <summary>Runs code as FixFinder runs a program - building it first when it is built - typing <paramref name="input"/>; null when it could not run here.</summary>
     private async Task<string?> RunAsync(CodeLanguage language, string code, string input, string name)
     {
@@ -196,5 +230,24 @@ public class InputLiveTests(ITestOutputHelper output) : IDisposable
         // PowerShell writes what was typed for Read-Host to the output too; what it decided is the last line.
         Assert.Equal(mistakePrints, languageName == "PowerShell" ? wrong.Split('\n')[^1] : wrong);
         Assert.Equal(changePrints, languageName == "PowerShell" ? right?.Split('\n')[^1] : right);
+    }
+
+    [Theory]
+    [MemberData(nameof(MadeRightOnALineOfTheirOwn))]
+    public async Task ANameGivenANewValueBeforeItIsComparedIsLeftAloneAndAnswersRightly(string languageName, string code, string input, string prints)
+    {
+        var language = CodeLanguage.All.Single(each => each.Name == languageName);
+        var path = Path.Combine(_temp.Path, "scanned", Path.GetFileName(PastedCode.RelativePathFor(code, language)));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, code);
+
+        var inputChecks = InputPatterns.All.Select(check => check.Id).ToHashSet();
+        Assert.DoesNotContain(LogicPatterns.Scan(SourceFile.Read(path)!), finding => inputChecks.Contains(finding.PatternId));
+
+        if (await RunAsync(language, code, input, "made-right") is not { } printed) return;
+        output.WriteLine($"printed: {printed}");
+
+        // PowerShell writes what was typed for Read-Host to the output too; what it decided is the last line.
+        Assert.Equal(prints, languageName == "PowerShell" ? printed.Split('\n')[^1] : printed);
     }
 }

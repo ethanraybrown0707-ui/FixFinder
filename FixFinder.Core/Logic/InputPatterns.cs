@@ -11,6 +11,9 @@ namespace FixFinder.Core.Logic;
 /// before the newline, so the nextLine after it reads nothing, and the name was empty - as did C++'s getline after cin &gt;&gt;,
 /// and C's fgets after scanf, for 21 and then Ada typed; and PowerShell's Read-Host gives text,
 /// which -gt compares as text, so "7" -gt 17 was true. InputLiveTests runs each mistake, typing its input, and its change.
+/// A name given a new value before it is compared - answer = strings.TrimSpace(answer), answer.chomp!, $age = [int]$age - holds
+/// what that line made of it, not what was read: each such program, run with the language typing yes or 7, did what it meant
+/// to, and is not found.
 /// </summary>
 public static partial class InputPatterns
 {
@@ -27,9 +30,20 @@ public static partial class InputPatterns
         new CodePattern("logic-powershell-read-host-compared-as-text", CodePattern.Files(".ps1"), Syntax.Python, PowerShellReadHost, Severity.Error, Confidence.Certain),
     ];
 
-    /// <summary>Whether a later line compares <paramref name="name"/> with text in quotes, as <paramref name="comparison"/> writes it.</summary>
-    private static bool ComparedWithTextLater(IReadOnlyList<string> masked, int after, string comparison) =>
-        masked.Skip(after + 1).Any(line => Regex.IsMatch(line, comparison));
+    /// <summary>
+    /// Whether a later line compares the name read, as <paramref name="comparison"/> writes it, before a line gives the name a
+    /// new value, as <paramref name="givenAgain"/> writes it - after that, the name holds what that line made of it.
+    /// </summary>
+    private static bool ComparedBeforeGivenAgain(IReadOnlyList<string> masked, int after, string comparison, string givenAgain)
+    {
+        foreach (var line in masked.Skip(after + 1))
+        {
+            if (Regex.IsMatch(line, comparison)) return true;
+            if (Regex.IsMatch(line, givenAgain)) return false;
+        }
+
+        return false;
+    }
 
     /// <summary><c>answer, _ := reader.ReadString('\n')</c>.</summary>
     [GeneratedRegex(@"^(?<indent>\s*)(?<name>[A-Za-z_]\w*)\s*,\s*[A-Za-z_]\w*\s*:?=\s*[A-Za-z_][\w.]*\.ReadString\(\s*'\\n'\s*\)\s*$")]
@@ -50,7 +64,8 @@ public static partial class InputPatterns
             if (GoReadStringLine().Match(source.Lines[index]) is not { Success: true } read || masked[index].Trim().Length == 0) continue;
 
             var name = read.Groups["name"].Value;
-            if (!ComparedWithTextLater(masked, index, $@"(?<![\w.]){Regex.Escape(name)}\s*[!=]=\s*""|""\s*[!=]=\s*{Regex.Escape(name)}\b")) continue;
+            if (!ComparedBeforeGivenAgain(masked, index, $@"(?<![\w.]){Regex.Escape(name)}\s*[!=]=\s*""|""\s*[!=]=\s*{Regex.Escape(name)}\b",
+                    $@"(?<![\w.]){Regex.Escape(name)}\s*:?=(?!=)")) continue;
 
             // The import as written - masking blanks the "strings" it names.
             var fix = GoImportsStrings().IsMatch(string.Join("\n", source.Lines))
@@ -78,7 +93,8 @@ public static partial class InputPatterns
             if (RubyGetsLine().Match(masked[index]) is not { Success: true } read) continue;
 
             var name = read.Groups["name"].Value;
-            if (!ComparedWithTextLater(masked, index, $@"(?<![\w.@$]){Regex.Escape(name)}\s*[!=]=\s*""|""\s*[!=]=\s*{Regex.Escape(name)}\b")) continue;
+            if (!ComparedBeforeGivenAgain(masked, index, $@"(?<![\w.@$]){Regex.Escape(name)}\s*[!=]=\s*""|""\s*[!=]=\s*{Regex.Escape(name)}\b",
+                    $@"(?<![\w.@$]){Regex.Escape(name)}(?:\s*=(?![=~])|\.(?:chomp|chop|strip|rstrip)!)")) continue;
 
             yield return new LogicFinding(id, index + 1,
                 $"gets gives back the line with its newline still on the end - \"yes\\n\", not \"yes\" - so comparing {name} with text is never " +
@@ -101,7 +117,8 @@ public static partial class InputPatterns
             if (PhpFgetsLine().Match(masked[index]) is not { Success: true } read) continue;
 
             var name = read.Groups["name"].Value;
-            if (!ComparedWithTextLater(masked, index, $@"\${Regex.Escape(name)}\b\s*[!=]==?\s*[""']|[""']\s*[!=]==?\s*\${Regex.Escape(name)}\b")) continue;
+            if (!ComparedBeforeGivenAgain(masked, index, $@"\${Regex.Escape(name)}\b\s*[!=]==?\s*[""']|[""']\s*[!=]==?\s*\${Regex.Escape(name)}\b",
+                    $@"\${Regex.Escape(name)}\b\s*=(?![=>])")) continue;
 
             var line = source.Lines[index];
             var readCall = line.Substring(read.Groups["read"].Index, read.Groups["read"].Length);
@@ -162,7 +179,8 @@ public static partial class InputPatterns
 
     /// <summary>
     /// A line read with read_line compared with text: read_line adds the line to the string with its newline. The change
-    /// compares the trimmed text.
+    /// compares the trimmed text. A name given a new value first - let answer = answer.trim(); - is compared as that line made
+    /// it, and is not found.
     /// </summary>
     private static IEnumerable<LogicFinding> RustReadLine(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -172,10 +190,15 @@ public static partial class InputPatterns
 
             var name = read.Groups["name"].Value;
             var compared = new Regex($@"(?<![\w.]){Regex.Escape(name)}(?<op>\s*[!=]=\s*"")");
+            var givenAgain = new Regex($@"\blet\s+(?:mut\s+)?{Regex.Escape(name)}\b|(?<![\w.]){Regex.Escape(name)}\s*=(?!=)");
 
             for (var later = index + 1; later < masked.Count; later++)
             {
-                if (compared.Match(masked[later]) is not { Success: true } comparison) continue;
+                if (compared.Match(masked[later]) is not { Success: true } comparison)
+                {
+                    if (givenAgain.IsMatch(masked[later])) break;
+                    continue;
+                }
 
                 var line = source.Lines[later];
                 var nameEnd = comparison.Index + name.Length;
@@ -337,7 +360,8 @@ public static partial class InputPatterns
             if (ReadHostLine().Match(masked[index]) is not { Success: true } read) continue;
 
             var name = read.Groups["name"].Value;
-            if (!ComparedWithTextLater(masked, index, $@"(?i)\${Regex.Escape(name)}\b\s*-(?:gt|lt|ge|le)\s+-?\d")) continue;
+            if (!ComparedBeforeGivenAgain(masked, index, $@"(?i)\${Regex.Escape(name)}\b\s*-(?:gt|lt|ge|le)\s+-?\d",
+                    $@"(?i)\${Regex.Escape(name)}\b\s*=")) continue;
 
             var line = source.Lines[index];
             var readCall = line.Substring(read.Groups["read"].Index, read.Groups["read"].Length);

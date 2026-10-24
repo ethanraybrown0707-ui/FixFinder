@@ -1401,6 +1401,11 @@ To add a check: a logic check goes in `Logic`, with a guide in `Checking/Guides`
 `Teaching/LessonsByConcept`, in the file of its idea, and is listed in `Lessons.All`; `LessonLiveTests` then runs each of
 its programs, and fails until each does what the lesson says.
 
+Each check then meets the tests in `FixFinder.Tests/Robustness`. Every program the tests hold - the lessons, the guides'
+examples, the captured programs and the tests' own snippets - is read again with Windows line endings, a byte-order
+mark, a comment line at the top, tabs and the like, and must give the same findings. Each change a check offers is made
+and the file read again: it must leave one fewer of that check's mistakes, and no more of any other.
+
 The NuGet dependencies are `System.Security.Cryptography.ProtectedData`, for the token, and `Microsoft.CodeAnalysis.CSharp`
 (Roslyn), to read C#.
 
