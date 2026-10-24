@@ -363,7 +363,10 @@ public sealed partial class JsMissingComma : ILocalFixRule
     }
 }
 
-/// <summary><c>Identifier 'x' has already been declared</c> - a second <c>let</c> where an assignment was meant.</summary>
+/// <summary>
+/// <c>Identifier 'x' has already been declared</c> - a second <c>let</c> where an assignment was meant. TypeScript's
+/// <c>let total: number = 2;</c> becomes <c>total = 2;</c>, as an assignment names no type.
+/// </summary>
 public sealed partial class JsRedeclared : ILocalFixRule
 {
     public string Id => "js-redeclared";
@@ -379,7 +382,7 @@ public sealed partial class JsRedeclared : ILocalFixRule
         var name = Regex.Escape(message.Groups["name"].Value);
         var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
 
-        var redeclared = Regex.Match(line, $@"^(?<lead>\s*)(?:let|var)\s+(?<name>{name})\s*=\s*(?<value>[^;]+?)\s*;?(?<tail>\s*(?://.*)?)$");
+        var redeclared = Regex.Match(line, $@"^(?<lead>\s*)(?:let|var)\s+(?<name>{name})(?:\s*:\s*(?:=>|[^=;])+?)?\s*=(?!>)\s*(?<value>[^;]+?)\s*;?(?<tail>\s*(?://.*)?)$");
         if (!redeclared.Success) return null;
 
         var earlier = Enumerable.Range(0, number - 1).LastOrDefault(i => Regex.IsMatch(masked[i], $@"\b(?:let|var|const)\s+{name}\b"), -1);

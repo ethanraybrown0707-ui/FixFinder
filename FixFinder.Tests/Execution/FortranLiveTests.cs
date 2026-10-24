@@ -121,6 +121,10 @@ public class FortranLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Head + "  integer :: mark\n  mark = 50\n  if (mark > 40) then\n    print *, 'pass'\nend program marks\n", "fortran-close-block", 7, 7, "  end if", "pass")]
     [InlineData(Head + "  integer :: total\n  total = 5\n  call add_one(total)\n  print *, total\ncontains\n  subroutine add_one(n)\n    integer, intent(in) :: n\n    n = n + 1\n  end subroutine add_one\nend program marks\n", "fortran-intent-inout", 10, 9, "    integer, intent(inout) :: n", "6")]
     [InlineData(Head + "  integer, parameter :: pass_mark = 40\n  pass_mark = 50\n  print *, pass_mark\nend program marks\n", "fortran-parameter-changed", 4, 3, "  integer :: pass_mark = 40", "50")]
+    [InlineData(Head + "  print *, \"hello\nend program marks\n", "fortran-close-text", 3, 3, "  print *, \"hello\"", "hello")]
+    [InlineData(Head + "  print *, (1 + 2\nend program marks\n", "fortran-close-bracket", 3, 3, "  print *, (1 + 2)", "3")]
+    // gfortran names no line for a file that ends with no end line: the finding is where the change goes, after the last line.
+    [InlineData(Head + "  print *, 70\n", "fortran-close-units", 4, 4, "end program marks", "70")]
     public async Task WhatGfortranRefusesIsFoundBeforeItRunsAndItsChangeBuildsAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Gfortran() is not { } gfortran) return;
@@ -133,6 +137,20 @@ public class FortranLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(changedLine, found.Fix?.StartLine);
         Assert.Equal(changedTo, found.Fix?.NewLines.Single());
         if (await RunAsync(gfortran, Changed(code, found), $"refused{code.Length}") is { } printed) Assert.Equal(fixedPrints, printed);
+    }
+
+    [Fact]
+    public async Task AFileEndingWithASubroutineAndItsProgramOpenGetsBothEndLinesInnermostFirst()
+    {
+        if (Gfortran() is not { } gfortran) return;
+
+        const string code = Head + "  call show(70)\ncontains\n  subroutine show(mark)\n    integer, intent(in) :: mark\n    print *, mark\n";
+        var report = await CheckAsync(Write(Path.Combine("both-open", "main.f90"), code));
+
+        var found = Assert.Single(report.Findings, finding => finding.RuleId == "fortran-close-units");
+        Assert.Equal((8, 0), (found.Fix!.StartLine, found.Fix.RemoveCount));
+        Assert.Equal(["  end subroutine show", "end program marks"], found.Fix.NewLines);
+        if (await RunAsync(gfortran, Changed(code, found), "both-open") is { } printed) Assert.Equal("70", printed);
     }
 
     /// <summary>

@@ -148,6 +148,25 @@ public class TypeScriptLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(fixedPrints, await RunAsync(node, file));
     }
 
+    [Theory]
+    [InlineData("let total: number = 1;\nlet total: number = 2;\nconsole.log(total);\n", "total = 2;", "2")]
+    // A function's type holds => of its own, which is not the = that gives it its value.
+    [InlineData("let twice: (n: number) => number = (n) => n * 2;\nlet twice: (n: number) => number = (n) => n * 3;\nconsole.log(twice(5));\n", "twice = (n) => n * 3;", "15")]
+    public async Task ANameDeclaredAgainWithItsTypeIsGivenItsNewValueInstead(string code, string changedTo, string fixedPrints)
+    {
+        if (Node() is not { } node) return;
+
+        var file = Write(Path.Combine($"redeclared-{code.Length}", "main.ts"), code);
+        var report = await CheckAsync(file);
+
+        var refused = Assert.Single(report.Findings, finding => finding.RuleId == "js-redeclared");
+        Assert.Equal((2, 2), (refused.Line!.Value, refused.Fix!.StartLine));
+        Assert.Equal(changedTo, refused.Fix.NewLines.Single());
+
+        File.WriteAllText(file, Changed(code, refused));
+        Assert.Equal(fixedPrints, await RunAsync(node, file));
+    }
+
     [Fact]
     public async Task AnImportWithoutItsExtensionIsFoundAtTheImportAndGetsIt()
     {
