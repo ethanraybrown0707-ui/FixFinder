@@ -440,5 +440,15 @@ internal static class PythonPatternGuides
             total = 150
             print(f"Total: {total}")
             """),
+
+        GuideFor(["logic-python-precision-without-f"], ".2 with no f in a format",
+            "In a format, :.2f means two decimal places - but :.2 with no letter after it means two significant figures, counted from " +
+            "the first digit. 3.14159 shows as 3.1, and 150.5, whose first two figures are 1 and 5, as 1.5e+02.",
+            "Numbers come out with too few digits, or in scientific notation, and Python says nothing of it.",
+            "Put f after the precision: f\"{average:.2f}\".",
+            """
+            average = 150.5
+            print(f"Average: {average:.2f}")
+            """),
     ];
 }

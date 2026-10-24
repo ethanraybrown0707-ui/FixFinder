@@ -12,7 +12,7 @@ namespace FixFinder.Core.Logic;
 /// <c>String.upcase</c> on a line of its own, whose changed copy is lost; a decimal worked out by arithmetic, compared
 /// exactly; and <c>if mark = 40 do</c>, which gives mark the value 40 and is always true. The sixth - a variable given a
 /// new value inside fn, for or if, which leaves the one outside as it was - Elixir warns of only as a variable that is
-/// unused.
+/// unused. And text compared with a number, which Elixir also says nothing of: "7" == 7 was false, and "7" &gt; 10 true.
 /// </summary>
 public static partial class ElixirLogicPatterns
 {
@@ -31,6 +31,7 @@ public static partial class ElixirLogicPatterns
         Pattern("logic-elixir-float-equality", FloatEquality),
         Pattern("logic-elixir-assignment-in-condition", AssignmentInCondition, Severity.Error, Confidence.Certain),
         Pattern("logic-elixir-new-variable-in-block", NewVariableInBlock, Severity.Error),
+        Pattern("logic-elixir-text-compared-with-number", TextComparedWithNumber, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary><c>for i &lt;- 0..length(marks) do</c>, or <c>Enum.each(0..length(marks), fn i -&gt;</c>: a range to the length itself.</summary>
@@ -231,6 +232,61 @@ public static partial class ElixirLogicPatterns
                 $"Elixir's variables never change: = inside the block makes a new {name}, which lasts only until the block ends - so " +
                 $"after it, {name} is as it was before the block",
                 fix);
+        }
+    }
+
+    /// <summary>
+    /// A name given text: a quoted string, or a line IO.gets reads - trimmed with String.trim, or not.
+    /// </summary>
+    [GeneratedRegex(@"^\s*(?<name>[a-z_]\w*)\s*=\s*(?<value>""[^""]*""|(?<trimmed>String\.trim\(\s*)?IO\.gets\((?:[^()]|\([^()]*\))*\)\)?(?<piped>\s*\|>\s*String\.trim\(\s*\))?)\s*$")]
+    private static partial Regex GivenText();
+
+    [GeneratedRegex(@"(?<![\w.])(?<name>[a-z_]\w*)\s*(?<op>===|!==|==|!=|>=|<=|>|<)\s*(?<number>-?\d+)(?![\w.])")]
+    private static partial Regex ComparedWithWholeNumber();
+
+    /// <summary>
+    /// Text compared with a whole number: Elixir never counts text equal to a number - "7" == 7 is false - and orders every
+    /// piece of text after every number, so "7" &gt; 10 is true. Left alone wherever the name is given anything but text. The
+    /// change turns the text into a number first with String.to_integer - after String.trim, for a line read with its
+    /// newline still on.
+    /// </summary>
+    private static IEnumerable<LogicFinding> TextComparedWithNumber(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        // Read from the lines as written, as masking blanks the text inside quotes; a name given anything else is left alone.
+        var text = new Dictionary<string, bool>(StringComparer.Ordinal);
+        var untrimmed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var line in source.Lines)
+        {
+            if (Regex.Match(line, @"^\s*(?<name>[a-z_]\w*)\s*=(?![=~>])") is not { Success: true } given) continue;
+
+            var name = given.Groups["name"].Value;
+            var value = GivenText().Match(line);
+            text[name] = value.Success && text.GetValueOrDefault(name, true);
+            if (value.Success && value.Groups["value"].Value.StartsWith("IO.gets", StringComparison.Ordinal) && !value.Groups["piped"].Success) untrimmed.Add(name);
+        }
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            foreach (Match compared in ComparedWithWholeNumber().Matches(masked[index]))
+            {
+                var name = compared.Groups["name"].Value;
+                if (!text.GetValueOrDefault(name)) continue;
+
+                var op = compared.Groups["op"].Value;
+                var number = compared.Groups["number"].Value;
+                var line = source.Lines[index];
+                var nameGroup = compared.Groups["name"];
+                var read = untrimmed.Contains(name) ? $"String.to_integer(String.trim({name}))" : $"String.to_integer({name})";
+                var ordered = op is ">" or "<" or ">=" or "<=";
+
+                yield return new LogicFinding(id, index + 1,
+                    $"`{name}` holds text, and Elixir never counts text equal to a number - \"7\" == 7 is false - " +
+                    (ordered ? $"and it orders all text after all numbers, so \"7\" > 10 is true: `{name} {op} {number}` is the same every time"
+                             : $"so `{name} {op} {number}` is {(op.StartsWith('!') ? "true" : "false")} every time"),
+                    LocalFix.ReplaceLine(id, $"Turn the text into a number first: {read} {op} {number}",
+                        $"String.to_integer turns text such as \"7\" into the number 7, so the comparison is of two numbers.",
+                        source.Path, index + 1, line[..nameGroup.Index] + read + line[(nameGroup.Index + nameGroup.Length)..]));
+            }
         }
     }
 }

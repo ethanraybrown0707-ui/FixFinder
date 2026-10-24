@@ -190,5 +190,19 @@ internal static class PerlPatternGuides
             my $total = 150;
             printf("Total: %d\n", $total);
             """),
+
+        GuideFor(["logic-perl-split-character-as-text"], "split given . or | as text",
+            "split reads its first argument as a regular expression, even when it is written in quotes, and there . means any " +
+            "character, and | on its own matches the empty text between characters. So split(\".\", \"3.14\") splits at every character " +
+            "and gives no parts at all, and split(\"|\", \"a|b\") gives a, | and b.",
+            "The parts are wrong or missing, and Perl says nothing of it, even with use warnings.",
+            "Write the pattern as one, with a \\ before the character: split(/\\./, $text).",
+            """
+            use strict;
+            use warnings;
+
+            my @parts = split(/\./, "3.14");
+            print join(",", @parts), "\n";
+            """),
     ];
 }

@@ -169,5 +169,17 @@ internal static class PhpPatternGuides
             $total = 150;
             printf("Total: %d\n", $total);
             """),
+
+        GuideFor(["logic-php-push-result-kept"], "An array given what array_push gives back",
+            "array_push adds to the array it is given - it changes that array - and gives back how many items the array now has. So " +
+            "$marks = array_push($marks, 90) adds 90 and then replaces the whole array with that count, 3. array_unshift is the same.",
+            "$marks is a number from then on, its items lost, and neither php -l nor PHP says anything until it is used as an array.",
+            "Call array_push on a line of its own - array_push($marks, 90); - or add with $marks[] = 90;.",
+            """
+            <?php
+            $marks = [70, 80];
+            array_push($marks, 90);
+            echo implode(" ", $marks), "\n";
+            """),
     ];
 }

@@ -11,8 +11,9 @@ namespace FixFinder.Core.Logic;
 /// PHP's echo and Perl's print, with php -l and perl -w, printed "Total: %d150"; Lua's print put a tab between the two;
 /// PowerShell's Write-Host printed "Total: %d 150"; and C#'s Console.WriteLine, which fills in {0} and not %d, printed
 /// "Total: %d" and never the total. The change hands the format to the language's own way of filling one in: % in Python,
-/// format in Ruby, sprintf in PHP and Perl, string.format in Lua, and {0} in C# and PowerShell. FormatCodeLiveTests runs
-/// each mistake, and its change.
+/// format in Ruby, sprintf in PHP and Perl, string.format in Lua, and {0} in C# and PowerShell. Python's f"{average:.2}" is
+/// a format of another kind gone wrong: .2 with no letter after it is two significant figures, so 150.5 printed as 1.5e+02;
+/// the change is .2f. FormatCodeLiveTests runs each mistake, and its change.
 /// </summary>
 public static partial class FormatCodePatterns
 {
@@ -25,7 +26,67 @@ public static partial class FormatCodePatterns
         Printed("logic-perl-format-code-printed", CodePattern.Files(".pl", ".pm"), Syntax.Perl, PerlPrint),
         Printed("logic-powershell-format-code-printed", CodePattern.Files(".ps1"), Syntax.Python, PowerShellWrite),
         Printed("logic-csharp-format-code-printed", CodePattern.Files(".cs"), Syntax.CLike, CSharpWrite),
+        new CodePattern("logic-python-precision-without-f", CodePattern.Files(".py", ".pyw"), Syntax.Python, PrecisionWithoutF, Severity.Error, Confidence.Likely),
     ];
+
+    /// <summary>Where an f-string opens - f", F', rf" - in a masked line, which keeps its letters and quotes.</summary>
+    [GeneratedRegex(@"(?<![\w])(?:[rR]?[fF]|[fF][rR])(?<quote>[""'])")]
+    private static partial Regex FStringOpening();
+
+    /// <summary><c>{average:.2}</c> - a value with a precision and no letter after it, in an f-string's text.</summary>
+    [GeneratedRegex(@"\{(?<value>[^{}:!]+)(?:![rsa])?:(?<spec>(?:.?[<>^=])?[+\- ]?\d*[,_]?\.(?<digits>\d+))\}")]
+    private static partial Regex PrecisionWithNoLetter();
+
+    /// <summary>A decimal number, or a division - which in Python always gives one.</summary>
+    [GeneratedRegex(@"\d\.\d|\d\.(?!\w)|(?<!/)/(?!/)|\bfloat\(")]
+    private static partial Regex Fractional();
+
+    /// <summary>
+    /// <c>f"{average:.2}"</c>: a precision with no letter after it means that many significant figures, not decimal places -
+    /// python printed 150.5 as 1.5e+02, and 3.14159 as 3.1. Only a value that is a decimal - a decimal number, a division, or
+    /// a name only ever given one - is found, as a whole number with a precision stops the program, and text is cut short on
+    /// purpose. The change adds f, for that many decimal places.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PrecisionWithoutF(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        bool IsDecimal(string value)
+        {
+            value = value.Trim();
+            if (Fractional().IsMatch(value)) return true;
+            if (!Regex.IsMatch(value, @"^[A-Za-z_]\w*$")) return false;
+
+            // Every value the name is given is a decimal - decimal numbers, / and float( all survive masking.
+            var given = masked.Select(line => Regex.Match(line, $@"^\s*{Regex.Escape(value)}\s*=(?!=)\s*(?<value>.+?)\s*$")).Where(match => match.Success).ToList();
+            return given.Count > 0 && given.All(match => Fractional().IsMatch(match.Groups["value"].Value));
+        }
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            var line = source.Lines[index];
+            foreach (Match opening in FStringOpening().Matches(masked[index]))
+            {
+                var bodyStart = opening.Index + opening.Length;
+                var close = masked[index].IndexOf(opening.Groups["quote"].Value[0], bodyStart);
+                if (close < 0) continue;
+
+                foreach (Match precision in PrecisionWithNoLetter().Matches(line[bodyStart..close]))
+                {
+                    if (!IsDecimal(precision.Groups["value"].Value)) continue;
+
+                    var digits = precision.Groups["digits"].Value;
+                    var spec = precision.Groups["spec"];
+                    var end = bodyStart + spec.Index + spec.Length;
+
+                    yield return new LogicFinding(id, index + 1,
+                        $"In a format, .{digits} with no letter after it means {digits} significant figures, not {digits} decimal places - so 150.5 " +
+                        $"is shown as 1.5e+02, and 3.14159 as 3.1",
+                        LocalFix.ReplaceLine(id, $"Ask for decimal places: :{spec.Value}f",
+                            $"f after the precision asks for that many decimal places, so .{digits}f always shows {digits} digits after the point.",
+                            source.Path, index + 1, line[..end] + "f" + line[end..]));
+                }
+            }
+        }
+    }
 
     private static CodePattern Printed(string id, IReadOnlySet<string> extensions, Syntax syntax, Func<string, SourceFile, IReadOnlyList<string>, IEnumerable<LogicFinding>> find) =>
         new(id, extensions, syntax, find, Severity.Error, Confidence.Likely);

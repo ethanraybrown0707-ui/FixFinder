@@ -456,6 +456,18 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-js-foreach-for-map"], "forEach where map was meant",
+            "forEach runs its function for every item, for what the function does - printing, say - and then gives back undefined. It " +
+            "keeps nothing the function works out. map gives back a new array of what the function worked out for each item.",
+            "The name is given undefined instead of an array, with no error, so printing it shows undefined, and using it as an array " +
+            "stops the program with a TypeError.",
+            "Use map when the function works out a new value for each item: const doubled = marks.map((mark) => mark * 2);.",
+            """
+            const marks = [70, 80];
+            const doubled = marks.map((mark) => mark * 2);
+            console.log(doubled);
+            """),
+
         GuideFor(["logic-percent-divided-first"], "A percentage that divides first",
             "In C, C++, Java and C#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In " +
             "score / total * 100 the division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",

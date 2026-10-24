@@ -116,5 +116,19 @@ internal static class DartPatternGuides
               print(grid);
             }
             """),
+
+        GuideFor(["logic-dart-remove-while-counting-up"], "Removing from a list while counting up through it",
+            "removeAt(i) takes out the item at i and moves every item after it down a place to close the gap. A loop counting up " +
+            "then moves on to i + 1 - so the item that moved into position i is never looked at.",
+            "Two items in a row that should both go leave one behind - [70, 40, 40, 90] keeps a 40 - and dart analyze says nothing.",
+            "Count down instead - for (var i = marks.length - 1; i >= 0; i--) - so a removal only moves items the loop has already " +
+            "been past. Or use marks.removeWhere((mark) => mark == 40).",
+            """
+            void main() {
+              var marks = [70, 40, 40, 90];
+              marks.removeWhere((mark) => mark == 40);
+              print(marks);
+            }
+            """),
     ];
 }

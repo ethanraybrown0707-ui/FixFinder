@@ -11,7 +11,8 @@ namespace FixFinder.Core.Logic;
 /// krsort, shuffle, natsort and natcasesort with PHP 8.4. Ruby's ! methods change the value itself and give back nil when
 /// there is nothing to change, so fixed = name.strip! was nil for "Ada" - and so were uniq!, compact!, flatten!, reject!,
 /// select!, filter!, lstrip!, rstrip!, chomp!, squeeze!, sub!, gsub!, capitalize!, downcase!, upcase!, swapcase!, tr! and
-/// delete! with Ruby 3.3, each given a value it had nothing to change in. ResultKeptLiveTests runs each mistake, and its change.
+/// delete! with Ruby 3.3, each given a value it had nothing to change in. And PHP's array_push gives back the count, so
+/// $marks = array_push($marks, 90) made $marks int(3). ResultKeptLiveTests runs each mistake, and its change.
 /// </summary>
 public static partial class ResultKeptPatterns
 {
@@ -19,7 +20,36 @@ public static partial class ResultKeptPatterns
     [
         new CodePattern("logic-php-sort-result-kept", CodePattern.Files(".php"), Syntax.CLike, PhpSortResultKept, Severity.Error, Confidence.Certain),
         new CodePattern("logic-ruby-bang-result-kept", CodePattern.Files(".rb"), Syntax.Python, RubyBangResultKept, Severity.Error),
+        new CodePattern("logic-php-push-result-kept", CodePattern.Files(".php"), Syntax.CLike, PhpPushResultKept, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>$marks = array_push($marks, 90);</c> - the array given what array_push gives back.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)\$(?<name>\w+)\s*=\s*(?<call>(?:array_push|array_unshift)\s*\(\s*\$(?<array>\w+)\s*,.*\))\s*;\s*$")]
+    private static partial Regex PhpPushKept();
+
+    /// <summary>
+    /// array_push and array_unshift add to the array itself and give back how many items it now has, so giving the array what
+    /// they give back replaces its items with a number - $marks was int(3). The change only adds; a different name given the
+    /// count is left alone, as the count is what array_push is for there.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PhpPushResultKept(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (PhpPushKept().Match(masked[index]) is not { Success: true } kept || kept.Groups["name"].Value != kept.Groups["array"].Value) continue;
+
+            var array = kept.Groups["array"].Value;
+            var call = source.Lines[index].Substring(kept.Groups["call"].Index, kept.Groups["call"].Length);
+            var function = call[..call.IndexOf('(')].Trim();
+
+            yield return new LogicFinding(id, index + 1,
+                $"{function} adds to ${array} itself and gives back how many items it now has - so ${array} is given that count, a number, " +
+                "and its items are lost",
+                LocalFix.ReplaceLine(id, $"Only add: {call};",
+                    $"{function} changes ${array} itself, so the line needs nothing more.",
+                    source.Path, index + 1, $"{kept.Groups["indent"].Value}{call};"));
+        }
+    }
 
     /// <summary>
     /// Whether a later line than <paramref name="after"/> reads <paramref name="name"/> - in the lines as written, so a name

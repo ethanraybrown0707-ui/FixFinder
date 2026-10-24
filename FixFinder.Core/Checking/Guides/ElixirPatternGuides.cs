@@ -100,5 +100,17 @@ internal static class ElixirPatternGuides
             doubled = Enum.map(marks, fn mark -> mark * 2 end)
             IO.inspect(doubled)
             """),
+
+        GuideFor(["logic-elixir-text-compared-with-number"], "Text compared with a number",
+            "A line IO.gets reads is text, and so is anything in quotes - \"7\" is text, not the number 7. Elixir never counts text " +
+            "equal to a number, so \"7\" == 7 is false. And when it puts values in order, every piece of text comes after every " +
+            "number, so \"7\" > 10 is true.",
+            "The comparison gives the same answer whatever was typed, with no warning, so the program takes the same branch every time.",
+            "Turn the text into a number first: String.to_integer(String.trim(typed)) == 7.",
+            """
+            typed = "7"
+            number = String.to_integer(typed)
+            IO.puts(number == 7)
+            """),
     ];
 }

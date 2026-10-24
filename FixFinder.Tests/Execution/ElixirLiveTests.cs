@@ -175,6 +175,9 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("ages = %{\"Ada\" => 36}\nMap.put(ages, \"Bob\", 20)\nIO.inspect(ages)\n", "logic-elixir-result-discarded", 2, "", "%{\"Ada\" => 36, \"Bob\" => 20}")]
     [InlineData("total = 0.1 + 0.2\nif total == 0.3 do\n  IO.puts(\"equal\")\nelse\n  IO.puts(\"not equal\")\nend\n", "logic-elixir-float-equality", 2, "", "equal")]
     [InlineData("mark = 70\nif mark = 40 do\n  IO.puts(\"forty\")\nend\nIO.puts(mark)\n", "logic-elixir-assignment-in-condition", 2, "", "70")]
+    // Text compared with a number: the mistake printed "not seven" whatever was typed.
+    [InlineData("typed = \"7\"\nif typed == 7 do\n  IO.puts(\"seven\")\nelse\n  IO.puts(\"not seven\")\nend\n", "logic-elixir-text-compared-with-number", 2, "", "seven")]
+    [InlineData("typed = IO.gets(\"Number? \")\nif typed == 7 do\n  IO.puts(\"seven\")\nelse\n  IO.puts(\"not seven\")\nend\n", "logic-elixir-text-compared-with-number", 2, "7\n", "Number? seven")]
     public async Task ALogicMistakeIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string input, string fixedPrints)
     {
         if (Elixir() is not { } elixir) return;

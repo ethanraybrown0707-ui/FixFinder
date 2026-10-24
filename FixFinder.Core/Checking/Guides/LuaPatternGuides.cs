@@ -128,5 +128,18 @@ internal static class LuaPatternGuides
             local total = 150
             print(string.format("Total: %d", total))
             """),
+
+        GuideFor(["logic-lua-pattern-character-as-text"], "A . in a Lua pattern",
+            "string.gsub, find, match and gmatch read their second value as a pattern, where some characters have a meaning of their " +
+            "own: . means any character at all. So text:gsub(\".\", \",\") replaces every character - \"3.14\" becomes \",,,,\" - and " +
+            "find(\".\") finds the first character, whatever it is.",
+            "The text is changed or searched in the wrong places, and neither luac -p nor Lua says anything of it.",
+            "Put % before it - \"%.\" is a full stop itself in a pattern - or give find true after the starting position, to look " +
+            "for the text as it is.",
+            """
+            local text = "3.14"
+            local changed = text:gsub("%.", ",")
+            print(changed)
+            """),
     ];
 }

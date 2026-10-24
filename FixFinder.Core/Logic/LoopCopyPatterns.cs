@@ -9,7 +9,7 @@ namespace FixFinder.Core.Logic;
 /// said nothing of any. Python's for mark in marks, JavaScript's for (let mark of marks), PHP's foreach ($marks as $mark) and
 /// PowerShell's foreach ($mark in $marks) give each item to a variable of the loop's own, so mark += 5 left 70, 80 and 90 as
 /// they were. Ruby's each gives back the list it went over, not what its block worked out, so doubled was [70, 80] - and
-/// Elixir's Enum.each gives back :ok, so doubled was :ok. Go's range with one variable gives each position, so the total of
+/// Elixir's Enum.each gives back :ok, so doubled was :ok, and JavaScript's forEach undefined. Go's range with one variable gives each position, so the total of
 /// 70, 80 and 90 came out as 3. And a PowerShell function gives back everything it outputs, so Write-Output's text came back
 /// with the total. LoopCopyLiveTests runs each mistake, and its change.
 /// </summary>
@@ -23,6 +23,7 @@ public static partial class LoopCopyPatterns
         new CodePattern("logic-powershell-foreach-copy-changed", CodePattern.Files(".ps1"), Syntax.Python, PowerShellForeachCopy, Severity.Error),
         new CodePattern("logic-ruby-each-for-map", CodePattern.Files(".rb"), Syntax.Python, RubyEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-elixir-each-for-map", CodePattern.Files(".ex", ".exs"), Syntax.Python, ElixirEachForMap, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-js-foreach-for-map", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptForEachForMap, Severity.Error, Confidence.Certain),
         new CodePattern("logic-go-range-index-as-value", CodePattern.Files(".go"), Syntax.CLike, GoRangeIndex, Severity.Error),
         new CodePattern("logic-js-for-in-over-array", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, ScriptForInOverArray, Severity.Error),
         new CodePattern("logic-powershell-function-output-returned", CodePattern.Files(".ps1"), Syntax.Python, PowerShellOutputReturned, Severity.Error),
@@ -271,6 +272,32 @@ public static partial class LoopCopyPatterns
     /// What Enum.each gives back, given to a name read later: Enum.each runs its function for each item and gives back :ok,
     /// not what the function worked out - Enum.map does.
     /// </summary>
+    /// <summary><c>const doubled = marks.forEach(</c> - what forEach gives back, given to a name.</summary>
+    [GeneratedRegex(@"^\s*(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*=\s*[A-Za-z_$][\w$.]*?(?<each>\.forEach)\s*\(")]
+    private static partial Regex ForEachKept();
+
+    /// <summary>
+    /// What forEach gives back, given to a name read later: forEach runs its function for each item and gives back undefined,
+    /// not what the function worked out - map does.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ScriptForEachForMap(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (ForEachKept().Match(masked[index]) is not { Success: true } kept || !ReadAfter(masked, index, kept.Groups["name"].Value)) continue;
+
+            var name = kept.Groups["name"].Value;
+            var each = kept.Groups["each"];
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"forEach runs its function for each item and gives back undefined - not what the function worked out - so {name} is undefined",
+                LocalFix.ReplaceLine(id, "Keep what the function works out: map",
+                    "map gives back a new array of what its function worked out for each item.",
+                    source.Path, index + 1, line[..each.Index] + ".map" + line[(each.Index + each.Length)..]));
+        }
+    }
+
     private static IEnumerable<LogicFinding> ElixirEachForMap(string id, SourceFile source, IReadOnlyList<string> masked)
     {
         for (var index = 0; index < masked.Count; index++)

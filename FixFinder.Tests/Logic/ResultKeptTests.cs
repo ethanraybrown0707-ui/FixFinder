@@ -27,7 +27,7 @@ public class ResultKeptPatternTests : IDisposable
         return LogicPatterns.Scan(SourceFile.Read(path)!);
     }
 
-    private static readonly string[] Checks = ["logic-php-sort-result-kept", "logic-ruby-bang-result-kept"];
+    private static readonly string[] Checks = ["logic-php-sort-result-kept", "logic-ruby-bang-result-kept", "logic-php-push-result-kept"];
 
     [Theory]
     [InlineData("main.php", "<?php\n$marks = [90, 70, 80];\n$sorted = sort($marks);\necho json_encode($sorted);\n", 3, "sort($marks);\n$sorted = $marks;")]
@@ -42,6 +42,9 @@ public class ResultKeptPatternTests : IDisposable
     // A name read again: the ! method on a line of its own, then the name given the value it changed.
     [InlineData("main.rb", "marks = [70, 80]\npassed = marks.reject! { |mark| mark < 40 }\np passed\np marks\n", 2, "marks.reject! { |mark| mark < 40 }\npassed = marks")]
     [InlineData("main.rb", "text = \"a-b\".dup\nspaced = text.gsub!(\"-\", \" \")\nputs spaced\nputs text\n", 2, "text.gsub!(\"-\", \" \")\nspaced = text")]
+    // The array given the count array_push and array_unshift give back: adding is all the line needs.
+    [InlineData("main.php", "<?php\n$marks = [70, 80];\n$marks = array_push($marks, 90);\nprint_r($marks);\n", 3, "array_push($marks, 90);")]
+    [InlineData("main.php", "<?php\n$marks = [80];\n    $marks = array_unshift($marks, 70);\n", 3, "    array_unshift($marks, 70);")]
     public void WhatAnInPlaceMethodGivesBackKeptIsFoundAndTheValueItselfKept(string fileName, string code, int line, string changedTo)
     {
         var found = Assert.Single(Scan(fileName, code), finding => Checks.Contains(finding.PatternId));
@@ -57,6 +60,8 @@ public class ResultKeptPatternTests : IDisposable
     [InlineData("main.php", "<?php\n$marks = [2, 1];\n$done = sort($marks);\n")]
     // A function of the program's own, whose name only starts with sort.
     [InlineData("main.php", "<?php\nfunction sorted($marks) { return $marks; }\n$list = sorted([2, 1]);\necho $list[0];\n")]
+    // array_push's count given to a name of its own, which is what it gives back for.
+    [InlineData("main.php", "<?php\n$marks = [70];\n$count = array_push($marks, 80);\necho $count;\n")]
     // The ! method on a line of its own, or the copy kept.
     [InlineData("main.rb", "name = \"Ada\".dup\nname.strip!\nputs name\n")]
     [InlineData("main.rb", "name = \" Ada \"\nfixed = name.strip\nputs fixed\n")]
@@ -89,6 +94,7 @@ public class ResultKeptLiveTests(ITestOutputHelper output) : IDisposable
         { "PHP", "main.php", "<?php\n$marks = [90, 70, 80];\n$sorted = sort($marks);\necho json_encode($sorted), \"\\n\";\n", "logic-php-sort-result-kept", 3, "true", "[70,80,90]" },
         { "PHP", "main.php", "<?php\n$names = [\"Ada\", \"Bob\"];\n$names = rsort($names);\necho json_encode($names), \"\\n\";\n", "logic-php-sort-result-kept", 3, "true", "[\"Bob\",\"Ada\"]" },
         { "Ruby", "main.rb", "name = \"Ada\".dup\nfixed = name.strip!\np fixed\n", "logic-ruby-bang-result-kept", 2, "nil", "\"Ada\"" },
+        { "PHP", "main.php", "<?php\n$marks = [70, 80];\n$marks = array_push($marks, 90);\necho json_encode($marks), \"\\n\";\n", "logic-php-push-result-kept", 3, "3", "[70,80,90]" },
         { "Ruby", "main.rb", "marks = [70, 80]\npassed = marks.reject! { |mark| mark < 40 }\np passed\np marks\n", "logic-ruby-bang-result-kept", 2, "nil\n[70, 80]", "[70, 80]\n[70, 80]" },
         { "Ruby", "main.rb", "text = \"Ada\".dup\nchanged = text.gsub!(\"x\", \"y\")\np changed\n", "logic-ruby-bang-result-kept", 2, "nil", "\"Ada\"" },
     };

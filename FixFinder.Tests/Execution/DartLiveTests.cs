@@ -166,6 +166,9 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     // Dart puts in $marks alone - the mistake printed "Marks counted: [70, 80, 90].length" and "First: [70, 80, 90][0]".
     [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('Marks counted: $marks.length');\n}\n", "logic-dart-interpolated-property", 3, "Marks counted: 3")]
     [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('First: $marks[0]');\n}\n", "logic-dart-interpolated-property", 3, "First: 70")]
+    // removeAt counting up: the mistake printed [70, 40, 90].
+    [InlineData("void main() {\n  var marks = [70, 40, 40, 90];\n  for (var i = 0; i < marks.length; i++) {\n    if (marks[i] == 40) {\n      marks.removeAt(i);\n    }\n  }\n  print(marks);\n}\n",
+        "logic-dart-remove-while-counting-up", 3, "[70, 90]")]
     public async Task ALogicMistakeTheAnalyzerSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Dart() is not { } dart) return;
