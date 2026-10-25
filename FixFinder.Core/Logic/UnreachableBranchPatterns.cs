@@ -10,8 +10,8 @@ namespace FixFinder.Core.Logic;
 /// A branch of an if - else if chain that can never run, because a branch before it takes every value it would: if score
 /// &gt;= 50 ... else if score &gt;= 70 never reaches its second branch, as every score of 70 or more is 50 or more. No input can
 /// test that branch. Run with a score of 75 in Python, Java, C, C++, C#, JavaScript, Go, Rust, Scala, Ruby, PHP, Lua, Perl, Dart,
-/// Fortran, PowerShell, Elixir's cond, Erlang's if and F#, each printed C, not B, with nothing said by any compiler, linter or
-/// warning flag. A condition read here is one comparison of a name with a number - score &gt;= 70 - or two joined by and,
+/// Fortran, PowerShell, Elixir's cond, Erlang's if, F# and OCaml, each printed C, not B, with nothing said by any compiler, linter
+/// or warning flag. A condition read here is one comparison of a name with a number - score &gt;= 70 - or two joined by and,
 /// 50 &lt;= score and score &lt; 70: the values each lets through are worked out, and a branch whose values all pass an earlier
 /// branch's test is found. When every branch compares the same name the same way - a ladder of &gt;= or of &lt; - the change puts
 /// the branches in order, the strictest first, so each takes the values meant for it.
@@ -40,6 +40,7 @@ public static partial class UnreachableBranchPatterns
         Unreachable("logic-fortran-branch-never-reached", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran,
             KeywordChains(@"if\s*\(", @"else\s*if\s*\(", @"^\s*(?:else\s*$|else\s*!|end\s*if\b|endif\b)", @"\)\s*then\s*$", RegexOptions.IgnoreCase)),
         Unreachable("logic-fsharp-branch-never-reached", CodePattern.Files(".fsx"), Syntax.FSharp, KeywordChains(@"if\b", @"elif\b", @"^\s*else\b", @"\s+then\b.*$")),
+        Unreachable("logic-ocaml-branch-never-reached", CodePattern.Files(".ml"), Syntax.OCaml, KeywordChains(@"if\b", @"else\s+if\b", @"^\s*else\b", @"\s+then\b.*$")),
         Unreachable("logic-elixir-branch-never-reached", CodePattern.Files(".exs", ".ex"), Syntax.Python, ClauseChains(@"\bcond\s+do\s*$", @"^\s*end\b")),
         Unreachable("logic-erlang-branch-never-reached", CodePattern.Files(".erl"), Syntax.Erlang, ClauseChains(@"^\s*if\s*$", @"^\s*end\b")),
     ];

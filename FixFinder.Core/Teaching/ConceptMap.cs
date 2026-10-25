@@ -236,6 +236,7 @@ public static class ConceptMap
             [
                 "logic-percent-divided-first", "logic-go-percent-divided-first", "logic-rust-percent-divided-first", "logic-scala-percent-divided-first",
                 "logic-ruby-percent-divided-first", "logic-fsharp-percent-divided-first", "logic-fortran-percent-divided-first",
+                "logic-ocaml-percent-divided-first",
             ],
         },
         new(Concepts.TextToNumber) { CheckIds = ["logic-fsharp-input-compared-as-text"] },

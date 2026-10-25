@@ -8,8 +8,9 @@ namespace FixFinder.Core.Logic;
 /// A percentage worked out from two whole numbers by dividing first - score / total * 100. The division comes first, and two
 /// whole numbers divide to a whole number, so 45 / 60 is 0, and 0 * 100 is 0. Each was run with the language's own
 /// toolchain, and each printed 0 where 75 was meant, with nothing said by gcc and g++ -Wall -Wextra, javac -Xlint:all, the
-/// C# compiler, go vet, rustc, Scala CLI, ruby -w, F# Interactive or gfortran -Wall. The change multiplies first -
-/// score * 100 / total, which printed 75 in each. PercentDividedFirstLiveTests runs each mistake, and its change.
+/// C# compiler, go vet, rustc, Scala CLI, ruby -w, F# Interactive, gfortran -Wall or ocamlc. The change multiplies first -
+/// score * 100 / total, which printed 75 in each. PercentDividedFirstLiveTests runs each mistake, and its change - and
+/// OCamlLogicLiveTests OCaml's, on CI, as this computer cannot run OCaml.
 /// </summary>
 public static partial class PercentDividedFirstPatterns
 {
@@ -22,6 +23,7 @@ public static partial class PercentDividedFirstPatterns
         Divided("logic-ruby-percent-divided-first", CodePattern.Files(".rb"), Syntax.Python, RubyWhole),
         Divided("logic-fsharp-percent-divided-first", CodePattern.Files(".fsx"), Syntax.FSharp, FSharpWhole),
         Divided("logic-fortran-percent-divided-first", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran, FortranWhole),
+        Divided("logic-ocaml-percent-divided-first", CodePattern.Files(".ml"), Syntax.OCaml, OCamlWhole),
     ];
 
     private static CodePattern Divided(string id, IReadOnlySet<string> extensions, Syntax syntax, Func<string, IReadOnlyList<string>, bool> whole) =>
@@ -74,6 +76,9 @@ public static partial class PercentDividedFirstPatterns
     /// <summary>Fortran: named in an integer declaration - integer :: score, total - in any case.</summary>
     private static bool FortranWhole(string name, IReadOnlyList<string> masked) =>
         AnyLine(masked, Declared(@"^\s*integer\b[^:]*::[^=]*?(?<![\w])NAME(?![\w])", name, RegexOptions.IgnoreCase));
+
+    /// <summary>OCaml: always - its / divides only ints, and decimals are divided with /. instead.</summary>
+    private static bool OCamlWhole(string name, IReadOnlyList<string> masked) => true;
 
     private static IEnumerable<LogicFinding> DividedFirst(string id, SourceFile source, IReadOnlyList<string> masked, Func<string, IReadOnlyList<string>, bool> whole)
     {

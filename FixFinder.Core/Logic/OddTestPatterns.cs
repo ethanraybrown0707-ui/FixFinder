@@ -5,10 +5,10 @@ using FixFinder.Core.LocalFixes;
 namespace FixFinder.Core.Logic;
 
 /// <summary>
-/// n % 2 == 1 asked to find an odd number. % - and mod, rem and Fortran's mod - keeps the sign of the number divided, so a
+/// n % 2 == 1 asked to find an odd number. % - and mod, rem, Fortran's mod and OCaml's mod - keeps the sign of the number divided, so a
 /// negative odd number leaves -1: -3 % 2 is -1, and -3 was taken for even. Each was run with the language's own toolchain,
 /// with -3, and each printed even, with nothing said by gcc and g++ -Wall -Wextra, javac -Xlint:all, the C# compiler, go vet,
-/// rustc, Scala CLI, gfortran -Wall, erlc +warn_all, Elixir, F# Interactive, PHP, Node.js or PowerShell. Python, Ruby, Lua,
+/// rustc, Scala CLI, gfortran -Wall, erlc +warn_all, Elixir, F# Interactive, ocamlc, PHP, Node.js or PowerShell. Python, Ruby, Lua,
 /// Perl and Dart give -3 % 2 as 1, so their n % 2 == 1 is right, and they are not here. The change asks whether anything is
 /// left over - n % 2 != 0 - which is true for every odd number. A number that cannot be negative - a length, a count, an
 /// unsigned number, or a loop counter counting up from 0 or more - is left alone.
@@ -27,6 +27,7 @@ public static partial class OddTestPatterns
         Odd("logic-elixir-odd-test-negative", CodePattern.Files(".exs", ".ex"), Syntax.Python, ElixirRemainder(), CLikeChange, "rem"),
         Odd("logic-fsharp-odd-test-negative", CodePattern.Files(".fsx"), Syntax.FSharp, FSharpRemainder(), FSharpChange, "%"),
         Odd("logic-powershell-odd-test-negative", CodePattern.Files(".ps1"), Syntax.Python, PowerShellRemainder(), PowerShellChange, "%"),
+        Odd("logic-ocaml-odd-test-negative", CodePattern.Files(".ml"), Syntax.OCaml, OCamlRemainder(), FSharpChange, "mod"),
     ];
 
     private static CodePattern Odd(string id, IReadOnlySet<string> extensions, Syntax syntax, Regex remainder, Func<string, string> change, string operation) =>
@@ -51,6 +52,10 @@ public static partial class OddTestPatterns
     /// <summary><c>n % 2 = 1</c> or <c>n % 2 &lt;&gt; 1</c> - an = on its own, not part of &lt;=, &gt;= or ==.</summary>
     [GeneratedRegex(@"(?<![\w.\])])(?<number>[a-z_]\w*(?:\.[A-Za-z_]\w*)*|\([^()]+\))\s*%\s*2\s*(?<test>(?<![<>=!])=(?!=)|<>)\s*1(?!\w|\.\d)")]
     private static partial Regex FSharpRemainder();
+
+    /// <summary><c>n mod 2 = 1</c> or <c>n mod 2 &lt;&gt; 1</c> - mod between spaces, and an = on its own.</summary>
+    [GeneratedRegex(@"(?<![\w.'\])])(?<number>[a-z_][\w']*(?:\.[a-z_][\w']*)*|\([^()]+\))\s+mod\s+2\s*(?<test>(?<![<>=!:])=(?!=)|<>)\s*1(?!\w|\.\d)")]
+    private static partial Regex OCamlRemainder();
 
     /// <summary><c>$n % 2 -eq 1</c> or <c>-ne 1</c> - and -ceq, -ieq, -cne and -ine - in any case.</summary>
     [GeneratedRegex(@"(?<number>\$[\w:]+(?:\.\w+|\[[^\]]+\])*|\([^()]+\))\s*%\s*2\s*(?<test>-[ci]?(?:eq|ne))\s+1(?![\w.])", RegexOptions.IgnoreCase)]
@@ -106,7 +111,7 @@ public static partial class OddTestPatterns
                 var asked = line.Substring(oddTest.Index, oddTest.Length);
                 var changed = line.Substring(oddTest.Index, test.Index - oddTest.Index) + change(test.Value);
                 var askingOdd = !Regex.IsMatch(test.Value, "^(?:!=|!==|/=|=/=|<>|\\.ne\\.|-[ci]?ne)$", RegexOptions.IgnoreCase);
-                var example = operation switch { "mod" => "mod(-3, 2) is -1", "rem" when id.Contains("erlang") => "-3 rem 2 is -1", "rem" => "rem(-3, 2) is -1", _ => "-3 % 2 is -1" };
+                var example = operation switch { "mod" when id.Contains("ocaml") => "-3 mod 2 is -1", "mod" => "mod(-3, 2) is -1", "rem" when id.Contains("erlang") => "-3 rem 2 is -1", "rem" => "rem(-3, 2) is -1", _ => "-3 % 2 is -1" };
 
                 yield return new LogicFinding(id, index + 1,
                     $"{operation} keeps the sign of the number divided, so a negative odd number leaves -1, not 1 - {example} - and {asked} is " +

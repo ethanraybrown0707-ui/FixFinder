@@ -8,8 +8,8 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// A loop meant to count down, written the way that counts up, so it runs no times at all - and nothing in it can be tested:
 /// range(10, 0) in Python, (10..1).each in Ruby, 10..0 in Rust, 10 to 1 in Scala, for i = 10, 1 in Lua, for i in 10 .. 1 and
-/// for i = 10 to 1 in F#, and (10..1) in Perl. Each was run, counting the times round, and each counted 0, with nothing said by
-/// python -W error, ruby -w, rustc, Scala CLI, Lua, F# Interactive or perl -w. Fortran's do i = 10, 1 counted 0 too, and
+/// for i = 10 to 1 in F#, (10..1) in Perl, and for i = 10 to 1 in OCaml. Each was run, counting the times round, and each counted
+/// 0, with nothing said by python -W error, ruby -w, rustc, Scala CLI, Lua, F# Interactive, perl -w or ocamlc. Fortran's do i = 10, 1 counted 0 too, and
 /// gfortran -Wall warns that it "will be executed zero times" - the warning and this check are one finding, which gives the
 /// change. Elixir's 10..1 is not here, as it counts down, and warns. The change counts down: range(10, 0, -1), 10.downto(1),
 /// (1..=10).rev(), 10 to 1 by -1, for i = 10, 1, -1, do i = 10, 1, -1, 10 .. -1 .. 1 or downto, reverse(1..10).
@@ -26,7 +26,12 @@ public static partial class NeverRunningLoopPatterns
         Loop("logic-fsharp-loop-never-runs", CodePattern.Files(".fsx"), Syntax.FSharp, FSharpRange(), FSharpChange),
         Loop("logic-perl-loop-never-runs", CodePattern.Files(".pl", ".pm"), Syntax.Perl, PerlRange(), PerlChange),
         Loop("logic-fortran-loop-never-runs", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran, FortranRange(), LuaChange),
+        Loop("logic-ocaml-loop-never-runs", CodePattern.Files(".ml"), Syntax.OCaml, OCamlRange(), FSharpChange),
     ];
+
+    /// <summary>for i = 10 to 1 do - OCaml's for, whose to counts up.</summary>
+    [GeneratedRegex(@"\bfor\s+[a-z_][\w']*\s*=\s*(?<range>(?<start>-?\d+)\s+(?<to>to)\s+(?<stop>-?\d+))\s+do\b")]
+    private static partial Regex OCamlRange();
 
     /// <summary>do i = 10, 1 - two whole numbers, the first larger, and no step.</summary>
     [GeneratedRegex(@"^\s*(?:\w+\s*:\s*)?do\s+[A-Za-z_]\w*\s*=\s*(?<range>(?<start>-?\d+)\s*,\s*(?<stop>-?\d+))\s*$", RegexOptions.IgnoreCase)]

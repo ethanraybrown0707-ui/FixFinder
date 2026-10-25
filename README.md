@@ -269,19 +269,30 @@ with the other code no run can reach.
 An **OCaml** program - an `.ml` file - is compiled with the `ocamlc` on PATH, as a terminal set up with opam's
 environment finds it, or else the one in the switch opam's config names as current; how it ran names which, and its
 version. A program is the chosen file and the `.ml` files beside it that its code uses, each compiled after the files it
-uses, with an `.mli` interface before its module; the `str` and `unix` libraries that come with OCaml are linked when the
-code uses `Str` or `Unix`. The files are copied into FixFinder's build folder and compiled there, so no `.cmo` or `.cmi`
-is written beside them. It is compiled to bytecode with `-g` and run with `ocamlrun`, with `b` added to
+uses, with an `.mli` interface before its module; the `str` and `unix` libraries that come with OCaml are linked when
+the code uses `Str` or `Unix`. The files are copied into FixFinder's build folder and compiled there, so no `.cmo` or
+`.cmi` is written beside them. It is compiled to bytecode with `-g` and run with `ocamlrun`, with `b` added to
 `OCAMLRUNPARAM`, so an exception that stops it names where it was raised. FixFinder never runs dune: a `dune` file is
-named in how it ran, as it is not what builds the program here. OCaml's own hints become fixes - the name it suggests for
-one it does not know, and `rec` on the line it names for a function that calls itself. Compiled to bytecode, OCaml names
-no place for a whole-number division by zero itself, only the call of the function that divided - or no line at all,
-outside any function - so the crash is placed at that call, and when the function called divides exactly once, that
+named in how it ran, as it is not what builds the program here. OCaml's own hints become fixes - the name it suggests
+for one it does not know, and `rec` on the line it names for a function that calls itself. Compiled to bytecode, OCaml
+names no place for a whole-number division by zero itself, only the call of the function that divided - or no line at
+all, outside any function - so the crash is placed at that call, and when the function called divides exactly once, that
 division is the one given an answer for a zero, and the change is run in a copy. OCaml's code is read for logic mistakes
-by three checks of its own: a `for i = 0 to Array.length a do` that uses `i` as a position in `a` - OCaml's `for`
-includes its last number - text, lists or floats compared with `==` or `!=`, which ask whether two values are one and
-the same in memory, and a whole-number average turned into a float after its fraction is lost. OCaml is tested with
-OCaml 5.5.1, on GitHub's Windows computers.
+by eleven checks: a `for i = 0 to Array.length a do` that uses `i` as a position in `a` - OCaml's `for` includes its
+last number - text, lists or floats compared with `==` or `!=`, which ask whether two values are one and the same in
+memory, a whole-number average turned into a float after its fraction is lost, and a decimal worked out by arithmetic
+and then compared exactly - `0.1 +. 0.2` printed `0.30000000000000004`, and `= 0.3` was false; the change compares the
+difference with a tiny tolerance. The sixth is a grid made with `Array.make 3 (Array.make 3 0)`, whose rows are then one
+array, so `grid.(0).(0) <- 1` changed every row; the change is `Array.init 3 (fun _ -> Array.make 3 0)`. The seventh is
+two lines under a `then`, the first ending with `;`: `then` takes one expression, and the `;` ends it, so the second
+line ran every time, however far it was indented - a total of the even numbers from 1 to 4 came to 10, not 6 - and the
+change puts the lines in `begin` and `end`. The eighth is `Hashtbl.add` of a key just read with `Hashtbl.find`, which
+puts a second binding on top of the first rather than changing it: counting a, b and a, `Hashtbl.find` gave 2 for a, but
+`Hashtbl.length` and a fold both counted 3; the change is `Hashtbl.replace`, after which both counted 2. The ninth and
+tenth are an odd number looked for with `n mod 2 = 1` and a percentage that divides first, both described below with the
+other languages that write them, and the last two an `else if` that can never run and a count down written as `for i =
+10 to 1`, both described below with the other code no run can reach. None of the last eight drew a warning from ocamlc.
+OCaml is tested with OCaml 5.5.2, on GitHub's Windows computers.
 
 A **Rust** program - an `.rs` file - is built with the `rustc` on PATH, or else the one rustup installs in `.cargo\bin`,
 and how it ran names it and its version. In a Cargo package - a folder with a `Cargo.toml` - the program is
@@ -953,92 +964,92 @@ where the power is worked out before the division, so it is `side ** 1` divided 
 in Python and Lua, `8.00000000` in Fortran - not 4, and `27 ** 1/3` printed 9, not 3, with nothing said by `python -W
 error`, `ruby -w`, `node --check`, `php -l`, `perl -w`, `gfortran -Wall` or `luac -p`. The change raises the number to
 the fraction - `side ** 0.5`, or `side ** (1.0 / 3)` for a cube root, with `1.0` because Ruby and Fortran divide two
-whole numbers to a whole number: `27 ** (1 / 3)` printed 1. In C, C++, Java, C#, Go, Rust, Scala, Ruby, F# and Fortran
-it finds a percentage of two whole numbers worked out by dividing first - `score / total * 100` - where the division
-comes first and two whole numbers divide to a whole number, so 45 out of 60 is 0, and 0 * 100 is 0: each printed 0 where
-75 was meant, with nothing said by gcc and g++ `-Wall -Wextra`, `javac -Xlint:all`, `go vet`, rustc, `ruby -w` or
-`gfortran -Wall`. The change multiplies first - `score * 100 / total` - which printed 75 in each. In Java, C#, C, C++
-and Go it finds a power written as one whole number over another - `Math.pow(side, 1/2)` - whose division comes first
-and gives 0, so the power is 1 whatever `side` is: each printed 1 - `1.0` in Java - for the square root of 16; the
-change is `1.0 / 2`, which printed 4. In Java, C, C++ and Go it finds a whole number written with a 0 in front - `int
-code = 010` - which each reads in octal, base 8, and printed 8; a file mode such as `chmod(path, 0755)`, where octal is
-meant, is left alone, and the change writes `10`. In Java and Scala it finds `compareTo` compared with 1 or -1 - which
-gives back any negative or positive number, so `"apple".compareTo("cherry")` was -2, and `== -1` false; the change is `<
-0` or `> 0`. In Java and C# it finds two arrays compared with `equals` or `==`, which ask whether they are the very same
-array - two arrays of 70 and 80 printed false - and the change compares their items, `Arrays.equals(first, second)` or
-`first.SequenceEqual(second)`, which printed true. In Python, Java, C, C++, C#, JavaScript, TypeScript, Go, Ruby, PHP
-and PowerShell it finds `total =+ mark` where `total += mark` was meant: `=+` is `=` and then a plus sign, so `total` is
-given the mark on its own, and adding 5 and 10 printed 10 in each, with nothing said by gcc and g++ `-Wall -Wextra`,
-`javac -Xlint:all`, `go vet` or `ruby -w` - Perl warns of it, and Scala refuses it. The change is `+=`, and `total =-
-mark`, with a space after the minus, becomes `-=`. In C, C++, Java, C#, JavaScript, TypeScript, Go, Rust, Scala, PHP,
-Fortran, Erlang, Elixir, F# and PowerShell it finds an odd number looked for with `n % 2 == 1` - or `mod(n, 2) == 1`, or
-`rem` - which keeps the sign of the number divided, so -3 leaves -1, and each printed even for -3, with nothing said;
-Python, Ruby, Lua, Perl and Dart give 1, and are not looked at. A length, an unsigned number and a loop counter counting
-up from 0 cannot be negative, and are left alone. The change asks whether anything is left over, `n % 2 != 0`. In
-Python, Ruby, Perl, Elixir, Java, C#, F#, PowerShell, Go and PHP it finds a date written with the wrong letters, each
-run for 9:30 on 5 February 2024: strftime's `%M`, which is the minutes, where the month, `%m`, was meant - `2024-30-05`;
-in Java, `YYYY`, the year the week belongs to, which gave 2025 for 30 December 2024, `DD`, the day of the year -
-`2024-02-36` - and `mm`, the minutes; in .NET's formats, `mm`, and `YYYY` and `DD`, which it prints as they are -
-`YYYY-02-DD`; Go's `"YYYY-MM-DD"`, printed as it is, as Go writes a date the way its layout writes 2 January 2006 -
-`"2006-01-02"`; and PHP's `H:m`, whose `m` is the month - `09:02`. None of them said anything, and the change writes the
-letters each means. In Ruby, Lua and Elixir, where only `nil` and `false` are false, it finds a number asked as a
-condition - `if n % 2`, `if items.length`, Lua's `if #items then` - which is always true, 0 too: 4 was called odd, and
-an empty list had items. The change compares the number with 0. In Python, Lua, JavaScript, TypeScript, PHP and
-PowerShell it finds a misspelt name given a value - `totl = total + mark` - which makes a new variable and leaves
-`total` as it was, so 0 was printed for 35; Ruby warns of it. It is found only when the misspelt name is used nowhere
-else in the file, not even in text, and a name one letter away, which the file also gives values to, is read on that
-same line; the change gives the value to that name. In Python it finds `except ValueError or TypeError:`, which catches
-ValueError alone, as `ValueError or TypeError` is worked out first and gives ValueError - a TypeError stopped the
-program - and the change is `except (ValueError, TypeError):`; and a file that makes `main()` and never calls it, which
-printed nothing at all - the change calls it at the end, under `if __name__ == "__main__":`. In Python it also finds `if
-"a" or "e" in word:`, which is always true, as `or` is worked out last and `"a"` counts as true by itself - "sky" was
-said to have a vowel - and the change gives each its own `in`. In Java it finds `if (done = true)`, which gives the
-boolean the value instead of comparing, so the `if` always ran; the change asks `if (done)`. In C# it finds a char added
-to a number or a char, which `Console` prints as a number - `grade + 1` printed 66, and `'a' + 'b'` 195 - and the change
-is `(char)(grade + 1)`, or `"" + 'a' + 'b'`. Three more mistakes, which the compilers refuse, become changes too: a
-second comparison with no left side - `age > 12 && < 20`, or `age > 12 and < 20` in Python - is given the first's, in
-Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a line of its own - `count == 0;` or `total +
-mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count = 0;` or `total += mark;`; and C#'s CS1656,
-a `foreach` variable given a new value, turns the loop into a `for` over the positions of the array or List, so `mark +=
-5` becomes `marks[index] += 5` and the items themselves change. In Python, Ruby, PHP, Lua, Perl, PowerShell and C# it
-finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills nothing in: `print("Total: %d", total)` printed
-`Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on the line below; PHP's `echo` and Perl's `print`
-printed `Total: %d150`; Lua's `print` put a tab between the two; PowerShell's `Write-Host` put a space; and C#'s
-`Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no total at all - with nothing said by any of them.
-The change fills the text in the language's own way: `%` in Python, `format` in Ruby, `sprintf` in PHP and Perl,
-`string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart refuse such a call - javac finds no `println` that
-takes the values, and Dart has too many positional arguments - and those become changes too: `System.out.printf("Total:
-%d%n", total)`, and Dart's `print("Total: $total")`. In Python it also finds `f"{average:.2}"`, where `.2` with no
-letter after it means two significant figures, so 150.5 printed as `1.5e+02`; the change asks for decimal places, `.2f`.
-In JavaScript and TypeScript it finds `const doubled = marks.forEach(...)`, which gives back `undefined`, not what the
-function worked out; the change is `map`. In Java, C#, JavaScript, TypeScript, Scala and PowerShell it finds text and
-then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as
-`Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to
-be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no
-`$`, Scala's `"Hello, $name"` with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than
-backticks, Ruby's `'Hello, #{name}'` in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it
-is written - `Hello, {name}` - not its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes
-double. In JavaScript and TypeScript it finds `typeof` compared with a word it never gives - `typeof marks === "array"`,
-false for an array, as `typeof` gives `"object"` for it - and in Python `type(age) == "int"`, which compares a type with
-text and is false for 21; the changes ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In
-JavaScript and TypeScript it also finds `Math.max(marks)` given an array, which takes numbers one by one and so turns
-the array into one number from its text, `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`.
-In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared
-with NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
-nothing, not even itself; none of their toolchains says anything of it, and the change is the language's own test, such
-as `math.isnan(value)`. Dart and Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its
-function does, on a line of its own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
-`marks.map((mark) => print(mark))` - which works each item out only when its result is read; nothing reads it, so
-nothing is printed, and none of the three says anything. The change is a loop, which runs straight away. In Python,
-Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a second name for a list or an array -
-`backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though both are
-the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a copy in the
-language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{},
-marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. In Python, JavaScript, TypeScript, Ruby and Dart it finds a
-grid made by repeating one row - `[[0] * 3] * 3` - and then a row of it changed: every row is that one row, so after
-`grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. The change makes each row its own, as `[[0] * 3 for
-_ in range(3)]` does. When an expected output was given, it also runs changed copies of the program to find the one that
-prints it:
+whole numbers to a whole number: `27 ** (1 / 3)` printed 1. In C, C++, Java, C#, Go, Rust, Scala, Ruby, F#, Fortran and
+OCaml it finds a percentage of two whole numbers worked out by dividing first - `score / total * 100` - where the
+division comes first and two whole numbers divide to a whole number, so 45 out of 60 is 0, and 0 * 100 is 0: each
+printed 0 where 75 was meant, with nothing said by gcc and g++ `-Wall -Wextra`, `javac -Xlint:all`, `go vet`, rustc,
+`ruby -w`, `gfortran -Wall` or ocamlc. The change multiplies first - `score * 100 / total` - which printed 75 in each.
+In Java, C#, C, C++ and Go it finds a power written as one whole number over another - `Math.pow(side, 1/2)` - whose
+division comes first and gives 0, so the power is 1 whatever `side` is: each printed 1 - `1.0` in Java - for the square
+root of 16; the change is `1.0 / 2`, which printed 4. In Java, C, C++ and Go it finds a whole number written with a 0 in
+front - `int code = 010` - which each reads in octal, base 8, and printed 8; a file mode such as `chmod(path, 0755)`,
+where octal is meant, is left alone, and the change writes `10`. In Java and Scala it finds `compareTo` compared with 1
+or -1 - which gives back any negative or positive number, so `"apple".compareTo("cherry")` was -2, and `== -1` false;
+the change is `< 0` or `> 0`. In Java and C# it finds two arrays compared with `equals` or `==`, which ask whether they
+are the very same array - two arrays of 70 and 80 printed false - and the change compares their items,
+`Arrays.equals(first, second)` or `first.SequenceEqual(second)`, which printed true. In Python, Java, C, C++, C#,
+JavaScript, TypeScript, Go, Ruby, PHP and PowerShell it finds `total =+ mark` where `total += mark` was meant: `=+` is
+`=` and then a plus sign, so `total` is given the mark on its own, and adding 5 and 10 printed 10 in each, with nothing
+said by gcc and g++ `-Wall -Wextra`, `javac -Xlint:all`, `go vet` or `ruby -w` - Perl warns of it, and Scala refuses it.
+The change is `+=`, and `total =- mark`, with a space after the minus, becomes `-=`. In C, C++, Java, C#, JavaScript,
+TypeScript, Go, Rust, Scala, PHP, Fortran, Erlang, Elixir, F#, PowerShell and OCaml it finds an odd number looked for
+with `n % 2 == 1` - or `mod(n, 2) == 1`, `rem`, or OCaml's `n mod 2 = 1` - which keeps the sign of the number divided,
+so -3 leaves -1, and each printed even for -3, with nothing said; Python, Ruby, Lua, Perl and Dart give 1, and are not
+looked at. A length, an unsigned number and a loop counter counting up from 0 cannot be negative, and are left alone.
+The change asks whether anything is left over, `n % 2 != 0`. In Python, Ruby, Perl, Elixir, Java, C#, F#, PowerShell, Go
+and PHP it finds a date written with the wrong letters, each run for 9:30 on 5 February 2024: strftime's `%M`, which is
+the minutes, where the month, `%m`, was meant - `2024-30-05`; in Java, `YYYY`, the year the week belongs to, which gave
+2025 for 30 December 2024, `DD`, the day of the year - `2024-02-36` - and `mm`, the minutes; in .NET's formats, `mm`,
+and `YYYY` and `DD`, which it prints as they are - `YYYY-02-DD`; Go's `"YYYY-MM-DD"`, printed as it is, as Go writes a
+date the way its layout writes 2 January 2006 - `"2006-01-02"`; and PHP's `H:m`, whose `m` is the month - `09:02`. None
+of them said anything, and the change writes the letters each means. In Ruby, Lua and Elixir, where only `nil` and
+`false` are false, it finds a number asked as a condition - `if n % 2`, `if items.length`, Lua's `if #items then` -
+which is always true, 0 too: 4 was called odd, and an empty list had items. The change compares the number with 0. In
+Python, Lua, JavaScript, TypeScript, PHP and PowerShell it finds a misspelt name given a value - `totl = total + mark` -
+which makes a new variable and leaves `total` as it was, so 0 was printed for 35; Ruby warns of it. It is found only
+when the misspelt name is used nowhere else in the file, not even in text, and a name one letter away, which the file
+also gives values to, is read on that same line; the change gives the value to that name. In Python it finds `except
+ValueError or TypeError:`, which catches ValueError alone, as `ValueError or TypeError` is worked out first and gives
+ValueError - a TypeError stopped the program - and the change is `except (ValueError, TypeError):`; and a file that
+makes `main()` and never calls it, which printed nothing at all - the change calls it at the end, under `if __name__ ==
+"__main__":`. In Python it also finds `if "a" or "e" in word:`, which is always true, as `or` is worked out last and
+`"a"` counts as true by itself - "sky" was said to have a vowel - and the change gives each its own `in`. In Java it
+finds `if (done = true)`, which gives the boolean the value instead of comparing, so the `if` always ran; the change
+asks `if (done)`. In C# it finds a char added to a number or a char, which `Console` prints as a number - `grade + 1`
+printed 66, and `'a' + 'b'` 195 - and the change is `(char)(grade + 1)`, or `"" + 'a' + 'b'`. Three more mistakes, which
+the compilers refuse, become changes too: a second comparison with no left side - `age > 12 && < 20`, or `age > 12 and <
+20` in Python - is given the first's, in Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a line of
+its own - `count == 0;` or `total + mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count = 0;`
+or `total += mark;`; and C#'s CS1656, a `foreach` variable given a new value, turns the loop into a `for` over the
+positions of the array or List, so `mark += 5` becomes `marks[index] += 5` and the items themselves change. In Python,
+Ruby, PHP, Lua, Perl, PowerShell and C# it finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills
+nothing in: `print("Total: %d", total)` printed `Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on
+the line below; PHP's `echo` and Perl's `print` printed `Total: %d150`; Lua's `print` put a tab between the two;
+PowerShell's `Write-Host` put a space; and C#'s `Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no
+total at all - with nothing said by any of them. The change fills the text in the language's own way: `%` in Python,
+`format` in Ruby, `sprintf` in PHP and Perl, `string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart
+refuse such a call - javac finds no `println` that takes the values, and Dart has too many positional arguments - and
+those become changes too: `System.out.printf("Total: %d%n", total)`, and Dart's `print("Total: $total")`. In Python it
+also finds `f"{average:.2}"`, where `.2` with no letter after it means two significant figures, so 150.5 printed as
+`1.5e+02`; the change asks for decimal places, `.2f`. In JavaScript and TypeScript it finds `const doubled =
+marks.forEach(...)`, which gives back `undefined`, not what the function worked out; the change is `map`. In Java, C#,
+JavaScript, TypeScript, Scala and PowerShell it finds text and then two numbers joined with `+` - `"Total: " + first +
+second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of;
+brackets add the numbers first. It finds a value meant to be put into text, in text that puts nothing in: Python's
+`"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"` with no `s`, JavaScript's
+and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'` in single quotes, and
+PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not its value, and the
+change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it finds `typeof`
+compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives `"object"` for
+it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes ask what was
+meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
+`Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
+`70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
+TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")`
+- which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
+their toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and
+Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its own -
+`map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which
+works each item out only when its result is read; nothing reads it, so nothing is printed, and none of the three says
+anything. The change is a loop, which runs straight away. In Python, Java, C#, JavaScript, TypeScript, Ruby, Dart, Go,
+Lua and PowerShell it finds a second name for a list or an array - `backup = marks` - taken as a copy: the list is
+changed through one name and the other read after it, though both are the same list, so `backup` printed `[70, 80, 90,
+100]` after `marks.append(100)`. The change makes a copy in the language's own way - `marks.copy()`, `marks.clone()`,
+`[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`.
+In Python, JavaScript, TypeScript, Ruby and Dart it finds a grid made by repeating one row - `[[0] * 3] * 3` - and then
+a row of it changed: every row is that one row, so after `grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0,
+0]]`. The change makes each row its own, as `[[0] * 3 for _ in range(3)]` does. When an expected output was given, it
+also runs changed copies of the program to find the one that prints it:
 
 Each language's own library is read for the ways it is used that run, say nothing, and do something else - each was run
 with the language's own tools, its warnings on. In Java: a Thread's `run()` called where `start()` was meant, which ran
@@ -1093,37 +1104,38 @@ position 0, which stopped the program with `function_clause` - the change counts
 `reverse`, `dedup` or `push` gives back, kept - `()` - and the change calls it and then copies the Vec. In F#,
 `Array.create 3 row`, every row one row - the change is `Array.init` - and `int` of a char, its code - "123" added up to
 150 - whose change takes away the code of '0'; and in Scala the same two: `Array.fill(2)(row)`, changed to
-`row.clone()`, and `toInt` of a Char, changed to `asDigit`. In Dart: a String method's result thrown away -
-`name.trim();` left the name as it was, with `dart analyze` finding nothing - whose change keeps the copy; and an async
-function's Future used as its value, which printed `Instance of 'Future<int>'` - the change adds `await` inside a
-function marked async.
+`row.clone()`, and `toInt` of a Char, changed to `asDigit`. In OCaml, `Array.make 3 row`, every row one row - the change
+is `Array.init` - and `Hashtbl.add` where a binding was to change, both described above with OCaml. In Dart: a String
+method's result thrown away - `name.trim();` left the name as it was, with `dart analyze` finding nothing - whose change
+keeps the copy; and an async function's Future used as its value, which printed `Instance of 'Future<int>'` - the change
+adds `await` inside a function marked async.
 
 Code no run of the program can reach cannot be tested by running it, however many inputs are tried, so it is looked for
 in the code. A branch of an if - else if chain that an earlier branch takes every value from - `if score >= 50` before
 `else if score >= 70` - is found in Python, Java, C, C++, C#, JavaScript, TypeScript, Dart, PHP, Go, Rust, Scala, Ruby,
-Lua, Perl, PowerShell, Fortran, F#, Elixir's `cond` and Erlang's `if`: run with a score of 75, each printed C, not B,
-with nothing said by any compiler or warning flag. A condition read is one comparison of a name with a number, two
-joined by `and`, or Python's `50 <= score < 70`, and the values each lets through are worked out; when every branch
+Lua, Perl, PowerShell, Fortran, F#, OCaml, Elixir's `cond` and Erlang's `if`: run with a score of 75, each printed C,
+not B, with nothing said by any compiler or warning flag. A condition read is one comparison of a name with a number,
+two joined by `and`, or Python's `50 <= score < 70`, and the values each lets through are worked out; when every branch
 compares the same name the same way, the change puts the branches in order, the strictest first, and each language's
 changed program printed B. A count down written the way that counts up runs no times at all - `range(10, 0)` in Python,
 `(10..1).each` in Ruby, `10..0` in Rust, `10 to 1` in Scala, `for i = 10, 1` in Lua, `10 .. 1` and `for i = 10 to 1` in
-F#, `(10..1)` in Perl, and `do i = 10, 1` in Fortran - and each counted 0; the change counts down, `range(10, 0, -1)`,
-`10.downto(1)`, `(1..=10).rev()`, `by -1`, `, -1`, `downto` or `reverse(1..10)`. `gfortran -Wall` warns of Fortran's,
-that it will be executed zero times, and its warning and the check are one finding, which gives the change. A handler an
-earlier one takes every error from - `except Exception:` before `except ValueError:`, `rescue StandardError` before
-`rescue ArgumentError`, `catch (Exception $e)` before `catch (InvalidArgumentException $e)` - is found in Python, Ruby,
-PHP, Dart and C++ by each language's own family of errors and the classes the file declares, and the change moves it
-first; each printed the specific message only once it was moved. Dart's analyzer and g++ warn of it - in each, the
-warning and the check are one finding - and PowerShell, Java and C# refuse it; PowerShell's refusal has a fix of its
-own, which moves the catch first, after which the script printed `not a number`. A line straight after `return`,
-`break`, `throw` or `exit` in the same block is found in C, C++, JavaScript, TypeScript, PHP, Perl, PowerShell, Fortran
-and Ruby - none of them printed it, and none warned but `ruby -w`, whose warning and the check are one finding; a second
-`case` with the value of one before it in JavaScript and PHP, which was never matched; and a function defined twice in
-one place in Python, JavaScript, Lua, PowerShell and Ruby, whose first is replaced before anything calls it - `area(3)`
-got the second's answer, and in JavaScript, which sets every function up before the code runs, even a call before the
-second did. Ruby warns of a method redefined only while a program runs with `-w`, and `ruby -wc`, which FixFinder reads
-it with, said `Syntax OK`. These have no change, as only the author knows which was meant. Python's `if __name__ ==
-"main":`, which never runs its block, is changed to `"__main__"`.
+F#, `(10..1)` in Perl, `do i = 10, 1` in Fortran, and `for i = 10 to 1` in OCaml - and each counted 0; the change counts
+down, `range(10, 0, -1)`, `10.downto(1)`, `(1..=10).rev()`, `by -1`, `, -1`, `downto` or `reverse(1..10)`. `gfortran
+-Wall` warns of Fortran's, that it will be executed zero times, and its warning and the check are one finding, which
+gives the change. A handler an earlier one takes every error from - `except Exception:` before `except ValueError:`,
+`rescue StandardError` before `rescue ArgumentError`, `catch (Exception $e)` before `catch (InvalidArgumentException
+$e)` - is found in Python, Ruby, PHP, Dart and C++ by each language's own family of errors and the classes the file
+declares, and the change moves it first; each printed the specific message only once it was moved. Dart's analyzer and
+g++ warn of it - in each, the warning and the check are one finding - and PowerShell, Java and C# refuse it;
+PowerShell's refusal has a fix of its own, which moves the catch first, after which the script printed `not a number`. A
+line straight after `return`, `break`, `throw` or `exit` in the same block is found in C, C++, JavaScript, TypeScript,
+PHP, Perl, PowerShell, Fortran and Ruby - none of them printed it, and none warned but `ruby -w`, whose warning and the
+check are one finding; a second `case` with the value of one before it in JavaScript and PHP, which was never matched;
+and a function defined twice in one place in Python, JavaScript, Lua, PowerShell and Ruby, whose first is replaced
+before anything calls it - `area(3)` got the second's answer, and in JavaScript, which sets every function up before the
+code runs, even a call before the second did. Ruby warns of a method redefined only while a program runs with `-w`, and
+`ruby -wc`, which FixFinder reads it with, said `Syntax OK`. These have no change, as only the author knows which was
+meant. Python's `if __name__ == "main":`, which never runs its block, is changed to `"__main__"`.
 
 A test that never runs, or can never fail, lets a program be wrong while its tests pass, so these are looked for too.
 Each was run with its own runner, testing an `add` that subtracts. Python's unittest - run by FixFinder's own launcher,
@@ -1450,7 +1462,7 @@ Python, Java and C# are checked most thoroughly.
 | JavaScript | 43 | 52 | 16 |
 | Go | 38 | 23 | 18 |
 | Scala | 6 | 18 | 28 |
-| OCaml | 6 | 3 | 26 |
+| OCaml | 6 | 11 | 26 |
 | Rust | 4 | 10 | 33 |
 | Ruby | 13 | 28 | 26 |
 | PHP | 15 | 24 | 18 |
