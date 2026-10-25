@@ -101,5 +101,21 @@ internal static class ErlangPatternGuides
                 Sorted = lists:sort(Marks),
                 io:format("~w~n", [Sorted]).
             """),
+
+        GuideFor(["logic-erlang-odd-test-negative"], "An odd number looked for with rem 2 == 1",
+            "rem gives what is left over after dividing, and it keeps the sign of the number divided: 7 rem 2 is 1, but -7 rem 2 is -1. " +
+            "So N rem 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and erlc says nothing.",
+            "Ask whether anything is left over: N rem 2 =/= 0 is true for every odd number, negative or not.",
+            """
+            -module(parity).
+            -export([main/0]).
+
+            describe(N) when N rem 2 =/= 0 -> "odd";
+            describe(_N) -> "even".
+
+            main() ->
+                io:format("~s~n", [describe(-3)]).
+            """),
     ];
 }

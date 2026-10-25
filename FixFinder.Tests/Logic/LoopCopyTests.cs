@@ -61,6 +61,8 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.js", "const marks = [70, 80];\nconst shown = marks.forEach((mark) => console.log(mark));\n")]
     // range's one variable used as a position.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80}\n\ttotal := 0\n\tfor i := range marks {\n\t\ttotal += marks[i]\n\t}\n\tfmt.Println(total)\n}\n")]
+    // range's one variable printed beside the item at it - a position used as both.
+    [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\tfor i := range marks {\n\t\tfmt.Println(i, marks[i])\n\t}\n}\n")]
     // range over a map gives its keys.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tages := map[string]int{\"Ada\": 36}\n\tfor name := range ages {\n\t\tfmt.Println(name)\n\t}\n}\n")]
     // for...in's variable used as a position, to read the item at it.

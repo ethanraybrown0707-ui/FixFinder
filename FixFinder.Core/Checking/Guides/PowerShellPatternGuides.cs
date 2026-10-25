@@ -196,5 +196,55 @@ internal static class PowerShellPatternGuides
             }
             Write-Output (Get-Area 3 4)
             """),
+
+        GuideFor(["logic-powershell-plus-equals-reversed"], "=+ where += was meant",
+            "$total =+ $mark is read as $total = +$mark: the = gives $total a new value, and the + is only a plus sign in front of $mark. " +
+            "So $total becomes $mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives " +
+            "$total -$mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and PowerShell says nothing.",
+            "Write += to add, or -= to take away: $total += $mark",
+            """
+            $total = 0
+            foreach ($mark in 5, 10) {
+                $total += $mark
+            }
+            Write-Output $total
+            """),
+
+        GuideFor(["logic-powershell-odd-test-negative"], "An odd number looked for with % 2 -eq 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "$n % 2 -eq 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The script is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: $n % 2 -ne 0 is true for every odd number, negative or not.",
+            """
+            $n = -3
+            if ($n % 2 -ne 0) {
+                Write-Output "odd"
+            }
+            """),
+
+        GuideFor(["logic-powershell-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows, so they are printed as they are.",
+            "The date is written wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: Get-Date -Format \"yyyy-MM-dd\".",
+            """
+            $whenever = Get-Date -Year 2024 -Month 2 -Day 5 -Hour 9 -Minute 30
+            Write-Output (Get-Date $whenever -Format "yyyy-MM-dd")
+            """),
+
+        GuideFor(["logic-powershell-misspelt-name"], "A misspelt name given a value",
+            "In PowerShell, giving a value to a variable makes it if it does not exist yet. So $totl = $total + $mark, with $total " +
+            "misspelt, makes a new variable called $totl, and $total never changes. (Names are the same whatever their case: $Total " +
+            "and $total are one variable.)",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: $total = $total + $mark",
+            """
+            $total = 0
+            foreach ($mark in 5, 10, 20) {
+                $total = $total + $mark
+            }
+            Write-Output $total
+            """),
     ];
 }

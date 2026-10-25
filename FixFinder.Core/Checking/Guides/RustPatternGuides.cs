@@ -92,5 +92,20 @@ internal static class RustPatternGuides
                 println!("{}", score * 100 / total);
             }
             """),
+
+        GuideFor(["logic-rust-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and rustc says nothing.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not. n.rem_euclid(2) == 1 is right " +
+            "too, as rem_euclid never gives a negative number.",
+            """
+            fn main() {
+                let n: i32 = -3;
+                if n % 2 != 0 {
+                    println!("odd");
+                }
+            }
+            """),
     ];
 }

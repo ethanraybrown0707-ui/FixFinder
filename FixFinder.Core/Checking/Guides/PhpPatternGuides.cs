@@ -195,5 +195,58 @@ internal static class PhpPatternGuides
                 echo "has an a\n";
             }
             """),
+
+        GuideFor(["logic-php-plus-equals-reversed"], "=+ where += was meant",
+            "$total =+ $mark is read as $total = +$mark: the = gives $total a new value, and the + is only a plus sign in front of $mark. " +
+            "So $total becomes $mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives " +
+            "$total -$mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and PHP says nothing.",
+            "Write += to add, or -= to take away: $total += $mark;",
+            """
+            <?php
+            $total = 0;
+            foreach ([5, 10] as $mark) {
+                $total += $mark;
+            }
+            echo $total, PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "$n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: $n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            <?php
+            $n = -3;
+            if ($n % 2 != 0) {
+                echo "odd", PHP_EOL;
+            }
+            """),
+
+        GuideFor(["logic-php-date-minutes-as-month"], "m in a time, where the minutes were meant",
+            "In the letters date and format take, m is the month and i is the minutes. So \"H:m\" writes the hour and then the month: " +
+            "9:30 on 5 February gives 09:02.",
+            "The time is written wrongly, with no error.",
+            "Use i for the minutes: date(\"H:i\").",
+            """
+            <?php
+            $whenever = mktime(9, 30, 0, 2, 5, 2024);
+            echo date("Y-m-d H:i", $whenever), PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-misspelt-name"], "A misspelt name given a value",
+            "In PHP, giving a value to a variable makes it if it does not exist yet. So $totl = $total + $mark, with $total misspelt, " +
+            "makes a new variable called $totl, and $total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: $total = $total + $mark;",
+            """
+            <?php
+            $total = 0;
+            foreach ([5, 10, 20] as $mark) {
+                $total = $total + $mark;
+            }
+            echo $total, PHP_EOL;
+            """),
     ];
 }

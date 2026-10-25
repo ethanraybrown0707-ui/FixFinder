@@ -120,5 +120,22 @@ internal static class FortranPatternGuides
               print *, rate
             end program marks
             """),
+
+        GuideFor(["logic-fortran-odd-test-negative"], "An odd number looked for with mod(n, 2) == 1",
+            "mod gives what is left over after dividing, and it keeps the sign of the number divided: mod(7, 2) is 1, but mod(-7, 2) is " +
+            "-1. So mod(n, 2) == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and gfortran -Wall says nothing.",
+            "Ask whether anything is left over: mod(n, 2) /= 0 is true for every odd number, negative or not. modulo, which takes the " +
+            "sign of the number divided by, gives 1 for both, so modulo(n, 2) == 1 is right too.",
+            """
+            program parity
+              implicit none
+              integer :: n
+              n = -3
+              if (mod(n, 2) /= 0) then
+                print *, 'odd'
+              end if
+            end program parity
+            """),
     ];
 }

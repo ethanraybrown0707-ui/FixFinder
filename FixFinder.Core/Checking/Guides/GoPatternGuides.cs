@@ -278,5 +278,63 @@ internal static class GoPatternGuides
             	fmt.Println(code)
             }
             """),
+
+        GuideFor(["logic-go-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives total " +
+            "-mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and neither the compiler nor go vet says anything.",
+            "Write += to add, or -= to take away: total += mark.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	total := 0
+            	for _, mark := range []int{5, 10} {
+            		total += mark
+            	}
+            	fmt.Println(total)
+            }
+            """),
+
+        GuideFor(["logic-go-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n%2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with nothing from go vet.",
+            "Ask whether anything is left over: n%2 != 0 is true for every odd number, negative or not.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	n := -3
+            	if n%2 != 0 {
+            		fmt.Println("odd")
+            	}
+            }
+            """),
+
+        GuideFor(["logic-go-date-layout-letters"], "A date layout written with letters",
+            "Go does not write a date from letters like YYYY-MM-DD. Its layout is the way one moment - 2 January 2006 at 15:04:05 - " +
+            "would be written: 2006 is the year, 01 the month, 02 the day, 15 the hour, 04 the minutes and 05 the seconds. Letters are " +
+            "not part of it, so they are printed as they are: Format(\"YYYY-MM-DD\") prints YYYY-MM-DD.",
+            "Every date prints as the same letters, with no error and nothing from go vet.",
+            "Write the layout as that moment would be written: when.Format(\"2006-01-02\").",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"time"
+            )
+
+            func main() {
+            	when := time.Date(2024, 2, 5, 9, 30, 0, 0, time.UTC)
+            	fmt.Println(when.Format("2006-01-02"))
+            }
+            """),
     ];
 }

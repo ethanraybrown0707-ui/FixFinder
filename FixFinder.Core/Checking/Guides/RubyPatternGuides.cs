@@ -212,5 +212,43 @@ internal static class RubyPatternGuides
               puts "#{index}: #{mark}"
             end
             """),
+
+        GuideFor(["logic-ruby-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives total " +
+            "-mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and ruby -w says nothing.",
+            "Write += to add, or -= to take away: total += mark.",
+            """
+            total = 0
+            [5, 10].each do |mark|
+              total += mark
+            end
+            puts total
+            """),
+
+        GuideFor(["logic-ruby-date-format-minutes"], "%M in a date, where the month was meant",
+            "In strftime's format, %m is the month and %M is the minutes - the case matters. So \"%Y-%M-%d\" writes the minutes where " +
+            "the month should be: 9:30 on 5 February 2024 gives 2024-30-05.",
+            "The date is written wrongly, with no error - and it changes from one minute to the next.",
+            "Use %m for the month: strftime(\"%Y-%m-%d\"). %M belongs beside an hour, as in %H:%M.",
+            """
+            whenever = Time.new(2024, 2, 5, 9, 30)
+            puts whenever.strftime("%Y-%m-%d %H:%M")
+            """),
+
+        GuideFor(["logic-ruby-zero-is-true"], "A number used as a condition",
+            "In Ruby only nil and false are false - every number is true, 0 too. So if n % 2 is true whatever is left over, and " +
+            "if items.length is true even when there are no items.",
+            "The if always runs and its else never does, with no error: 4 is called odd, and an empty list has items.",
+            "Compare the number with 0: if n % 2 != 0, or if items.length > 0. Ruby's own n.odd? and items.any? say the same.",
+            """
+            n = 4
+            if n % 2 != 0
+              puts "odd"
+            else
+              puts "even"
+            end
+            """),
     ];
 }

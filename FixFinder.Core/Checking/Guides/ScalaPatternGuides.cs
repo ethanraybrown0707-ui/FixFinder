@@ -158,5 +158,16 @@ internal static class ScalaPatternGuides
             @main def run(): Unit =
               println("apple".compareTo("cherry") < 0)
             """),
+
+        GuideFor(["logic-scala-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and the compiler says nothing.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            @main def run(): Unit =
+              val n = -3
+              if n % 2 != 0 then println("odd")
+            """),
     ];
 }

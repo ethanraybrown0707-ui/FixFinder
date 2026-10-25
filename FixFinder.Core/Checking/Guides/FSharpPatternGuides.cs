@@ -111,5 +111,25 @@ internal static class FSharpPatternGuides
             let total = 60
             printfn "%d" (score * 100 / total)
             """),
+
+        GuideFor(["logic-fsharp-odd-test-negative"], "An odd number looked for with % 2 = 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 = 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and fsi says nothing.",
+            "Ask whether anything is left over: n % 2 <> 0 is true for every odd number, negative or not.",
+            """
+            let n = -3
+            if n % 2 <> 0 then printfn "odd"
+            """),
+
+        GuideFor(["logic-fsharp-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows, so they are printed as they are.",
+            "The date is written wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: whenever.ToString(\"yyyy-MM-dd\").",
+            """
+            let whenever = System.DateTime(2024, 2, 5, 9, 30, 0)
+            printfn "%s" (whenever.ToString("yyyy-MM-dd"))
+            """),
     ];
 }

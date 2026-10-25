@@ -624,5 +624,47 @@ internal static class BracePatternGuides
               marks[index] += 5;
             }
             """),
+
+        GuideFor(["logic-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += is the operator that adds to what is already there - and =- the " +
+            "same way gives total -mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and neither the compiler nor the program says " +
+            "anything.",
+            "Write += to add, or -= to take away: total += mark;",
+            """
+            int total = 0;
+            for (int mark : new int[] {5, 10}) {
+                total += mark;
+            }
+            System.out.println(total);
+            """),
+
+        GuideFor(["logic-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            int n = -3;
+            if (n % 2 != 0) {
+                System.out.println("odd");
+            }
+            """),
+
+        GuideFor(["logic-js-misspelt-name"], "A misspelt name given a value",
+            "In JavaScript, giving a value to a name that was never declared - with no let, const or var - does not stop the program: " +
+            "it makes a new global variable with that name (in strict mode, and in a module, it stops with a ReferenceError instead). " +
+            "So totl = total + mark, with total misspelt, makes a variable called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: total = total + mark. Declaring every name with let or const, and starting the " +
+            "file with \"use strict\";, makes a misspelt name stop the program with an error that names it.",
+            """
+            let total = 0;
+            for (const mark of [5, 10, 20]) {
+                total = total + mark;
+            }
+            console.log(total);
+            """),
     ];
 }

@@ -112,5 +112,43 @@ internal static class ElixirPatternGuides
             number = String.to_integer(typed)
             IO.puts(number == 7)
             """),
+
+        GuideFor(["logic-elixir-odd-test-negative"], "An odd number looked for with rem(n, 2) == 1",
+            "rem gives what is left over after dividing, and it keeps the sign of the number divided: rem(7, 2) is 1, but rem(-7, 2) is " +
+            "-1. So rem(n, 2) == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and Elixir says nothing.",
+            "Ask whether anything is left over: rem(n, 2) != 0 is true for every odd number, negative or not.",
+            """
+            n = -3
+
+            if rem(n, 2) != 0 do
+              IO.puts("odd")
+            end
+            """),
+
+        GuideFor(["logic-elixir-date-format-minutes"], "%M in a date, where the month was meant",
+            "In Calendar.strftime's format, %m is the month and %M is the minutes - the case matters. So \"%Y-%M-%d\" writes the minutes " +
+            "where the month should be: 9:30 on 5 February 2024 gives 2024-30-05.",
+            "The date is written wrongly, with no error.",
+            "Use %m for the month: Calendar.strftime(date, \"%Y-%m-%d\"). %M belongs beside an hour, as in %H:%M.",
+            """
+            whenever = ~N[2024-02-05 09:30:00]
+            IO.puts(Calendar.strftime(whenever, "%Y-%m-%d %H:%M"))
+            """),
+
+        GuideFor(["logic-elixir-zero-is-true"], "A number used as a condition",
+            "In Elixir only nil and false are false - every number is true, 0 too. So if rem(n, 2) is true whatever is left over, and " +
+            "if length(items) is true even for an empty list.",
+            "The if always runs and its else never does, with no error: 4 is called odd, and an empty list has items.",
+            "Compare the number with 0: if rem(n, 2) != 0, or if length(items) > 0.",
+            """
+            n = 4
+
+            if rem(n, 2) != 0 do
+              IO.puts("odd")
+            else
+              IO.puts("even")
+            end
+            """),
     ];
 }

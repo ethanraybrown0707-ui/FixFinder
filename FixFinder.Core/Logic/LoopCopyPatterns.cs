@@ -322,7 +322,9 @@ public static partial class LoopCopyPatterns
 
     /// <summary>
     /// range with one variable over a slice, whose variable is used as an item - added up, printed - rather than as a position
-    /// in the slice: range gives each position, 0, 1, 2. The change takes the item as range's second variable.
+    /// in the slice: range gives each position, 0, 1, 2. The change takes the item as range's second variable. A loop that
+    /// also uses the variable as a position - fmt.Println(i, marks[i]), which printed 0 70, 1 80 and 2 90 - knows it is one,
+    /// and is left alone: taking the item there made marks[i] marks[70], and Go stopped with index out of range [70].
     /// </summary>
     private static IEnumerable<LogicFinding> GoRangeIndex(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -341,7 +343,7 @@ public static partial class LoopCopyPatterns
             var asPosition = new Regex($@"\[\s*{Regex.Escape(variable)}\s*\]");
             var used = new Regex($@"(?<![\w.]){Regex.Escape(variable)}\b");
             var lines = Enumerable.Range(body.First, body.End - body.First).Select(line => masked[line]).ToList();
-            if (!lines.Any(line => used.IsMatch(asPosition.Replace(line, "")))) continue;
+            if (lines.Any(asPosition.IsMatch) || !lines.Any(line => used.IsMatch(asPosition.Replace(line, "")))) continue;
 
             var line = source.Lines[index];
 

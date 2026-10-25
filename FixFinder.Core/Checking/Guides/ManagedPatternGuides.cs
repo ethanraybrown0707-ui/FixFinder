@@ -297,5 +297,35 @@ internal static class ManagedPatternGuides
             char grade = 'A';
             Console.WriteLine((char)(grade + 1));
             """),
+
+        GuideFor(["logic-java-date-pattern-letters"], "A date pattern with the wrong letters",
+            "In the patterns DateTimeFormatter.ofPattern and SimpleDateFormat take, the case of each letter matters: yyyy is the year, " +
+            "but YYYY is the year the week belongs to - 30 December 2024 is in the first week of 2025, so it prints 2025; dd is the day " +
+            "of the month, but DD is the day of the year - 5 February is 36; and MM is the month, but mm is the minutes.",
+            "The date is printed wrongly with no error - and for YYYY only in the last days of December, so it can pass every test and " +
+            "go wrong later.",
+            "Use yyyy for the year, MM for the month and dd for the day: DateTimeFormatter.ofPattern(\"yyyy-MM-dd\").",
+            """
+            import java.time.LocalDate;
+            import java.time.format.DateTimeFormatter;
+
+            public class Main {
+                public static void main(String[] args) {
+                    LocalDate date = LocalDate.of(2024, 12, 30);
+                    System.out.println(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows at all, so they are printed as they " +
+            "are: \"YYYY-MM-DD\" gives YYYY-02-DD.",
+            "The date is printed wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: when.ToString(\"yyyy-MM-dd\").",
+            """
+            var when = new DateTime(2024, 2, 5, 9, 30, 0);
+            Console.WriteLine(when.ToString("yyyy-MM-dd"));
+            """),
     ];
 }

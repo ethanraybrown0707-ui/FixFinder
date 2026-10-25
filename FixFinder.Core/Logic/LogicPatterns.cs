@@ -73,6 +73,11 @@ public static class LogicPatterns
         .. ElixirLogicPatterns.All,
         .. ErlangLogicPatterns.All,
         .. FSharpLogicPatterns.All,
+        .. ReversedAssignmentPatterns.All,
+        .. OddTestPatterns.All,
+        .. DateFormatPatterns.All,
+        .. ZeroIsTruePatterns.All,
+        .. MisspeltNamePatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

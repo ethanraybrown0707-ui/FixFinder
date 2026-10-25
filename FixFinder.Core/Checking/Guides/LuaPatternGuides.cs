@@ -141,5 +141,32 @@ internal static class LuaPatternGuides
             local changed = text:gsub("%.", ",")
             print(changed)
             """),
+
+        GuideFor(["logic-lua-zero-is-true"], "A number used as a condition",
+            "In Lua only nil and false are false - every number is true, 0 too. So if n % 2 then is true whatever is left over, and " +
+            "if #items then is true even for an empty table.",
+            "The if always runs and its else never does, with no error: 4 is called odd, and an empty table has items.",
+            "Compare the number with 0: if n % 2 ~= 0 then, or if #items > 0 then.",
+            """
+            local n = 4
+            if n % 2 ~= 0 then
+              print("odd")
+            else
+              print("even")
+            end
+            """),
+
+        GuideFor(["logic-lua-misspelt-name"], "A misspelt name given a value",
+            "In Lua, giving a value to a name that is not a local makes a global variable with that name. So totl = total + mark, with " +
+            "total misspelt, makes a new global called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with no error.",
+            "Give the value to the name that was meant: total = total + mark.",
+            """
+            local total = 0
+            for _, mark in ipairs({5, 10, 20}) do
+              total = total + mark
+            end
+            print(total)
+            """),
     ];
 }

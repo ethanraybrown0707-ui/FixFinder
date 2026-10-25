@@ -493,5 +493,42 @@ internal static class PythonPatternGuides
             if "a" in word or "e" in word:
                 print("has a vowel")
             """),
+
+        GuideFor(["logic-python-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives total " +
+            "-mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and Python says nothing.",
+            "Write += to add, or -= to take away: total += mark.",
+            """
+            total = 0
+            for mark in [5, 10]:
+                total += mark
+            print(total)
+            """),
+
+        GuideFor(["logic-python-date-format-minutes"], "%M in a date, where the month was meant",
+            "In strftime's format, %m is the month and %M is the minutes - the case matters. So \"%Y-%M-%d\" writes the minutes where " +
+            "the month should be: 9:30 on 5 February 2024 gives 2024-30-05.",
+            "The date is written wrongly, with no error - and it changes from one minute to the next.",
+            "Use %m for the month: when.strftime(\"%Y-%m-%d\"). %M belongs beside an hour, as in %H:%M.",
+            """
+            from datetime import datetime
+
+            when = datetime(2024, 2, 5, 9, 30)
+            print(when.strftime("%Y-%m-%d %H:%M"))
+            """),
+
+        GuideFor(["logic-python-misspelt-name"], "A misspelt name given a value",
+            "In Python, giving a value to a name makes that name if it does not exist yet. So totl = total + mark, with total misspelt, " +
+            "makes a new variable called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with no error.",
+            "Give the value to the name that was meant: total = total + mark.",
+            """
+            total = 0
+            for mark in [5, 10, 20]:
+                total = total + mark
+            print(total)
+            """),
     ];
 }

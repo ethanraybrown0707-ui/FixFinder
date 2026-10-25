@@ -219,5 +219,18 @@ internal static class PerlPatternGuides
                 print $marks[$i], "\n";
             }
             """),
+
+        GuideFor(["logic-perl-date-format-minutes"], "%M in a date, where the month was meant",
+            "In strftime's format, %m is the month and %M is the minutes - the case matters. So \"%Y-%M-%d\" writes the minutes where " +
+            "the month should be: 9:30 on 5 February 2024 gives 2024-30-05.",
+            "The date is written wrongly, with no error, and perl -w says nothing.",
+            "Use %m for the month: strftime(\"%Y-%m-%d\", ...). %M belongs beside an hour, as in %H:%M.",
+            """
+            use strict;
+            use warnings;
+            use POSIX qw(strftime);
+
+            print strftime("%Y-%m-%d %H:%M", 0, 30, 9, 5, 1, 124), "\n";
+            """),
     ];
 }
