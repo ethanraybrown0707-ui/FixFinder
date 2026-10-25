@@ -10,8 +10,8 @@ namespace FixFinder.Core.Logic;
 /// [helloabc], strlen 8 (C++ refuses it; C does not); char c = getchar() cannot tell the byte 255 from EOF, so reading
 /// "ab", 255, "cd" stopped at the third byte and counted 2; malloc(count) gives count bytes, not count ints - 4 bytes for 4
 /// ints of 4 bytes; in C++, "Total: " + count moves along the text by count characters instead of joining - it printed
-/// "al: "; and reserve(3) makes room without making items, so marks[0] = 70 wrote past the vector's end and its size
-/// stayed 0.
+/// "al: "; and reserve(3) makes room without making items, so marks[0] = 70 wrote past the vector's end, which C++ leaves
+/// undefined: built by gcc 13.2 the program printed a size of 0, and by gcc 15.2 it was stopped with 0xC0000409.
 /// </summary>
 public static partial class NativeMemoryPatterns
 {
@@ -172,7 +172,8 @@ public static partial class NativeMemoryPatterns
 
             yield return new LogicFinding(id, firstWrite + 1,
                 $"reserve on line {index + 1} makes room in {name} without making any items, so its size is still 0, and {name}[...] = writes past " +
-                "its end - nothing is added, and its size stayed 0",
+                "its end - nothing is added, and what the write does C++ leaves undefined: built by gcc 13.2 the program printed a size of 0, " +
+                "and by gcc 15.2 it was stopped",
                 LocalFix.ReplaceLine(id, $"Make the items: {name}.resize(...)",
                     $"resize makes that many items, each 0, so {name}[...] = gives one of them its value.",
                     source.Path, index + 1, line[..reserve] + "resize" + line[(reserve + "reserve".Length)..]));

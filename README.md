@@ -1077,10 +1077,12 @@ where `getDate()` was meant. In C: `char word[5] = "hello"`, with no room for it
 refuses it; `char c = getchar()` compared with `EOF`, which stopped at a byte 255 and counted 2 of 5 - in C++ too; and
 `malloc(count)` for ints, which gave 4 bytes for 4 ints - the change is `malloc(count * sizeof *marks)`. In C++:
 `"Total: " + count`, which moved along the text and printed `al: ` - the change is `std::to_string(count)`; and
-`reserve(3)` and then `marks[0] = 70`, which left the size at 0 - the change is `resize`. In Go: `time.Sleep(2)`, two
-nanoseconds - the change says the unit; `copy` into a slice made with length 0, which copied nothing; `name[0]` of a
-string printed, which printed 104 - the change is `string(name[0])`; and a goroutine `main` never waits for, whose line
-was never printed, which has no change, as the ways to wait for one are too many to write one for.
+`reserve(3)` and then `marks[0] = 70`, a write past the vector's end, which C++ leaves undefined - built by gcc 13.2 the
+program printed a size of 0, and by gcc 15.2 it was stopped - and the change is `resize`, which printed 3 with both. In
+Go: `time.Sleep(2)`, two nanoseconds - the change says the unit; `copy` into a slice made with length 0, which copied
+nothing; `name[0]` of a string printed, which printed 104 - the change is `string(name[0])`; and a goroutine `main`
+never waits for, whose line was never printed, which has no change, as the ways to wait for one are too many to write
+one for.
 
 In Ruby it finds `Hash.new([])`, whose one array every missing key shares - `groups[:red] << "Ada"` left the hash `{}` -
 and the change gives each key its own, `Hash.new { |hash, key| hash[key] = [] }`. In PHP: a `foreach` by reference whose

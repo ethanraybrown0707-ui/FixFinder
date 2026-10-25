@@ -76,11 +76,6 @@ public class LibraryMistakeLiveTests(ITestOutputHelper output)
             "[al: ]", "[Total: 3]"
         },
         {
-            "C++", "logic-cpp-reserve-then-index",
-            "#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> marks;\n    marks.reserve(3);\n    marks[0] = 70;\n    std::cout << marks.size() << std::endl;\n}\n",
-            "0", "3"
-        },
-        {
             "Go", "logic-go-sleep-nanoseconds",
             "package main\n\nimport (\n\t\"fmt\"\n\t\"time\"\n)\n\nfunc main() {\n\tstart := time.Now()\n\ttime.Sleep(1)\n\tfmt.Println(time.Since(start) >= time.Second)\n}\n",
             "false", "true"
@@ -185,6 +180,22 @@ public class LibraryMistakeLiveTests(ITestOutputHelper output)
 
         Assert.True(wrong.Shows(Behaviour.Printing(mistakePrints)), wrong.Said(language));
         Assert.True(right.Shows(Behaviour.Printing(changePrints)), right.Said(language));
+    }
+
+    /// <summary>
+    /// reserve, then [] past the vector's size: C++ leaves what the write does undefined, and two gccs did different things -
+    /// built by gcc 13.2 the program ran on and printed a size of 0, and by gcc 15.2 it was stopped with 0xC0000409. Neither
+    /// printed 3; the change, resize, did with both.
+    /// </summary>
+    [Fact]
+    public async Task WritingPastAReservedVectorsSizeMakesNoItemAndTheChangeMakesThem()
+    {
+        if (await RunBothAsync("C++", "logic-cpp-reserve-then-index",
+                "#include <iostream>\n#include <vector>\n\nint main() {\n    std::vector<int> marks;\n    marks.reserve(3);\n    marks[0] = 70;\n    std::cout << marks.size() << std::endl;\n}\n") is not var (wrong, right)) return;
+
+        output.WriteLine($"what the mistake wrote:\n{string.Join("\n", wrong.Output)}");
+        Assert.True(wrong.Shows(Behaviour.Printing("0")) || wrong.Crash is not null, wrong.Said("C++"));
+        Assert.True(right.Shows(Behaviour.Printing("3")), right.Said("C++"));
     }
 
     [Fact]

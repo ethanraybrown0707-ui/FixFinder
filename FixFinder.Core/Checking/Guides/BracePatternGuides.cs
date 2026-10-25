@@ -813,7 +813,8 @@ internal static class BracePatternGuides
         GuideFor(["logic-cpp-reserve-then-index"], "reserve, then [] to put items in",
             "reserve makes room for items without making any: the vector's size is still 0. Writing marks[0] = 70 then writes past the end " +
             "of the vector - nothing is added, and its size stays 0.",
-            "The values written are lost, or other memory is overwritten, and size() still says 0.",
+            "What the write does, C++ leaves undefined: built by gcc 13.2 the program ran on, with size() still 0, and by gcc 15.2 it " +
+            "was stopped.",
             "Use resize to make the items - marks.resize(3) - or add each with push_back.",
             """
             #include <iostream>
