@@ -263,5 +263,55 @@ internal static class PerlPatternGuides
             my @second = (1, 2, 3);
             print "same\n" if "@first" eq "@second";
             """),
+
+        GuideFor(["logic-perl-branch-never-reached"], "An elsif that can never run",
+            "An if - elsif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "$score >= 50 before $score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and perl -w says nothing.",
+            "Put the strictest test first: $score >= 70, then $score >= 50.",
+            """
+            use strict;
+            use warnings;
+
+            my $score = 75;
+            if ($score >= 70) {
+                print "B\n";
+            } elsif ($score >= 50) {
+                print "C\n";
+            } else {
+                print "F\n";
+            }
+            """),
+
+        GuideFor(["logic-perl-loop-never-runs"], "A count down written as (10..1)",
+            "A range counts up: (10..1) starts at 10, and 10 is already past 1 - so it holds nothing, and a loop over it runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and perl -w says nothing.",
+            "Reverse a range that counts up: reverse(1..10) gives 10, 9, ... 1.",
+            """
+            use strict;
+            use warnings;
+
+            for my $count (reverse(1..3)) {
+                print "$count\n";
+            }
+            """),
+
+        GuideFor(["logic-perl-code-after-return"], "Code after return",
+            "return leaves the sub there and then - and die, exit, last and next leave the same way. A line straight after one of them, " +
+            "in the same block, is never reached.",
+            "That line never runs, so no run of the program can test it, and perl -w says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            use strict;
+            use warnings;
+
+            sub total {
+                my @marks = @_;
+                print "counted\n";
+                return scalar(@marks);
+            }
+
+            print total(1, 2), "\n";
+            """),
     ];
 }

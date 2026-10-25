@@ -181,5 +181,20 @@ internal static class ElixirPatternGuides
             ages = %{"Ada" => 36}
             IO.inspect(ages["Ada"])
             """),
+
+        GuideFor(["logic-elixir-branch-never-reached"], "A cond clause that can never run",
+            "cond takes the first clause whose test is true. If an earlier test lets through every value a later one does - score >= 50 " +
+            "before score >= 70 - the later clause never gets a value.",
+            "That clause never runs, so no input can test it - a score of 75 got C, not B - and Elixir says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            score = 75
+
+            cond do
+              score >= 70 -> IO.puts("B")
+              score >= 50 -> IO.puts("C")
+              true -> IO.puts("F")
+            end
+            """),
     ];
 }

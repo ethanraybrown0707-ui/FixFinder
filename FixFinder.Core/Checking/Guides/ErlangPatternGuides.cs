@@ -131,5 +131,25 @@ internal static class ErlangPatternGuides
                 Marks = [70, 80, 90],
                 [io:format("~p~n", [lists:nth(Position, Marks)]) || Position <- lists:seq(1, length(Marks))].
             """),
+
+        GuideFor(["logic-erlang-branch-never-reached"], "An if clause that can never run",
+            "if takes the first clause whose guard is true. If an earlier guard lets through every value a later one does - Score >= 50 " +
+            "before Score >= 70 - the later clause never gets a value.",
+            "That clause never runs, so no input can test it - a score of 75 got C, not B - and erlc says nothing.",
+            "Put the strictest guard first: Score >= 70, then Score >= 50.",
+            """
+            -module(grades).
+            -export([main/0]).
+
+            grade(Score) ->
+                if
+                    Score >= 70 -> "B";
+                    Score >= 50 -> "C";
+                    true -> "F"
+                end.
+
+            main() ->
+                io:format("~s~n", [grade(75)]).
+            """),
     ];
 }

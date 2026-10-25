@@ -153,5 +153,29 @@ internal static class FSharpPatternGuides
             for c in "123" do total <- total + (int c - int '0')
             printfn "%d" total
             """),
+
+        GuideFor(["logic-fsharp-branch-never-reached"], "An elif that can never run",
+            "An if - elif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and fsi says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            let score = 75
+            if score >= 70 then printfn "B"
+            elif score >= 50 then printfn "C"
+            else printfn "F"
+            """),
+
+        GuideFor(["logic-fsharp-loop-never-runs"], "A count down written as 10 .. 1",
+            "A range counts up: 10 .. 1 starts at 10, which is already past 1, so it holds nothing - and for i = 10 to 1 is the same. A " +
+            "loop over either runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and fsi says nothing.",
+            "Count down with a step of -1 - 10 .. -1 .. 1 - or with downto: for i = 10 downto 1 do.",
+            """
+            let mutable total = 0
+            for count = 3 downto 1 do
+                total <- total + count
+            printfn "%d" total
+            """),
     ];
 }

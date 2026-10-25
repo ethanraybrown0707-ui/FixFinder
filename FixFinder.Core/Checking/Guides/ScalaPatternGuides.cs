@@ -193,5 +193,28 @@ internal static class ScalaPatternGuides
               grid(0)(0) = 1
               println(grid.map(_.mkString(" ")).mkString(" | "))
             """),
+
+        GuideFor(["logic-scala-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and the compiler says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            @main def run(): Unit =
+              val score = 75
+              if score >= 70 then println("B")
+              else if score >= 50 then println("C")
+              else println("F")
+            """),
+
+        GuideFor(["logic-scala-loop-never-runs"], "A count down written as 10 to 1",
+            "10 to 1 counts up from 10, and 10 is already past 1 - so it holds nothing, and a loop over it runs no times at all. The " +
+            "same is true of 10 until 0.",
+            "Nothing in the loop ever runs, so it cannot be tested, and the compiler says nothing.",
+            "Give it a step of -1: 10 to 1 by -1.",
+            """
+            @main def run(): Unit =
+              for count <- 3 to 1 by -1 do println(count)
+            """),
     ];
 }

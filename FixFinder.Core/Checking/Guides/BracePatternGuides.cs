@@ -826,5 +826,76 @@ internal static class BracePatternGuides
                 std::cout << marks.size() << "\n";
             }
             """),
+
+        GuideFor(["logic-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value: every score of 70 or more has already gone " +
+            "into the score >= 50 branch.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and the compiler says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50 - for a ladder of >=, the highest first; for a ladder of <, the " +
+            "lowest first.",
+            """
+            int score = 75;
+            if (score >= 70) {
+                System.out.println("B");
+            } else if (score >= 50) {
+                System.out.println("C");
+            } else {
+                System.out.println("F");
+            }
+            """),
+
+        GuideFor(["logic-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue and throw leave the loop or the block the same way. A line " +
+            "straight after one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the program can test it, and the compiler says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            #include <stdio.h>
+
+            int total(int count) {
+                puts("counted");
+                return count;
+            }
+
+            int main(void) {
+                printf("%d\n", total(2));
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-js-duplicate-case"], "Two cases with the same value",
+            "A switch takes the first case whose value matches. When two cases have the same value, the second is never matched - the " +
+            "first always takes it.",
+            "The second case's code never runs, so it cannot be tested, and Node says nothing.",
+            "Give each case its own value, or put the two cases' code together in the first.",
+            """
+            const choice = 2;
+            switch (choice) {
+                case 1:
+                    console.log("one");
+                    break;
+                case 2:
+                    console.log("two");
+                    break;
+            }
+            """),
+
+        GuideFor(["logic-js-defined-twice"], "A function defined twice",
+            "JavaScript sets up every function declared with function before the code runs - and when two have the same name, the last " +
+            "one is the one kept. Every call, even one written before the second, gets the second.",
+            "The first function never runs, so it cannot be tested - area(3) used the second, and gave NaN - and Node says nothing.",
+            "Give the two functions different names: area for one side, rectangleArea for two.",
+            """
+            function area(side) {
+                return side * side;
+            }
+
+            function rectangleArea(width, height) {
+                return width * height;
+            }
+
+            console.log(area(3), rectangleArea(3, 4));
+            """),
     ];
 }

@@ -178,5 +178,49 @@ internal static class LuaPatternGuides
             local marks = {70, 80, 90}
             print(marks[#marks // 2 + 1])
             """),
+
+        GuideFor(["logic-lua-branch-never-reached"], "An elseif that can never run",
+            "An if - elseif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and Lua says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            local score = 75
+            if score >= 70 then
+              print("B")
+            elseif score >= 50 then
+              print("C")
+            else
+              print("F")
+            end
+            """),
+
+        GuideFor(["logic-lua-loop-never-runs"], "A count down written as for i = 10, 1",
+            "A numeric for counts up by 1 unless it is given a step: for i = 10, 1 starts at 10, which is already past 1, so it runs no " +
+            "times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and Lua says nothing.",
+            "Give it a step of -1: for i = 10, 1, -1 do.",
+            """
+            for count = 3, 1, -1 do
+              print(count)
+            end
+            """),
+
+        GuideFor(["logic-lua-defined-twice"], "A function defined twice",
+            "function gives a name its function when it runs, so a second function with the same name replaces the first. When nothing " +
+            "calls the first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested, and Lua says nothing.",
+            "Give the two functions different names: area for one side, rectangle_area for two.",
+            """
+            local function area(side)
+              return side * side
+            end
+
+            local function rectangle_area(width, height)
+              return width * height
+            end
+
+            print(area(3), rectangle_area(3, 4))
+            """),
     ];
 }

@@ -87,6 +87,10 @@ public static class LogicPatterns
         .. FortranLibraryPatterns.All,
         .. BeamLibraryPatterns.All,
         .. TypedLibraryPatterns.All,
+        .. UnreachableBranchPatterns.All,
+        .. NeverRunningLoopPatterns.All,
+        .. DeadCodePatterns.All,
+        .. UnreachableHandlerPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

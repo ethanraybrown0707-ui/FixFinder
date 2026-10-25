@@ -262,5 +262,46 @@ internal static class RubyPatternGuides
             groups[:blue] << "Bob"
             p groups
             """),
+
+        GuideFor(["logic-ruby-branch-never-reached"], "An elsif that can never run",
+            "An if - elsif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and ruby -w says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            score = 75
+            if score >= 70
+              puts "B"
+            elsif score >= 50
+              puts "C"
+            else
+              puts "F"
+            end
+            """),
+
+        GuideFor(["logic-ruby-loop-never-runs"], "A count down written as (10..1)",
+            "A range counts up: (10..1) starts at 10, and 10 is already past 1 - so it holds nothing, and each over it runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and ruby -w says nothing.",
+            "Count down with downto: 10.downto(1).each.",
+            """
+            3.downto(1).each do |count|
+              puts count
+            end
+            """),
+
+        GuideFor(["logic-ruby-handler-never-reached"], "A rescue that can never run",
+            "rescue clauses are tried in order, and the first that matches the error takes it. rescue StandardError matches " +
+            "ArgumentError too - ArgumentError is a kind of StandardError - so a rescue ArgumentError after it is never reached.",
+            "The specific handler never runs, so it cannot be tested - Integer(\"x\") printed the general message - and ruby -w says nothing.",
+            "Put the specific rescue first: rescue ArgumentError, then rescue StandardError.",
+            """
+            begin
+              Integer("x")
+            rescue ArgumentError
+              puts "not a number"
+            rescue StandardError
+              puts "something went wrong"
+            end
+            """),
     ];
 }

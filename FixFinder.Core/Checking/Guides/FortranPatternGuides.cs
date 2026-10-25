@@ -187,5 +187,42 @@ internal static class FortranPatternGuides
               print *, len_trim(name)
             end program lengths
             """),
+
+        GuideFor(["logic-fortran-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and gfortran -Wall says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            program grades
+              implicit none
+              integer :: score
+              score = 75
+              if (score >= 70) then
+                print *, 'B'
+              else if (score >= 50) then
+                print *, 'C'
+              else
+                print *, 'F'
+              end if
+            end program grades
+            """),
+
+        GuideFor(["logic-fortran-code-after-return"], "Code after return",
+            "return leaves the function or subroutine there and then - stop ends the program, and exit and cycle leave the loop or its " +
+            "pass. A statement straight after one of them, in the same block, is never reached.",
+            "That statement never runs, so no run of the program can test it, and gfortran -Wall says nothing.",
+            "Move the statement before the return if it was meant to run, or take it out if it was not.",
+            """
+            program counting
+              implicit none
+              print *, total(2)
+            contains
+              integer function total(count)
+                integer, intent(in) :: count
+                total = count
+              end function total
+            end program counting
+            """),
     ];
 }

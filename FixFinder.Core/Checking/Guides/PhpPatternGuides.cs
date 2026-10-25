@@ -276,5 +276,53 @@ internal static class PhpPatternGuides
             $file = "test.txt";
             echo preg_replace('/\.txt$/', '', $file), PHP_EOL;
             """),
+
+        GuideFor(["logic-php-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue, throw, exit and die leave the same way. A line straight " +
+            "after one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the program can test it, and PHP says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            <?php
+            function total($marks) {
+                echo "counted", PHP_EOL;
+                return count($marks);
+            }
+            echo total([1, 2]), PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-duplicate-case"], "Two cases with the same value",
+            "A switch takes the first case whose value matches. When two cases have the same value, the second is never matched - the " +
+            "first always takes it.",
+            "The second case's code never runs, so it cannot be tested, and PHP says nothing.",
+            "Give each case its own value, or put the two cases' code together in the first.",
+            """
+            <?php
+            $choice = 2;
+            switch ($choice) {
+                case 1:
+                    echo "one", PHP_EOL;
+                    break;
+                case 2:
+                    echo "two", PHP_EOL;
+                    break;
+            }
+            """),
+
+        GuideFor(["logic-php-handler-never-reached"], "A catch that can never run",
+            "catch blocks are tried in order, and the first that matches the exception takes it. catch (Exception $e) matches " +
+            "InvalidArgumentException too - it is a kind of Exception - so a catch for it after that one is never reached.",
+            "The specific handler never runs, so it cannot be tested - the general message was printed - and PHP says nothing.",
+            "Put the specific catch first: catch (InvalidArgumentException $e), then catch (Exception $e).",
+            """
+            <?php
+            try {
+                throw new InvalidArgumentException("x");
+            } catch (InvalidArgumentException $e) {
+                echo "not a number", PHP_EOL;
+            } catch (Exception $e) {
+                echo "something went wrong", PHP_EOL;
+            }
+            """),
     ];
 }

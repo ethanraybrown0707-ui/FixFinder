@@ -601,5 +601,75 @@ internal static class PythonPatternGuides
             adders = [lambda x, step=step: x + step for step in range(3)]
             print([add(10) for add in adders])
             """),
+
+        GuideFor(["logic-python-branch-never-reached"], "An elif that can never run",
+            "An if - elif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value: every score of 70 or more has gone into the first.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and Python says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            score = 75
+            if score >= 70:
+                print("B")
+            elif score >= 50:
+                print("C")
+            else:
+                print("F")
+            """),
+
+        GuideFor(["logic-python-loop-never-runs"], "A count down written as range(10, 0)",
+            "range counts up unless it is given a step: range(10, 0) starts at 10 and stops before 0, and 10 is already past 0 - so it " +
+            "holds nothing, and a loop over it runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and Python says nothing.",
+            "Give it a step of -1: range(10, 0, -1) gives 10, 9, ... 1.",
+            """
+            for count in range(3, 0, -1):
+                print(count)
+            """),
+
+        GuideFor(["logic-python-defined-twice"], "A function defined twice",
+            "def gives a name its function when it runs, so a second def with the same name replaces the first. When nothing calls the " +
+            "first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested - area(3) used the second - and Python says nothing.",
+            "Give the two functions different names: area for one side, rectangle_area for two.",
+            """
+            def area(side):
+                return side * side
+
+
+            def rectangle_area(width, height):
+                return width * height
+
+
+            print(area(3), rectangle_area(3, 4))
+            """),
+
+        GuideFor(["logic-python-main-guard-misspelt"], "if __name__ == \"main\":",
+            "When a file is run directly, Python names it \"__main__\" - two underscores either side. Compared with \"main\", or any " +
+            "other spelling, __name__ is never equal, so the block under the if never runs.",
+            "The program does nothing when it is run, and nothing in its main part can be tested - with no error.",
+            "Spell it as Python does: if __name__ == \"__main__\":",
+            """
+            def main():
+                print("started")
+
+
+            if __name__ == "__main__":
+                main()
+            """),
+
+        GuideFor(["logic-python-handler-never-reached"], "An except that can never run",
+            "A try's except clauses are tried in order, and the first that matches the error takes it. except Exception: matches " +
+            "ValueError too - ValueError is a kind of Exception - so an except ValueError: after it is never reached.",
+            "The specific handler never runs, so it cannot be tested - int(\"x\") printed the general message - and Python says nothing.",
+            "Put the specific except first: except ValueError:, then except Exception:.",
+            """
+            try:
+                int("x")
+            except ValueError:
+                print("not a number")
+            except Exception:
+                print("something went wrong")
+            """),
     ];
 }

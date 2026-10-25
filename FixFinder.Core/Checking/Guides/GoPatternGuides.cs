@@ -413,5 +413,27 @@ internal static class GoPatternGuides
             	wg.Wait()
             }
             """),
+
+        GuideFor(["logic-go-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and go vet says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	score := 75
+            	if score >= 70 {
+            		fmt.Println("B")
+            	} else if score >= 50 {
+            		fmt.Println("C")
+            	} else {
+            		fmt.Println("F")
+            	}
+            }
+            """),
     ];
 }

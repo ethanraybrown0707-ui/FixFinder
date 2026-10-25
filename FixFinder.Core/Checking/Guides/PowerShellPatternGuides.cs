@@ -282,5 +282,53 @@ internal static class PowerShellPatternGuides
             $second = [int]"4"
             Write-Output ($first + $second)
             """),
+
+        GuideFor(["logic-powershell-branch-never-reached"], "An elseif that can never run",
+            "An if - elseif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "$score -ge 50 before $score -ge 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and PowerShell says nothing.",
+            "Put the strictest test first: $score -ge 70, then $score -ge 50.",
+            """
+            $score = 75
+            if ($score -ge 70) {
+                Write-Output "B"
+            } elseif ($score -ge 50) {
+                Write-Output "C"
+            } else {
+                Write-Output "F"
+            }
+            """),
+
+        GuideFor(["logic-powershell-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue, exit and throw leave the same way. A line straight after " +
+            "one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the script can test it, and PowerShell says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            function Get-Total($marks) {
+                Write-Host "counted"
+                return $marks.Count
+            }
+
+            Get-Total @(1, 2)
+            """),
+
+        GuideFor(["logic-powershell-defined-twice"], "A function defined twice",
+            "function gives a name its function when that line runs, so a second function with the same name - in any case - replaces " +
+            "the first. When nothing calls the first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested - Get-Area 3 used the second, and gave 0 - and PowerShell says nothing.",
+            "Give the two functions different names: Get-SquareArea and Get-RectangleArea.",
+            """
+            function Get-SquareArea($side) {
+                $side * $side
+            }
+
+            function Get-RectangleArea($width, $height) {
+                $width * $height
+            }
+
+            Get-SquareArea 3
+            Get-RectangleArea 3 4
+            """),
     ];
 }
