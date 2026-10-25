@@ -666,5 +666,165 @@ internal static class BracePatternGuides
             }
             console.log(total);
             """),
+
+        GuideFor(["logic-js-array-holes-mapped"], "map on new Array(n)",
+            "new Array(3) makes an array of length 3 with nothing in it - three holes, not three undefineds. map, forEach, filter and the " +
+            "rest skip holes, so their function never runs: new Array(3).map((_, i) => i) is still three holes.",
+            "The array that was meant to be filled stays empty, with no error.",
+            "Make an array with items: Array.from({ length: 3 }, (_, i) => i), or new Array(3).fill(0) before map.",
+            """
+            const squares = Array.from({ length: 3 }, (_, index) => index * index);
+            console.log(squares);
+            """),
+
+        GuideFor(["logic-js-replace-first-only"], "replace with text replaces only the first",
+            "Given text to look for, replace changes only the first place it is found: \"a-b-c\".replace(\"-\", \"\") is \"ab-c\". (Python's " +
+            "and Java's replace change every one, which is why this catches people out.)",
+            "Only the first separator is taken out, and the rest are left, with no error.",
+            "Use replaceAll to change every one: \"a-b-c\".replaceAll(\"-\", \"\").",
+            """
+            const phone = "555-123-4567";
+            console.log(phone.replaceAll("-", ""));
+            """),
+
+        GuideFor(["logic-js-promise-used-as-value"], "An async function's result used without await",
+            "An async function gives back a Promise: a promise of its value, finished later. Called without await, what you get is that " +
+            "Promise, not the value - so it prints as Promise { 3 }, and in text as [object Promise]. map with an async function gives a " +
+            "list of Promises the same way.",
+            "The program uses the Promise where it meant the value, with no error.",
+            "Wait for the value with await - await count(), or await Promise.all(list.map(...)) for a list - inside an async function, or at " +
+            "the top of a module.",
+            """
+            async function count() {
+                return 3;
+            }
+
+            async function main() {
+                const result = await count();
+                console.log(result);
+            }
+
+            main();
+            """),
+
+        GuideFor(["logic-js-timer-given-a-call"], "setTimeout given a call instead of a function",
+            "setTimeout(greet(), 1000) calls greet straight away - the brackets call it - and gives setTimeout whatever greet gives back, " +
+            "usually undefined. setTimeout needs the function itself, to call when the time comes.",
+            "The work happens at once instead of later, and Node stops with ERR_INVALID_ARG_TYPE.",
+            "Give the function without calling it - setTimeout(greet, 1000) - or wrap a call with values in an arrow function: " +
+            "setTimeout(() => greet(\"Ada\"), 1000).",
+            """
+            function greet() {
+                console.log("hello");
+            }
+
+            setTimeout(greet, 1000);
+            """),
+
+        GuideFor(["logic-js-get-year"], "getYear() for the year",
+            "getYear() gives the year less 1900 - 124 for 2024. It is kept only so very old pages still work.",
+            "The year shows as 124, with no error.",
+            "Use getFullYear(), which gives the year as it is written: 2024.",
+            """
+            const when = new Date(2024, 1, 5);
+            console.log(when.getFullYear());
+            """),
+
+        GuideFor(["logic-js-get-day-for-date"], "getDay() for the day of the month",
+            "getDay() gives the day of the week - 0 for Sunday up to 6 for Saturday - not the day of the month. For Monday 5 February it is 1.",
+            "Dates are written with the weekday's number in place of the day, with no error.",
+            "Use getDate() for the day of the month: 5.",
+            """
+            const when = new Date(2024, 1, 5);
+            console.log(when.getDate() + "/" + (when.getMonth() + 1) + "/" + when.getFullYear());
+            """),
+
+        GuideFor(["logic-c-text-without-end"], "Text that fills its char array",
+            "C ends text with a '\\0' character after its last letter, and printf, strlen and strcpy read until they meet it. char word[5] = " +
+            "\"hello\" has room for the five letters and none for the '\\0' - C allows it, and leaves it out - so those functions read on " +
+            "past the array into whatever comes next.",
+            "Text prints with stray characters after it, and lengths come out wrong: a char[5] holding hello printed helloabc.",
+            "Give the array one more char than the letters - char word[6] - or leave the size out and let C count: char word[] = \"hello\".",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                char word[] = "hello";
+                printf("%s\n", word);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-c-getchar-into-char"], "getchar's result kept in a char",
+            "getchar gives back an int, so that it can give every byte, 0 to 255, and also EOF, a number apart from all of them. Kept in a " +
+            "char, two of those become one: the byte 255 and EOF look the same.",
+            "Reading stops early at a byte 255, as if the input had ended - \"ab\", 255, \"cd\" counted 2 characters.",
+            "Keep it in an int: int c; while ((c = getchar()) != EOF).",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                int c;
+                int count = 0;
+                while ((c = getchar()) != EOF) {
+                    count++;
+                }
+                printf("%d\n", count);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-c-malloc-without-sizeof"], "malloc given a count, not bytes",
+            "malloc counts in bytes. An int takes 4 of them here, so malloc(count) gives room for count bytes - a quarter of count ints - " +
+            "and writing the rest goes past the end of what was given.",
+            "The program writes over memory it was not given, which may crash it or change other values, often far from the mistake.",
+            "Multiply by the size of one item: malloc(count * sizeof *marks).",
+            """
+            #include <stdio.h>
+            #include <stdlib.h>
+
+            int main(void) {
+                int count = 4;
+                int *marks = malloc(count * sizeof *marks);
+                if (marks == NULL) return 1;
+                marks[3] = 70;
+                printf("%d\n", marks[3]);
+                free(marks);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-cpp-text-plus-number"], "Text in quotes plus a number",
+            "Text in quotes is not a std::string: it is the address of its first character. Adding a number to it moves the address along - " +
+            "\"Total: \" + 3 is the text from the fourth character on, \"al: \" - and past its end it reads whatever memory comes next.",
+            "The text printed is cut short or full of stray characters, and the number is not in it, with nothing from the compiler.",
+            "Turn the number into text first: \"Total: \" + std::to_string(count).",
+            """
+            #include <iostream>
+            #include <string>
+
+            int main() {
+                int count = 3;
+                std::string shown = "Total: " + std::to_string(count);
+                std::cout << shown << "\n";
+            }
+            """),
+
+        GuideFor(["logic-cpp-reserve-then-index"], "reserve, then [] to put items in",
+            "reserve makes room for items without making any: the vector's size is still 0. Writing marks[0] = 70 then writes past the end " +
+            "of the vector - nothing is added, and its size stays 0.",
+            "The values written are lost, or other memory is overwritten, and size() still says 0.",
+            "Use resize to make the items - marks.resize(3) - or add each with push_back.",
+            """
+            #include <iostream>
+            #include <vector>
+
+            int main() {
+                std::vector<int> marks;
+                marks.reserve(3);
+                marks.push_back(70);
+                std::cout << marks.size() << "\n";
+            }
+            """),
     ];
 }

@@ -327,5 +327,105 @@ internal static class ManagedPatternGuides
             var when = new DateTime(2024, 2, 5, 9, 30, 0);
             Console.WriteLine(when.ToString("yyyy-MM-dd"));
             """),
+
+        GuideFor(["logic-java-thread-run"], "run() called on a Thread",
+            "A Thread is started with start(), which runs its work on a new thread, alongside the code that started it. run() is only the " +
+            "method that holds the work: calling it runs the work there and then, on the thread that called it, like any other method - " +
+            "so nothing runs alongside, and the program waits for it.",
+            "The program does its work one piece at a time where it was meant to do them together, with no error - the worker printed that " +
+            "it ran on main.",
+            "Start the thread: worker.start().",
+            """
+            public class Main {
+                public static void main(String[] args) throws InterruptedException {
+                    Thread worker = new Thread(() -> System.out.println("working"));
+                    worker.start();
+                    worker.join();
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-bigdecimal-from-double"], "A BigDecimal made from a double",
+            "A double holds most decimals only nearly: 0.1 is stored as 0.1000000000000000055511151231257827021181583404541015625. " +
+            "new BigDecimal(0.1) is given that double, and holds every digit of it - so the BigDecimal, used to keep money exact, starts with " +
+            "the error in it.",
+            "Sums that should come out exact are off in their last digits, and comparisons with equals fail.",
+            "Make it from text: new BigDecimal(\"0.1\") - or, from a double you already have, BigDecimal.valueOf(price).",
+            """
+            import java.math.BigDecimal;
+
+            public class Main {
+                public static void main(String[] args) {
+                    BigDecimal price = new BigDecimal("0.1");
+                    System.out.println(price.add(new BigDecimal("0.2")));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-aslist-of-primitive-array"], "Arrays.asList of an int[]",
+            "Arrays.asList makes a list of objects. An int[] - or any array of a primitive type - is itself one object, so " +
+            "Arrays.asList(marks) is a list with one item, the whole array, not a list of its numbers.",
+            "The list's size is 1, and contains, indexOf and the rest find none of the numbers, with no error.",
+            "Make a list of the numbers: Arrays.stream(marks).boxed().collect(Collectors.toList()) - or declare the array as Integer[].",
+            """
+            import java.util.Arrays;
+            import java.util.List;
+            import java.util.stream.Collectors;
+
+            public class Main {
+                public static void main(String[] args) {
+                    int[] marks = {70, 80, 90};
+                    List<Integer> listed = Arrays.stream(marks).boxed().collect(Collectors.toList());
+                    System.out.println(listed.contains(80));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-abs-of-hash"], "Math.abs of a hashCode, then %",
+            "Math.abs makes a number positive - except the smallest int, -2147483648, whose positive is too big for an int, so Math.abs " +
+            "gives it back as it is. A hashCode can be that number - \"polygenelubricants\".hashCode() is - and so can nextInt(). " +
+            "Math.abs(key.hashCode()) % 10 is then negative: -8.",
+            "Used as a position in an array of buckets, the negative number stops the program - for only the rare keys that hash to it.",
+            "Take a remainder that is never negative: Math.floorMod(key.hashCode(), 10).",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    String key = "polygenelubricants";
+                    System.out.println(Math.floorMod(key.hashCode(), 10));
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-for-closure"], "A lambda made in a for loop uses the loop's counter",
+            "A for loop has one counter for all its passes. A lambda that uses it keeps that one variable, not its value when the lambda " +
+            "was made - so lambdas run after the loop all see the value that ended it: three lambdas made with i at 0, 1 and 2 all " +
+            "printed 3. (A foreach gives each pass its own variable, and has no such trouble.)",
+            "Every lambda does the same thing, with the last value, and the compiler says nothing.",
+            "Copy the counter into a variable declared inside the loop, and use that: var current = i;",
+            """
+            var actions = new List<Action>();
+            for (int i = 0; i < 3; i++)
+            {
+                var current = i;
+                actions.Add(() => Console.Write(current));
+            }
+            foreach (var action in actions) action();
+            """),
+
+        GuideFor(["logic-csharp-task-printed"], "An async method's result used without await",
+            "An async method gives back a Task: a promise of its value, finished later. Called without await, what you get is that Task, " +
+            "not the value - so printing it prints the Task's type name, and using it as a number does not compile.",
+            "The program prints the Task's type where it meant the value, and the compiler says nothing when the Task is kept in a variable.",
+            "Wait for the value with await: var count = await CountAsync();",
+            """
+            var count = await CountAsync();
+            Console.WriteLine(count);
+
+            static async Task<int> CountAsync()
+            {
+                await Task.Delay(1);
+                return 3;
+            }
+            """),
     ];
 }

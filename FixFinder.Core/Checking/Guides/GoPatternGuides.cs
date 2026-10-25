@@ -336,5 +336,82 @@ internal static class GoPatternGuides
             	fmt.Println(when.Format("2006-01-02"))
             }
             """),
+
+        GuideFor(["logic-go-sleep-nanoseconds"], "time.Sleep given a bare number",
+            "time.Sleep takes a time.Duration, and a number on its own is that many nanoseconds - billionths of a second. So " +
+            "time.Sleep(2) waits two nanoseconds, which is no wait at all.",
+            "The program does not pause where it was meant to, and go vet says nothing.",
+            "Say the unit: time.Sleep(2 * time.Second), or time.Sleep(500 * time.Millisecond).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"time"
+            )
+
+            func main() {
+            	time.Sleep(10 * time.Millisecond)
+            	fmt.Println("done")
+            }
+            """),
+
+        GuideFor(["logic-go-copy-into-empty"], "copy into a slice of length 0",
+            "copy copies only as many items as both slices have room for - the shorter length. A slice made with make([]int, 0), or " +
+            "[]int{}, has length 0, so copy puts nothing in it.",
+            "The copy stays empty, with no error and nothing from go vet.",
+            "Make the slice as long as what is copied: backup := make([]int, len(marks)) - or append: backup := append([]int(nil), marks...).",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	backup := make([]int, len(marks))
+            	copy(backup, marks)
+            	fmt.Println(backup)
+            }
+            """),
+
+        GuideFor(["logic-go-byte-printed"], "One character of a string printed as a number",
+            "name[0] is a byte - the number that stands for the character - not a piece of text. fmt.Println prints numbers as numbers, " +
+            "so \"hello\"[0] prints 104.",
+            "The program prints numbers where it meant letters, with nothing from go vet.",
+            "Turn it back into text: string(name[0]) - or print it with %c in Printf.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	name := "hello"
+            	fmt.Println(string(name[0]))
+            }
+            """),
+
+        GuideFor(["logic-go-goroutine-not-waited"], "A goroutine main does not wait for",
+            "A program ends when main returns - goroutines still running are stopped with it. A go statement starts the goroutine and " +
+            "carries straight on, so if main has nothing left to do, it ends before the goroutine gets to run.",
+            "The goroutine's work may never happen - its line was never printed - and go vet says nothing.",
+            "Wait for it: a sync.WaitGroup, with wg.Add(1) before go, wg.Done() when it finishes, and wg.Wait() in main.",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"sync"
+            )
+
+            func main() {
+            	var wg sync.WaitGroup
+            	wg.Add(1)
+            	go func() {
+            		defer wg.Done()
+            		fmt.Println("from the goroutine")
+            	}()
+            	wg.Wait()
+            }
+            """),
     ];
 }

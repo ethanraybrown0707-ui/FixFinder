@@ -530,5 +530,76 @@ internal static class PythonPatternGuides
                 total = total + mark
             print(total)
             """),
+
+        GuideFor(["logic-python-thread-run"], "run() called on a Thread",
+            "A Thread is started with start(), which runs its target on a new thread, alongside the code that started it. run() is only " +
+            "the method that calls the target: calling it runs the target there and then, on the thread that called it - so nothing runs " +
+            "alongside.",
+            "The program does its work one piece at a time where it was meant to do them together, with no error - the worker printed that " +
+            "it ran on MainThread.",
+            "Start the thread: worker.start() - and worker.join() to wait for it.",
+            """
+            import threading
+
+            worker = threading.Thread(target=lambda: print("working"))
+            worker.start()
+            worker.join()
+            """),
+
+        GuideFor(["logic-python-decimal-from-float"], "A Decimal made from a float",
+            "A float holds most decimals only nearly: 0.1 is stored as 0.1000000000000000055511151231257827021181583404541015625. " +
+            "Decimal(0.1) is given that float, and keeps every digit of it - so the Decimal, used to keep money exact, starts with the error " +
+            "in it.",
+            "Sums that should come out exact are off in their last digits, and comparisons fail.",
+            "Make it from text: Decimal(\"0.1\").",
+            """
+            from decimal import Decimal
+
+            price = Decimal("0.1")
+            print(price + Decimal("0.2"))
+            """),
+
+        GuideFor(["logic-python-get-default-changed"], "A default from get changed, and lost",
+            "d.get(key, []) gives back a new empty list when the key is missing - but it does not put that list in d. So " +
+            "d.get(key, []).append(item) appends to a list nothing keeps, and d is left as it was.",
+            "Nothing is ever added to the dictionary, with no error - groups stayed {}.",
+            "Use setdefault, which puts the default in first and gives back what is there: d.setdefault(key, []).append(item).",
+            """
+            groups = {}
+            for name, team in [("Ada", "red"), ("Bob", "red")]:
+                groups.setdefault(team, []).append(name)
+            print(groups)
+            """),
+
+        GuideFor(["logic-python-iterator-used-twice"], "An iterator read twice",
+            "map, filter, zip, reversed, enumerate and a generator expression give back an iterator: it hands out each item once, and " +
+            "then it is used up. Reading it a second time gives nothing.",
+            "The second loop or sum over it sees no items, with no error - sum(numbers) was 7, and len(list(numbers)) after it 0.",
+            "Keep the items in a list when they are needed more than once: numbers = list(map(int, words)).",
+            """
+            numbers = list(map(int, ["3", "4"]))
+            print(sum(numbers), len(numbers))
+            """),
+
+        GuideFor(["logic-python-strip-word"], "rstrip or lstrip given a word",
+            "rstrip and lstrip take away characters, not text: the argument is a set of characters, and every one of them is taken off the " +
+            "end until another character is met. \"test.txt\".rstrip(\".txt\") takes off t, x, t, ., and then the t of test - \"tes\".",
+            "Names that end in one of the characters lose more than the ending, with no error.",
+            "Take off the text itself: removesuffix(\".txt\") and removeprefix(\"www.\"), which take it off once when it is there.",
+            """
+            name = "test.txt"
+            print(name.removesuffix(".txt"))
+            """),
+
+        GuideFor(["logic-python-lambda-in-loop"], "A lambda made in a loop uses the loop's variable",
+            "A lambda keeps the variable it uses, not its value when the lambda was made. Made in a loop, every lambda keeps the same " +
+            "variable - and when they run, after the loop, it holds the value that ended it: [lambda x: x + step for step in range(3)] " +
+            "all added 2.",
+            "Every lambda does the same thing, with the last value, and Python says nothing.",
+            "Give the lambda the value as a default, which is worked out when the lambda is made: lambda x, step=step: x + step.",
+            """
+            adders = [lambda x, step=step: x + step for step in range(3)]
+            print([add(10) for add in adders])
+            """),
     ];
 }

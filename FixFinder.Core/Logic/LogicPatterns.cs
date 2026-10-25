@@ -78,6 +78,11 @@ public static class LogicPatterns
         .. DateFormatPatterns.All,
         .. ZeroIsTruePatterns.All,
         .. MisspeltNamePatterns.All,
+        .. ManagedLibraryPatterns.All,
+        .. PythonLibraryPatterns.All,
+        .. ScriptLibraryPatterns.All,
+        .. NativeMemoryPatterns.All,
+        .. GoLibraryPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

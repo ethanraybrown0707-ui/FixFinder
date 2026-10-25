@@ -866,131 +866,163 @@ a list. In Go, where neither `go build` nor `go vet` says anything of them, it f
 which replaces nothing, a line read with `ReadString('\n')` compared with text, though it still ends with its newline, a
 `range` loop with one variable - `for mark := range marks` - which gives the position, 0, 1, 2, not the item, a
 percentage that divides first, `math.Pow(side, 1/2)`, a number written with a 0 in front, `total =+ mark`, an odd number
-looked for with `n%2 == 1` and a date layout written with letters, described below. In JavaScript and TypeScript it
-finds the same in `for (const mark in marks)` over an array, whose variable is used as an item: `for...in` gives the
-positions, as text - `"0"`, `"1"`, `"2"` - so `total += mark` joins them, and Node prints `Total: 0012` for marks of 70,
-80 and 90; the change is `for...of`, and a loop that reads `marks[mark]` is left alone. In Python and JavaScript it
-finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both - and a loop
-that gives its own variable a new value - `mark += 5` inside `for mark in marks` or `for (let mark of marks)` - which
-leaves the list as it was; and in Python, Java, C# and JavaScript a search's position compared with `> 0`, which takes a
-match at the very start, position 0, for no match - and in Python, JavaScript and TypeScript a search's position used as
-true or false, `if (marks.indexOf(70))`, which is wrong both ways: a match at the start, 0, is false, and no match, -1,
-is true. The change asks whether it is there, with `includes` or `in`. In C++ it finds an array of numbers sent to
-`cout` - `std::cout << marks` - which writes the address of its first item, such as `0x1a535ffcf8`, not its items; g++
-says nothing, and the change writes each item in a loop. In C and C++ it finds a line read with `fgets` compared with
-`strcmp`, though its newline is still in it, in Java a `nextLine` straight after `nextInt`, in C++ a `getline` straight
-after `cin >>`, and in C and C++ an `fgets` straight after `scanf`, each of which reads the rest of the number's line -
-nothing, with 21 and then Ada typed - whose changes read past that newline first; and in Java `Math.round(price * 100) /
-100` given to a double, which divides two whole numbers and prints `12.0` for 12.345; the change divides by `100.0`. In
-C, C++, Java and C# it finds rounding by hand that does the same - `(int)(price * 100 + 0.5) / 100` given to a double -
-which printed `12.00` in C, `12` in C++ and C#, and `12.0` in Java, and none of their compilers said anything; the
-change divides by `100.0` too. In Java and Scala it finds whole numbers whose sum or product is too big for an int -
-`long millisPerYear = 365 * 24 * 60 * 60 * 1000` - which are worked out as ints and wrap round, to `1471228928`, before
-they are stored in the long; the change works it out in longs, `365L * ...`. In Java and Scala it finds `.`, `|` or `$`
-given alone to `split`, `replaceAll` or `replaceFirst`, which read a regular expression: `"3.14".split(".")` gave no
-parts at all, `"a|b".split("|")` split between every character, and `"3.14".replaceAll(".", ",")` gave `,,,,`. The
-change escapes the character - `split("\\.")` - or uses `replace`, which takes its text as it is. gcc warns of it in C
-and C++, C# refuses it, and Go and Rust printed `31536000000`. In Python, C, C++, Java, C#, JavaScript and TypeScript it
-finds a loop run while its counter `!=` its end, whose steps go over the end - `count != 10` counting from 0 by 3, which
-is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the loop never ended; an `int` counter in Java, C and C# ran on
-until it wrapped round past the largest `int`, and landed on 10 only after 2,863,311,534 passes. The change stops once
-the counter reaches the end: `count < 10`. In Python it finds `marks[random.randint(0, len(marks))]`: `randint` includes
-both ends, so it can draw `len(marks)`, one past the last position, and the program stops with `IndexError` only on the
-runs that draw it; the change ends at `len(marks) - 1`. In C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby,
-PHP and Perl it finds `^` written as a power - `side ^ 2` for side squared - where `^` is exclusive or, which compares
-two whole numbers bit by bit: with side 5 it is 7, not 25, and none of their compilers or interpreters says anything of
-it. The change multiplies the number by itself - or, in Python, Ruby, PHP and Perl, raises it with `**`. In Python,
-Ruby, JavaScript, TypeScript, PHP, Perl, Fortran and Lua it finds a root written as a power of one over a number - `side
-** 1/2`, or Lua's `side^1/2`, for the square root of side - where the power is worked out before the division, so it is
-`side ** 1` divided by 2: with 16 each printed 8 - as `8.0` in Python and Lua, `8.00000000` in Fortran - not 4, and `27
-** 1/3` printed 9, not 3, with nothing said by `python -W error`, `ruby -w`, `node --check`, `php -l`, `perl -w`,
-`gfortran -Wall` or `luac -p`. The change raises the number to the fraction - `side ** 0.5`, or `side ** (1.0 / 3)` for
-a cube root, with `1.0` because Ruby and Fortran divide two whole numbers to a whole number: `27 ** (1 / 3)` printed 1.
-In C, C++, Java, C#, Go, Rust, Scala, Ruby, F# and Fortran it finds a percentage of two whole numbers worked out by
-dividing first - `score / total * 100` - where the division comes first and two whole numbers divide to a whole number,
-so 45 out of 60 is 0, and 0 * 100 is 0: each printed 0 where 75 was meant, with nothing said by gcc and g++ `-Wall
--Wextra`, `javac -Xlint:all`, `go vet`, rustc, `ruby -w` or `gfortran -Wall`. The change multiplies first - `score * 100
-/ total` - which printed 75 in each. In Java, C#, C, C++ and Go it finds a power written as one whole number over
-another - `Math.pow(side, 1/2)` - whose division comes first and gives 0, so the power is 1 whatever `side` is: each
-printed 1 - `1.0` in Java - for the square root of 16; the change is `1.0 / 2`, which printed 4. In Java, C, C++ and Go
-it finds a whole number written with a 0 in front - `int code = 010` - which each reads in octal, base 8, and printed 8;
-a file mode such as `chmod(path, 0755)`, where octal is meant, is left alone, and the change writes `10`. In Java and
-Scala it finds `compareTo` compared with 1 or -1 - which gives back any negative or positive number, so
-`"apple".compareTo("cherry")` was -2, and `== -1` false; the change is `< 0` or `> 0`. In Java and C# it finds two
-arrays compared with `equals` or `==`, which ask whether they are the very same array - two arrays of 70 and 80 printed
-false - and the change compares their items, `Arrays.equals(first, second)` or `first.SequenceEqual(second)`, which
-printed true. In Python, Java, C, C++, C#, JavaScript, TypeScript, Go, Ruby, PHP and PowerShell it finds `total =+ mark`
-where `total += mark` was meant: `=+` is `=` and then a plus sign, so `total` is given the mark on its own, and adding 5
-and 10 printed 10 in each, with nothing said by gcc and g++ `-Wall -Wextra`, `javac -Xlint:all`, `go vet` or `ruby -w` -
-Perl warns of it, and Scala refuses it. The change is `+=`, and `total =- mark`, with a space after the minus, becomes
-`-=`. In C, C++, Java, C#, JavaScript, TypeScript, Go, Rust, Scala, PHP, Fortran, Erlang, Elixir, F# and PowerShell it
-finds an odd number looked for with `n % 2 == 1` - or `mod(n, 2) == 1`, or `rem` - which keeps the sign of the number
-divided, so -3 leaves -1, and each printed even for -3, with nothing said; Python, Ruby, Lua, Perl and Dart give 1, and
-are not looked at. A length, an unsigned number and a loop counter counting up from 0 cannot be negative, and are left
-alone. The change asks whether anything is left over, `n % 2 != 0`. In Python, Ruby, Perl, Elixir, Java, C#, F#,
-PowerShell, Go and PHP it finds a date written with the wrong letters, each run for 9:30 on 5 February 2024: strftime's
-`%M`, which is the minutes, where the month, `%m`, was meant - `2024-30-05`; in Java, `YYYY`, the year the week belongs
-to, which gave 2025 for 30 December 2024, `DD`, the day of the year - `2024-02-36` - and `mm`, the minutes; in .NET's
-formats, `mm`, and `YYYY` and `DD`, which it prints as they are - `YYYY-02-DD`; Go's `"YYYY-MM-DD"`, printed as it is,
-as Go writes a date the way its layout writes 2 January 2006 - `"2006-01-02"`; and PHP's `H:m`, whose `m` is the month -
-`09:02`. None of them said anything, and the change writes the letters each means. In Ruby, Lua and Elixir, where only
-`nil` and `false` are false, it finds a number asked as a condition - `if n % 2`, `if items.length`, Lua's `if #items
-then` - which is always true, 0 too: 4 was called odd, and an empty list had items. The change compares the number with
-0. In Python, Lua, JavaScript, TypeScript, PHP and PowerShell it finds a misspelt name given a value - `totl = total +
-mark` - which makes a new variable and leaves `total` as it was, so 0 was printed for 35; Ruby warns of it. It is found
-only when the misspelt name is used nowhere else in the file, not even in text, and a name one letter away, which the
-file also gives values to, is read on that same line; the change gives the value to that name. In Python it finds
-`except ValueError or TypeError:`, which catches ValueError alone, as `ValueError or TypeError` is worked out first and
-gives ValueError - a TypeError stopped the program - and the change is `except (ValueError, TypeError):`; and a file
-that makes `main()` and never calls it, which printed nothing at all - the change calls it at the end, under `if
-__name__ == "__main__":`. In Python it also finds `if "a" or "e" in word:`, which is always true, as `or` is worked out
-last and `"a"` counts as true by itself - "sky" was said to have a vowel - and the change gives each its own `in`. In
-Java it finds `if (done = true)`, which gives the boolean the value instead of comparing, so the `if` always ran; the
-change asks `if (done)`. In C# it finds a char added to a number or a char, which `Console` prints as a number - `grade
-+ 1` printed 66, and `'a' + 'b'` 195 - and the change is `(char)(grade + 1)`, or `"" + 'a' + 'b'`. Three more mistakes,
-which the compilers refuse, become changes too: a second comparison with no left side - `age > 12 && < 20`, or `age > 12
-and < 20` in Python - is given the first's, in Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a
-line of its own - `count == 0;` or `total + mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count
-= 0;` or `total += mark;`; and C#'s CS1656, a `foreach` variable given a new value, turns the loop into a `for` over the
-positions of the array or List, so `mark += 5` becomes `marks[index] += 5` and the items themselves change. In Python,
-Ruby, PHP, Lua, Perl, PowerShell and C# it finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills
-nothing in: `print("Total: %d", total)` printed `Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on
-the line below; PHP's `echo` and Perl's `print` printed `Total: %d150`; Lua's `print` put a tab between the two;
-PowerShell's `Write-Host` put a space; and C#'s `Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no
-total at all - with nothing said by any of them. The change fills the text in the language's own way: `%` in Python,
-`format` in Ruby, `sprintf` in PHP and Perl, `string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart
-refuse such a call - javac finds no `println` that takes the values, and Dart has too many positional arguments - and
-those become changes too: `System.out.printf("Total: %d%n", total)`, and Dart's `print("Total: $total")`. In Python it
-also finds `f"{average:.2}"`, where `.2` with no letter after it means two significant figures, so 150.5 printed as
-`1.5e+02`; the change asks for decimal places, `.2f`. In JavaScript and TypeScript it finds `const doubled =
-marks.forEach(...)`, which gives back `undefined`, not what the function worked out; the change is `map`. In Java, C#,
-JavaScript, TypeScript, Scala and PowerShell it finds text and then two numbers joined with `+` - `"Total: " + first +
-second` - which `+`, working from left to right, writes as `Total: 7080` for 70 and 80, and which none of them warns of;
-brackets add the numbers first. It finds a value meant to be put into text, in text that puts nothing in: Python's
-`"Hello, {name}"` with no `f` before it, C#'s and F#'s with no `$`, Scala's `"Hello, $name"` with no `s`, JavaScript's
-and TypeScript's `"Hello, ${name}"` in quotes rather than backticks, Ruby's `'Hello, #{name}'` in single quotes, and
-PHP's and Perl's `'Hello, $name'`. Each prints the name as it is written - `Hello, {name}` - not its value, and the
-change adds the `f`, the `$` or the `s`, or makes the quotes double. In JavaScript and TypeScript it finds `typeof`
-compared with a word it never gives - `typeof marks === "array"`, false for an array, as `typeof` gives `"object"` for
-it - and in Python `type(age) == "int"`, which compares a type with text and is false for 21; the changes ask what was
-meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
-`Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
-`70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
-TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")`
-- which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
-their toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and
-Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its own -
-`map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which
-works each item out only when its result is read; nothing reads it, so nothing is printed, and none of the three says
-anything. The change is a loop, which runs straight away. In Python, Java, C#, JavaScript, TypeScript, Ruby, Dart, Go,
-Lua and PowerShell it finds a second name for a list or an array - `backup = marks` - taken as a copy: the list is
-changed through one name and the other read after it, though both are the same list, so `backup` printed `[70, 80, 90,
-100]` after `marks.append(100)`. The change makes a copy in the language's own way - `marks.copy()`, `marks.clone()`,
-`[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{}, marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`.
-In Python, JavaScript, TypeScript, Ruby and Dart it finds a grid made by repeating one row - `[[0] * 3] * 3` - and then
-a row of it changed: every row is that one row, so after `grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0,
-0]]`. The change makes each row its own, as `[[0] * 3 for _ in range(3)]` does. When an expected output was given, it
-also runs changed copies of the program to find the one that prints it:
+looked for with `n%2 == 1` and a date layout written with letters, and four mistakes with Go's own library, described
+below. In JavaScript and TypeScript it finds the same in `for (const mark in marks)` over an array, whose variable is
+used as an item: `for...in` gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total += mark` joins them, and Node
+prints `Total: 0012` for marks of 70, 80 and 90; the change is `for...of`, and a loop that reads `marks[mark]` is left
+alone. In Python and JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 ==
+0.3` is false in both - and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or
+`for (let mark of marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position
+compared with `> 0`, which takes a match at the very start, position 0, for no match - and in Python, JavaScript and
+TypeScript a search's position used as true or false, `if (marks.indexOf(70))`, which is wrong both ways: a match at the
+start, 0, is false, and no match, -1, is true. The change asks whether it is there, with `includes` or `in`. In C++ it
+finds an array of numbers sent to `cout` - `std::cout << marks` - which writes the address of its first item, such as
+`0x1a535ffcf8`, not its items; g++ says nothing, and the change writes each item in a loop. In C and C++ it finds a line
+read with `fgets` compared with `strcmp`, though its newline is still in it, in Java a `nextLine` straight after
+`nextInt`, in C++ a `getline` straight after `cin >>`, and in C and C++ an `fgets` straight after `scanf`, each of which
+reads the rest of the number's line - nothing, with 21 and then Ada typed - whose changes read past that newline first;
+and in Java `Math.round(price * 100) / 100` given to a double, which divides two whole numbers and prints `12.0` for
+12.345; the change divides by `100.0`. In C, C++, Java and C# it finds rounding by hand that does the same -
+`(int)(price * 100 + 0.5) / 100` given to a double - which printed `12.00` in C, `12` in C++ and C#, and `12.0` in Java,
+and none of their compilers said anything; the change divides by `100.0` too. In Java and Scala it finds whole numbers
+whose sum or product is too big for an int - `long millisPerYear = 365 * 24 * 60 * 60 * 1000` - which are worked out as
+ints and wrap round, to `1471228928`, before they are stored in the long; the change works it out in longs, `365L *
+...`. In Java and Scala it finds `.`, `|` or `$` given alone to `split`, `replaceAll` or `replaceFirst`, which read a
+regular expression: `"3.14".split(".")` gave no parts at all, `"a|b".split("|")` split between every character, and
+`"3.14".replaceAll(".", ",")` gave `,,,,`. The change escapes the character - `split("\\.")` - or uses `replace`, which
+takes its text as it is. gcc warns of it in C and C++, C# refuses it, and Go and Rust printed `31536000000`. In Python,
+C, C++, Java, C#, JavaScript and TypeScript it finds a loop run while its counter `!=` its end, whose steps go over the
+end - `count != 10` counting from 0 by 3, which is 0, 3, 6, 9, 12 and never 10. In Python and JavaScript the loop never
+ended; an `int` counter in Java, C and C# ran on until it wrapped round past the largest `int`, and landed on 10 only
+after 2,863,311,534 passes. The change stops once the counter reaches the end: `count < 10`. In Python it finds
+`marks[random.randint(0, len(marks))]`: `randint` includes both ends, so it can draw `len(marks)`, one past the last
+position, and the program stops with `IndexError` only on the runs that draw it; the change ends at `len(marks) - 1`. In
+C, C++, Java, C#, JavaScript, Python, Go, Rust, Dart, Ruby, PHP and Perl it finds `^` written as a power - `side ^ 2`
+for side squared - where `^` is exclusive or, which compares two whole numbers bit by bit: with side 5 it is 7, not 25,
+and none of their compilers or interpreters says anything of it. The change multiplies the number by itself - or, in
+Python, Ruby, PHP and Perl, raises it with `**`. In Python, Ruby, JavaScript, TypeScript, PHP, Perl, Fortran and Lua it
+finds a root written as a power of one over a number - `side ** 1/2`, or Lua's `side^1/2`, for the square root of side -
+where the power is worked out before the division, so it is `side ** 1` divided by 2: with 16 each printed 8 - as `8.0`
+in Python and Lua, `8.00000000` in Fortran - not 4, and `27 ** 1/3` printed 9, not 3, with nothing said by `python -W
+error`, `ruby -w`, `node --check`, `php -l`, `perl -w`, `gfortran -Wall` or `luac -p`. The change raises the number to
+the fraction - `side ** 0.5`, or `side ** (1.0 / 3)` for a cube root, with `1.0` because Ruby and Fortran divide two
+whole numbers to a whole number: `27 ** (1 / 3)` printed 1. In C, C++, Java, C#, Go, Rust, Scala, Ruby, F# and Fortran
+it finds a percentage of two whole numbers worked out by dividing first - `score / total * 100` - where the division
+comes first and two whole numbers divide to a whole number, so 45 out of 60 is 0, and 0 * 100 is 0: each printed 0 where
+75 was meant, with nothing said by gcc and g++ `-Wall -Wextra`, `javac -Xlint:all`, `go vet`, rustc, `ruby -w` or
+`gfortran -Wall`. The change multiplies first - `score * 100 / total` - which printed 75 in each. In Java, C#, C, C++
+and Go it finds a power written as one whole number over another - `Math.pow(side, 1/2)` - whose division comes first
+and gives 0, so the power is 1 whatever `side` is: each printed 1 - `1.0` in Java - for the square root of 16; the
+change is `1.0 / 2`, which printed 4. In Java, C, C++ and Go it finds a whole number written with a 0 in front - `int
+code = 010` - which each reads in octal, base 8, and printed 8; a file mode such as `chmod(path, 0755)`, where octal is
+meant, is left alone, and the change writes `10`. In Java and Scala it finds `compareTo` compared with 1 or -1 - which
+gives back any negative or positive number, so `"apple".compareTo("cherry")` was -2, and `== -1` false; the change is `<
+0` or `> 0`. In Java and C# it finds two arrays compared with `equals` or `==`, which ask whether they are the very same
+array - two arrays of 70 and 80 printed false - and the change compares their items, `Arrays.equals(first, second)` or
+`first.SequenceEqual(second)`, which printed true. In Python, Java, C, C++, C#, JavaScript, TypeScript, Go, Ruby, PHP
+and PowerShell it finds `total =+ mark` where `total += mark` was meant: `=+` is `=` and then a plus sign, so `total` is
+given the mark on its own, and adding 5 and 10 printed 10 in each, with nothing said by gcc and g++ `-Wall -Wextra`,
+`javac -Xlint:all`, `go vet` or `ruby -w` - Perl warns of it, and Scala refuses it. The change is `+=`, and `total =-
+mark`, with a space after the minus, becomes `-=`. In C, C++, Java, C#, JavaScript, TypeScript, Go, Rust, Scala, PHP,
+Fortran, Erlang, Elixir, F# and PowerShell it finds an odd number looked for with `n % 2 == 1` - or `mod(n, 2) == 1`, or
+`rem` - which keeps the sign of the number divided, so -3 leaves -1, and each printed even for -3, with nothing said;
+Python, Ruby, Lua, Perl and Dart give 1, and are not looked at. A length, an unsigned number and a loop counter counting
+up from 0 cannot be negative, and are left alone. The change asks whether anything is left over, `n % 2 != 0`. In
+Python, Ruby, Perl, Elixir, Java, C#, F#, PowerShell, Go and PHP it finds a date written with the wrong letters, each
+run for 9:30 on 5 February 2024: strftime's `%M`, which is the minutes, where the month, `%m`, was meant - `2024-30-05`;
+in Java, `YYYY`, the year the week belongs to, which gave 2025 for 30 December 2024, `DD`, the day of the year -
+`2024-02-36` - and `mm`, the minutes; in .NET's formats, `mm`, and `YYYY` and `DD`, which it prints as they are -
+`YYYY-02-DD`; Go's `"YYYY-MM-DD"`, printed as it is, as Go writes a date the way its layout writes 2 January 2006 -
+`"2006-01-02"`; and PHP's `H:m`, whose `m` is the month - `09:02`. None of them said anything, and the change writes the
+letters each means. In Ruby, Lua and Elixir, where only `nil` and `false` are false, it finds a number asked as a
+condition - `if n % 2`, `if items.length`, Lua's `if #items then` - which is always true, 0 too: 4 was called odd, and
+an empty list had items. The change compares the number with 0. In Python, Lua, JavaScript, TypeScript, PHP and
+PowerShell it finds a misspelt name given a value - `totl = total + mark` - which makes a new variable and leaves
+`total` as it was, so 0 was printed for 35; Ruby warns of it. It is found only when the misspelt name is used nowhere
+else in the file, not even in text, and a name one letter away, which the file also gives values to, is read on that
+same line; the change gives the value to that name. In Python it finds `except ValueError or TypeError:`, which catches
+ValueError alone, as `ValueError or TypeError` is worked out first and gives ValueError - a TypeError stopped the
+program - and the change is `except (ValueError, TypeError):`; and a file that makes `main()` and never calls it, which
+printed nothing at all - the change calls it at the end, under `if __name__ == "__main__":`. In Python it also finds `if
+"a" or "e" in word:`, which is always true, as `or` is worked out last and `"a"` counts as true by itself - "sky" was
+said to have a vowel - and the change gives each its own `in`. In Java it finds `if (done = true)`, which gives the
+boolean the value instead of comparing, so the `if` always ran; the change asks `if (done)`. In C# it finds a char added
+to a number or a char, which `Console` prints as a number - `grade + 1` printed 66, and `'a' + 'b'` 195 - and the change
+is `(char)(grade + 1)`, or `"" + 'a' + 'b'`. Three more mistakes, which the compilers refuse, become changes too: a
+second comparison with no left side - `age > 12 && < 20`, or `age > 12 and < 20` in Python - is given the first's, in
+Java, C#, Python, JavaScript and TypeScript; a comparison or a sum on a line of its own - `count == 0;` or `total +
+mark;`, javac's "not a statement" and C#'s CS0201 - stores its value, `count = 0;` or `total += mark;`; and C#'s CS1656,
+a `foreach` variable given a new value, turns the loop into a `for` over the positions of the array or List, so `mark +=
+5` becomes `marks[index] += 5` and the items themselves change. In Python, Ruby, PHP, Lua, Perl, PowerShell and C# it
+finds a printf code - `%d`, `%s`, `%.2f` - given to a print that fills nothing in: `print("Total: %d", total)` printed
+`Total: %d 150` in Python; Ruby's `puts` printed `Total: %d` and 150 on the line below; PHP's `echo` and Perl's `print`
+printed `Total: %d150`; Lua's `print` put a tab between the two; PowerShell's `Write-Host` put a space; and C#'s
+`Console.WriteLine`, which fills in `{0}`, printed `Total: %d` and no total at all - with nothing said by any of them.
+The change fills the text in the language's own way: `%` in Python, `format` in Ruby, `sprintf` in PHP and Perl,
+`string.format` in Lua, and `{0}` in C# and PowerShell. Java and Dart refuse such a call - javac finds no `println` that
+takes the values, and Dart has too many positional arguments - and those become changes too: `System.out.printf("Total:
+%d%n", total)`, and Dart's `print("Total: $total")`. In Python it also finds `f"{average:.2}"`, where `.2` with no
+letter after it means two significant figures, so 150.5 printed as `1.5e+02`; the change asks for decimal places, `.2f`.
+In JavaScript and TypeScript it finds `const doubled = marks.forEach(...)`, which gives back `undefined`, not what the
+function worked out; the change is `map`. In Java, C#, JavaScript, TypeScript, Scala and PowerShell it finds text and
+then two numbers joined with `+` - `"Total: " + first + second` - which `+`, working from left to right, writes as
+`Total: 7080` for 70 and 80, and which none of them warns of; brackets add the numbers first. It finds a value meant to
+be put into text, in text that puts nothing in: Python's `"Hello, {name}"` with no `f` before it, C#'s and F#'s with no
+`$`, Scala's `"Hello, $name"` with no `s`, JavaScript's and TypeScript's `"Hello, ${name}"` in quotes rather than
+backticks, Ruby's `'Hello, #{name}'` in single quotes, and PHP's and Perl's `'Hello, $name'`. Each prints the name as it
+is written - `Hello, {name}` - not its value, and the change adds the `f`, the `$` or the `s`, or makes the quotes
+double. In JavaScript and TypeScript it finds `typeof` compared with a word it never gives - `typeof marks === "array"`,
+false for an array, as `typeof` gives `"object"` for it - and in Python `type(age) == "int"`, which compares a type with
+text and is false for 21; the changes ask what was meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In
+JavaScript and TypeScript it also finds `Math.max(marks)` given an array, which takes numbers one by one and so turns
+the array into one number from its text, `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`.
+In Python, Java, C#, JavaScript, TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared
+with NaN - `value == float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to
+nothing, not even itself; none of their toolchains says anything of it, and the change is the language's own test, such
+as `math.isnan(value)`. Dart and Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its
+function does, on a line of its own - `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it,
+`marks.map((mark) => print(mark))` - which works each item out only when its result is read; nothing reads it, so
+nothing is printed, and none of the three says anything. The change is a loop, which runs straight away. In Python,
+Java, C#, JavaScript, TypeScript, Ruby, Dart, Go, Lua and PowerShell it finds a second name for a list or an array -
+`backup = marks` - taken as a copy: the list is changed through one name and the other read after it, though both are
+the same list, so `backup` printed `[70, 80, 90, 100]` after `marks.append(100)`. The change makes a copy in the
+language's own way - `marks.copy()`, `marks.clone()`, `[...marks]`, `marks.ToArray()`, `marks.dup`, `append([]int{},
+marks...)`, `{table.unpack(marks)}` or `$marks.Clone()`. In Python, JavaScript, TypeScript, Ruby and Dart it finds a
+grid made by repeating one row - `[[0] * 3] * 3` - and then a row of it changed: every row is that one row, so after
+`grid[0][0] = 1` Python printed `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. The change makes each row its own, as `[[0] * 3 for
+_ in range(3)]` does. When an expected output was given, it also runs changed copies of the program to find the one that
+prints it:
+
+Each language's own library is read for the ways it is used that run, say nothing, and do something else - each was run
+with the language's own tools, its warnings on. In Java: a Thread's `run()` called where `start()` was meant, which ran
+the work on the main thread; `new BigDecimal(0.1)`, which holds
+`0.1000000000000000055511151231257827021181583404541015625` - the change makes it from text, `new BigDecimal("0.1")`,
+and a decimal a double holds exactly, such as 0.5, is left alone; `Arrays.asList` of an `int[]`, a list of one item, so
+`contains(80)` was false; and `Math.abs(key.hashCode()) % 10`, which was -8 for `"polygenelubricants"`, whose hashCode
+is the smallest int - the change is `Math.floorMod`. In C#: a lambda made in a `for` loop, which keeps the loop's one
+counter - three printed 3, 3 and 3 - and is given a copy made inside the loop; and an async method's result kept without
+`await` and printed, which printed the Task's type name - the change adds `await` where it can be written. In Python:
+`worker.run()`, which ran on the main thread; `Decimal(0.1)`; `groups.get(team, []).append(name)`, which left `groups`
+as `{}` - the change is `setdefault`; an iterator - `map`, `filter`, a generator - read twice, whose second read got
+nothing, so `sum` was 7 and `len(list(...))` 0 - the change keeps it in a list; `"test.txt".rstrip(".txt")`, which takes
+off characters, not text, and gave `tes` - the change is `removesuffix`; and a lambda made in a loop, which keeps the
+loop's variable - `[lambda x: x + step for step in range(3)]` all added 2 - and is given the value as a default,
+`step=step`. In JavaScript and TypeScript: `new Array(3).map(...)`, whose three holes `map` passes by - `[ <3 empty
+items> ]` - the change is `Array.from({ length: 3 })`; `replace("-", "")`, which replaced the first `-` only - the
+change is `replaceAll`, offered as possible, as one replacement may be what was meant; an async function's result used
+without `await`, which printed `Promise { 3 }`, and a `map` with an async function, a list of Promises - the change adds
+`await`, or `await Promise.all(...)`, where it can be written: in an async function, or at the top of a module, which
+Node 24 took a `.js` file to be unless it used `require`; `setTimeout(greet(), 1000)`, which called `greet` at once and
+stopped with `ERR_INVALID_ARG_TYPE` - a function of the file's own that gives back a function is left alone;
+`getYear()`, 124 for 2024; and `getDay()` beside the month or the year, the day of the week - 1 for Monday 5 February -
+where `getDate()` was meant. In C: `char word[5] = "hello"`, with no room for its `'\0'`, which printed `helloabc` - C++
+refuses it; `char c = getchar()` compared with `EOF`, which stopped at a byte 255 and counted 2 of 5 - in C++ too; and
+`malloc(count)` for ints, which gave 4 bytes for 4 ints - the change is `malloc(count * sizeof *marks)`. In C++:
+`"Total: " + count`, which moved along the text and printed `al: ` - the change is `std::to_string(count)`; and
+`reserve(3)` and then `marks[0] = 70`, which left the size at 0 - the change is `resize`. In Go: `time.Sleep(2)`, two
+nanoseconds - the change says the unit; `copy` into a slice made with length 0, which copied nothing; `name[0]` of a
+string printed, which printed 104 - the change is `string(name[0])`; and a goroutine `main` never waits for, whose line
+was never printed, which has no change, as the ways to wait for one are too many to write one for.
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
@@ -1282,13 +1314,13 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 89 | 54 | 41 |
-| Java | 57 | 51 | 51 |
-| C# | 50 | 46 | 49 |
-| C | 46 | 29 | 39 |
-| C++ | 45 | 36 | 39 |
-| JavaScript | 43 | 42 | 16 |
-| Go | 38 | 17 | 18 |
+| Python | 89 | 60 | 41 |
+| Java | 57 | 55 | 51 |
+| C# | 50 | 48 | 49 |
+| C | 46 | 32 | 39 |
+| C++ | 45 | 40 | 39 |
+| JavaScript | 43 | 48 | 16 |
+| Go | 38 | 21 | 18 |
 | Scala | 6 | 14 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 4 | 7 | 33 |
@@ -1302,7 +1334,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 12 | 11 | 29 |
 | Erlang | 9 | 7 | 23 |
 | F# | 16 | 11 | 33 |
-| TypeScript | 45 | 42 | 5 |
+| TypeScript | 45 | 48 | 5 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
