@@ -303,5 +303,44 @@ internal static class RubyPatternGuides
               puts "something went wrong"
             end
             """),
+
+        GuideFor(["logic-ruby-test-never-run"], "A test method minitest never runs",
+            "minitest runs the methods of a Minitest::Test whose names start with test_ - and no others. A method named check_add or " +
+            "add_test is never run, however many assertions it holds.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - 1 runs, where there were 2 tests - with nothing " +
+            "from ruby -w.",
+            "Start its name with test_: test_add.",
+            """
+            require "minitest/autorun"
+
+            def add(first, second)
+              first + second
+            end
+
+            class AddTest < Minitest::Test
+              def test_add
+                assert_equal 7, add(5, 2)
+              end
+            end
+            """),
+
+        GuideFor(["logic-ruby-assert-with-expected"], "assert given the value expected",
+            "assert checks one value: that it is not nil or false. Its second argument is only the message shown when it fails - so " +
+            "assert add(5, 2), 7 never compares with 7, and passes for any answer at all but nil and false.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3 - and ruby -w says nothing.",
+            "Compare the two with assert_equal, the value expected first: assert_equal 7, add(5, 2).",
+            """
+            require "minitest/autorun"
+
+            def add(first, second)
+              first + second
+            end
+
+            class AddTest < Minitest::Test
+              def test_add
+                assert_equal 7, add(5, 2)
+              end
+            end
+            """),
     ];
 }

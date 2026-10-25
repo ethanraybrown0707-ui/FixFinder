@@ -91,6 +91,7 @@ public static class LogicPatterns
         .. NeverRunningLoopPatterns.All,
         .. DeadCodePatterns.All,
         .. UnreachableHandlerPatterns.All,
+        .. TestFrameworkPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

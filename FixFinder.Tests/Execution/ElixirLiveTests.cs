@@ -270,4 +270,29 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
 
         output.WriteLine($"{examples.Count} examples compiled and run.");
     }
+
+    /// <summary>
+    /// A file of ExUnit tests - ExUnit.start(), then a module that uses ExUnit.Case - passes FixFinder's check without its
+    /// tests being run, and one whose test calls a function that does not exist is still refused, naming it. The check had
+    /// stopped every such file with "cannot use ExUnit.Case without starting the ExUnit application".
+    /// </summary>
+    [Theory]
+    [InlineData("ExUnit.start()\n\ndefmodule AddTest do\n  use ExUnit.Case\n\n  test \"add\" do\n    assert 5 + 2 == 7\n  end\nend\n", true, "")]
+    [InlineData("ExUnit.start()\n\ndefmodule AddTest do\n  use ExUnit.Case\n\n  test \"add\" do\n    assert add(5, 2) == 7\n  end\nend\n", false, "undefined function add/2")]
+    public async Task AFileOfExUnitTestsIsCheckedWithoutItsTestsBeingRun(string tests, bool passes, string said)
+    {
+        if (Elixir() is null) return;
+
+        var file = Write(Path.Combine("exunit", passes ? "passing_test.exs" : "broken_test.exs"), tests);
+        var check = ScriptLanguages.CheckOf(ScriptLanguages.Elixir, file, TimeSpan.FromMinutes(1))!;
+        using var compiling = Process.Start(new ProcessStartInfo(check.ExecutablePath, check.Arguments)
+            { WorkingDirectory = check.WorkingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true })!;
+        var checkSaid = (await compiling.StandardOutput.ReadToEndAsync() + await compiling.StandardError.ReadToEndAsync()).Trim();
+        await compiling.WaitForExitAsync();
+        output.WriteLine(checkSaid);
+
+        Assert.Equal(passes, compiling.ExitCode == 0);
+        if (passes) Assert.Equal("", checkSaid);
+        else Assert.Contains(said, checkSaid);
+    }
 }

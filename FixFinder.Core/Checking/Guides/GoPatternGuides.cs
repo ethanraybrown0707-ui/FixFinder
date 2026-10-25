@@ -435,5 +435,26 @@ internal static class GoPatternGuides
             	}
             }
             """),
+
+        GuideFor(["logic-go-test-never-run"], "A test function go test never runs",
+            "go test runs the functions in a _test.go file named Test followed by a capital letter, taking a *testing.T - and no others. A " +
+            "function named testAdd or checkAdd is never run.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong, and go vet says nothing.",
+            "Name it Test and a capital letter: TestAdd.",
+            """
+            package adder
+
+            import "testing"
+
+            func Add(first, second int) int {
+            	return first + second
+            }
+
+            func TestAdd(t *testing.T) {
+            	if Add(5, 2) != 7 {
+            		t.Errorf("Add(5, 2) = %d", Add(5, 2))
+            	}
+            }
+            """),
     ];
 }

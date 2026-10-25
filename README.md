@@ -315,7 +315,7 @@ text - a missing `end`, put where its block's indentation ends, an `end` that cl
 `elsif`, the `=` in a condition Ruby warns of, a total first given a value inside a loop - nil on the right of its first
 `=` - started at 0 before the loop, a block's missing `do`, a colon at the end of a `def` or `if` line, as Python writes
 it, and a string or a bracket left open; each change is checked in a copy - with `ruby -c`, which runs none of it - and
-run. Ruby's code is read for logic mistakes by twenty-four checks `ruby -w` says nothing of: `(total / count).to_f` of
+run. Ruby's code is read for logic mistakes by twenty-six checks `ruby -w` says nothing of: `(total / count).to_f` of
 two whole numbers, a decimal worked out by arithmetic and then compared exactly, a method that gives back a changed copy
 - `name.upcase`, `marks.sort` - called on a line of its own, a range to an array's length with two dots,
 `0..marks.length`, whose last number is one past the last position, `^` written as a power, a line read with `gets`
@@ -340,8 +340,9 @@ change swaps them. The eighteenth to twentieth are `total =+ mark`, a date writt
 asked as a condition - `if n % 2` - all described below with the other languages that write them. The twenty-first is
 `Hash.new([])`, whose one default every key shares, described below with the other languages' own library. The
 twenty-second to twenty-fourth are an `elsif` that can never run, a count down written as `(10..1)`, and a `rescue` an
-earlier one takes every error from, all described below with the other code no run can reach. Ruby is tested with Ruby
-3.3.12.
+earlier one takes every error from, all described below with the other code no run can reach. The twenty-fifth and
+twenty-sixth are a minitest method whose name does not start with `test_`, and `assert value, expected`, both described
+below with the other tests that never run or can never fail. Ruby is tested with Ruby 3.3.12.
 
 A **PHP** program - a `.php` file - is read by `php -l` before it runs, which checks every file of the program and runs
 none of it, so a parse error is found there - in a file the program brings in with `require` or `include` too, named
@@ -528,31 +529,34 @@ with Windows PowerShell 5.1.
 An **Elixir** program - an `.exs` or `.ex` file - is compiled by Elixir itself before it runs, through a small check of
 FixFinder's that runs none of it but what sits directly inside a `defmodule`, as running it would: Elixir's parser reads
 the file, each module is compiled, and the rest is compiled into a function that is never called - so `IO.gets` waits
-for nothing and `Code.require_file` brings nothing in. Every error and warning Elixir would give as the program ran is a
-finding, in its own words and at the line and column it names; the files the program brings in with `Code.require_file`
-are checked with it, and what stops the program in one of them is placed there. A script that installs packages with
-`Mix.install` is not run, as that downloads them. Elixir's own words become fixes: an undefined variable or function
-becomes the nearest one the file has, Elixir's own "Did you mean" for a function or a map's key is the change, a `+`
-joining text becomes `<>`, a division by zero gets an answer for when the divisor is zero, `marks[0]` on a list becomes
-`Enum.at(marks, 0)`, a number read from text with its newline still on is trimmed first, `length` given text - "1st
-argument: not a list" - becomes `String.length`, a block with no `do` gets one, and a block with no `end` gets one,
-lined up with its start; each change is checked in a copy - compiled by Elixir - and run. Elixir's code is read for
-logic mistakes by fifteen checks: a range to `0..length(marks)` used with `Enum.at`, which takes in the length; a line
-read with `IO.gets` compared with text, though it still ends with its newline; `Map.put` or `String.upcase` on a line of
-its own, whose changed copy is lost; a decimal worked out by arithmetic and then compared exactly; `if mark = 40 do`,
-which gives `mark` the value; and a variable given a new value inside `fn`, `for` or `if`, which leaves the one outside
-as it was - Elixir warns of it only as an unused variable, and the warning and the check are one finding, whose change
-gives the block's result to the variable. The seventh is `Enum.each` where `Enum.map` was meant - `doubled =
-Enum.each(marks, fn mark -> mark * 2 end)`, or the same through `|>` - which gives back `:ok`, not what its function
-worked out, with no warning; the change is `Enum.map`. The eighth is text compared with a number - a line read with
-`IO.gets`, or text in quotes - which Elixir never counts equal to one, so `"7" == 7` was false, and orders after every
-number, so `"7" > 10` was true; the change is `String.to_integer`, after `String.trim` for a line still ending with its
-newline. The ninth to eleventh are an odd number looked for with `rem(n, 2) == 1`, a date written with `%M` for the
-month, and a number asked as a condition - `if rem(n, 2) do` - all described below with the other languages that write
-them. The twelfth to fourteenth are `IO.puts` of a list of numbers, `String.split` with `""`, and a map made with text
-keys read with an atom, all described below with the other languages' own library. The fifteenth is a `cond` clause that
-can never run, described below with the other code no run can reach. Elixir is tested with Elixir 1.20.4 on Erlang/OTP
-29.
+for nothing and `Code.require_file` brings nothing in. A file of ExUnit tests, whose `use ExUnit.Case` will not compile
+without ExUnit's application running, is checked with that application started when its own top level calls
+`ExUnit.start()`, and its tests are not run; the check had refused every such file, one that ran to "Result: 1 passed"
+among them. Every error and warning Elixir would give as the program ran is a finding, in its own words and at the line
+and column it names; the files the program brings in with `Code.require_file` are checked with it, and what stops the
+program in one of them is placed there. A script that installs packages with `Mix.install` is not run, as that downloads
+them. Elixir's own words become fixes: an undefined variable or function becomes the nearest one the file has, Elixir's
+own "Did you mean" for a function or a map's key is the change, a `+` joining text becomes `<>`, a division by zero gets
+an answer for when the divisor is zero, `marks[0]` on a list becomes `Enum.at(marks, 0)`, a number read from text with
+its newline still on is trimmed first, `length` given text - "1st argument: not a list" - becomes `String.length`, a
+block with no `do` gets one, and a block with no `end` gets one, lined up with its start; each change is checked in a
+copy - compiled by Elixir - and run. Elixir's code is read for logic mistakes by sixteen checks: a range to
+`0..length(marks)` used with `Enum.at`, which takes in the length; a line read with `IO.gets` compared with text, though
+it still ends with its newline; `Map.put` or `String.upcase` on a line of its own, whose changed copy is lost; a decimal
+worked out by arithmetic and then compared exactly; `if mark = 40 do`, which gives `mark` the value; and a variable
+given a new value inside `fn`, `for` or `if`, which leaves the one outside as it was - Elixir warns of it only as an
+unused variable, and the warning and the check are one finding, whose change gives the block's result to the variable.
+The seventh is `Enum.each` where `Enum.map` was meant - `doubled = Enum.each(marks, fn mark -> mark * 2 end)`, or the
+same through `|>` - which gives back `:ok`, not what its function worked out, with no warning; the change is `Enum.map`.
+The eighth is text compared with a number - a line read with `IO.gets`, or text in quotes - which Elixir never counts
+equal to one, so `"7" == 7` was false, and orders after every number, so `"7" > 10` was true; the change is
+`String.to_integer`, after `String.trim` for a line still ending with its newline. The ninth to eleventh are an odd
+number looked for with `rem(n, 2) == 1`, a date written with `%M` for the month, and a number asked as a condition - `if
+rem(n, 2) do` - all described below with the other languages that write them. The twelfth to fourteenth are `IO.puts` of
+a list of numbers, `String.split` with `""`, and a map made with text keys read with an atom, all described below with
+the other languages' own library. The fifteenth is a `cond` clause that can never run, described below with the other
+code no run can reach. The sixteenth is an ExUnit test written as `def test_add`, described below with the other tests
+that never run or can never fail. Elixir is tested with Elixir 1.20.4 on Erlang/OTP 29.
 
 An **Erlang** program - an `.erl` file - is compiled by `erlc -Wall` into FixFinder's own build folder, together with
 the modules beside it that it calls, so nothing is written into the program's; every error and warning erlc gives is a
@@ -1107,6 +1111,21 @@ before anything calls it - `area(3)` got the second's answer, and in JavaScript,
 code runs, even a call before the second did. These have no change, as only the author knows which was meant. Python's
 `if __name__ == "main":`, which never runs its block, is changed to `"__main__"`.
 
+A test that never runs, or can never fail, lets a program be wrong while its tests pass, so these are looked for too.
+Each was run with its own runner, testing an `add` that subtracts. Python's unittest - run by FixFinder's own launcher,
+which found 1 test where there were 2 - runs no method of a TestCase whose name does not start with `test`, and no test
+in a class that is not a TestCase; the changes name it `test_...` and derive the class from `unittest.TestCase`, and the
+tests then found 2 and one failed, `3 != 7`. A set-up spelt `setup` or `set_up` is never called, so its test stopped
+with `AttributeError`; the change is `setUp`. `self.assertTrue(add(5, 2), 7)` passed, as the 7 is only the message shown
+on failure; the change is `assertEqual`. A test whose assertion is caught by `except AssertionError:` or `except
+Exception:` and not raised again, and a test that asserts nothing, passed with `add` wrong; they are found without a
+change, the second only as a suggestion. Ruby's minitest runs no method without `test_` at its start - 1 runs, where
+there were 2 tests - and `assert add(5, 2), 7` passed; the changes are `test_...` and `assert_equal 7, add(5, 2)`.
+Elixir's ExUnit runs no `def test_add` - only `test "..." do` blocks - and the change writes it as one; `go test` runs
+no `testAdd` - only `func Test...` - and the change names it `TestAdd`. Neither `ruby -w`, Elixir nor `go vet` says
+anything of these. Perl's Test::More, which says so when `ok($sum, 7)` names a test 7, Elixir's warning for `assert
+result = 7`, and erlc's for an EUnit `test_add` never used, leave those to the tools.
+
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
    the right ones (the Ochiai formula, with DStar breaking ties).
 2. On the most suspicious lines, the small edits behind most logic bugs are generated: `<` for `<=`, a bound one out, the
@@ -1397,24 +1416,24 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 89 | 65 | 41 |
+| Python | 89 | 71 | 41 |
 | Java | 57 | 56 | 51 |
 | C# | 50 | 49 | 49 |
 | C | 46 | 34 | 39 |
 | C++ | 45 | 42 | 39 |
 | JavaScript | 43 | 52 | 16 |
-| Go | 38 | 22 | 18 |
+| Go | 38 | 23 | 18 |
 | Scala | 6 | 18 | 28 |
 | OCaml | 6 | 3 | 26 |
 | Rust | 4 | 10 | 33 |
-| Ruby | 13 | 24 | 26 |
+| Ruby | 13 | 26 | 26 |
 | PHP | 15 | 24 | 18 |
 | Lua | 12 | 16 | 25 |
 | Perl | 13 | 20 | 26 |
 | Dart | 13 | 12 | 23 |
 | Fortran | 12 | 13 | 19 |
 | PowerShell | 9 | 25 | 15 |
-| Elixir | 12 | 15 | 29 |
+| Elixir | 12 | 16 | 29 |
 | Erlang | 9 | 9 | 23 |
 | F# | 16 | 15 | 33 |
 | TypeScript | 45 | 52 | 5 |

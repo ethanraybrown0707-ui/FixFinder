@@ -671,5 +671,112 @@ internal static class PythonPatternGuides
             except Exception:
                 print("something went wrong")
             """),
+
+        GuideFor(["logic-python-test-never-run"], "A test method unittest never runs",
+            "unittest runs the methods of a TestCase whose names start with test - and no others. A method named check_add, add_test or " +
+            "verify_total is never run, however many assertions it holds.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - unittest ran 3 tests of 5 - with nothing said.",
+            "Start its name with test: test_add.",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-test-class-not-testcase"], "Tests in a class that is not a TestCase",
+            "unittest looks for tests only in classes that derive from unittest.TestCase. A class of test_ methods that does not is never " +
+            "looked in - and self.assertEqual is not even a method of it.",
+            "Its tests never run, so the code can be wrong and the run still passes, with nothing said.",
+            "Derive the class from unittest.TestCase: class AddTests(unittest.TestCase):",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-setup-misspelt"], "setUp misspelt",
+            "unittest calls setUp before each test and tearDown after it - spelt exactly so, with a capital U and D. A method named setup, " +
+            "set_up or Setup is an ordinary method, and nothing calls it.",
+            "What it was meant to set up is never there, so the tests that use it stop with AttributeError, which does not say why.",
+            "Spell it as unittest does: setUp - and tearDown.",
+            """
+            import unittest
+
+
+            class ListTests(unittest.TestCase):
+                def setUp(self):
+                    self.items = [1, 2]
+
+                def test_length(self):
+                    self.assertEqual(len(self.items), 2)
+            """),
+
+        GuideFor(["logic-python-assert-true-with-expected"], "assertTrue given the value expected",
+            "assertTrue checks one value: that it is true. Its second argument is only the message shown when it fails - so " +
+            "assertTrue(add(5, 2), 7) never compares with 7, and passes for any answer that is not 0, empty or None.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3 - with nothing said.",
+            "Compare the two with assertEqual: self.assertEqual(add(5, 2), 7).",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-assertion-swallowed"], "An assertion caught by except",
+            "A failed assertion raises AssertionError, and that is how unittest knows a test failed. Inside a try whose except catches " +
+            "AssertionError - or Exception, which it is a kind of, or everything - the failure is caught and the test carries on and passes.",
+            "The test can never fail, so it passes whether the code is right or wrong, with nothing said.",
+            "Take the assertion out of the try - or, if the try is there for something else, catch only that error.",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-test-checks-nothing"], "A test that asserts nothing",
+            "A test fails when an assertion fails or the code raises an error. A test that runs code but asserts nothing about what it " +
+            "gives back passes whatever the answer is - only a crash can fail it.",
+            "The test cannot catch a wrong answer - it passed with add giving 3 for 5 + 2.",
+            "Assert what the code should give back: self.assertEqual(add(5, 2), 7).",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
     ];
 }

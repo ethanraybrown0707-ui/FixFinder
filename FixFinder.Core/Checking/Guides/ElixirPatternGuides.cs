@@ -196,5 +196,24 @@ internal static class ElixirPatternGuides
               true -> IO.puts("F")
             end
             """),
+
+        GuideFor(["logic-elixir-test-never-run"], "A test written as def test_...",
+            "ExUnit runs the blocks written with test \"...\" do. A function named test_add, written with def, is an ordinary function: " +
+            "ExUnit does not run it, and nothing else calls it.",
+            "What it asserts is never checked, so the tests pass while the code is wrong - ExUnit ran 1 test of 2 - and Elixir says nothing.",
+            "Write it as a test: test \"add\" do.",
+            """
+            ExUnit.start()
+
+            defmodule AddTest do
+              use ExUnit.Case
+
+              def add(first, second), do: first + second
+
+              test "add" do
+                assert add(5, 2) == 7
+              end
+            end
+            """),
     ];
 }
