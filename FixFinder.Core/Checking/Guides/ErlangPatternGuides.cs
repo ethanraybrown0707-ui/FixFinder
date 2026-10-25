@@ -101,5 +101,74 @@ internal static class ErlangPatternGuides
                 Sorted = lists:sort(Marks),
                 io:format("~w~n", [Sorted]).
             """),
+
+        GuideFor(["logic-erlang-odd-test-negative"], "An odd number looked for with rem 2 == 1",
+            "rem gives what is left over after dividing, and it keeps the sign of the number divided: 7 rem 2 is 1, but -7 rem 2 is -1. " +
+            "So N rem 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and erlc says nothing.",
+            "Ask whether anything is left over: N rem 2 =/= 0 is true for every odd number, negative or not.",
+            """
+            -module(parity).
+            -export([main/0]).
+
+            describe(N) when N rem 2 =/= 0 -> "odd";
+            describe(_N) -> "even".
+
+            main() ->
+                io:format("~s~n", [describe(-3)]).
+            """),
+
+        GuideFor(["logic-erlang-nth-from-zero"], "lists:nth from position 0",
+            "lists:nth counts positions from 1: lists:nth(1, List) is the first item. There is no position 0, so lists:nth(0, ...) - or " +
+            "positions taken from lists:seq(0, ...) - stops the program with function_clause.",
+            "The program stops at the first lookup, with the error in lists itself.",
+            "Count the positions from 1 to the length: lists:seq(1, length(Marks)).",
+            """
+            -module(positions).
+            -export([main/0]).
+
+            main() ->
+                Marks = [70, 80, 90],
+                [io:format("~p~n", [lists:nth(Position, Marks)]) || Position <- lists:seq(1, length(Marks))].
+            """),
+
+        GuideFor(["logic-erlang-branch-never-reached"], "An if clause that can never run",
+            "if takes the first clause whose guard is true. If an earlier guard lets through every value a later one does - Score >= 50 " +
+            "before Score >= 70 - the later clause never gets a value.",
+            "That clause never runs, so no input can test it - a score of 75 got C, not B - and erlc says nothing.",
+            "Put the strictest guard first: Score >= 70, then Score >= 50.",
+            """
+            -module(grades).
+            -export([main/0]).
+
+            grade(Score) ->
+                if
+                    Score >= 70 -> "B";
+                    Score >= 50 -> "C";
+                    true -> "F"
+                end.
+
+            main() ->
+                io:format("~s~n", [grade(75)]).
+            """),
+
+        GuideFor(["logic-erlang-test-never-run"], "An EUnit test named test_...",
+            "EUnit runs the functions of no arguments whose names end in _test - add_test - and those ending in _test_ that give back " +
+            "tests. A function named test_add starts with test_ instead: EUnit does not run it, and erlc says only that it is unused.",
+            "What it asserts is never checked, so the tests pass while the code is wrong.",
+            "Name it with _test at the end: add_test().",
+            """
+            -module(adder).
+            -include_lib("eunit/include/eunit.hrl").
+            -export([main/0]).
+
+            add(First, Second) -> First + Second.
+
+            add_test() ->
+                ?assertEqual(7, add(5, 2)).
+
+            main() ->
+                io:format("~p~n", [add(5, 2)]).
+            """),
     ];
 }

@@ -30,11 +30,18 @@ public static class WarningRatings
         new(new Regex("^"), names, new WarningRating(kind, severity, confidence), "rust");
 
     /// <summary>Ruby's warnings, by their words: "found `= literal' in conditional, should be ==".</summary>
-    private static Rule RubyWords(string message, FindingKind kind, Severity severity, Confidence confidence) =>
-        new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence), "ruby");
+    private static Rule RubyWords(string message, FindingKind kind, Severity severity, Confidence confidence, string? samePattern = null) =>
+        new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence, samePattern), "ruby");
 
     private static readonly Rule[] Rules =
     [
+        // Code no run can reach, which a tool warns of and a logic check finds too, with its change: one finding at the line.
+        Codes(["-Wzerotrip"], FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-fortran-loop-never-runs"),
+        Codes(["dead_code_on_catch_subtype"], FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-dart-handler-never-reached"),
+        Words(@"will be caught by earlier handler", FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-cpp-handler-never-reached"),
+        RubyWords(@"^statement not reached", FindingKind.Logic, Severity.Warning, Confidence.Certain, "logic-ruby-code-after-return"),
+        Words(@"^function test_\w+/0 is unused", FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-erlang-test-never-run"),
+
         // = in an if always passes and changes the variable; a value worked out and dropped changes nothing.
         RubyWords(@"found [`']= literal' in conditional", FindingKind.Logic, Severity.Warning, Confidence.Certain),
         RubyWords(@"^possibly useless use of", FindingKind.Logic, Severity.Warning, Confidence.Likely),

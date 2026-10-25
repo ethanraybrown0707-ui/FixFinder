@@ -100,5 +100,82 @@ internal static class FSharpPatternGuides
             let value = nan
             if System.Double.IsNaN value then printfn "not a number"
             """),
+
+        GuideFor(["logic-fsharp-percent-divided-first"], "A percentage that divides first",
+            "In F#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and fsi says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            let score = 45
+            let total = 60
+            printfn "%d" (score * 100 / total)
+            """),
+
+        GuideFor(["logic-fsharp-odd-test-negative"], "An odd number looked for with % 2 = 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 = 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and fsi says nothing.",
+            "Ask whether anything is left over: n % 2 <> 0 is true for every odd number, negative or not.",
+            """
+            let n = -3
+            if n % 2 <> 0 then printfn "odd"
+            """),
+
+        GuideFor(["logic-fsharp-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows, so they are printed as they are.",
+            "The date is written wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: whenever.ToString(\"yyyy-MM-dd\").",
+            """
+            let whenever = System.DateTime(2024, 2, 5, 9, 30, 0)
+            printfn "%s" (whenever.ToString("yyyy-MM-dd"))
+            """),
+
+        GuideFor(["logic-fsharp-rows-shared"], "A grid made with Array.create of an array",
+            "Array.create 3 row puts the one value it is given in all three places - and an array is one array wherever it is put. So " +
+            "every row of the grid is the same row, and setting one cell sets it in every row.",
+            "grid.[0].[0] <- 1 changed the first cell of all three rows, and fsi says nothing.",
+            "Make each row with Array.init, which runs its function once for each: Array.init 3 (fun _ -> Array.zeroCreate 3).",
+            """
+            let grid = Array.init 3 (fun _ -> Array.zeroCreate<int> 3)
+            grid.[0].[0] <- 1
+            printfn "%A" grid
+            """),
+
+        GuideFor(["logic-fsharp-char-as-number"], "int of a char for its digit",
+            "int of a char gives its character code, not the digit it shows: int '7' is 55. Adding up the digits of \"123\" this way gave " +
+            "150 - 49 + 50 + 51 - not 6.",
+            "Numbers worked out from digits are far too big, with no error.",
+            "Take the code of '0' away - the digits' codes are in order - so int c - int '0' is the digit's value: 7 for '7'.",
+            """
+            let mutable total = 0
+            for c in "123" do total <- total + (int c - int '0')
+            printfn "%d" total
+            """),
+
+        GuideFor(["logic-fsharp-branch-never-reached"], "An elif that can never run",
+            "An if - elif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and fsi says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            let score = 75
+            if score >= 70 then printfn "B"
+            elif score >= 50 then printfn "C"
+            else printfn "F"
+            """),
+
+        GuideFor(["logic-fsharp-loop-never-runs"], "A count down written as 10 .. 1",
+            "A range counts up: 10 .. 1 starts at 10, which is already past 1, so it holds nothing - and for i = 10 to 1 is the same. A " +
+            "loop over either runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and fsi says nothing.",
+            "Count down with a step of -1 - 10 .. -1 .. 1 - or with downto: for i = 10 downto 1 do.",
+            """
+            let mutable total = 0
+            for count = 3 downto 1 do
+                total <- total + count
+            printfn "%d" total
+            """),
     ];
 }

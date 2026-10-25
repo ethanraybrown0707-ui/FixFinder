@@ -456,6 +456,96 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-js-foreach-for-map"], "forEach where map was meant",
+            "forEach runs its function for every item, for what the function does - printing, say - and then gives back undefined. It " +
+            "keeps nothing the function works out. map gives back a new array of what the function worked out for each item.",
+            "The name is given undefined instead of an array, with no error, so printing it shows undefined, and using it as an array " +
+            "stops the program with a TypeError.",
+            "Use map when the function works out a new value for each item: const doubled = marks.map((mark) => mark * 2);.",
+            """
+            const marks = [70, 80];
+            const doubled = marks.map((mark) => mark * 2);
+            console.log(doubled);
+            """),
+
+        GuideFor(["logic-pow-whole-number-fraction"], "A power of 1/2 that is 0",
+            "In Java, C#, C and C++, / of two whole numbers gives a whole number, so 1/2 is 0. Math.pow(side, 1/2) is therefore " +
+            "side to the power 0, which is 1 whatever side is - not its square root.",
+            "The program works out 1 instead of the root, with no error or warning.",
+            "Write the top of the fraction as a decimal, so the division keeps its fraction: Math.pow(side, 1.0 / 2) - or use " +
+            "Math.sqrt(side).",
+            """
+            double root = Math.sqrt(side);
+            """),
+
+        GuideFor(["logic-java-compare-to-one"], "compareTo compared with 1 or -1",
+            "compareTo gives back a negative number when the first comes before the second, zero when they are equal, and a " +
+            "positive number when it comes after - but not only -1 and 1. \"apple\".compareTo(\"cherry\") is -2, as a and c are two " +
+            "letters apart, so == -1 is false although apple does come first.",
+            "The comparison is false for most pairs that do come first or after, with no error or warning.",
+            "Ask for the sign alone: < 0 for before, > 0 for after.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    System.out.println("apple".compareTo("cherry") < 0);
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-array-equals"], "Two arrays compared with equals or ==",
+            "An array's equals is the same as ==: both ask whether two names are the very same array, not whether two arrays " +
+            "hold the same items. Two arrays made separately are never the same array, so they are never equal, even with the " +
+            "same items in the same order.",
+            "The comparison is false for arrays that hold the same items, with no error or warning.",
+            "Compare the items with Arrays.equals(first, second), from java.util.Arrays.",
+            """
+            import java.util.Arrays;
+
+            public class Main {
+                public static void main(String[] args) {
+                    int[] first = {70, 80};
+                    int[] second = {70, 80};
+                    System.out.println(Arrays.equals(first, second));
+                }
+            }
+            """),
+
+        GuideFor(["logic-octal-literal"], "A number written with a 0 in front",
+            "In Java, C and C++ a whole number written with 0 in front is read in octal - base 8, where each place is worth 8 " +
+            "times the one after it - so 010 is 8, and 0123 is 83. It is meant for file modes such as 0755, and rarely anything " +
+            "else.",
+            "The number is not the one written, with no error or warning - often in codes or times written with a leading 0.",
+            "Write the number without the 0 in front: 10.",
+            """
+            int code = 10;
+            """),
+
+        GuideFor(["logic-java-boolean-assigned-in-condition"], "= in a condition on a boolean",
+            "= gives a variable a value, and == compares. Java refuses = in a condition for most variables, but a boolean's value is " +
+            "true or false, which a condition can use - so if (done = true) gives done the value true, and the condition is that " +
+            "value: always true.",
+            "The if always runs - or never, with = false - and the variable is changed as a side effect, with no error or warning.",
+            "Ask for the boolean itself: if (done), or if (!done) for false.",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    boolean done = false;
+                    if (done) {
+                        System.out.println("done");
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["logic-percent-divided-first"], "A percentage that divides first",
+            "In C, C++, Java and C#, / of two whole numbers gives a whole number - the part below 1 is thrown away. In " +
+            "score / total * 100 the division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, with no error or warning.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            int percent = score * 100 / total;
+            """),
+
         GuideFor(["logic-js-math-max-of-array"], "Math.max given an array",
             "Math.max and Math.min take numbers one by one - Math.max(70, 85, 90). Given an array, they turn it into one number from " +
             "its text, and the text of [70, 85, 90] is 70,85,90, which is no number: the answer is NaN. Node says nothing - and an " +
@@ -532,6 +622,301 @@ internal static class BracePatternGuides
             """
             for (let index = 0; index < marks.length; index++) {
               marks[index] += 5;
+            }
+            """),
+
+        GuideFor(["logic-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += is the operator that adds to what is already there - and =- the " +
+            "same way gives total -mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and neither the compiler nor the program says " +
+            "anything.",
+            "Write += to add, or -= to take away: total += mark;",
+            """
+            int total = 0;
+            for (int mark : new int[] {5, 10}) {
+                total += mark;
+            }
+            System.out.println(total);
+            """),
+
+        GuideFor(["logic-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            int n = -3;
+            if (n % 2 != 0) {
+                System.out.println("odd");
+            }
+            """),
+
+        GuideFor(["logic-js-misspelt-name"], "A misspelt name given a value",
+            "In JavaScript, giving a value to a name that was never declared - with no let, const or var - does not stop the program: " +
+            "it makes a new global variable with that name (in strict mode, and in a module, it stops with a ReferenceError instead). " +
+            "So totl = total + mark, with total misspelt, makes a variable called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: total = total + mark. Declaring every name with let or const, and starting the " +
+            "file with \"use strict\";, makes a misspelt name stop the program with an error that names it.",
+            """
+            let total = 0;
+            for (const mark of [5, 10, 20]) {
+                total = total + mark;
+            }
+            console.log(total);
+            """),
+
+        GuideFor(["logic-js-array-holes-mapped"], "map on new Array(n)",
+            "new Array(3) makes an array of length 3 with nothing in it - three holes, not three undefineds. map, forEach, filter and the " +
+            "rest skip holes, so their function never runs: new Array(3).map((_, i) => i) is still three holes.",
+            "The array that was meant to be filled stays empty, with no error.",
+            "Make an array with items: Array.from({ length: 3 }, (_, i) => i), or new Array(3).fill(0) before map.",
+            """
+            const squares = Array.from({ length: 3 }, (_, index) => index * index);
+            console.log(squares);
+            """),
+
+        GuideFor(["logic-js-replace-first-only"], "replace with text replaces only the first",
+            "Given text to look for, replace changes only the first place it is found: \"a-b-c\".replace(\"-\", \"\") is \"ab-c\". (Python's " +
+            "and Java's replace change every one, which is why this catches people out.)",
+            "Only the first separator is taken out, and the rest are left, with no error.",
+            "Use replaceAll to change every one: \"a-b-c\".replaceAll(\"-\", \"\").",
+            """
+            const phone = "555-123-4567";
+            console.log(phone.replaceAll("-", ""));
+            """),
+
+        GuideFor(["logic-js-promise-used-as-value"], "An async function's result used without await",
+            "An async function gives back a Promise: a promise of its value, finished later. Called without await, what you get is that " +
+            "Promise, not the value - so it prints as Promise { 3 }, and in text as [object Promise]. map with an async function gives a " +
+            "list of Promises the same way.",
+            "The program uses the Promise where it meant the value, with no error.",
+            "Wait for the value with await - await count(), or await Promise.all(list.map(...)) for a list - inside an async function, or at " +
+            "the top of a module.",
+            """
+            async function count() {
+                return 3;
+            }
+
+            async function main() {
+                const result = await count();
+                console.log(result);
+            }
+
+            main();
+            """),
+
+        GuideFor(["logic-js-timer-given-a-call"], "setTimeout given a call instead of a function",
+            "setTimeout(greet(), 1000) calls greet straight away - the brackets call it - and gives setTimeout whatever greet gives back, " +
+            "usually undefined. setTimeout needs the function itself, to call when the time comes.",
+            "The work happens at once instead of later, and Node stops with ERR_INVALID_ARG_TYPE.",
+            "Give the function without calling it - setTimeout(greet, 1000) - or wrap a call with values in an arrow function: " +
+            "setTimeout(() => greet(\"Ada\"), 1000).",
+            """
+            function greet() {
+                console.log("hello");
+            }
+
+            setTimeout(greet, 1000);
+            """),
+
+        GuideFor(["logic-js-get-year"], "getYear() for the year",
+            "getYear() gives the year less 1900 - 124 for 2024. It is kept only so very old pages still work.",
+            "The year shows as 124, with no error.",
+            "Use getFullYear(), which gives the year as it is written: 2024.",
+            """
+            const when = new Date(2024, 1, 5);
+            console.log(when.getFullYear());
+            """),
+
+        GuideFor(["logic-js-get-day-for-date"], "getDay() for the day of the month",
+            "getDay() gives the day of the week - 0 for Sunday up to 6 for Saturday - not the day of the month. For Monday 5 February it is 1.",
+            "Dates are written with the weekday's number in place of the day, with no error.",
+            "Use getDate() for the day of the month: 5.",
+            """
+            const when = new Date(2024, 1, 5);
+            console.log(when.getDate() + "/" + (when.getMonth() + 1) + "/" + when.getFullYear());
+            """),
+
+        GuideFor(["logic-c-text-without-end"], "Text that fills its char array",
+            "C ends text with a '\\0' character after its last letter, and printf, strlen and strcpy read until they meet it. char word[5] = " +
+            "\"hello\" has room for the five letters and none for the '\\0' - C allows it, and leaves it out - so those functions read on " +
+            "past the array into whatever comes next.",
+            "Text prints with stray characters after it, and lengths come out wrong: a char[5] holding hello printed helloabc.",
+            "Give the array one more char than the letters - char word[6] - or leave the size out and let C count: char word[] = \"hello\".",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                char word[] = "hello";
+                printf("%s\n", word);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-c-getchar-into-char"], "getchar's result kept in a char",
+            "getchar gives back an int, so that it can give every byte, 0 to 255, and also EOF, a number apart from all of them. Kept in a " +
+            "char, two of those become one: the byte 255 and EOF look the same.",
+            "Reading stops early at a byte 255, as if the input had ended - \"ab\", 255, \"cd\" counted 2 characters.",
+            "Keep it in an int: int c; while ((c = getchar()) != EOF).",
+            """
+            #include <stdio.h>
+
+            int main(void) {
+                int c;
+                int count = 0;
+                while ((c = getchar()) != EOF) {
+                    count++;
+                }
+                printf("%d\n", count);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-c-malloc-without-sizeof"], "malloc given a count, not bytes",
+            "malloc counts in bytes. An int takes 4 of them here, so malloc(count) gives room for count bytes - a quarter of count ints - " +
+            "and writing the rest goes past the end of what was given.",
+            "The program writes over memory it was not given, which may crash it or change other values, often far from the mistake.",
+            "Multiply by the size of one item: malloc(count * sizeof *marks).",
+            """
+            #include <stdio.h>
+            #include <stdlib.h>
+
+            int main(void) {
+                int count = 4;
+                int *marks = malloc(count * sizeof *marks);
+                if (marks == NULL) return 1;
+                marks[3] = 70;
+                printf("%d\n", marks[3]);
+                free(marks);
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-cpp-text-plus-number"], "Text in quotes plus a number",
+            "Text in quotes is not a std::string: it is the address of its first character. Adding a number to it moves the address along - " +
+            "\"Total: \" + 3 is the text from the fourth character on, \"al: \" - and past its end it reads whatever memory comes next.",
+            "The text printed is cut short or full of stray characters, and the number is not in it, with nothing from the compiler.",
+            "Turn the number into text first: \"Total: \" + std::to_string(count).",
+            """
+            #include <iostream>
+            #include <string>
+
+            int main() {
+                int count = 3;
+                std::string shown = "Total: " + std::to_string(count);
+                std::cout << shown << "\n";
+            }
+            """),
+
+        GuideFor(["logic-cpp-reserve-then-index"], "reserve, then [] to put items in",
+            "reserve makes room for items without making any: the vector's size is still 0. Writing marks[0] = 70 then writes past the end " +
+            "of the vector - nothing is added, and its size stays 0.",
+            "What the write does, C++ leaves undefined: built by gcc 13.2 the program ran on, with size() still 0, and by gcc 15.2 it " +
+            "was stopped.",
+            "Use resize to make the items - marks.resize(3) - or add each with push_back.",
+            """
+            #include <iostream>
+            #include <vector>
+
+            int main() {
+                std::vector<int> marks;
+                marks.reserve(3);
+                marks.push_back(70);
+                std::cout << marks.size() << "\n";
+            }
+            """),
+
+        GuideFor(["logic-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value: every score of 70 or more has already gone " +
+            "into the score >= 50 branch.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and the compiler says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50 - for a ladder of >=, the highest first; for a ladder of <, the " +
+            "lowest first.",
+            """
+            int score = 75;
+            if (score >= 70) {
+                System.out.println("B");
+            } else if (score >= 50) {
+                System.out.println("C");
+            } else {
+                System.out.println("F");
+            }
+            """),
+
+        GuideFor(["logic-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue and throw leave the loop or the block the same way. A line " +
+            "straight after one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the program can test it, and the compiler says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            #include <stdio.h>
+
+            int total(int count) {
+                puts("counted");
+                return count;
+            }
+
+            int main(void) {
+                printf("%d\n", total(2));
+                return 0;
+            }
+            """),
+
+        GuideFor(["logic-js-duplicate-case"], "Two cases with the same value",
+            "A switch takes the first case whose value matches. When two cases have the same value, the second is never matched - the " +
+            "first always takes it.",
+            "The second case's code never runs, so it cannot be tested, and Node says nothing.",
+            "Give each case its own value, or put the two cases' code together in the first.",
+            """
+            const choice = 2;
+            switch (choice) {
+                case 1:
+                    console.log("one");
+                    break;
+                case 2:
+                    console.log("two");
+                    break;
+            }
+            """),
+
+        GuideFor(["logic-js-defined-twice"], "A function defined twice",
+            "JavaScript sets up every function declared with function before the code runs - and when two have the same name, the last " +
+            "one is the one kept. Every call, even one written before the second, gets the second.",
+            "The first function never runs, so it cannot be tested - area(3) used the second, and gave NaN - and Node says nothing.",
+            "Give the two functions different names: area for one side, rectangleArea for two.",
+            """
+            function area(side) {
+                return side * side;
+            }
+
+            function rectangleArea(width, height) {
+                return width * height;
+            }
+
+            console.log(area(3), rectangleArea(3, 4));
+            """),
+
+        GuideFor(["logic-cpp-handler-never-reached"], "A catch that can never run",
+            "A try's catches are tried in order, and the first that matches takes the exception. catch (std::exception& e) matches " +
+            "std::runtime_error too - it derives from std::exception - so a catch for it after that one is never reached. g++ warns " +
+            "that it \"will be caught by earlier handler\".",
+            "The specific handler never runs, so it cannot be tested - the general message was printed.",
+            "Put the specific catch first: catch (std::runtime_error& e), then catch (std::exception& e).",
+            """
+            #include <iostream>
+            #include <stdexcept>
+
+            int main() {
+                try {
+                    throw std::runtime_error("x");
+                } catch (std::runtime_error& e) {
+                    std::cout << "runtime" << std::endl;
+                } catch (std::exception& e) {
+                    std::cout << "something went wrong" << std::endl;
+                }
             }
             """),
     ];

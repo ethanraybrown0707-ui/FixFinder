@@ -122,5 +122,99 @@ internal static class ScalaPatternGuides
               val parts = "3.14".split("\\.")
               println(parts.length)
             """),
+
+        GuideFor(["logic-scala-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ works from left to right. \"Total: \" + first comes first, and gives text - so the + after it joins second to that " +
+            "text, rather than adding it to first. With 70 and 80 the line prints Total: 7080.",
+            "The numbers are written side by side, not added, and the compiler says nothing of it.",
+            "Put brackets round the numbers, so they are added first: \"Total: \" + (first + second) - or put the sum into the text: " +
+            "s\"Total: ${first + second}\".",
+            """
+            @main def run(): Unit =
+              val first = 70
+              val second = 80
+              println("Total: " + (first + second))
+            """),
+
+        GuideFor(["logic-scala-percent-divided-first"], "A percentage that divides first",
+            "In Scala, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and the compiler says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            @main def run(): Unit =
+              val score = 45
+              val total = 60
+              println(score * 100 / total)
+            """),
+
+        GuideFor(["logic-scala-compare-to-one"], "compareTo compared with 1 or -1",
+            "compareTo gives back a negative number when the first comes before the second, zero when they are equal, and a " +
+            "positive number when it comes after - but not only -1 and 1. \"apple\".compareTo(\"cherry\") is -2, so == -1 is false " +
+            "although apple does come first.",
+            "The comparison is false for most pairs that do come first or after, and the compiler says nothing of it.",
+            "Ask for the sign alone: < 0 for before, > 0 for after.",
+            """
+            @main def run(): Unit =
+              println("apple".compareTo("cherry") < 0)
+            """),
+
+        GuideFor(["logic-scala-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and the compiler says nothing.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            @main def run(): Unit =
+              val n = -3
+              if n % 2 != 0 then println("odd")
+            """),
+
+        GuideFor(["logic-scala-char-as-number"], "toInt of a Char for its digit",
+            "toInt of a Char gives its character code, not the digit it shows: '7'.toInt is 55. Adding up the digits of \"123\" this way " +
+            "gave 150 - 49 + 50 + 51 - not 6.",
+            "Numbers worked out from digits are far too big, and the compiler says nothing.",
+            "Take the digit's value with asDigit: '7'.asDigit is 7.",
+            """
+            @main def run(): Unit =
+              var total = 0
+              for c <- "123" do total += c.asDigit
+              println(total)
+            """),
+
+        GuideFor(["logic-scala-rows-shared"], "A grid made with Array.fill of one row",
+            "Array.fill(2)(row) works out row once for each place - and row is one array, so both places hold that same array. Every row " +
+            "of the grid is the same row, and setting one cell sets it in every row.",
+            "grid(0)(0) = 1 changed the first cell of both rows, and the compiler says nothing.",
+            "Give each place its own copy - Array.fill(2)(row.clone()) - or make each row there: Array.fill(2)(Array(0, 0)).",
+            """
+            @main def run(): Unit =
+              val grid = Array.fill(2)(Array(0, 0))
+              grid(0)(0) = 1
+              println(grid.map(_.mkString(" ")).mkString(" | "))
+            """),
+
+        GuideFor(["logic-scala-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and the compiler says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            @main def run(): Unit =
+              val score = 75
+              if score >= 70 then println("B")
+              else if score >= 50 then println("C")
+              else println("F")
+            """),
+
+        GuideFor(["logic-scala-loop-never-runs"], "A count down written as 10 to 1",
+            "10 to 1 counts up from 10, and 10 is already past 1 - so it holds nothing, and a loop over it runs no times at all. The " +
+            "same is true of 10 until 0.",
+            "Nothing in the loop ever runs, so it cannot be tested, and the compiler says nothing.",
+            "Give it a step of -1: 10 to 1 by -1.",
+            """
+            @main def run(): Unit =
+              for count <- 3 to 1 by -1 do println(count)
+            """),
     ];
 }

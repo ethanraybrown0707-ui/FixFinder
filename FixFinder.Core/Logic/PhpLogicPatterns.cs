@@ -27,7 +27,40 @@ public static partial class PhpLogicPatterns
         Pattern("logic-php-assignment-in-condition", AssignmentInCondition, Severity.Error, Confidence.Certain),
         Pattern("logic-php-float-equality", FloatEquality),
         Pattern("logic-php-search-compared-with-false", SearchComparedWithFalse, Severity.Error, Confidence.Certain),
+        Pattern("logic-php-search-as-condition", SearchAsCondition, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>if (strpos($word, "a"))</c>, or <c>if (!array_search(...))</c> - a search's result as the whole condition.</summary>
+    [GeneratedRegex(@"\b(?:if|elseif|while)\s*\(\s*(?<condition>(?<not>!\s*)?(?<call>(?<function>strpos|stripos|strrpos|strripos|array_search)\s*\((?:[^()]|\([^()]*\))*\)))\s*\)")]
+    private static partial Regex SearchCondition();
+
+    /// <summary>
+    /// A search's result used as the whole condition: strpos and array_search give the position found, counting from 0, and
+    /// false for none - and the condition counts 0 as false, so a match at the very start was taken for none: "apple" had
+    /// no a, and ["Ada", "Bob"] no Ada. The change compares with false strictly, which a position never is.
+    /// </summary>
+    private static IEnumerable<LogicFinding> SearchAsCondition(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            foreach (Match search in SearchCondition().Matches(masked[index]))
+            {
+                var line = source.Lines[index];
+                var condition = search.Groups["condition"];
+                var call = line.Substring(search.Groups["call"].Index, search.Groups["call"].Length);
+                var negated = search.Groups["not"].Success;
+                var strict = $"{call} {(negated ? "===" : "!==")} false";
+                var function = search.Groups["function"].Value;
+
+                yield return new LogicFinding(id, index + 1,
+                    $"{function} gives the position it found, counting from 0, and false for none - and a condition counts 0 as false, so a " +
+                    "match at the very start is taken for none",
+                    LocalFix.ReplaceLine(id, $"Compare with false strictly: {strict}",
+                        $"{(negated ? "===" : "!==")} compares with false itself, which a position - even 0 - never is.",
+                        source.Path, index + 1, line[..condition.Index] + strict + line[(condition.Index + condition.Length)..]));
+            }
+        }
+    }
 
     private static IEnumerable<LogicFinding> LoopToCount(string id, SourceFile source, IReadOnlyList<string> masked)
     {

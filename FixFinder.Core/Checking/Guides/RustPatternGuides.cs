@@ -79,5 +79,77 @@ internal static class RustPatternGuides
                 println!("{}", answer.trim() == "yes");
             }
             """),
+
+        GuideFor(["logic-rust-percent-divided-first"], "A percentage that divides first",
+            "In Rust, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and rustc says nothing of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            fn main() {
+                let score = 45;
+                let total = 60;
+                println!("{}", score * 100 / total);
+            }
+            """),
+
+        GuideFor(["logic-rust-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, and rustc says nothing.",
+            "Ask whether anything is left over: n % 2 != 0 is true for every odd number, negative or not. n.rem_euclid(2) == 1 is right " +
+            "too, as rem_euclid never gives a negative number.",
+            """
+            fn main() {
+                let n: i32 = -3;
+                if n % 2 != 0 {
+                    println!("odd");
+                }
+            }
+            """),
+
+        GuideFor(["logic-rust-unit-kept"], "What sort gives back, kept",
+            "sort, reverse, dedup, push and the like change the Vec itself, and give back () - the empty value. So let sorted = " +
+            "marks.sort(); makes sorted (), and printing it prints ().",
+            "The name kept holds nothing useful - () - and rustc says nothing.",
+            "Change the Vec on a line of its own, then use it - or copy it after: marks.sort(); let sorted = marks.clone();",
+            """
+            fn main() {
+                let mut marks = vec![90, 70, 80];
+                marks.sort();
+                println!("{:?}", marks);
+            }
+            """),
+
+        GuideFor(["logic-rust-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and rustc says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            fn main() {
+                let score = 75;
+                if score >= 70 {
+                    println!("B");
+                } else if score >= 50 {
+                    println!("C");
+                } else {
+                    println!("F");
+                }
+            }
+            """),
+
+        GuideFor(["logic-rust-loop-never-runs"], "A count down written as 10..0",
+            "A range counts up: 10..0 starts at 10 and stops before 0, and 10 is already past 0 - so the range is empty, and a loop over " +
+            "it runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and rustc says nothing.",
+            "Count down by reversing a range that counts up: (1..=10).rev() gives 10, 9, ... 1.",
+            """
+            fn main() {
+                for count in (1..=3).rev() {
+                    println!("{}", count);
+                }
+            }
+            """),
     ];
 }

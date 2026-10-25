@@ -194,5 +194,19 @@ internal static class PowerShellGuides
             $total = 10
             Write-Output ($total + 1)
             """),
+
+        Refused("ExceptionTypeAlreadyCaught",
+            "A try's catches are tried in order, and a catch [System.Exception] takes every exception. A catch after it for a narrower type - " +
+            "[System.InvalidCastException], [System.IO.IOException] - could never run, so PowerShell refuses the script.",
+            "Put the narrower catch first, and the one for [System.Exception] last.",
+            """
+            try {
+                [int]"x"
+            } catch [System.InvalidCastException] {
+                Write-Output "not a number"
+            } catch [System.Exception] {
+                Write-Output "something went wrong"
+            }
+            """),
     ];
 }

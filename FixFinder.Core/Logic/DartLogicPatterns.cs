@@ -8,7 +8,8 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Mistakes Dart programs make that dart analyze says nothing of - each run with Dart 3.13: a loop to <c>i &lt;= marks.length</c>
 /// reads one position past the end, which stops the program with RangeError; two lists compared with ==, which asks whether
-/// they are the very same list, so [70, 80] == [70, 80] is false; and a decimal worked out by arithmetic, compared exactly.
+/// they are the very same list, so [70, 80] == [70, 80] is false; a decimal worked out by arithmetic, compared exactly; and
+/// removeAt(i) in a loop counting up through the same list, which skips the item after each one it removes.
 /// </summary>
 public static partial class DartLogicPatterns
 {
@@ -25,6 +26,7 @@ public static partial class DartLogicPatterns
         Pattern("logic-dart-lists-compared-with-equals", ListsComparedWithEquals, Severity.Error, Confidence.Certain),
         Pattern("logic-dart-float-equality", FloatEquality),
         Pattern("logic-dart-interpolated-property", InterpolatedProperty, Severity.Error, Confidence.Certain),
+        Pattern("logic-dart-remove-while-counting-up", RemoveWhileCountingUp, Severity.Error),
     ];
 
     private static IEnumerable<LogicFinding> LoopToLength(string id, SourceFile source, IReadOnlyList<string> masked)
@@ -166,6 +168,37 @@ public static partial class DartLogicPatterns
                 LocalFix.ReplaceLine(id, $"Put the whole expression in: ${{{first.Value[1..]}}}",
                     $"${{ }} puts in the value of everything between its braces - {first.Value[1..]}, not {first.Groups["name"].Value} alone.",
                     source.Path, index + 1, changed));
+        }
+    }
+
+    /// <summary><c>for (var i = 0; i &lt; marks.length; i++) {</c> - a loop up through a list's positions.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)for\s*\(\s*(?:var|int)\s+(?<variable>[A-Za-z_]\w*)\s*=\s*0\s*;\s*\k<variable>\s*<\s*(?<list>[A-Za-z_]\w*)\.length\s*;\s*\k<variable>\+\+\s*\)\s*\{\s*$")]
+    private static partial Regex CountingUpThroughList();
+
+    /// <summary>
+    /// removeAt(i) inside a loop counting up through the same list: each removal moves the items after it down a place, so
+    /// the loop then skips the one that moved into position i - [70, 40, 40, 90] kept a 40. Counting down, a removal only
+    /// moves items the loop has been past.
+    /// </summary>
+    private static IEnumerable<LogicFinding> RemoveWhileCountingUp(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (CountingUpThroughList().Match(masked[index]) is not { Success: true } loop || BraceBlocks.Body(masked, index) is not { } body) continue;
+
+            var variable = loop.Groups["variable"].Value;
+            var list = loop.Groups["list"].Value;
+            var removal = new Regex($@"(?<![\w.]){Regex.Escape(list)}\s*\.\s*removeAt\s*\(\s*{Regex.Escape(variable)}\s*\)");
+            if (!Enumerable.Range(body.First, body.End - body.First).Any(line => removal.IsMatch(masked[line]))) continue;
+
+            var line = source.Lines[index];
+            var counted = Regex.Match(line, @"\b(?:var|int)\b").Value;
+            yield return new LogicFinding(id, index + 1,
+                $"removeAt moves every item after the one it removes down a place, so counting up the loop skips the item that moved into " +
+                $"position {variable} - two in a row to remove leave one behind",
+                LocalFix.ReplaceLine(id, $"Count down instead: for ({counted} {variable} = {list}.length - 1; {variable} >= 0; {variable}--)",
+                    "Counting down, a removal only moves items the loop has already been past, so none is skipped.",
+                    source.Path, index + 1, $"{loop.Groups["indent"].Value}for ({counted} {variable} = {list}.length - 1; {variable} >= 0; {variable}--) {{"));
         }
     }
 }

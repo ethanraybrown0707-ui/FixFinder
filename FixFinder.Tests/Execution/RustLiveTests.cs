@@ -233,6 +233,26 @@ public class RustLiveTests(ITestOutputHelper output) : IDisposable
         Assert.True(guarded.Verified.IsVerified, guarded.Verified.Summary);
     }
 
+    [Fact]
+    public async Task TextReadWithItsNewlineIsTrimmedBeforeItIsParsed()
+    {
+        if (!Available()) return;
+
+        var program = Write(Path.Combine("parse", "main.rs"),
+            "use std::io;\n\nfn main() {\n    let mut text = String::new();\n    io::stdin().read_line(&mut text).unwrap();\n    let number: i32 = text.parse().unwrap();\n    println!(\"{}\", number * 2);\n}\n");
+        var launch = TargetFactory.FromFile(program, LiveAllowance.For(program, TimeSpan.FromMinutes(2)));
+        Assert.True(launch.Ok, launch.Problem);
+
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Rust }
+            .CheckAsync(launch with { Spec = launch.Spec!.WithInput("21\n") });
+
+        var trimmed = Assert.Single(report.Findings, finding => finding.RuleId == "rust-trim-before-parse");
+        Assert.Equal(6, trimmed.Line);
+        Assert.Contains("let number: i32 = text.trim().parse().unwrap();", trimmed.CorrectedExample);
+        Assert.True(trimmed.Verified.IsVerified, trimmed.Verified.Summary);
+    }
+
     /// <summary>Every whole program a Rust guide shows builds with rustc, as Rust 2024, with no warning.</summary>
     [Fact]
     public async Task EveryExampleARustGuideShowsCompilesWithNoWarning()

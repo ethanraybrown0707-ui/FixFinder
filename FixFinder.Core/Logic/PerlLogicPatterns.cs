@@ -31,7 +31,39 @@ public static partial class PerlLogicPatterns
         Pattern("logic-perl-length-of-array", LengthOfArray, Severity.Error, Confidence.Certain),
         Pattern("logic-perl-method-in-string", MethodInString, Severity.Error, Confidence.Certain),
         Pattern("logic-perl-numbers-sorted-as-text", NumbersSortedAsText, Severity.Error, Confidence.Certain),
+        Pattern("logic-perl-loop-to-last-index", LoopToLastIndex, Severity.Error),
     ];
+
+    /// <summary><c>for (my $i = 0; $i &lt; $#marks; $i++)</c> - a loop that stops below the last position, $#marks.</summary>
+    [GeneratedRegex(@"\bfor(?:each)?\s*\(\s*my\s+\$(?<variable>\w+)\s*=\s*0\s*;\s*\$\k<variable>\s*(?<comparison><)\s*\$#(?<array>\w+)\s*;")]
+    private static partial Regex LoopBelowLastIndex();
+
+    /// <summary>
+    /// A loop to $i &lt; $#marks that reads $marks[$i]: $#marks is the last position, not the count, so stopping below it
+    /// misses the last item - (70, 80, 90) printed 70 and 80, with nothing said by perl -w. The change stops after the last
+    /// position, &lt;=.
+    /// </summary>
+    private static IEnumerable<LogicFinding> LoopToLastIndex(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (LoopBelowLastIndex().Match(masked[index]) is not { Success: true } loop || BraceBlocks.Body(masked, index) is not { } body) continue;
+
+            var variable = loop.Groups["variable"].Value;
+            var array = loop.Groups["array"].Value;
+            var position = new Regex($@"\${Regex.Escape(array)}\s*\[\s*\${Regex.Escape(variable)}\s*\]");
+            if (!Enumerable.Range(body.First, body.End - body.First).Any(line => position.IsMatch(masked[line]))) continue;
+
+            var line = source.Lines[index];
+            var comparison = loop.Groups["comparison"];
+
+            yield return new LogicFinding(id, index + 1,
+                $"$#{array} is the last position of @{array}, not its count, so a loop that stops below it never reaches the last item",
+                LocalFix.ReplaceLine(id, $"Go up to the last position: ${variable} <= $#{array}",
+                    $"<= takes in $#{array} itself, so the loop's last pass reads the last item of @{array}.",
+                    source.Path, index + 1, line[..comparison.Index] + "<=" + line[(comparison.Index + comparison.Length)..]));
+        }
+    }
 
     /// <summary><c>my @marks = (10, 9, 100);</c> - an array given only numbers.</summary>
     [GeneratedRegex(@"(?:\bmy\s+)?@(?<array>\w+)\s*=\s*\((?<values>\s*-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)*\s*,?\s*)\)\s*;")]

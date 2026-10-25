@@ -230,9 +230,18 @@ public static class ConceptMap
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-fsharp-comparison-for-assignment"] },
         new(Concepts.ReturnValues) { CheckIds = ["logic-fsharp-result-discarded"] },
         new(Concepts.WholeNumberDivision) { CheckIds = ["logic-fsharp-whole-number-division"] },
+        new(Concepts.WholeNumberDivision)
+        {
+            CheckIds =
+            [
+                "logic-percent-divided-first", "logic-go-percent-divided-first", "logic-rust-percent-divided-first", "logic-scala-percent-divided-first",
+                "logic-ruby-percent-divided-first", "logic-fsharp-percent-divided-first", "logic-fortran-percent-divided-first",
+                "logic-ocaml-percent-divided-first",
+            ],
+        },
         new(Concepts.TextToNumber) { CheckIds = ["logic-fsharp-input-compared-as-text"] },
         new(Concepts.OffByOne) { CheckIds = ["logic-fsharp-loop-to-length"] },
-        new(Concepts.WrongType) { CheckIds = ["logic-numbers-joined-as-text"] },
+        new(Concepts.WrongType) { CheckIds = ["logic-numbers-joined-as-text", "logic-scala-numbers-joined-as-text", "logic-powershell-numbers-joined-as-text"] },
 
         // A value that is not there, before anything about types or calls: these are what None, null and nil look like.
         new(Concepts.NothingThere)

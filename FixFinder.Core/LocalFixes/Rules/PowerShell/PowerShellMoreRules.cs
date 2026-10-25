@@ -95,3 +95,52 @@ public sealed partial class PowerShellClosingBracket : ILocalFixRule
             at.Source.Path, at.Number, code + ")" + tail);
     }
 }
+
+/// <summary>
+/// "Exception type ... is already handled by a previous handler", at a catch: a catch before it in the same try takes every
+/// exception this one would, so PowerShell refuses the script before it runs - it ran none of it. The catch moves to the start
+/// of the try's catches, before the one that took its exceptions, when each catch is written on the line that closes the block
+/// before it: } catch [Type] {.
+/// </summary>
+public sealed partial class PowerShellCatchAlreadyHandled : ILocalFixRule
+{
+    public string Id => "powershell-catch-already-handled";
+
+    [GeneratedRegex(@"^\s*\}\s*catch\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CatchOnClosingLine();
+
+    [GeneratedRegex(@"^\s*try\s*\{\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex TryHeader();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!PowerShellCode.IsParserError(context) || context.Error.ErrorCode != "ExceptionTypeAlreadyCaught" || PowerShellCode.Locate(context) is not { } at) return null;
+
+        var masked = CodeText.MaskAll(at.Source.Lines, Syntax.Python);
+        var refused = at.Number - 1;
+        if (!CatchOnClosingLine().IsMatch(masked[refused])) return null;
+        var indent = CodeText.Indentation(masked[refused]).Length;
+
+        // The try's first catch: the catches above at the same indentation, back to the try itself.
+        var first = refused;
+        for (var line = refused - 1; line >= 0; line--)
+        {
+            if (masked[line].Trim().Length == 0 || CodeText.Indentation(masked[line]).Length > indent) continue;
+            if (CodeText.Indentation(masked[line]).Length < indent) return null;
+            if (CatchOnClosingLine().IsMatch(masked[line])) { first = line; continue; }
+            if (TryHeader().IsMatch(masked[line])) break;
+            return null;
+        }
+        if (first == refused || Brackets.FirstBlockEnd(masked, refused) is not { } end) return null;
+
+        // The refused catch and its block, up to the line that closes it - which stays where it is, closing whatever is last.
+        var lines = at.Source.Lines.Skip(refused).Take(end - refused).Concat(at.Source.Lines.Skip(first).Take(refused - first)).ToList();
+        return new LocalFix
+        {
+            RuleId = Id, Title = "Put this catch before the one that takes its exceptions",
+            Explanation = "PowerShell tries the catches in order, so a catch for a narrower type must come before one for a wider type, such as " +
+                          "[System.Exception], which takes every exception - otherwise it can never run, and PowerShell refuses the script.",
+            File = at.Source.Path, StartLine = first + 1, RemoveCount = end - first, NewLines = lines,
+        };
+    }
+}

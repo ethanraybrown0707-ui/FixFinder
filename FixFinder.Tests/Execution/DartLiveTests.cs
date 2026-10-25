@@ -100,6 +100,9 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("void main() {\n  final passMark = 40;\n  passMark = 50;\n  print(passMark);\n}\n", "dart-final-changed", 3, 2, "  var passMark = 40;", "50")]
     [InlineData("void greet({String name}) {\n  print('Hello, $name');\n}\n\nvoid main() {\n  greet(name: 'Ada');\n}\n", "dart-required-parameter", 1, 1, "void greet({required String name}) {", "Hello, Ada")]
     [InlineData("void main() {\n  String name = null;\n  print(name);\n}\n", "dart-nullable-type", 2, 2, "  String? name = null;", "null")]
+    [InlineData("void main() {\n  var total = 150;\n  print(\"Total: %d\", total);\n}\n", "dart-format-into-text", 3, 3, "  print(\"Total: $total\");", "Total: 150")]
+    [InlineData("void main() {\n  var name = \"Ada\";\n  var total = 150;\n  print(\"%s scored %.1f\", name, total / 7);\n}\n", "dart-format-into-text", 4, 4,
+        "  print(\"$name scored ${(total / 7).toStringAsFixed(1)}\");", "Ada scored 21.4")]
     public async Task WhatTheAnalyzerFindsIsFoundBeforeItRunsAndItsChangeAnalyzesAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Dart() is not { } dart) return;
@@ -163,6 +166,9 @@ public class DartLiveTests(ITestOutputHelper output) : IDisposable
     // Dart puts in $marks alone - the mistake printed "Marks counted: [70, 80, 90].length" and "First: [70, 80, 90][0]".
     [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('Marks counted: $marks.length');\n}\n", "logic-dart-interpolated-property", 3, "Marks counted: 3")]
     [InlineData("void main() {\n  var marks = [70, 80, 90];\n  print('First: $marks[0]');\n}\n", "logic-dart-interpolated-property", 3, "First: 70")]
+    // removeAt counting up: the mistake printed [70, 40, 90].
+    [InlineData("void main() {\n  var marks = [70, 40, 40, 90];\n  for (var i = 0; i < marks.length; i++) {\n    if (marks[i] == 40) {\n      marks.removeAt(i);\n    }\n  }\n  print(marks);\n}\n",
+        "logic-dart-remove-while-counting-up", 3, "[70, 90]")]
     public async Task ALogicMistakeTheAnalyzerSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Dart() is not { } dart) return;

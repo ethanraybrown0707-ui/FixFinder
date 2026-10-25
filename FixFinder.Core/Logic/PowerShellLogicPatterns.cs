@@ -7,8 +7,9 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Mistakes PowerShell scripts make that Windows PowerShell 5.1 runs without a word - each run with it: <c>if ($mark &gt; 40)</c>
 /// writes $mark to a file named 40, and the condition is then nothing, so false; <c>if ($mark = 40)</c> gives $mark the value
-/// and the condition is that value; a loop to <c>$i -le $marks.Count</c> takes one pass too many, reading $null; and a
-/// function called as <c>Area(3, 4)</c> is given one value, the list 3, 4, and nothing for its second parameter.
+/// and the condition is that value; a loop to <c>$i -le $marks.Count</c> takes one pass too many, reading $null; a
+/// function called as <c>Area(3, 4)</c> is given one value, the list 3, 4, and nothing for its second parameter; and
+/// <c>Write-Host "Total: " + $total</c>, which wrote "Total:  + 150", as each word - the + too - is a thing to write.
 /// </summary>
 public static partial class PowerShellLogicPatterns
 {
@@ -27,7 +28,48 @@ public static partial class PowerShellLogicPatterns
         Pattern("logic-powershell-function-called-with-brackets", FunctionCalledWithBrackets, Severity.Error, Confidence.Certain),
         Pattern("logic-powershell-property-in-text", PropertyInText, Severity.Error, Confidence.Certain),
         Pattern("logic-powershell-variable-in-single-quotes", VariableInSingleQuotes, Severity.Error),
+        Pattern("logic-powershell-plus-outside-brackets", PlusOutsideBrackets, Severity.Error, Confidence.Certain),
+        Pattern("logic-powershell-arguments-with-commas", ArgumentsWithCommas, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>function Get-Area($width, $height)</c> - a function of the script's own, with two parameters or more.</summary>
+    [GeneratedRegex(@"^\s*function\s+(?<name>[\w-]+)\s*\((?<parameters>[^()]*,[^()]*)\)", RegexOptions.IgnoreCase)]
+    private static partial Regex FunctionWithParameters();
+
+    /// <summary>
+    /// A function of the script's own called with its values separated by commas - Get-Area 3, 4: in PowerShell a comma makes
+    /// a list, so the function is given one value, the list 3, 4, and nothing for its second parameter - Get-Area 3, 4 printed
+    /// nothing at all, where Get-Area 3 4 printed 12. Only a call with as many values as the function has parameters is found,
+    /// as a list given to one parameter on purpose has fewer. The change separates the values with spaces.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ArgumentsWithCommas(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var functions = masked.Select(line => FunctionWithParameters().Match(line)).Where(match => match.Success)
+            .GroupBy(match => match.Groups["name"].Value, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Groups["parameters"].Value.Split(',').Length, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (function, parameters) in functions)
+        {
+            var call = new Regex($@"(?<![\w-]){Regex.Escape(function)}\s+(?<values>[^\s,()|;]+(?:\s*,\s*[^\s,()|;]+)+)(?=\s*(?:\)|$|\||;))", RegexOptions.IgnoreCase);
+
+            for (var index = 0; index < masked.Count; index++)
+            {
+                if (FunctionWithParameters().IsMatch(masked[index]) || call.Match(masked[index]) is not { Success: true } called) continue;
+                if (called.Groups["values"].Value.Split(',').Length != parameters) continue;
+
+                var line = source.Lines[index];
+                var values = called.Groups["values"];
+                var spaced = Regex.Replace(line.Substring(values.Index, values.Length), @"\s*,\s*", " ");
+
+                yield return new LogicFinding(id, index + 1,
+                    $"In PowerShell a comma makes a list, so {function} is given one value - the list {line.Substring(values.Index, values.Length)} - and " +
+                    "nothing for its other parameters",
+                    LocalFix.ReplaceLine(id, $"Separate the values with spaces: {function} {spaced}",
+                        "A PowerShell function's values are separated by spaces, so each goes to a parameter of its own.",
+                        source.Path, index + 1, line[..values.Index] + spaced + line[(values.Index + values.Length)..]));
+            }
+        }
+    }
 
     /// <summary>The text on a line - between double quotes, with ` escaping, or single ones, with '' for a quote - each with its quote.</summary>
     private static IEnumerable<(char Quote, int Start, int End)> TextIn(string line)
@@ -220,6 +262,38 @@ public static partial class PowerShellLogicPatterns
                         $"{function} {spaced} gives each parameter a value of its own, in order.",
                         source.Path, index + 1, line[..call.Index] + $"{function} {spaced}" + line[(call.Index + call.Length)..]));
             }
+        }
+    }
+
+    /// <summary>
+    /// <c>Write-Host "Total: " + $total</c> - a + between the words given to Write-Host or Write-Output, with no brackets round
+    /// them, and none of the command's own parameters after.
+    /// </summary>
+    [GeneratedRegex(@"^(?<indent>\s*)(?<call>Write-Host|Write-Output)\s+(?<words>(?:""[^""]*""|'[^']*'|\$\w+(?:\.\w+)*|-?\d+(?:\.\d+)?)(?:\s+\+\s+(?:""[^""]*""|'[^']*'|\$\w+(?:\.\w+)*|-?\d+(?:\.\d+)?))+)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex PlusOutsideBrackets();
+
+    /// <summary>
+    /// Write-Host and Write-Output take each word after them as a thing to write, the + as well - so "Total: " + $total is
+    /// three things, written with a space between by Write-Host, and each on a line of its own by Write-Output. Brackets make
+    /// it one sum, worked out first.
+    /// </summary>
+    private static IEnumerable<LogicFinding> PlusOutsideBrackets(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (PlusOutsideBrackets().Match(masked[index]) is not { Success: true } call) continue;
+
+            var line = source.Lines[index];
+            var name = call.Groups["call"].Value;
+            var words = line.Substring(call.Groups["words"].Index, call.Groups["words"].Length);
+            var host = name.Equals("Write-Host", StringComparison.OrdinalIgnoreCase);
+
+            yield return new LogicFinding(id, index + 1,
+                $"{name} takes each word after it as a thing to write - the + as well - so {words} is not joined: {name} writes " +
+                (host ? "each part with a space between, + and all" : "each part on a line of its own, + and all"),
+                LocalFix.ReplaceLine(id, $"Put the sum in brackets: {name} ({words})",
+                    "Brackets are worked out first, so the parts are joined - or added - into one value, and that one value is written.",
+                    source.Path, index + 1, $"{call.Groups["indent"].Value}{name} ({words})"));
         }
     }
 }

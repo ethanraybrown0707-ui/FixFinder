@@ -157,5 +157,172 @@ internal static class PhpPatternGuides
                 echo "not a number\n";
             }
             """),
+
+        GuideFor(["logic-php-format-code-printed"], "A %d code that echo does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. echo writes each thing it is given side " +
+            "by side and fills nothing in, so echo \"Total: %d\", $total prints Total: %d150.",
+            "The output shows the code as it is, with the value run on after it, and neither php -l nor PHP says anything of it.",
+            "Use printf, which fills the codes in and prints the text - printf(\"Total: %d\\n\", $total) - or give echo the text " +
+            "sprintf fills in: echo sprintf(\"Total: %d\", $total).",
+            """
+            <?php
+            $total = 150;
+            printf("Total: %d\n", $total);
+            """),
+
+        GuideFor(["logic-php-push-result-kept"], "An array given what array_push gives back",
+            "array_push adds to the array it is given - it changes that array - and gives back how many items the array now has. So " +
+            "$marks = array_push($marks, 90) adds 90 and then replaces the whole array with that count, 3. array_unshift is the same.",
+            "$marks is a number from then on, its items lost, and neither php -l nor PHP says anything until it is used as an array.",
+            "Call array_push on a line of its own - array_push($marks, 90); - or add with $marks[] = 90;.",
+            """
+            <?php
+            $marks = [70, 80];
+            array_push($marks, 90);
+            echo implode(" ", $marks), "\n";
+            """),
+
+        GuideFor(["logic-php-search-as-condition"], "A search's result used as the condition",
+            "strpos and array_search give the position where they found what they looked for, counting from 0, and false when they " +
+            "found nothing. A condition counts 0 as false too, so if (strpos($word, \"a\")) treats a match at the very start - " +
+            "position 0 - as no match.",
+            "Text or an array that starts with what is looked for is treated as not containing it, and neither php -l nor PHP says anything.",
+            "Compare with false strictly: if (strpos($word, \"a\") !== false).",
+            """
+            <?php
+            $word = "apple";
+            if (strpos($word, "a") !== false) {
+                echo "has an a\n";
+            }
+            """),
+
+        GuideFor(["logic-php-plus-equals-reversed"], "=+ where += was meant",
+            "$total =+ $mark is read as $total = +$mark: the = gives $total a new value, and the + is only a plus sign in front of $mark. " +
+            "So $total becomes $mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives " +
+            "$total -$mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and PHP says nothing.",
+            "Write += to add, or -= to take away: $total += $mark;",
+            """
+            <?php
+            $total = 0;
+            foreach ([5, 10] as $mark) {
+                $total += $mark;
+            }
+            echo $total, PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "$n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: $n % 2 != 0 is true for every odd number, negative or not.",
+            """
+            <?php
+            $n = -3;
+            if ($n % 2 != 0) {
+                echo "odd", PHP_EOL;
+            }
+            """),
+
+        GuideFor(["logic-php-date-minutes-as-month"], "m in a time, where the minutes were meant",
+            "In the letters date and format take, m is the month and i is the minutes. So \"H:m\" writes the hour and then the month: " +
+            "9:30 on 5 February gives 09:02.",
+            "The time is written wrongly, with no error.",
+            "Use i for the minutes: date(\"H:i\").",
+            """
+            <?php
+            $whenever = mktime(9, 30, 0, 2, 5, 2024);
+            echo date("Y-m-d H:i", $whenever), PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-misspelt-name"], "A misspelt name given a value",
+            "In PHP, giving a value to a variable makes it if it does not exist yet. So $totl = $total + $mark, with $total misspelt, " +
+            "makes a new variable called $totl, and $total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: $total = $total + $mark;",
+            """
+            <?php
+            $total = 0;
+            foreach ([5, 10, 20] as $mark) {
+                $total = $total + $mark;
+            }
+            echo $total, PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-foreach-reference-kept"], "A foreach by reference, and its variable used again",
+            "foreach ($marks as &$mark) makes $mark a second name for each item in turn - and after the loop, it is still a name for the " +
+            "last one. A later foreach ($marks as $mark), or $mark = ..., gives that last item each value in turn.",
+            "The array's last item is overwritten - 10, 20, 30 became 10, 20, 20 - with nothing said.",
+            "Let go of the reference as soon as the loop ends: unset($mark);",
+            """
+            <?php
+            $marks = [1, 2, 3];
+            foreach ($marks as &$mark) {
+                $mark = $mark * 10;
+            }
+            unset($mark);
+            foreach ($marks as $mark) {
+                echo $mark, PHP_EOL;
+            }
+            """),
+
+        GuideFor(["logic-php-trim-word"], "rtrim or ltrim given a word",
+            "rtrim and ltrim take away characters, not text: the second argument is a set of characters, and every one of them is taken off " +
+            "the end until another is met. rtrim(\"test.txt\", \".txt\") takes off t, x, t, ., and then the t of test - \"tes\".",
+            "Names that end in one of the characters lose more than the ending, with no error.",
+            "Take off the text itself with a regular expression that matches it at the end: preg_replace('/\\.txt$/', '', $file).",
+            """
+            <?php
+            $file = "test.txt";
+            echo preg_replace('/\.txt$/', '', $file), PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue, throw, exit and die leave the same way. A line straight " +
+            "after one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the program can test it, and PHP says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            <?php
+            function total($marks) {
+                echo "counted", PHP_EOL;
+                return count($marks);
+            }
+            echo total([1, 2]), PHP_EOL;
+            """),
+
+        GuideFor(["logic-php-duplicate-case"], "Two cases with the same value",
+            "A switch takes the first case whose value matches. When two cases have the same value, the second is never matched - the " +
+            "first always takes it.",
+            "The second case's code never runs, so it cannot be tested, and PHP says nothing.",
+            "Give each case its own value, or put the two cases' code together in the first.",
+            """
+            <?php
+            $choice = 2;
+            switch ($choice) {
+                case 1:
+                    echo "one", PHP_EOL;
+                    break;
+                case 2:
+                    echo "two", PHP_EOL;
+                    break;
+            }
+            """),
+
+        GuideFor(["logic-php-handler-never-reached"], "A catch that can never run",
+            "catch blocks are tried in order, and the first that matches the exception takes it. catch (Exception $e) matches " +
+            "InvalidArgumentException too - it is a kind of Exception - so a catch for it after that one is never reached.",
+            "The specific handler never runs, so it cannot be tested - the general message was printed - and PHP says nothing.",
+            "Put the specific catch first: catch (InvalidArgumentException $e), then catch (Exception $e).",
+            """
+            <?php
+            try {
+                throw new InvalidArgumentException("x");
+            } catch (InvalidArgumentException $e) {
+                echo "not a number", PHP_EOL;
+            } catch (Exception $e) {
+                echo "something went wrong", PHP_EOL;
+            }
+            """),
     ];
 }

@@ -144,6 +144,8 @@ public class ErlangLiveTests(ITestOutputHelper output) : IDisposable
         "erlang-trim-input", 4, "next(Typed) -> list_to_integer(string:trim(Typed)) + 1.", "13")]
     [InlineData(Head + "average(Marks) -> lists:sum(Marks) / length(Marks).\n\nmain() ->\n    io:format(\"~p~n\", [average([])]).\n",
         "erlang-division-guard", 4, "average(Marks) -> (case length(Marks) of 0 -> 0; _ -> lists:sum(Marks) / length(Marks) end).", "0")]
+    // io:format's value given on its own: Erlang names no line of the program, as the call was main's last.
+    [InlineData(Head + "main() ->\n    Total = 150,\n    io:format(\"Total: ~p~n\", Total).\n", "erlang-format-values-list", 6, "    io:format(\"Total: ~p~n\", [Total]).", "Total: 150")]
     public async Task WhatStoppedTheProgramGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Erlang() is not { } erlang) return;

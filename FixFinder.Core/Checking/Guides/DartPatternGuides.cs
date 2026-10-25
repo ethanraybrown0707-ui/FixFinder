@@ -116,5 +116,63 @@ internal static class DartPatternGuides
               print(grid);
             }
             """),
+
+        GuideFor(["logic-dart-remove-while-counting-up"], "Removing from a list while counting up through it",
+            "removeAt(i) takes out the item at i and moves every item after it down a place to close the gap. A loop counting up " +
+            "then moves on to i + 1 - so the item that moved into position i is never looked at.",
+            "Two items in a row that should both go leave one behind - [70, 40, 40, 90] keeps a 40 - and dart analyze says nothing.",
+            "Count down instead - for (var i = marks.length - 1; i >= 0; i--) - so a removal only moves items the loop has already " +
+            "been past. Or use marks.removeWhere((mark) => mark == 40).",
+            """
+            void main() {
+              var marks = [70, 40, 40, 90];
+              marks.removeWhere((mark) => mark == 40);
+              print(marks);
+            }
+            """),
+
+        GuideFor(["logic-dart-result-discarded"], "A String method's result thrown away",
+            "Text in Dart never changes. trim, toUpperCase, replaceAll, substring and the rest give back a new, changed copy, and leave the " +
+            "text they were called on as it was - so called on a line of their own, the copy is lost.",
+            "The text stays as it was - the name printed unchanged - and dart analyze finds no issues.",
+            "Keep the copy: name = name.trim(); - or use it straight away, as in print(name.trim()).",
+            """
+            void main() {
+              var name = ' Ada ';
+              name = name.trim();
+              print('[$name]');
+            }
+            """),
+
+        GuideFor(["logic-dart-future-used-as-value"], "An async function's result used without await",
+            "An async function gives back a Future: a promise of its value, finished later. Called without await, what you get is the " +
+            "Future, not the value - so printing it prints Instance of 'Future<int>'.",
+            "The program uses the Future where it meant the value, and dart analyze finds no issues.",
+            "Wait for the value with await, inside a function marked async: var result = await count(); in main() async.",
+            """
+            Future<int> count() async => 3;
+
+            Future<void> main() async {
+              var result = await count();
+              print(result);
+            }
+            """),
+
+        GuideFor(["logic-dart-handler-never-reached"], "An on clause that can never run",
+            "A try's on clauses are tried in order, and the first that matches takes the exception. on Exception matches FormatException " +
+            "too - FormatException is an Exception - so an on FormatException after it is never reached. dart analyze calls it dead code.",
+            "The specific handler never runs, so it cannot be tested - int.parse(\"x\") printed the general message.",
+            "Put the specific clause first: on FormatException, then on Exception.",
+            """
+            void main() {
+              try {
+                int.parse('x');
+              } on FormatException {
+                print('not a number');
+              } on Exception {
+                print('something went wrong');
+              }
+            }
+            """),
     ];
 }

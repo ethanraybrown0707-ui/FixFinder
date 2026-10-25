@@ -137,6 +137,8 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("count = 0\nIO.puts(div(10, count))\n", "elixir-division-guard", 2, "IO.puts((if count == 0, do: 0, else: div(10, count)))", "0")]
     [InlineData("marks = [70, 80]\nIO.puts(marks[0])\n", "elixir-list-index", 2, "IO.puts(Enum.at(marks, 0))", "70")]
     [InlineData("typed = \"12\\n\"\nIO.puts(String.to_integer(typed) + 1)\n", "elixir-trim-input", 2, "IO.puts(String.to_integer(String.trim(typed)) + 1)", "13")]
+    // length of text: "1st argument: not a list".
+    [InlineData("name = \"Ada\"\nIO.puts(length(name))\n", "elixir-string-length", 2, "IO.puts(String.length(name))", "3")]
     public async Task WhatStoppedTheProgramGetsItsChangeAndTheChangedProgramRunsClean(string code, string rule, int line, string changedTo, string fixedPrints)
     {
         if (Elixir() is not { } elixir) return;
@@ -175,6 +177,9 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("ages = %{\"Ada\" => 36}\nMap.put(ages, \"Bob\", 20)\nIO.inspect(ages)\n", "logic-elixir-result-discarded", 2, "", "%{\"Ada\" => 36, \"Bob\" => 20}")]
     [InlineData("total = 0.1 + 0.2\nif total == 0.3 do\n  IO.puts(\"equal\")\nelse\n  IO.puts(\"not equal\")\nend\n", "logic-elixir-float-equality", 2, "", "equal")]
     [InlineData("mark = 70\nif mark = 40 do\n  IO.puts(\"forty\")\nend\nIO.puts(mark)\n", "logic-elixir-assignment-in-condition", 2, "", "70")]
+    // Text compared with a number: the mistake printed "not seven" whatever was typed.
+    [InlineData("typed = \"7\"\nif typed == 7 do\n  IO.puts(\"seven\")\nelse\n  IO.puts(\"not seven\")\nend\n", "logic-elixir-text-compared-with-number", 2, "", "seven")]
+    [InlineData("typed = IO.gets(\"Number? \")\nif typed == 7 do\n  IO.puts(\"seven\")\nelse\n  IO.puts(\"not seven\")\nend\n", "logic-elixir-text-compared-with-number", 2, "7\n", "Number? seven")]
     public async Task ALogicMistakeIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string input, string fixedPrints)
     {
         if (Elixir() is not { } elixir) return;
@@ -264,5 +269,30 @@ public class ElixirLiveTests(ITestOutputHelper output) : IDisposable
         }
 
         output.WriteLine($"{examples.Count} examples compiled and run.");
+    }
+
+    /// <summary>
+    /// A file of ExUnit tests - ExUnit.start(), then a module that uses ExUnit.Case - passes FixFinder's check without its
+    /// tests being run, and one whose test calls a function that does not exist is still refused, naming it. The check had
+    /// stopped every such file with "cannot use ExUnit.Case without starting the ExUnit application".
+    /// </summary>
+    [Theory]
+    [InlineData("ExUnit.start()\n\ndefmodule AddTest do\n  use ExUnit.Case\n\n  test \"add\" do\n    assert 5 + 2 == 7\n  end\nend\n", true, "")]
+    [InlineData("ExUnit.start()\n\ndefmodule AddTest do\n  use ExUnit.Case\n\n  test \"add\" do\n    assert add(5, 2) == 7\n  end\nend\n", false, "undefined function add/2")]
+    public async Task AFileOfExUnitTestsIsCheckedWithoutItsTestsBeingRun(string tests, bool passes, string said)
+    {
+        if (Elixir() is null) return;
+
+        var file = Write(Path.Combine("exunit", passes ? "passing_test.exs" : "broken_test.exs"), tests);
+        var check = ScriptLanguages.CheckOf(ScriptLanguages.Elixir, file, TimeSpan.FromMinutes(1))!;
+        using var compiling = Process.Start(new ProcessStartInfo(check.ExecutablePath, check.Arguments)
+            { WorkingDirectory = check.WorkingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true })!;
+        var checkSaid = (await compiling.StandardOutput.ReadToEndAsync() + await compiling.StandardError.ReadToEndAsync()).Trim();
+        await compiling.WaitForExitAsync();
+        output.WriteLine(checkSaid);
+
+        Assert.Equal(passes, compiling.ExitCode == 0);
+        if (passes) Assert.Equal("", checkSaid);
+        else Assert.Contains(said, checkSaid);
     }
 }

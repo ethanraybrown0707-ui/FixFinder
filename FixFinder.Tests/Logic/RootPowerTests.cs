@@ -35,6 +35,12 @@ public class RootPowerPatternTests : IDisposable
     [InlineData("area.pl", "my $root = $shape->{side} ** 1/2;", "logic-perl-power-of-one-over", "my $root = $shape->{side} ** 0.5;")]
     [InlineData("area.f90", "  root = side ** 1/2", "logic-fortran-power-of-one-over", "  root = side ** 0.5")]
     [InlineData("area.lua", "local root = side^1/2", "logic-lua-power-of-one-over", "local root = side ^ 0.5")]
+    // A power of one whole number over another, which divides to a whole number first.
+    [InlineData("Area.java", "        double root = Math.pow(side, 1/2);", "logic-pow-whole-number-fraction", "        double root = Math.pow(side, 1.0 / 2);")]
+    [InlineData("Area.cs", "double root = Math.Pow(side, 1 / 3);", "logic-pow-whole-number-fraction", "double root = Math.Pow(side, 1.0 / 3);")]
+    [InlineData("area.cpp", "    double root = std::pow(a + b, 1/2);", "logic-pow-whole-number-fraction", "    double root = std::pow(a + b, 1.0 / 2);")]
+    [InlineData("area.c", "    printf(\"%f\", pow(side, 3/2));", "logic-pow-whole-number-fraction", "    printf(\"%f\", pow(side, 3.0 / 2));")]
+    [InlineData("main.go", "\troot := math.Pow(side, 1/2)", "logic-go-pow-whole-number-fraction", "\troot := math.Pow(side, 1.0 / 2)")]
     public void ARootWrittenAsAPowerOfOneOverIsFoundAndRaisedToTheFraction(string fileName, string line, string check, string fixedLine)
     {
         var rooted = Assert.Single(Scan(fileName, line + "\n"), finding => finding.PatternId == check);
@@ -56,9 +62,14 @@ public class RootPowerPatternTests : IDisposable
     [InlineData("check.js", "// side ** 1/2 is half of side")]
     // ^ is a power only in Lua.
     [InlineData("check.py", "flags = mask ^ 1/2")]
+    // A decimal fraction, a fraction that is a whole number, and a power of a name divided by a name.
+    [InlineData("Check.java", "        double root = Math.pow(side, 1.0 / 2);")]
+    [InlineData("Check.java", "        double square = Math.pow(side, 4/2);")]
+    [InlineData("check.c", "    double part = pow(side, top / bottom);")]
     public void APowerThatIsMeantIsLeftAlone(string fileName, string line)
     {
-        Assert.DoesNotContain(Scan(fileName, line + "\n"), finding => finding.PatternId.EndsWith("power-of-one-over", StringComparison.Ordinal));
+        Assert.DoesNotContain(Scan(fileName, line + "\n"),
+            finding => finding.PatternId.EndsWith("power-of-one-over", StringComparison.Ordinal) || finding.PatternId.EndsWith("pow-whole-number-fraction", StringComparison.Ordinal));
     }
 }
 
@@ -106,6 +117,51 @@ public class RootPowerLiveTests(ITestOutputHelper output) : IDisposable
         var changed = string.Join("\n", lines) + "\n";
 
         var codeLanguage = CodeLanguage.All.Single(each => each.Name == language);
+        var wrong = await SnippetRunner.RunAsync(codeLanguage, mistake);
+        if (!wrong.Ran)
+        {
+            output.WriteLine($"Not run on this computer: {wrong.WhyNotRun}");
+            return;
+        }
+
+        var right = await SnippetRunner.RunAsync(codeLanguage, changed);
+        output.WriteLine($"the mistake: {wrong.Said(language)}\nthe change:  {right.Said(language)}");
+
+        Assert.True(wrong.Shows(Behaviour.Printing(mistakePrints)), wrong.Said(language));
+        Assert.True(right.Shows(Behaviour.Printing(changePrints)), right.Said(language));
+    }
+}
+
+/// <summary>
+/// A power of one whole number over another, run with each language's own toolchain the way FixFinder Learn runs a lesson,
+/// and the check's own change run the same way. A language this computer cannot run is passed over, and said to be.
+/// </summary>
+public class PowWholeNumberFractionLiveTests(ITestOutputHelper output)
+{
+    /// <summary>Each: the language, a program printing the square root of 16 as a power of 1/2, what that prints, and what its change prints.</summary>
+    public static TheoryData<string, string, string, string> Mistakes => new()
+    {
+        { "Java", "public class Main {\n    public static void main(String[] args) {\n        System.out.println(Math.pow(16, 1/2));\n    }\n}\n", "1.0", "4.0" },
+        { "C#", "Console.WriteLine(Math.Pow(16, 1/2));\n", "1", "4" },
+        { "C", "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    printf(\"%g\\n\", pow(16, 1/2));\n    return 0;\n}\n", "1", "4" },
+        { "C++", "#include <cmath>\n#include <iostream>\n\nint main() {\n    std::cout << std::pow(16, 1/2) << '\\n';\n    return 0;\n}\n", "1", "4" },
+        { "Go", "package main\n\nimport (\n\t\"fmt\"\n\t\"math\"\n)\n\nfunc main() {\n\tfmt.Println(math.Pow(16, 1/2))\n}\n", "1", "4" },
+    };
+
+    [Theory]
+    [MemberData(nameof(Mistakes))]
+    public async Task TheMistakePrintsOneAndTheChangeTheRoot(string language, string mistake, string mistakePrints, string changePrints)
+    {
+        var codeLanguage = CodeLanguage.All.Single(each => each.Name == language);
+        using var temp = new TempFolder();
+        var path = Path.Combine(temp.Path, "main" + codeLanguage.Extensions[0]);
+        File.WriteAllText(path, mistake);
+        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId.EndsWith("pow-whole-number-fraction", StringComparison.Ordinal));
+
+        var lines = mistake.TrimEnd('\n').Split('\n').ToList();
+        lines[found.Fix!.StartLine - 1] = found.Fix.NewLines.Single();
+        var changed = string.Join("\n", lines) + "\n";
+
         var wrong = await SnippetRunner.RunAsync(codeLanguage, mistake);
         if (!wrong.Ran)
         {

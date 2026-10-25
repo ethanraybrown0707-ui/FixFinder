@@ -714,3 +714,44 @@ public sealed partial class JavaSplitRegex : ILocalFixRule
             source.Path, candidate + 1, corrected);
     }
 }
+
+/// <summary>
+/// <c>no suitable method found for println(String,int)</c> on <c>System.out.println("Total: %d", total)</c>: println and
+/// print print one value, and printf is the one that fills in %d. The change calls printf - ending the text with printf's own
+/// new line, %n, where println gave one.
+/// </summary>
+public sealed partial class JavaPrintfForPrintln : ILocalFixRule
+{
+    public string Id => "java-printf-for-println";
+
+    [GeneratedRegex(@"^no suitable method found for (?<method>println|print)\(String,.+\)$")]
+    private static partial Regex Message();
+
+    /// <summary><c>System.out.println("...",</c> - the text first, and more after it.</summary>
+    [GeneratedRegex(@"\bSystem\s*\.\s*out\s*\.\s*(?<method>println|print)\s*\(\s*(?<format>""[^""]*"")\s*,")]
+    private static partial Regex Call();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (Message().Match(context.Error.Message ?? "") is not { Success: true } said || JavaCode.Locate(context) is not { } at) return null;
+
+        var method = said.Groups["method"].Value;
+        var calls = Call().Matches(CodeText.Mask(at.Line, Syntax.CLike)).Where(call => call.Groups["method"].Value == method).ToList();
+        if (calls is not [var call]) return null;
+
+        var formatGroup = call.Groups["format"];
+        var format = at.Line.Substring(formatGroup.Index, formatGroup.Length);
+        if (Logic.FormatCodePatterns.Codes(format).Count == 0) return null;
+
+        var printed = method == "println" && !Regex.IsMatch(format, @"(?:\\n|%n)""$") ? format[..^1] + "%n\"" : format;
+        var methodGroup = call.Groups["method"];
+        var changed = at.Line[..methodGroup.Index] + "printf" + at.Line[(methodGroup.Index + methodGroup.Length)..formatGroup.Index] + printed +
+                      at.Line[(formatGroup.Index + formatGroup.Length)..];
+
+        return LocalFix.ReplaceLine(Id, $"Fill it in with printf: System.out.printf({printed}, ...)",
+            $"{method} prints one value, so there is no {method} that takes the text and the values after it. printf fills each code in " +
+            "the text - %d with a whole number, %s with any value - with the next value" +
+            (method == "println" ? ", and %n at the end of the text starts a new line, as println did." : "."),
+            at.Source.Path, at.Number, changed);
+    }
+}

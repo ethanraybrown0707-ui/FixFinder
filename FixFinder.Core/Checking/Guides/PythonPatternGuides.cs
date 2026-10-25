@@ -430,5 +430,396 @@ internal static class PythonPatternGuides
             grid[0][0] = 1
             print(grid)
             """),
+
+        GuideFor(["logic-python-format-code-printed"], "A %d code that print does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Python's print does not fill them in - " +
+            "it writes each thing it is given in turn, with a space between - so print(\"Total: %d\", total) prints Total: %d 150.",
+            "The line shows the code as it is, with the value tacked on after it, and Python says nothing of it.",
+            "Fill the text in before it is printed: \"Total: %d\" % total - or put the value into an f-string, f\"Total: {total}\".",
+            """
+            total = 150
+            print(f"Total: {total}")
+            """),
+
+        GuideFor(["logic-python-precision-without-f"], ".2 with no f in a format",
+            "In a format, :.2f means two decimal places - but :.2 with no letter after it means two significant figures, counted from " +
+            "the first digit. 3.14159 shows as 3.1, and 150.5, whose first two figures are 1 and 5, as 1.5e+02.",
+            "Numbers come out with too few digits, or in scientific notation, and Python says nothing of it.",
+            "Put f after the precision: f\"{average:.2f}\".",
+            """
+            average = 150.5
+            print(f"Average: {average:.2f}")
+            """),
+
+        GuideFor(["logic-python-except-or"], "except A or B",
+            "except ValueError or TypeError reads like it catches both, but Python works out ValueError or TypeError first, as a " +
+            "value - and or gives back the first of the two that counts as true, which every kind of error does. So the except is " +
+            "except ValueError, and a TypeError is not caught.",
+            "The second kind of error still stops the program, as if there were no except for it, and Python says nothing of it.",
+            "Give the kinds in brackets: except (ValueError, TypeError):.",
+            """
+            def read(text):
+                try:
+                    return int(text)
+                except (ValueError, TypeError):
+                    return 0
+
+
+            print(read(None))
+            """),
+
+        GuideFor(["logic-python-main-never-called"], "main made and never called",
+            "def main(): only makes the function - it does not run it. Python runs a file from top to bottom, so a file that makes " +
+            "main and never calls it ends having done nothing at all.",
+            "The program prints nothing and asks for nothing, with no error, which looks as if it is broken.",
+            "Call main at the end of the file, under if __name__ == \"__main__\":, so it runs when the file is the one run.",
+            """
+            def main():
+                print("Hello")
+
+
+            if __name__ == "__main__":
+                main()
+            """),
+
+        GuideFor(["logic-python-or-before-in"], "\"a\" or \"e\" in word",
+            "if \"a\" or \"e\" in word: reads like it asks whether either letter is in word, but or is worked out last, so it is " +
+            "\"a\" or (\"e\" in word). Text that is not empty counts as true by itself, so \"a\" makes the whole condition true.",
+            "The condition is true whatever word holds - \"sky\" was said to have a vowel - and Python says nothing of it.",
+            "Give each piece of text an in of its own: if \"a\" in word or \"e\" in word: - or, for many, " +
+            "if any(letter in word for letter in \"aeiou\"):.",
+            """
+            word = "sky"
+            if "a" in word or "e" in word:
+                print("has a vowel")
+            """),
+
+        GuideFor(["logic-python-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives total " +
+            "-mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and Python says nothing.",
+            "Write += to add, or -= to take away: total += mark.",
+            """
+            total = 0
+            for mark in [5, 10]:
+                total += mark
+            print(total)
+            """),
+
+        GuideFor(["logic-python-date-format-minutes"], "%M in a date, where the month was meant",
+            "In strftime's format, %m is the month and %M is the minutes - the case matters. So \"%Y-%M-%d\" writes the minutes where " +
+            "the month should be: 9:30 on 5 February 2024 gives 2024-30-05.",
+            "The date is written wrongly, with no error - and it changes from one minute to the next.",
+            "Use %m for the month: when.strftime(\"%Y-%m-%d\"). %M belongs beside an hour, as in %H:%M.",
+            """
+            from datetime import datetime
+
+            when = datetime(2024, 2, 5, 9, 30)
+            print(when.strftime("%Y-%m-%d %H:%M"))
+            """),
+
+        GuideFor(["logic-python-misspelt-name"], "A misspelt name given a value",
+            "In Python, giving a value to a name makes that name if it does not exist yet. So totl = total + mark, with total misspelt, " +
+            "makes a new variable called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with no error.",
+            "Give the value to the name that was meant: total = total + mark.",
+            """
+            total = 0
+            for mark in [5, 10, 20]:
+                total = total + mark
+            print(total)
+            """),
+
+        GuideFor(["logic-python-thread-run"], "run() called on a Thread",
+            "A Thread is started with start(), which runs its target on a new thread, alongside the code that started it. run() is only " +
+            "the method that calls the target: calling it runs the target there and then, on the thread that called it - so nothing runs " +
+            "alongside.",
+            "The program does its work one piece at a time where it was meant to do them together, with no error - the worker printed that " +
+            "it ran on MainThread.",
+            "Start the thread: worker.start() - and worker.join() to wait for it.",
+            """
+            import threading
+
+            worker = threading.Thread(target=lambda: print("working"))
+            worker.start()
+            worker.join()
+            """),
+
+        GuideFor(["logic-python-decimal-from-float"], "A Decimal made from a float",
+            "A float holds most decimals only nearly: 0.1 is stored as 0.1000000000000000055511151231257827021181583404541015625. " +
+            "Decimal(0.1) is given that float, and keeps every digit of it - so the Decimal, used to keep money exact, starts with the error " +
+            "in it.",
+            "Sums that should come out exact are off in their last digits, and comparisons fail.",
+            "Make it from text: Decimal(\"0.1\").",
+            """
+            from decimal import Decimal
+
+            price = Decimal("0.1")
+            print(price + Decimal("0.2"))
+            """),
+
+        GuideFor(["logic-python-get-default-changed"], "A default from get changed, and lost",
+            "d.get(key, []) gives back a new empty list when the key is missing - but it does not put that list in d. So " +
+            "d.get(key, []).append(item) appends to a list nothing keeps, and d is left as it was.",
+            "Nothing is ever added to the dictionary, with no error - groups stayed {}.",
+            "Use setdefault, which puts the default in first and gives back what is there: d.setdefault(key, []).append(item).",
+            """
+            groups = {}
+            for name, team in [("Ada", "red"), ("Bob", "red")]:
+                groups.setdefault(team, []).append(name)
+            print(groups)
+            """),
+
+        GuideFor(["logic-python-iterator-used-twice"], "An iterator read twice",
+            "map, filter, zip, reversed, enumerate and a generator expression give back an iterator: it hands out each item once, and " +
+            "then it is used up. Reading it a second time gives nothing.",
+            "The second loop or sum over it sees no items, with no error - sum(numbers) was 7, and len(list(numbers)) after it 0.",
+            "Keep the items in a list when they are needed more than once: numbers = list(map(int, words)).",
+            """
+            numbers = list(map(int, ["3", "4"]))
+            print(sum(numbers), len(numbers))
+            """),
+
+        GuideFor(["logic-python-strip-word"], "rstrip or lstrip given a word",
+            "rstrip and lstrip take away characters, not text: the argument is a set of characters, and every one of them is taken off the " +
+            "end until another character is met. \"test.txt\".rstrip(\".txt\") takes off t, x, t, ., and then the t of test - \"tes\".",
+            "Names that end in one of the characters lose more than the ending, with no error.",
+            "Take off the text itself: removesuffix(\".txt\") and removeprefix(\"www.\"), which take it off once when it is there.",
+            """
+            name = "test.txt"
+            print(name.removesuffix(".txt"))
+            """),
+
+        GuideFor(["logic-python-lambda-in-loop"], "A lambda made in a loop uses the loop's variable",
+            "A lambda keeps the variable it uses, not its value when the lambda was made. Made in a loop, every lambda keeps the same " +
+            "variable - and when they run, after the loop, it holds the value that ended it: [lambda x: x + step for step in range(3)] " +
+            "all added 2.",
+            "Every lambda does the same thing, with the last value, and Python says nothing.",
+            "Give the lambda the value as a default, which is worked out when the lambda is made: lambda x, step=step: x + step.",
+            """
+            adders = [lambda x, step=step: x + step for step in range(3)]
+            print([add(10) for add in adders])
+            """),
+
+        GuideFor(["logic-python-branch-never-reached"], "An elif that can never run",
+            "An if - elif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value: every score of 70 or more has gone into the first.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and Python says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            score = 75
+            if score >= 70:
+                print("B")
+            elif score >= 50:
+                print("C")
+            else:
+                print("F")
+            """),
+
+        GuideFor(["logic-python-loop-never-runs"], "A count down written as range(10, 0)",
+            "range counts up unless it is given a step: range(10, 0) starts at 10 and stops before 0, and 10 is already past 0 - so it " +
+            "holds nothing, and a loop over it runs no times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and Python says nothing.",
+            "Give it a step of -1: range(10, 0, -1) gives 10, 9, ... 1.",
+            """
+            for count in range(3, 0, -1):
+                print(count)
+            """),
+
+        GuideFor(["logic-python-defined-twice"], "A function defined twice",
+            "def gives a name its function when it runs, so a second def with the same name replaces the first. When nothing calls the " +
+            "first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested - area(3) used the second - and Python says nothing.",
+            "Give the two functions different names: area for one side, rectangle_area for two.",
+            """
+            def area(side):
+                return side * side
+
+
+            def rectangle_area(width, height):
+                return width * height
+
+
+            print(area(3), rectangle_area(3, 4))
+            """),
+
+        GuideFor(["logic-python-main-guard-misspelt"], "if __name__ == \"main\":",
+            "When a file is run directly, Python names it \"__main__\" - two underscores either side. Compared with \"main\", or any " +
+            "other spelling, __name__ is never equal, so the block under the if never runs.",
+            "The program does nothing when it is run, and nothing in its main part can be tested - with no error.",
+            "Spell it as Python does: if __name__ == \"__main__\":",
+            """
+            def main():
+                print("started")
+
+
+            if __name__ == "__main__":
+                main()
+            """),
+
+        GuideFor(["logic-python-handler-never-reached"], "An except that can never run",
+            "A try's except clauses are tried in order, and the first that matches the error takes it. except Exception: matches " +
+            "ValueError too - ValueError is a kind of Exception - so an except ValueError: after it is never reached.",
+            "The specific handler never runs, so it cannot be tested - int(\"x\") printed the general message - and Python says nothing.",
+            "Put the specific except first: except ValueError:, then except Exception:.",
+            """
+            try:
+                int("x")
+            except ValueError:
+                print("not a number")
+            except Exception:
+                print("something went wrong")
+            """),
+
+        GuideFor(["logic-python-test-never-run"], "A test method unittest never runs",
+            "unittest runs the methods of a TestCase whose names start with test - and no others. A method named check_add, add_test or " +
+            "verify_total is never run, however many assertions it holds.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - unittest ran 3 tests of 5 - with nothing said.",
+            "Start its name with test: test_add.",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-test-class-not-testcase"], "Tests in a class that is not a TestCase",
+            "unittest looks for tests only in classes that derive from unittest.TestCase. A class of test_ methods that does not is never " +
+            "looked in - and self.assertEqual is not even a method of it.",
+            "Its tests never run, so the code can be wrong and the run still passes, with nothing said.",
+            "Derive the class from unittest.TestCase: class AddTests(unittest.TestCase):",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-setup-misspelt"], "setUp misspelt",
+            "unittest calls setUp before each test and tearDown after it - spelt exactly so, with a capital U and D. A method named setup, " +
+            "set_up or Setup is an ordinary method, and nothing calls it.",
+            "What it was meant to set up is never there, so the tests that use it stop with AttributeError, which does not say why.",
+            "Spell it as unittest does: setUp - and tearDown.",
+            """
+            import unittest
+
+
+            class ListTests(unittest.TestCase):
+                def setUp(self):
+                    self.items = [1, 2]
+
+                def test_length(self):
+                    self.assertEqual(len(self.items), 2)
+            """),
+
+        GuideFor(["logic-python-assert-true-with-expected"], "assertTrue given the value expected",
+            "assertTrue checks one value: that it is true. Its second argument is only the message shown when it fails - so " +
+            "assertTrue(add(5, 2), 7) never compares with 7, and passes for any answer that is not 0, empty or None.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3 - with nothing said.",
+            "Compare the two with assertEqual: self.assertEqual(add(5, 2), 7).",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-assertion-swallowed"], "An assertion caught by except",
+            "A failed assertion raises AssertionError, and that is how unittest knows a test failed. Inside a try whose except catches " +
+            "AssertionError - or Exception, which it is a kind of, or everything - the failure is caught and the test carries on and passes.",
+            "The test can never fail, so it passes whether the code is right or wrong, with nothing said.",
+            "Take the assertion out of the try - or, if the try is there for something else, catch only that error.",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-test-checks-nothing"], "A test that asserts nothing",
+            "A test fails when an assertion fails or the code raises an error. A test that runs code but asserts nothing about what it " +
+            "gives back passes whatever the answer is - only a crash can fail it.",
+            "The test cannot catch a wrong answer - it passed with add giving 3 for 5 + 2.",
+            "Assert what the code should give back: self.assertEqual(add(5, 2), 7).",
+            """
+            import unittest
+
+
+            def add(a, b):
+                return a + b
+
+
+            class AddTests(unittest.TestCase):
+                def test_add(self):
+                    self.assertEqual(add(5, 2), 7)
+            """),
+
+        GuideFor(["logic-python-pytest-test-never-run"], "A test function pytest never collects",
+            "pytest collects the functions whose names start with test - and no others. A function named check_add or add_works is " +
+            "never run, however many asserts it holds.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - pytest collected 2 tests of 4.",
+            "Start its name with test: test_add.",
+            """
+            def add(a, b):
+                return a + b
+
+
+            def test_add():
+                assert add(5, 2) == 7
+            """),
+
+        GuideFor(["logic-python-pytest-class-not-collected"], "A test class pytest never looks in",
+            "pytest looks for test methods only in classes whose names start with Test - TestAdd, not AddTests or CalculatorTest. A class " +
+            "named any other way is never looked in.",
+            "Its tests never run, so the code can be wrong and the run still passes - pytest collected 2 tests of 4.",
+            "Start its name with Test: class TestAdd:",
+            """
+            def add(a, b):
+                return a + b
+
+
+            class TestAdd:
+                def test_add(self):
+                    assert add(5, 2) == 7
+            """),
+
+        GuideFor(["logic-python-assert-with-expected"], "assert given the value expected after a comma",
+            "assert checks one condition; what comes after its comma is only the message shown when it fails. So assert add(5, 2), 7 " +
+            "never compares with 7, and passes for any answer that is not 0, empty or None.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3.",
+            "Compare the two: assert add(5, 2) == 7.",
+            """
+            def add(a, b):
+                return a + b
+
+
+            def test_add():
+                assert add(5, 2) == 7
+            """),
     ];
 }

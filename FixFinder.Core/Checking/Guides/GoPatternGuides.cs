@@ -227,5 +227,234 @@ internal static class GoPatternGuides
             	fmt.Println(backup)
             }
             """),
+
+        GuideFor(["logic-go-percent-divided-first"], "A percentage that divides first",
+            "In Go, / of two whole numbers gives a whole number - the part below 1 is thrown away. In score / total * 100 the " +
+            "division comes first, so for 45 out of 60 it is 0, and 0 * 100 is 0.",
+            "Every score below the total comes out as 0%, and neither go build nor go vet says anything of it.",
+            "Multiply first - score * 100 / total - so only the last division drops a fraction: 45 * 100 / 60 is 75.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	score := 45
+            	total := 60
+            	fmt.Println(score * 100 / total)
+            }
+            """),
+
+        GuideFor(["logic-go-pow-whole-number-fraction"], "A power of 1/2 that is 0",
+            "In Go, / of two whole numbers gives a whole number, so 1/2 is 0. math.Pow(side, 1/2) is therefore side to the power 0, " +
+            "which is 1 whatever side is - not its square root.",
+            "The program works out 1 instead of the root, and neither go build nor go vet says anything of it.",
+            "Write the top of the fraction as a decimal - math.Pow(side, 1.0/2) - or use math.Sqrt(side).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"math"
+            )
+
+            func main() {
+            	fmt.Println(math.Sqrt(16))
+            }
+            """),
+
+        GuideFor(["logic-go-octal-literal"], "A number written with a 0 in front",
+            "In Go a whole number written with 0 in front is read in octal - base 8 - so 010 is 8, and 0123 is 83. It is meant for " +
+            "file modes such as 0755, and rarely anything else.",
+            "The number is not the one written, and neither go build nor go vet says anything of it.",
+            "Write the number without the 0 in front: 10.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	code := 10
+            	fmt.Println(code)
+            }
+            """),
+
+        GuideFor(["logic-go-plus-equals-reversed"], "=+ where += was meant",
+            "total =+ mark is read as total = +mark: the = gives total a new value, and the + is only a plus sign in front of mark. So " +
+            "total becomes mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives total " +
+            "-mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and neither the compiler nor go vet says anything.",
+            "Write += to add, or -= to take away: total += mark.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	total := 0
+            	for _, mark := range []int{5, 10} {
+            		total += mark
+            	}
+            	fmt.Println(total)
+            }
+            """),
+
+        GuideFor(["logic-go-odd-test-negative"], "An odd number looked for with % 2 == 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "n%2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The program is right until it meets a negative odd number, which it treats as even, with nothing from go vet.",
+            "Ask whether anything is left over: n%2 != 0 is true for every odd number, negative or not.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	n := -3
+            	if n%2 != 0 {
+            		fmt.Println("odd")
+            	}
+            }
+            """),
+
+        GuideFor(["logic-go-date-layout-letters"], "A date layout written with letters",
+            "Go does not write a date from letters like YYYY-MM-DD. Its layout is the way one moment - 2 January 2006 at 15:04:05 - " +
+            "would be written: 2006 is the year, 01 the month, 02 the day, 15 the hour, 04 the minutes and 05 the seconds. Letters are " +
+            "not part of it, so they are printed as they are: Format(\"YYYY-MM-DD\") prints YYYY-MM-DD.",
+            "Every date prints as the same letters, with no error and nothing from go vet.",
+            "Write the layout as that moment would be written: when.Format(\"2006-01-02\").",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"time"
+            )
+
+            func main() {
+            	when := time.Date(2024, 2, 5, 9, 30, 0, 0, time.UTC)
+            	fmt.Println(when.Format("2006-01-02"))
+            }
+            """),
+
+        GuideFor(["logic-go-sleep-nanoseconds"], "time.Sleep given a bare number",
+            "time.Sleep takes a time.Duration, and a number on its own is that many nanoseconds - billionths of a second. So " +
+            "time.Sleep(2) waits two nanoseconds, which is no wait at all.",
+            "The program does not pause where it was meant to, and go vet says nothing.",
+            "Say the unit: time.Sleep(2 * time.Second), or time.Sleep(500 * time.Millisecond).",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"time"
+            )
+
+            func main() {
+            	time.Sleep(10 * time.Millisecond)
+            	fmt.Println("done")
+            }
+            """),
+
+        GuideFor(["logic-go-copy-into-empty"], "copy into a slice of length 0",
+            "copy copies only as many items as both slices have room for - the shorter length. A slice made with make([]int, 0), or " +
+            "[]int{}, has length 0, so copy puts nothing in it.",
+            "The copy stays empty, with no error and nothing from go vet.",
+            "Make the slice as long as what is copied: backup := make([]int, len(marks)) - or append: backup := append([]int(nil), marks...).",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{70, 80, 90}
+            	backup := make([]int, len(marks))
+            	copy(backup, marks)
+            	fmt.Println(backup)
+            }
+            """),
+
+        GuideFor(["logic-go-byte-printed"], "One character of a string printed as a number",
+            "name[0] is a byte - the number that stands for the character - not a piece of text. fmt.Println prints numbers as numbers, " +
+            "so \"hello\"[0] prints 104.",
+            "The program prints numbers where it meant letters, with nothing from go vet.",
+            "Turn it back into text: string(name[0]) - or print it with %c in Printf.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	name := "hello"
+            	fmt.Println(string(name[0]))
+            }
+            """),
+
+        GuideFor(["logic-go-goroutine-not-waited"], "A goroutine main does not wait for",
+            "A program ends when main returns - goroutines still running are stopped with it. A go statement starts the goroutine and " +
+            "carries straight on, so if main has nothing left to do, it ends before the goroutine gets to run.",
+            "The goroutine's work may never happen - its line was never printed - and go vet says nothing.",
+            "Wait for it: a sync.WaitGroup, with wg.Add(1) before go, wg.Done() when it finishes, and wg.Wait() in main.",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"sync"
+            )
+
+            func main() {
+            	var wg sync.WaitGroup
+            	wg.Add(1)
+            	go func() {
+            		defer wg.Done()
+            		fmt.Println("from the goroutine")
+            	}()
+            	wg.Wait()
+            }
+            """),
+
+        GuideFor(["logic-go-branch-never-reached"], "An else if that can never run",
+            "An if - else if chain takes the first branch whose test passes. If an earlier test lets through every value a later one " +
+            "does - score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and go vet says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	score := 75
+            	if score >= 70 {
+            		fmt.Println("B")
+            	} else if score >= 50 {
+            		fmt.Println("C")
+            	} else {
+            		fmt.Println("F")
+            	}
+            }
+            """),
+
+        GuideFor(["logic-go-test-never-run"], "A test function go test never runs",
+            "go test runs the functions in a _test.go file named Test followed by a capital letter, taking a *testing.T - and no others. A " +
+            "function named testAdd or checkAdd is never run.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong, and go vet says nothing.",
+            "Name it Test and a capital letter: TestAdd.",
+            """
+            package adder
+
+            import "testing"
+
+            func Add(first, second int) int {
+            	return first + second
+            }
+
+            func TestAdd(t *testing.T) {
+            	if Add(5, 2) != 7 {
+            		t.Errorf("Add(5, 2) = %d", Add(5, 2))
+            	}
+            }
+            """),
     ];
 }

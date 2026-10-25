@@ -44,7 +44,102 @@ public static partial class PythonReviewPatterns
         Pattern("logic-python-type-comparison", TypeComparison, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-python-range-len-loop", RangeLenLoop, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-python-file-not-closed", FileNotClosed, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
+        Pattern("logic-python-except-or", ExceptOr, Severity.Error, Confidence.Certain),
+        Pattern("logic-python-main-never-called", MainNeverCalled, Severity.Error),
+        Pattern("logic-python-or-before-in", OrBeforeIn, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>"a" or "e" in word</c> - two or more pieces of text joined with or, then in and what they are looked for in.</summary>
+    [GeneratedRegex(@"(?<![\w.])(?<texts>(?:""[^""]*""|'[^']*')(?:\s+or\s+(?:""[^""]*""|'[^']*'))+)\s+(?<negated>not\s+)?in\s+(?<container>[A-Za-z_][\w.]*(?:\[[^\[\]]*\]|\(\))?)")]
+    private static partial Regex OrBeforeInRegex();
+
+    /// <summary>
+    /// <c>if "a" or "e" in word:</c>: or is worked out last, so this is "a" or ("e" in word) - and "a", text that is not empty,
+    /// counts as true by itself, so the condition is always true: "sky" was said to have a vowel. The change looks each one
+    /// up in turn.
+    /// </summary>
+    private static IEnumerable<LogicFinding> OrBeforeIn(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var i = 0; i < masked.Count; i++)
+        {
+            foreach (Match match in OrBeforeInRegex().Matches(source.Lines[i]))
+            {
+                // Read from the line as written, as masking blanks text; the match must start in code, not inside text or a comment.
+                if (match.Index >= masked[i].Length || masked[i][match.Index] is not ('"' or '\'')) continue;
+
+                var texts = Regex.Split(match.Groups["texts"].Value, @"\s+or\s+");
+                var container = match.Groups["container"].Value;
+                var negated = match.Groups["negated"].Success;
+                var line = source.Lines[i];
+                var each = string.Join(negated ? " and " : " or ", texts.Select(text => $"{text}{(negated ? " not" : "")} in {container}"));
+
+                yield return new LogicFinding(id, i + 1,
+                    $"or is worked out last, so this is {texts[0]} or ({string.Join(" or ", texts[1..])}{(negated ? " not" : "")} in {container}) - and " +
+                    $"{texts[0]}, text that is not empty, counts as true by itself, so the condition is true whatever {container} holds",
+                    Replace(id, $"Look each one up: {each}",
+                        $"in looks up one value at a time, so each piece of text gets an in {container} of its own.",
+                        source, i + 1, line[..match.Index] + each + line[(match.Index + match.Length)..]));
+            }
+        }
+    }
+
+    /// <summary><c>except ValueError or TypeError:</c> - two or more kinds of error joined with or, with as and a name or not.</summary>
+    [GeneratedRegex(@"^(?<indent>\s*)except\s+(?<kinds>[A-Z]\w*(?:\.\w+)*(?:\s+or\s+[A-Z]\w*(?:\.\w+)*)+)\s*(?<name>as\s+[A-Za-z_]\w*\s*)?:(?<rest>.*)$")]
+    private static partial Regex ExceptOrRegex();
+
+    /// <summary>
+    /// <c>except ValueError or TypeError:</c>: <c>ValueError or TypeError</c> is worked out first, as a value - or gives back the
+    /// first of the two that counts as true, and every kind of error does - so the except catches ValueError alone, and a
+    /// TypeError stopped the program. The change gives the kinds in brackets, which catches each.
+    /// </summary>
+    private static IEnumerable<LogicFinding> ExceptOr(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var i = 0; i < masked.Count; i++)
+        {
+            if (ExceptOrRegex().Match(masked[i]) is not { Success: true } except) continue;
+
+            var kinds = Regex.Split(except.Groups["kinds"].Value, @"\s+or\s+");
+            var name = except.Groups["name"].Value.TrimEnd();
+            var line = source.Lines[i];
+            var caught = $"({string.Join(", ", kinds)})";
+
+            yield return new LogicFinding(id, i + 1,
+                $"`{except.Groups["kinds"].Value}` is worked out first, as a value, and or gives back the first that counts as true - {kinds[0]} - " +
+                $"so the except catches {kinds[0]} alone, and {Listed(kinds[1..])} {(kinds.Length > 2 ? "are" : "is")} not caught",
+                Replace(id, $"Catch each kind: except {caught}",
+                    "except catches every kind of error in a bracketed list, so each of them is caught.",
+                    source, i + 1, $"{except.Groups["indent"].Value}except {caught}{(name.Length > 0 ? " " + name : "")}:{line[(except.Groups["rest"].Index)..]}"));
+        }
+    }
+
+    private static string Listed(IReadOnlyList<string> items) =>
+        items.Count == 1 ? items[0] : string.Join(", ", items.Take(items.Count - 1)) + " and " + items[^1];
+
+    [GeneratedRegex(@"^def\s+main\s*\(\s*\)\s*(?:->\s*[^:]+)?:")]
+    private static partial Regex MainDefined();
+
+    /// <summary>
+    /// A file that defines main() and never calls it: a def only makes the function, so the program runs to its end having
+    /// done nothing - it printed nothing at all. Left alone wherever main is called - on a line of its own, under
+    /// if __name__ == "__main__":, or anywhere outside main itself. The change calls it at the end of the file, under
+    /// if __name__ == "__main__":, which is true when the file is the one run.
+    /// </summary>
+    private static IEnumerable<LogicFinding> MainNeverCalled(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var defined = Enumerable.Range(0, masked.Count).FirstOrDefault(i => MainDefined().IsMatch(masked[i]), -1);
+        if (defined < 0) yield break;
+
+        var (first, end) = Body(masked, defined);
+        var called = Enumerable.Range(0, masked.Count).Any(i => (i < first || i >= end) && i != defined && Regex.IsMatch(masked[i], @"(?<![\w.])main\s*\("));
+        if (called) yield break;
+
+        yield return new LogicFinding(id, defined + 1,
+            "main is made here and never called - a def only makes a function, and nothing runs it - so the program ends having done nothing",
+            LocalFix.Insert(id, "Call main at the end: if __name__ == \"__main__\": main()",
+                "Python runs a file from top to bottom, and a def only makes the function. Calling main at the end runs it; under " +
+                "if __name__ == \"__main__\": it runs when the file is the one run, and not when another file imports it.",
+                source.Path, source.Count + 1, ["", "", "if __name__ == \"__main__\":", "    main()"]));
+    }
 
     private static LocalFix Replace(string id, string title, string explanation, SourceFile source, int line, string text) =>
         LocalFix.ReplaceLine(id, title, explanation, source.Path, line, text);

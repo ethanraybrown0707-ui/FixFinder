@@ -38,6 +38,8 @@ public static partial class CLikeReviewPatterns
         Pattern("logic-java-misspelt-override", Java, MisspeltObjectMethod),
         Pattern("logic-java-equals-overload", Java, EqualsOverload),
         Pattern("logic-java-chars-added", Java, CharsAdded),
+        Pattern("logic-csharp-chars-added", CSharp, CSharpCharsAdded, Severity.Error, Confidence.Certain),
+        Pattern("logic-java-boolean-assigned-in-condition", Java, BooleanAssignedInCondition, Severity.Error, Confidence.Certain),
         Pattern("logic-string-built-in-loop", Managed, StringBuiltInLoop, Severity.Suggestion, Confidence.Possible, FindingKind.Style),
         Pattern("logic-csharp-async-void", CSharp, AsyncVoid),
         Pattern("logic-csharp-property-calls-itself", CSharp, PropertyCallsItself, Severity.Error, Confidence.Certain),
@@ -542,6 +544,83 @@ public static partial class CLikeReviewPatterns
                     "A `char` is a number underneath - 'A' is 65 - and `+` between two of them adds the numbers. Starting the expression with a " +
                     "string makes every `+` after it join text instead.",
                     source, i + 1, line[..at] + "\"\" + " + line[at..]));
+        }
+    }
+
+    /// <summary>
+    /// <c>Console.WriteLine(grade + 1)</c> or <c>Console.WriteLine('a' + 'b')</c> - a char added to a char or a whole number, as
+    /// all Console.Write or WriteLine is given.
+    /// </summary>
+    [GeneratedRegex(@"Console\.Write(?:Line)?\(\s*(?<sum>(?<a>[A-Za-z_]\w*|'[^']*')\s*\+\s*(?<b>[A-Za-z_]\w*|'[^']*'|\d+))\s*\)")]
+    private static partial Regex CharSumPrinted();
+
+    /// <summary>
+    /// A char added to a char or a whole number in C#: a char is a number underneath, so the sum is a number - grade + 1
+    /// printed 66 for 'A', and 'a' + 'b' printed 195. A char and a whole number were meant as the letter that many places on,
+    /// so the change makes the sum a char again; two chars were meant joined, so the change starts from text.
+    /// </summary>
+    private static IEnumerable<LogicFinding> CSharpCharsAdded(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        // Every name a char declaration makes - char first = 'a', second = 'b'; - and a char parameter.
+        var chars = masked.SelectMany(l => Regex.Matches(l, @"\bchar\s+(?<names>[^;()]+?)\s*[;)]"))
+            .SelectMany(m => m.Groups["names"].Value.Split(','))
+            .Select(part => Regex.Match(part.Trim(), @"^(?<name>[A-Za-z_]\w*)").Groups["name"].Value)
+            .Where(name => name.Length > 0)
+            .ToHashSet();
+
+        for (var i = 0; i < masked.Count; i++)
+        {
+            if (CharSumPrinted().Match(masked[i]) is not { Success: true } match) continue;
+
+            bool IsChar(Group g) => g.Value.StartsWith('\'') || chars.Contains(g.Value);
+            var number = char.IsDigit(match.Groups["b"].Value[0]);
+            if (!IsChar(match.Groups["a"]) || !(number || IsChar(match.Groups["b"]))) continue;
+
+            var line = source.Lines[i];
+            var sum = match.Groups["sum"];
+            var written = line.Substring(sum.Index, sum.Length);
+            var changed = number ? $"(char)({written})" : $"\"\" + {written}";
+
+            yield return new LogicFinding(id, i + 1,
+                number
+                    ? $"a char is a number underneath - 'A' is 65 - so {written} is a number, and Console prints the number rather than a letter"
+                    : "adding two chars adds their character codes - 'a' + 'b' is 195 - so this prints a number instead of the two letters",
+                Replace(id, number ? $"Make it a char again: {changed}" : "Start from text so + joins them: \"\" + ...",
+                    number
+                        ? $"(char) turns the number back into the character with that code, so {written} prints the letter {match.Groups["b"].Value} places on."
+                        : "Starting the sum with text makes every + after it join text, so the two characters are printed side by side.",
+                    source, i + 1, line[..sum.Index] + changed + line[(sum.Index + sum.Length)..]));
+        }
+    }
+
+    /// <summary><c>if (done = true)</c> or <c>while (found = false)</c> - a name given true or false as a condition.</summary>
+    [GeneratedRegex(@"\b(?:if|while)\s*\(\s*(?<condition>(?<name>[A-Za-z_]\w*)\s*=\s*(?<value>true|false))\s*\)")]
+    private static partial Regex BooleanAssignedAsCondition();
+
+    /// <summary>
+    /// A boolean given true or false as a condition in Java: = gives the value - it does not compare - so the condition is
+    /// that value: if (done = true) always runs, and done is true after it, with nothing said by javac -Xlint:all. The change
+    /// asks for the boolean itself - if (done), or if (!done) for false.
+    /// </summary>
+    private static IEnumerable<LogicFinding> BooleanAssignedInCondition(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var i = 0; i < masked.Count; i++)
+        {
+            foreach (Match match in BooleanAssignedAsCondition().Matches(masked[i]))
+            {
+                var name = match.Groups["name"].Value;
+                var isTrue = match.Groups["value"].Value == "true";
+                var condition = match.Groups["condition"];
+                var asked = isTrue ? name : "!" + name;
+                var line = source.Lines[i];
+
+                yield return new LogicFinding(id, i + 1,
+                    $"= gives {name} the value {match.Groups["value"].Value} - it does not compare - so the condition is that value: it is " +
+                    $"{(isTrue ? "always true" : "always false")}, and {name} is changed",
+                    Replace(id, $"Ask for the boolean itself: ({asked})",
+                        $"{name} is already true or false, so {(isTrue ? name : $"!{name} - not {name} -")} is the condition itself, and nothing is changed.",
+                        source, i + 1, line[..condition.Index] + asked + line[(condition.Index + condition.Length)..]));
+            }
         }
     }
 

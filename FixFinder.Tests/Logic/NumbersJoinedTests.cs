@@ -21,7 +21,7 @@ public class NumbersJoinedPatternTests : IDisposable
     {
         var path = Path.Combine(_temp.Path, fileName);
         File.WriteAllText(path, code);
-        return LogicPatterns.Scan(SourceFile.Read(path)!).Where(finding => finding.PatternId == "logic-numbers-joined-as-text").ToList();
+        return LogicPatterns.Scan(SourceFile.Read(path)!).Where(finding => finding.PatternId.EndsWith("numbers-joined-as-text", StringComparison.Ordinal)).ToList();
     }
 
     [Theory]
@@ -35,12 +35,19 @@ public class NumbersJoinedPatternTests : IDisposable
     [InlineData("main.cs", "int first = 70;\nConsole.WriteLine(\"Total: \" + first + Next());\nstatic int Next() => 1;\n")]
     // The second multiplied: * binds more tightly, and is another sum.
     [InlineData("main.js", "const first = 70;\nconst rate = 2;\nconsole.log(\"Total: \" + first + rate * 2);\n")]
+    // Text in Scala and PowerShell, and a PowerShell number's property, whose value is not known here.
+    [InlineData("main.scala", "@main def run(): Unit =\n  val first = \"Ada\"\n  val last = \"Lovelace\"\n  println(\"Name: \" + first + last)\n")]
+    [InlineData("main.ps1", "$first = \"Ada\"\n$last = \"Lovelace\"\nWrite-Output (\"Name: \" + $first + $last)\n")]
+    [InlineData("main.ps1", "$first = 70\n$marks = @(1, 2)\nWrite-Output (\"Total: \" + $first + $marks.Count)\n")]
     public void JoiningThatMeansWhatItSaysIsLeftAlone(string fileName, string code) => Assert.Empty(Scan(fileName, code));
 
     [Theory]
     [InlineData("Main.java", "public class Main {\n    public static void main(String[] args) {\n        int first = 70;\n        int second = 80;\n        System.out.println(\"Total: \" + first + second);\n    }\n}\n", 5, "        System.out.println(\"Total: \" + (first + second));")]
     [InlineData("main.cs", "int count = 3;\nConsole.WriteLine(\"Next: \" + count + 1);\n", 2, "Console.WriteLine(\"Next: \" + (count + 1));")]
     [InlineData("main.js", "let count = 3;\nconsole.log(\"Next: \" + count + 1);\n", 2, "console.log(\"Next: \" + (count + 1));")]
+    [InlineData("main.scala", "@main def run(): Unit =\n  val first = 70\n  val second: Int = 80\n  println(\"Total: \" + first + second)\n", 4, "  println(\"Total: \" + (first + second))")]
+    [InlineData("main.ps1", "$first = 70\n$second = 80\nWrite-Output (\"Total: \" + $first + $second)\n", 3, "Write-Output (\"Total: \" + ($first + $second))")]
+    [InlineData("main.ps1", "[int]$count = 3\nWrite-Output (\"Next: \" + $count + 1)\n", 2, "Write-Output (\"Next: \" + ($count + 1))")]
     public void TextThenTwoNumbersIsFoundAndTheNumbersAreAddedFirst(string fileName, string code, int line, string changedTo)
     {
         var found = Assert.Single(Scan(fileName, code));
@@ -69,6 +76,8 @@ public class NumbersJoinedLiveTests(ITestOutputHelper output) : IDisposable
         { "C#", "main.cs", "int count = 3;\nConsole.WriteLine(\"Next: \" + count + 1);\n", 2, "Next: 31", "Next: 4" },
         { "JavaScript", "main.js", "const first = 70;\nconst second = 80;\nconsole.log(\"Total: \" + first + second);\n", 3, "Total: 7080", "Total: 150" },
         { "TypeScript", "main.ts", "const first: number = 70;\nconst second: number = 80;\nconsole.log(\"Total: \" + first + second);\n", 3, "Total: 7080", "Total: 150" },
+        { "Scala", "main.scala", "@main def run(): Unit =\n  val first = 70\n  val second = 80\n  println(\"Total: \" + first + second)\n", 4, "Total: 7080", "Total: 150" },
+        { "PowerShell", "main.ps1", "$first = 70\n$second = 80\nWrite-Output (\"Total: \" + $first + $second)\n", 3, "Total: 7080", "Total: 150" },
     };
 
     [Theory]
@@ -79,7 +88,7 @@ public class NumbersJoinedLiveTests(ITestOutputHelper output) : IDisposable
         File.WriteAllText(path, code);
 
         var language = CodeLanguage.All.Single(each => each.Name == languageName);
-        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId == "logic-numbers-joined-as-text");
+        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId.EndsWith("numbers-joined-as-text", StringComparison.Ordinal));
         Assert.Equal(line, found.Line);
 
         var lines = code.TrimEnd('\n').Split('\n').ToList();

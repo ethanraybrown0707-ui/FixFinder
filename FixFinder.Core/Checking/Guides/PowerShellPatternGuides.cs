@@ -137,5 +137,198 @@ internal static class PowerShellPatternGuides
             $marks[0] = 100
             Write-Output $backup[0]
             """),
+
+        GuideFor(["logic-powershell-format-code-printed"], "A %d code that Write-Host does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Write-Host writes each thing it is " +
+            "given with a space between, and Write-Output each on a line of its own - neither fills %d in. PowerShell's own places " +
+            "for values are {0}, {1} and on, and -f fills them in.",
+            "The output shows the code as it is, with the value after it or below it, and PowerShell says nothing of it.",
+            "Write {0} where the value goes, and fill it in with -f: Write-Host (\"Total: {0}\" -f $total).",
+            """
+            $total = 150
+            Write-Host ("Total: {0}" -f $total)
+            """),
+
+        GuideFor(["logic-powershell-foreach-copy-changed"], "A loop that changes its own copy",
+            "foreach gives each item of the array to the loop's variable as a copy of its own. Giving the variable a new value - " +
+            "$mark += 5 - changes that copy, not the item in the array, so after the loop the array is just as it was.",
+            "The array is unchanged, with no error, so whatever reads it next works with the old values.",
+            "Loop over the positions and change the item at each: for ($index = 0; $index -lt $marks.Count; $index++), then " +
+            "$marks[$index] += 5.",
+            """
+            $marks = @(70, 80, 90)
+            for ($index = 0; $index -lt $marks.Count; $index++) {
+                $marks[$index] += 5
+            }
+            Write-Output ($marks -join " ")
+            """),
+
+        GuideFor(["logic-powershell-numbers-joined-as-text"], "Numbers joined to text instead of added",
+            "+ works from left to right. \"Total: \" + $first comes first, and gives text - so the + after it joins $second to that " +
+            "text, rather than adding it to $first. With 70 and 80 the line prints Total: 7080.",
+            "The numbers are written side by side, not added, and PowerShell says nothing of it.",
+            "Put brackets round the numbers, so they are added first: \"Total: \" + ($first + $second).",
+            """
+            $first = 70
+            $second = 80
+            Write-Output ("Total: " + ($first + $second))
+            """),
+
+        GuideFor(["logic-powershell-plus-outside-brackets"], "A + given to Write-Host as a word",
+            "Write-Host and Write-Output take each word after them as a thing to write - and a + standing on its own is a word too. " +
+            "So Write-Host \"Total: \" + $total writes three things, with a space between: Total:  + 150. Write-Output writes each " +
+            "on a line of its own.",
+            "The output shows the + and the parts side by side rather than joined, and PowerShell says nothing of it.",
+            "Put the sum in brackets, so it is worked out first and written as one value: Write-Host (\"Total: \" + $total).",
+            """
+            $total = 150
+            Write-Host ("Total: " + $total)
+            """),
+
+        GuideFor(["logic-powershell-arguments-with-commas"], "A function's values separated by commas",
+            "In PowerShell a comma makes a list. So Get-Area 3, 4 gives the function one value - the list 3, 4 - for its first " +
+            "parameter, and nothing for its second. A function's values are separated by spaces, as a command's are.",
+            "The function works with the wrong values - Get-Area 3, 4 gave back nothing at all - and PowerShell says nothing of it.",
+            "Separate the values with spaces: Get-Area 3 4.",
+            """
+            function Get-Area($width, $height) {
+                return $width * $height
+            }
+            Write-Output (Get-Area 3 4)
+            """),
+
+        GuideFor(["logic-powershell-plus-equals-reversed"], "=+ where += was meant",
+            "$total =+ $mark is read as $total = +$mark: the = gives $total a new value, and the + is only a plus sign in front of $mark. " +
+            "So $total becomes $mark itself, and what it held is lost. += adds to what is already there - and =- the same way gives " +
+            "$total -$mark, where -= takes away.",
+            "A running total ends as the last value given - 10, not 15, for 5 and 10 - and PowerShell says nothing.",
+            "Write += to add, or -= to take away: $total += $mark",
+            """
+            $total = 0
+            foreach ($mark in 5, 10) {
+                $total += $mark
+            }
+            Write-Output $total
+            """),
+
+        GuideFor(["logic-powershell-odd-test-negative"], "An odd number looked for with % 2 -eq 1",
+            "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
+            "$n % 2 -eq 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",
+            "The script is right until it meets a negative odd number, which it treats as even, with no error.",
+            "Ask whether anything is left over: $n % 2 -ne 0 is true for every odd number, negative or not.",
+            """
+            $n = -3
+            if ($n % 2 -ne 0) {
+                Write-Output "odd"
+            }
+            """),
+
+        GuideFor(["logic-powershell-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows, so they are printed as they are.",
+            "The date is written wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: Get-Date -Format \"yyyy-MM-dd\".",
+            """
+            $whenever = Get-Date -Year 2024 -Month 2 -Day 5 -Hour 9 -Minute 30
+            Write-Output (Get-Date $whenever -Format "yyyy-MM-dd")
+            """),
+
+        GuideFor(["logic-powershell-misspelt-name"], "A misspelt name given a value",
+            "In PowerShell, giving a value to a variable makes it if it does not exist yet. So $totl = $total + $mark, with $total " +
+            "misspelt, makes a new variable called $totl, and $total never changes. (Names are the same whatever their case: $Total " +
+            "and $total are one variable.)",
+            "The variable that was meant keeps its old value - a total stays 0 - with nothing said.",
+            "Give the value to the name that was meant: $total = $total + $mark",
+            """
+            $total = 0
+            foreach ($mark in 5, 10, 20) {
+                $total = $total + $mark
+            }
+            Write-Output $total
+            """),
+
+        GuideFor(["logic-powershell-contains-on-text"], "-contains used to look inside text",
+            "-contains asks whether a list has a value as one of its items. Text is not a list of words or letters - it is one item - so " +
+            "\"hello world\" -contains \"world\" is False: the whole text is not \"world\".",
+            "The test is False for text that does have the word in it, with no error.",
+            "Look inside text with -like and * either side: $sentence -like \"*world*\" - or $sentence.Contains(\"world\"), which matches case.",
+            """
+            $sentence = "hello world"
+            Write-Output ($sentence -like "*world*")
+            """),
+
+        GuideFor(["logic-powershell-null-on-the-right"], "$value -eq $null with the array on the left",
+            "When the left of -eq is an array, -eq does not compare the array: it gives back the items equal to the right. So $items -eq " +
+            "$null gives a list of the items that are $null, and if takes that list as true or false by what is in it: @(1, 2, $null, " +
+            "$null) -eq $null is true - a list of two items counts as true - and @(0, $null) -ne $null is false, as its list holds only 0.",
+            "The test answers a different question, with no error.",
+            "Put $null on the left: $null -eq $items compares $null with the whole value.",
+            """
+            $items = @(1, 2, $null, $null)
+            if ($null -eq $items) {
+                Write-Output "null"
+            } else {
+                Write-Output "not null"
+            }
+            """),
+
+        GuideFor(["logic-powershell-read-host-added"], "Answers from Read-Host added with +",
+            "Read-Host gives back text, even when a number is typed, and + with text on its left joins text. So two answers, 3 and 4, " +
+            "added are \"34\".",
+            "The sum is the two numbers written side by side, with no error.",
+            "Read the answer as a number: $first = [int](Read-Host \"First\").",
+            """
+            $first = [int]"3"
+            $second = [int]"4"
+            Write-Output ($first + $second)
+            """),
+
+        GuideFor(["logic-powershell-branch-never-reached"], "An elseif that can never run",
+            "An if - elseif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "$score -ge 50 before $score -ge 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and PowerShell says nothing.",
+            "Put the strictest test first: $score -ge 70, then $score -ge 50.",
+            """
+            $score = 75
+            if ($score -ge 70) {
+                Write-Output "B"
+            } elseif ($score -ge 50) {
+                Write-Output "C"
+            } else {
+                Write-Output "F"
+            }
+            """),
+
+        GuideFor(["logic-powershell-code-after-return"], "Code after return",
+            "return leaves the function there and then - and break, continue, exit and throw leave the same way. A line straight after " +
+            "one of them, in the same block, is never reached.",
+            "That line never runs, so no run of the script can test it, and PowerShell says nothing.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            function Get-Total($marks) {
+                Write-Host "counted"
+                return $marks.Count
+            }
+
+            Get-Total @(1, 2)
+            """),
+
+        GuideFor(["logic-powershell-defined-twice"], "A function defined twice",
+            "function gives a name its function when that line runs, so a second function with the same name - in any case - replaces " +
+            "the first. When nothing calls the first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested - Get-Area 3 used the second, and gave 0 - and PowerShell says nothing.",
+            "Give the two functions different names: Get-SquareArea and Get-RectangleArea.",
+            """
+            function Get-SquareArea($side) {
+                $side * $side
+            }
+
+            function Get-RectangleArea($width, $height) {
+                $width * $height
+            }
+
+            Get-SquareArea 3
+            Get-RectangleArea 3 4
+            """),
     ];
 }

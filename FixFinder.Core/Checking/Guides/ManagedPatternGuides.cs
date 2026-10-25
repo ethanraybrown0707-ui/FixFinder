@@ -261,5 +261,266 @@ internal static class ManagedPatternGuides
             marks[0] = 100;
             Console.WriteLine(backup[0]);
             """),
+
+        GuideFor(["logic-csharp-format-code-printed"], "A %d code that Console.WriteLine does not fill in",
+            "%d and %s are codes from C's printf. Console.WriteLine fills in {0}, {1} and on with the values after the text - not " +
+            "%d - so Console.WriteLine(\"Total: %d\", total) prints Total: %d, and the total is never printed at all.",
+            "The value is missing from the output, with no error or warning.",
+            "Write {0} where the value goes - Console.WriteLine(\"Total: {0}\", total) - or put the value into the text with $: " +
+            "$\"Total: {total}\".",
+            """
+            int total = 150;
+            Console.WriteLine($"Total: {total}");
+            """),
+
+        GuideFor(["logic-csharp-array-equals"], "Two arrays compared with Equals or ==",
+            "An array's Equals is the same as ==: both ask whether two names are the very same array, not whether two arrays " +
+            "hold the same items. Two arrays made separately are never the same array, so they are never equal, even with the " +
+            "same items in the same order.",
+            "The comparison is false for arrays that hold the same items, with no error or warning.",
+            "Compare the items with SequenceEqual, from System.Linq: first.SequenceEqual(second).",
+            """
+            using System.Linq;
+
+            int[] first = { 70, 80 };
+            int[] second = { 70, 80 };
+            Console.WriteLine(first.SequenceEqual(second));
+            """),
+
+        GuideFor(["logic-csharp-chars-added"], "A char added to a number or a char",
+            "A char is a number underneath - each character has a code, and 'A' is 65. Adding a whole number or another char to it " +
+            "adds the codes and gives a number, so grade + 1 is 66, not 'B', and 'a' + 'b' is 195, not \"ab\". Console prints " +
+            "that number.",
+            "A number is printed where a letter or two letters were meant, with no error or warning.",
+            "Turn the sum back into a character with (char)(grade + 1), or start from text to join two characters: \"\" + 'a' + 'b'.",
+            """
+            char grade = 'A';
+            Console.WriteLine((char)(grade + 1));
+            """),
+
+        GuideFor(["logic-java-date-pattern-letters"], "A date pattern with the wrong letters",
+            "In the patterns DateTimeFormatter.ofPattern and SimpleDateFormat take, the case of each letter matters: yyyy is the year, " +
+            "but YYYY is the year the week belongs to - 30 December 2024 is in the first week of 2025, so it prints 2025; dd is the day " +
+            "of the month, but DD is the day of the year - 5 February is 36; and MM is the month, but mm is the minutes.",
+            "The date is printed wrongly with no error - and for YYYY only in the last days of December, so it can pass every test and " +
+            "go wrong later.",
+            "Use yyyy for the year, MM for the month and dd for the day: DateTimeFormatter.ofPattern(\"yyyy-MM-dd\").",
+            """
+            import java.time.LocalDate;
+            import java.time.format.DateTimeFormatter;
+
+            public class Main {
+                public static void main(String[] args) {
+                    LocalDate date = LocalDate.of(2024, 12, 30);
+                    System.out.println(date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-date-format-letters"], "A date format with the wrong letters",
+            "In a date's format, the case of each letter matters: MM is the month, but mm is the minutes - so 9:30 on 5 February 2024 " +
+            "with \"yyyy-mm-dd\" gives 2024-30-05. YYYY and DD are not letters a date's format knows at all, so they are printed as they " +
+            "are: \"YYYY-MM-DD\" gives YYYY-02-DD.",
+            "The date is printed wrongly, with no error.",
+            "Use yyyy for the year, MM for the month and dd for the day: when.ToString(\"yyyy-MM-dd\").",
+            """
+            var when = new DateTime(2024, 2, 5, 9, 30, 0);
+            Console.WriteLine(when.ToString("yyyy-MM-dd"));
+            """),
+
+        GuideFor(["logic-java-thread-run"], "run() called on a Thread",
+            "A Thread is started with start(), which runs its work on a new thread, alongside the code that started it. run() is only the " +
+            "method that holds the work: calling it runs the work there and then, on the thread that called it, like any other method - " +
+            "so nothing runs alongside, and the program waits for it.",
+            "The program does its work one piece at a time where it was meant to do them together, with no error - the worker printed that " +
+            "it ran on main.",
+            "Start the thread: worker.start().",
+            """
+            public class Main {
+                public static void main(String[] args) throws InterruptedException {
+                    Thread worker = new Thread(() -> System.out.println("working"));
+                    worker.start();
+                    worker.join();
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-bigdecimal-from-double"], "A BigDecimal made from a double",
+            "A double holds most decimals only nearly: 0.1 is stored as 0.1000000000000000055511151231257827021181583404541015625. " +
+            "new BigDecimal(0.1) is given that double, and holds every digit of it - so the BigDecimal, used to keep money exact, starts with " +
+            "the error in it.",
+            "Sums that should come out exact are off in their last digits, and comparisons with equals fail.",
+            "Make it from text: new BigDecimal(\"0.1\") - or, from a double you already have, BigDecimal.valueOf(price).",
+            """
+            import java.math.BigDecimal;
+
+            public class Main {
+                public static void main(String[] args) {
+                    BigDecimal price = new BigDecimal("0.1");
+                    System.out.println(price.add(new BigDecimal("0.2")));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-aslist-of-primitive-array"], "Arrays.asList of an int[]",
+            "Arrays.asList makes a list of objects. An int[] - or any array of a primitive type - is itself one object, so " +
+            "Arrays.asList(marks) is a list with one item, the whole array, not a list of its numbers.",
+            "The list's size is 1, and contains, indexOf and the rest find none of the numbers, with no error.",
+            "Make a list of the numbers: Arrays.stream(marks).boxed().collect(Collectors.toList()) - or declare the array as Integer[].",
+            """
+            import java.util.Arrays;
+            import java.util.List;
+            import java.util.stream.Collectors;
+
+            public class Main {
+                public static void main(String[] args) {
+                    int[] marks = {70, 80, 90};
+                    List<Integer> listed = Arrays.stream(marks).boxed().collect(Collectors.toList());
+                    System.out.println(listed.contains(80));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-abs-of-hash"], "Math.abs of a hashCode, then %",
+            "Math.abs makes a number positive - except the smallest int, -2147483648, whose positive is too big for an int, so Math.abs " +
+            "gives it back as it is. A hashCode can be that number - \"polygenelubricants\".hashCode() is - and so can nextInt(). " +
+            "Math.abs(key.hashCode()) % 10 is then negative: -8.",
+            "Used as a position in an array of buckets, the negative number stops the program - for only the rare keys that hash to it.",
+            "Take a remainder that is never negative: Math.floorMod(key.hashCode(), 10).",
+            """
+            public class Main {
+                public static void main(String[] args) {
+                    String key = "polygenelubricants";
+                    System.out.println(Math.floorMod(key.hashCode(), 10));
+                }
+            }
+            """),
+
+        GuideFor(["logic-csharp-for-closure"], "A lambda made in a for loop uses the loop's counter",
+            "A for loop has one counter for all its passes. A lambda that uses it keeps that one variable, not its value when the lambda " +
+            "was made - so lambdas run after the loop all see the value that ended it: three lambdas made with i at 0, 1 and 2 all " +
+            "printed 3. (A foreach gives each pass its own variable, and has no such trouble.)",
+            "Every lambda does the same thing, with the last value, and the compiler says nothing.",
+            "Copy the counter into a variable declared inside the loop, and use that: var current = i;",
+            """
+            var actions = new List<Action>();
+            for (int i = 0; i < 3; i++)
+            {
+                var current = i;
+                actions.Add(() => Console.Write(current));
+            }
+            foreach (var action in actions) action();
+            """),
+
+        GuideFor(["logic-csharp-task-printed"], "An async method's result used without await",
+            "An async method gives back a Task: a promise of its value, finished later. Called without await, what you get is that Task, " +
+            "not the value - so printing it prints the Task's type name, and using it as a number does not compile.",
+            "The program prints the Task's type where it meant the value, and the compiler says nothing when the Task is kept in a variable.",
+            "Wait for the value with await: var count = await CountAsync();",
+            """
+            var count = await CountAsync();
+            Console.WriteLine(count);
+
+            static async Task<int> CountAsync()
+            {
+                await Task.Delay(1);
+                return 3;
+            }
+            """),
+
+        GuideFor(["logic-java-test-missing-annotation"], "A test method without @Test",
+            "JUnit runs the methods marked @Test - and no others. A method that asserts, without @Test above it, is an ordinary method " +
+            "nothing calls.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - JUnit found 3 tests of 8 - and javac says nothing.",
+            "Mark it with @Test.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-test-not-run-shape"], "A @Test method JUnit cannot run",
+            "JUnit 5 runs a @Test method only when it is not private, not static, and gives back nothing. One that is private or static, " +
+            "or gives back a value, is passed over - and JUnit says nothing of it.",
+            "The test never runs, so what it checks is never checked - JUnit found 3 tests of 8.",
+            "Make it void, and neither private nor static: @Test void addsTwoNumbers().",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-setup-not-annotated"], "setUp without @BeforeEach",
+            "JUnit 5 calls a method before each test only when it is marked @BeforeEach - and after each when marked @AfterEach. A name " +
+            "such as setUp, which JUnit 3 went by, means nothing to it: the method is never called.",
+            "What it was meant to set up is never there, so the tests that use it stop with NullPointerException, which does not say why.",
+            "Mark it with @BeforeEach - or @AfterEach for tearDown.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import java.util.ArrayList;
+            import java.util.List;
+            import org.junit.jupiter.api.BeforeEach;
+            import org.junit.jupiter.api.Test;
+
+            class ListTest {
+                private List<Integer> numbers;
+
+                @BeforeEach
+                void setUp() {
+                    numbers = new ArrayList<>();
+                }
+
+                @Test
+                void addsOne() {
+                    numbers.add(1);
+                    assertEquals(1, numbers.size());
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-assertion-swallowed"], "An assertion caught in a test",
+            "A failed assertion throws AssertionError - AssertionFailedError in JUnit 5 - and that is how JUnit knows a test failed. Inside " +
+            "a try whose catch takes AssertionError, Error or Throwable, the failure is caught, and the test carries on and passes.",
+            "The test can never fail, so it passes whether the code is right or wrong.",
+            "Take the assertion out of the try - or, if the try is there for something else, catch only that exception.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
     ];
 }

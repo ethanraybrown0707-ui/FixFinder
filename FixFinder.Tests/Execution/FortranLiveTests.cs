@@ -123,6 +123,7 @@ public class FortranLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData(Head + "  integer, parameter :: pass_mark = 40\n  pass_mark = 50\n  print *, pass_mark\nend program marks\n", "fortran-parameter-changed", 4, 3, "  integer :: pass_mark = 40", "50")]
     [InlineData(Head + "  print *, \"hello\nend program marks\n", "fortran-close-text", 3, 3, "  print *, \"hello\"", "hello")]
     [InlineData(Head + "  print *, (1 + 2\nend program marks\n", "fortran-close-bracket", 3, 3, "  print *, (1 + 2)", "3")]
+    [InlineData(Head + "  integer :: total\n  total = 150\n  print *, \"Total: \" // total\nend program marks\n", "fortran-concatenate-number", 5, 5, "  print *, \"Total: \", total", "Total:          150")]
     // gfortran names no line for a file that ends with no end line: the finding is where the change goes, after the last line.
     [InlineData(Head + "  print *, 70\n", "fortran-close-units", 4, 4, "end program marks", "70")]
     public async Task WhatGfortranRefusesIsFoundBeforeItRunsAndItsChangeBuildsAndRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
@@ -194,6 +195,7 @@ public class FortranLiveTests(ITestOutputHelper output) : IDisposable
     [InlineData("program marks\n  integer :: total\n  total = 10\n  print *, total + 1\nend program marks\n", "logic-fortran-no-implicit-none", 1, "11")]
     [InlineData(Head + "  integer :: total, i\n  do i = 1, 3\n    total = total + i\n  end do\n  print *, total\nend program marks\n", "logic-fortran-total-not-started", 5, "6")]
     [InlineData(Head + "  double precision :: total\n  total = 0.1d0 + 0.2d0\n  if (total == 0.3d0) then\n    print *, 'equal'\n  else\n    print *, 'not equal'\n  end if\nend program marks\n", "logic-fortran-float-equality", 5, "equal")]
+    [InlineData(Head + "  integer :: score, total\n  score = 45\n  total = 60\n  print *, score / total * 100\nend program marks\n", "logic-fortran-percent-divided-first", 6, "75")]
     public async Task ALogicMistakeGfortranSaysNothingOfIsFoundAndItsChangePrintsTheRightAnswer(string code, string check, int line, string fixedPrints)
     {
         if (Gfortran() is not { } gfortran) return;

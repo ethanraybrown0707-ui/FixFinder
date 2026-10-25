@@ -117,5 +117,110 @@ internal static class LuaPatternGuides
             end
             print(count)
             """),
+
+        GuideFor(["logic-lua-format-code-printed"], "A %d code that print does not fill in",
+            "%d and %s are codes from C's printf: each marks where a value goes in the text. Lua's print writes each thing it is " +
+            "given with a tab between, and io.write side by side - neither fills anything in - so print(\"Total: %d\", total) prints " +
+            "Total: %d, then a tab and 150.",
+            "The output shows the code as it is, with the value after it, and neither luac -p nor Lua says anything of it.",
+            "Fill the text in with string.format first: print(string.format(\"Total: %d\", total)).",
+            """
+            local total = 150
+            print(string.format("Total: %d", total))
+            """),
+
+        GuideFor(["logic-lua-pattern-character-as-text"], "A . in a Lua pattern",
+            "string.gsub, find, match and gmatch read their second value as a pattern, where some characters have a meaning of their " +
+            "own: . means any character at all. So text:gsub(\".\", \",\") replaces every character - \"3.14\" becomes \",,,,\" - and " +
+            "find(\".\") finds the first character, whatever it is.",
+            "The text is changed or searched in the wrong places, and neither luac -p nor Lua says anything of it.",
+            "Put % before it - \"%.\" is a full stop itself in a pattern - or give find true after the starting position, to look " +
+            "for the text as it is.",
+            """
+            local text = "3.14"
+            local changed = text:gsub("%.", ",")
+            print(changed)
+            """),
+
+        GuideFor(["logic-lua-zero-is-true"], "A number used as a condition",
+            "In Lua only nil and false are false - every number is true, 0 too. So if n % 2 then is true whatever is left over, and " +
+            "if #items then is true even for an empty table.",
+            "The if always runs and its else never does, with no error: 4 is called odd, and an empty table has items.",
+            "Compare the number with 0: if n % 2 ~= 0 then, or if #items > 0 then.",
+            """
+            local n = 4
+            if n % 2 ~= 0 then
+              print("odd")
+            else
+              print("even")
+            end
+            """),
+
+        GuideFor(["logic-lua-misspelt-name"], "A misspelt name given a value",
+            "In Lua, giving a value to a name that is not a local makes a global variable with that name. So totl = total + mark, with " +
+            "total misspelt, makes a new global called totl, and total never changes.",
+            "The variable that was meant keeps its old value - a total stays 0 - with no error.",
+            "Give the value to the name that was meant: total = total + mark.",
+            """
+            local total = 0
+            for _, mark in ipairs({5, 10, 20}) do
+              total = total + mark
+            end
+            print(total)
+            """),
+
+        GuideFor(["logic-lua-index-divided"], "A position worked out with /",
+            "In Lua, / always gives a float: 3 / 2 is 1.5, and even 4 / 2 is 2.0. A table's items are at whole positions, so " +
+            "marks[#marks / 2] is marks[1.5] for three items - and that is nil.",
+            "The item read is nil whenever the division does not come out whole, with no error.",
+            "Divide with //, which rounds down to a whole number: marks[#marks // 2].",
+            """
+            local marks = {70, 80, 90}
+            print(marks[#marks // 2 + 1])
+            """),
+
+        GuideFor(["logic-lua-branch-never-reached"], "An elseif that can never run",
+            "An if - elseif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
+            "score >= 50 before score >= 70 - the later branch never gets a value.",
+            "That branch never runs, so no input can test it - a score of 75 got C, not B - and Lua says nothing.",
+            "Put the strictest test first: score >= 70, then score >= 50.",
+            """
+            local score = 75
+            if score >= 70 then
+              print("B")
+            elseif score >= 50 then
+              print("C")
+            else
+              print("F")
+            end
+            """),
+
+        GuideFor(["logic-lua-loop-never-runs"], "A count down written as for i = 10, 1",
+            "A numeric for counts up by 1 unless it is given a step: for i = 10, 1 starts at 10, which is already past 1, so it runs no " +
+            "times at all.",
+            "Nothing in the loop ever runs, so it cannot be tested, and Lua says nothing.",
+            "Give it a step of -1: for i = 10, 1, -1 do.",
+            """
+            for count = 3, 1, -1 do
+              print(count)
+            end
+            """),
+
+        GuideFor(["logic-lua-defined-twice"], "A function defined twice",
+            "function gives a name its function when it runs, so a second function with the same name replaces the first. When nothing " +
+            "calls the first in between, it is never called at all.",
+            "The first function never runs, so it cannot be tested, and Lua says nothing.",
+            "Give the two functions different names: area for one side, rectangle_area for two.",
+            """
+            local function area(side)
+              return side * side
+            end
+
+            local function rectangle_area(width, height)
+              return width * height
+            end
+
+            print(area(3), rectangle_area(3, 4))
+            """),
     ];
 }
