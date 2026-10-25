@@ -13,13 +13,18 @@ namespace FixFinder.Core.Logic;
 /// passed, as the 7 is only the message shown on failure; a test whose assertEqual sits in a try with except AssertionError:
 /// pass passed; and so did a test that asserts nothing. Ruby's minitest ran no method without test_ at its start - 1 runs - and
 /// assert add(5, 2), 7 passed, the 7 again the message; Elixir's ExUnit ran no def test_add, only test blocks; and go test ran
-/// no testAdd, only functions whose names start with Test - with nothing from ruby -w, Elixir or go vet. Perl's Test::More
-/// names ok($sum, 7)'s 7 as a test name and says so, Elixir warns of assert result = 7, and erlc warns of an EUnit test_add
-/// that is never used, so they are not here.
+/// no testAdd, only functions whose names start with Test - with nothing from ruby -w, Elixir or go vet. pytest 9.1, even with
+/// -W error, collected no function without test at its start and no class without Test at its start - 2 tests of 4 - and assert
+/// add(5, 2), 7 passed. JUnit 1.11.4 found 3 tests of 8, with nothing from it or javac -Xlint:all: it ran no method that asserts
+/// without @Test, no @Test method that is private, static or gives back a value, and never called a setUp with no @BeforeEach,
+/// whose test stopped with NullPointerException; a test whose assertEquals sits in a try that catches AssertionError passed.
+/// Perl's Test::More passed ok(add(5, 2), 7), only remarking on a test named 7, and EUnit ran no test_add, which erlc calls
+/// unused; those are here too - erlc's warning and the check are one finding. Elixir warns of assert result = 7, which is left to it.
 /// </summary>
 public static partial class TestFrameworkPatterns
 {
     private static readonly IReadOnlySet<string> PythonFiles = CodePattern.Files(".py", ".pyw");
+    private static readonly IReadOnlySet<string> JavaFiles = CodePattern.Files(".java");
 
     public static IReadOnlyList<ILogicPattern> All { get; } =
     [
@@ -33,7 +38,300 @@ public static partial class TestFrameworkPatterns
         new CodePattern("logic-ruby-assert-with-expected", CodePattern.Files(".rb"), Syntax.Python, RubyAssertWithExpected, Severity.Error, Confidence.Likely),
         new CodePattern("logic-elixir-test-never-run", CodePattern.Files(".exs", ".ex"), Syntax.Python, ElixirTestNeverRun, Severity.Error, Confidence.Certain),
         new CodePattern("logic-go-test-never-run", CodePattern.Files(".go"), Syntax.CLike, GoTestNeverRun, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-perl-ok-with-expected", CodePattern.Files(".pl", ".pm", ".t"), Syntax.Perl, PerlOkWithExpected, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-erlang-test-never-run", CodePattern.Files(".erl"), Syntax.Erlang, ErlangTestNeverRun, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-python-pytest-test-never-run", PythonFiles, Syntax.Python, PytestTestNeverRun, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-python-pytest-class-not-collected", PythonFiles, Syntax.Python, PytestClassNotCollected, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-python-assert-with-expected", PythonFiles, Syntax.Python, PythonAssertWithExpected, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-java-test-missing-annotation", JavaFiles, Syntax.CLike, JavaTestMissingAnnotation, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-java-test-not-run-shape", JavaFiles, Syntax.CLike, JavaTestNotRunShape, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-java-setup-not-annotated", JavaFiles, Syntax.CLike, JavaSetUpNotAnnotated, Severity.Error, Confidence.Likely),
+        new CodePattern("logic-java-assertion-swallowed", JavaFiles, Syntax.CLike, JavaAssertionSwallowed, Severity.Error, Confidence.Certain),
     ];
+
+    // ---- pytest ----
+
+    /// <summary>Whether a file is one pytest collects tests from: named test_*.py or *_test.py, or importing pytest.</summary>
+    private static bool PytestFile(SourceFile source, IReadOnlyList<string> masked)
+    {
+        var name = Path.GetFileName(source.Path);
+        return Regex.IsMatch(name, @"^test_.*\.py$|_test\.py$", RegexOptions.IgnoreCase) ||
+               masked.Any(line => Regex.IsMatch(line, @"^\s*(?:import\s+pytest\b|from\s+pytest\s+import\b)"));
+    }
+
+    [GeneratedRegex(@"^def\s+(?<name>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*(?:->\s*[^:]+)?:")]
+    private static partial Regex TopLevelFunction();
+
+    private static IEnumerable<LogicFinding> PytestTestNeverRun(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!PytestFile(source, masked)) yield break;
+        var code = string.Join("\n", masked);
+        // A file of unittest's TestCases is unittest's, and a function there that is not a test is checked as unittest checks it.
+        if (!masked.Any(line => Regex.IsMatch(line, @"^def\s+test\w*\s*\("))) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (TopLevelFunction().Match(masked[index]) is not { Success: true } function) continue;
+            var name = function.Groups["name"].Value;
+            if (name.StartsWith("test", StringComparison.Ordinal) || name.StartsWith('_') || Decorated(masked, index)) continue;
+
+            var body = IndentedBody(masked, index);
+            if (!Enumerable.Range(body.First, body.End - body.First).Any(line => Regex.IsMatch(masked[line], @"^\s*assert\b"))) continue;
+            // A helper the tests call is not a test.
+            if (Regex.Matches(code, $@"(?<![\w.]){Regex.Escape(name)}\b").Count > 1) continue;
+
+            var line = source.Lines[index];
+            var at = function.Groups["name"].Index;
+            yield return new LogicFinding(id, index + 1,
+                $"{name} asserts, but pytest collects only the functions whose names start with test - so it never runs, and what it asserts is " +
+                "never checked: pytest collected 2 tests of 4",
+                LocalFix.ReplaceLine(id, $"Name it as a test: test_{name}",
+                    "pytest collects every function whose name starts with test, and runs it.",
+                    source.Path, index + 1, line[..at] + "test_" + line[at..]));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> PytestClassNotCollected(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!PytestFile(source, masked)) yield break;
+        var classes = PythonClasses(masked);
+        foreach (var type in classes)
+        {
+            if (type.Name.StartsWith("Test", StringComparison.Ordinal) || IsTestCase(type, classes) || (type.Bases.Trim().Length > 0 && type.Bases.Trim() != "object")) continue;
+            // Tests written for pytest: test_ methods with bare asserts.
+            var tests = MethodsOf(masked, type).Count(method => method.Name.StartsWith("test", StringComparison.Ordinal) &&
+                Enumerable.Range(method.Body.First, method.Body.End - method.Body.First).Any(inside => Regex.IsMatch(masked[inside], @"^\s*assert\b")));
+            if (tests == 0) continue;
+
+            var stem = Regex.Replace(type.Name, "Tests?$", "");
+            var collected = "Test" + (stem.Length > 0 ? stem : type.Name);
+            var written = source.Lines[type.Line];
+            var at = written.IndexOf(type.Name, StringComparison.Ordinal);
+            yield return new LogicFinding(id, type.Line + 1,
+                $"pytest collects tests only from classes whose names start with Test, so {type.Name} is never looked in, and its {tests} " +
+                $"test{(tests == 1 ? "" : "s")} never run{(tests == 1 ? "s" : "")}: pytest collected 2 tests of 4",
+                LocalFix.ReplaceLine(id, $"Name it as pytest looks for: {collected}",
+                    "pytest looks in every class whose name starts with Test, and runs its test methods.",
+                    source.Path, type.Line + 1, written[..at] + collected + written[(at + type.Name.Length)..]));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> PythonAssertWithExpected(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            var assertion = Regex.Match(masked[index], @"^(?<indent>\s*)assert\s+(?<rest>.+?)\s*$");
+            if (!assertion.Success || assertion.Groups["rest"].Value.TrimStart().StartsWith('(')) continue;
+
+            var rest = assertion.Groups["rest"];
+            var parts = Arguments("(" + rest.Value + ")", 0, rest.Value.Length + 1);
+            if (parts.Count != 2) continue;
+
+            var line = source.Lines[index];
+            var offset = rest.Index - 1;
+            var value = line[(parts[0].Start + offset)..(parts[0].End + offset)].Trim();
+            var expected = line[(parts[1].Start + offset)..(parts[1].End + offset)].Trim();
+            // A message - text in quotes, an f-string, or text built with % or format - is what the second part is for.
+            if (!Regex.IsMatch(expected, @"^(?:-?\d+(?:\.\d+)?|True|False|None|\[[^\]]*\]|\([^)]*\))$") ||
+                Regex.IsMatch(value, @"==|!=|<|>|\bin\b|\bis\b|\bnot\b|\band\b|\bor\b|^(?:isinstance|callable|all|any|hasattr)\(")) continue;
+
+            yield return new LogicFinding(id, index + 1,
+                $"After the comma comes only the message shown when the assert fails, so assert {value}, {expected} passes whenever {value} is " +
+                $"anything but 0, empty or None - {expected} is never compared: assert add(5, 2), 7 passed with add giving 3",
+                LocalFix.ReplaceLine(id, $"Compare the two: assert {value} == {expected}",
+                    $"== makes the assert fail unless {value} equals {expected}.",
+                    source.Path, index + 1, $"{assertion.Groups["indent"].Value}assert {value} == {expected}"));
+        }
+    }
+
+    // ---- JUnit 5 ----
+
+    /// <summary>Whether a Java file holds JUnit 5's tests: it imports from org.junit.jupiter, and marks a method @Test.</summary>
+    private static bool JupiterTests(IReadOnlyList<string> masked) =>
+        masked.Any(line => Regex.IsMatch(line, @"^\s*import\s+(?:static\s+)?org\.junit\.jupiter\.")) && masked.Any(line => Regex.IsMatch(line, @"^\s*@(?:org\.junit\.jupiter\.api\.)?Test\b"));
+
+    /// <summary>The annotations on the lines above a method's header, back to the first line that is not one.</summary>
+    private static List<string> AnnotationsAbove(IReadOnlyList<string> masked, int header)
+    {
+        var annotations = new List<string>();
+        for (var above = header - 1; above >= 0; above--)
+        {
+            var trimmed = masked[above].Trim();
+            if (trimmed.Length == 0) continue;
+            if (!trimmed.StartsWith('@')) break;
+            annotations.Add(trimmed);
+        }
+        return annotations;
+    }
+
+    [GeneratedRegex(@"^(?<indent>\s*)(?<modifiers>(?:(?:public|protected|private|static|final|synchronized)\s+)*)(?<returns>[\w<>\[\],\s]+?)\s+(?<name>[a-zA-Z_]\w*)\s*\(\s*\)\s*(?:throws\s+[\w.,\s]+)?\{\s*$")]
+    private static partial Regex JavaNoArgumentMethod();
+
+    /// <summary>An annotation as the file can write it: by its own name when the file imports it, or its whole name when not.</summary>
+    private static string Annotation(IReadOnlyList<string> masked, string name) =>
+        masked.Any(line => Regex.IsMatch(line, $@"^\s*import\s+org\.junit\.jupiter\.api\.(?:{name}|\*)\s*;")) ? "@" + name : "@org.junit.jupiter.api." + name;
+
+    private static IEnumerable<LogicFinding> JavaTestMissingAnnotation(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!JupiterTests(masked)) yield break;
+        var code = string.Join("\n", masked);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (JavaNoArgumentMethod().Match(masked[index]) is not { Success: true } method || method.Groups["returns"].Value.Trim() != "void") continue;
+            if (AnnotationsAbove(masked, index).Count > 0 || method.Groups["modifiers"].Value.Contains("static", StringComparison.Ordinal)) continue;
+
+            var name = method.Groups["name"].Value;
+            if (Regex.IsMatch(name, "^(?:setUp|setup|tearDown|teardown|init|before|after|main)$", RegexOptions.IgnoreCase)) continue;
+            if (BraceBlocks.Body(masked, index) is not { } body ||
+                !Enumerable.Range(body.First, body.End - body.First).Any(line => Regex.IsMatch(masked[line], @"\bassert\w*\s*\(|\bfail\s*\("))) continue;
+            if (Regex.Matches(code, $@"\b{Regex.Escape(name)}\s*\(").Count > 1) continue;
+
+            var annotation = Annotation(masked, "Test");
+            yield return new LogicFinding(id, index + 1,
+                $"{name} asserts, but JUnit runs only the methods marked @Test - so it never runs, and what it asserts is never checked: JUnit found 3 " +
+                "tests of 8",
+                LocalFix.Insert(id, $"Mark it as a test: {annotation}",
+                    "JUnit runs every method marked @Test.",
+                    source.Path, index + 1, [method.Groups["indent"].Value + annotation]));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> JavaTestNotRunShape(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!JupiterTests(masked)) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (JavaNoArgumentMethod().Match(masked[index]) is not { Success: true } method) continue;
+            if (!AnnotationsAbove(masked, index).Any(annotation => Regex.IsMatch(annotation, @"^@(?:org\.junit\.jupiter\.api\.)?Test\b"))) continue;
+
+            var modifiers = method.Groups["modifiers"].Value;
+            var returns = method.Groups["returns"].Value.Trim();
+            var reasons = new List<string>();
+            if (Regex.IsMatch(modifiers, @"\bprivate\b")) reasons.Add("is private");
+            if (Regex.IsMatch(modifiers, @"\bstatic\b")) reasons.Add("is static");
+            if (returns != "void") reasons.Add($"gives back {returns}");
+            if (reasons.Count == 0) continue;
+
+            var line = source.Lines[index];
+            var modifiersGroup = method.Groups["modifiers"];
+            var kept = Regex.Replace(modifiersGroup.Value, @"\b(?:private|static)\s+", "");
+            var name = method.Groups["name"].Value;
+            yield return new LogicFinding(id, index + 1,
+                $"JUnit runs a @Test method only when it is not private, not static, and gives back nothing - {name} {string.Join(" and ", reasons)}," +
+                "so it is never run, with nothing said: JUnit found 3 tests of 8",
+                returns != "void" ? null : LocalFix.ReplaceLine(id, $"Make it a method JUnit runs: void {name}()",
+                    "A test method that is neither private nor static is one JUnit can find and call on the test class.",
+                    source.Path, index + 1, line[..modifiersGroup.Index] + kept + line[(modifiersGroup.Index + modifiersGroup.Length)..]));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> JavaSetUpNotAnnotated(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!JupiterTests(masked)) yield break;
+        var code = string.Join("\n", masked);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (JavaNoArgumentMethod().Match(masked[index]) is not { Success: true } method || method.Groups["returns"].Value.Trim() != "void") continue;
+            var name = method.Groups["name"].Value;
+            var tearing = Regex.IsMatch(name, "^(?:tearDown|teardown|cleanUp|cleanup|after)$");
+            if (!tearing && !Regex.IsMatch(name, "^(?:setUp|setup|init|before)$")) continue;
+            if (AnnotationsAbove(masked, index).Count > 0 || method.Groups["modifiers"].Value.Contains("static", StringComparison.Ordinal)) continue;
+            if (Regex.Matches(code, $@"\b{Regex.Escape(name)}\s*\(").Count > 1) continue;
+
+            var annotation = Annotation(masked, tearing ? "AfterEach" : "BeforeEach");
+            yield return new LogicFinding(id, index + 1,
+                $"JUnit calls a method {(tearing ? "after" : "before")} each test only when it is marked {annotation} - a name such as {name} means " +
+                $"nothing to it - so {name} is never called: what it sets up is never there, and a test that uses it stopped with " +
+                "NullPointerException",
+                LocalFix.Insert(id, $"Mark it to run {(tearing ? "after" : "before")} each test: {annotation}",
+                    $"JUnit calls every method marked {annotation} {(tearing ? "after" : "before")} each test.",
+                    source.Path, index + 1, [method.Groups["indent"].Value + annotation]));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> JavaAssertionSwallowed(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!JupiterTests(masked) && !masked.Any(line => Regex.IsMatch(line, @"^\s*import\s+(?:static\s+)?org\.junit\."))) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (!Regex.IsMatch(masked[index], @"^\s*try\s*\{\s*$") || Brackets.FirstBlockEnd(masked, index) is not { } tryEnd) continue;
+            if (!Enumerable.Range(index + 1, tryEnd - index - 1).Any(line => Regex.IsMatch(masked[line], @"\bassert\w*\s*\(|\bfail\s*\("))) continue;
+
+            // A catch that takes a failed assertion - AssertionError, AssertionFailedError, Error, Throwable - and lets it go.
+            var handler = Regex.Match(masked[tryEnd], @"\bcatch\s*\(\s*(?:final\s+)?(?<caught>[\w.|\s]+?)\s+\w+\s*\)\s*\{");
+            if (!handler.Success || !Regex.IsMatch(handler.Groups["caught"].Value, @"\b(?:AssertionError|AssertionFailedError|Error|Throwable)\b")) continue;
+            if (Brackets.FirstBlockEnd(masked, tryEnd) is not { } handlerEnd) continue;
+            if (Enumerable.Range(tryEnd, handlerEnd - tryEnd + 1).Any(line => Regex.IsMatch(masked[line], @"\bthrow\b|\bfail\s*\("))) continue;
+
+            yield return new LogicFinding(id, tryEnd + 1,
+                $"A failed assertion throws {handler.Groups["caught"].Value.Trim()} - and this catch takes it, and does not throw it again - so the test " +
+                "passes whether the assertion holds or not: it can never fail",
+                null);
+        }
+    }
+
+    // ---- Perl's Test::More, and Erlang's EUnit ----
+
+    [GeneratedRegex(@"^(?<indent>\s*)ok(?:\s*\((?<arguments>.+)\)|\s+(?<arguments>[^(].*?))\s*;\s*$")]
+    private static partial Regex PerlOk();
+
+    private static IEnumerable<LogicFinding> PerlOkWithExpected(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        if (!Regex.IsMatch(string.Join("\n", masked), @"\buse\s+Test::(?:More|Simple)\b")) yield break;
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (PerlOk().Match(masked[index]) is not { Success: true } ok) continue;
+
+            var argumentsGroup = ok.Groups["arguments"];
+            var parts = Arguments("(" + argumentsGroup.Value + ")", 0, argumentsGroup.Value.Length + 1);
+            if (parts.Count != 2) continue;
+
+            var line = source.Lines[index];
+            var offset = argumentsGroup.Index - 1;
+            var value = line[(parts[0].Start + offset)..(parts[0].End + offset)].Trim();
+            var expected = line[(parts[1].Start + offset)..(parts[1].End + offset)].Trim();
+            // The name a test is given is text; a number, or a scalar holding one, is the value meant to be compared.
+            if (!Regex.IsMatch(expected, @"^(?:-?\d+(?:\.\d+)?|\$[A-Za-z_]\w*)$") || Regex.IsMatch(value, @"==|!=|\beq\b|\bne\b|[<>]|=~")) continue;
+
+            yield return new LogicFinding(id, index + 1,
+                $"ok's second argument is the test's name, so ok({value}, {expected}) passes whenever {value} is true - {expected} is never compared: " +
+                $"ok(add(5, 2), 7) passed with add giving 3, Test::More only remarking on a test named 7",
+                LocalFix.ReplaceLine(id, $"Compare the two: is({value}, {expected});",
+                    $"is fails unless {value} equals {expected}, and shows both when it does.",
+                    source.Path, index + 1, $"{ok.Groups["indent"].Value}is({value}, {expected});"));
+        }
+    }
+
+    private static IEnumerable<LogicFinding> ErlangTestNeverRun(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        // The include's file name is in quotes, which masking blanks, so it is read from the lines as written.
+        if (!source.Lines.Any(line => Regex.IsMatch(line, @"^\s*-include(?:_lib)?\s*\(\s*""[^""]*eunit\.hrl""\s*\)"))) yield break;
+        var code = string.Join("\n", masked);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            var head = Regex.Match(masked[index], @"^test_(?<name>[a-z]\w*)\s*\(\s*\)\s*->");
+            if (!head.Success) continue;
+
+            var name = head.Groups["name"].Value;
+            var function = "test_" + name;
+            if (Regex.Matches(code, $@"\b{Regex.Escape(function)}\s*\(").Count > 1) continue;
+            var exported = Regex.IsMatch(code, $@"-export\s*\(\s*\[[^\]]*\b{Regex.Escape(function)}\s*/\s*0");
+
+            var line = source.Lines[index];
+            yield return new LogicFinding(id, index + 1,
+                $"EUnit runs the functions whose names end in _test - {name}_test - and {function} starts with test_ instead, so it is never run, " +
+                "and what it asserts is never checked: erlc says only that it is unused",
+                exported ? null : LocalFix.ReplaceLine(id, $"Name it as EUnit does: {name}_test()",
+                    $"EUnit finds every function of no arguments whose name ends in _test, exports it, and runs it.",
+                    source.Path, index + 1, $"{name}_test" + line[(head.Groups["name"].Index + head.Groups["name"].Length)..]));
+        }
+    }
 
     private static int IndentOf(string line) => line.Length - line.TrimStart().Length;
 

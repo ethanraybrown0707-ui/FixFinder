@@ -313,5 +313,23 @@ internal static class PerlPatternGuides
 
             print total(1, 2), "\n";
             """),
+
+        GuideFor(["logic-perl-ok-with-expected"], "ok given the value expected",
+            "ok checks one value: that it is true. Its second argument is the test's name - so ok(add(5, 2), 7) never compares with 7, " +
+            "and passes for any answer that is true. Test::More only remarks that a test named 7 is confusing.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3.",
+            "Compare the two with is: is(add(5, 2), 7).",
+            """
+            use strict;
+            use warnings;
+            use Test::More tests => 1;
+
+            sub add {
+                my ($first, $second) = @_;
+                return $first + $second;
+            }
+
+            is(add(5, 2), 7, 'add');
+            """),
     ];
 }

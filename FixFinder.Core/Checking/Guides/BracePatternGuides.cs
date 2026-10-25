@@ -897,5 +897,26 @@ internal static class BracePatternGuides
 
             console.log(area(3), rectangleArea(3, 4));
             """),
+
+        GuideFor(["logic-cpp-handler-never-reached"], "A catch that can never run",
+            "A try's catches are tried in order, and the first that matches takes the exception. catch (std::exception& e) matches " +
+            "std::runtime_error too - it derives from std::exception - so a catch for it after that one is never reached. g++ warns " +
+            "that it \"will be caught by earlier handler\".",
+            "The specific handler never runs, so it cannot be tested - the general message was printed.",
+            "Put the specific catch first: catch (std::runtime_error& e), then catch (std::exception& e).",
+            """
+            #include <iostream>
+            #include <stdexcept>
+
+            int main() {
+                try {
+                    throw std::runtime_error("x");
+                } catch (std::runtime_error& e) {
+                    std::cout << "runtime" << std::endl;
+                } catch (std::exception& e) {
+                    std::cout << "something went wrong" << std::endl;
+                }
+            }
+            """),
     ];
 }

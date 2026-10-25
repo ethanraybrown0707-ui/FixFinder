@@ -778,5 +778,48 @@ internal static class PythonPatternGuides
                 def test_add(self):
                     self.assertEqual(add(5, 2), 7)
             """),
+
+        GuideFor(["logic-python-pytest-test-never-run"], "A test function pytest never collects",
+            "pytest collects the functions whose names start with test - and no others. A function named check_add or add_works is " +
+            "never run, however many asserts it holds.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - pytest collected 2 tests of 4.",
+            "Start its name with test: test_add.",
+            """
+            def add(a, b):
+                return a + b
+
+
+            def test_add():
+                assert add(5, 2) == 7
+            """),
+
+        GuideFor(["logic-python-pytest-class-not-collected"], "A test class pytest never looks in",
+            "pytest looks for test methods only in classes whose names start with Test - TestAdd, not AddTests or CalculatorTest. A class " +
+            "named any other way is never looked in.",
+            "Its tests never run, so the code can be wrong and the run still passes - pytest collected 2 tests of 4.",
+            "Start its name with Test: class TestAdd:",
+            """
+            def add(a, b):
+                return a + b
+
+
+            class TestAdd:
+                def test_add(self):
+                    assert add(5, 2) == 7
+            """),
+
+        GuideFor(["logic-python-assert-with-expected"], "assert given the value expected after a comma",
+            "assert checks one condition; what comes after its comma is only the message shown when it fails. So assert add(5, 2), 7 " +
+            "never compares with 7, and passes for any answer that is not 0, empty or None.",
+            "The test passes when the code gives the wrong answer - it passed with add giving 3.",
+            "Compare the two: assert add(5, 2) == 7.",
+            """
+            def add(a, b):
+                return a + b
+
+
+            def test_add():
+                assert add(5, 2) == 7
+            """),
     ];
 }

@@ -427,5 +427,100 @@ internal static class ManagedPatternGuides
                 return 3;
             }
             """),
+
+        GuideFor(["logic-java-test-missing-annotation"], "A test method without @Test",
+            "JUnit runs the methods marked @Test - and no others. A method that asserts, without @Test above it, is an ordinary method " +
+            "nothing calls.",
+            "Whatever it checks is never checked, so the tests pass while the code is wrong - JUnit found 3 tests of 8 - and javac says nothing.",
+            "Mark it with @Test.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-test-not-run-shape"], "A @Test method JUnit cannot run",
+            "JUnit 5 runs a @Test method only when it is not private, not static, and gives back nothing. One that is private or static, " +
+            "or gives back a value, is passed over - and JUnit says nothing of it.",
+            "The test never runs, so what it checks is never checked - JUnit found 3 tests of 8.",
+            "Make it void, and neither private nor static: @Test void addsTwoNumbers().",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-setup-not-annotated"], "setUp without @BeforeEach",
+            "JUnit 5 calls a method before each test only when it is marked @BeforeEach - and after each when marked @AfterEach. A name " +
+            "such as setUp, which JUnit 3 went by, means nothing to it: the method is never called.",
+            "What it was meant to set up is never there, so the tests that use it stop with NullPointerException, which does not say why.",
+            "Mark it with @BeforeEach - or @AfterEach for tearDown.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import java.util.ArrayList;
+            import java.util.List;
+            import org.junit.jupiter.api.BeforeEach;
+            import org.junit.jupiter.api.Test;
+
+            class ListTest {
+                private List<Integer> numbers;
+
+                @BeforeEach
+                void setUp() {
+                    numbers = new ArrayList<>();
+                }
+
+                @Test
+                void addsOne() {
+                    numbers.add(1);
+                    assertEquals(1, numbers.size());
+                }
+            }
+            """),
+
+        GuideFor(["logic-java-assertion-swallowed"], "An assertion caught in a test",
+            "A failed assertion throws AssertionError - AssertionFailedError in JUnit 5 - and that is how JUnit knows a test failed. Inside " +
+            "a try whose catch takes AssertionError, Error or Throwable, the failure is caught, and the test carries on and passes.",
+            "The test can never fail, so it passes whether the code is right or wrong.",
+            "Take the assertion out of the try - or, if the try is there for something else, catch only that exception.",
+            """
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class AdderTest {
+                static int add(int first, int second) {
+                    return first + second;
+                }
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(7, add(5, 2));
+                }
+            }
+            """),
     ];
 }

@@ -10,9 +10,11 @@ namespace FixFinder.Core.Logic;
 /// StandardError and then rescue ArgumentError, catch (Exception $e) and then catch (InvalidArgumentException $e). The
 /// first handler takes every error the second would, so the second never runs, and what it does can never be tested. Run with
 /// the second's error, Python, Ruby and PHP each printed the first handler's message, with nothing said by python -W error,
-/// ruby -w or PHP. Dart's analyzer warns of it, C++'s compiler warns of it, and PowerShell, Java and C# refuse it, so they are
-/// not here. Which error comes from which is each language's own family of errors, and the classes the file declares itself.
-/// The change moves the handler before the one that took its errors.
+/// ruby -w or PHP. Dart and C++ printed it too: dart analyze warns of it (dead_code_on_catch_subtype), and g++ that the
+/// exception "will be caught by earlier handler" - in each, the warning and this check are one finding, which gives the change.
+/// PowerShell refuses it before the script runs, and its fix rule moves the catch; Java and C# refuse it. Which error comes from
+/// which is each language's own family of errors, and the classes the file declares itself. The change moves the handler before
+/// the one that took its errors.
 /// </summary>
 public static partial class UnreachableHandlerPatterns
 {
@@ -59,6 +61,8 @@ public static partial class UnreachableHandlerPatterns
         new CodePattern("logic-python-handler-never-reached", CodePattern.Files(".py", ".pyw"), Syntax.Python, PythonHandlers, Severity.Error, Confidence.Certain),
         new CodePattern("logic-ruby-handler-never-reached", CodePattern.Files(".rb"), Syntax.Python, RubyHandlers, Severity.Error, Confidence.Certain),
         new CodePattern("logic-php-handler-never-reached", CodePattern.Files(".php"), Syntax.CLike, PhpHandlers, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-dart-handler-never-reached", CodePattern.Files(".dart"), Syntax.CLike, DartHandlers, Severity.Error, Confidence.Certain),
+        new CodePattern("logic-cpp-handler-never-reached", CodePattern.Files(".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike, CppHandlers, Severity.Error, Confidence.Certain),
     ];
 
     /// <summary>Each error and the one it comes from: the language's own, and the classes the file declares from another.</summary>
@@ -203,10 +207,54 @@ public static partial class UnreachableHandlerPatterns
     [GeneratedRegex(@"^\s*(?:(?:abstract|final)\s+)?class\s+(?<name>\w+)\s+extends\s+(?<parent>\\?[\w\\]+)")]
     private static partial Regex PhpClass();
 
-    private static IEnumerable<LogicFinding> PhpHandlers(string id, SourceFile source, IReadOnlyList<string> masked)
+    private static IEnumerable<LogicFinding> PhpHandlers(string id, SourceFile source, IReadOnlyList<string> masked) =>
+        BraceHandlers(id, source, masked, FamilyIn(masked, PhpFamily, PhpClass()),
+            new Regex(@"^\s*(?<close>\}\s*)?catch\s*\(\s*(?<errors>\\?[\w\\]+(?:\s*\|\s*\\?[\w\\]+)*)\s*(?:\$\w+)?\s*\)\s*\{\s*$"),
+            errors => errors.Split('|').Select(error => error.Trim().Split('\\')[^1]).ToList());
+
+    /// <summary>Dart's errors and exceptions, each with the one it comes from - Object above them all, which a catch with no on takes.</summary>
+    private static readonly IReadOnlyDictionary<string, string> DartFamily = Family(
+        "Exception:Object Error:Object FormatException:Exception IOException:Exception TimeoutException:Exception OSError:Exception " +
+        "FileSystemException:IOException PathNotFoundException:FileSystemException PathAccessException:FileSystemException " +
+        "SocketException:IOException HttpException:IOException ProcessException:IOException SignalException:IOException " +
+        "StdinException:IOException StdoutException:IOException TlsException:IOException HandshakeException:TlsException " +
+        "CertificateException:TlsException WebSocketException:IOException IsolateSpawnException:Exception DeferredLoadException:Exception " +
+        "ArgumentError:Error RangeError:ArgumentError IndexError:RangeError StateError:Error UnsupportedError:Error " +
+        "UnimplementedError:UnsupportedError ConcurrentModificationError:Error TypeError:Error AssertionError:Error " +
+        "NoSuchMethodError:Error OutOfMemoryError:Error StackOverflowError:Error JsonUnsupportedObjectError:Error " +
+        "JsonCyclicError:JsonUnsupportedObjectError");
+
+    [GeneratedRegex(@"^\s*(?:abstract\s+)?class\s+(?<name>[A-Z]\w*)\s+(?:extends|implements)\s+(?<parent>[A-Z]\w*)")]
+    private static partial Regex DartClass();
+
+    private static IEnumerable<LogicFinding> DartHandlers(string id, SourceFile source, IReadOnlyList<string> masked) =>
+        BraceHandlers(id, source, masked, FamilyIn(masked, DartFamily, DartClass()),
+            new Regex(@"^\s*(?<close>\}\s*)?(?:on\s+(?<errors>[A-Z][\w.<>]*)(?:\s+catch\s*\([^)]*\))?|(?<errors>catch)\s*\([^)]*\))\s*\{\s*$"),
+            errors => [errors == "catch" ? "Object" : errors.Split('.')[^1]]);
+
+    /// <summary>C++'s standard exceptions, each with the one it comes from, written without std::.</summary>
+    private static readonly IReadOnlyDictionary<string, string> CppFamily = Family(
+        "logic_error:exception invalid_argument:logic_error domain_error:logic_error length_error:logic_error out_of_range:logic_error " +
+        "future_error:logic_error runtime_error:exception range_error:runtime_error overflow_error:runtime_error underflow_error:runtime_error " +
+        "system_error:runtime_error regex_error:runtime_error format_error:runtime_error bad_alloc:exception bad_array_new_length:bad_alloc " +
+        "bad_cast:exception bad_any_cast:bad_cast bad_typeid:exception bad_exception:exception bad_function_call:exception " +
+        "bad_optional_access:exception bad_variant_access:exception bad_weak_ptr:exception exception:...");
+
+    [GeneratedRegex(@"^\s*(?:class|struct)\s+(?<name>\w+)\s*(?:final\s*)?:\s*(?:public\s+|private\s+|protected\s+|virtual\s+)*(?:std::)?(?<parent>\w+)")]
+    private static partial Regex CppClass();
+
+    private static IEnumerable<LogicFinding> CppHandlers(string id, SourceFile source, IReadOnlyList<string> masked) =>
+        BraceHandlers(id, source, masked, FamilyIn(masked, CppFamily, CppClass()),
+            new Regex(@"^\s*(?<close>\}\s*)?catch\s*\(\s*(?:(?:const\s+)?(?<errors>[\w:]+)\s*(?:const\s*)?[&*]{0,2}\s*\w*|(?<errors>\.\.\.))\s*\)\s*\{\s*$"),
+            errors => [errors.Split("::")[^1]]);
+
+    /// <summary>
+    /// The handlers of each try in a language that writes them after its block - } catch (...) {, } on X catch (e) { - each
+    /// with the errors it names: read by <paramref name="handler"/>, and named by <paramref name="named"/>.
+    /// </summary>
+    private static IEnumerable<LogicFinding> BraceHandlers(string id, SourceFile source, IReadOnlyList<string> masked, IReadOnlyDictionary<string, string> family,
+        Regex handler, Func<string, IReadOnlyList<string>> named)
     {
-        var family = FamilyIn(masked, PhpFamily, PhpClass());
-        var handler = new Regex(@"^\s*(?<close>\}\s*)?catch\s*\(\s*(?<errors>\\?[\w\\]+(?:\s*\|\s*\\?[\w\\]+)*)\s*(?:\$\w+)?\s*\)\s*\{\s*$");
         for (var index = 0; index < masked.Count; index++)
         {
             if (!Regex.IsMatch(masked[index], @"^\s*try\s*\{\s*$") || Brackets.FirstBlockEnd(masked, index) is not { } tryEnd) continue;
@@ -215,7 +263,7 @@ public static partial class UnreachableHandlerPatterns
             var line = tryEnd;
             while (line < masked.Count && handler.Match(masked[line]) is { Success: true } found)
             {
-                handlers.Add((line, found.Groups["errors"].Value.Split('|').Select(error => error.Trim().Split('\\')[^1]).ToList(), found.Groups["close"].Success));
+                handlers.Add((line, named(found.Groups["errors"].Value), found.Groups["close"].Success));
                 if (Brackets.FirstBlockEnd(masked, line) is not { } handlerEnd) break;
                 line = handlerEnd;
             }

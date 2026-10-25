@@ -111,6 +111,26 @@ public class PowerShellLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(fixedPrints, await RunAsync(powershell, Changed(code, found), $"refused{code.Length}"));
     }
 
+    /// <summary>
+    /// A catch after one for [System.Exception], which takes every exception: PowerShell refuses the script, and the change moves
+    /// the narrower catch first - after which the narrower one takes its exception.
+    /// </summary>
+    [Fact]
+    public async Task ACatchAlreadyHandledIsRefusedAndTheChangePutsItFirst()
+    {
+        if (PowerShell() is not { } powershell) return;
+        const string code = "try {\n    [int]\"x\"\n} catch [System.Exception] {\n    Write-Output \"something went wrong\"\n" +
+                            "} catch [System.InvalidCastException] {\n    Write-Output \"not a number\"\n}\n";
+
+        var report = await CheckAsync(Write(Path.Combine("catches", "main.ps1"), code));
+
+        var found = Assert.Single(report.Findings, finding => finding.RuleId == "powershell-catch-already-handled");
+        Assert.Equal((FindingKind.Syntax, 5), (found.Kind, found.Line!.Value));
+        Assert.Equal(["} catch [System.InvalidCastException] {", "    Write-Output \"not a number\"", "} catch [System.Exception] {",
+            "    Write-Output \"something went wrong\""], found.Fix!.NewLines);
+        Assert.Equal("not a number", await RunAsync(powershell, Changed(code, found), "catches"));
+    }
+
     [Theory]
     [InlineData("$mark = 50\nif ($mark == 40) {\n    Write-Output \"forty\"\n}\nWrite-Output \"done\"\n", "powershell-comparison-words", 2, "if ($mark -eq 40) {", "done")]
     [InlineData("$total = 10\nWrite-Ouput $total\n", "powershell-nearest-command", 2, "Write-Output $total", "10")]

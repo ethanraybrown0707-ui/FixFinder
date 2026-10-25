@@ -48,6 +48,7 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("main.lua", "logic-lua-loop-never-runs", "for i = 5, 1 do\n  print(i)\nend\n", 1, "for i = 5, 1, -1 do")]
     [InlineData("main.fsx", "logic-fsharp-loop-never-runs", "for i = 5 to 1 do printfn \"%d\" i\n", 1, "for i = 5 downto 1 do printfn \"%d\" i")]
     [InlineData("main.pl", "logic-perl-loop-never-runs", "foreach my $i (5..1) {\n    print $i;\n}\n", 1, "foreach my $i (reverse(1..5)) {")]
+    [InlineData("main.f90", "logic-fortran-loop-never-runs", "program p\n  integer :: i\n  do i = 5, 1\n    print *, i\n  end do\nend program p\n", 3, "  do i = 5, 1, -1")]
     // Python's misspelt __main__.
     [InlineData("app.py", "logic-python-main-guard-misspelt", "def main():\n    pass\n\nif __name__ == '__main':\n    main()\n", 4, "if __name__ == '__main__':")]
     public void AMistakeIsFoundWithItsChange(string fileName, string check, string code, int line, string changedTo)
@@ -68,6 +69,10 @@ public class NeverRunningCodeTests : IDisposable
         "rescue IndexError|  puts 'index'|rescue|  puts 'any'")]
     [InlineData("main.php", "logic-php-handler-never-reached", "<?php\ntry {\n    f();\n} catch (LogicException $e) {\n    echo 'logic';\n} catch (DomainException $e) {\n    echo 'domain';\n}\n", 6, 4,
         "} catch (DomainException $e) {|    echo 'domain';|} catch (LogicException $e) {|    echo 'logic';")]
+    [InlineData("main.dart", "logic-dart-handler-never-reached", "void main() {\n  try {\n    f();\n  } on Exception {\n    print('a');\n  } on FormatException catch (e) {\n    print('b');\n  }\n}\n", 6, 4,
+        "  } on FormatException catch (e) {|    print('b');|  } on Exception {|    print('a');")]
+    [InlineData("main.cpp", "logic-cpp-handler-never-reached", "int main() {\n    try {\n        f();\n    } catch (const std::logic_error& e) {\n        g();\n    } catch (const std::invalid_argument& e) {\n        h();\n    }\n}\n", 6, 4,
+        "    } catch (const std::invalid_argument& e) {|        h();|    } catch (const std::logic_error& e) {|        g();")]
     public void AHandlerThatCanNeverRunIsMovedBeforeTheOneThatTookItsErrors(string fileName, string check, string code, int line, int startLine, string changedTo)
     {
         var found = Assert.Single(Scan(fileName, code, check));
@@ -94,6 +99,8 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("app.js", "logic-js-defined-twice", 2, "console.log(f());\nfunction f() { return 1; }\nfunction f() { return 2; }\n")]
     [InlineData("main.lua", "logic-lua-defined-twice", 1, "function greet() print('a') end\nfunction greet() print('b') end\ngreet()\n")]
     [InlineData("main.ps1", "logic-powershell-defined-twice", 1, "function Say-Hi { 'a' }\nfunction say-hi { 'b' }\nSay-Hi\n")]
+    [InlineData("main.rb", "logic-ruby-code-after-return", 3, "def f\n  return 1\n  puts 'after'\nend\n")]
+    [InlineData("main.rb", "logic-ruby-defined-twice", 1, "def greet\n  'a'\nend\ndef greet\n  'b'\nend\nputs greet\n")]
     public void CodeThatCanNeverRunIsFound(string fileName, string check, int line, string code) =>
         Assert.Equal(line, Assert.Single(Scan(fileName, code, check)).Line);
 
@@ -127,6 +134,12 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("main.php", "logic-php-handler-never-reached", "<?php\ntry {\n    f();\n} catch (Exception $e) {\n    echo 1;\n} catch (TypeError $e) {\n    echo 2;\n}\n")]
     // The guard as Python writes it, and __name__ compared with another module's name.
     [InlineData("app.py", "logic-python-main-guard-misspelt", "if __name__ == \"__main__\":\n    pass\nif __name__ == 'tools':\n    pass\n")]
+    // A return that is a condition's, a loop with its step, handlers in order, and methods of one name in two classes.
+    [InlineData("main.rb", "logic-ruby-code-after-return", "def f(x)\n  return 1 if x\n  puts 'after'\nend\n")]
+    [InlineData("main.f90", "logic-fortran-loop-never-runs", "program p\n  integer :: i\n  do i = 5, 1, -1\n    print *, i\n  end do\n  do i = 1, 5\n    print *, i\n  end do\nend program p\n")]
+    [InlineData("main.dart", "logic-dart-handler-never-reached", "void main() {\n  try {\n    f();\n  } on FormatException {\n    print('a');\n  } on Exception {\n    print('b');\n  }\n}\n")]
+    [InlineData("main.cpp", "logic-cpp-handler-never-reached", "int main() {\n    try {\n        f();\n    } catch (const std::invalid_argument& e) {\n        g();\n    } catch (const std::exception& e) {\n        h();\n    } catch (...) {\n        k();\n    }\n}\n")]
+    [InlineData("main.rb", "logic-ruby-defined-twice", "class Square\n  def area\n    1\n  end\nend\n\nclass Circle\n  def area\n    2\n  end\nend\n")]
     public void CodeThatCanRunIsLeftAlone(string fileName, string check, string code) => Assert.Empty(Scan(fileName, code, check));
 
     [Theory]

@@ -374,6 +374,7 @@ public static partial class LocalFixEngine
         new PowerShellClosingBrace(),
         new PowerShellClosingQuote(),
         new PowerShellClosingBracket(),
+        new PowerShellCatchAlreadyHandled(),
         new ElixirNearestVariable(),
         new ElixirNearestFunction(),
         new ElixirDidYouMeanFunction(),

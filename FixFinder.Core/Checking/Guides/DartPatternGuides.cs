@@ -157,5 +157,22 @@ internal static class DartPatternGuides
               print(result);
             }
             """),
+
+        GuideFor(["logic-dart-handler-never-reached"], "An on clause that can never run",
+            "A try's on clauses are tried in order, and the first that matches takes the exception. on Exception matches FormatException " +
+            "too - FormatException is an Exception - so an on FormatException after it is never reached. dart analyze calls it dead code.",
+            "The specific handler never runs, so it cannot be tested - int.parse(\"x\") printed the general message.",
+            "Put the specific clause first: on FormatException, then on Exception.",
+            """
+            void main() {
+              try {
+                int.parse('x');
+              } on FormatException {
+                print('not a number');
+              } on Exception {
+                print('something went wrong');
+              }
+            }
+            """),
     ];
 }

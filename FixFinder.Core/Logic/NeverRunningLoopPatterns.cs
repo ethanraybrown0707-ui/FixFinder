@@ -9,9 +9,10 @@ namespace FixFinder.Core.Logic;
 /// A loop meant to count down, written the way that counts up, so it runs no times at all - and nothing in it can be tested:
 /// range(10, 0) in Python, (10..1).each in Ruby, 10..0 in Rust, 10 to 1 in Scala, for i = 10, 1 in Lua, for i in 10 .. 1 and
 /// for i = 10 to 1 in F#, and (10..1) in Perl. Each was run, counting the times round, and each counted 0, with nothing said by
-/// python -W error, ruby -w, rustc, Scala CLI, Lua, F# Interactive or perl -w. Fortran's do i = 10, 1 is not here, as
-/// gfortran -Wall warns that it runs zero times; nor is Elixir's 10..1, which counts down and warns. The change counts down:
-/// range(10, 0, -1), 10.downto(1), (1..=10).rev(), 10 to 1 by -1, for i = 10, 1, -1, 10 .. -1 .. 1 or downto, reverse(1..10).
+/// python -W error, ruby -w, rustc, Scala CLI, Lua, F# Interactive or perl -w. Fortran's do i = 10, 1 counted 0 too, and
+/// gfortran -Wall warns that it "will be executed zero times" - the warning and this check are one finding, which gives the
+/// change. Elixir's 10..1 is not here, as it counts down, and warns. The change counts down: range(10, 0, -1), 10.downto(1),
+/// (1..=10).rev(), 10 to 1 by -1, for i = 10, 1, -1, do i = 10, 1, -1, 10 .. -1 .. 1 or downto, reverse(1..10).
 /// </summary>
 public static partial class NeverRunningLoopPatterns
 {
@@ -24,7 +25,12 @@ public static partial class NeverRunningLoopPatterns
         Loop("logic-lua-loop-never-runs", CodePattern.Files(".lua"), Syntax.Lua, LuaRange(), LuaChange),
         Loop("logic-fsharp-loop-never-runs", CodePattern.Files(".fsx"), Syntax.FSharp, FSharpRange(), FSharpChange),
         Loop("logic-perl-loop-never-runs", CodePattern.Files(".pl", ".pm"), Syntax.Perl, PerlRange(), PerlChange),
+        Loop("logic-fortran-loop-never-runs", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran, FortranRange(), LuaChange),
     ];
+
+    /// <summary>do i = 10, 1 - two whole numbers, the first larger, and no step.</summary>
+    [GeneratedRegex(@"^\s*(?:\w+\s*:\s*)?do\s+[A-Za-z_]\w*\s*=\s*(?<range>(?<start>-?\d+)\s*,\s*(?<stop>-?\d+))\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex FortranRange();
 
     private static CodePattern Loop(string id, IReadOnlySet<string> extensions, Syntax syntax, Regex range, Func<Match, string?> change) =>
         new(id, extensions, syntax, (patternId, source, masked) => NeverRuns(patternId, source, masked, range, change), Severity.Error, Confidence.Certain);

@@ -342,5 +342,36 @@ internal static class RubyPatternGuides
               end
             end
             """),
+
+        GuideFor(["logic-ruby-code-after-return"], "Code after return",
+            "return leaves the method there and then - and break, next, raise and exit leave the same way. A line straight after one of " +
+            "them, in the same block, is never reached; ruby -w calls it \"statement not reached\".",
+            "That line never runs, so no run of the program can test it.",
+            "Move the line before the return if it was meant to run, or take it out if it was not.",
+            """
+            def total(marks)
+              puts "counted"
+              marks.length
+            end
+
+            puts total([1, 2])
+            """),
+
+        GuideFor(["logic-ruby-defined-twice"], "A method defined twice",
+            "def gives a name its method when it runs, so a second def with the same name replaces the first. When nothing calls the first " +
+            "in between, it is never called at all. Ruby warns of it only when the program is run with -w.",
+            "The first method never runs, so it cannot be tested - area(3) used the second.",
+            "Give the two methods different names: area for one side, rectangle_area for two.",
+            """
+            def area(side)
+              side * side
+            end
+
+            def rectangle_area(width, height)
+              width * height
+            end
+
+            puts area(3), rectangle_area(3, 4)
+            """),
     ];
 }

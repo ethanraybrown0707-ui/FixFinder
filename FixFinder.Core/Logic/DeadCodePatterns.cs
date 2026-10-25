@@ -7,12 +7,14 @@ namespace FixFinder.Core.Logic;
 /// <summary>
 /// Code no run of the program can reach, so nothing in it is ever tested - each run, and none of its tools said anything:
 /// a line straight after return in the same block never ran in C, C++ (gcc and g++ -Wall -Wextra), JavaScript, PHP, Perl
-/// (perl -w), PowerShell and Fortran (gfortran -Wall) - "counted" was never printed (ruby -w warns of it, so Ruby is not
-/// here); a second case with the same value as one before it in a switch was never matched in JavaScript and PHP; a function
-/// defined twice in one place in Python, JavaScript, Lua and PowerShell is replaced by the second before anything calls it -
-/// area(3) gave the second's answer, and JavaScript, which sets every function up before the code runs, gave it even to calls
-/// before the second (ruby -w and perl -w warn of a method or sub redefined); and Python's if __name__ == "main": never
-/// runs its block, as a program run directly is named "__main__".
+/// (perl -w), PowerShell and Fortran (gfortran -Wall) - "counted" was never printed - and in Ruby, whose ruby -w warns
+/// "statement not reached": the warning and this check are one finding. A second case with the same value as one before it in
+/// a switch was never matched in JavaScript and PHP; a function defined twice in one place in Python, JavaScript, Lua,
+/// PowerShell and Ruby is replaced by the second before anything calls it - area(3) gave the second's answer, and JavaScript,
+/// which sets every function up before the code runs, gave it even to calls before the second. Ruby warns of a method redefined
+/// only while the program runs with -w, which is not how it is run, so its warning never reached the report (perl -w warns of a
+/// sub redefined as it compiles). Python's if __name__ == "main": never runs its block, as a program run directly is named
+/// "__main__".
 /// </summary>
 public static partial class DeadCodePatterns
 {
@@ -28,6 +30,9 @@ public static partial class DeadCodePatterns
             @"^\s*(?<left>(?:return|break|continue|exit|throw)\b[^{};]*)\s*$", @"^\s*(?:\}|function\b|else\b|elseif\b|catch\b|finally\b)"),
         AfterLeaving("logic-fortran-code-after-return", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran,
             @"^\s*(?<left>(?:return|stop(?:\s+\S.*)?|exit|cycle))\s*$", @"^\s*(?:end\b|else\b|contains\b|case\b|\d+\s+continue\b)", RegexOptions.IgnoreCase),
+        AfterLeaving("logic-ruby-code-after-return", CodePattern.Files(".rb"), Syntax.Python,
+            @"^\s*(?<left>(?:return|break|next|redo|retry|raise|exit|abort)\b(?:(?!\b(?:if|unless|while|until|do)\b|\{).)*)\s*$",
+            @"^\s*(?:end|else|elsif|rescue|ensure|when|in)\b"),
         new CodePattern("logic-js-duplicate-case", CodePattern.Files(".js", ".mjs", ".cjs"), Syntax.CLike, DuplicateCase, Severity.Error, Confidence.Certain),
         new CodePattern("logic-php-duplicate-case", CodePattern.Files(".php"), Syntax.CLike, DuplicateCase, Severity.Error, Confidence.Certain),
         new CodePattern("logic-python-defined-twice", CodePattern.Files(".py", ".pyw"), Syntax.Python,
@@ -38,6 +43,8 @@ public static partial class DeadCodePatterns
             (id, source, masked) => DefinedTwice(id, source, masked, LuaDefinition(), false, StringComparison.Ordinal), Severity.Error, Confidence.Certain),
         new CodePattern("logic-powershell-defined-twice", CodePattern.Files(".ps1"), Syntax.Python,
             (id, source, masked) => DefinedTwice(id, source, masked, PowerShellDefinition(), false, StringComparison.OrdinalIgnoreCase), Severity.Error, Confidence.Certain),
+        new CodePattern("logic-ruby-defined-twice", CodePattern.Files(".rb"), Syntax.Python,
+            (id, source, masked) => DefinedTwice(id, source, masked, RubyDefinition(), false, StringComparison.Ordinal, decorators: false), Severity.Error, Confidence.Certain),
         new CodePattern("logic-python-main-guard-misspelt", CodePattern.Files(".py", ".pyw"), Syntax.Python, MainGuardMisspelt, Severity.Error, Confidence.Certain),
     ];
 
@@ -116,6 +123,9 @@ public static partial class DeadCodePatterns
     [GeneratedRegex(@"^(?<indent>\s*)function\s+(?<name>[A-Za-z_][\w-]*)\b", RegexOptions.IgnoreCase)]
     private static partial Regex PowerShellDefinition();
 
+    [GeneratedRegex(@"^(?<indent>\s*)def\s+(?<name>(?:self\.)?[A-Za-z_]\w*[?!]?)(?=[\s(;]|$)")]
+    private static partial Regex RubyDefinition();
+
     /// <summary>The line that holds a line - the nearest line above it with less indentation - or -1 at the top of the file.</summary>
     private static int Holder(IReadOnlyList<string> masked, int line)
     {
@@ -130,17 +140,18 @@ public static partial class DeadCodePatterns
     /// between that uses it, or, in JavaScript, which sets every function up before the code runs, whatever is in between. A
     /// decorated Python function - a property's setter, an overload - is left alone.
     /// </summary>
-    private static IEnumerable<LogicFinding> DefinedTwice(string id, SourceFile source, IReadOnlyList<string> masked, Regex definition, bool setUpFirst, StringComparison comparison)
+    private static IEnumerable<LogicFinding> DefinedTwice(string id, SourceFile source, IReadOnlyList<string> masked, Regex definition, bool setUpFirst, StringComparison comparison,
+        bool decorators = true)
     {
         var definitions = masked.Select((line, index) => (Index: index, Match: definition.Match(line))).Where(each => each.Match.Success).ToList();
         foreach (var (first, firstMatch) in definitions)
         {
             var name = firstMatch.Groups["name"].Value;
-            if (Decorated(masked, first)) continue;
+            if (decorators && Decorated(masked, first)) continue;
 
             var second = definitions.FirstOrDefault(each => each.Index > first && string.Equals(each.Match.Groups["name"].Value, name, comparison) &&
                                                             each.Match.Groups["indent"].Length == firstMatch.Groups["indent"].Length);
-            if (second.Match is null || Decorated(masked, second.Index) || Holder(masked, second.Index) != Holder(masked, first)) continue;
+            if (second.Match is null || (decorators && Decorated(masked, second.Index)) || Holder(masked, second.Index) != Holder(masked, first)) continue;
 
             // Nothing between them at less indentation - they are in one block - and, unless every function is set up first, no use of the name.
             var between = Enumerable.Range(first + 1, second.Index - first - 1).ToList();

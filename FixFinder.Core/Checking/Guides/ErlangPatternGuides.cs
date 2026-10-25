@@ -151,5 +151,24 @@ internal static class ErlangPatternGuides
             main() ->
                 io:format("~s~n", [grade(75)]).
             """),
+
+        GuideFor(["logic-erlang-test-never-run"], "An EUnit test named test_...",
+            "EUnit runs the functions of no arguments whose names end in _test - add_test - and those ending in _test_ that give back " +
+            "tests. A function named test_add starts with test_ instead: EUnit does not run it, and erlc says only that it is unused.",
+            "What it asserts is never checked, so the tests pass while the code is wrong.",
+            "Name it with _test at the end: add_test().",
+            """
+            -module(adder).
+            -include_lib("eunit/include/eunit.hrl").
+            -export([main/0]).
+
+            add(First, Second) -> First + Second.
+
+            add_test() ->
+                ?assertEqual(7, add(5, 2)).
+
+            main() ->
+                io:format("~p~n", [add(5, 2)]).
+            """),
     ];
 }

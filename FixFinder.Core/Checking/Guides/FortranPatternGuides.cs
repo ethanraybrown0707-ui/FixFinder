@@ -224,5 +224,20 @@ internal static class FortranPatternGuides
               end function total
             end program counting
             """),
+
+        GuideFor(["logic-fortran-loop-never-runs"], "A count down written as do i = 10, 1",
+            "A do loop counts up by 1 unless it is given a step: do i = 10, 1 starts at 10, which is already past 1, so it runs no times at " +
+            "all. gfortran -Wall says it \"will be executed zero times\".",
+            "Nothing in the loop ever runs, so it cannot be tested.",
+            "Give it a step of -1: do i = 10, 1, -1.",
+            """
+            program countdown
+              implicit none
+              integer :: count
+              do count = 3, 1, -1
+                print *, count
+              end do
+            end program countdown
+            """),
     ];
 }

@@ -61,7 +61,23 @@ public class NeverRunningCodeLiveTests(ITestOutputHelper output)
         { "F#", "logic-fsharp-loop-never-runs", "let mutable count = 0\nfor i in 3 .. 1 do count <- count + 1\nprintfn \"%d\" count\n", "0", "3" },
         { "Perl", "logic-perl-loop-never-runs", "use strict;\nuse warnings;\nmy $count = 0;\nfor my $i (3..1) {\n    $count++;\n}\nprint \"$count\\n\";\n", "0", "3" },
 
+        {
+            "Fortran", "logic-fortran-loop-never-runs",
+            "program countdown\n  implicit none\n  integer :: i, count\n  count = 0\n  do i = 3, 1\n    count = count + 1\n  end do\n  print *, count\nend program countdown\n",
+            "           0", "           3"
+        },
+
         // Handlers: the general one took the error meant for the specific one.
+        {
+            "Dart", "logic-dart-handler-never-reached",
+            "void main() {\n  try {\n    int.parse(\"x\");\n  } on Exception {\n    print(\"something went wrong\");\n  } on FormatException {\n    print(\"not a number\");\n  }\n}\n",
+            "something went wrong", "not a number"
+        },
+        {
+            "C++", "logic-cpp-handler-never-reached",
+            "#include <iostream>\n#include <stdexcept>\n\nint main() {\n    try {\n        throw std::runtime_error(\"x\");\n    } catch (std::exception& e) {\n        std::cout << \"something went wrong\" << std::endl;\n    } catch (std::runtime_error& e) {\n        std::cout << \"runtime\" << std::endl;\n    }\n}\n",
+            "something went wrong", "runtime"
+        },
         { "Python", "logic-python-handler-never-reached", "try:\n    int(\"x\")\nexcept Exception:\n    print(\"something went wrong\")\nexcept ValueError:\n    print(\"not a number\")\n", "something went wrong", "not a number" },
         { "Ruby", "logic-ruby-handler-never-reached", "begin\n  Integer(\"x\")\nrescue StandardError\n  puts \"something went wrong\"\nrescue ArgumentError\n  puts \"not a number\"\nend\n", "something went wrong", "not a number" },
         {
@@ -94,6 +110,8 @@ public class NeverRunningCodeLiveTests(ITestOutputHelper output)
         { "JavaScript", "logic-js-defined-twice", "console.log(area(3));\nfunction area(side) { return side * side; }\nfunction area(width, height) { return width * height; }\n", "NaN" },
         { "Lua", "logic-lua-defined-twice", "function area(side) return side * side end\nfunction area(width, height) return width * (height or 1) end\nprint(area(3))\n", "3" },
         { "PowerShell", "logic-powershell-defined-twice", "function Get-Area($side) { $side * $side }\nfunction Get-Area($width, $height) { $width * $height }\nGet-Area 3\n", "0" },
+        { "Ruby", "logic-ruby-code-after-return", "def total(marks)\n  return marks.length\n  puts \"counted\"\nend\nputs total([1, 2])\n", "2" },
+        { "Ruby", "logic-ruby-defined-twice", "def area(side)\n  side * side\nend\ndef area(width, height = 1)\n  width * height\nend\nputs area(3)\n", "3" },
     };
 
     private static CodeLanguage LanguageNamed(string name) => CodeLanguage.All.Single(each => each.Name == name);
