@@ -248,5 +248,33 @@ internal static class PhpPatternGuides
             }
             echo $total, PHP_EOL;
             """),
+
+        GuideFor(["logic-php-foreach-reference-kept"], "A foreach by reference, and its variable used again",
+            "foreach ($marks as &$mark) makes $mark a second name for each item in turn - and after the loop, it is still a name for the " +
+            "last one. A later foreach ($marks as $mark), or $mark = ..., gives that last item each value in turn.",
+            "The array's last item is overwritten - 10, 20, 30 became 10, 20, 20 - with nothing said.",
+            "Let go of the reference as soon as the loop ends: unset($mark);",
+            """
+            <?php
+            $marks = [1, 2, 3];
+            foreach ($marks as &$mark) {
+                $mark = $mark * 10;
+            }
+            unset($mark);
+            foreach ($marks as $mark) {
+                echo $mark, PHP_EOL;
+            }
+            """),
+
+        GuideFor(["logic-php-trim-word"], "rtrim or ltrim given a word",
+            "rtrim and ltrim take away characters, not text: the second argument is a set of characters, and every one of them is taken off " +
+            "the end until another is met. rtrim(\"test.txt\", \".txt\") takes off t, x, t, ., and then the t of test - \"tes\".",
+            "Names that end in one of the characters lose more than the ending, with no error.",
+            "Take off the text itself with a regular expression that matches it at the end: preg_replace('/\\.txt$/', '', $file).",
+            """
+            <?php
+            $file = "test.txt";
+            echo preg_replace('/\.txt$/', '', $file), PHP_EOL;
+            """),
     ];
 }

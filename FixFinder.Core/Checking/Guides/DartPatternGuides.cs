@@ -130,5 +130,32 @@ internal static class DartPatternGuides
               print(marks);
             }
             """),
+
+        GuideFor(["logic-dart-result-discarded"], "A String method's result thrown away",
+            "Text in Dart never changes. trim, toUpperCase, replaceAll, substring and the rest give back a new, changed copy, and leave the " +
+            "text they were called on as it was - so called on a line of their own, the copy is lost.",
+            "The text stays as it was - the name printed unchanged - and dart analyze finds no issues.",
+            "Keep the copy: name = name.trim(); - or use it straight away, as in print(name.trim()).",
+            """
+            void main() {
+              var name = ' Ada ';
+              name = name.trim();
+              print('[$name]');
+            }
+            """),
+
+        GuideFor(["logic-dart-future-used-as-value"], "An async function's result used without await",
+            "An async function gives back a Future: a promise of its value, finished later. Called without await, what you get is the " +
+            "Future, not the value - so printing it prints Instance of 'Future<int>'.",
+            "The program uses the Future where it meant the value, and dart analyze finds no issues.",
+            "Wait for the value with await, inside a function marked async: var result = await count(); in main() async.",
+            """
+            Future<int> count() async => 3;
+
+            Future<void> main() async {
+              var result = await count();
+              print(result);
+            }
+            """),
     ];
 }

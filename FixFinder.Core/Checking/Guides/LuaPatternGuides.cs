@@ -168,5 +168,15 @@ internal static class LuaPatternGuides
             end
             print(total)
             """),
+
+        GuideFor(["logic-lua-index-divided"], "A position worked out with /",
+            "In Lua, / always gives a float: 3 / 2 is 1.5, and even 4 / 2 is 2.0. A table's items are at whole positions, so " +
+            "marks[#marks / 2] is marks[1.5] for three items - and that is nil.",
+            "The item read is nil whenever the division does not come out whole, with no error.",
+            "Divide with //, which rounds down to a whole number: marks[#marks // 2].",
+            """
+            local marks = {70, 80, 90}
+            print(marks[#marks // 2 + 1])
+            """),
     ];
 }

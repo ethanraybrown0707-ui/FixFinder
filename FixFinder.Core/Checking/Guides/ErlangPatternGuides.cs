@@ -117,5 +117,19 @@ internal static class ErlangPatternGuides
             main() ->
                 io:format("~s~n", [describe(-3)]).
             """),
+
+        GuideFor(["logic-erlang-nth-from-zero"], "lists:nth from position 0",
+            "lists:nth counts positions from 1: lists:nth(1, List) is the first item. There is no position 0, so lists:nth(0, ...) - or " +
+            "positions taken from lists:seq(0, ...) - stops the program with function_clause.",
+            "The program stops at the first lookup, with the error in lists itself.",
+            "Count the positions from 1 to the length: lists:seq(1, length(Marks)).",
+            """
+            -module(positions).
+            -export([main/0]).
+
+            main() ->
+                Marks = [70, 80, 90],
+                [io:format("~p~n", [lists:nth(Position, Marks)]) || Position <- lists:seq(1, length(Marks))].
+            """),
     ];
 }

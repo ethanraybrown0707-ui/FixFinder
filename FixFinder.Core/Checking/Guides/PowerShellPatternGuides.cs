@@ -246,5 +246,41 @@ internal static class PowerShellPatternGuides
             }
             Write-Output $total
             """),
+
+        GuideFor(["logic-powershell-contains-on-text"], "-contains used to look inside text",
+            "-contains asks whether a list has a value as one of its items. Text is not a list of words or letters - it is one item - so " +
+            "\"hello world\" -contains \"world\" is False: the whole text is not \"world\".",
+            "The test is False for text that does have the word in it, with no error.",
+            "Look inside text with -like and * either side: $sentence -like \"*world*\" - or $sentence.Contains(\"world\"), which matches case.",
+            """
+            $sentence = "hello world"
+            Write-Output ($sentence -like "*world*")
+            """),
+
+        GuideFor(["logic-powershell-null-on-the-right"], "$value -eq $null with the array on the left",
+            "When the left of -eq is an array, -eq does not compare the array: it gives back the items equal to the right. So $items -eq " +
+            "$null gives a list of the items that are $null, and if takes that list as true or false by what is in it: @(1, 2, $null, " +
+            "$null) -eq $null is true - a list of two items counts as true - and @(0, $null) -ne $null is false, as its list holds only 0.",
+            "The test answers a different question, with no error.",
+            "Put $null on the left: $null -eq $items compares $null with the whole value.",
+            """
+            $items = @(1, 2, $null, $null)
+            if ($null -eq $items) {
+                Write-Output "null"
+            } else {
+                Write-Output "not null"
+            }
+            """),
+
+        GuideFor(["logic-powershell-read-host-added"], "Answers from Read-Host added with +",
+            "Read-Host gives back text, even when a number is typed, and + with text on its left joins text. So two answers, 3 and 4, " +
+            "added are \"34\".",
+            "The sum is the two numbers written side by side, with no error.",
+            "Read the answer as a number: $first = [int](Read-Host \"First\").",
+            """
+            $first = [int]"3"
+            $second = [int]"4"
+            Write-Output ($first + $second)
+            """),
     ];
 }

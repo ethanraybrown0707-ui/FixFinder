@@ -83,6 +83,10 @@ public static class LogicPatterns
         .. ScriptLibraryPatterns.All,
         .. NativeMemoryPatterns.All,
         .. GoLibraryPatterns.All,
+        .. ScriptingLibraryPatterns.All,
+        .. FortranLibraryPatterns.All,
+        .. BeamLibraryPatterns.All,
+        .. TypedLibraryPatterns.All,
     ];
 
     public static IReadOnlyList<LogicFinding> Scan(SourceFile source, Action<string>? log = null)

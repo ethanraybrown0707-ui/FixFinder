@@ -107,5 +107,18 @@ internal static class RustPatternGuides
                 }
             }
             """),
+
+        GuideFor(["logic-rust-unit-kept"], "What sort gives back, kept",
+            "sort, reverse, dedup, push and the like change the Vec itself, and give back () - the empty value. So let sorted = " +
+            "marks.sort(); makes sorted (), and printing it prints ().",
+            "The name kept holds nothing useful - () - and rustc says nothing.",
+            "Change the Vec on a line of its own, then use it - or copy it after: marks.sort(); let sorted = marks.clone();",
+            """
+            fn main() {
+                let mut marks = vec![90, 70, 80];
+                marks.sort();
+                println!("{:?}", marks);
+            }
+            """),
     ];
 }

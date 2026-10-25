@@ -150,5 +150,36 @@ internal static class ElixirPatternGuides
               IO.puts("even")
             end
             """),
+
+        GuideFor(["logic-elixir-numbers-printed-as-text"], "IO.puts of a list of numbers",
+            "IO.puts takes a list of whole numbers as text: each number is the character with that code. So IO.puts([72, 105]) writes " +
+            "\"Hi\", and [7, 8, 9] writes a bell, a backspace and a tab - not the numbers.",
+            "The list is printed as strange characters, or nothing visible, with no error.",
+            "Print the list as numbers with IO.inspect(marks, charlists: :as_lists) - IO.inspect alone shows a list of printable codes as " +
+            "text too, ~c\"Hi\" - or join it into text: IO.puts(Enum.join(marks, \", \")).",
+            """
+            marks = [7, 8, 9]
+            IO.inspect(marks, charlists: :as_lists)
+            """),
+
+        GuideFor(["logic-elixir-split-on-nothing"], "String.split with \"\"",
+            "String.split(text, \"\") splits at every point between characters - including before the first and after the last - so it " +
+            "gives an empty piece at each end: String.split(\"abc\", \"\") is [\"\", \"a\", \"b\", \"c\", \"\"].",
+            "A count or a loop over the characters has two extra, empty ones, with no error.",
+            "Take the characters with String.graphemes(\"abc\"), which gives [\"a\", \"b\", \"c\"].",
+            """
+            letters = String.graphemes("abc")
+            IO.inspect(length(letters))
+            """),
+
+        GuideFor(["logic-elixir-atom-for-text-key"], "A map made with text keys, read with an atom",
+            "%{\"Ada\" => 36} has the text \"Ada\" as its key. The atom :Ada is a different value, so ages[:Ada] finds no such key, and " +
+            "gives nil.",
+            "The value is never found - nil comes back - with no error.",
+            "Read it with the key it was made with: ages[\"Ada\"] - or make the map with atom keys, %{Ada: 36}, and read ages[:Ada].",
+            """
+            ages = %{"Ada" => 36}
+            IO.inspect(ages["Ada"])
+            """),
     ];
 }

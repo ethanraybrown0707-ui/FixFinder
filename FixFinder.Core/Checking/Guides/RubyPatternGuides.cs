@@ -250,5 +250,17 @@ internal static class RubyPatternGuides
               puts "even"
             end
             """),
+
+        GuideFor(["logic-ruby-hash-default-shared"], "Hash.new([]) - one default for every key",
+            "Hash.new([]) makes one array, and gives that same array back for every key that is missing - without storing it. So " +
+            "groups[:red] << \"Ada\" adds to the one default array, and the hash itself stays empty; every other key then shows \"Ada\" too.",
+            "The hash looks empty - {} - while every missing key shares the values added, with no error.",
+            "Give each key its own, stored as it is made: Hash.new { |hash, key| hash[key] = [] }.",
+            """
+            groups = Hash.new { |hash, key| hash[key] = [] }
+            groups[:red] << "Ada"
+            groups[:blue] << "Bob"
+            p groups
+            """),
     ];
 }

@@ -232,5 +232,36 @@ internal static class PerlPatternGuides
 
             print strftime("%Y-%m-%d %H:%M", 0, 30, 9, 5, 1, 124), "\n";
             """),
+
+        GuideFor(["logic-perl-arguments-counted"], "my $name = @_ - the count, not the argument",
+            "An array given to a single scalar gives it the array's count. So my $name = @_; makes $name the number of arguments the sub " +
+            "was given - 1 for greet(\"Ada\") - not the first of them.",
+            "The sub works with a count where it meant a value: greet(\"Ada\") printed \"Hello, 1\", and use warnings says nothing.",
+            "Put brackets round the name, so the arguments fill it as a list: my ($name) = @_; - or take the first with shift.",
+            """
+            use strict;
+            use warnings;
+
+            sub greet {
+                my ($name) = @_;
+                print "Hello, $name\n";
+            }
+
+            greet("Ada");
+            """),
+
+        GuideFor(["logic-perl-arrays-compared-by-count"], "Two arrays compared with ==",
+            "== compares numbers, and an array used as a number is its count. So @first == @second asks whether the two arrays have as " +
+            "many items - not whether they hold the same ones.",
+            "Arrays of the same length always count as equal: (1, 2, 3) and (4, 5, 6) were \"same\".",
+            "Compare what they hold - for simple values, as text: \"@first\" eq \"@second\", which joins each with spaces.",
+            """
+            use strict;
+            use warnings;
+
+            my @first = (1, 2, 3);
+            my @second = (1, 2, 3);
+            print "same\n" if "@first" eq "@second";
+            """),
     ];
 }

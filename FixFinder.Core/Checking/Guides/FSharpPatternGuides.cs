@@ -131,5 +131,27 @@ internal static class FSharpPatternGuides
             let whenever = System.DateTime(2024, 2, 5, 9, 30, 0)
             printfn "%s" (whenever.ToString("yyyy-MM-dd"))
             """),
+
+        GuideFor(["logic-fsharp-rows-shared"], "A grid made with Array.create of an array",
+            "Array.create 3 row puts the one value it is given in all three places - and an array is one array wherever it is put. So " +
+            "every row of the grid is the same row, and setting one cell sets it in every row.",
+            "grid.[0].[0] <- 1 changed the first cell of all three rows, and fsi says nothing.",
+            "Make each row with Array.init, which runs its function once for each: Array.init 3 (fun _ -> Array.zeroCreate 3).",
+            """
+            let grid = Array.init 3 (fun _ -> Array.zeroCreate<int> 3)
+            grid.[0].[0] <- 1
+            printfn "%A" grid
+            """),
+
+        GuideFor(["logic-fsharp-char-as-number"], "int of a char for its digit",
+            "int of a char gives its character code, not the digit it shows: int '7' is 55. Adding up the digits of \"123\" this way gave " +
+            "150 - 49 + 50 + 51 - not 6.",
+            "Numbers worked out from digits are far too big, with no error.",
+            "Take the code of '0' away - the digits' codes are in order - so int c - int '0' is the digit's value: 7 for '7'.",
+            """
+            let mutable total = 0
+            for c in "123" do total <- total + (int c - int '0')
+            printfn "%d" total
+            """),
     ];
 }

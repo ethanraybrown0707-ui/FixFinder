@@ -137,5 +137,55 @@ internal static class FortranPatternGuides
               end if
             end program parity
             """),
+
+        GuideFor(["logic-fortran-implicit-save"], "A value given where a name is declared, in a subroutine",
+            "In a subroutine or function, integer :: count = 0 does not set count to 0 each call. A value given in the declaration gives " +
+            "the name the save attribute: it is set once, when the program starts, and keeps whatever it held when the subroutine last " +
+            "ended.",
+            "The second call starts from where the first left off - a counter set to 0 this way printed 1 and then 2 - and gfortran -Wall " +
+            "says nothing.",
+            "Declare it without a value, and give it its value as the first thing the subroutine does: integer :: count, then count = 0.",
+            """
+            program calls
+              implicit none
+              call count_up()
+              call count_up()
+            contains
+              subroutine count_up()
+                integer :: count
+                count = 0
+                count = count + 1
+                print *, count
+              end subroutine count_up
+            end program calls
+            """),
+
+        GuideFor(["logic-fortran-padded-text-printed"], "Text declared with a length, printed before something else",
+            "A character(len=10) name always holds ten characters: the text given to it, and spaces after it up to ten. Printed with " +
+            "more after it, those spaces are printed too.",
+            "print *, 'Hello ', name, '!' printed \"Hello Ada       !\", with no error.",
+            "Print it without its spaces: trim(name).",
+            """
+            program greeting
+              implicit none
+              character(len=10) :: name
+              name = 'Ada'
+              print *, 'Hello ', trim(name), '!'
+            end program greeting
+            """),
+
+        GuideFor(["logic-fortran-len-of-padded-text"], "len of text declared with a length",
+            "len(name) is the length name was declared with - always 10 for a character(len=10) - not the length of the text in it, as " +
+            "name holds spaces after its text up to that length.",
+            "A count of the text's characters comes out as the declared length: 10 for Ada.",
+            "Count the text with len_trim(name), which stops at the last character that is not a space.",
+            """
+            program lengths
+              implicit none
+              character(len=10) :: name
+              name = 'Ada'
+              print *, len_trim(name)
+            end program lengths
+            """),
     ];
 }

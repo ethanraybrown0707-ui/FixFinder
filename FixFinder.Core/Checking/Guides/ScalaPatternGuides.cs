@@ -169,5 +169,29 @@ internal static class ScalaPatternGuides
               val n = -3
               if n % 2 != 0 then println("odd")
             """),
+
+        GuideFor(["logic-scala-char-as-number"], "toInt of a Char for its digit",
+            "toInt of a Char gives its character code, not the digit it shows: '7'.toInt is 55. Adding up the digits of \"123\" this way " +
+            "gave 150 - 49 + 50 + 51 - not 6.",
+            "Numbers worked out from digits are far too big, and the compiler says nothing.",
+            "Take the digit's value with asDigit: '7'.asDigit is 7.",
+            """
+            @main def run(): Unit =
+              var total = 0
+              for c <- "123" do total += c.asDigit
+              println(total)
+            """),
+
+        GuideFor(["logic-scala-rows-shared"], "A grid made with Array.fill of one row",
+            "Array.fill(2)(row) works out row once for each place - and row is one array, so both places hold that same array. Every row " +
+            "of the grid is the same row, and setting one cell sets it in every row.",
+            "grid(0)(0) = 1 changed the first cell of both rows, and the compiler says nothing.",
+            "Give each place its own copy - Array.fill(2)(row.clone()) - or make each row there: Array.fill(2)(Array(0, 0)).",
+            """
+            @main def run(): Unit =
+              val grid = Array.fill(2)(Array(0, 0))
+              grid(0)(0) = 1
+              println(grid.map(_.mkString(" ")).mkString(" | "))
+            """),
     ];
 }

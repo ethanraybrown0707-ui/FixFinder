@@ -5,7 +5,8 @@ namespace FixFinder.Tests;
 
 /// <summary>
 /// A language's own library used in a way that runs, says nothing and does something else - in Java, C#, Python, JavaScript,
-/// C, C++ and Go: found where it is, with the line each check's change writes, and left alone where the code means what it says.
+/// C, C++, Go, Ruby, PHP, Perl, Lua, PowerShell, Fortran, Elixir, Erlang, Rust, F#, Scala and Dart: found where it is, with
+/// the line each check's change writes, and left alone where the code means what it says.
 /// </summary>
 public class LibraryMistakeTests : IDisposable
 {
@@ -65,6 +66,31 @@ public class LibraryMistakeTests : IDisposable
     [InlineData("main.go", "logic-go-copy-into-empty", "package main\n\nfunc main() {\n\tmarks := []int{1}\n\tbackup := []int{}\n\tcopy(backup, marks)\n\t_ = backup\n}\n", 6, "\tbackup := make([]int, len(marks))")]
     [InlineData("main.go", "logic-go-copy-into-empty", "package main\n\nfunc main() {\n\tmarks := []int{1}\n\tvar backup []int\n\tcopy(backup, marks)\n\t_ = backup\n}\n", 6, "\tvar backup = make([]int, len(marks))")]
     [InlineData("main.go", "logic-go-byte-printed", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tword := \"go\"\n\tfmt.Println(word[1])\n}\n", 7, "\tfmt.Println(string(word[1]))")]
+    // Ruby, PHP, Perl, Lua and PowerShell.
+    [InlineData("main.rb", "logic-ruby-hash-default-shared", "totals = Hash.new([])\ntotals[:a].push(1)\n", 1, "totals = Hash.new { |hash, key| hash[key] = [] }")]
+    [InlineData("main.php", "logic-php-foreach-reference-kept", "<?php\n$marks = [1, 2];\nforeach ($marks as &$mark) {\n    $mark *= 2;\n}\nforeach ($marks as $mark) {\n    echo $mark;\n}\n", 6, "unset($mark);")]
+    [InlineData("main.php", "logic-php-trim-word", "<?php\necho ltrim(\"www.site.com\", \"www.\");\n", 2, "echo preg_replace('/^www\\./', '', \"www.site.com\");")]
+    [InlineData("main.pl", "logic-perl-arguments-counted", "sub greet {\n    my $who = @_;\n    print $who;\n}\n", 2, "    my ($who) = @_;")]
+    [InlineData("main.pl", "logic-perl-arrays-compared-by-count", "my @a = (1);\nmy @b = (2);\nprint \"x\" if @a != @b;\n", 3, "print \"x\" if \"@a\" ne \"@b\";")]
+    [InlineData("main.lua", "logic-lua-index-divided", "local t = {1, 2, 3}\nlocal middle = t[(1 + #t) / 2]\n", 2, "local middle = t[(1 + #t) // 2]")]
+    [InlineData("main.ps1", "logic-powershell-contains-on-text", "$name = Read-Host \"Name\"\nif ($name -contains \"a\") { 'yes' }\n", 2, "if ($name -like \"*a*\") { 'yes' }")]
+    [InlineData("main.ps1", "logic-powershell-contains-on-text", "$text = 'abc'\n$text -notcontains 'b'\n", 2, "$text -notlike \"*b*\"")]
+    [InlineData("main.ps1", "logic-powershell-null-on-the-right", "$items = Get-ChildItem\nif ($items -ne $null) { 'some' }\n", 2, "if ($null -ne $items) { 'some' }")]
+    [InlineData("main.ps1", "logic-powershell-read-host-added", "$a = Read-Host\n$b = Read-Host\n$a + $b\n", 3, "$a = [int](Read-Host)")]
+    // Fortran, Elixir and Erlang.
+    [InlineData("main.f90", "logic-fortran-padded-text-printed", "program p\n  character(len=8) :: city\n  city = 'Rome'\n  print *, city, ' is far'\nend program p\n", 4, "  print *, trim(city), ' is far'")]
+    [InlineData("main.f90", "logic-fortran-len-of-padded-text", "program p\n  character(len=8) :: city\n  city = 'Rome'\n  print *, len(city)\nend program p\n", 4, "  print *, len_trim(city)")]
+    [InlineData("main.exs", "logic-elixir-numbers-printed-as-text", "IO.puts([1, 2, 3])\n", 1, "IO.inspect([1, 2, 3], charlists: :as_lists)")]
+    [InlineData("main.exs", "logic-elixir-split-on-nothing", "letters = String.split(word, \"\")\n", 1, "letters = String.graphemes(word)")]
+    [InlineData("main.exs", "logic-elixir-atom-for-text-key", "scores = %{\"ada\" => 9}\nIO.puts(scores[:ada])\n", 2, "IO.puts(scores[\"ada\"])")]
+    [InlineData("main.erl", "logic-erlang-nth-from-zero", "-module(main).\n-export([first/1]).\nfirst(List) -> lists:nth(0, List).\n", 3, "first(List) -> lists:nth(1, List).")]
+    // F#, Scala and Dart.
+    [InlineData("main.fsx", "logic-fsharp-rows-shared", "let board = Array.create 2 [| 0; 0 |]\n", 1, "let board = Array.init 2 (fun _ -> [| 0; 0 |])")]
+    [InlineData("main.fsx", "logic-fsharp-char-as-number", "let first = \"42\".[0]\nprintfn \"%d\" (int first)\n", 2, "printfn \"%d\" (int first - int '0')")]
+    [InlineData("main.scala", "logic-scala-char-as-number", "val first = \"42\"(0)\nprintln(first.toInt)\n", 2, "println(first.asDigit)")]
+    [InlineData("main.scala", "logic-scala-rows-shared", "val row = Array(0, 0)\nval grid = Array.fill(3)(row)\n", 2, "val grid = Array.fill(3)(row.clone())")]
+    [InlineData("main.dart", "logic-dart-result-discarded", "void main() {\n  String name = 'ada';\n  name.toUpperCase();\n  print(name);\n}\n", 3, "  name = name.toUpperCase();")]
+    [InlineData("main.dart", "logic-dart-future-used-as-value", "Future<int> load() async => 1;\nFuture<void> main() async {\n  var data = load();\n  print(data);\n}\n", 3, "  var data = await load();")]
     public void AMistakeIsFoundWithItsChange(string fileName, string check, string code, int line, string changedTo)
     {
         var found = Assert.Single(Scan(fileName, code, check));
@@ -82,10 +108,32 @@ public class LibraryMistakeTests : IDisposable
         Assert.Equal(["    var currentI = i;", "    actions.Add(() => Console.Write(currentI));"], found.Fix!.NewLines);
     }
 
+    [Fact]
+    public void WhatARustMethodGivesBackKeptIsChangedToTheCallAndACopy()
+    {
+        var found = Assert.Single(Scan("main.rs", "fn main() {\n    let mut marks = vec![2, 1];\n    let sorted = marks.sort();\n    println!(\"{:?}\", sorted);\n}\n", "logic-rust-unit-kept"));
+
+        Assert.Equal(3, found.Line);
+        Assert.Equal(["    marks.sort();", "    let sorted = marks.clone();"], found.Fix!.NewLines);
+    }
+
+    [Fact]
+    public void AFortranNameGivenAValueWhereItIsDeclaredIsDeclaredLastAndGivenItAfter()
+    {
+        var found = Assert.Single(Scan("main.f90", "subroutine tally()\n  implicit none\n  integer :: total = 0\n  real :: rate\n  total = total + 1\nend subroutine tally\n", "logic-fortran-implicit-save"));
+
+        Assert.Equal(3, found.Line);
+        Assert.Equal((3, 2), (found.Fix!.StartLine, found.Fix.RemoveCount));
+        Assert.Equal(["  real :: rate", "  integer :: total", "  total = 0"], found.Fix.NewLines);
+    }
+
     [Theory]
     // Arrays.asList of a char[] has no stream to make a list of; a goroutine is waited for in ways too many to write in.
     [InlineData("Main.java", "logic-java-aslist-of-primitive-array", "import java.util.Arrays;\nclass Main {\n    int size(char[] letters) { return Arrays.asList(letters).size(); }\n}\n")]
     [InlineData("main.go", "logic-go-goroutine-not-waited", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tgo fmt.Println(\"hi\")\n}\n")]
+    // A final String cannot be given its copy, and await cannot be written outside an async function.
+    [InlineData("main.dart", "logic-dart-result-discarded", "void main() {\n  final name = 'ada';\n  name.trim();\n}\n")]
+    [InlineData("main.dart", "logic-dart-future-used-as-value", "Future<int> load() async => 1;\nvoid main() {\n  var data = load();\n  print(data);\n}\n")]
     public void AMistakeWithNoSureChangeIsFoundWithoutOne(string fileName, string check, string code) =>
         Assert.Null(Assert.Single(Scan(fileName, code, check)).Fix);
 
@@ -122,6 +170,43 @@ public class LibraryMistakeTests : IDisposable
     [InlineData("main.go", "logic-go-copy-into-empty", "package main\n\nfunc main() {\n\tmarks := []int{1}\n\tbackup := make([]int, len(marks))\n\tcopy(backup, marks)\n\t_ = backup\n}\n")]
     [InlineData("main.go", "logic-go-byte-printed", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tword := \"go\"\n\tnums := []int{1}\n\tfmt.Println(string(word[1]), nums[0])\n}\n")]
     [InlineData("main.go", "logic-go-goroutine-not-waited", "package main\n\nimport (\n\t\"fmt\"\n\t\"sync\"\n)\n\nfunc main() {\n\tvar wg sync.WaitGroup\n\twg.Add(1)\n\tgo func() {\n\t\tdefer wg.Done()\n\t\tfmt.Println(\"hi\")\n\t}()\n\twg.Wait()\n}\n")]
+    // Ruby: a default that cannot be changed in place, a shared default only read, and a block that makes one for each key.
+    [InlineData("main.rb", "logic-ruby-hash-default-shared", "counts = Hash.new(0)\ncounts[:a] += 1\nseen = Hash.new([])\np seen[:x]\ngroups = Hash.new { |hash, key| hash[key] = [] }\ngroups[:a] << 1\n")]
+    // PHP: the reference let go of, a foreach by value, and trim given a set of characters.
+    [InlineData("main.php", "logic-php-foreach-reference-kept", "<?php\n$marks = [1, 2];\nforeach ($marks as &$mark) {\n    $mark *= 2;\n}\nunset($mark);\nforeach ($marks as $mark) {\n    echo $mark;\n}\n")]
+    [InlineData("main.php", "logic-php-trim-word", "<?php\n$line = \"a/ \";\necho rtrim($line, \" \\n\"), rtrim($line, \"/\");\n")]
+    // Perl: the arguments as a list, an array's count meant, and arrays compared as text.
+    [InlineData("main.pl", "logic-perl-arguments-counted", "sub greet {\n    my ($who) = @_;\n    my @names = ('a');\n    my $count = @names;\n    print $who, $count;\n}\n")]
+    [InlineData("main.pl", "logic-perl-arrays-compared-by-count", "my @a = (1);\nmy @b = (1);\nprint \"x\" if \"@a\" eq \"@b\";\nprint \"y\" if scalar(@a) == 1;\n")]
+    // Lua: a whole number divided to, a plain position, and / outside a position.
+    [InlineData("main.lua", "logic-lua-index-divided", "local t = {1, 2, 3}\nlocal i = 2\nprint(t[#t // 2], t[i], #t / 2)\n")]
+    // PowerShell: -contains on a list, $null on the left, and an answer read as a number or joined to text.
+    [InlineData("main.ps1", "logic-powershell-contains-on-text", "$names = @('Ada', 'Bob')\nif ($names -contains 'Ada') { 'yes' }\n")]
+    [InlineData("main.ps1", "logic-powershell-null-on-the-right", "$items = Get-ChildItem\nif ($null -eq $items) { 'none' }\n")]
+    [InlineData("main.ps1", "logic-powershell-read-host-added", "$a = [int](Read-Host)\n$b = Read-Host\n$name = Read-Host\nWrite-Output ($a + $b)\nWrite-Output ($name + ' there')\n")]
+    // Fortran: a name given a value in a program, a parameter or save in a subroutine, text trimmed or printed last, and len_trim.
+    [InlineData("main.f90", "logic-fortran-implicit-save", "program p\n  integer :: n = 0\n  call s()\ncontains\n  subroutine s()\n    integer, parameter :: size = 3\n    integer, save :: calls = 0\n    calls = calls + size\n  end subroutine s\nend program p\n")]
+    [InlineData("main.f90", "logic-fortran-padded-text-printed", "program p\n  character(len=8) :: city\n  city = 'Rome'\n  print *, trim(city), ' is far'\n  print *, 'Off to ', city\nend program p\n")]
+    [InlineData("main.f90", "logic-fortran-len-of-padded-text", "program p\n  character(len=8) :: city\n  city = 'Rome'\n  print *, len_trim(city)\nend program p\n")]
+    // Elixir: a list inspected, text printed, a split on a comma, and a map made and read with atoms.
+    [InlineData("main.exs", "logic-elixir-numbers-printed-as-text", "marks = [7, 8]\nIO.inspect(marks, charlists: :as_lists)\nname = \"Ada\"\nIO.puts(name)\n")]
+    [InlineData("main.exs", "logic-elixir-split-on-nothing", "parts = String.split(\"a,b\", \",\")\n")]
+    [InlineData("main.exs", "logic-elixir-atom-for-text-key", "scores = %{ada: 9}\nIO.puts(scores[:ada])\nages = %{\"Ada\" => 36}\nIO.puts(ages[\"Ada\"])\n")]
+    // Erlang: positions from 1.
+    [InlineData("main.erl", "logic-erlang-nth-from-zero", "-module(main).\n-export([all/1]).\nall(L) -> [lists:nth(P, L) || P <- lists:seq(1, length(L))].\n")]
+    // Rust: the Vec changed on a line of its own, and what pop gives back.
+    [InlineData("main.rs", "logic-rust-unit-kept", "fn main() {\n    let mut marks = vec![2, 1];\n    marks.sort();\n    let last = marks.pop();\n    println!(\"{:?} {:?}\", marks, last);\n}\n")]
+    // F#: rows made each their own, a number in every place, and text read as a number.
+    [InlineData("main.fsx", "logic-fsharp-rows-shared", "let grid = Array.init 2 (fun _ -> Array.zeroCreate<int> 2)\nlet zeros = Array.create 3 0\n")]
+    [InlineData("main.fsx", "logic-fsharp-char-as-number", "let text = \"42\"\nprintfn \"%d\" (int text)\nprintfn \"%d\" (int 3.5)\n")]
+    [InlineData("main.fsx", "logic-fsharp-char-as-number", "let mutable total = 0\nfor c in \"123\" do total <- total + (int c - int '0')\n")]
+    [InlineData("main.scala", "logic-scala-char-as-number", "var total = 0\nfor c <- \"123\" do total += c.toInt - '0'\n")]
+    // Scala: each row made in place, asDigit, and text read as a number.
+    [InlineData("main.scala", "logic-scala-rows-shared", "val grid = Array.fill(3)(Array(0, 0))\n")]
+    [InlineData("main.scala", "logic-scala-char-as-number", "val digit = '7'.asDigit\nval number = \"42\".toInt\nval text = \"42\"\nprintln(text.toInt + digit + number)\n")]
+    // Dart: the copy kept, the copy used, and a Future waited for.
+    [InlineData("main.dart", "logic-dart-result-discarded", "void main() {\n  var name = ' ada ';\n  name = name.trim();\n  print(name.toUpperCase());\n}\n")]
+    [InlineData("main.dart", "logic-dart-future-used-as-value", "Future<int> load() async => 1;\nFuture<void> main() async {\n  var data = await load();\n  print(data);\n}\n")]
     public void CodeThatMeansWhatItSaysIsLeftAlone(string fileName, string check, string code) => Assert.Empty(Scan(fileName, code, check));
 
     [Theory]

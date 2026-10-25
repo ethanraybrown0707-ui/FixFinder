@@ -2,6 +2,7 @@ using FixFinder.Core;
 using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Logic;
+using FixFinder.Core.Parsing;
 using FixFinder.Core.Teaching;
 using Xunit.Abstractions;
 
@@ -90,6 +91,60 @@ public class LibraryMistakeLiveTests(ITestOutputHelper output)
             "[] 0", "[70 80 90] 3"
         },
         { "Go", "logic-go-byte-printed", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tname := \"hello\"\n\tfmt.Println(name[0])\n}\n", "104", "h" },
+        { "Ruby", "logic-ruby-hash-default-shared", "groups = Hash.new([])\ngroups[:red] << \"Ada\"\nputs groups.size\n", "0", "1" },
+        {
+            "PHP", "logic-php-foreach-reference-kept",
+            "<?php\n$marks = [1, 2, 3];\nforeach ($marks as &$mark) {\n    $mark = $mark * 10;\n}\nforeach ($marks as $mark) {\n}\necho implode(\",\", $marks), PHP_EOL;\n",
+            "10,20,20", "10,20,30"
+        },
+        { "PHP", "logic-php-trim-word", "<?php\necho rtrim(\"test.txt\", \".txt\"), PHP_EOL;\n", "tes", "test" },
+        { "Perl", "logic-perl-arguments-counted", "use strict;\nuse warnings;\nsub greet {\n    my $name = @_;\n    print \"Hello, $name\\n\";\n}\ngreet(\"Ada\");\n", "Hello, 1", "Hello, Ada" },
+        {
+            "Perl", "logic-perl-arrays-compared-by-count",
+            "use strict;\nuse warnings;\nmy @first = (1, 2, 3);\nmy @second = (4, 5, 6);\nprint @first == @second ? \"same\\n\" : \"different\\n\";\n", "same", "different"
+        },
+        { "Lua", "logic-lua-index-divided", "local marks = {70, 80, 90}\nprint(marks[#marks / 2])\n", "nil", "70" },
+        { "PowerShell", "logic-powershell-contains-on-text", "$sentence = \"hello world\"\nWrite-Output ($sentence -contains \"world\")\n", "False", "True" },
+        {
+            "PowerShell", "logic-powershell-null-on-the-right",
+            "$items = @(1, 2, $null, $null)\nif ($items -eq $null) { Write-Output \"null\" } else { Write-Output \"not null\" }\n", "null", "not null"
+        },
+        {
+            "PowerShell", "logic-powershell-null-on-the-right",
+            "$items = @(0, $null)\nif ($items -ne $null) { Write-Output \"has a value\" } else { Write-Output \"no value\" }\n", "no value", "has a value"
+        },
+        {
+            "Fortran", "logic-fortran-implicit-save",
+            "program calls\n  implicit none\n  call count_up()\n  call count_up()\ncontains\n  subroutine count_up()\n    integer :: count = 0\n    count = count + 1\n    print *, count\n  end subroutine count_up\nend program calls\n",
+            "           1\n           2", "           1\n           1"
+        },
+        {
+            "Fortran", "logic-fortran-padded-text-printed",
+            "program greeting\n  implicit none\n  character(len=10) :: name\n  name = 'Ada'\n  print *, 'Hello ', name, '!'\nend program greeting\n", " Hello Ada       !", " Hello Ada!"
+        },
+        {
+            "Fortran", "logic-fortran-len-of-padded-text",
+            "program lengths\n  implicit none\n  character(len=10) :: name\n  name = 'Ada'\n  print *, len(name)\nend program lengths\n", "          10", "           3"
+        },
+        { "Elixir", "logic-elixir-numbers-printed-as-text", "marks = [72, 105]\nIO.puts(marks)\n", "Hi", "[72, 105]" },
+        { "Elixir", "logic-elixir-split-on-nothing", "IO.puts(length(String.split(\"abc\", \"\")))\n", "5", "3" },
+        { "Elixir", "logic-elixir-atom-for-text-key", "ages = %{\"Ada\" => 36}\nIO.inspect(ages[:Ada])\n", "nil", "36" },
+        { "Rust", "logic-rust-unit-kept", "fn main() {\n    let mut marks = vec![90, 70, 80];\n    let sorted = marks.sort();\n    println!(\"{:?}\", sorted);\n}\n", "()", "[70, 80, 90]" },
+        {
+            "F#", "logic-fsharp-rows-shared", "let grid = Array.create 3 (Array.zeroCreate<int> 3)\ngrid.[0].[0] <- 1\nprintfn \"%A\" grid\n",
+            "[|[|1; 0; 0|]; [|1; 0; 0|]; [|1; 0; 0|]|]", "[|[|1; 0; 0|]; [|0; 0; 0|]; [|0; 0; 0|]|]"
+        },
+        { "F#", "logic-fsharp-char-as-number", "let mutable total = 0\nfor c in \"123\" do total <- total + int c\nprintfn \"%d\" total\n", "150", "6" },
+        { "Scala", "logic-scala-char-as-number", "@main def run(): Unit =\n  var total = 0\n  for c <- \"123\" do total += c.toInt\n  println(total)\n", "150", "6" },
+        {
+            "Scala", "logic-scala-rows-shared",
+            "@main def run(): Unit =\n  val row = Array(0, 0)\n  val grid = Array.fill(2)(row)\n  grid(0)(0) = 1\n  println(grid.map(_.mkString(\" \")).mkString(\" | \"))\n", "1 0 | 1 0", "1 0 | 0 0"
+        },
+        { "Dart", "logic-dart-result-discarded", "void main() {\n  var name = ' Ada ';\n  name.trim();\n  print('[$name]');\n}\n", "[ Ada ]", "[Ada]" },
+        {
+            "Dart", "logic-dart-future-used-as-value", "Future<int> count() async => 3;\n\nFuture<void> main() async {\n  var result = count();\n  print(result);\n}\n",
+            "Instance of 'Future<int>'", "3"
+        },
     };
 
     /// <summary>The mistake and its change: each run, or null when this computer could not run them - which is said.</summary>
@@ -141,6 +196,53 @@ public class LibraryMistakeLiveTests(ITestOutputHelper output)
         Assert.NotNull(wrong.Error);
         Assert.Contains("ERR_INVALID_ARG_TYPE", string.Join("\n", wrong.Output));
         Assert.True(right.Shows(Behaviour.Printing("set\nhello")), right.Said("JavaScript"));
+    }
+
+    [Fact]
+    public async Task ListsNthFromZeroStopsTheProgramAndTheChangePrintsEveryItem()
+    {
+        if (await RunBothAsync("Erlang", "logic-erlang-nth-from-zero",
+                "-module(positions).\n-export([main/0]).\n\nmain() ->\n    Marks = [70, 80, 90],\n    [io:format(\"~p~n\", [lists:nth(Position, Marks)]) || Position <- lists:seq(0, length(Marks) - 1)].\n")
+            is not var (wrong, right)) return;
+
+        // Erlang names the error function_clause; the shell FixFinder runs it in writes it as "no function clause matching".
+        Assert.Matches("function.clause", string.Join("\n", wrong.Output));
+        Assert.True(right.Shows(Behaviour.Printing("70\n80\n90")), right.Said("Erlang"));
+    }
+
+    /// <summary>Runs code as FixFinder runs a program, typing <paramref name="input"/>: what it printed, or null when this computer could not run it.</summary>
+    private static async Task<string?> RunTypingAsync(CodeLanguage language, string code, string input, string folder)
+    {
+        var file = PastedCode.Save(code, language, folder);
+        var launch = TargetFactory.FromFile(file);
+        if (!launch.Ok || launch.Spec is not { } run) return null;
+
+        var result = await new TargetRunner(language.Parsers()).RunAsync(run.WithInput(input), CancellationToken.None);
+        if (result.Outcome == RunOutcome.LaunchFailed || ApplicationControl.Refused(result)) return null;
+
+        return string.Join("\n", result.Lines.Where(line => line.Stream == StreamKind.StdOut).Select(line => line.Text.TrimEnd())).Trim();
+    }
+
+    [Fact]
+    public async Task TwoAnswersFromReadHostAddedJoinAsTextAndTheChangeAddsThem()
+    {
+        const string mistake = "$first = Read-Host \"First\"\n$second = Read-Host \"Second\"\nWrite-Output ($first + $second)\n";
+        using var temp = new TempFolder();
+        var path = Path.Combine(temp.Path, "scanned.ps1");
+        File.WriteAllText(path, mistake);
+        var found = Assert.Single(LogicPatterns.Scan(SourceFile.Read(path)!), finding => finding.PatternId == "logic-powershell-read-host-added");
+        var lines = mistake.TrimEnd('\n').Split('\n').ToList();
+        lines.RemoveRange(found.Fix!.StartLine - 1, found.Fix.RemoveCount);
+        lines.InsertRange(found.Fix.StartLine - 1, found.Fix.NewLines);
+
+        var powershell = CodeLanguage.All.Single(each => each.Name == "PowerShell");
+        if (await RunTypingAsync(powershell, mistake, "3\n4\n", Path.Combine(temp.Path, "mistake")) is not { } wrong) return;
+        var right = await RunTypingAsync(powershell, string.Join("\n", lines) + "\n", "3\n4\n", Path.Combine(temp.Path, "change"));
+        output.WriteLine($"the mistake printed: {wrong}\nthe change printed:  {right}");
+
+        // PowerShell writes what was typed for Read-Host to the output too; what was worked out is the last line.
+        Assert.Equal("34", wrong.Split('\n')[^1]);
+        Assert.Equal("7", right?.Split('\n')[^1]);
     }
 
     [Fact]
