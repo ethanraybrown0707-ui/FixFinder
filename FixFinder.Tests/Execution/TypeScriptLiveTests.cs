@@ -130,17 +130,20 @@ public class TypeScriptLiveTests(ITestOutputHelper output) : IDisposable
     }
 
     [Theory]
-    [InlineData("const total: number = 10;\nconsole.log(totl + 1);\n", "js-nearest-name", 2, 2, "console.log(total + 1);", "11")]
-    [InlineData("const total: number = 10;\ntotal = 20;\nconsole.log(total);\n", "js-const-reassigned", 2, 1, "let total: number = 10;", "20")]
-    public async Task WhatStopsTheProgramIsFoundAtItsLineAndItsChangeRuns(string code, string rule, int line, int changedLine, string changedTo, string fixedPrints)
+    // Each: the program, the rule for what Node.js stops it with, the rule for what tsc says of it first, where, the change, and what the changed program prints.
+    [InlineData("const total: number = 10;\nconsole.log(totl + 1);\n", "js-nearest-name", "ts-did-you-mean", 2, 2, "console.log(total + 1);", "11")]
+    [InlineData("const total: number = 10;\ntotal = 20;\nconsole.log(total);\n", "js-const-reassigned", "ts-const-reassigned", 2, 1, "let total: number = 10;", "20")]
+    public async Task WhatStopsTheProgramIsFoundAtItsLineAndItsChangeRuns(string code, string rule, string tscRule, int line, int changedLine, string changedTo, string fixedPrints)
     {
         if (Node() is not { } node) return;
 
         var file = Write(Path.Combine($"stopped-{rule}", "main.ts"), code);
         var report = await CheckAsync(file);
 
-        var stopped = Assert.Single(report.Findings, finding => finding.Kind == FindingKind.Runtime);
-        Assert.Equal((rule, line), (stopped.RuleId, stopped.Line!.Value));
+        // Where this computer has tsc, it finds the same mistake before the program runs and offers the same change, so the
+        // two are one finding - kept under either rule.
+        var stopped = Assert.Single(report.Findings, finding => finding.Line == line && finding.Fix is not null);
+        Assert.Contains(stopped.RuleId, new[] { rule, tscRule });
         Assert.Equal(changedLine, stopped.Fix?.StartLine);
         Assert.Equal(changedTo, stopped.Fix?.NewLines.Single());
 
@@ -215,16 +218,28 @@ public class TypeScriptLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Null(report.Run?.Run);
     }
 
+    /// <summary>
+    /// A value of the wrong type: Node.js strips the types without checking them and runs it, printing ten1 - and where this
+    /// computer has TypeScript's compiler, tsc finds it, at its line; where it has none, the note says the types were not checked.
+    /// </summary>
     [Fact]
-    public async Task TypesAreNotCheckedSoAValueOfTheWrongTypeRuns()
+    public async Task AValueOfTheWrongTypeRunsAndTscFindsItWhereItIsHere()
     {
         if (Node() is null) return;
 
-        // No TypeScript compiler is run: Node.js strips the types without checking them, as FixFinder's README says.
-        var report = await CheckAsync(Write(Path.Combine("types", "main.ts"), "const total: number = \"ten\";\nconsole.log(total + 1);\n"));
+        var file = Write(Path.Combine("types", "main.ts"), "const total: number = \"ten\";\nconsole.log(total + 1);\n");
+        var report = await CheckAsync(file);
 
-        Assert.Empty(report.Findings);
         Assert.Equal("ten1", report.Run?.Run?.Lines.Single(line => line.Stream == StreamKind.StdOut).Text.Trim());
+        if (TypeScriptCompiler.For(file) is null)
+        {
+            Assert.Empty(report.Findings);
+            Assert.Contains(report.Notes, note => note.StartsWith("The types were not checked", StringComparison.Ordinal));
+            return;
+        }
+
+        var typeError = Assert.Single(report.Findings);
+        Assert.Equal(("TS2322", 1), (typeError.Error?.ErrorCode, typeError.Line!.Value));
     }
 
     /// <summary>Every whole program a TypeScript guide shows checks with nothing said, and runs with nothing printed to the error stream.</summary>
@@ -245,6 +260,17 @@ public class TypeScriptLiveTests(ITestOutputHelper output) : IDisposable
             var said = await checking.StandardOutput.ReadToEndAsync() + await checking.StandardError.ReadToEndAsync();
             await checking.WaitForExitAsync();
             Assert.True(checking.ExitCode == 0 && said.Trim().Length == 0, $"example {number}:\n{example}\nthe check said:\n{said}");
+
+            // Where this computer has TypeScript's compiler, it finds no type error in the example either.
+            if (TypeScriptCompiler.For(file) is { ChecksAsNodeRuns: true } compiler)
+            {
+                var typeCheck = TypeScriptCompiler.CheckOf(compiler, node, file, TimeSpan.FromMinutes(1)).Spec;
+                using var typing = Process.Start(new ProcessStartInfo(typeCheck.ExecutablePath, typeCheck.Arguments)
+                    { WorkingDirectory = typeCheck.WorkingDirectory, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true })!;
+                var tscSaid = await typing.StandardOutput.ReadToEndAsync() + await typing.StandardError.ReadToEndAsync();
+                await typing.WaitForExitAsync();
+                Assert.True(typing.ExitCode == 0 && tscSaid.Trim().Length == 0, $"example {number}:\n{example}\n{compiler.Description} said:\n{tscSaid}");
+            }
 
             await RunAsync(node, file);
         }

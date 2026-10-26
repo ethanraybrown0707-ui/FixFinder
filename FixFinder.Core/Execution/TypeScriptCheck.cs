@@ -6,8 +6,9 @@ using System.Text;
 namespace FixFinder.Core.Execution;
 
 /// <summary>
-/// How a TypeScript file is checked and run: by Node.js itself, which runs TypeScript by stripping its types - nothing is
-/// downloaded, and no TypeScript compiler is run, so the types are not checked.
+/// How a TypeScript file is checked and run: by Node.js itself, which runs TypeScript by stripping its types without checking
+/// them - nothing is downloaded. The types are checked by TypeScript's own compiler, as TypeScriptCompiler runs it, only when
+/// this computer has one already.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -436,6 +436,8 @@ public static partial class LocalFixEngine
         new JsImportExtension(),
         new TsConditionClosingBracket(),
         new TsMissingComma(),
+        new TsDidYouMean(),
+        new TsConstReassigned(),
         new JsForeignPrint(),
         new JsForeignWord(),
         new JsLen(),

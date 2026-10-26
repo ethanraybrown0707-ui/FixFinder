@@ -633,20 +633,33 @@ A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js it
 its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
 package it does not have, and with no one at a terminal to ask it says yes by itself, and FixFinder never downloads; a
 Node.js that does not run TypeScript itself - its `process.features.typescript` says so - is said to be one, and the
-program is not run. No TypeScript compiler is run either, so **the types are not checked**:
-`const total: number = "ten"` runs. Before it runs, every file of the program is checked by a small check of FixFinder's
-that runs none of it: Node's own `stripTypeScriptTypes` takes the types out - failing, in Node's words and at the line
-it names, on TypeScript it cannot read, such as a bracket left open, or cannot run with its types taken out, such as an
-`enum`, a `namespace` or a parameter property - and what is left is compiled as a module, which finds JavaScript's own
-errors, such as a name declared twice. Once its types are out the program is JavaScript, so a crash is read as
-JavaScript's, at the lines of the `.ts` file as written, in a file it imports too, and JavaScript's fix rules are
-TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension - `'./helpers'` for
-`'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a closing brace or a
-quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each change is checked in a
-copy - by the same check - and run. JavaScript's 39 logic checks read it too, in the JavaScript Node runs - its lines
-with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column is where it was - and
-a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <= names.length; i++)`
-becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19.
+program is not run. Its **types are checked by TypeScript's own compiler, `tsc`**, when this computer has one already -
+the project's own, in a `node_modules` above the program, or else one installed with npm for every project. FixFinder
+never downloads one: with none here, a note says the types were not checked. A program with a `tsconfig.json` - in its
+folder, or one above it up to its project's - is checked as the project says. A file on its own is checked the way
+Node.js runs it: strictly, as `tsc --init` sets a project up, with an import's `.ts` allowed, and every file a module,
+as Node.js runs each: told `--module nodenext`, TypeScript 7.0.2 called a top-level `await` an error in a file Node.js
+ran, and, left to read a file with no import as a script, it took the file's `const top` for a second `top`, the
+browser's own. Each type error is a finding at its line, with tsc's own code for it - `TS2322` - and twenty of them have
+a guide of their own; the program still runs, as Node.js runs it with the types taken out unchecked, so `const total:
+number = "ten"` is found, and still prints `ten1`. tsc's own "Did you mean" for a name or a property becomes a fix, and
+so does a `const` given a new value, which becomes `let` - the changes Node's own errors get when the program reaches
+those lines, so each such mistake is one finding. When Node's own type definitions, `@types/node`, are not here, what
+tsc says only of them - `process`, `require`, `node:readline` - is left out of the findings and named in the note, as
+not type-checked; when they are, tsc is given them. Before it runs, every file of the program is checked by a small
+check of FixFinder's that runs none of it: Node's own `stripTypeScriptTypes` takes the types out - failing, in Node's
+words and at the line it names, on TypeScript it cannot read, such as a bracket left open, or cannot run with its types
+taken out, such as an `enum`, a `namespace` or a parameter property - and what is left is compiled as a module, which
+finds JavaScript's own errors, such as a name declared twice. Once its types are out the program is JavaScript, so a
+crash is read as JavaScript's, at the lines of the `.ts` file as written, in a file it imports too, and JavaScript's fix
+rules are TypeScript's: a misspelt name, a `const` given a new value, and an import without its extension -
+`'./helpers'` for `'./helpers.ts'`, which Node finds only by its whole name - become fixes, and so do a bracket, a
+closing brace or a quote left open, a `)` missing before a block's `{`, and a comma missing between two items; each
+change is checked in a copy - by the same check - and run. JavaScript's 39 logic checks read it too, in the JavaScript
+Node runs - its lines with every type replaced by spaces, by Node's own `stripTypeScriptTypes`, so each line and column
+is where it was - and a check's change is made to the lines as written, types and all: `for (let i: number = 0; i <=
+names.length; i++)` becomes `for (let i: number = 0; i < names.length; i++)`. TypeScript is tested with Node.js 24.19
+and TypeScript 7.0.2.
 
 None of these versions is chosen by hand: each program's is worked out from its project and its own code, every time it
 is checked, and how it ran says which version that was and why.
@@ -893,7 +906,7 @@ it stops with:
 | Elixir | Elixir's own compiler on every file, through a check that runs none of the program |
 | Erlang | `erlc -Wall`, with the modules the program calls |
 | F# | `dotnet fsi --typecheck-only`, with the files the script loads |
-| TypeScript | Node.js itself on every file: its types taken out, and the rest compiled - the types are not checked |
+| TypeScript | Node.js itself on every file: its types taken out, and the rest compiled - and its types by `tsc`, when this computer has it |
 
 What a program prints is its own output, not a crash. A run is reported as failing only when the language's runtime says
 it failed - a traceback, an uncaught exception, a panic, the java launcher unable to start it - or when it ends with a code
@@ -1476,7 +1489,7 @@ Python, Java and C# are checked most thoroughly.
 | Elixir | 12 | 16 | 29 |
 | Erlang | 9 | 10 | 23 |
 | F# | 16 | 15 | 33 |
-| TypeScript | 45 | 52 | 5 |
+| TypeScript | 47 | 52 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide

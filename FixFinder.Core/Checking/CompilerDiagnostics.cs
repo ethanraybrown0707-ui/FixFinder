@@ -127,7 +127,67 @@ public static partial class CompilerDiagnostics
             warnings.AddRange(Resolved(ScriptWarnings.In(script, run.Lines), folder));
         }
 
-        return new CompilerReport(true, errors, Distinct(warnings), output);
+        // A TypeScript program Node.js can read is checked again by TypeScript's own compiler, when this computer has one: its
+        // type errors are reported, and the program still runs, as Node.js runs it with its types taken out unchecked.
+        string? typesNote = null;
+        if (script == ScriptLanguages.TypeScript && errors.Count == 0)
+        {
+            var typed = await TypeScriptTypesAsync(chosen, log, cancellationToken);
+            warnings.AddRange(typed.Errors);
+            output.AddRange(typed.Output);
+            typesNote = typed.Note;
+        }
+
+        return new CompilerReport(true, errors, Distinct(warnings), output, Problem: typesNote);
+    }
+
+    /// <summary>
+    /// A TypeScript program's types, checked by tsc - the project's own, or one npm installed - when there is one: its type
+    /// errors, what tsc wrote, and a note of which tsc checked them, and how - or of why they were not checked. What only says
+    /// Node's own type definitions are not here is left out of the errors, and named in the note.
+    /// </summary>
+    private static async Task<(IReadOnlyList<ParsedError> Errors, IReadOnlyList<CapturedLine> Output, string Note)> TypeScriptTypesAsync(
+        string chosen, Action<string>? log, CancellationToken cancellationToken)
+    {
+        const string NotChecked = "The types were not checked";
+
+        if (TypeScriptCompiler.For(chosen) is not { } compiler)
+            return ([], [], $"{NotChecked}: no TypeScript compiler, tsc, was found - in a node_modules above the program, or installed with npm - " +
+                            "and Node.js takes the types out without checking them. FixFinder never downloads one.");
+
+        if (!compiler.ChecksAsNodeRuns)
+            return ([], [], $"{NotChecked}: the TypeScript compiler here, {compiler.Description}, is older than 5.0, the first to allow an import " +
+                            "of a .ts file with its extension, as Node.js needs.");
+
+        if (TargetFactory.FindOnPath("node") is not { } node) return ([], [], $"{NotChecked}: no Node.js was found to run tsc.");
+
+        var check = TypeScriptCompiler.CheckOf(compiler, node, chosen, Timeout);
+        var run = await RunAsync(check.Spec, log, cancellationToken);
+        if (run.Outcome is RunOutcome.LaunchFailed or RunOutcome.TimedOut or RunOutcome.Cancelled)
+            return ([], run.Lines, $"{NotChecked}: {compiler.Description} could not be run to the end.");
+
+        var placed = Resolved(TypeScriptCompilerParser.Errors(run.Lines), check.Spec.WorkingDirectory!)
+            .Where(error => !Path.GetFileName(error.Frames[0].File ?? "").Equals("tsconfig.json", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var nodeOwn = placed.Where(error => TypeScriptCompiler.OnlyMissingNodeTypes(error.ErrorCode, error.Message)).ToList();
+        var typeErrors = placed.Except(nodeOwn).ToList();
+
+        var how = check.Project is { } project
+            ? $"as the project's {Path.GetFileName(project)} sets it up"
+            : "as a file on its own, the way Node.js runs it - strictly, as tsc --init sets a project up";
+        var note = $"The types were checked by TypeScript's compiler, {compiler.Description}, {how}: " +
+                   (typeErrors.Count == 0 ? "it found no type error." : typeErrors.Count == 1 ? "it found 1 type error." : $"it found {typeErrors.Count} type errors.");
+
+        if (nodeOwn.Count > 0)
+        {
+            var names = nodeOwn.Select(error => TypeScriptCompiler.NameNotFound(error.Message)).OfType<string>().Distinct().Take(4).ToList();
+            note += " Node's own type definitions, @types/node, are not here, so what the program takes from Node itself" +
+                    (names.Count > 0 ? $" - {string.Join(", ", names)} -" : "") + " was not type-checked.";
+        }
+
+        if (TypeScriptCompilerParser.SetupProblems(run.Lines) is { Count: > 0 } setup) note += " tsc also said: " + string.Join(" ", setup);
+
+        return (typeErrors, run.Lines, note);
     }
 
     private static async Task<CompilerReport> BuildAsync(
