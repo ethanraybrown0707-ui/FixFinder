@@ -100,6 +100,15 @@ jobs:
 
           "FIXFINDER_TEST_PACKAGES_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # The tests that check TypeScript's types need TypeScript's compiler, tsc, which no runner image has. One version is
+      # installed, with npm, for every project on the runner - where FixFinder looks for it beside the tsc on PATH - and npm
+      # checks the package against the integrity hash the registry publishes for it. Without it, those tests return early.
+      - name: Install TypeScript's compiler for the tests that check types
+        shell: pwsh
+        run: |
+          npm install --global --no-fund --no-audit typescript@7.0.2
+          if ($LASTEXITCODE -ne 0) { throw "npm could not install TypeScript 7.0.2" }
+
       # No network access is needed or wanted: searches run against recorded responses through a
       # handler that throws on anything unrecorded, so a test cannot quietly reach the internet.
       - name: Test
@@ -175,6 +184,13 @@ jobs:
           # The SDK that `dotnet` resolves to decides whether a lone .cs file can be run at all.
           if (Get-Command dotnet -ErrorAction SilentlyContinue) {
             Write-Host ("{0,-8} {1}" -f 'sdk ver', (& dotnet --version))
+          }
+
+          # The tests of TypeScript's types run with the tsc installed for them; without it they return early.
+          if (Get-Command tsc -ErrorAction SilentlyContinue) {
+            Write-Host ("{0,-8} {1}" -f 'tsc', (& tsc --version))
+          } else {
+            Write-Host ("{0,-8} {1}" -f 'tsc', 'not present')
           }
 
           # The tests of pytest files run with the pytest installed for them; without it they return early.

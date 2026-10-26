@@ -33,8 +33,17 @@ public static class WarningRatings
     private static Rule RubyWords(string message, FindingKind kind, Severity severity, Confidence confidence, string? samePattern = null) =>
         new(new Regex(message, RegexOptions.IgnoreCase), [], new WarningRating(kind, severity, confidence, samePattern), "ruby");
 
+    /// <summary>
+    /// TypeScript's compiler's errors, every one: tsc refuses the program for each, though Node.js, which takes the types out
+    /// unchecked, runs it - so each is an error in the code, as certain as the compiler that found it.
+    /// </summary>
+    private static Rule TypeScriptErrors() =>
+        new(new Regex("^"), [], new WarningRating(FindingKind.Syntax, Severity.Error, Confidence.Certain), "typescript");
+
     private static readonly Rule[] Rules =
     [
+        TypeScriptErrors(),
+
         // Code no run can reach, which a tool warns of and a logic check finds too, with its change: one finding at the line.
         Codes(["-Wzerotrip"], FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-fortran-loop-never-runs"),
         Codes(["dead_code_on_catch_subtype"], FindingKind.Logic, Severity.Error, Confidence.Certain, "logic-dart-handler-never-reached"),
