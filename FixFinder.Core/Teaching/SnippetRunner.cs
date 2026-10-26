@@ -111,11 +111,18 @@ public static class SnippetRunner
 
             if (launch.Compile is { } compile)
             {
-                var build = await runner.RunAsync(compile, cancellationToken);
+                // The time given is the program's, for running it. Building it is given at least the usual time: a compiler on
+                // a busy computer took longer than the ten seconds a program that never finishes is given, and the build stopped
+                // for time was said to be a program that ran to the end and printed nothing.
+                var buildTime = compile.Timeout < UsualTimeLimit ? UsualTimeLimit : compile.Timeout;
+                var build = await runner.RunAsync(compile.WithTimeout(buildTime), cancellationToken);
                 output.AddRange(build.Lines.Select(line => line.Text));
 
                 if (build.Outcome == RunOutcome.LaunchFailed)
                     return new Observation { Ran = false, WhyNotRun = build.LaunchError ?? "The compiler could not be started.", Output = output };
+
+                if (build.Outcome == RunOutcome.TimedOut)
+                    return new Observation { Ran = false, WhyNotRun = $"Building it took longer than {buildTime.TotalSeconds:0} seconds, so it was stopped before it ran.", Output = output };
 
                 if (build.Outcome != RunOutcome.ExitedClean)
                 {
