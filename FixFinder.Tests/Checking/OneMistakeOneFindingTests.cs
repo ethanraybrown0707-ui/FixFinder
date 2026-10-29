@@ -36,7 +36,9 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
     [InlineData("marks.py", "python", "IndexError", "list index out of range", "analysis-index-out-of-range")]
     [InlineData("Marks.java", "java", "java.util.EmptyStackException", null, "analysis-empty-collection")]
     [InlineData("Marks.java", "java", "java.util.NoSuchElementException", null, "analysis-empty-collection")]
-    [InlineData("Marks.java", "java", "java.util.NoSuchElementException", "No value present", null)]
+    [InlineData("Marks.java", "java", "java.util.NoSuchElementException", "No value present", "logic-java-optional-get-unchecked")]
+    [InlineData("fetch.py", "python", "RuntimeError", "asyncio.run() cannot be called from a running event loop", "logic-python-asyncio-run-in-async")]
+    [InlineData("fetch.py", "python", "RuntimeError", "dictionary changed size during iteration", null)]
     [InlineData("Marks.scala", "scala", "java.util.NoSuchElementException", "None.get", "logic-scala-option-get")]
     [InlineData("Marks.cs", "csharp", "System.InvalidOperationException", "Stack empty.", "analysis-empty-collection")]
     [InlineData("Marks.cs", "csharp", "System.InvalidOperationException", "Sequence contains no elements", "analysis-empty-collection")]
@@ -67,6 +69,21 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
 
         Assert.StartsWith("pop() takes an item off a list", popped.Explanation, StringComparison.Ordinal);
         Assert.StartsWith("The items in a list are numbered from 0", pastTheEnd.Explanation, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Java's NoSuchElementException is get() on an empty Optional when it says "No value present", and the Scanner run out
+    /// of input when it says "No line found" - nextLine - or nothing at all - nextInt and next - as Java 21 was seen to say.
+    /// </summary>
+    [Theory]
+    [InlineData("No value present", "get() takes the value out of an Optional")]
+    [InlineData("No line found", "The program asked the Scanner for another piece of input")]
+    [InlineData(null, "The program asked the Scanner for another piece of input")]
+    public void AnEmptyOptionalAndAScannerOutOfInputAreToldApartByTheirMessage(string? message, string explanationStart)
+    {
+        var guide = Guidebook.For(@"C:\work\Main.java", FindingKind.Runtime, error: Crash("java", "java.util.NoSuchElementException", message));
+
+        Assert.StartsWith(explanationStart, guide.Explanation, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -143,6 +160,24 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
         var finding = Assert.Single(report.Findings);
         Assert.Equal((2, "analysis-recursion-never-ends", Confidence.Certain), (finding.Line, finding.RuleId, finding.Confidence));
         Assert.Equal(("RecursionError", "maximum recursion depth exceeded"), (finding.Error?.ShortExceptionType, finding.Error?.Message));
+    }
+
+    /// <summary>
+    /// asyncio.run inside an async def: Python 3.13 stopped with RuntimeError: asyncio.run() cannot be called from a running
+    /// event loop, at line 9. The run and the check that finds the call are one finding, with the change - await fetch() -
+    /// that was run and printed 42.
+    /// </summary>
+    [Fact]
+    public async Task AsyncioRunInsideAnAsyncDefIsOneFindingWithItsChange()
+    {
+        if (await CheckPythonAsync("fetch.py",
+                "import asyncio\n\n\nasync def fetch():\n    return 42\n\n\nasync def main():\n    value = asyncio.run(fetch())\n    print(value)\n\n\nasyncio.run(main())\n")
+            is not { } report) return;
+
+        var finding = Assert.Single(report.Findings);
+        Assert.Equal((9, "logic-python-asyncio-run-in-async"), (finding.Line, finding.RuleId));
+        Assert.Equal(("RuntimeError", "asyncio.run() cannot be called from a running event loop"), (finding.Error?.ShortExceptionType, finding.Error?.Message));
+        Assert.Equal(["    value = await fetch()"], finding.Fix?.NewLines);
     }
 
     /// <summary>

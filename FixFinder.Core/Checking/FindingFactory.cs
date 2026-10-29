@@ -61,8 +61,8 @@ public static partial class FindingFactory
     /// <summary>
     /// The check that finds the mistake a crash is, so the run that crashed and the analysis that proved it are one finding:
     /// by the exception's name, and by its message where one name means more than one mistake - Python's IndexError is a
-    /// list read past its end, or pop() on an empty list; NoSuchElementException is Scala's None.get, or Java's getFirst()
-    /// on an empty list. Each message is the one Python 3.13, Java 21 and .NET 10 were seen to give.
+    /// list read past its end, or pop() on an empty list; NoSuchElementException is Scala's None.get, Java's get() on an empty
+    /// Optional, or Java's getFirst() on an empty list. Each message is the one Python 3.13, Java 21 and .NET 10 were seen to give.
     /// </summary>
     private static string? CrashFamily(ParsedError error, string file) =>
         (error.ShortExceptionType, error.Message ?? "", Path.GetExtension(file).ToLowerInvariant()) switch
@@ -70,7 +70,8 @@ public static partial class FindingFactory
             ("IndexError", var said, _) when PoppedFromEmpty().IsMatch(said) => "analysis-empty-collection",
             ("IndexError", "list index out of range", _) => "analysis-index-out-of-range",
             ("EmptyStackException", _, ".java") => "analysis-empty-collection",
-            ("NoSuchElementException", not "No value present", ".java") => "analysis-empty-collection",
+            ("NoSuchElementException", "No value present", ".java") => "logic-java-optional-get-unchecked",
+            ("NoSuchElementException", _, ".java") => "analysis-empty-collection",
             // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
             ("NoSuchElementException", _, ".scala" or ".sc") => "logic-scala-option-get",
             ("InvalidOperationException", "Stack empty." or "Queue empty." or "Sequence contains no elements", ".cs") => "analysis-empty-collection",
@@ -86,6 +87,9 @@ public static partial class FindingFactory
             ("InvalidOperationException", "The operation is not allowed on non-connected sockets.", ".cs") => "analysis-used-before-connect",
             ("SocketException", var said, ".cs") when said.Contains("the socket is not connected", StringComparison.Ordinal) => "analysis-used-before-connect",
             ("ObjectDisposedException", var said, ".cs") when said.Contains("System.Net.Sockets.", StringComparison.Ordinal) => "analysis-connection-used-after-close",
+
+            // asyncio.run inside an async def: the crash, and the check that finds the call, are one mistake.
+            ("RuntimeError", "asyncio.run() cannot be called from a running event loop", ".py" or ".pyw") => "logic-python-asyncio-run-in-async",
 
             // A function that called itself until there was no room left for the calls.
             ("RecursionError", _, ".py" or ".pyw") => "analysis-recursion-never-ends",

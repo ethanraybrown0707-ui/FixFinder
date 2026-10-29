@@ -1069,33 +1069,38 @@ with the language's own tools, its warnings on. In Java: a Thread's `run()` call
 the work on the main thread; `new BigDecimal(0.1)`, which holds
 `0.1000000000000000055511151231257827021181583404541015625` - the change makes it from text, `new BigDecimal("0.1")`,
 and a decimal a double holds exactly, such as 0.5, is left alone; `Arrays.asList` of an `int[]`, a list of one item, so
-`contains(80)` was false; and `Math.abs(key.hashCode()) % 10`, which was -8 for `"polygenelubricants"`, whose hashCode
-is the smallest int - the change is `Math.floorMod`. In C#: a lambda made in a `for` loop, which keeps the loop's one
-counter - three printed 3, 3 and 3 - and is given a copy made inside the loop; and an async method's result kept without
-`await` and printed, which printed the Task's type name - the change adds `await` where it can be written. In Python:
-`worker.run()`, which ran on the main thread; `Decimal(0.1)`; `groups.get(team, []).append(name)`, which left `groups`
-as `{}` - the change is `setdefault`; an iterator - `map`, `filter`, a generator - read twice, whose second read got
-nothing, so `sum` was 7 and `len(list(...))` 0 - the change keeps it in a list; `"test.txt".rstrip(".txt")`, which takes
-off characters, not text, and gave `tes` - the change is `removesuffix`; and a lambda made in a loop, which keeps the
-loop's variable - `[lambda x: x + step for step in range(3)]` all added 2 - and is given the value as a default,
-`step=step`. In JavaScript and TypeScript: `new Array(3).map(...)`, whose three holes `map` passes by - `[ <3 empty
-items> ]` - the change is `Array.from({ length: 3 })`; `replace("-", "")`, which replaced the first `-` only - the
-change is `replaceAll`, offered as possible, as one replacement may be what was meant; an async function's result used
-without `await`, which printed `Promise { 3 }`, and a `map` with an async function, a list of Promises - the change adds
-`await`, or `await Promise.all(...)`, where it can be written: in an async function, or at the top of a module, which
-Node 24 took a `.js` file to be unless it used `require`; `setTimeout(greet(), 1000)`, which called `greet` at once and
-stopped with `ERR_INVALID_ARG_TYPE` - a function of the file's own that gives back a function is left alone;
-`getYear()`, 124 for 2024; and `getDay()` beside the month or the year, the day of the week - 1 for Monday 5 February -
-where `getDate()` was meant. In C: `char word[5] = "hello"`, with no room for its `'\0'`, which printed `helloabc` - C++
-refuses it; `char c = getchar()` compared with `EOF`, which stopped at a byte 255 and counted 2 of 5 - in C++ too; and
-`malloc(count)` for ints, which gave 4 bytes for 4 ints - the change is `malloc(count * sizeof *marks)`. In C++:
-`"Total: " + count`, which moved along the text and printed `al: ` - the change is `std::to_string(count)`; and
-`reserve(3)` and then `marks[0] = 70`, a write past the vector's end, which C++ leaves undefined - built by gcc 13.2 the
-program printed a size of 0, and by gcc 15.2 it was stopped - and the change is `resize`, which printed 3 with both. In
-Go: `time.Sleep(2)`, two nanoseconds - the change says the unit; `copy` into a slice made with length 0, which copied
-nothing; `name[0]` of a string printed, which printed 104 - the change is `string(name[0])`; and a goroutine `main`
-never waits for, whose line was never printed, which has no change, as the ways to wait for one are too many to write
-one for.
+`contains(80)` was false; `Math.abs(key.hashCode()) % 10`, which was -8 for `"polygenelubricants"`, whose hashCode is
+the smallest int - the change is `Math.floorMod`; and `get()` straight after `findFirst()`, `findAny()`, `max(...)` or
+`min(...)`, which threw `NoSuchElementException: No value present` when no mark passed the filter - it has no change, as
+what to use when there is nothing is the program's to say: `orElse(0)`, or `orElseThrow` with a reason. The crash and
+the check are one finding, and the Scanner's own NoSuchElementException, out of input, keeps its guide. In C#: a lambda
+made in a `for` loop, which keeps the loop's one counter - three printed 3, 3 and 3 - and is given a copy made inside
+the loop; and an async method's result kept without `await` and printed, which printed the Task's type name - the change
+adds `await` where it can be written. In Python: `worker.run()`, which ran on the main thread; `Decimal(0.1)`;
+`groups.get(team, []).append(name)`, which left `groups` as `{}` - the change is `setdefault`; an iterator - `map`,
+`filter`, a generator - read twice, whose second read got nothing, so `sum` was 7 and `len(list(...))` 0 - the change
+keeps it in a list; `"test.txt".rstrip(".txt")`, which takes off characters, not text, and gave `tes` - the change is
+`removesuffix`; a lambda made in a loop, which keeps the loop's variable - `[lambda x: x + step for step in range(3)]`
+all added 2 - and is given the value as a default, `step=step`; and `asyncio.run(fetch())` inside an `async def`, which
+stopped with `RuntimeError: asyncio.run() cannot be called from a running event loop` - the change is `await fetch()`,
+which printed 42, and the crash and the check are one finding. In JavaScript and TypeScript: `new Array(3).map(...)`,
+whose three holes `map` passes by - `[ <3 empty items> ]` - the change is `Array.from({ length: 3 })`; `replace("-",
+"")`, which replaced the first `-` only - the change is `replaceAll`, offered as possible, as one replacement may be
+what was meant; an async function's result used without `await`, which printed `Promise { 3 }`, and a `map` with an
+async function, a list of Promises - the change adds `await`, or `await Promise.all(...)`, where it can be written: in
+an async function, or at the top of a module, which Node 24 took a `.js` file to be unless it used `require`;
+`setTimeout(greet(), 1000)`, which called `greet` at once and stopped with `ERR_INVALID_ARG_TYPE` - a function of the
+file's own that gives back a function is left alone; `getYear()`, 124 for 2024; and `getDay()` beside the month or the
+year, the day of the week - 1 for Monday 5 February - where `getDate()` was meant. In C: `char word[5] = "hello"`, with
+no room for its `'\0'`, which printed `helloabc` - C++ refuses it; `char c = getchar()` compared with `EOF`, which
+stopped at a byte 255 and counted 2 of 5 - in C++ too; and `malloc(count)` for ints, which gave 4 bytes for 4 ints - the
+change is `malloc(count * sizeof *marks)`. In C++: `"Total: " + count`, which moved along the text and printed `al: ` -
+the change is `std::to_string(count)`; and `reserve(3)` and then `marks[0] = 70`, a write past the vector's end, which
+C++ leaves undefined - built by gcc 13.2 the program printed a size of 0, and by gcc 15.2 it was stopped - and the
+change is `resize`, which printed 3 with both. In Go: `time.Sleep(2)`, two nanoseconds - the change says the unit;
+`copy` into a slice made with length 0, which copied nothing; `name[0]` of a string printed, which printed 104 - the
+change is `string(name[0])`; and a goroutine `main` never waits for, whose line was never printed, which has no change,
+as the ways to wait for one are too many to write one for.
 
 In Ruby it finds `Hash.new([])`, whose one array every missing key shares - `groups[:red] << "Ada"` left the hash `{}` -
 and the change gives each key its own, `Hash.new { |hash, key| hash[key] = [] }`. In PHP: a `foreach` by reference whose

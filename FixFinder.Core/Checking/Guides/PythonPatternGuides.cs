@@ -602,6 +602,27 @@ internal static class PythonPatternGuides
             print([add(10) for add in adders])
             """),
 
+        GuideFor(["logic-python-asyncio-run-in-async"], "asyncio.run inside an async def",
+            "asyncio.run starts an event loop and runs a coroutine in it - it is how a program starts its async code, once, from " +
+            "code that is not async. Inside an async def, an event loop is already running the code, and asyncio.run will not start " +
+            "a second one in it.",
+            "Python stops with RuntimeError: asyncio.run() cannot be called from a running event loop - and warns that the " +
+            "coroutine it was given was never awaited.",
+            "Inside an async def, await the coroutine: value = await fetch(). Keep asyncio.run for the one call that starts it all, " +
+            "outside every async def.",
+            """
+            import asyncio
+
+            async def fetch():
+                return 42
+
+            async def main():
+                value = await fetch()
+                print(value)
+
+            asyncio.run(main())
+            """),
+
         GuideFor(["logic-python-branch-never-reached"], "An elif that can never run",
             "An if - elif chain takes the first branch whose test passes. If an earlier test lets through every value a later one does - " +
             "score >= 50 before score >= 70 - the later branch never gets a value: every score of 70 or more has gone into the first.",

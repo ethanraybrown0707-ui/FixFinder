@@ -26,6 +26,7 @@ public static partial class ManagedLibraryPatterns
         new CodePattern("logic-java-bigdecimal-from-double", JavaFiles, Syntax.CLike, JavaBigDecimalFromDouble, Severity.Warning, Confidence.Certain),
         new CodePattern("logic-java-aslist-of-primitive-array", JavaFiles, Syntax.CLike, JavaAsListOfPrimitives, Severity.Error, Confidence.Certain),
         new CodePattern("logic-java-abs-of-hash", JavaFiles, Syntax.CLike, JavaAbsOfHash),
+        new CodePattern("logic-java-optional-get-unchecked", JavaFiles, Syntax.CLike, JavaOptionalGet, Severity.Warning, Confidence.Likely),
         new CodePattern("logic-csharp-for-closure", CSharpFiles, Syntax.CLike, CSharpForClosure, Severity.Error),
         new CodePattern("logic-csharp-task-printed", CSharpFiles, Syntax.CLike, CSharpTaskPrinted, Severity.Error),
     ];
@@ -242,6 +243,32 @@ public static partial class ManagedLibraryPatterns
                         $"await waits for {method} to finish and gives its value, so {name} is that value.",
                         source.Path, index + 1, line[..call.Index] + "await " + line[call.Index..])
                     : null);
+        }
+    }
+
+    /// <summary>
+    /// <c>.findFirst().get()</c>, <c>.findAny().get()</c>, <c>.max(...).get()</c>, <c>.min(...).get()</c>: an Optional's get()
+    /// straight away. Collections.max and Collections.min give the item itself, not an Optional, so they are left out.
+    /// </summary>
+    [GeneratedRegex(@"(?<!\bCollections\s*)\.\s*(?<made>findFirst|findAny|max|min)\s*\((?:[^()]|\([^()]*\))*\)\s*\.\s*get\s*\(\s*\)")]
+    private static partial Regex OptionalGot();
+
+    /// <summary>
+    /// An Optional's get() with nothing checked: findFirst, findAny, max and min give an Optional, which is empty when the stream
+    /// has nothing in it, and get() on an empty Optional throws - Java 21: NoSuchElementException: No value present. No change
+    /// is made: what to give back when there is nothing is the program's to say - orElse(0), or orElseThrow with a message.
+    /// </summary>
+    private static IEnumerable<LogicFinding> JavaOptionalGet(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            foreach (Match got in OptionalGot().Matches(masked[index]))
+            {
+                var made = got.Groups["made"].Value;
+                yield return new LogicFinding(id, index + 1,
+                    $"`{made}()` gives an Optional, which is empty when the stream has nothing in it - and `get()` on an empty Optional " +
+                    "throws NoSuchElementException: No value present", null);
+            }
         }
     }
 }

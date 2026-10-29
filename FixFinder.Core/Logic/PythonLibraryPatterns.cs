@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Checking;
 using FixFinder.Core.LocalFixes;
+using FixFinder.Core.LocalFixes.Rules;
 
 namespace FixFinder.Core.Logic;
 
@@ -26,7 +27,65 @@ public static partial class PythonLibraryPatterns
         new CodePattern("logic-python-iterator-used-twice", PythonFiles, Syntax.Python, IteratorUsedTwice, Severity.Error),
         new CodePattern("logic-python-strip-word", PythonFiles, Syntax.Python, StripWord),
         new CodePattern("logic-python-lambda-in-loop", PythonFiles, Syntax.Python, LambdaInLoop, Severity.Error),
+        new CodePattern("logic-python-asyncio-run-in-async", PythonFiles, Syntax.Python, AsyncioRunInAsync, Severity.Error, Confidence.Certain),
     ];
+
+    /// <summary><c>asyncio.run(</c> - which starts an event loop of its own.</summary>
+    [GeneratedRegex(@"(?<![\w.])asyncio\s*\.\s*run\s*\(")]
+    private static partial Regex AsyncioRun();
+
+    [GeneratedRegex(@"^\s*async\s+def\b")]
+    private static partial Regex AsyncDef();
+
+    [GeneratedRegex(@"^\s*(?:def|class|lambda)\b")]
+    private static partial Regex OtherScope();
+
+    /// <summary>Whether a line is inside an async def: the nearest def or class it is written under is one.</summary>
+    private static bool InsideAsyncDef(IReadOnlyList<string> masked, int index)
+    {
+        var indent = masked[index].Length - masked[index].TrimStart().Length;
+        for (var above = index - 1; above >= 0 && indent > 0; above--)
+        {
+            if (masked[above].Trim().Length == 0) continue;
+            var outer = masked[above].Length - masked[above].TrimStart().Length;
+            if (outer >= indent) continue;
+
+            indent = outer;
+            if (AsyncDef().IsMatch(masked[above])) return true;
+            if (OtherScope().IsMatch(masked[above])) return false;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// asyncio.run(...) inside an async def: the async def is run by the event loop asyncio.run started, and asyncio.run will
+    /// not start a second inside it - Python 3.13 stopped with RuntimeError: asyncio.run() cannot be called from a running
+    /// event loop, and warned that the coroutine it was given was never awaited. Inside an async def, a coroutine is awaited:
+    /// await fetch() printed 42.
+    /// </summary>
+    private static IEnumerable<LogicFinding> AsyncioRunInAsync(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (AsyncioRun().Match(masked[index]) is not { Success: true } run || !InsideAsyncDef(masked, index)) continue;
+
+            var open = run.Index + run.Length - 1;
+            var close = Brackets.Closing(masked[index], open);
+            if (close < 0) continue;
+
+            var line = source.Lines[index];
+            var awaited = line[(open + 1)..close].Trim();
+            if (awaited.Length == 0 || awaited.Contains(',')) continue;
+
+            yield return new LogicFinding(id, index + 1,
+                $"`{line[run.Index..(close + 1)].Trim()}` starts an event loop of its own, but this line is inside an async def, which an " +
+                "event loop is already running - so Python stops with RuntimeError: asyncio.run() cannot be called from a running event loop",
+                LocalFix.ReplaceLine(id, $"Await it: await {awaited}",
+                    "Inside an async def, the loop that runs it is already there: await runs the coroutine in it, and gives back its value.",
+                    source.Path, index + 1, line[..run.Index] + "await " + awaited + line[(close + 1)..]));
+        }
+    }
 
     /// <summary><c>worker.run()</c>, or <c>threading.Thread(...).run()</c> on one line.</summary>
     [GeneratedRegex(@"(?:(?<![\w.])(?<name>[A-Za-z_]\w*)|(?<made>\b(?:threading\s*\.\s*)?Thread\s*\(.*\)))\s*\.\s*run\s*\(\s*\)")]

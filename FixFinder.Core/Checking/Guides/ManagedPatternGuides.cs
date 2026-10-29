@@ -396,6 +396,26 @@ internal static class ManagedPatternGuides
             }
             """),
 
+        GuideFor(["logic-java-optional-get-unchecked"], "get() on an Optional nothing checked",
+            "findFirst, findAny, max and min give an Optional: a box that holds the item, or is empty when the stream has nothing in " +
+            "it - no item passed the filter, or the list was empty. get() takes the item out, and has nothing to give when the box " +
+            "is empty.",
+            "On an empty Optional, get() throws NoSuchElementException: No value present, and the program stops - only for the " +
+            "inputs that leave the stream empty.",
+            "Say what to use when there is nothing: orElse(0), or ifPresent to do something only when there is a value. Or, when " +
+            "the program cannot go on without one, orElseThrow with an exception that says why.",
+            """
+            import java.util.List;
+
+            public class Main {
+                public static void main(String[] args) {
+                    List<Integer> marks = List.of(70, 40, 90);
+                    int high = marks.stream().filter(mark -> mark > 95).findFirst().orElse(0);
+                    System.out.println(high);
+                }
+            }
+            """),
+
         GuideFor(["logic-csharp-for-closure"], "A lambda made in a for loop uses the loop's counter",
             "A for loop has one counter for all its passes. A lambda that uses it keeps that one variable, not its value when the lambda " +
             "was made - so lambdas run after the loop all see the value that ended it: three lambdas made with i at 0, 1 and 2 all " +
