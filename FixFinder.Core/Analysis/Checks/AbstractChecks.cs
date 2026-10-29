@@ -105,6 +105,10 @@ public static class AbstractChecks
 
         findings = WithDivisionsNoCallMakesToldAsSuch(findings, program, functions, source, targets, effects, ContractsOf);
 
+        findings.AddRange(EndlessRecursion.Find(
+            functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())), targets, program.Language, source,
+            "following every way through each function, and the calls it makes"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));

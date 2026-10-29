@@ -49,6 +49,9 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
     [InlineData("Ping.java", "java", "java.net.SocketException", "Socket is closed", "analysis-connection-used-after-close")]
     [InlineData("Ping.cs", "csharp", "System.InvalidOperationException", "The operation is not allowed on non-connected sockets.", "analysis-used-before-connect")]
     [InlineData("Ping.cs", "csharp", "System.ObjectDisposedException", "Cannot access a disposed object. Object name: 'System.Net.Sockets.TcpClient'.", "analysis-connection-used-after-close")]
+    [InlineData("count.py", "python", "RecursionError", "maximum recursion depth exceeded", "analysis-recursion-never-ends")]
+    [InlineData("Count.java", "java", "java.lang.StackOverflowError", null, "analysis-recursion-never-ends")]
+    [InlineData("count.js", "node", "RangeError", "Maximum call stack size exceeded", "analysis-recursion-never-ends")]
     public void ACrashIsTiedToTheCheckForTheSameMistakeByItsNameAndMessage(string file, string language, string type, string? message, string? family)
     {
         var finding = FindingFactory.FromError(Crash(language, type, message), FindingKind.Runtime, Severity.Error, Confidence.Certain, Path.Combine(@"C:\work", file));
@@ -126,6 +129,20 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
         var call = Assert.Single(report.Findings, finding => finding.Line == 13);
         Assert.Equal("analysis-contract-broken", call.RuleId);
         Assert.Equal(("ValueError", "count must not be 0"), (call.Error?.ShortExceptionType, call.Error?.Message));
+    }
+
+    /// <summary>
+    /// is_even and is_odd call each other with no way out. Python stops the run with RecursionError wherever the room runs out,
+    /// in one of the two; the analysis finds the ring at is_even. The two are one finding, at is_even, made certain by the run.
+    /// </summary>
+    [Fact]
+    public async Task ARecursionCrashAndTheRingTheAnalysisFoundAreOneFinding()
+    {
+        if (await CheckPythonAsync("parity.py", "def is_even(n):\n    return is_odd(n - 1)\n\n\ndef is_odd(n):\n    return is_even(n - 1)\n\n\nprint(is_even(4))\n") is not { } report) return;
+
+        var finding = Assert.Single(report.Findings);
+        Assert.Equal((2, "analysis-recursion-never-ends", Confidence.Certain), (finding.Line, finding.RuleId, finding.Confidence));
+        Assert.Equal(("RecursionError", "maximum recursion depth exceeded"), (finding.Error?.ShortExceptionType, finding.Error?.Message));
     }
 
     /// <summary>

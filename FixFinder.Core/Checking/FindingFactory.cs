@@ -86,6 +86,11 @@ public static partial class FindingFactory
             ("InvalidOperationException", "The operation is not allowed on non-connected sockets.", ".cs") => "analysis-used-before-connect",
             ("SocketException", var said, ".cs") when said.Contains("the socket is not connected", StringComparison.Ordinal) => "analysis-used-before-connect",
             ("ObjectDisposedException", var said, ".cs") when said.Contains("System.Net.Sockets.", StringComparison.Ordinal) => "analysis-connection-used-after-close",
+
+            // A function that called itself until there was no room left for the calls.
+            ("RecursionError", _, ".py" or ".pyw") => "analysis-recursion-never-ends",
+            ("StackOverflowError", _, ".java") => "analysis-recursion-never-ends",
+            ("RangeError", "Maximum call stack size exceeded", _) => "analysis-recursion-never-ends",
             var (type, _, _) => CrashExplainedBy.GetValueOrDefault(type ?? ""),
         };
 

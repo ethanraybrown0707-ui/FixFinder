@@ -1212,10 +1212,24 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
 | Using a connection or a socket after it is closed | `conn.execute(...)` after `conn.close()` - a sqlite3 connection, or a socket in Python, Java or C# |
 | Sending on a socket before connecting it | `socket.socket()`, then `sendall` with no `connect`; `new Socket()`, then `getOutputStream()`; `new TcpClient()`, then `GetStream()` |
+| A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
+
+**Recursion that never ends** is a function that cannot return - nor raise, nor end the program - without calling
+itself, or without calling the next of a ring of functions that each cannot return without calling the next. Every way
+from the function's start to a way out is followed, and when each passes a call to the same function, the calls never
+end. Only a call certainly made counts: one in a conditional expression's branches - `return 1 if n <= 1 else n *
+factorial(n - 1)` - after an `and` or an `or`, or behind a base case, is not; a method a subclass can replace, a
+generator and an async function are left alone; and `sys.exit`, `System.exit`, `Environment.Exit`, `process.exit` and
+`os.Exit` are ways out. Each is said with what the language did when it was run: Python 3.13 stopped with
+`RecursionError: maximum recursion depth exceeded` after a thousand calls, Java with `StackOverflowError`, .NET ended
+the whole program with `Stack overflow.` - a `try` and `catch` around the call did not catch it - Node.js with
+`RangeError: Maximum call stack size exceeded`, and Go with `fatal error: stack overflow`. A ring is said once, at its
+first function, and a run that crashed in it is the same finding. C and C++ are left to `gcc -Wall`, which warns
+`infinite recursion detected`.
 
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its

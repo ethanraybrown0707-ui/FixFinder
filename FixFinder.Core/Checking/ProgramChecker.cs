@@ -1394,12 +1394,15 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate)
         {
             var twin = _findings.FirstOrDefault(f => string.Equals(f.File, finding.File, StringComparison.OrdinalIgnoreCase) &&
-                                                     (SameFamily(f, finding) || SameFix(f, finding) || RefusedBy(f, finding) || RefusedBy(finding, f)));
+                                                     (SameFamily(f, finding) || SameFix(f, finding) || RefusedBy(f, finding) || RefusedBy(finding, f) ||
+                                                      CrashedThrough(f, finding) || CrashedThrough(finding, f)));
 
             if (twin is not null)
             {
                 // A call that breaks a contract is where the mistake is, so it is kept, with the crash its check raised.
-                var better = RefusedBy(finding, twin) ? finding : RefusedBy(twin, finding) ? twin : Outranks(finding, twin) ? finding : twin;
+                var better = RefusedBy(finding, twin) || Explains(finding, twin) ? finding
+                    : RefusedBy(twin, finding) || Explains(twin, finding) ? twin
+                    : Outranks(finding, twin) ? finding : twin;
                 var other = ReferenceEquals(better, finding) ? twin : finding;
                 var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
@@ -1524,6 +1527,25 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         $"{Path.GetFullPath(fix.File).ToUpperInvariant()}|{fix.StartLine}|{fix.RemoveCount}|{string.Join("\n", fix.NewLines)}";
 
     private static bool SameFamily(Finding a, Finding b) => a.Family is { } family && family == b.Family && a.Line == b.Line;
+
+    /// <summary>
+    /// Whether an analysis's finding says why a crash happened - the same mistake - and so is the one kept, with the crash's
+    /// own error and the certainty its run gave: the crash says what stopped, the analysis which functions call each other,
+    /// or which input empties the list. A crash with a change the analysis lacks is kept instead, as the change ranks first.
+    /// </summary>
+    private static bool Explains(Finding found, Finding crash) =>
+        found.Error is null && crash.Error is not null && found.RuleId.StartsWith("analysis-", StringComparison.Ordinal) &&
+        (found.Fix is not null || crash.Fix is null) && (SameFamily(found, crash) || CrashedThrough(found, crash));
+
+    /// <summary>
+    /// Whether a crash is the mistake an analysis found, though it stopped at another of its calls: one of the same family,
+    /// and the analysis's line one of the calls the crash went through. Recursion that never ends stops wherever the room runs
+    /// out - in is_odd, though the analysis found it in is_even, whose call is on the way.
+    /// </summary>
+    private static bool CrashedThrough(Finding found, Finding crash) =>
+        found.Error is null && found.Family is { } family && family == crash.Family && found.Line is { } line &&
+        crash.Error is { } error && error.Frames.Any(frame => frame.Line == line && frame.File is { } file &&
+                                                               string.Equals(Path.GetFileName(file), Path.GetFileName(found.File), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Whether a crash is the one a broken contract's own check raised: the call the analysis found breaking it - divide(10, 0),

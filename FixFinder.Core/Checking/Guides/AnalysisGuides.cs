@@ -374,6 +374,18 @@ internal static class AnalysisGuides
             with socket.create_connection(("example.org", 80)) as connection:
                 connection.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
             """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Python stops the program with RecursionError: maximum recursion depth exceeded, once a thousand calls are waiting.",
+            "Give it a stopping point before the call - if n <= 0: return 0 - and make each call get closer to it: countdown(n - 1).",
+            """
+            def countdown(n):
+                if n <= 0:
+                    return 0
+                print(n)
+                return countdown(n - 1)
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -432,6 +444,20 @@ internal static class AnalysisGuides
             count++
             mu.Unlock()
             """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Go stops the program with fatal error: stack overflow.",
+            "Give it a stopping point before the call - if n <= 0 { return 0 } - and make each call get closer to it: countdown(n - 1).",
+            """
+            func countdown(n int) int {
+            	if n <= 0 {
+            		return 0
+            	}
+            	fmt.Println(n)
+            	return countdown(n - 1)
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
@@ -457,6 +483,20 @@ internal static class AnalysisGuides
             let left = items.length;
             while (left > 0) {
               left -= 1;
+            }
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Node.js stops the program with RangeError: Maximum call stack size exceeded.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: countdown(n - 1).",
+            """
+            function countdown(n) {
+              if (n <= 0) {
+                return 0;
+              }
+              console.log(n);
+              return countdown(n - 1);
             }
             """),
     ];
@@ -948,6 +988,22 @@ internal static class AnalysisGuides
                 }
             }
             """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A method that never stops calling itself",
+            "A method that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a method that calls it back, so each call makes another.",
+            "The calls never end: Java stops the program with a StackOverflowError.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: countdown(n - 1).",
+            """
+            public class Countdown {
+                static int countdown(int n) {
+                    if (n <= 0) {
+                        return 0;
+                    }
+                    System.out.println(n);
+                    return countdown(n - 1);
+                }
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1289,6 +1345,22 @@ internal static class AnalysisGuides
             using var client = new TcpClient();
             client.Connect("example.org", 80);
             client.GetStream().Write(Encoding.ASCII.GetBytes("HEAD / HTTP/1.0\r\n\r\n"));
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A method that never stops calling itself",
+            "A method that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a method that calls it back, so each call makes another.",
+            "The calls never end: .NET ends the whole program with Stack overflow. - a try and catch around the call does not catch it.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: Countdown(n - 1).",
+            """
+            static int Countdown(int n)
+            {
+                if (n <= 0)
+                {
+                    return 0;
+                }
+                Console.WriteLine(n);
+                return Countdown(n - 1);
+            }
             """),
     ];
 }
