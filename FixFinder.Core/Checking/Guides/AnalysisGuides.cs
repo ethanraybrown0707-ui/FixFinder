@@ -1004,6 +1004,20 @@ internal static class AnalysisGuides
                 }
             }
             """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit: it wraps round, starting again from the other end. Storing it in a long afterwards does not help, as it has wrapped already.",
+            "The number is wrong, with no error: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928, not 31536000000.",
+            "Make the arithmetic a long from its first number - (long) days * 24 * 60 * 60 * 1000, or 365L * 24 * ... - so every step after it is worked out as a long.",
+            """
+            public class Year {
+                public static void main(String[] args) {
+                    int days = 365;
+                    long millis = (long) days * 24 * 60 * 60 * 1000;
+                    System.out.println(millis);
+                }
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1361,6 +1375,16 @@ internal static class AnalysisGuides
                 Console.WriteLine(n);
                 return Countdown(n - 1);
             }
+            """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit: it wraps round, starting again from the other end. Storing it in a long afterwards does not help, as it has wrapped already.",
+            "The number is wrong, with no error: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928, not 31536000000.",
+            "Make the arithmetic a long from its first number - (long)days * 24 * 60 * 60 * 1000 - so every step after it is worked out as a long. Or put it in a checked block, which throws an OverflowException instead of wrapping.",
+            """
+            int days = 365;
+            long millis = (long)days * 24 * 60 * 60 * 1000;
+            Console.WriteLine(millis);
             """),
     ];
 }

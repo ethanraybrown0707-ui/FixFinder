@@ -1,9 +1,12 @@
+using System.Globalization;
+using System.Numerics;
 using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Slicing;
 using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
+using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Analysis.Checks;
 
@@ -539,6 +542,7 @@ public static class AbstractChecks
 
                 case Binary binary:
                     CheckDivision(binary, state);
+                    CheckOverflow(binary, state);
                     CheckOperandTypes(binary, state);
                     break;
 
@@ -586,6 +590,95 @@ public static class AbstractChecks
             Opaque opaque => opaque.Parts,
             _ => [],
         };
+
+        /// <summary>
+        /// Whole-number arithmetic that passes what an int holds: two ints, each of a value the code shows, whose sum, difference
+        /// or product is above 2,147,483,647 or below -2,147,483,648. Java and C# work it out as an int, and it wraps round -
+        /// days * 24 * 60 * 60 * 1000 with days 365 gave 1471228928 in Java 21 and .NET 10, even stored in a long, as it is made
+        /// a long only after it has wrapped. A sum written all in numbers is the logic check's in Java, and C#'s compiler
+        /// refuses it (CS0220), so only arithmetic with a name in it is looked at here.
+        /// </summary>
+        private void CheckOverflow(Binary binary, AbstractState state)
+        {
+            if (evaluator.Language is not (SourceLanguage.Java or SourceLanguage.CSharp)) return;
+            if (binary.Operator is not (BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply)) return;
+            if (!IsInt(binary.Left) || !IsInt(binary.Right) || !NamesSomething(binary)) return;
+
+            var left = evaluator.Evaluate(binary.Left, state);
+            var right = evaluator.Evaluate(binary.Right, state);
+            if (!left.IsOnly(ValueKind.Integer) || !right.IsOnly(ValueKind.Integer) || !left.Number.IsExact || !right.Number.IsExact) return;
+
+            var (first, second) = (new BigInteger(left.Number.Low), new BigInteger(right.Number.Low));
+            var (exact, sign) = binary.Operator switch
+            {
+                BinaryOperator.Add => (first + second, "+"),
+                BinaryOperator.Subtract => (first - second, "-"),
+                _ => (first * second, "*"),
+            };
+            if (exact >= int.MinValue && exact <= int.MaxValue) return;
+
+            var bits = ((exact % 4294967296) + 4294967296) % 4294967296;
+            var wrapped = bits > int.MaxValue ? bits - 4294967296 : bits;
+            var limit = exact > int.MaxValue ? "the largest an int holds, 2,147,483,647" : "the smallest an int holds, -2,147,483,648";
+
+            Report("analysis-integer-overflow", binary.Span,
+                $"`{Quote(binary)}` is worked out as an int, and {Number(first)} {sign} {Number(second)} is {Number(exact)} - past {limit} - so it wraps " +
+                $"round to {Number(wrapped)}, with no error", Severity.Error, Confidence.Certain, FindingKind.Logic);
+
+            if (findings.Count > 0 && findings[^1].CheckId == "analysis-integer-overflow" && WidenedFirst(binary) is { } change)
+                findings[^1] = findings[^1] with { Fix = change };
+        }
+
+        private static string Number(BigInteger value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+        /// <summary>Whether arithmetic has a name in it - days * 24 - rather than numbers alone.</summary>
+        private static bool NamesSomething(Expr expression) => expression switch
+        {
+            Name => true,
+            Binary binary => NamesSomething(binary.Left) || NamesSomething(binary.Right),
+            Unary unary => NamesSomething(unary.Operand),
+            _ => false,
+        };
+
+        /// <summary>
+        /// Whether an expression is a 32-bit int: a whole number written with no L after it, a name declared int, short or byte -
+        /// which Java and C# make ints to work with - or arithmetic on such ints. A long anywhere makes it a long.
+        /// </summary>
+        private bool IsInt(Expr expression) => expression switch
+        {
+            Literal { Kind: LiteralKind.Integer } number => !Quote(number).TrimEnd().EndsWith('L') && !Quote(number).TrimEnd().EndsWith('l'),
+            Name { Identifier: var name } => evaluator.DeclaredTypes.TryGetValue(name, out var type) && type.Name is "int" or "short" or "byte" or "Int32" or "Int16",
+            Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply } arithmetic => IsInt(arithmetic.Left) && IsInt(arithmetic.Right),
+            Unary { Operator: UnaryOperator.Negate } negated => IsInt(negated.Operand),
+            Cast { Type.Name: "int" or "Int32" } => true,
+            _ => false,
+        };
+
+        /// <summary>
+        /// The change that makes the arithmetic a long from its first number: (long) before a name, L after a written number -
+        /// so each step after it is worked out as a long, and nothing wraps.
+        /// </summary>
+        private LocalFix? WidenedFirst(Binary binary)
+        {
+            Expr first = binary;
+            while (first is Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply } inner) first = inner.Left;
+
+            var span = first.Span;
+            if (span.Line != binary.Span.Line || source.Line(span.File, span.Line) is not { } line || span.Column < 0 || span.Column >= line.Length) return null;
+
+            var (changed, how) = first switch
+            {
+                Name => (line[..span.Column] + "(long) " + line[span.Column..], $"(long) before `{Quote(first)}`"),
+                Literal when span.EndLine == span.Line && span.EndColumn > span.Column && span.EndColumn <= line.Length =>
+                    (line[..span.EndColumn] + "L" + line[span.EndColumn..], $"L after {Quote(first)}"),
+                _ => (null, null),
+            };
+            if (changed is null) return null;
+
+            return LocalFix.ReplaceLine("analysis-integer-overflow", $"Make it a long from the start: {how}",
+                "A long holds whole numbers up to 9,223,372,036,854,775,807. Made a long from its first number, every step after it is worked out as a long, so nothing wraps.",
+                span.File, span.Line, changed);
+        }
 
         private void CheckDivision(Binary binary, AbstractState state)
         {

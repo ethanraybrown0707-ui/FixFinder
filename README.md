@@ -1213,6 +1213,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Using a connection or a socket after it is closed | `conn.execute(...)` after `conn.close()` - a sqlite3 connection, or a socket in Python, Java or C# |
 | Sending on a socket before connecting it | `socket.socket()`, then `sendall` with no `connect`; `new Socket()`, then `getOutputStream()`; `new TcpClient()`, then `GetStream()` |
 | A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
+| A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java and C# |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
@@ -1230,6 +1231,15 @@ the whole program with `Stack overflow.` - a `try` and `catch` around the call d
 `RangeError: Maximum call stack size exceeded`, and Go with `fatal error: stack overflow`. A ring is said once, at its
 first function, and a run that crashed in it is the same finding. C and C++ are left to `gcc -Wall`, which warns
 `infinite recursion detected`.
+
+**A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
+2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days * 24
+* 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a long
+only after it has wrapped. The finding works out the exact value and the one it wraps to, and its change makes the
+arithmetic a long from its first number - `(long) days * ...`, or an `L` after a written number. A long, an `L`, a cast
+to long, a value the code does not show, and a result that fits are left alone. Arithmetic written all in numbers is the
+logic check's in Java and Scala; C#'s compiler refuses it (CS0220), Go's refuses it for an `int32` and its `int` holds
+it, and gcc warns of it in C and C++, with -Woverflow.
 
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
