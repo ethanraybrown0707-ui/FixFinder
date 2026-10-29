@@ -41,6 +41,14 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
     [InlineData("Marks.cs", "csharp", "System.InvalidOperationException", "Stack empty.", "analysis-empty-collection")]
     [InlineData("Marks.cs", "csharp", "System.InvalidOperationException", "Sequence contains no elements", "analysis-empty-collection")]
     [InlineData("Marks.cs", "csharp", "System.InvalidOperationException", "Collection was modified; enumeration operation may not execute.", null)]
+    [InlineData("marks.py", "python", "ValueError", "I/O operation on closed file.", "analysis-used-after-close")]
+    [InlineData("marks.py", "python", "sqlite3.ProgrammingError", "Cannot operate on a closed database.", "analysis-connection-used-after-close")]
+    [InlineData("ping.py", "python", "OSError", "[WinError 10057] A request to send or receive data was disallowed because the socket is not connected and (when sending on a datagram socket using a sendto call) no address was supplied", "analysis-used-before-connect")]
+    [InlineData("ping.py", "python", "OSError", "[WinError 10038] An operation was attempted on something that is not a socket", "analysis-connection-used-after-close")]
+    [InlineData("Ping.java", "java", "java.net.SocketException", "Socket is not connected", "analysis-used-before-connect")]
+    [InlineData("Ping.java", "java", "java.net.SocketException", "Socket is closed", "analysis-connection-used-after-close")]
+    [InlineData("Ping.cs", "csharp", "System.InvalidOperationException", "The operation is not allowed on non-connected sockets.", "analysis-used-before-connect")]
+    [InlineData("Ping.cs", "csharp", "System.ObjectDisposedException", "Cannot access a disposed object. Object name: 'System.Net.Sockets.TcpClient'.", "analysis-connection-used-after-close")]
     public void ACrashIsTiedToTheCheckForTheSameMistakeByItsNameAndMessage(string file, string language, string type, string? message, string? family)
     {
         var finding = FindingFactory.FromError(Crash(language, type, message), FindingKind.Runtime, Severity.Error, Confidence.Certain, Path.Combine(@"C:\work", file));

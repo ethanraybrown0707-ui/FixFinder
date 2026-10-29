@@ -336,6 +336,44 @@ internal static class AnalysisGuides
                 node = queue.popleft()
                 print(node)
             """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a connection after it is closed",
+            "A database connection or a socket has to be open to use it. close() closes it - and so does the end of a with block, for a socket - and every way to this line has already closed it.",
+            "Using a closed sqlite3 connection stops the program with sqlite3.ProgrammingError: Cannot operate on a closed database., and a closed socket with OSError.",
+            "Do everything you need with it before closing it, or connect again.",
+            """
+            import sqlite3
+
+            conn = sqlite3.connect("marks.db")
+            tables = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()
+            conn.close()
+            print(tables)
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A connection that is never closed",
+            "A database connection or a socket holds on to something outside the program - the database file, or a connection over the network - until it is closed. On this way out of the function nothing closes it. with sqlite3.connect(...) does not either: its with block commits, and leaves the connection open.",
+            "It stays open until Python gets round to tidying it up - CPython does when the last name for it goes, other Pythons may not - and until then it keeps hold of the file or the connection.",
+            "Close it in a finally, or open it with contextlib.closing(sqlite3.connect(...)), which closes it however the function ends; make a socket with with socket.socket() as s:.",
+            """
+            import contextlib
+            import sqlite3
+
+
+            def count_tables(path):
+                with contextlib.closing(sqlite3.connect(path)) as conn:
+                    return conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Sending on a socket before connecting it",
+            "socket.socket() makes a socket that is not connected to anything. It has to be connected - s.connect((host, port)) - before anything can be sent on it or received from it.",
+            "Sending or receiving on a socket that is not connected stops the program with OSError.",
+            "Connect it first, or make it connected with socket.create_connection((host, port)).",
+            """
+            import socket
+
+            with socket.create_connection(("example.org", 80)) as connection:
+                connection.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -855,6 +893,61 @@ internal static class AnalysisGuides
                 System.out.println(node);
             }
             """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a socket after it is closed",
+            "A socket has to be open to use it. close() closes it - and so does the end of its try-with-resources - and every way to this line has already closed it.",
+            "Using a closed socket throws a SocketException: Socket is closed.",
+            "Finish with the socket before closing it, or connect a new one.",
+            """
+            import java.io.IOException;
+            import java.io.OutputStream;
+            import java.net.Socket;
+
+            public class Ping {
+                public static void main(String[] args) throws IOException {
+                    try (Socket socket = new Socket("example.org", 80)) {
+                        OutputStream out = socket.getOutputStream();
+                        out.write("HEAD / HTTP/1.0\r\n\r\n".getBytes());
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A socket that is never closed",
+            "A socket holds a connection over the network until it is closed. On one way out of this method it is never closed, and nothing else was given it to close.",
+            "The connection stays open until the program ends.",
+            "Make it in a try-with-resources, which closes it however the method ends.",
+            """
+            import java.io.IOException;
+            import java.net.Socket;
+
+            public class Ping {
+                static boolean reachable(String host) throws IOException {
+                    try (Socket socket = new Socket(host, 80)) {
+                        return socket.isConnected();
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Using a socket before connecting it",
+            "new Socket() makes a socket that is not connected to anything. It has to be connected - socket.connect(new InetSocketAddress(host, port)) - before its streams can be used.",
+            "getOutputStream() or getInputStream() on a socket that is not connected throws a SocketException: Socket is not connected.",
+            "Connect it first, or make it connected: new Socket(host, port).",
+            """
+            import java.io.IOException;
+            import java.net.InetSocketAddress;
+            import java.net.Socket;
+
+            public class Ping {
+                public static void main(String[] args) throws IOException {
+                    try (Socket socket = new Socket()) {
+                        socket.connect(new InetSocketAddress("example.org", 80));
+                        socket.getOutputStream().write("HEAD / HTTP/1.0\r\n\r\n".getBytes());
+                    }
+                }
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1156,6 +1249,46 @@ internal static class AnalysisGuides
                 var node = queue.Dequeue();
                 Console.WriteLine(node);
             }
+            """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a socket after it is closed",
+            "A Socket or a TcpClient has to be open to use it. Close() or Dispose() closes it - and so does the end of its using block - and every way to this line has already closed it.",
+            "Using a closed socket throws an ObjectDisposedException.",
+            "Finish with it before closing it, or connect a new one.",
+            """
+            using System.Net.Sockets;
+            using System.Text;
+
+            using var client = new TcpClient("example.org", 80);
+            var stream = client.GetStream();
+            stream.Write(Encoding.ASCII.GetBytes("HEAD / HTTP/1.0\r\n\r\n"));
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A socket that is never disposed of",
+            "A Socket or a TcpClient holds a connection over the network until it is disposed of. On one way out of this method it never is, and nothing else was given it to dispose of.",
+            "The connection stays open until the program ends.",
+            "Declare it with using, which disposes of it however the method ends.",
+            """
+            using System.Net.Sockets;
+
+            static bool Reachable(string host)
+            {
+                using var client = new TcpClient(host, 80);
+                return client.Connected;
+            }
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Using a socket before connecting it",
+            "new TcpClient() and new Socket(...) make a socket that is not connected to anything. It has to be connected - client.Connect(host, port) - before anything can be sent or received on it.",
+            "GetStream() on a TcpClient that is not connected throws an InvalidOperationException, and Send or Receive on a Socket that is not, a SocketException.",
+            "Connect it first, or make it connected: new TcpClient(host, port).",
+            """
+            using System.Net.Sockets;
+            using System.Text;
+
+            using var client = new TcpClient();
+            client.Connect("example.org", 80);
+            client.GetStream().Write(Encoding.ASCII.GetBytes("HEAD / HTTP/1.0\r\n\r\n"));
             """),
     ];
 }

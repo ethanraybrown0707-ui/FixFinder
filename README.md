@@ -1210,6 +1210,8 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A call with the wrong arguments (Python) | `area(3)`, when `area` takes a width and a height |
 | A value that can never match its type hint (Python) | `def label(score: int) -> str` that returns `score` |
 | Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
+| Using a connection or a socket after it is closed | `conn.execute(...)` after `conn.close()` - a sqlite3 connection, or a socket in Python, Java or C# |
+| Sending on a socket before connecting it | `socket.socket()`, then `sendall` with no `connect`; `new Socket()`, then `getOutputStream()`; `new TcpClient()`, then `GetStream()` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
@@ -1249,9 +1251,17 @@ function in another file that changes its `items` is not taken to change the cal
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
 
-Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed;
-a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a thread a
-second time, or joining one never started, is found - including a thread made before a loop and started inside it.
+Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed; a
+database connection - `sqlite3.connect` - or a socket is made, connected, used, then closed, and is reported when it is
+used once closed, sent on or received from before it is connected, or left open when the function returns. Each failure
+is said as the language raised it on this computer: `sqlite3.ProgrammingError: Cannot operate on a closed database.`,
+Python's `OSError`, Java's `SocketException: Socket is not connected`, .NET's `InvalidOperationException` and
+`ObjectDisposedException`. The end of a `with` block closes a file or a socket, but not a sqlite3 connection - its
+`with` block commits and leaves it open, as Python 3.13 did, reading from it after the block - so the advice for one
+left open is `contextlib.closing`; and a server socket, which binds, listens and accepts, is never taken to send before
+connecting; a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a
+thread a second time, or joining one never started, is found - including a thread made before a loop and started inside
+it.
 
 **Exception flow**: a `return`, `break` or `continue` in a `finally` block replaces what the `try` block returned and
 throws its error away, so it is reported in Java and Python (C# refuses to compile one). In Python, a variable given its

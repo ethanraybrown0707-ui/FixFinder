@@ -74,6 +74,18 @@ public static partial class FindingFactory
             // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
             ("NoSuchElementException", _, ".scala" or ".sc") => "logic-scala-option-get",
             ("InvalidOperationException", "Stack empty." or "Queue empty." or "Sequence contains no elements", ".cs") => "analysis-empty-collection",
+
+            // A file, a connection or a socket used when closed, and a socket used before it was connected - as Python 3.13 on
+            // Windows, Java 21 and .NET 10 said it.
+            ("ValueError", "I/O operation on closed file.", _) => "analysis-used-after-close",
+            ("ProgrammingError", "Cannot operate on a closed database.", _) => "analysis-connection-used-after-close",
+            ("OSError", var said, ".py" or ".pyw") when said.StartsWith("[WinError 10057]", StringComparison.Ordinal) => "analysis-used-before-connect",
+            ("OSError", var said, ".py" or ".pyw") when said.StartsWith("[WinError 10038]", StringComparison.Ordinal) => "analysis-connection-used-after-close",
+            ("SocketException", "Socket is not connected", ".java") => "analysis-used-before-connect",
+            ("SocketException", "Socket is closed", ".java") => "analysis-connection-used-after-close",
+            ("InvalidOperationException", "The operation is not allowed on non-connected sockets.", ".cs") => "analysis-used-before-connect",
+            ("SocketException", var said, ".cs") when said.Contains("the socket is not connected", StringComparison.Ordinal) => "analysis-used-before-connect",
+            ("ObjectDisposedException", var said, ".cs") when said.Contains("System.Net.Sockets.", StringComparison.Ordinal) => "analysis-connection-used-after-close",
             var (type, _, _) => CrashExplainedBy.GetValueOrDefault(type ?? ""),
         };
 
