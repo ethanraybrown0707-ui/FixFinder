@@ -348,6 +348,18 @@ internal static class PythonGuides
             """),
 
         Error("IndexError",
+            "pop() takes an item off a list - or off a deque, with pop() or popleft() - and there has to be an item there to take. " +
+            "Here the list was empty when pop() ran: every item had been taken already, or none was ever added.",
+            "The program stops at this line with IndexError: pop from empty list.",
+            "Check that it has items first - if items: - or loop while it has them: while items: item = items.pop().",
+            """
+            stack = [3, 5, 8]
+            while stack:
+                print(stack.pop())
+            """,
+            pattern: @"^pop from (?:an )?empty (?:list|deque)$"),
+
+        Error("IndexError",
             "The items in a list are numbered from 0, not 1. A list of three items has items 0, 1 and 2, so asking for item 3 " +
             "goes past the end. A loop that counts one step too far does this on its last pass.",
             "The program crashes as soon as the index goes out of range - often on the last pass of a loop.",

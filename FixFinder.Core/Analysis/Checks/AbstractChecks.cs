@@ -733,10 +733,22 @@ public static class AbstractChecks
             }
 
             if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
-                evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
+                evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List))
             {
-                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
-                    Severity.Error, Confidence.Certain);
+                if (popped.Length is { IsExact: true, Low: 0 })
+                {
+                    Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
+                        Severity.Error, Confidence.Certain);
+                }
+                // Empty on one way here and not on another - items = [], then an append only when a test passes: a size this
+                // analysis knows the bounds of, from 0 to some number. One it knows nothing of - a list it was given - is not
+                // reported, as nearly every pop would be.
+                else if (popped.Length is { Low: 0, High: >= 1 } && !double.IsPositiveInfinity(popped.Length.High) && Followable(owner))
+                {
+                    Report("analysis-empty-collection", call.Span,
+                        $"`{Quote(owner)}` can still be empty here, so `{Quote(call)}` can fail with {empty}" + SharedWith(owner, state),
+                        Severity.Error, Confidence.Possible);
+                }
             }
 
             if (!IsPython)
@@ -775,7 +787,7 @@ public static class AbstractChecks
         private string? TakesAnItem(string method) => evaluator.Language switch
         {
             SourceLanguage.Python when method == "pop" => Failures.TakingFromEmpty(SourceLanguage.Python),
-            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" => Failures.TakingFromEmpty(SourceLanguage.CSharp),
+            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" or "Single" => Failures.TakingFromEmpty(SourceLanguage.CSharp),
             SourceLanguage.Java when method is "pop" or "element" or "getFirst" or "getLast" or "removeFirst" or "removeLast" =>
                 "a NoSuchElementException (EmptyStackException for a Stack)",
             _ => null,

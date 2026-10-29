@@ -1399,9 +1399,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (twin is not null)
             {
                 var better = Outranks(finding, twin) ? finding : twin;
+                var other = ReferenceEquals(better, finding) ? twin : finding;
                 var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
-                finding = better with { Confidence = surest };
+                finding = Joined(better, other) with { Confidence = surest };
             }
 
             if (finding.Fix is { } fix && _fixChanges.TryGetValue(FixKey(fix), out var changes)) finding = finding with { FixChanges = changes };
@@ -1526,8 +1527,29 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private static bool SameFix(Finding a, Finding b) =>
         a.Fix is { } x && b.Fix is { } y && x.StartLine == y.StartLine && x.RemoveCount == y.RemoveCount && x.NewLines.SequenceEqual(y.NewLines);
 
+    /// <summary>
+    /// How a finding ranks against another of the same mistake: a change first, then how serious it is, a corrected example
+    /// from the code itself, the inputs that make it fail - which turn "this can fail" into "this fails, and here is how" -
+    /// and how sure it is.
+    /// </summary>
     private static int Rank(Finding finding) =>
-        (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
+        (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) +
+        (finding.Witness is not null ? 5 : 0) + (2 - (int)finding.Confidence);
+
+    /// <summary>
+    /// One finding of a mistake two ways of looking found: the better of the two, with what only the other knows - the inputs
+    /// that make it fail, the lines that decide it, the run that confirmed it and how it was found, from an analysis; and
+    /// what the language itself said, from the run that crashed.
+    /// </summary>
+    private static Finding Joined(Finding better, Finding other) => better with
+    {
+        Error = better.Error ?? other.Error,
+        FoundBy = better.FoundBy ?? other.FoundBy,
+        Witness = better.Witness ?? other.Witness,
+        Slice = better.Slice ?? other.Slice,
+        Confirmation = better.Confirmation ?? other.Confirmation,
+        State = better.State ?? other.State,
+    };
 
     /// <summary>
     /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when

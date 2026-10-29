@@ -1201,7 +1201,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Dividing by something that can be zero | `total / count` when the loop that counts may never run |
 | Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked |
 | A position that does not exist | `points[3]` on a list of three |
-| Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack |
+| Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack - or on one empty only on some ways to it: `items = []`, an `append` only `if flag:`, then `items.pop()` |
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
 | A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
 | A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
@@ -1375,8 +1375,9 @@ fractions, with branching for whole numbers.
 - A line that can fail gets the inputs that make it fail: *Fails when `values` is empty*, *Fails when `person` is null*.
 - A possible mistake no path can actually reach is dropped as a false alarm, once every path has been followed - for
   example a `None` that only one branch gives, guarded later by the same test.
-- A line that some path cannot help failing on is reported even where the values seen together could not show it:
-  `if a == b:` and then `1 / (a - b)`.
+- A line that some path cannot help failing on is reported even where the values seen together could not show it: `if a
+  == b:` and then `1 / (a - b)`. Its input is given as an example of that way through, never as all of it: for `if a ==
+  b: return 1 / (a - b)` the solver's `a` is 0 and `b` is 0 is one of every equal pair that fails.
 - Dividing by a number someone types is reported with the number that breaks it.
 
 A loop is followed as many times as its bound when the code shows one (`for i in range(10)`, `for (i = 0; i < n; i++)`
@@ -1393,7 +1394,14 @@ inputs - or, for top-level code, the program is run with them typed in - under a
 predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
 `average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
 ran are compressed, so a loop that went round three times shows as `(5-7)×3`; in a notebook they are given cell by cell,
-`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was.
+`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. When the program's own run crashes at a
+line the analysis shows can fail, the two are one mistake, so they are **one finding**: what the language said, with the
+input that fails, the lines that decide it and the run that confirmed it - `take(False)` stopping with `IndexError: pop
+from empty list` is one finding that says *On one way through the code `items` is always empty here - for example when
+`flag` is False*. A crash is matched to its check by its exception and, where one exception means more than one mistake,
+by its message: Python's `IndexError` is `pop from empty list` or `list index out of range`, Java's
+`NoSuchElementException` an empty list's `getFirst()` but not `Optional.get()`, C#'s `InvalidOperationException` `Stack
+empty.` or `Sequence contains no elements`.
 
 Every fix for Python, Java or C# code is also checked for **what it changes** (semantic diffing). The fix is made in a
 copy, both versions are read, and each function it touches is followed path by path in both - the same parameter, list

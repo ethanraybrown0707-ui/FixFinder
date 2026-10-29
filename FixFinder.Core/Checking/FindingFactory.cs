@@ -38,9 +38,31 @@ public static partial class FindingFactory
         {
             RuleId = fix?.LocalFix?.RuleId ?? error.ErrorCode ?? error.ShortExceptionType ?? "",
             Error = error,
-            Family = CrashExplainedBy.GetValueOrDefault(error.ShortExceptionType ?? ""),
+            Family = CrashFamily(error, file),
         };
     }
+
+    [GeneratedRegex(@"^pop from (?:an )?empty (?:list|deque)$")]
+    private static partial Regex PoppedFromEmpty();
+
+    /// <summary>
+    /// The check that finds the mistake a crash is, so the run that crashed and the analysis that proved it are one finding:
+    /// by the exception's name, and by its message where one name means more than one mistake - Python's IndexError is a
+    /// list read past its end, or pop() on an empty list; NoSuchElementException is Scala's None.get, or Java's getFirst()
+    /// on an empty list. Each message is the one Python 3.13, Java 21 and .NET 10 were seen to give.
+    /// </summary>
+    private static string? CrashFamily(ParsedError error, string file) =>
+        (error.ShortExceptionType, error.Message ?? "", Path.GetExtension(file).ToLowerInvariant()) switch
+        {
+            ("IndexError", var said, _) when PoppedFromEmpty().IsMatch(said) => "analysis-empty-collection",
+            ("IndexError", "list index out of range", _) => "analysis-index-out-of-range",
+            ("EmptyStackException", _, ".java") => "analysis-empty-collection",
+            ("NoSuchElementException", not "No value present", ".java") => "analysis-empty-collection",
+            // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
+            ("NoSuchElementException", _, ".scala" or ".sc") => "logic-scala-option-get",
+            ("InvalidOperationException", "Stack empty." or "Queue empty." or "Sequence contains no elements", ".cs") => "analysis-empty-collection",
+            var (type, _, _) => CrashExplainedBy.GetValueOrDefault(type ?? ""),
+        };
 
     /// <summary>
     /// The file a frame names: as named, when that is a whole path; else the file of that name beside the chosen one, when
@@ -84,9 +106,6 @@ public static partial class FindingFactory
         ["DivideByZeroException"] = "analysis-division-by-zero",
         ["ArithmeticException"] = "analysis-division-by-zero",
         ["NullReferenceException"] = "analysis-null-used",
-
-        // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
-        ["NoSuchElementException"] = "logic-scala-option-get",
     };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>

@@ -46,7 +46,7 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "pop() takes the last item off a list, and there has to be an item there to take. On every way to this line the list has nothing in it, so there is nothing to take.",
+            "pop() takes the last item off a list, and there has to be an item there to take. On the way through the code named here, the list has nothing in it when pop() runs, so there is nothing to take.",
             "pop() on an empty list stops the program with an IndexError.",
             "Check that it has items first.",
             """
@@ -548,7 +548,7 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "pop() and remove() take an item out of a stack or a queue, and there has to be an item there to take. On every way to this line the collection has nothing in it.",
+            "pop() and remove() take an item out of a stack or a queue, and there has to be an item there to take. On the way through the code named here, the collection has nothing in it at this line.",
             "Taking an item from an empty stack or queue stops the program with an exception.",
             "Check that it has items first.",
             """
@@ -889,8 +889,8 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "Pop, Dequeue and First take an item out, and there has to be one there to take. On every way to this line the collection is empty.",
-            "Pop, Dequeue, Peek, First and Last on an empty collection stop the program with an InvalidOperationException.",
+            "Pop, Dequeue and First take an item out, and there has to be one there to take. On the way through the code named here, the collection is empty at this line.",
+            "Pop, Dequeue, Peek, First, Last and Single on an empty collection stop the program with an InvalidOperationException.",
             "Check Count first, or use TryPop, TryDequeue or FirstOrDefault.",
             """
             if (stack.TryPop(out var top))
