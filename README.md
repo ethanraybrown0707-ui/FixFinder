@@ -1203,7 +1203,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A position that does not exist | `points[3]` on a list of three |
 | Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack - or on one empty only on some ways to it: `items = []`, an `append` only `if flag:`, then `items.pop()` |
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
-| A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
+| A condition that can never be true, or is always true | `mark > 100 && mark < 0`; `if not marks:` with `marks` still empty, said as written |
 | A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
 | A loop that never ends | `while n > 0: print(n)` - nothing inside changes `n` |
 | A call that breaks what a function checks for | `root(-4)`, when `root` starts with `if x < 0: raise ValueError` |
@@ -1401,7 +1401,11 @@ from empty list` is one finding that says *On one way through the code `items` i
 `flag` is False*. A crash is matched to its check by its exception and, where one exception means more than one mistake,
 by its message: Python's `IndexError` is `pop from empty list` or `list index out of range`, Java's
 `NoSuchElementException` an empty list's `getFirst()` but not `Optional.get()`, C#'s `InvalidOperationException` `Stack
-empty.` or `Sequence contains no elements`.
+empty.` or `Sequence contains no elements`. A crash raised by a broken contract's own check is one finding with the call
+that broke it - `divide(10, 0)`, when `divide` raises `ValueError` for a count of 0 - at the call, where the fix
+belongs. And an error the program raised itself, at its own `raise` or `throw`, is explained as that: a check refusing a
+value, with the mistake in what gave it that value - not by the guide for the error's name, whose `ValueError` is
+`int("forty-two")`.
 
 Every fix for Python, Java or C# code is also checked for **what it changes** (semantic diffing). The fix is made in a
 copy, both versions are read, and each function it touches is followed path by path in both - the same parameter, list

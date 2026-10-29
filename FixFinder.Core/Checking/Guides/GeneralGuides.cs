@@ -18,6 +18,21 @@ internal static class GeneralGuides
         "Read the compiler's message and change the line so it no longer warns - or, when what it describes is really what you meant, leave it.",
         "");
 
+    /// <summary>
+    /// An error the program's own code raised on purpose - the line it stopped at is a raise, or a throw - which says nothing of
+    /// that line being wrong: a check there refused a value, and the mistake is in what gave it that value.
+    /// </summary>
+    /// <param name="raises">The language's word for it: raise, or throw.</param>
+    public static MistakeGuide RaisedOnPurpose(string language, string raises) => new(
+        $"The program's own code stopped it here, on purpose: this line is a {raises} - a check that refuses a value it was not " +
+        "written for, and its message says what it refused. So this line is usually not what is wrong: the value that reached it " +
+        "is - the call that passed it, or the input it came from.",
+        "The check did its job, stopping the program rather than letting it go on with a value that would give a wrong answer - " +
+        "but the program stops here every time that value reaches it.",
+        $"Follow the value back to the call that passed it - the list of calls {language} printed names it - and pass a value the " +
+        "check accepts, or check the input before passing it on. If the value should be allowed, change the check.",
+        "");
+
     public static MistakeGuide For(string language, FindingKind kind) => kind switch
     {
         FindingKind.Syntax => new MistakeGuide(

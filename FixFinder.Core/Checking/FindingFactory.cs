@@ -34,6 +34,12 @@ public static partial class FindingFactory
         if (line is null && fix?.LocalFix is { } change && string.Equals(Path.GetFullPath(change.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase))
             line = change.StartLine;
 
+        // An error the program raised itself, on purpose - the line it stopped at is its own raise or throw - is explained as
+        // that: a check refusing a value. The guide for the error's name says what goes wrong when the language raises it -
+        // ValueError's is int("forty-two") - which a raise ValueError("count must not be 0") in a check is not.
+        if (!isWarning && kind == FindingKind.Runtime && fix?.LocalFix is null && line is { } stopped && RaisedHere(file, stopped) is { } raises)
+            guide = GeneralGuides.RaisedOnPurpose(Guidebook.LanguageName(file), raises);
+
         return Build(kind, severity, confidence, file, line, TitleOf(error), guide.Explanation, guide, fix) with
         {
             RuleId = fix?.LocalFix?.RuleId ?? error.ErrorCode ?? error.ShortExceptionType ?? "",
@@ -41,6 +47,13 @@ public static partial class FindingFactory
             Family = CrashFamily(error, file),
         };
     }
+
+    [GeneratedRegex(@"^\s*(?<raises>raise|throw)\b")]
+    private static partial Regex RaiseOrThrow();
+
+    /// <summary>"raise" or "throw" when the line is one in the program's own code - raise ValueError(...), throw new ... - or null.</summary>
+    private static string? RaisedHere(string file, int line) =>
+        SourceFile.Read(file)?.Line(line) is { } written && RaiseOrThrow().Match(written) is { Success: true } said ? said.Groups["raises"].Value : null;
 
     [GeneratedRegex(@"^pop from (?:an )?empty (?:list|deque)$")]
     private static partial Regex PoppedFromEmpty();

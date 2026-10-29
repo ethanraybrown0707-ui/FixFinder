@@ -993,13 +993,19 @@ public static class AbstractChecks
 
         private void ReportConditions()
         {
-            foreach (var (span, (canBeTrue, canBeFalse, block, branch)) in _conditions)
+            foreach (var (span, (testedCanBeTrue, testedCanBeFalse, block, branch)) in _conditions)
             {
-                if (canBeTrue == canBeFalse || IsDeliberateConstant(branch.Condition) ||
+                if (testedCanBeTrue == testedCanBeFalse || IsDeliberateConstant(branch.Condition) ||
                     branch.Condition is Name { Identifier: var flag } && Switches.Contains(flag) || ChecksAHint(branch.Condition)) continue;
 
-                var text = Quote(branch.Condition);
-                var failing = graph.Blocks[branch.WhenFalse];
+                // if not marks: is tested as marks, the two ways swapped; what is said is said of not marks, as written, and of
+                // the code written under it - not of marks, and of the code after the if.
+                var written = branch.WrittenAsNot;
+                var (canBeTrue, guarded, unguarded) = written is null
+                    ? (testedCanBeTrue, branch.WhenTrue, branch.WhenFalse)
+                    : (testedCanBeFalse, branch.WhenFalse, branch.WhenTrue);
+                var text = Quote((Expr?)written ?? branch.Condition);
+                var failing = graph.Blocks[unguarded];
                 var isAssert = failing.Instructions.Count == 0 && failing.Terminator is Raise { Exception: Opaque { What: "AssertionError" } };
 
                 if (isAssert)
@@ -1020,7 +1026,7 @@ public static class AbstractChecks
                     continue;
                 }
 
-                if (!canBeTrue && OnlyThrows(branch.WhenTrue) || canBeTrue && branch.TestsACase) continue;
+                if (!canBeTrue && OnlyThrows(guarded) || canBeTrue && branch.TestsACase) continue;
 
                 if (!canBeTrue)
                     Report("analysis-never-true", span, $"`{text}` can never be true here, so the code it guards never runs",

@@ -1394,11 +1394,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate)
         {
             var twin = _findings.FirstOrDefault(f => string.Equals(f.File, finding.File, StringComparison.OrdinalIgnoreCase) &&
-                                                     (SameFamily(f, finding) || SameFix(f, finding)));
+                                                     (SameFamily(f, finding) || SameFix(f, finding) || RefusedBy(f, finding) || RefusedBy(finding, f)));
 
             if (twin is not null)
             {
-                var better = Outranks(finding, twin) ? finding : twin;
+                // A call that breaks a contract is where the mistake is, so it is kept, with the crash its check raised.
+                var better = RefusedBy(finding, twin) ? finding : RefusedBy(twin, finding) ? twin : Outranks(finding, twin) ? finding : twin;
                 var other = ReferenceEquals(better, finding) ? twin : finding;
                 var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
@@ -1523,6 +1524,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         $"{Path.GetFullPath(fix.File).ToUpperInvariant()}|{fix.StartLine}|{fix.RemoveCount}|{string.Join("\n", fix.NewLines)}";
 
     private static bool SameFamily(Finding a, Finding b) => a.Family is { } family && family == b.Family && a.Line == b.Line;
+
+    /// <summary>
+    /// Whether a crash is the one a broken contract's own check raised: the call the analysis found breaking it - divide(10, 0),
+    /// when divide refuses a count of 0 by raising ValueError - is one of the calls the crash was made through, and the crash
+    /// is the very error the contract says the check raises. The run proves the call, and the call says where to fix it.
+    /// </summary>
+    private static bool RefusedBy(Finding call, Finding crash) =>
+        call.RuleId == "analysis-contract-broken" && call.Line is { } line &&
+        crash.Error is { ShortExceptionType: { Length: > 0 } raised } error &&
+        (call.Found ?? "").Contains($"it raises {raised}", StringComparison.Ordinal) &&
+        error.Frames.Any(frame => frame.Line == line && frame.File is { } file &&
+                                  string.Equals(Path.GetFileName(file), Path.GetFileName(call.File), StringComparison.OrdinalIgnoreCase));
 
     private static bool SameFix(Finding a, Finding b) =>
         a.Fix is { } x && b.Fix is { } y && x.StartLine == y.StartLine && x.RemoveCount == y.RemoveCount && x.NewLines.SequenceEqual(y.NewLines);

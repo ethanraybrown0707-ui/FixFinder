@@ -112,6 +112,21 @@ public class AbstractInterpretationTests : IDisposable
     }
 
     /// <summary>
+    /// if not marks: is tested as marks, with its two ways swapped - and is said as written, of the code written under it: with
+    /// marks empty, not marks is always true; with marks holding an item, the code under it never runs.
+    /// </summary>
+    [Theory]
+    [InlineData("def f():\n    marks = []\n    if not marks:\n        return 0\n    return 1\n", "analysis-always-true", "`not marks` is always true here, so checking it changes nothing")]
+    [InlineData("def f():\n    marks = [1]\n    if not marks:\n        return 0\n    return 1\n", "analysis-never-true", "`not marks` can never be true here, so the code it guards never runs")]
+    public async Task AConditionWrittenWithNotIsSaidAsWritten(string code, string check, string message)
+    {
+        if (await Analyse(code) is not { } findings) return;
+
+        var condition = Assert.Single(findings, finding => finding.CheckId == check);
+        Assert.Equal((3, message), (condition.Span.Line, condition.Message));
+    }
+
+    /// <summary>
     /// A list empty on one way to a pop and not on another is found as possibly empty - and then shown to fail, with the input
     /// that takes the program down the empty way given as an example of it: "for example when `flag` is False".
     /// </summary>

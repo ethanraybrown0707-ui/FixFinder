@@ -30,6 +30,12 @@ public sealed record Branch(SourceSpan Span, Expr Condition, int WhenTrue, int W
 {
     /// <summary>Whether this tests a switch's case label, where the last case matching whatever is left is normal.</summary>
     public bool TestsACase { get; init; }
+
+    /// <summary>
+    /// The condition as it was written, when it was a not of this one - if not marks: - which is tested as marks, with the two
+    /// ways swapped. What is said of the condition says it of what was written, and of the code written under it.
+    /// </summary>
+    public Unary? WrittenAsNot { get; init; }
 }
 
 public sealed record Leave(SourceSpan Span, Expr? Value) : Terminator(Span);

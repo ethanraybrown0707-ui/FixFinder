@@ -59,26 +59,75 @@ public class OneMistakeOneFindingTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
-    /// take(False) pops from an empty list: Python stops the run there, and the analysis proves it with the input that does it.
-    /// The two are one finding, with the input, the run that confirmed it, the lines that decide it and Python's own words.
+    /// An error the program raised itself, at its own raise or throw, is explained as a check refusing a value - not by the
+    /// guide for the error's name, whose ValueError is int("forty-two"). A ValueError Python raised itself keeps that guide.
     /// </summary>
-    [Fact]
-    public async Task ACrashTheAnalysisProvedIsOneFindingWithTheInputThePathAndThePythonError()
+    [Theory]
+    [InlineData("marks.py", "python", "ValueError", "no marks to average", "marks = []\nif not marks:\n    raise ValueError(\"no marks to average\")\n", 3, "The program's own code stopped it here, on purpose: this line is a raise")]
+    [InlineData("Main.java", "java", "java.lang.IllegalArgumentException", "age must not be negative", "class Main {\n    static int checkedAge(int age) {\n        if (age < 0) {\n            throw new IllegalArgumentException(\"age must not be negative\");\n        }\n        return age;\n    }\n}\n", 4, "The program's own code stopped it here, on purpose: this line is a throw")]
+    [InlineData("marks.py", "python", "ValueError", "invalid literal for int() with base 10: 'forty-two'", "mark = int(\"forty-two\")\n", 1, "The value is the right kind of thing but has the wrong content")]
+    public void AnErrorTheProgramRaisedItselfIsExplainedAsACheckRefusingAValue(string file, string language, string type, string message, string code, int line, string explanationStart)
+    {
+        var path = Path.Combine(_temp.Path, file);
+        File.WriteAllText(path, code);
+        var frame = new ErrorFrame { Order = 0, File = path, Line = line, RawLine = "" };
+        var crash = new ParsedError
+        {
+            LanguageId = language, Confidence = 90, RawText = "", FirstLineSequence = 0, ExceptionType = type, Message = message,
+            Frames = [frame], CulpritFrame = frame,
+        };
+
+        var finding = FindingFactory.FromError(crash, FindingKind.Runtime, Severity.Error, Confidence.Certain, path);
+
+        Assert.StartsWith(explanationStart, finding.Explanation, StringComparison.Ordinal);
+    }
+
+    private async Task<CheckReport?> CheckPythonAsync(string name, string code)
     {
         if (TargetFactory.FindOnPath("python") is null)
         {
             output.WriteLine("Not run on this computer: no Python.");
-            return;
+            return null;
         }
 
-        var file = Path.Combine(_temp.Path, "take.py");
-        File.WriteAllText(file, "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    return items.pop()\n\n\nprint(take(True))\nprint(take(False))\n");
+        var file = Path.Combine(_temp.Path, name);
+        File.WriteAllText(file, code);
         var launch = TargetFactory.FromFile(file, LiveAllowance.For(file, TimeSpan.FromMinutes(2)));
         Assert.True(launch.Ok, launch.Problem);
 
         using var http = new FixFinderHttpClient();
         var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckAsync(launch);
         foreach (var each in report.Findings) output.WriteLine($"{each.Line}: {each.RuleId}: {each.Found} | {each.Witness} | {each.Confirmation}");
+        return report;
+    }
+
+    /// <summary>
+    /// divide(10, 0) breaks divide's contract - it raises ValueError when count is 0 - and the run stops with that ValueError,
+    /// raised at line 9 through the call at line 13. The two are one finding, at the call, where the fix belongs, with Python's
+    /// own message.
+    /// </summary>
+    [Fact]
+    public async Task ACrashABrokenContractRaisedIsOneFindingAtTheCall()
+    {
+        if (await CheckPythonAsync("divide.py",
+                "def validate(score):\n    if score > 100:\n        raise ValueError(\"score out of range\")\n    return score\n\n\n" +
+                "def divide(total, count):\n    if count == 0:\n        raise ValueError(\"count must not be 0\")\n    return total / count\n\n\n" +
+                "print(divide(10, 0))\nprint(validate(150))\n") is not { } report) return;
+
+        Assert.Equal([13, 14], report.Findings.Select(finding => finding.Line!.Value).Order());
+        var call = Assert.Single(report.Findings, finding => finding.Line == 13);
+        Assert.Equal("analysis-contract-broken", call.RuleId);
+        Assert.Equal(("ValueError", "count must not be 0"), (call.Error?.ShortExceptionType, call.Error?.Message));
+    }
+
+    /// <summary>
+    /// take(False) pops from an empty list: Python stops the run there, and the analysis proves it with the input that does it.
+    /// The two are one finding, with the input, the run that confirmed it, the lines that decide it and Python's own words.
+    /// </summary>
+    [Fact]
+    public async Task ACrashTheAnalysisProvedIsOneFindingWithTheInputThePathAndThePythonError()
+    {
+        if (await CheckPythonAsync("take.py", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    return items.pop()\n\n\nprint(take(True))\nprint(take(False))\n") is not { } report) return;
 
         var finding = Assert.Single(report.Findings);
         Assert.Equal((5, "analysis-empty-collection", Confidence.Certain), (finding.Line, finding.RuleId, finding.Confidence));
