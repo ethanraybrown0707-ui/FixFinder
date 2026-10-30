@@ -65,6 +65,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// <summary>Whether a program with a window runs until its window is closed, rather than for the time a run is given.</summary>
     public bool WindowsRunUntilClosed { get; init; }
 
+    /// <summary>Notes said before the check started - what was done about the project's libraries - put first in the report.</summary>
+    public IReadOnlyList<string> NotesFirst { get; init; } = [];
+
     /// <summary>
     /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
     /// could have changed. Null analyses everything every time.
@@ -87,6 +90,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _launch = launch;
         _cancellation = cancellationToken;
+        foreach (var note in NotesFirst) Note(note);
         NoteWhatANotebookIsCheckedAs();
         NoteFilesLeftOut(found, launch);
 
@@ -882,7 +886,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     Title = RunTitle(error, outcome.Run),
                     Explanation = withoutLibraries,
                     SuggestedFix = "Open the project in its IDE, or build it once with its build tool, so that what it names is downloaded, then check " +
-                                   "it again - FixFinder never downloads anything itself.",
+                                   "it again - a check never downloads anything, and FixFinder does not restore a Java project's libraries.",
                     CorrectedExample = "",
                 });
                 return;

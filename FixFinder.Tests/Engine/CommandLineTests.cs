@@ -159,6 +159,7 @@ public class CommandLineTests : IDisposable
     [InlineData("marks.py", "--format")]
     [InlineData("one.py", "two.py")]
     [InlineData("marks.py", "--colour", "blue")]
+    [InlineData("marks.py", "--restore", "sometimes")]
     public async Task AMistakenCommandLineIsExplainedNotChecked(params string[] args)
     {
         var output = new StringWriter();

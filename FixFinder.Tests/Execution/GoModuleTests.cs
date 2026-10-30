@@ -6,7 +6,7 @@ using FixFinder.Core.Parsing;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// Go modules a program's go.mod requires that are not in Go's module cache: FixFinder never downloads them - every go
+/// Go modules a program's go.mod requires that are not in Go's module cache: a check never downloads them - every go
 /// command it starts has GOPROXY=off - and the errors go gives for them are said once, as a module not here, rather than
 /// as mistakes in the code.
 /// </summary>
@@ -56,9 +56,10 @@ public class GoModuleTests : IDisposable
         Assert.Equal([mistake], sorted.CodeErrors);
         Assert.Equal(1, sorted.FromLibraries);
         Assert.Equal("main.go imports example.com/notreal/marks, from the module example.com/notreal v1.0.0 its go.mod requires, which is not in Go's " +
-                     "module cache on this computer. FixFinder never downloads anything - it runs go with GOPROXY=off, so the \"go: downloading\" go " +
-                     "printed downloaded nothing - and so the program was not built, which is not a mistake in the code. Running go mod download in its " +
-                     "module's folder downloads the modules it needs, and FixFinder builds it after that.", sorted.Note);
+                     "module cache on this computer. A check never downloads anything - it runs go with GOPROXY=off, so the \"go: downloading\" go " +
+                     "printed downloaded nothing - and so the program was not built, which is not a mistake in the code. Restoring libraries - Settings, " +
+                     "Libraries - downloads the modules it needs before the check, as running go mod download all in its module's folder does, and " +
+                     "FixFinder builds it after that.", sorted.Note);
     }
 
     /// <summary>The module is the requirement the import's path starts with - the longest, for one module inside another's path.</summary>
@@ -113,6 +114,6 @@ public class GoModuleLiveTests : IDisposable
         Assert.Contains(report.Output, line => line.Text.Trim() == "go: downloading example.com/notreal v1.0.0");
         Assert.Empty(sorted.CodeErrors);
         Assert.StartsWith("main.go imports example.com/notreal/marks, from the module example.com/notreal v1.0.0 its go.mod requires, which is not in Go's " +
-                          "module cache on this computer. FixFinder never downloads anything", sorted.Note);
+                          "module cache on this computer. A check never downloads anything", sorted.Note);
     }
 }

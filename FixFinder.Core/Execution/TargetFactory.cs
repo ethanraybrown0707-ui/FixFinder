@@ -97,7 +97,7 @@ public static class TargetFactory
         [".mjs"] = new("node"),
         [".cjs"] = new("node"),
         // TypeScript is run by Node.js itself, which strips its types - not by npx tsx, which installs tsx when it is not there,
-        // without asking when no one is at a terminal, and FixFinder never downloads.
+        // without asking when no one is at a terminal, and a check never downloads.
         [".ts"] = new("node"),
         [".mts"] = new("node"),
         [".cts"] = new("node"),
@@ -112,7 +112,8 @@ public static class TargetFactory
         [".go"] = new("go", "run"),
 
         // dart <file>, not dart run <file>: dart run resolves a package's dependencies first, fetching them when it has to, and
-        // FixFinder never downloads. Run as dart <file>, a program whose packages were never fetched says so, and fails.
+        // a check never downloads - restoring the project's libraries, when the person lets it, is what runs dart pub get. Run as
+        // dart <file>, a program whose packages were never fetched says so, and fails.
         [".dart"] = new("dart"),
         [".exs"] = new("elixir"),
         [".ex"] = new("elixir"),
@@ -168,21 +169,21 @@ public static class TargetFactory
         }
 
         // An Elixir script that installs its packages with Mix.install fetches them as it runs - and Mix can ask to install Hex
-        // first, reading the answer from what is typed in - and FixFinder never downloads.
+        // first, reading the answer from what is typed in - and a check never downloads.
         if (extension.ToLowerInvariant() is ".exs" or ".ex" && InstallsElixirPackages(full))
         {
             return LaunchPlan.Failed(
-                $"{Path.GetFileName(full)} installs packages with Mix.install as it runs, which downloads them, and FixFinder never " +
+                $"{Path.GetFileName(full)} installs packages with Mix.install as it runs, which downloads them, and a check never " +
                 "downloads anything - so it is not run here.");
         }
 
         // An F# script that brings in a NuGet package with #r "nuget: ..." has F# Interactive download it as the script starts,
-        // and FixFinder never downloads.
+        // and a check never downloads.
         if (extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) && FSharpScript.FetchesPackages(full))
         {
             return LaunchPlan.Failed(
                 $"{Path.GetFileName(full)} brings in a NuGet package with #r \"nuget: ...\", which F# Interactive downloads as the script " +
-                "starts, and FixFinder never downloads anything - so it is not run here.");
+                "starts, and a check never downloads anything - so it is not run here.");
         }
 
         if (!ByExtension.TryGetValue(extension, out var runner))

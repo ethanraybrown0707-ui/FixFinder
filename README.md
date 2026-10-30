@@ -55,6 +55,29 @@ until the program prints what it should. FixFinder never changes your files.
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
    noted rather than reported as having no mistakes.
 
+**Restoring a project's libraries** is off unless you turn it on, in **Settings**, under **Libraries**: **Never restore
+them** - the choice for anybody who has not made one - **Ask me each time**, or **Restore them without asking**. A check
+itself never downloads anything. When it is on, and the project's `requirements.txt`, `package.json`, `go.mod` or
+`pubspec.yaml` - in the program's folder, or one above it up to the project's own - names libraries that are not on this
+computer, they are restored before the program is checked, with the project's own tool. Asking says which are missing,
+which tool would download them from where, where they would go, the commands it would run, and that a package can run
+its own install or build scripts on this computer while it is installed - so restore only a project you trust. Each was
+run here, and the program then ran with what it restored: pip installs into the project's own environment, and when it
+has none makes one, `.venv`, beside `requirements.txt`, which can also use what the Python on this computer has
+installed; npm installs into `node_modules`, with `npm ci` when there is a `package-lock.json` and otherwise `npm
+install`, told not to write one; `go mod download all` fills Go's module cache and writes the checksums into `go.sum`;
+and `dart pub get` fills pub's cache and writes `.dart_tool\package_config.json` and `pubspec.lock`. Which are missing
+is worked out first: a requirement Python's `importlib.metadata` cannot find, a package with no folder in
+`node_modules`, a module not in Go's module cache or not in `go.sum`, a package not in `package_config.json`. A note in
+the report says what was done - restored, with what the tool said; not restored, and why, quoting the tool's error; or
+what is missing while restoring is off. A `.venv` made for a restore whose pip then failed is left in place, and used
+from then on, as it can still use what the Python on this computer has. From a folder's check, each project is asked
+about once. From the command line, `--restore never|ask|auto` chooses for one check, and `ask` with nobody at the
+terminal to answer - an editor running it - downloads nothing. A Ruby `Gemfile` is not restored, as `bundle install`
+would put the gems into the Ruby on this computer, for every program; nor are Rust's crates or C#'s NuGet packages, as
+FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor Maven, Gradle or Composer projects,
+as none of those tools was here to try it with.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
@@ -205,8 +228,9 @@ when go.mod's toolchain line names a later Go than the one on PATH and one is he
 would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`, so the Go
 chosen is the Go that runs and nothing is downloaded: left to itself, the go command downloads a later Go when a module
 asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
-database - and FixFinder never downloads. A module the program needs that is not in the module cache is said once in a
-note, naming it and saying that `go mod download` in the module's folder downloads it, and go's errors about it are not
+database - and a check never downloads. A module the program needs that is not in the module cache is said once in a
+note, naming it and saying that restoring libraries, or `go mod download all` in the module's folder, downloads it, and
+go's errors about it are not
 reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for
 a later Go than any here, a note says which Go to install; when the code uses part of the language newer than its go
 line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or later (-lang was set to
@@ -230,7 +254,7 @@ so and how to install one.
 
 A **Scala** program - a `.scala` file, or a Scala CLI script, `.sc` - is built and run by **Scala CLI**, which FixFinder
 finds on PATH, in its Windows installer's folder in Program Files, in Coursier's folder of installed applications or in
-Scoop's shims. It is run offline, as FixFinder never downloads anything, and without Scala CLI's compile server, which
+Scoop's shims. It is run offline, as a check never downloads anything, and without Scala CLI's compile server, which
 would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written
 into the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt
 and Metals keep what they download; Settings lists them. The version is the one the program asks for - in a `//> using
@@ -462,7 +486,8 @@ tested with Strawberry Perl 5.42.2.
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as `dart
 main.dart`, not `dart run`: `dart run` resolves a package's dependencies first, fetching them when it has to, and
-FixFinder never downloads - a program whose packages were never fetched says so and stops. An exception is placed at the
+a check never downloads - a program whose packages were never fetched says so and stops, unless restoring libraries is
+on, which runs `dart pub get` first. An exception is placed at the
 first line of the program's own code in its frames, past Dart's own. The analyzer's diagnostics become fixes: a missing
 `;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in
 an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`,
@@ -631,10 +656,10 @@ F# 10, from the .NET SDK 10.0.400.
 
 A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js itself, which runs TypeScript by taking
 its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
-package it does not have, and with no one at a terminal to ask it says yes by itself, and FixFinder never downloads; a
+package it does not have, and with no one at a terminal to ask it says yes by itself, and a check never downloads; a
 Node.js that does not run TypeScript itself - its `process.features.typescript` says so - is said to be one, and the
 program is not run. Its **types are checked by TypeScript's own compiler, `tsc`**, when this computer has one already -
-the project's own, in a `node_modules` above the program, or else one installed with npm for every project. FixFinder
+the project's own, in a `node_modules` above the program, or else one installed with npm for every project. A check
 never downloads one: with none here, a note says the types were not checked. A program with a `tsconfig.json` - in its
 folder, or one above it up to its project's - is checked as the project says. A file on its own is checked the way
 Node.js runs it: strictly, as `tsc --init` sets a project up, with an import's `.ts` allowed, and every file a module,
@@ -721,7 +746,8 @@ record; and jars kept in a `lib`, `libs` or `jars` folder. The JUnit that comes 
 as its JUnit 4, 5 or 6 container, is taken from an Eclipse on this computer: the jars Eclipse makes that container of, at
 the versions Eclipse allows, from among the bundles an Eclipse the installer put in the `eclipse` folder of the home folder
 uses, or from the installer's shared pool of bundles in `.p2`. Each is looked for among what Maven and Gradle have already
-downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
+downloaded to this computer - a check never downloads anything, and FixFinder does not run Maven or Gradle, or restore a
+Java project's libraries. A library that is
 named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
 errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would
 have written into the program's own classes, such as the getters Lombok adds to a class marked `@Data`, which cannot be
@@ -1559,9 +1585,11 @@ Some limits are part of how FixFinder works:
   until it is stopped, so it is always stopped this way, and so is a program with a window unless it is let run until it
   is closed: what it did until then is checked, and what it would do when someone uses the window, or something
   connects, is not.
-- **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
-  in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
-  downloads it.
+- **Libraries.** A check never downloads anything. Restoring the libraries a project names is off unless chosen, and
+  covers `requirements.txt`, `package.json`, `go.mod` and `pubspec.yaml` - not a Ruby `Gemfile`, Rust's crates, C#'s
+  NuGet packages, or Maven, Gradle and Composer projects. Any other library a project names that is not on this computer
+  is said once, in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its
+  build tool, downloads it.
 - **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
   code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
@@ -1627,6 +1655,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
 | `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
 | `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |
+| `--restore` | `never`, `ask` or `auto`: whether the libraries the project names that are not here are restored first - your Settings choice otherwise. With nobody at the terminal to answer, `ask` downloads nothing. |
 
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a

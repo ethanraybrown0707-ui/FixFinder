@@ -346,7 +346,7 @@ public class FSharpScriptTests : IDisposable
         var launch = TargetFactory.FromFile(Write("#r \"nuget: Newtonsoft.Json\"\nprintfn \"hi\"\n"));
 
         Assert.False(launch.Ok);
-        Assert.Contains("FixFinder never downloads anything", launch.Problem, StringComparison.Ordinal);
+        Assert.Contains("a check never downloads anything", launch.Problem, StringComparison.Ordinal);
     }
 
     [Theory]

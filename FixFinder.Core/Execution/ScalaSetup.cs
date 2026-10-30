@@ -96,7 +96,7 @@ public static partial class ScalaSetup
 
             return (null,
                 $"{name} needs Scala {wanted}, as {asked.By} asks for it, and no Scala {series} is in Scala CLI's cache on this computer - only " +
-                $"{string.Join(", ", cached.Select(version => version.Version))}. FixFinder never downloads anything: building the program once while online, with sbt " +
+                $"{string.Join(", ", cached.Select(version => version.Version))}. A check never downloads anything: building the program once while online, with sbt " +
                 "or with scala-cli compile . in its folder, downloads it, and FixFinder builds it after that.");
         }
 

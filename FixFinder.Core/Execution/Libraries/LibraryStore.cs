@@ -4,7 +4,7 @@ namespace FixFinder.Core.Execution.Libraries;
 
 /// <summary>
 /// A folder of libraries already downloaded to this computer - Maven's local repository, or Gradle's cache of what it
-/// has downloaded. FixFinder only ever reads these; it never downloads a library itself.
+/// has downloaded. FixFinder only ever reads these; it does not restore a Java project's libraries.
 /// </summary>
 public abstract class LibraryStore
 {

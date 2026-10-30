@@ -210,7 +210,7 @@ public class ScalaLiveTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(program);
 
-        Assert.Contains(report.Notes, note => note.Contains("which is not in Scala CLI's cache on this computer. FixFinder never downloads anything", StringComparison.Ordinal));
+        Assert.Contains(report.Notes, note => note.Contains("which is not in Scala CLI's cache on this computer. A check never downloads anything", StringComparison.Ordinal));
         Assert.DoesNotContain(report.Findings, finding => finding.Kind == FindingKind.Syntax);
     }
 }

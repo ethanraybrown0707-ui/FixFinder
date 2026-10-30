@@ -7,6 +7,7 @@ using FixFinder.Core.Security;
 using System.Windows.Controls;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Desktop;
 
 namespace FixFinder.Gui;
@@ -35,6 +36,8 @@ public partial class SettingsWindow : Window
 
         AppearanceBox.SelectedIndex = (int)_preferences.Appearance;
         WindowsRunUntilClosedBox.IsChecked = _preferences.WindowsRunUntilClosed;
+        RestoreLibrariesBox.SelectedIndex = (int)_preferences.RestoreLibraries;
+        RestoreWarningText.Text = $"{LibraryRestore.ScriptsWarning} Python's are installed into the project's own environment - a .venv made beside requirements.txt when it has none - npm's into node_modules, Go's into its module cache, and Dart's into pub's.";
 
         foreach (var limit in TargetFactory.RunTimeLimitChoices)
             RunTimeLimitBox.Items.Add(new ComboBoxItem { Content = limit.TotalSeconds < 60 ? $"{limit.TotalSeconds:0} seconds" : limit.TotalMinutes == 1 ? "1 minute" : $"{limit.TotalMinutes:0} minutes", Tag = limit });
@@ -97,6 +100,18 @@ public partial class SettingsWindow : Window
         if (!_choicesReady) return;
 
         _preferences.WindowsRunUntilClosed = WindowsRunUntilClosedBox.IsChecked == true;
+        _preferences.Save();
+    }
+
+    /// <summary>
+    /// Whether the libraries a project names that are not here are restored before the next check - which downloads them -
+    /// and whether to ask first; written down. A check already running keeps what it was started with.
+    /// </summary>
+    private void RestoreLibraries_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_choicesReady || RestoreLibrariesBox.SelectedIndex < 0) return;
+
+        _preferences.RestoreLibraries = (RestoreChoice)RestoreLibrariesBox.SelectedIndex;
         _preferences.Save();
     }
 
