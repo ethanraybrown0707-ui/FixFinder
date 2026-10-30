@@ -22,6 +22,10 @@ public sealed class TargetRunner
 
     public IReadOnlyList<string> SourceRoots { get; set; } = [];
 
+    /// <summary>A time as a sentence says it: "6 minutes", "1 minute", "45 seconds".</summary>
+    private static string Said(TimeSpan time) =>
+        time.TotalMinutes >= 1 ? $"{time.TotalMinutes:0.#} minute{(time.TotalMinutes == 1 ? "" : "s")}" : $"{time.TotalSeconds:0.#} seconds";
+
     public async Task<TargetRunResult> RunAsync(TargetSpec spec, CancellationToken cancellationToken)
     {
         // What go run and dotnet run would build inside the run's time is built first, on its own: what it prints is not the
@@ -34,7 +38,7 @@ public sealed class TargetRunner
 
             if (built.Outcome == RunOutcome.TimedOut)
             {
-                var reason = $"Building it took longer than {build.Timeout.TotalMinutes:0} minutes, so it was stopped before it ran.";
+                var reason = $"Building it took longer than {Said(build.Timeout)}, so it was stopped before it ran.";
                 Log?.Invoke(reason);
                 return new TargetRunResult { Outcome = RunOutcome.LaunchFailed, Lines = [], Duration = built.Duration, LaunchError = reason, Explanation = reason };
             }

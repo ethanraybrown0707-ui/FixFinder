@@ -163,4 +163,52 @@ public class TargetRunnerTests
         Assert.Equal(result.Lines.Count, seen.Count);
         Assert.Contains(seen, t => t.Contains("two"));
     }
+
+    /// <summary>
+    /// What builds a program before it runs - go build, dotnet build - is done first, and its time is not the run's: a
+    /// "build" that waits twelve seconds, then a run given ten that finishes at once, runs and is said to have finished.
+    /// What the build printed is not passed on as the program's.
+    /// </summary>
+    [Fact]
+    public async Task TheBuildDoneFirstIsNotTimedAsPartOfTheRun()
+    {
+        if (!OnWindows) return;
+
+        var run = Cmd("/c echo the-program-ran", timeoutSeconds: 10);
+        var spec = new TargetSpec
+        {
+            ExecutablePath = run.ExecutablePath, Arguments = run.Arguments, WorkingDirectory = run.WorkingDirectory, Timeout = run.Timeout,
+            BuildFirst = Cmd("/c echo the-build-said & ping -n 13 127.0.0.1 > nul", timeoutSeconds: 120),
+        };
+
+        var result = await new TargetRunner().RunAsync(spec, CancellationToken.None);
+
+        Assert.Equal(RunOutcome.ExitedClean, result.Outcome);
+        Assert.Contains(result.Lines, line => line.Text.Contains("the-program-ran", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Lines, line => line.Text.Contains("the-build-said", StringComparison.Ordinal));
+    }
+
+    /// <summary>A build that runs out of its own time stopped the program before it ran - which is said, rather than that the program never finished.</summary>
+    [Fact]
+    public async Task ABuildThatRunsOutOfTimeIsSaidToHaveStoppedTheProgramBeforeItRan()
+    {
+        if (!OnWindows) return;
+
+        var run = Cmd("/c echo the-program-ran", timeoutSeconds: 10);
+        var spec = new TargetSpec
+        {
+            ExecutablePath = run.ExecutablePath, Arguments = run.Arguments, WorkingDirectory = run.WorkingDirectory, Timeout = run.Timeout,
+            BuildFirst = new TargetSpec
+            {
+                ExecutablePath = "powershell", Arguments = "-NoProfile -Command \"Start-Sleep -Seconds 120\"", WorkingDirectory = Path.GetTempPath(),
+                Timeout = TimeSpan.FromSeconds(3),
+            },
+        };
+
+        var result = await new TargetRunner().RunAsync(spec, CancellationToken.None);
+
+        Assert.Equal(RunOutcome.LaunchFailed, result.Outcome);
+        Assert.Equal("Building it took longer than 3 seconds, so it was stopped before it ran.", result.LaunchError);
+        Assert.DoesNotContain(result.Lines, line => line.Text.Contains("the-program-ran", StringComparison.Ordinal));
+    }
 }
