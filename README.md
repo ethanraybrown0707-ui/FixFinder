@@ -858,6 +858,7 @@ changed.
 | **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
+| **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
 | **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |

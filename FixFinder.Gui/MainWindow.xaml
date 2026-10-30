@@ -135,6 +135,13 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- How to make it happen, from what FixFinder ran: hidden when nothing ran it. -->
+                        <StackPanel Visibility="{Binding HasReproduce, Converter={StaticResource Visible}}">
+                            <TextBlock Text="TO SEE IT HAPPEN" Style="{StaticResource Label}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding Reproduce}" Style="{StaticResource Body}"
+                                       AutomationProperties.AutomationId="FindingReproduce"/>
+                        </StackPanel>
+
                         <StackPanel Visibility="{Binding HasCorrection, Converter={StaticResource Visible}}">
                             <Button Content="{Binding CorrectionToggleText}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                     Margin="0,10,0,0" Tag="{Binding}" Click="ToggleCorrection_Click"

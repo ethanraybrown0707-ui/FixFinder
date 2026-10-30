@@ -92,6 +92,7 @@ public static class DiagnosticLines
                 whyItMatters = finding.WhyItMatters,
                 suggestedFix = finding.SuggestedFix,
                 steps = further.Steps,
+                reproduce = further.Reproduce,
                 message = further.Message?.Message,
                 howToReadMessage = further.Message?.HowToRead,
                 words = further.Words.Select(word => new { word = word.Word, meaning = word.Meaning }),

@@ -10,6 +10,9 @@ public sealed class TargetSpec
 
     public string Arguments { get; init; } = "";
 
+    /// <summary>The arguments given for the program itself, apart from what runs it: what a person would type after its name.</summary>
+    public string ProgramArguments { get; init; } = "";
+
     public required string WorkingDirectory { get; init; }
 
     public bool LaunchViaDotnet { get; init; }
@@ -32,7 +35,7 @@ public sealed class TargetSpec
 
         var separator = TakesProgramArgumentsAfterDashes ? " -- " : " ";
 
-        return Copy(Arguments.Length > 0 ? Arguments + separator + extra : extra, StandardInput);
+        return Copy(Arguments.Length > 0 ? Arguments + separator + extra : extra, StandardInput, programArguments: extra);
     }
 
     /// <summary>
@@ -52,10 +55,13 @@ public sealed class TargetSpec
     public TargetSpec WithEnvironment(IReadOnlyDictionary<string, string> extra) =>
         Copy(Arguments, StandardInput, environment: ExtraEnvironment.Concat(extra).GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value));
 
-    private TargetSpec Copy(string arguments, string? standardInput, TimeSpan? timeout = null, IReadOnlyDictionary<string, string>? environment = null) => new()
+    private TargetSpec Copy(
+        string arguments, string? standardInput, TimeSpan? timeout = null, IReadOnlyDictionary<string, string>? environment = null,
+        string? programArguments = null) => new()
     {
         ExecutablePath = ExecutablePath,
         Arguments = arguments,
+        ProgramArguments = programArguments ?? ProgramArguments,
         WorkingDirectory = WorkingDirectory,
         LaunchViaDotnet = LaunchViaDotnet,
         ExtraEnvironment = environment ?? ExtraEnvironment,

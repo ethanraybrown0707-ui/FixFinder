@@ -626,7 +626,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         {
             Note($"{name}'s tests are written for pytest, which is not part of Python and is not installed for the Python it was run with, " +
                  "so they were not run; the file was run as a program instead, and its code was still read for mistakes. Installing pytest " +
-                 "for that Python - python -m pip install pytest - lets them be run. FixFinder never installs anything itself.");
+                 "for that Python - python -m pip install pytest - lets them be run. A check never installs anything itself.");
             return;
         }
 
@@ -931,6 +931,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Add(FindingFactory.FromError(error, kind, finishedNormally ? Severity.Warning : Severity.Error, Confidence.Certain, chosen, local) with
             {
                 Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
+                RanWith = kind == FindingKind.Runtime && launch.Spec is { } spec
+                    ? new RunGiven(Path.GetFileName(launch.ShownFile ?? chosen), spec.ProgramArguments, spec.StandardInput)
+                    : null,
             });
 
             return;
@@ -1583,6 +1586,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private static Finding Joined(Finding better, Finding other) => better with
     {
         Error = better.Error ?? other.Error,
+        RanWith = better.RanWith ?? other.RanWith,
         FoundBy = better.FoundBy ?? other.FoundBy,
         Witness = better.Witness ?? other.Witness,
         Slice = better.Slice ?? other.Slice,

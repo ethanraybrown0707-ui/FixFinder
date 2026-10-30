@@ -86,6 +86,9 @@ public sealed record Finding
 
     public ParsedError? Error { get; init; }
 
+    /// <summary>What the program's own run was given, for a finding that run made - so how to make it happen can be said.</summary>
+    public RunGiven? RanWith { get; init; }
+
     public LocalFix? Fix { get; init; }
 
     /// <summary>
@@ -136,3 +139,9 @@ public sealed record Finding
         : Line is { } line ? $"{Path.GetFileName(File)}, line {line}"
         : Path.GetFileName(File);
 }
+
+/// <summary>What a run of the program was given: the file run, the arguments typed for it, and the input typed in.</summary>
+/// <param name="Program">The file's name: "marks.py".</param>
+/// <param name="Arguments">The program's own arguments - not the interpreter's or the build's - or empty.</param>
+/// <param name="Input">What was typed in, a line to each answer, or null when nothing was.</param>
+public sealed record RunGiven(string Program, string Arguments, string? Input);
