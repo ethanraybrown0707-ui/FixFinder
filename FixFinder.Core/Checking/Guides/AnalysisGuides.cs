@@ -458,6 +458,22 @@ internal static class AnalysisGuides
             	return countdown(n - 1)
             }
             """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int32",
+            "An int32 holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on int32s is worked out as an int32, so a result past those limits does not fit: Go wraps it round, starting again from the other end, and gives no error.",
+            "The number is wrong, and nothing says so: days * 24 * 60 * 60 * 1000, with days an int32 of 365, gave 1471228928, not 31536000000 - and neither go vet nor go build said anything.",
+            "Work it out as an int64 from its first number - int64(days) * 24 * 60 * 60 * 1000 - or make days an int, which is 64 bits on a 64-bit computer.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+                var days int32 = 365
+                millis := int64(days) * 24 * 60 * 60 * 1000
+                fmt.Println(millis)
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
@@ -585,6 +601,16 @@ internal static class AnalysisGuides
             """
             int total = 0;
             printf("%d\n", total);
+            """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit. Storing it in a long long afterwards does not help, as it was worked out as an int first.",
+            "C and C++ leave what happens then undefined, and nothing says so: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928 built with gcc, not 31536000000, with no warning.",
+            "Make the arithmetic a long long from its first number - (long long) days * 24 * 60 * 60 * 1000, or 365LL * 24 * ... - so every step after it is worked out as a long long. A long is not enough on Windows, where it is 32 bits, like an int: (long) days gave 1471228928 too.",
+            """
+            int days = 365;
+            long long millis = (long long) days * 24 * 60 * 60 * 1000;
+            printf("%lld\n", millis);
             """),
     ];
 

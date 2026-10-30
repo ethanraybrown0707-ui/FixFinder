@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
@@ -11,7 +12,7 @@ using FixFinder.Core.LocalFixes;
 namespace FixFinder.Core.Analysis.Checks;
 
 /// <summary>Contradictions and unsafe operations, found by running each function on abstract values.</summary>
-public static class AbstractChecks
+public static partial class AbstractChecks
 {
     public const string FoundBy = "abstract interpretation";
 
@@ -384,7 +385,7 @@ public static class AbstractChecks
         return state;
     }
 
-    private sealed class FunctionChecks(
+    private sealed partial class FunctionChecks(
         ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets, Effects effects,
         Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
@@ -598,9 +599,14 @@ public static class AbstractChecks
         /// a long only after it has wrapped. A sum written all in numbers is the logic check's in Java, and C#'s compiler
         /// refuses it (CS0220), so only arithmetic with a name in it is looked at here.
         /// </summary>
+        /// <remarks>
+        /// C and C++ leave what happens then undefined; gcc 13.2, building as FixFinder does, gave 1471228928 too, with no
+        /// warning even with -Wall -Wextra. Go defines it: an int32 wraps round, and days as an int32 gave 1471228928, which
+        /// neither go vet nor go build said anything of - Go's own int is 64 bits, and gave 31536000000.
+        /// </remarks>
         private void CheckOverflow(Binary binary, AbstractState state)
         {
-            if (evaluator.Language is not (SourceLanguage.Java or SourceLanguage.CSharp)) return;
+            if (evaluator.Language is not (SourceLanguage.Java or SourceLanguage.CSharp or SourceLanguage.C or SourceLanguage.Cpp or SourceLanguage.Go)) return;
             if (binary.Operator is not (BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply)) return;
             if (!IsInt(binary.Left) || !IsInt(binary.Right) || !NamesSomething(binary)) return;
 
@@ -619,11 +625,20 @@ public static class AbstractChecks
 
             var bits = ((exact % 4294967296) + 4294967296) % 4294967296;
             var wrapped = bits > int.MaxValue ? bits - 4294967296 : bits;
-            var limit = exact > int.MaxValue ? "the largest an int holds, 2,147,483,647" : "the smallest an int holds, -2,147,483,648";
+            var intNamed = evaluator.Language == SourceLanguage.Go ? "an int32" : "an int";
+            var limit = exact > int.MaxValue ? $"the largest {intNamed} holds, 2,147,483,647" : $"the smallest {intNamed} holds, -2,147,483,648";
+
+            // C and C++ leave what an int does past its limits undefined: what gcc, building as FixFinder does, was seen to do is said as that.
+            var then = evaluator.Language switch
+            {
+                SourceLanguage.C => $"C leaves what happens then undefined, and gcc, building it as FixFinder does, wraps it round to {Number(wrapped)}, with no error or warning",
+                SourceLanguage.Cpp => $"C++ leaves what happens then undefined, and g++, building it as FixFinder does, wraps it round to {Number(wrapped)}, with no error or warning",
+                _ => $"so it wraps round to {Number(wrapped)}, with no error",
+            };
 
             Report("analysis-integer-overflow", binary.Span,
-                $"`{Quote(binary)}` is worked out as an int, and {Number(first)} {sign} {Number(second)} is {Number(exact)} - past {limit} - so it wraps " +
-                $"round to {Number(wrapped)}, with no error", Severity.Error, Confidence.Certain, FindingKind.Logic);
+                $"`{Quote(binary)}` is worked out as {intNamed}, and {Number(first)} {sign} {Number(second)} is {Number(exact)} - past {limit} - {then}",
+                Severity.Error, Confidence.Certain, FindingKind.Logic);
 
             if (findings.Count > 0 && findings[^1].CheckId == "analysis-integer-overflow" && WidenedFirst(binary) is { } change)
                 findings[^1] = findings[^1] with { Fix = change };
@@ -640,23 +655,50 @@ public static class AbstractChecks
             _ => false,
         };
 
+        /// <summary>A whole number written with nothing after it - no L, U or LL, which make it another kind of number.</summary>
+        [GeneratedRegex(@"^(?:0[xX][0-9a-fA-F_]+|[0-9][0-9_]*)$")]
+        private static partial Regex PlainWholeNumber();
+
         /// <summary>
-        /// Whether an expression is a 32-bit int: a whole number written with no L after it, a name declared int, short or byte -
-        /// which Java and C# make ints to work with - or arithmetic on such ints. A long anywhere makes it a long.
+        /// Whether an expression is a 32-bit int: a whole number written with nothing after it that an int holds, a name declared
+        /// a type the language works out as an int, or arithmetic on such ints. A long anywhere makes it a long.
         /// </summary>
         private bool IsInt(Expr expression) => expression switch
         {
-            Literal { Kind: LiteralKind.Integer } number => !Quote(number).TrimEnd().EndsWith('L') && !Quote(number).TrimEnd().EndsWith('l'),
-            Name { Identifier: var name } => evaluator.DeclaredTypes.TryGetValue(name, out var type) && type.Name is "int" or "short" or "byte" or "Int32" or "Int16",
+            Literal { Kind: LiteralKind.Integer, Value: var value } number => PlainWholeNumber().IsMatch(Quote(number).Trim()) && FitsAnInt(value),
+            Name { Identifier: var name } => evaluator.DeclaredTypes.TryGetValue(name, out var type) && WorkedOutAsAnInt(type.Name),
             Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply } arithmetic => IsInt(arithmetic.Left) && IsInt(arithmetic.Right),
             Unary { Operator: UnaryOperator.Negate } negated => IsInt(negated.Operand),
             Cast { Type.Name: "int" or "Int32" } => true,
             _ => false,
         };
 
+        private static bool FitsAnInt(object? value) => value switch
+        {
+            int => true,
+            long whole => whole is >= int.MinValue and <= int.MaxValue,
+            BigInteger whole => whole >= int.MinValue && whole <= int.MaxValue,
+            double whole => whole is >= int.MinValue and <= int.MaxValue,
+            _ => false,
+        };
+
         /// <summary>
-        /// The change that makes the arithmetic a long from its first number: (long) before a name, L after a written number -
-        /// so each step after it is worked out as a long, and nothing wraps.
+        /// The types each language works out as a 32-bit int: Java's and C#'s short and byte are made ints to work with, and so
+        /// are C's short and char; Go reads its int32 as int, and works out its int16 and int8 as themselves. C's long is left
+        /// out - 32 bits on Windows, 64 elsewhere - and so is every unsigned type, which wraps by a different rule.
+        /// </summary>
+        private bool WorkedOutAsAnInt(string type) => evaluator.Language switch
+        {
+            SourceLanguage.Go => type == "int",
+            SourceLanguage.C or SourceLanguage.Cpp => type is "int" or "short" or "sbyte",
+            _ => type is "int" or "short" or "byte" or "Int32" or "Int16",
+        };
+
+        /// <summary>
+        /// The change that makes the arithmetic 64 bits from its first number, so each step after it is worked out in 64 bits
+        /// and nothing wraps: in Java and C#, (long) before a name or L after a written number; in C and C++, (long long) or LL,
+        /// as a long is 32 bits on Windows. In Go, int64(days) - only when every other part is a written number, which Go then
+        /// takes as an int64 too: an int32 name beside an int64 is an error Go refuses to build.
         /// </summary>
         private LocalFix? WidenedFirst(Binary binary)
         {
@@ -666,19 +708,37 @@ public static class AbstractChecks
             var span = first.Span;
             if (span.Line != binary.Span.Line || source.Line(span.File, span.Line) is not { } line || span.Column < 0 || span.Column >= line.Length) return null;
 
-            var (changed, how) = first switch
+            var native = evaluator.Language is SourceLanguage.C or SourceLanguage.Cpp;
+            var (cast, suffix, wide) = native ? ("(long long) ", "LL", "a long long") : ("(long) ", "L", "a long");
+            var literalEnds = span.EndLine == span.Line && span.EndColumn > span.Column && span.EndColumn <= line.Length;
+
+            var (changed, how) = (evaluator.Language, first) switch
             {
-                Name => (line[..span.Column] + "(long) " + line[span.Column..], $"(long) before `{Quote(first)}`"),
-                Literal when span.EndLine == span.Line && span.EndColumn > span.Column && span.EndColumn <= line.Length =>
-                    (line[..span.EndColumn] + "L" + line[span.EndColumn..], $"L after {Quote(first)}"),
+                (SourceLanguage.Go, Name) when literalEnds && OnlyNumbersBeside(binary, first) =>
+                    (line[..span.Column] + "int64(" + line[span.Column..span.EndColumn] + ")" + line[span.EndColumn..], $"int64({Quote(first)})"),
+                (SourceLanguage.Go, _) => (null, null),
+                (_, Name) => (line[..span.Column] + cast + line[span.Column..], $"{cast.Trim()} before `{Quote(first)}`"),
+                (_, Literal) when literalEnds => (line[..span.EndColumn] + suffix + line[span.EndColumn..], $"{suffix} after {Quote(first)}"),
                 _ => (null, null),
             };
             if (changed is null) return null;
 
-            return LocalFix.ReplaceLine("analysis-integer-overflow", $"Make it a long from the start: {how}",
-                "A long holds whole numbers up to 9,223,372,036,854,775,807. Made a long from its first number, every step after it is worked out as a long, so nothing wraps.",
-                span.File, span.Line, changed);
+            var why = evaluator.Language == SourceLanguage.Go
+                ? "An int64 holds whole numbers up to 9,223,372,036,854,775,807. Made an int64 from its first number, the written numbers after it are int64s too, so nothing wraps."
+                : $"{char.ToUpperInvariant(wide[0])}{wide[1..]} holds whole numbers up to 9,223,372,036,854,775,807. Made {wide} from its first number, every step after it is worked out as {wide}, so nothing wraps.";
+
+            return LocalFix.ReplaceLine("analysis-integer-overflow",
+                $"Make it {(evaluator.Language == SourceLanguage.Go ? "an int64" : wide)} from the start: {how}", why, span.File, span.Line, changed);
         }
+
+        /// <summary>Whether every part of the arithmetic but its first is a written number.</summary>
+        private static bool OnlyNumbersBeside(Expr arithmetic, Expr first) => arithmetic switch
+        {
+            _ when ReferenceEquals(arithmetic, first) => true,
+            Binary binary => OnlyNumbersBeside(binary.Left, first) && OnlyNumbersBeside(binary.Right, first),
+            Literal => true,
+            _ => false,
+        };
 
         private void CheckDivision(Binary binary, AbstractState state)
         {

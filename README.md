@@ -362,8 +362,8 @@ nothing runs and nothing is said - `value == Float::NAN`, which is false even wh
 change makes the quotes double. The eleventh is `backup = marks` taken as a copy: both names are one array, so after
 `marks << 100`, `p backup` prints `[70, 80, 90, 100]`; the change is `marks.dup`. The twelfth is a grid made by
 repeating one row - `Array.new(3, Array.new(3, 0))` - whose rows are then one array, so `grid[0][0] = 1` changes every
-row; the change is `Array.new(3) { Array.new(3, 0) }`. The thirteenth is a root written as a power of one over a number
-- `side ** 1/2`, described below with the other languages that write it - and the fourteenth is what a `!` method gives
+row; the change is `Array.new(3) { Array.new(3, 0) }`. The thirteenth is a root written as a power of one over a
+number - `side ** 1/2`, described below with the other languages that write it - and the fourteenth is what a `!` method gives
 back, kept: `fixed = name.strip!` changes `name` itself and gives back `nil` when there was nothing to change, so
 `fixed` was `nil` for `"Ada"` - and so it was for each of `uniq!`, `compact!`, `gsub!` and sixteen more, given a value
 they had nothing to change in. The change uses the method without its `!`, which gives back a changed copy every time -
@@ -968,8 +968,8 @@ TypeScript it finds the same in `for (const mark in marks)` over an array, whose
 gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total += mark` joins them, and Node prints `Total: 0012` for
 marks of 70, 80 and 90; the change is `for...of`, and a loop that reads `marks[mark]` is left alone. In Python and
 JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both -
-and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or `for (let mark of marks)`
-- which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position compared with `> 0`, which
+and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or `for (let mark of
+marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position compared with `> 0`, which
 takes a match at the very start, position 0, for no match - and in Python, JavaScript and TypeScript a search's position
 used as true or false, `if (marks.indexOf(70))`, which is wrong both ways: a match at the start, 0, is false, and no
 match, -1, is true. The change asks whether it is there, with `includes` or `in`. In C++ it finds an array of numbers
@@ -1074,8 +1074,8 @@ it - and in Python `type(age) == "int"`, which compares a type with text and is 
 meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
 `Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
 `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
-TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")`
-- which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
+TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value ==
+float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
 their toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and
 Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its own -
 `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which
@@ -1132,8 +1132,8 @@ In Ruby it finds `Hash.new([])`, whose one array every missing key shares - `gro
 and the change gives each key its own, `Hash.new { |hash, key| hash[key] = [] }`. In PHP: a `foreach` by reference whose
 variable is used again after it, which wrote over the last item - 10, 20, 30 became 10, 20, 20 - and the change is
 `unset($mark);` after the loop; and `rtrim("test.txt", ".txt")`, which takes off characters and gave `tes` - the change
-is a `preg_replace` that matches the text at the end. In Perl: `my $name = @_`, the count of the arguments - "Hello, 1"
-- whose change is `my ($name) = @_`; and `@first == @second`, which compares counts - two arrays of different numbers
+is a `preg_replace` that matches the text at the end. In Perl: `my $name = @_`, the count of the arguments - "Hello,
+1" - whose change is `my ($name) = @_`; and `@first == @second`, which compares counts - two arrays of different numbers
 were "same" - and is changed to `"@first" eq "@second"`. In Lua, `marks[#marks / 2]`, which is `marks[1.5]` - nil - for
 three items; the change divides with `//`. In PowerShell: `"hello world" -contains "world"`, False, as `-contains` looks
 for an item of a list - the change is `-like "*world*"`; `$items -eq $null` with an array on the left, which gives back
@@ -1244,7 +1244,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Using a connection or a socket after it is closed | `conn.execute(...)` after `conn.close()` - a sqlite3 connection, or a socket in Python, Java or C# |
 | Sending on a socket before connecting it | `socket.socket()`, then `sendall` with no `connect`; `new Socket()`, then `getOutputStream()`; `new TcpClient()`, then `GetStream()` |
 | A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
-| A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java and C# |
+| A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java, C#, C, C++, and Go for an `int32` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
@@ -1264,13 +1264,19 @@ first function, and a run that crashed in it is the same finding. C and C++ are 
 `infinite recursion detected`.
 
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
-2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days * 24
-* 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a long
-only after it has wrapped. The finding works out the exact value and the one it wraps to, and its change makes the
-arithmetic a long from its first number - `(long) days * ...`, or an `L` after a written number. A long, an `L`, a cast
-to long, a value the code does not show, and a result that fits are left alone. Arithmetic written all in numbers is the
-logic check's in Java and Scala; C#'s compiler refuses it (CS0220), Go's refuses it for an `int32` and its `int` holds
-it, and gcc warns of it in C and C++, with -Woverflow.
+2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
+24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
+long only after it has wrapped. C and C++ leave what happens then undefined - gcc 13.2, building as FixFinder does,
+printed 1471228928 too, with no warning even with `-Wall -Wextra` - and Go wraps an `int32` round, as its rules say:
+with `days` an `int32`, Go 1.27 printed 1471228928, and neither `go vet` nor `go build` said anything. Go's own `int`
+is 64 bits, and holds it. The finding works out the exact value and the one it wraps to, and its change makes the
+arithmetic 64 bits from its first number: `(long) days * ...`, or an `L` after a written number, in Java and C#;
+`(long long) days * ...`, or `LL`, in C and C++, as a `long` is 32 bits on Windows - `(long) days` printed 1471228928
+there; and `int64(days) * ...` in Go, only when the rest are written numbers, as Go refuses to build an `int64` beside
+an `int32` - mismatched types int64 and int32. A long, an `L`, a cast to long, a value the code does not show, a
+result that fits, C's `long` and its unsigned types, and Go's `int` are left alone. Arithmetic written all in numbers
+is the logic check's in Java and Scala; C#'s compiler refuses it (CS0220), Go's refuses it for an `int32`, and gcc
+warns of it in C and C++, with -Woverflow.
 
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
