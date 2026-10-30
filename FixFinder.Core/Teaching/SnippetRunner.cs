@@ -134,6 +134,18 @@ public static class SnippetRunner
                 }
             }
 
+            // go run and dotnet run build the program before running it, inside the time the run is given: built first, on its
+            // own, the run finds it built and is timed on the program alone.
+            if (BuildFirst(run, folder) is { } prebuild)
+            {
+                var built = await runner.RunAsync(prebuild, cancellationToken);
+                if (built.Outcome == RunOutcome.TimedOut)
+                {
+                    output.AddRange(built.Lines.Select(line => line.Text));
+                    return new Observation { Ran = false, WhyNotRun = $"Building it took longer than {prebuild.Timeout.TotalSeconds:0} seconds, so it was stopped before it ran.", Output = output };
+                }
+            }
+
             var result = await runner.RunAsync(run, cancellationToken);
             output.AddRange(result.Lines.Select(line => line.Text));
 
@@ -168,6 +180,35 @@ public static class SnippetRunner
             {
             }
         }
+    }
+
+    /// <summary>
+    /// The build go run or dotnet run would do first, as a step of its own, given the time FixFinder gives a first Go build -
+    /// six minutes, paid only by a build that needs it - or null for any other run. Inside the run, a cold build used up a lesson's minute on a busy GitHub runner: Go's and C#'s lessons were
+    /// stopped at 60 seconds, still running, where every other language's build had a time of its own. Built here, go run
+    /// took 0.8 seconds after a 6.2-second go build with an empty cache, and dotnet run 1.7 after a 5.4-second dotnet build.
+    /// What the build says is not kept: when it fails, the run fails the same way, and says so as it always did.
+    /// </summary>
+    internal static TargetSpec? BuildFirst(TargetSpec run, string folder)
+    {
+        if (run.LaunchViaDotnet || !run.Arguments.StartsWith("run \"", StringComparison.Ordinal)) return null;
+
+        var file = run.Arguments["run ".Length..];
+        var arguments = Path.GetFileNameWithoutExtension(run.ExecutablePath).ToLowerInvariant() switch
+        {
+            "go" => $"build -o \"{Path.Combine(folder, "built.exe")}\" {file}",
+            "dotnet" => $"build {file}",
+            _ => null,
+        };
+
+        return arguments is null ? null : new TargetSpec
+        {
+            ExecutablePath = run.ExecutablePath,
+            Arguments = arguments,
+            WorkingDirectory = run.WorkingDirectory,
+            ExtraEnvironment = run.ExtraEnvironment,
+            Timeout = run.Timeout < TargetFactory.FirstRunTimeout ? TargetFactory.FirstRunTimeout : run.Timeout,
+        };
     }
 
     /// <summary>
