@@ -114,6 +114,21 @@ public class FSharpParserTests
         Assert.DoesNotContain(error.Frames, frame => frame.Symbol!.StartsWith("FSharp.Compiler", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The same script on a GitHub runner, F# Interactive 15.2.403 for F# 10.0: .NET ran out of room in one of its own
+    /// helpers, GetGCStaticBase, and listed each call - 24,006 of FSI_0001.count, cut down to 40 here - with no "Repeated"
+    /// line. The call listed most often is the one it repeated.
+    /// </summary>
+    [Fact]
+    public void AStackOverflowListedCallByCallNamesTheCallListedMostOften()
+    {
+        var error = Parse("fsharp/runner-stack-overflow-unrepeated.txt");
+
+        Assert.Equal(FSharpParser.StackOverflow, error.ExceptionType);
+        Assert.Equal("Stack overflow. The call it repeated: FSI_0001.count(Int32)", error.Message);
+        Assert.DoesNotContain(error.Frames, frame => frame.Symbol!.StartsWith("FSharp.Compiler", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ACSharpCrashIsStillReadAsCSharps()
     {

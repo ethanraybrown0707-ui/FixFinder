@@ -187,6 +187,8 @@ public sealed partial class FSharpParser : IStackTraceParser, IMultiErrorParser
         if (start < 0) return null;
 
         var frames = new List<ErrorFrame>();
+        var timesListed = new Dictionary<string, int>(StringComparer.Ordinal);
+        string? repeated = null, firstAfterRepeated = null;
         var end = start + 1;
 
         for (var index = start + 1; index < lines.Count; index++)
@@ -195,12 +197,25 @@ public sealed partial class FSharpParser : IStackTraceParser, IMultiErrorParser
             if (InteractiveFramePattern().IsMatch(text)) break;
 
             end = index + 1;
+            if (text.Trim().StartsWith("Repeated ", StringComparison.Ordinal)) repeated ??= text.Trim();
             if (OverflowFramePattern().Match(text) is not { Success: true } call) continue;
 
             var symbol = call.Groups["sym"].Value;
+            timesListed[symbol] = timesListed.GetValueOrDefault(symbol) + 1;
+            if (repeated is not null) firstAfterRepeated ??= symbol;
             if (frames.All(frame => frame.Symbol != symbol))
                 frames.Add(new ErrorFrame { Order = frames.Count, Symbol = symbol, RawLine = text });
         }
+
+        // "Repeated 31994 times:" comes before the call .NET saw repeated. Without it - a runner's .NET listed each call, under
+        // one of its own helpers, GetGCStaticBase, where the room ran out - the call it lists most often is the one repeated.
+        var mostListed = timesListed.Where(listed => listed.Value > 1).OrderByDescending(listed => listed.Value).Select(listed => listed.Key).FirstOrDefault();
+        var message = (repeated, firstAfterRepeated, mostListed) switch
+        {
+            ({ } said, { } call, _) => $"{Overflowed} {said} {call}",
+            (_, _, { } call) => $"{Overflowed} The call it repeated: {call}",
+            _ => Overflowed,
+        };
 
         return new ParsedError
         {
@@ -210,10 +225,7 @@ public sealed partial class FSharpParser : IStackTraceParser, IMultiErrorParser
             FirstLineSequence = lines[start].Sequence,
             ExceptionType = StackOverflow,
             // "Stack overflow. Repeated 32002 times: FSI_0001.count(Int32)" - the call it repeated, as .NET named it.
-            Message = lines.Skip(start + 1).Select(line => line.Text.Trim()).FirstOrDefault(text => text.StartsWith("Repeated ", StringComparison.Ordinal)) is { } repeated &&
-                      frames.Count > 0
-                ? $"{Overflowed} {repeated} {frames[0].Symbol}"
-                : Overflowed,
+            Message = message,
             Frames = frames,
         };
     }
