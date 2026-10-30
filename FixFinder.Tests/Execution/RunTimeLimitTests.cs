@@ -43,16 +43,25 @@ public class RunTimeLimitTests : IDisposable
         Assert.Equal(TimeSpan.FromMinutes(5), TargetFactory.FromFile(program).Spec!.Timeout);
     }
 
-    /// <summary>Go's first build compiles its standard library, so a Go program is never given less than the six minutes that takes.</summary>
+    /// <summary>
+    /// Go's first build compiles its standard library, and dotnet run builds too: the build is a step of its own, given the
+    /// six minutes a first build can take, and the run is given the time chosen - as every other program's is.
+    /// </summary>
     [Fact]
-    public void GoIsNeverGivenLessThanItsFirstBuildTakes()
+    public void GoAndCSharpAreBuiltInTheirOwnTimeAndRunInTheTimeChosen()
     {
         TargetFactory.RunTimeLimit = TimeSpan.FromSeconds(10);
-        Assert.Equal(TargetFactory.FirstRunTimeout, TargetFactory.TimeoutFor(".go"));
-        Assert.Equal(TimeSpan.FromSeconds(10), TargetFactory.TimeoutFor(".py"));
 
-        TargetFactory.RunTimeLimit = TimeSpan.FromMinutes(10);
-        Assert.Equal(TimeSpan.FromMinutes(10), TargetFactory.TimeoutFor(".go"));
+        foreach (var program in new[] { Write("main.go", "package main\n\nfunc main() {}\n"), Write("Program.cs", "System.Console.WriteLine(1);\n") })
+        {
+            var plan = TargetFactory.FromFile(program);
+            if (!plan.Ok) continue;
+
+            Assert.Equal(TimeSpan.FromSeconds(10), plan.Spec!.Timeout);
+            Assert.Equal(TargetFactory.FirstRunTimeout, plan.Spec.BuildFirst?.Timeout);
+        }
+
+        Assert.Null(TargetFactory.FromFile(Write("main.py", "print(1)\n")).Spec?.BuildFirst);
     }
 
     /// <summary>The time comes from a preferences file anybody can edit, so one outside a second to an hour is the default.</summary>

@@ -26,6 +26,12 @@ public sealed class TargetSpec
 
     public string? StandardInput { get; init; }
 
+    /// <summary>
+    /// What builds the program before it runs, when what runs it would otherwise build it inside the run's time - go run and
+    /// dotnet run. Done first, on its own and given a build's time, so the run is timed on the program alone.
+    /// </summary>
+    public TargetSpec? BuildFirst { get; init; }
+
     public TargetSpec WithInput(string? input) => Copy(Arguments, string.IsNullOrEmpty(input) ? null : input);
 
     public TargetSpec WithArguments(string? programArguments)
@@ -62,6 +68,7 @@ public sealed class TargetSpec
         ExecutablePath = ExecutablePath,
         Arguments = arguments,
         ProgramArguments = programArguments ?? ProgramArguments,
+        BuildFirst = BuildFirst,
         WorkingDirectory = WorkingDirectory,
         LaunchViaDotnet = LaunchViaDotnet,
         ExtraEnvironment = environment ?? ExtraEnvironment,

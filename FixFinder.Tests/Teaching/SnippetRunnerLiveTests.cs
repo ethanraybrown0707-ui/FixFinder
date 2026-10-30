@@ -53,24 +53,4 @@ public class SnippetRunnerLiveTests(ITestOutputHelper output)
         output.WriteLine(observed.Said(languageName));
         Assert.True(observed.Shows(Behaviour.Printing(printed)), observed.Said(languageName));
     }
-
-    /// <summary>The build each run would do first, as a step of its own - and none for a run that builds nothing, or a project.</summary>
-    [Fact]
-    public void TheBuildGoRunAndDotnetRunWouldDoIsMadeAStepOfItsOwn()
-    {
-        static TargetSpec Run(string program, string arguments) => new()
-        {
-            ExecutablePath = program, Arguments = arguments, WorkingDirectory = @"C:\work", Timeout = TimeSpan.FromSeconds(60),
-            ExtraEnvironment = new Dictionary<string, string> { ["GOPROXY"] = "off" },
-        };
-
-        var go = SnippetRunner.BuildFirst(Run(@"C:\Go\bin\go.exe", "run \"C:\\work\\main.go\""), @"C:\temp\lesson")!;
-        Assert.Equal(("build -o \"C:\\temp\\lesson\\built.exe\" \"C:\\work\\main.go\"", @"C:\work", "off"), (go.Arguments, go.WorkingDirectory, go.ExtraEnvironment["GOPROXY"]));
-        Assert.Equal(TargetFactory.FirstRunTimeout, go.Timeout);
-
-        Assert.Equal("build \"C:\\work\\main.cs\"", SnippetRunner.BuildFirst(Run(@"C:\dotnet\dotnet.exe", "run \"C:\\work\\main.cs\""), @"C:\temp")!.Arguments);
-
-        Assert.Null(SnippetRunner.BuildFirst(Run(@"C:\Python\python.exe", "\"C:\\work\\main.py\""), @"C:\temp"));
-        Assert.Null(SnippetRunner.BuildFirst(Run(@"C:\dotnet\dotnet.exe", "run --project \"C:\\work\\app.csproj\""), @"C:\temp"));
-    }
 }

@@ -24,6 +24,22 @@ public sealed class TargetRunner
 
     public async Task<TargetRunResult> RunAsync(TargetSpec spec, CancellationToken cancellationToken)
     {
+        // What go run and dotnet run would build inside the run's time is built first, on its own: what it prints is not the
+        // program's, so it is not passed on, and a build that fails is left for the run to report as it always has.
+        if (spec.BuildFirst is { } build)
+        {
+            Log?.Invoke($"Building it first: {build.DisplayCommandLine}");
+            var built = await new TargetRunner(_parsers).RunAsync(build, cancellationToken);
+            if (built.Outcome == RunOutcome.Cancelled) return built;
+
+            if (built.Outcome == RunOutcome.TimedOut)
+            {
+                var reason = $"Building it took longer than {build.Timeout.TotalMinutes:0} minutes, so it was stopped before it ran.";
+                Log?.Invoke(reason);
+                return new TargetRunResult { Outcome = RunOutcome.LaunchFailed, Lines = [], Duration = built.Duration, LaunchError = reason, Explanation = reason };
+            }
+        }
+
         var lines = new List<CapturedLine>();
         var linesLock = new object();
         var stopwatch = Stopwatch.StartNew();

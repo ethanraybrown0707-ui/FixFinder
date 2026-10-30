@@ -119,7 +119,9 @@ FixFinder runs to try changes are given the usual time, as nobody is there to cl
 programs are each given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it
 keeps the usual time; **Stop** ends any run. How long a run is given is chosen in Settings, under Advanced - ten seconds
 to ten minutes, one minute unless chosen - and every run follows it: the program's own, and each copy a change is tried
-in. Go is always given six minutes for its first build, which compiles its standard library.
+in. Go and C# are built before they run - go build, dotnet build - and the build is given six minutes, as Go's first
+build compiles its standard library; the run is then given the time chosen, as every program's is, so a Go program that
+never finishes is stopped then, not six minutes on.
 
 Settings keeps what most people never change - how long runs are given, programs with a window, and restoring
 libraries - under **Advanced**, which stays closed unless one of them has been changed from what FixFinder does by
@@ -1604,9 +1606,9 @@ file and line.
 
 Some limits are part of how FixFinder works:
 
-- **Time.** Each run of a program is given the time chosen in Settings, under Advanced - a minute unless chosen, and
-  never less than six minutes for Go, whose first build compiles its standard library - and is stopped when its time
-  runs out. A server runs until it is stopped, so it is always stopped this way, and so is a program with a window
+- **Time.** Each run of a program is given the time chosen in Settings, under Advanced - a minute unless chosen; Go and
+  C# are built first, given six minutes, as Go's first build compiles its standard library - and is stopped when its
+  time runs out. A server runs until it is stopped, so it is always stopped this way, and so is a program with a window
   unless it is let run until it is closed: what it did until then is checked, and what it would do when someone uses the
   window, or something connects, is not.
 - **Libraries.** A check never downloads anything. Restoring the libraries a project names is off unless chosen, and

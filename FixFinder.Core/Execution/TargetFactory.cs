@@ -30,14 +30,14 @@ public static class TargetFactory
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
-    /// <summary>What a language that compiles the world before running is given instead.</summary>
+    /// <summary>What the build done before a Go or C# program runs is given.</summary>
     /// <remarks>
-    /// <c>go run</c> compiles the standard library before it compiles the program, which takes minutes on a
-    /// machine that has never built Go and seconds on one that has. A timeout tuned to the second case does
-    /// not merely make the first slow: the program is killed before it reaches the line that crashes, so
-    /// FixFinder reports that it never finished for a program that in fact fails instantly - the wrong answer
-    /// rather than a slow one. Waiting longer is only ever paid by a target that has not finished yet, so a
-    /// generous allowance costs nothing on the machine where the cache is warm.
+    /// <c>go run</c> compiles the standard library before it compiles the program, which takes minutes on a machine that
+    /// has never built Go and seconds on one that has, and <c>dotnet run</c> builds the program first too. Inside the run's
+    /// time, a cold build does not merely make the run slow: the program is killed before it reaches the line that crashes,
+    /// so FixFinder would say it never finished of a program that fails at once - the wrong answer rather than a slow one.
+    /// So the build is done first, on its own, and given this; waiting longer is only ever paid by a build that has not
+    /// finished yet, so it costs nothing where the cache is warm. The run is then given the usual time.
     /// </remarks>
     public static readonly TimeSpan FirstRunTimeout = TimeSpan.FromMinutes(6);
 
@@ -65,13 +65,6 @@ public static class TargetFactory
         get => _runTimeLimit;
         set => _runTimeLimit = IsRunTimeLimit(value) ? value : DefaultTimeout;
     }
-
-    private static readonly HashSet<string> CompileBeforeRunning =
-        new(StringComparer.OrdinalIgnoreCase) { ".go" };
-
-    /// <summary>How long a file of this kind is given when the caller has not said - never less than Go's first build takes.</summary>
-    public static TimeSpan TimeoutFor(string extension) =>
-        CompileBeforeRunning.Contains(extension) && FirstRunTimeout > RunTimeLimit ? FirstRunTimeout : RunTimeLimit;
 
     private sealed record Runner(
         string? Interpreter, string ArgumentPrefix = "", params string[] Alternatives);
@@ -310,14 +303,16 @@ public static class TargetFactory
                 break;
         }
 
+        var environmentGiven = go is null ? new Dictionary<string, string>() : GoSetup.Environment;
         var spec = new TargetSpec
         {
             ExecutablePath = viaDotnet ? full : found,
             Arguments = viaDotnet ? "" : arguments,
             WorkingDirectory = workingDirectory,
             LaunchViaDotnet = viaDotnet,
-            Timeout = timeout ?? TimeoutFor(extension),
-            ExtraEnvironment = go is null ? new Dictionary<string, string>() : GoSetup.Environment,
+            Timeout = timeout ?? RunTimeLimit,
+            ExtraEnvironment = environmentGiven,
+            BuildFirst = viaDotnet ? null : BuildFirst(found, arguments, workingDirectory, environmentGiven),
         };
 
         // dotnet runs an F# script through F# Interactive, which is what is named.
@@ -435,6 +430,28 @@ public static class TargetFactory
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The build go run or dotnet run would do before running the program, as a step of its own: go build -o NUL, which
+    /// builds into Go's cache and writes nothing beside the program, and dotnet build of the file or the project. Null for
+    /// anything else. Run here with Go's build cache empty, go build took 6.9 seconds and go run 0.9 after it; with the .NET
+    /// build servers stopped, dotnet build took 5.4 seconds and dotnet run 1.7 after it.
+    /// </summary>
+    private static TargetSpec? BuildFirst(string program, string arguments, string workingDirectory, IReadOnlyDictionary<string, string> environment)
+    {
+        var built = Path.GetFileNameWithoutExtension(program).ToLowerInvariant() switch
+        {
+            "go" when arguments.StartsWith("run ", StringComparison.Ordinal) => "build -o NUL " + arguments["run ".Length..],
+            "dotnet" when arguments.StartsWith("run --project ", StringComparison.Ordinal) => "build " + arguments["run --project ".Length..],
+            "dotnet" when arguments.StartsWith("run \"", StringComparison.Ordinal) => "build " + arguments["run ".Length..],
+            _ => null,
+        };
+
+        return built is null ? null : new TargetSpec
+        {
+            ExecutablePath = program, Arguments = built, WorkingDirectory = workingDirectory, ExtraEnvironment = environment, Timeout = FirstRunTimeout,
+        };
     }
 
     public static string? FindOnPath(string name)

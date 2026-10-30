@@ -162,7 +162,7 @@
                         <GroupBox Header="Runs" Margin="0,0,0,12">
                             <StackPanel Margin="4">
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
-                                           Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build."/>
+                                           Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go and C# are built first, and their build is given six minutes, as Go's first build compiles its standard library."/>
                                 <ComboBox x:Name="RunTimeLimitBox" Width="160" HorizontalAlignment="Left"
                                           SelectionChanged="RunTimeLimit_Changed"
                                           AutomationProperties.AutomationId="RunTimeLimitBox"
