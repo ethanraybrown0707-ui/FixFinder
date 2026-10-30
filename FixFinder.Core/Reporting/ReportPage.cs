@@ -32,6 +32,9 @@ public sealed record ReportPage
 
     public IReadOnlyList<string> Notes { get; init; } = [];
 
+    /// <summary>Inputs that take the program each of its ways, and what it printed with each.</summary>
+    public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
+
     public required IReadOnlyList<Finding> Findings { get; init; }
 
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
@@ -75,6 +78,20 @@ public sealed record ReportPage
         {
             page.Append("<section class=\"notes\">\n<h2>Notes</h2>\n<ul>\n");
             foreach (var note in Notes) page.Append("<li>").Append(Prose(note)).Append("</li>\n");
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (Tried.Count > 0)
+        {
+            page.Append("<section class=\"tried\">\n<h2>Try these inputs</h2>\n")
+                .Append("<p class=\"intro\">One input for each way through the program that what is typed decides, worked out from the code, and what it printed with each.</p>\n<ul>\n");
+            foreach (var tried in Tried)
+            {
+                page.Append("<li><strong>Typing ").Append(Text(tried.TypedSaid)).Append("</strong><pre>").Append(Text(string.Join("\n", tried.Printed))).Append("</pre>");
+                if (tried.StoppedWith is { } stopped) page.Append("<p>It stopped: ").Append(Text(stopped)).Append("</p>");
+                page.Append("</li>\n");
+            }
+
             page.Append("</ul>\n</section>\n");
         }
 

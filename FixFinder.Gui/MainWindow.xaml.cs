@@ -88,6 +88,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
 
+    /// <summary>The inputs the last check tried, for the saved report.</summary>
+    private IReadOnlyList<Core.Analysis.Dynamic.InputTried> _tried = [];
+
     /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
     private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
@@ -645,6 +648,8 @@ public partial class MainWindow : Window
         ViewTabs.Visibility = Visibility.Collapsed;
         EfficiencyIntro.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
+        TriedExpander.Visibility = Visibility.Collapsed;
+        _tried = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         SinceLastPanel.Visibility = Visibility.Collapsed;
@@ -669,6 +674,10 @@ public partial class MainWindow : Window
         }
 
         foreach (var note in report.Notes) _notes.Add(note);
+
+        TriedList.ItemsSource = report.Tried.Select(tried => new TriedInputRow(tried)).ToList();
+        TriedExpander.Visibility = report.Tried.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _tried = report.Tried;
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -782,6 +791,7 @@ public partial class MainWindow : Window
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
             Notes = [.. _notes],
+            Tried = _tried,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
             Output = [.. _output.Select(row => row.DisplayLine)],
@@ -1050,6 +1060,10 @@ public partial class MainWindow : Window
     {
         _notes.Clear();
         foreach (var note in report.Notes) _notes.Add(note);
+
+        // Read again, not run: no input was tried.
+        TriedExpander.Visibility = Visibility.Collapsed;
+        _tried = [];
 
         // Only read, so it is not set beside a check that compiled and ran the program.
         _comparison = null;

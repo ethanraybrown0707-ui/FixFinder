@@ -78,6 +78,15 @@ would put the gems into the Ruby on this computer, for every program; nor are Ru
 FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor Maven, Gradle or Composer projects,
 as none of those tools was here to try it with.
 
+**Try these inputs**, under the notes, shows what each way through a Python program does: for a program whose top-level
+code goes different ways on what is typed, FixFinder follows each way, works out answers that take it, and runs the
+program with each - with its own Python, in its own folder - showing what each printed, and what stopped it. For `score
+= int(input())` and `if score >= 70` ... `elif score >= 50` the answers are 70, 50 and 0, and the three runs printed A,
+B and Fail; for `total // people`, people 0 stopped with ZeroDivisionError and -1 printed a share. It is closed until
+opened, and in a saved report and on the command line too. It is only for a program that asks all its questions in
+straight-line top-level code - asked in a loop, a branch or a function, an answer could go to the wrong question - and
+it is left out when nothing typed decides the way, or every input printed the same.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there

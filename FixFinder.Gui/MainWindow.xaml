@@ -906,7 +906,8 @@
                     </Border>
                 </StackPanel>
 
-                <ItemsControl x:Name="NotesList" Grid.Row="3" AutomationProperties.AutomationId="NotesList">
+                <StackPanel Grid.Row="3">
+                <ItemsControl x:Name="NotesList" AutomationProperties.AutomationId="NotesList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Background="{DynamicResource AccentSoftBrush}" BorderBrush="{DynamicResource SuggestionBorderBrush}"
@@ -920,6 +921,26 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- One input for each way through the program, and what it printed with each: closed until opened. -->
+                <Expander x:Name="TriedExpander" AutomationProperties.AutomationId="TriedExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="Try these inputs - one for each way through the program">
+                    <ItemsControl x:Name="TriedList" AutomationProperties.AutomationId="TriedList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}">
+                                        <Run Text="Typing "/><Run Text="{Binding TypedSaid, Mode=OneWay}"/>
+                                    </TextBlock>
+                                    <TextBox Text="{Binding PrintedText, Mode=OneWay}" Style="{StaticResource CodeBlock}"
+                                             AutomationProperties.Name="What it printed"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+                </StackPanel>
 
                 <Grid Grid.Row="4">
                     <ScrollViewer x:Name="FindingsScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

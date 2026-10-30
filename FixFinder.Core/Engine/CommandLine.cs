@@ -113,6 +113,9 @@ public static class CommandLine
         var report = await checker.CheckAsync(launch, cancellationToken);
 
         foreach (var note in report.Notes) await errors.WriteLineAsync($"note: {note}");
+        foreach (var tried in report.Tried)
+            await errors.WriteLineAsync($"try: typing {tried.TypedSaid} printed \"{string.Join(" / ", tried.Printed)}\"" +
+                                        (tried.StoppedWith is { } stopped ? $" and stopped with {stopped}" : ""));
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
 
@@ -145,6 +148,7 @@ public static class CommandLine
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
             Notes = report.Notes,
+            Tried = report.Tried,
             Findings = report.Findings,
             Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
         };
