@@ -1402,10 +1402,15 @@ holding them; a Python `threading.Lock` cannot, which is why taking one twice is
 Races come from two relations. **Happens-before** orders the code that starts threads against the threads: what comes
 before `start()` happens before everything the thread does, and everything the thread does happens before the `join()`
 that waits for it - so code between the two runs at the same time as the thread. A thread handed to other code, which
-could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it -
-by `synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the
-function it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock
-is held at both. A field of an object is only shared by threads using that same object.
+could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it - by
+`synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the function
+it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock is held
+at both. A field of an object is only shared by threads using that same object. When nothing waits for a thread that one
+name holds - `worker`, started with `worker.start()` - a result read before it is waited for gets a change that waits
+first, on the line before: `worker.join()` in Python, `worker.Join()` in C#, and `worker.join()` in Java only where the
+method already says it throws `InterruptedException`, as Java will not build the call otherwise. Run, the read printed 0
+in Java 21 and .NET 10, and in Python 3.13 the whole total four times in five and 749561121 once; with the change, all
+three printed 4999950000.
 
 Each finding that is an instance of a weakness in MITRE's **Common Weakness Enumeration** says which - CWE-89 for SQL
 injection, CWE-833 for a deadlock, CWE-835 for a loop that never ends, and so on - with a link to the entry, an
