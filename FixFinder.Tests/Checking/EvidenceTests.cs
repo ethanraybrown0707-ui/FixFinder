@@ -46,6 +46,21 @@ public class EvidenceTests
         Frames = [],
     };
 
+    /// <summary>Beside the confidence word, where it comes from - the strongest thing behind it, and never more than that.</summary>
+    [Fact]
+    public void TheConfidenceSaysWhereItComesFrom()
+    {
+        Assert.Equal("Certain (run reproduced it)",
+            Evidence.Labelled(Finding(confidence: Confidence.Certain, witness: "`count` is 0", confirmation: "running share(1, 0) stopped with ZeroDivisionError")));
+        Assert.Equal("compiler said so", Evidence.Source(Finding(FindingKind.Syntax, error: Said("CS1002"))));
+        Assert.Equal("seen when it ran", Evidence.Source(Finding(FindingKind.Runtime, error: Said())));
+        Assert.Equal("seen when it ran", Evidence.Source(Finding(ruleId: "wrong-output")));
+        Assert.Equal("Possible (failing input worked out)",
+            Evidence.Labelled(Finding(confidence: Confidence.Possible, foundBy: "symbolic execution", witness: "the input is 0")));
+        Assert.Equal("values followed through the code", Evidence.Source(Finding(foundBy: "abstract interpretation")));
+        Assert.Equal("Likely (pattern only)", Evidence.Labelled(Finding()));
+    }
+
     [Fact]
     public void ARunThatBrokeExactlyAsPredictedIsTheStrongestThingThereIs()
     {

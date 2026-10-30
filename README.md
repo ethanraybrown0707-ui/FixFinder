@@ -853,7 +853,7 @@ changed.
 | | |
 |---|---|
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
-| **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
+| **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. Beside the word, where it comes from, read off what happened: *run reproduced it* - the analysis said this line breaks and a run with its values broke it; *seen when it ran* - the program crashed, or printed the wrong thing; *compiler said so*; *failing input worked out* - an input that makes it fail was worked out from the code, which can still hang on what is typed in; *values followed through the code*; or *pattern only* - the way the code is written. Its tooltip, and **More detail**, say it in a sentence. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |

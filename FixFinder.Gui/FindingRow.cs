@@ -25,7 +25,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string SeverityText => Finding.Severity.ToString();
 
-    public string ConfidenceText => Finding.Confidence.ToString();
+    /// <summary>The confidence word with where it comes from: "Certain (seen when it ran)".</summary>
+    public string ConfidenceText => Evidence.Labelled(Finding);
 
     public string ConfidenceDots => Finding.Confidence switch
     {

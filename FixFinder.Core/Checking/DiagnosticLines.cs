@@ -83,6 +83,7 @@ public static class DiagnosticLines
                 cell = finding.InNotebook?.Cell,
                 severity = finding.Severity.ToString().ToLowerInvariant(),
                 confidence = finding.Confidence.ToString().ToLowerInvariant(),
+                confidenceSource = Evidence.Source(finding),
                 kind = finding.Kind.ToString().ToLowerInvariant(),
                 rule = finding.RuleId,
                 code = Code(finding.RuleId),

@@ -129,7 +129,7 @@ public sealed record ReportPage
 
         page.Append("<article class=\"finding ").Append(severity).Append("\">\n<p class=\"tags\">")
             .Append("<span class=\"tag ").Append(severity).Append("\">").Append(Text(finding.Severity.ToString())).Append("</span> ")
-            .Append("<span class=\"tag\">").Append(Text(finding.Confidence.ToString())).Append("</span> ")
+            .Append("<span class=\"tag\">").Append(Text(Evidence.Labelled(finding))).Append("</span> ")
             .Append("<span class=\"tag\">").Append(Text(FindingText.Kind(finding))).Append("</span>");
 
         if (SinceLastCheck?.StatusOf(finding) is { } status)

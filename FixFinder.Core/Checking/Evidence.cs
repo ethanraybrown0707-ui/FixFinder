@@ -67,6 +67,25 @@ public static class Evidence
     /// </summary>
     public static string Behind(Finding finding) => $"{finding.Confidence}: {For(finding)}";
 
+    /// <summary>
+    /// Where the confidence comes from, in a few words to go beside it - read off what happened, as <see cref="For"/> is,
+    /// strongest first: a run that broke as the analysis said it would; the program crashing, or printing the wrong thing,
+    /// when it ran; the compiler refusing it; an input that fails, worked out from the code - which can still depend on what
+    /// is typed in, so it is not called proof; the values followed through the code; or the way the code is written alone.
+    /// </summary>
+    public static string Source(Finding finding) => finding switch
+    {
+        { Confirmation.Length: > 0 } => "run reproduced it",
+        { Error: not null, Kind: FindingKind.Syntax } => "compiler said so",
+        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" } => "seen when it ran",
+        { Witness.Length: > 0 } => "failing input worked out",
+        { FoundBy.Length: > 0 } => "values followed through the code",
+        _ => "pattern only",
+    };
+
+    /// <summary>The confidence word with where it comes from: "Certain (seen when it ran)".</summary>
+    public static string Labelled(Finding finding) => $"{finding.Confidence} ({Source(finding)})";
+
     private static string Sentence(string text) =>
         text.Length == 0 ? "" : char.ToUpperInvariant(text[0]) + text[1..] + (text.EndsWith('.') ? "" : ".");
 }
