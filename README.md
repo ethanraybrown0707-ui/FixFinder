@@ -55,28 +55,28 @@ until the program prints what it should. FixFinder never changes your files.
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
    noted rather than reported as having no mistakes.
 
-**Restoring a project's libraries** is off unless you turn it on, in **Settings**, under **Libraries**: **Never restore
-them** - the choice for anybody who has not made one - **Ask me each time**, or **Restore them without asking**. A check
-itself never downloads anything. When it is on, and the project's `requirements.txt`, `package.json`, `go.mod` or
-`pubspec.yaml` - in the program's folder, or one above it up to the project's own - names libraries that are not on this
-computer, they are restored before the program is checked, with the project's own tool. Asking says which are missing,
-which tool would download them from where, where they would go, the commands it would run, and that a package can run
-its own install or build scripts on this computer while it is installed - so restore only a project you trust. Each was
-run here, and the program then ran with what it restored: pip installs into the project's own environment, and when it
-has none makes one, `.venv`, beside `requirements.txt`, which can also use what the Python on this computer has
-installed; npm installs into `node_modules`, with `npm ci` when there is a `package-lock.json` and otherwise `npm
-install`, told not to write one; `go mod download all` fills Go's module cache and writes the checksums into `go.sum`;
-and `dart pub get` fills pub's cache and writes `.dart_tool\package_config.json` and `pubspec.lock`. Which are missing
-is worked out first: a requirement Python's `importlib.metadata` cannot find, a package with no folder in
-`node_modules`, a module not in Go's module cache or not in `go.sum`, a package not in `package_config.json`. A note in
-the report says what was done - restored, with what the tool said; not restored, and why, quoting the tool's error; or
-what is missing while restoring is off. A `.venv` made for a restore whose pip then failed is left in place, and used
-from then on, as it can still use what the Python on this computer has. From a folder's check, each project is asked
-about once. From the command line, `--restore never|ask|auto` chooses for one check, and `ask` with nobody at the
-terminal to answer - an editor running it - downloads nothing. A Ruby `Gemfile` is not restored, as `bundle install`
-would put the gems into the Ruby on this computer, for every program; nor are Rust's crates or C#'s NuGet packages, as
-FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor Maven, Gradle or Composer projects,
-as none of those tools was here to try it with.
+**Restoring a project's libraries** is off unless you turn it on, in **Settings**, under **Advanced** and then
+**Libraries**: **Never restore them** - the choice for anybody who has not made one - **Ask me each time**, or **Restore
+them without asking**. A check itself never downloads anything. When it is on, and the project's `requirements.txt`,
+`package.json`, `go.mod` or `pubspec.yaml` - in the program's folder, or one above it up to the project's own - names
+libraries that are not on this computer, they are restored before the program is checked, with the project's own tool.
+Asking says which are missing, which tool would download them from where, where they would go, the commands it would
+run, and that a package can run its own install or build scripts on this computer while it is installed - so restore
+only a project you trust. Each was run here, and the program then ran with what it restored: pip installs into the
+project's own environment, and when it has none makes one, `.venv`, beside `requirements.txt`, which can also use what
+the Python on this computer has installed; npm installs into `node_modules`, with `npm ci` when there is a
+`package-lock.json` and otherwise `npm install`, told not to write one; `go mod download all` fills Go's module cache
+and writes the checksums into `go.sum`; and `dart pub get` fills pub's cache and writes `.dart_tool\package_config.json`
+and `pubspec.lock`. Which are missing is worked out first: a requirement Python's `importlib.metadata` cannot find, a
+package with no folder in `node_modules`, a module not in Go's module cache or not in `go.sum`, a package not in
+`package_config.json`. A note in the report says what was done - restored, with what the tool said; not restored, and
+why, quoting the tool's error; or what is missing while restoring is off. A `.venv` made for a restore whose pip then
+failed is left in place, and used from then on, as it can still use what the Python on this computer has. From a
+folder's check, each project is asked about once. From the command line, `--restore never|ask|auto` chooses for one
+check, and `ask` with nobody at the terminal to answer - an editor running it - downloads nothing. A Ruby `Gemfile` is
+not restored, as `bundle install` would put the gems into the Ruby on this computer, for every program; nor are Rust's
+crates or C#'s NuGet packages, as FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor
+Maven, Gradle or Composer projects, as none of those tools was here to try it with.
 
 **Try these inputs**, under the notes, shows what each way through a Python program does: for a program whose top-level
 code goes different ways on what is typed, FixFinder follows each way, works out answers that take it, and runs the
@@ -112,14 +112,18 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
-**Let a program with a window run until I close it**, in Settings, keeps such a program open for you to use: it
-is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
-and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
-runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
-given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it keeps the usual time;
-**Stop** ends any run. How long a run is given is chosen in Settings - ten seconds to ten minutes, one minute unless
-chosen - and every run follows it: the program's own, and each copy a change is tried in. Go is always given six minutes
-for its first build, which compiles its standard library.
+**Let a program with a window run until I close it**, in Settings under Advanced, keeps such a program open for you to
+use: it is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it
+printed and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies
+FixFinder runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's
+programs are each given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it
+keeps the usual time; **Stop** ends any run. How long a run is given is chosen in Settings, under Advanced - ten seconds
+to ten minutes, one minute unless chosen - and every run follows it: the program's own, and each copy a change is tried
+in. Go is always given six minutes for its first build, which compiles its standard library.
+
+Settings keeps what most people never change - how long runs are given, programs with a window, and restoring
+libraries - under **Advanced**, which stays closed unless one of them has been changed from what FixFinder does by
+itself.
 
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
@@ -239,12 +243,11 @@ chosen is the Go that runs and nothing is downloaded: left to itself, the go com
 asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
 database - and a check never downloads. A module the program needs that is not in the module cache is said once in a
 note, naming it and saying that restoring libraries, or `go mod download all` in the module's folder, downloads it, and
-go's errors about it are not
-reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for
-a later Go than any here, a note says which Go to install; when the code uses part of the language newer than its go
-line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or later (-lang was set to
-go1.21; check go.mod)` - a note says to raise the go line; and when the code needs a later Go than any here, a note says
-so and how to install one.
+go's errors about it are not reported as mistakes in the code. How it ran says which Go and why. When Go will not build
+a module because it asks for a later Go than any here, a note says which Go to install; when the code uses part of the
+language newer than its go line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or
+later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line; and when the code needs a later Go
+than any here, a note says so and how to install one.
 
 A JavaScript program runs with **a Node.js new enough for it**. FixFinder finds every Node.js on the computer - the one on
 PATH, the one Node.js's installer puts in Program Files, and those nvm for Windows keeps - and knows each by the version
@@ -1601,11 +1604,11 @@ file and line.
 
 Some limits are part of how FixFinder works:
 
-- **Time.** Each run of a program is given the time chosen in Settings - a minute unless chosen, and never less than six
-  minutes for Go, whose first build compiles its standard library - and is stopped when its time runs out. A server runs
-  until it is stopped, so it is always stopped this way, and so is a program with a window unless it is let run until it
-  is closed: what it did until then is checked, and what it would do when someone uses the window, or something
-  connects, is not.
+- **Time.** Each run of a program is given the time chosen in Settings, under Advanced - a minute unless chosen, and
+  never less than six minutes for Go, whose first build compiles its standard library - and is stopped when its time
+  runs out. A server runs until it is stopped, so it is always stopped this way, and so is a program with a window
+  unless it is let run until it is closed: what it did until then is checked, and what it would do when someone uses the
+  window, or something connects, is not.
 - **Libraries.** A check never downloads anything. Restoring the libraries a project names is off unless chosen, and
   covers `requirements.txt`, `package.json`, `go.mod` and `pubspec.yaml` - not a Ruby `Gemfile`, Rust's crates, C#'s
   NuGet packages, or Maven, Gradle and Composer projects. Any other library a project names that is not on this computer

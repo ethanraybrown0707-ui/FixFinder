@@ -46,7 +46,7 @@ public sealed record RestorePlan(string Program, string Manifest, IReadOnlyList<
 
     /// <summary>The note when nothing was restored, because restoring is off.</summary>
     public string OffNote =>
-        $"{Named}. FixFinder downloads nothing unless you let it: restoring libraries is off - Settings, Libraries - so the " +
+        $"{Named}. FixFinder downloads nothing unless you let it: restoring libraries is off - Settings, Advanced, Libraries - so the " +
         $"program was checked without {(Missing.Count == 1 ? "it" : "them")}.";
 
     /// <summary>The note when the person was asked and said no.</summary>

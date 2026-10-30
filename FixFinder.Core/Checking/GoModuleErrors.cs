@@ -55,7 +55,7 @@ public static partial class GoModuleErrors
             : "A module its go.mod requires is not in Go's module cache on this computer.";
 
         var note = $"{what} A check never downloads anything - it runs go with GOPROXY=off, so the \"go: downloading\" go printed downloaded nothing - " +
-                   "and so the program was not built, which is not a mistake in the code. Restoring libraries - Settings, Libraries - downloads the " +
+                   "and so the program was not built, which is not a mistake in the code. Restoring libraries - Settings, Advanced, Libraries - downloads the " +
                    "modules it needs before the check, as running go mod download all in its module's folder does, and FixFinder builds it after that.";
 
         return new LibraryErrors.Sorted(errors.Except(notCached).ToList(), note, notCached.Count, "It needs a module that is not on this computer, so it was not built");

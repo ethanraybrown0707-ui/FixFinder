@@ -58,7 +58,7 @@ public class GoModuleTests : IDisposable
         Assert.Equal("main.go imports example.com/notreal/marks, from the module example.com/notreal v1.0.0 its go.mod requires, which is not in Go's " +
                      "module cache on this computer. A check never downloads anything - it runs go with GOPROXY=off, so the \"go: downloading\" go " +
                      "printed downloaded nothing - and so the program was not built, which is not a mistake in the code. Restoring libraries - Settings, " +
-                     "Libraries - downloads the modules it needs before the check, as running go mod download all in its module's folder does, and " +
+                     "Advanced, Libraries - downloads the modules it needs before the check, as running go mod download all in its module's folder does, and " +
                      "FixFinder builds it after that.", sorted.Note);
     }
 

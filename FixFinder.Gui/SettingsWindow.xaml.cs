@@ -44,6 +44,10 @@ public partial class SettingsWindow : Window
         RunTimeLimitBox.SelectedIndex = Array.IndexOf(TargetFactory.RunTimeLimitChoices, _preferences.RunTimeLimit);
         _choicesReady = true;
 
+        // Advanced choices are closed away - but one that has been changed stays in sight, so nothing is changed unseen.
+        AdvancedExpander.IsExpanded = _preferences.RunTimeLimit != TargetFactory.DefaultTimeout || _preferences.WindowsRunUntilClosed ||
+                                      _preferences.RestoreLibraries != RestoreChoice.Never;
+
         RefreshCredentialState();
         RefreshCacheState();
 

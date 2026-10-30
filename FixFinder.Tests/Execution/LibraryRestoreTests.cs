@@ -98,7 +98,7 @@ public class LibraryRestoreTests : IDisposable
                      $"requirements.txt\n\n{LibraryRestore.ScriptsWarning}\n\nRestore them now?", plan.Question);
         Assert.Equal("tabulate and requests", plan.MissingSaid);
         Assert.Equal("requirements.txt names 2 libraries that are not on this computer: tabulate, requests. FixFinder downloads nothing unless you let it: " +
-                     "restoring libraries is off - Settings, Libraries - so the program was checked without them.", plan.OffNote);
+                     "restoring libraries is off - Settings, Advanced, Libraries - so the program was checked without them.", plan.OffNote);
     }
 
     /// <summary>Restoring is off unless chosen, a choice is kept, and one this version has no name for is read as off.</summary>

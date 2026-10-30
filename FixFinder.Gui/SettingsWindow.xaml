@@ -51,40 +51,6 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,18,18,0">
 
-                <GroupBox Header="Runs" Margin="0,0,0,12">
-                    <StackPanel Margin="4">
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
-                                   Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build."/>
-                        <ComboBox x:Name="RunTimeLimitBox" Width="160" HorizontalAlignment="Left"
-                                  SelectionChanged="RunTimeLimit_Changed"
-                                  AutomationProperties.AutomationId="RunTimeLimitBox"
-                                  AutomationProperties.Name="How long a run is given"/>
-
-                        <CheckBox x:Name="WindowsRunUntilClosedBox" AutomationProperties.AutomationId="WindowsRunUntilClosedBox"
-                                  Content="Let a program with a window run until I close it" Margin="0,14,0,0"
-                                  Checked="WindowsRunUntilClosed_Changed" Unchecked="WindowsRunUntilClosed_Changed"/>
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
-                                   Text="A program with a window - JavaFX, Swing, tkinter, turtle, pygame and the like - then stays open for you to use, and FixFinder checks what it did once you close it. Otherwise it is stopped when its time is up. A folder's programs are each given the usual time, so the folder is not held up."/>
-                    </StackPanel>
-                </GroupBox>
-
-                <GroupBox Header="Libraries" Margin="0,0,0,12">
-                    <StackPanel Margin="4">
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
-                                   Text="When a project's requirements.txt, package.json, go.mod or pubspec.yaml names libraries that are not on this computer, FixFinder can restore them before checking - with pip, npm, go or dart pub, which download them from the internet. Checking never downloads anything by itself."/>
-                        <ComboBox x:Name="RestoreLibrariesBox" Width="260" HorizontalAlignment="Left"
-                                  SelectionChanged="RestoreLibraries_Changed"
-                                  AutomationProperties.AutomationId="RestoreLibrariesBox"
-                                  AutomationProperties.Name="Restoring a project's libraries">
-                            <ComboBoxItem Content="Never restore them"/>
-                            <ComboBoxItem Content="Ask me each time"/>
-                            <ComboBoxItem Content="Restore them without asking"/>
-                        </ComboBox>
-                        <TextBlock x:Name="RestoreWarningText" Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                   AutomationProperties.AutomationId="RestoreWarningText"/>
-                    </StackPanel>
-                </GroupBox>
-
                 <GroupBox Header="Appearance" Margin="0,0,0,12">
                     <StackPanel Margin="4">
                         <TextBlock Text="Which colours FixFinder uses. It changes at once - nothing is checked again."
@@ -188,6 +154,46 @@
                         </StackPanel>
                     </StackPanel>
                 </GroupBox>
+
+                <!-- What most people never change: closed, unless one of them has been changed from what FixFinder does by itself. -->
+                <Expander x:Name="AdvancedExpander" AutomationProperties.AutomationId="AdvancedExpander" IsExpanded="False" Margin="0,12,0,12"
+                          Header="Advanced - how long runs are given, programs with a window, restoring libraries">
+                    <StackPanel Margin="0,10,0,0">
+                        <GroupBox Header="Runs" Margin="0,0,0,12">
+                            <StackPanel Margin="4">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                           Text="How long a run of a program is given before FixFinder stops it - the program's own run, and each run of a copy it tries a change in. Go is always given six minutes for its first build."/>
+                                <ComboBox x:Name="RunTimeLimitBox" Width="160" HorizontalAlignment="Left"
+                                          SelectionChanged="RunTimeLimit_Changed"
+                                          AutomationProperties.AutomationId="RunTimeLimitBox"
+                                          AutomationProperties.Name="How long a run is given"/>
+
+                                <CheckBox x:Name="WindowsRunUntilClosedBox" AutomationProperties.AutomationId="WindowsRunUntilClosedBox"
+                                          Content="Let a program with a window run until I close it" Margin="0,14,0,0"
+                                          Checked="WindowsRunUntilClosed_Changed" Unchecked="WindowsRunUntilClosed_Changed"/>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                           Text="A program with a window - JavaFX, Swing, tkinter, turtle, pygame and the like - then stays open for you to use, and FixFinder checks what it did once you close it. Otherwise it is stopped when its time is up. A folder's programs are each given the usual time, so the folder is not held up."/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="Libraries" Margin="0,0,0,12">
+                            <StackPanel Margin="4">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                           Text="When a project's requirements.txt, package.json, go.mod or pubspec.yaml names libraries that are not on this computer, FixFinder can restore them before checking - with pip, npm, go or dart pub, which download them from the internet. Checking never downloads anything by itself."/>
+                                <ComboBox x:Name="RestoreLibrariesBox" Width="260" HorizontalAlignment="Left"
+                                          SelectionChanged="RestoreLibraries_Changed"
+                                          AutomationProperties.AutomationId="RestoreLibrariesBox"
+                                          AutomationProperties.Name="Restoring a project's libraries">
+                                    <ComboBoxItem Content="Never restore them"/>
+                                    <ComboBoxItem Content="Ask me each time"/>
+                                    <ComboBoxItem Content="Restore them without asking"/>
+                                </ComboBox>
+                                <TextBlock x:Name="RestoreWarningText" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                           AutomationProperties.AutomationId="RestoreWarningText"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </Expander>
 
             </StackPanel>
         </ScrollViewer>
