@@ -114,6 +114,69 @@ public class LogicErrorTests : IDisposable
         Assert.Contains(Mutations.For(source, 1), m => m.NewText == corrected);
     }
 
+    /// <summary>
+    /// The edits that correct the one-line bugs of the QuixBugs benchmark (MIT licence) the search did not try before, each
+    /// with as much of its program as the edit needs - the loop a running best is kept in, the function whose names a
+    /// wrong variable is chosen from: arguments in the wrong order, added at the wrong end, any for all, the wrong bitwise
+    /// operator, an argument, an index part or a length off by one, the wrong variable, a running best replaced, a
+    /// generator's own call yielded whole, base cases that answer nothing or stop too late, a count never checked, a list
+    /// not shortened like the one beside it, a loop over items already taken, and a line left out - the last piece, or the
+    /// item pushed back onto a stack. Others are in Java, JavaScript and C#, so each kind is tried in every language it can
+    /// be written in.
+    /// </summary>
+    [Theory]
+    [InlineData("app.py", "def gcd(a, b):\n    return gcd(a % b, b)\n", 2, "    return gcd(b, a % b)")]
+    [InlineData("app.py", "def rpn(op, token, a, b):\n    stack.append(op(token, a, b))\n", 2, "    stack.append(op(token, b, a))")]
+    [InlineData("app.py", "def to_base(num, b):\n    result = result + alphabet[i]\n", 2, "    result = alphabet[i] + result")]
+    [InlineData("app.py", "def sieve(max):\n    if any(n % p > 0 for p in primes):\n", 2, "    if all(n % p > 0 for p in primes):")]
+    [InlineData("app.py", "def bitcount(n):\n    n ^= n - 1\n", 2, "    n &= n - 1")]
+    [InlineData("app.py", "def find(arr, x, start, end, mid):\n    return binsearch(mid, end)\n", 2, "    return binsearch(mid + 1, end)")]
+    [InlineData("app.py", "def lcs(a, b, i, j, dp):\n    dp[i, j] = dp[i - 1, j] + 1\n", 2, "    dp[i, j] = dp[i - 1, j - 1] + 1")]
+    [InlineData("app.py", "def nxt(digit_list):\n    return [1] + (len(digit_list)) * [0] + [1]\n", 2, "    return [1] + (len(digit_list) - 1) * [0] + [1]")]
+    [InlineData("app.py", "def bucketsort(arr, k):\n    counts = [0] * k\n    for i, count in enumerate(arr):\n        pass\n", 3, "    for i, count in enumerate(counts):")]
+    [InlineData("app.py", "def lis(arr):\n    longest = 0\n    for i, val in enumerate(arr):\n        length = i\n        longest = length + 1\n", 5, "        longest = max(longest, length + 1)")]
+    [InlineData("app.py", "def kadane(arr):\n    best = 0\n    for x in arr:\n        best = best + x\n", 4, "        best = max(0, best + x)")]
+    [InlineData("app.py", "def flatten(arr):\n    for x in arr:\n        yield flatten(x)\n", 3, "        yield x")]
+    [InlineData("App.java", "class App {\n    static int gcd(int a, int b) {\n        return gcd(a % b, b);\n    }\n}\n", 3, "        return gcd(b, a % b);")]
+    [InlineData("App.java", "class App {\n    static boolean all(java.util.List<Integer> xs) {\n        return xs.stream().anyMatch(x -> x > 0);\n    }\n}\n", 3, "        return xs.stream().allMatch(x -> x > 0);")]
+    [InlineData("app.js", "function best(xs) {\n    let most = 0;\n    for (const x of xs) {\n        most = x + 1;\n    }\n}\n", 4, "        most = Math.max(most, x + 1);")]
+    [InlineData("App.cs", "class App\n{\n    static bool Every(int[] xs) => xs.Any(x => x > 0);\n}\n", 3, "    static bool Every(int[] xs) => xs.All(x => x > 0);")]
+    // Base cases: one empty answer, what was given back, one item already finished, the list worked through run out.
+    [InlineData("app.py", "def subsequences(a, b, k):\n    if k == 0:\n        return []\n", 3, "        return [[]]")]
+    [InlineData("app.py", "def factors(n):\n    for i in range(2, n):\n        pass\n    return []\n", 4, "    return [n]")]
+    [InlineData("app.py", "def mergesort(arr):\n    if len(arr) == 0:\n        return arr\n", 2, "    if len(arr) <= 1:")]
+    [InlineData("app.js", "function sort(xs) {\n    if (xs.length === 0) return xs;\n}\n", 2, "    if (xs.length <= 1) return xs;")]
+    [InlineData("app.py", "def change(coins, total):\n    if total < 0:\n        return 0\n    first, *rest = coins\n    return change(coins, total - first) + change(rest, total)\n", 2, "    if total < 0 or not coins:")]
+    // Finished without checking the count, in Python and Java.
+    [InlineData("app.py", "def valid(parens):\n    depth = 0\n    for p in parens:\n        if p == '(':\n            depth += 1\n        else:\n            depth -= 1\n    return True\n", 8, "    return depth == 0")]
+    [InlineData("App.java", "class App {\n    static boolean valid(String s) {\n        int depth = 0;\n        for (char c : s.toCharArray()) {\n            if (c == '(') depth++; else depth--;\n        }\n        return true;\n    }\n}\n", 7, "        return depth == 0;")]
+    // A list not shortened like the one beside it, and a loop over items already taken.
+    [InlineData("app.py", "def lcs(a, b):\n    if not a or not b:\n        return ''\n    elif a[0] == b[0]:\n        return a[0] + lcs(a[1:], b)\n", 5, "        return a[0] + lcs(a[1:], b[1:])")]
+    [InlineData("app.py", "def kheapsort(arr, k):\n    heap = arr[:k]\n    for x in arr:\n        yield x\n", 3, "    for x in arr[k:]:")]
+    // A line added: the piece left when the loop ends, and the item pushed after the stack was popped down to its place.
+    [InlineData("app.py", "def wrap(text, cols):\n    lines = []\n    while len(text) > cols:\n        line, text = text[:cols], text[cols:]\n        lines.append(line)\n\n    return lines\n", 7, "    lines.append(text)\n    return lines")]
+    [InlineData("app.py", "def rpn(tokens):\n    out = []\n    ops = []\n    for token in tokens:\n        if isinstance(token, int):\n            out.append(token)\n        else:\n            while ops and ops[-1] > token:\n                out.append(ops.pop())\n\n    return out\n", 9, "                out.append(ops.pop())\n            ops.append(token)")]
+    public void TheEditThatCorrectsABugTheSearchMissedBeforeIsTried(string file, string program, int line, string corrected) =>
+        Assert.Contains(Mutations.For(Source(file, program), line), m => m.NewText == corrected);
+
+    /// <summary>
+    /// Edits that would change nothing, or could not be meant, are not tried: a keyword argument or a spread does not trade
+    /// places, a running best outside a loop is left as it is, and no variable is chosen from outside the function.
+    /// </summary>
+    [Theory]
+    [InlineData("app.py", "def f(a, b):\n    g(key=a, other=b)\n", 2, "    g(other=b, key=a)")]
+    [InlineData("app.py", "def f(*args):\n    g(*args, 1)\n", 2, "    g(1, *args)")]
+    [InlineData("app.py", "def f(length):\n    longest = length + 1\n", 2, "    longest = max(longest, length + 1)")]
+    [InlineData("app.py", "outside = 1\ndef f(a, b):\n    return a + 1\n", 3, "    return outside + 1")]
+    // A count only ever added to is not checked for nothing; a list nothing was added to in the loop is given no leftover;
+    // a stack the loop never popped is pushed nothing; and a function that does not call itself is given no empty-list stop.
+    [InlineData("app.py", "def ok(xs):\n    total = 0\n    for x in xs:\n        total += 1\n    return True\n", 5, "    return total == 0")]
+    [InlineData("app.py", "def f(xs):\n    out = []\n    for x in xs:\n        print(x)\n    return out\n", 5, "    out.append(x)\n    return out")]
+    [InlineData("app.py", "def f(tokens, ops, out):\n    for token in tokens:\n        while ops and token:\n            out.append(token)\n", 4, "            out.append(token)\n        ops.append(token)")]
+    [InlineData("app.py", "def f(coins, total):\n    if total < 0:\n        return 0\n    first, *rest = coins\n    return first\n", 2, "    if total < 0 or not coins:")]
+    public void AnEditThatChangesNothingOrCouldNotBeMeantIsNotTried(string file, string program, int line, string notTried) =>
+        Assert.DoesNotContain(Mutations.For(Source(file, program), line), m => m.NewText == notTried);
+
     [Fact]
     public void NothingInsideAStringOrACommentIsEdited()
     {
@@ -242,6 +305,23 @@ public class LogicErrorTests : IDisposable
             "python", "search that stops at the first item",
             new() { ["app.py"] = "def contains(items, target):\n    for item in items:\n        if item == target:\n            return True\n        else:\n            return False\n\n\nprint(contains([3, 7, 9], 9))\n" },
             "app.py", [], "local:logic-python-return-in-loop", "    return False"
+        },
+        {
+            // QuixBugs' find_in_sorted (MIT licence): lines 7 and 9 score the same by which runs went through them, so only
+            // the crash - RecursionError, on line 9 - says which of the two to change. Changing line 7 first printed what all
+            // five of these runs expect, and was wrong on another of the benchmark's tests.
+            "python", "binary search that never moves past the middle",
+            new() { ["app.py"] = "def find_in_sorted(arr, x):\n    def binsearch(start, end):\n        if start == end:\n            return -1\n        mid = start + (end - start) // 2\n        if x < arr[mid]:\n            return binsearch(start, mid)\n        elif x > arr[mid]:\n            return binsearch(mid, end)\n        else:\n            return mid\n\n    return binsearch(0, len(arr))\n\n\nvalues = [int(v) for v in input().split()]\nprint(find_in_sorted(values, int(input())))\n" },
+            "app.py",
+            [("3 4 5 5 5 5 6\n5\n", "3\n"), ("1 2 3 4 6 7 8\n5\n", "-1\n"), ("1 2 3 4 6 7 8\n4\n", "3\n"), ("2 4 6 8 10 12 14 16 18 20\n18\n", "8\n"), ("3 5 6 7 8 9 12 13 14 24 26 27\n0\n", "-1\n")],
+            "local:logic-edit", "return binsearch(mid + 1, end)"
+        },
+        {
+            // QuixBugs' wrap: a line added, not changed - the text left when the loop ends is never added to the lines.
+            "python", "word wrap that drops the last line",
+            new() { ["app.py"] = "def wrap(text, cols):\n    lines = []\n    while len(text) > cols:\n        end = text.rfind(' ', 0, cols + 1)\n        if end == -1:\n            end = cols\n        line, text = text[:end], text[end:]\n        lines.append(line)\n\n    return lines\n\n\nfor line in wrap(input(), 10):\n    print(\"[\" + line + \"]\")\n" },
+            "app.py", [("the quick brown fox jumps over\n", "[the quick]\n[ brown fox]\n[ jumps]\n[ over]\n"), ("hello world\n", "[hello]\n[ world]\n")],
+            "local:logic-edit", "    lines.append(text)\n    return lines"
         },
         {
             "node", "loop one past the end",

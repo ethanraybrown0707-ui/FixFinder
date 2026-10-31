@@ -370,6 +370,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     [GeneratedRegex(@"\bvoid\s+main\s*\(")]
     private static partial Regex DeclaresMain();
 
+    [GeneratedRegex(@"^\s*package\s+(?<name>[A-Za-z_]\w*)")]
+    private static partial Regex GoPackageLine();
+
+    /// <summary>
+    /// go run's words for a file whose package is not main - one of a package's files of functions, which is not a program
+    /// - and nothing that ran at all, let alone crashed.
+    /// </summary>
+    private static bool NotAMainPackage(ParsedError error, string chosen) =>
+        Path.GetExtension(chosen).Equals(".go", StringComparison.OrdinalIgnoreCase) &&
+        (error.Message ?? "").Contains("is not a main package", StringComparison.OrdinalIgnoreCase);
+
     [GeneratedRegex(@"(?m)^\s*import\s+(?:static\s+)?(?<name>javafx\.|javax\.swing\.|java\.net\.ServerSocket\b|java\.net\.\*|com\.sun\.net\.httpserver\.|org\.springframework\.boot\.)")]
     private static partial Regex RunsUntilStoppedImport();
 
@@ -575,6 +586,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </summary>
     private static string? NothingToRun(ParsedError error, string chosen)
     {
+        if (NotAMainPackage(error, chosen))
+        {
+            var package = SourceFile.Read(chosen)?.Lines.Select(line => GoPackageLine().Match(line)).FirstOrDefault(found => found.Success)?.Groups["name"].Value;
+            var ownTests = Path.ChangeExtension(chosen, null) + "_test.go";
+            var tests = File.Exists(ownTests) ? $" - such as its tests in {Path.GetFileName(ownTests)}, which go test runs and FixFinder does not" : "";
+
+            return $"{Path.GetFileName(chosen)} is part of {(package is { Length: > 0 } ? $"the Go package {package}" : "a Go package")}, not a program, so " +
+                   $"there is nothing in it to run: Go runs only package main, starting at its func main(). Its functions are there for other code to call{tests}. " +
+                   "The code in this file was still read for mistakes.";
+        }
+
         if (error.LanguageId == "scala" && error.Message == "No main class found")
         {
             return $"{Path.GetFileName(chosen)} has no main, so there is nothing in it to run: a Scala program starts at def main(args: Array[String]): Unit " +
@@ -1059,6 +1081,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         return outcome.Result switch
         {
             SessionResult.CouldNotRun => "It could not be started",
+            _ when outcome.Error is { } error && NotAMainPackage(error, chosen) => $"{reads}{warnings}; it is a package of functions, not a program, so there is nothing to run",
             _ when outcome.Error is { } error && NothingToRun(error, chosen) is not null => $"{reads}{warnings}; it has no main method to run",
             _ when outcome.Error is { } error && NoJavaFxToStartIt(error, chosen) is not null => $"{reads}{warnings}; Java would not start it without JavaFX",
             _ when outcome.Error is { } error && RefusedConnection.In(error) is { } refusal =>

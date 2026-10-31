@@ -735,7 +735,12 @@ on unless the project turns them off, and so does FixFinder. So a project with i
 `include` builds with its headers found, and a folder of exercises, each with its own `main`, builds the one the chosen
 file belongs to - and a header's fix is checked by building that program with the changed header. What only running
 something could say - `$(shell ...)`, `execute_process`, a header `configure_file` would write, a package `find_package`
-would look for - is not guessed at: how the program ran names it. A file the build file builds into more than one program
+would look for - is not guessed at: how the program ran names it. A library linked by name that is not on this computer -
+neither in a folder the build file names nor where gcc looks, which gcc says when asked - is left out rather than failing
+the whole build, and how it ran says so: TheAlgorithms' C searches link `function_timer`, a library the project builds in
+a folder of its own, and without that folder the three in its `pattern_search` folder, which use nothing from it, were said not to build, with no reason
+given. If a program does use a library left out, building it names each function of it that is missing; and when the
+linker cannot find a library at all, that is said in its own words, with what to do. A file the build file builds into more than one program
 is built as the one of them built by default - by plain `make`, or CMake's `all` - that is not a test, or else the one
 that is not a test, or else the one built by default. When two are as likely as each other, as for a helper two
 exercises share that are both built by default, it is built as if there were no build file, and how it ran says why; so
@@ -954,7 +959,8 @@ it failed - a traceback, an uncaught exception, a panic, the java launcher unabl
 only a crash gives. A program that ends itself with a failing exit code - `System.exit(1)` after printing how to run
 it, say - is reported as possibly wrong, quoting the last thing it printed, since that may be just what it should do
 without an argument or a file. An exception printed on the way - `printStackTrace` in a `catch` - is a warning when the
-program still finishes. A Java class with no main method has nothing to run, and a note says so. When Windows refuses to
+program still finishes. A Java class with no main method has nothing to run, and a note says so - as does a Go file of a
+package other than `main`, such as one of TheAlgorithms' Go searches, whose `go run` refusal was once reported as a crash. When Windows refuses to
 start a program that has just been built, and says so, a note says that too rather than blaming the code. A program that
 stops because a connection it made was refused - its database or server not running - is reported as that, in any
 language, from what its runtime said: the address, when the error names one, and what usually listens on that port, such
@@ -1226,11 +1232,29 @@ unused; that warning and the check are one finding, whose change names it `add_t
 1.`. A test the module exports is found without a change. Elixir's warning for `assert result = 7` is left to Elixir.
 
 1. Each run is repeated with coverage on, and every line is scored by how often the wrong runs reached it compared with
-   the right ones (the Ochiai formula, with DStar breaking ties).
+   the right ones (the Ochiai formula, with DStar breaking ties). Of lines scored alike, the one a wrong run crashed on
+   comes first: in QuixBugs' `find_in_sorted` two lines score the same, and changing the other one first gave the
+   expected output for the five runs given but a `RecursionError` on another of the benchmark's tests.
 2. On the most suspicious lines, the small edits behind most logic bugs are generated: `<` for `<=`, a bound one out, the
-   wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order.
+   wrong operator, integer division, `min` for `max`, an `if` / `elif` chain in the wrong order - and, from the bugs of
+   the QuixBugs benchmark the search used to miss: two arguments in the wrong order, an argument, an index or a length
+   one out, added at the wrong end (`result + digit` for `digit + result`), `any` for `all`, the wrong bitwise operator,
+   the wrong variable, a running best replaced rather than kept (`max(longest, length + 1)`), a generator's own call
+   yielded whole, a base case that answers nothing (`[]` for `[[]]` or `[n]`) or is one too small (`len(arr) == 0` for
+   `<= 1`), a count never checked (`return True` for `return depth == 0`), a recursive base case that does not stop at
+   an empty list, a list not shortened like the one beside it, and a loop over items already taken. Two edits add a
+   line rather than change one: the piece left over when a loop ends (`lines.append(text)` before `return lines`), and
+   the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
+
+Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
+five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the
+search found a change for 27, and each of the 27 also gives the corrected version's answer on every one of the
+benchmark's tests for that program (leaving out one test each for `knapsack` and `levenshtein`, which the corrected
+versions themselves do not finish in 30 seconds). 23 make the program the same as the benchmark's corrected one; the other
+4 do the same in another way, such as `if perm[j] > perm[i]` for `if perm[i] < perm[j]`. It found none for `kth`, `powerset`, `sqrt` and `lis`,
+whose five inputs do not show its bug.
 
 A run that stops with an error, or is still going when the time runs out, is compared as far as it got and said to have
 stopped - never to have run to the end - and an edit only counts if the program then finishes.
@@ -1245,7 +1269,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Check | For example |
 |---|---|
 | Dividing by something that can be zero | `total / count` when the loop that counts may never run |
-| Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked |
+| Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked; `map.get(key)` for a key not known to be there - not one just `put`, or tested with `containsKey`, until the key's variable changes or something is removed |
 | A position that does not exist | `points[3]` on a list of three |
 | Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack - or on one empty only on some ways to it: `items = []`, an `append` only `if flag:`, then `items.pop()` |
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
@@ -1364,7 +1388,12 @@ counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 
 on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from
 `a.length`, or `a[i - 1]` on a Java loop's first time round. A while loop's **candidate invariants** - its condition's
 relation, such as `lo <= hi`, and the bounds its starting values give - are kept only when the solver shows them
-**inductive**: true on entry, and kept by every way through the body. Within them, a state that one time round leaves
+**inductive**: true on entry, and kept by every way through the body. They are proven together (the Houdini method):
+each must be kept given all the others still standing, and any that is not is dropped and the rest tried again - so in
+TheAlgorithms' C# Fibonacci search, `fibonacciNum >= 1` and `fibonacciNumPrevious >= 1` each keep the other, where neither
+is kept on its own, and the loop is no longer said to be able to get stuck with every number 0. A starting value given
+from another of the loop's variables - `fibonacciNum = fibonacciNumPrevious` just after `fibonacciNumPrevious = 1` - is
+followed too. Within them, a state that one time round leaves
 unchanged is a loop that never ends - the binary search that sets `lo = mid` gets stuck when `hi` is `lo + 1`, and the
 finding shows that state and the invariants that make it reachable.
 

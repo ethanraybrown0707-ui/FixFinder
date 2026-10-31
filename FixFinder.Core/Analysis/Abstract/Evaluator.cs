@@ -81,8 +81,11 @@ public sealed class Evaluator(SourceLanguage language)
         return state;
     }
 
-    /// <summary>A name given a new value: whatever object it shared before, it shares no longer.</summary>
-    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name), name, value);
+    /// <summary>
+    /// A name given a new value: whatever object it shared before, it shares no longer - and a key written with it, or a map
+    /// reached through it, is no longer known to be anything.
+    /// </summary>
+    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name).WithoutKeysNaming(name), name, value);
 
     private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
@@ -330,8 +333,11 @@ public sealed class Evaluator(SourceLanguage language)
                 if (method is "indexOf" or "IndexOf") return AbstractValue.Integer(new Interval(-1, double.PositiveInfinity));
             }
 
+            // A key put in the map, or tested for, finds something: dp.get(i - 1) inside if (dp.containsKey(i - 1)).
             if (receiver.IsOnly(ValueKind.Dictionary) && method == "get")
-                return call.Arguments.Count >= 2 ? AbstractValue.Unknown.Join(Evaluate(call.Arguments[1].Value, state)) : AbstractValue.Unknown.Join(AbstractValue.Null);
+                return call.Arguments.Count >= 2 ? AbstractValue.Unknown.Join(Evaluate(call.Arguments[1].Value, state))
+                    : call.Arguments is [{ Value: var key }] && state.HasKey(IrText.Of(receiverExpression), IrText.Of(key)) ? AbstractValue.Unknown
+                    : AbstractValue.Unknown.Join(AbstractValue.Null);
 
             if (receiver.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
             {
@@ -576,9 +582,10 @@ public sealed class Evaluator(SourceLanguage language)
             case Member field when FieldName(field) is { } named:
                 return Rebind(state, named, value);
 
-            case ElementAccess { Target: Name owner } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
+            case ElementAccess { Target: Name owner, Key: var key } when state[owner.Identifier].IsOnly(ValueKind.Dictionary):
                 var dictionary = state[owner.Identifier];
-                return Store(state, owner.Identifier, dictionary with { Length = new Interval(dictionary.Length.Low, dictionary.Length.High + 1) });
+                return Store(state, owner.Identifier, dictionary with { Length = new Interval(dictionary.Length.Low, dictionary.Length.High + 1) })
+                    .WithKey(IrText.Of(owner), IrText.Of(key));
 
             default:
                 return state;
@@ -636,6 +643,20 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState AfterCall(AbstractState state, Expr expression)
     {
         if (expression is not Call call) return state;
+
+        // map.put(key, value) leaves the key in the map, unless what was put is null; taking anything out leaves no key known.
+        if (call.Callee is Member { Target: var map, MemberName: var change })
+        {
+            if (change is "put" or "putIfAbsent" or "computeIfAbsent" or "Add" or "TryAdd" &&
+                call.Arguments is [{ Value: var key }, { Value: var value }] && value is not Literal { Kind: LiteralKind.Null })
+                state = state.WithKey(IrText.Of(map), IrText.Of(key));
+            else if (change is "remove" or "Remove" or "clear" or "Clear" or "removeIf" or "removeAll" or "retainAll" or "delete" or "pop" or "popitem")
+                state = state.WithoutKeysOf(IrText.Of(map));
+        }
+
+        // A map handed to other code can have anything taken out of it there.
+        foreach (var argument in call.Arguments)
+            if (argument.Value is Name handed) state = state.WithoutKeysOf(IrText.Of(handed));
 
         if (call.Callee is Member { Target: Name owner, MemberName: var method } && state[owner.Identifier] is var collection &&
             collection.IsOnly(ValueKind.List | ValueKind.Set | ValueKind.Dictionary))
@@ -758,6 +779,13 @@ public sealed class Evaluator(SourceLanguage language)
             // typeof x === 'number' says what x is, and that it is something: in JavaScript only null and undefined are neither.
             case Binary { Operator: BinaryOperator.Equal } typed when holds && TypeOfTest(typed) is { } named:
                 return AssumeSomething(state, named);
+
+            // A key tested for is in the map, so looking it up finds something: map.containsKey(key), map.has(key), key in map.
+            case Call { Callee: Member { Target: var map, MemberName: "containsKey" or "ContainsKey" or "has" }, Arguments: [{ Value: var key }] } when holds:
+                return state.WithKey(IrText.Of(map), IrText.Of(key));
+
+            case Binary { Operator: BinaryOperator.In, Left: var key, Right: var map } when holds && IsPython:
+                return state.WithKey(IrText.Of(map), IrText.Of(key));
 
             case Call { Callee: Name { Identifier: "len" }, Arguments: [{ Value: Name sized }] }:
                 var measured = state[sized.Identifier];

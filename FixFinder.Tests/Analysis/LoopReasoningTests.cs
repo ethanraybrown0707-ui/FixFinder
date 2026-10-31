@@ -277,6 +277,40 @@ public class LoopReasoningTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == LoopReasoning.StuckRule);
     }
 
+    /// <summary>
+    /// TheAlgorithms' C# FibonacciSearcher (MIT licence) climbs the Fibonacci numbers until one passes the length. Each of
+    /// its numbers stays at least what it started as only because another does - fibonacciNum >= 1 keeps
+    /// fibonacciNumPrevious >= 1, and the other way about - and fibonacciNum starts as what fibonacciNumPrevious was given.
+    /// Proven one at a time, and with fibonacciNum's start unknown, nothing ruled out all three being 0, and the loop was
+    /// said to be able to get stuck.
+    /// </summary>
+    [Fact]
+    public async Task InCSharpFibonacciNumbersClimbingPastTheLengthAlwaysEnd()
+    {
+        const string code = """
+            class Program
+            {
+                static int Beyond(int arrayLength)
+                {
+                    var fibonacciNumberBeyondPrevious = 0;
+                    var fibonacciNumPrevious = 1;
+                    var fibonacciNum = fibonacciNumPrevious;
+
+                    while (fibonacciNum <= arrayLength)
+                    {
+                        fibonacciNumberBeyondPrevious = fibonacciNumPrevious;
+                        fibonacciNumPrevious = fibonacciNum;
+                        fibonacciNum = fibonacciNumberBeyondPrevious + fibonacciNumPrevious;
+                    }
+                    return fibonacciNum;
+                }
+            }
+            """;
+
+        var findings = await CSharp(code);
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
+
     [Fact]
     public async Task InCSharpLessThanOrEqualToTheLengthReadsPastTheEnd()
     {

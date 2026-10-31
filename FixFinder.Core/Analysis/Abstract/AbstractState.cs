@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 
 namespace FixFinder.Core.Analysis.Abstract;
 
@@ -8,28 +9,40 @@ namespace FixFinder.Core.Analysis.Abstract;
 /// </summary>
 /// <remarks>
 /// Aliasing is must-aliasing: after b = a, a and b are the same list until either is given another value. Where two
-/// ways through the code meet, two names still share an object only if they do on both.
+/// ways through the code meet, two names still share an object only if they do on both. So are the keys a map certainly
+/// holds: a key is in it after two ways meet only if it is on both.
 /// </remarks>
-public sealed class AbstractState
+public sealed partial class AbstractState
 {
     private readonly ImmutableDictionary<string, AbstractValue> _values;
 
     /// <summary>For each name that shares its object, the other names sharing it. Always symmetric.</summary>
     private readonly ImmutableDictionary<string, ImmutableHashSet<string>> _aliases;
 
-    private AbstractState(ImmutableDictionary<string, AbstractValue> values, ImmutableDictionary<string, ImmutableHashSet<string>> aliases, bool reachable)
+    /// <summary>
+    /// The keys certainly in a map here - after map.put(key, value), or where map.containsKey(key) was true - each as the
+    /// map's text and the key's, so that looking the key up is known to find something rather than null.
+    /// </summary>
+    private readonly ImmutableHashSet<(string Map, string Key)> _keys;
+
+    private AbstractState(
+        ImmutableDictionary<string, AbstractValue> values, ImmutableDictionary<string, ImmutableHashSet<string>> aliases, bool reachable,
+        ImmutableHashSet<(string Map, string Key)> keys)
     {
         _values = values;
         _aliases = aliases;
         IsReachable = reachable;
+        _keys = keys;
     }
+
+    private static readonly ImmutableHashSet<(string Map, string Key)> NoKeys = ImmutableHashSet<(string Map, string Key)>.Empty;
 
     private static readonly ImmutableDictionary<string, ImmutableHashSet<string>> NoAliases =
         ImmutableDictionary.Create<string, ImmutableHashSet<string>>(StringComparer.Ordinal);
 
-    public static AbstractState Unreachable { get; } = new(ImmutableDictionary<string, AbstractValue>.Empty, NoAliases, false);
+    public static AbstractState Unreachable { get; } = new(ImmutableDictionary<string, AbstractValue>.Empty, NoAliases, false, NoKeys);
 
-    public static AbstractState Start { get; } = new(ImmutableDictionary<string, AbstractValue>.Empty, NoAliases, true);
+    public static AbstractState Start { get; } = new(ImmutableDictionary<string, AbstractValue>.Empty, NoAliases, true, NoKeys);
 
     public bool IsReachable { get; }
 
@@ -45,10 +58,39 @@ public sealed class AbstractState
     public AbstractState With(string name, AbstractValue value)
     {
         if (!IsReachable) return this;
-        return value.IsImpossible ? Unreachable : new(_values.SetItem(name, value), _aliases, true);
+        return value.IsImpossible ? Unreachable : new(_values.SetItem(name, value), _aliases, true, _keys);
     }
 
-    public AbstractState Without(string name) => IsReachable ? new(_values.Remove(name), Unlinked(_aliases, name), true) : this;
+    public AbstractState Without(string name) => IsReachable ? new(_values.Remove(name), Unlinked(_aliases, name), true, KeysNotNaming(name)) : this;
+
+    /// <summary>Whether <paramref name="key"/> is certainly in <paramref name="map"/> here, each written as IrText writes it.</summary>
+    public bool HasKey(string map, string key) => _keys.Contains((map, key));
+
+    /// <summary>After map.put(key, value), or where map.containsKey(key) is true: the key is in the map.</summary>
+    public AbstractState WithKey(string map, string key) => IsReachable ? new(_values, _aliases, true, _keys.Add((map, key))) : this;
+
+    /// <summary>Something removed from a map - or a map given away to code that can change it: no key is known to be in it.</summary>
+    public AbstractState WithoutKeysOf(string map) =>
+        IsReachable && _keys.Any(k => k.Map == map) ? new(_values, _aliases, true, _keys.Except(_keys.Where(k => k.Map == map))) : this;
+
+    /// <summary>
+    /// A name given another value: a key written with it - dp.get(i - 1) once i has moved on - is another key now, and a map
+    /// reached through it may be another map.
+    /// </summary>
+    public AbstractState WithoutKeysNaming(string name)
+    {
+        if (!IsReachable || _keys.IsEmpty) return this;
+        var kept = KeysNotNaming(name);
+        return kept.Count == _keys.Count ? this : new(_values, _aliases, true, kept);
+    }
+
+    private ImmutableHashSet<(string Map, string Key)> KeysNotNaming(string name) =>
+        _keys.IsEmpty ? _keys : _keys.Except(_keys.Where(k => NamesIn(k.Map).Contains(name) || NamesIn(k.Key).Contains(name)));
+
+    [GeneratedRegex(@"[A-Za-z_$][\w$]*")]
+    private static partial Regex Identifier();
+
+    private static HashSet<string> NamesIn(string text) => Identifier().Matches(text).Select(m => m.Value).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>After b = a: b leaves whatever object it shared before and shares a's, with every name already sharing it.</summary>
     public AbstractState Aliasing(string name, string of)
@@ -61,11 +103,11 @@ public sealed class AbstractState
         foreach (var member in group)
             aliases = aliases.SetItem(member, (aliases.TryGetValue(member, out var existing) ? existing : ImmutableHashSet.Create<string>(StringComparer.Ordinal)).Add(name));
 
-        return new(_values, aliases.SetItem(name, group.WithComparer(StringComparer.Ordinal)), true);
+        return new(_values, aliases.SetItem(name, group.WithComparer(StringComparer.Ordinal)), true, _keys);
     }
 
     /// <summary>A name given a new object: it shares nothing with anyone any more.</summary>
-    public AbstractState Unaliased(string name) => IsReachable && _aliases.ContainsKey(name) ? new(_values, Unlinked(_aliases, name), true) : this;
+    public AbstractState Unaliased(string name) => IsReachable && _aliases.ContainsKey(name) ? new(_values, Unlinked(_aliases, name), true, _keys) : this;
 
     private static ImmutableDictionary<string, ImmutableHashSet<string>> Unlinked(ImmutableDictionary<string, ImmutableHashSet<string>> aliases, string name)
     {
@@ -105,7 +147,7 @@ public sealed class AbstractState
 
         var joined = _values.Keys.Intersect(other._values.Keys)
             .ToImmutableDictionary(name => name, name => _values[name].Join(other._values[name]));
-        return new(joined, Common(_aliases, other._aliases), true);
+        return new(joined, Common(_aliases, other._aliases), true, _keys.Intersect(other._keys));
     }
 
     public AbstractState Widen(AbstractState next)
@@ -115,7 +157,7 @@ public sealed class AbstractState
 
         var widened = _values.Keys.Intersect(next._values.Keys)
             .ToImmutableDictionary(name => name, name => _values[name].Widen(next._values[name]));
-        return new(widened, Common(_aliases, next._aliases), true);
+        return new(widened, Common(_aliases, next._aliases), true, _keys.Intersect(next._keys));
     }
 
     public AbstractState Narrow(AbstractState next)
@@ -124,14 +166,15 @@ public sealed class AbstractState
 
         var narrowed = _values.Keys.Intersect(next._values.Keys)
             .ToImmutableDictionary(name => name, name => _values[name].Narrow(next._values[name]));
-        return new(narrowed, Common(_aliases, next._aliases), true);
+        return new(narrowed, Common(_aliases, next._aliases), true, _keys.Intersect(next._keys));
     }
 
     public bool SameAs(AbstractState other) =>
         IsReachable == other.IsReachable && _values.Count == other._values.Count &&
         _values.All(pair => other._values.TryGetValue(pair.Key, out var value) && value == pair.Value) &&
         _aliases.Count == other._aliases.Count &&
-        _aliases.All(pair => other._aliases.TryGetValue(pair.Key, out var others) && others.SetEquals(pair.Value));
+        _aliases.All(pair => other._aliases.TryGetValue(pair.Key, out var others) && others.SetEquals(pair.Value)) &&
+        _keys.SetEquals(other._keys);
 
     public override string ToString()
     {

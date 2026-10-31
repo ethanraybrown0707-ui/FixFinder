@@ -580,42 +580,60 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
             .Concat(entry.SelectMany(pair => new[] { Constraint.AtLeast(start[pair.Key], pair.Value), Constraint.AtMost(start[pair.Key], pair.Value) }))
             .ToList();
 
-        var proven = new List<Constraint>();
+        // Every symbol a candidate speaks of must be pinned down on entry, or its holding there cannot be shown.
+        var standing = candidates.Where(candidate => Solve([.. quantities.Facts, .. entering, candidate.Negated()]).IsUnsatisfiable).ToList();
 
-        foreach (var candidate in candidates)
+        // The candidates are proven together, as Houdini proves them: each must be kept by the body given every candidate
+        // still standing, so one can lean on another - fibonacciNum >= 1 keeps fibonacciNumPrevious >= 1 the next time round,
+        // and the other way about, where neither is kept on its own. One that is not kept is dropped and the rest are tried
+        // again, until none is dropped; what stands then is kept by the loop as a whole.
+        for (var droppedAny = true; droppedAny && standing.Count > 0;)
         {
-            // Every symbol the candidate speaks of must be pinned down on entry, or its holding there cannot be shown.
-            if (!Solve([.. quantities.Facts, .. entering, candidate.Negated()]).IsUnsatisfiable) continue;
+            droppedAny = false;
 
-            var kept = ways.Where(w => !w.Leaves).All(way =>
-                Renamed(candidate, way.Values, start) is { } after &&
-                Solve([.. quantities.Facts, .. holds, candidate, .. way.Conditions, after.Negated()]).IsUnsatisfiable);
+            foreach (var candidate in standing.ToList())
+            {
+                var kept = ways.Where(w => !w.Leaves).All(way =>
+                    Renamed(candidate, way.Values, start) is { } after &&
+                    Solve([.. quantities.Facts, .. holds, .. standing, .. way.Conditions, after.Negated()]).IsUnsatisfiable);
 
-            if (kept) proven.Add(candidate);
+                if (kept) continue;
+                standing.Remove(candidate);
+                droppedAny = true;
+            }
         }
 
-        return proven;
+        return standing;
     }
 
     /// <summary>
     /// What the code gives the loop's variables just before it: the last plain assignment in the same block, of a value
-    /// that is linear in things the loop does not change - 0, len(a), n - 1.
+    /// that is linear in things the loop does not change - 0, len(a), n - 1 - or in the entry values of the loop's own
+    /// variables given theirs before it: fibonacciNum = fibonacciNumPrevious, just after fibonacciNumPrevious = 1, is 1.
     /// </summary>
     private Dictionary<string, LinearTerm> EntryValues(While loop, Quantities quantities, IReadOnlyList<string> changed)
     {
         var entry = new Dictionary<string, LinearTerm>(StringComparer.Ordinal);
         if (BlockBefore(function.Body, loop) is not { } before) return entry;
 
-        foreach (var name in changed)
+        var lastGiven = changed
+            .Select(name => (Name: name, At: before.ToList().FindLastIndex(s => Gives(s, name))))
+            .Where(given => given.At >= 0)
+            .OrderBy(given => given.At);
+
+        // In the order they are given: a loop variable's entry value is known by the time a later one is given it.
+        foreach (var (name, at) in lastGiven)
         {
-            var value = before.LastOrDefault(s => Gives(s, name)) switch
+            var value = before[at] switch
             {
                 Assign { Compound: null, Value: var assigned } => assigned,
                 Declare { Initial: { } initial } => initial,
                 _ => null,
             };
 
-            if (value is not null && Linear(value, n => changed.Contains(n) ? null : quantities.Of(n), quantities) is { } linear) entry[name] = linear;
+            LinearTerm? Known(string other) => !changed.Contains(other) ? quantities.Of(other) : entry.TryGetValue(other, out var earlier) ? earlier : null;
+
+            if (value is not null && Linear(value, Known, quantities) is { } linear) entry[name] = linear;
         }
 
         return entry;

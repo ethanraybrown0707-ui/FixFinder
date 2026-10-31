@@ -90,6 +90,19 @@ internal static class NativeGuides
             """,
             why: "C then guesses the function returns int; on 64-bit Windows a pointer squeezed through that guess is cut in half and the program crashes."),
 
+        Gcc(@"^cannot find the library '",
+            "Building a program has two steps: compiling each file, then linking them together - with the libraries the " +
+            "build names, each as -l and its name. The linker looked for this library everywhere it looks and it is not on " +
+            "this computer. It may need installing, or it may be a library the project builds itself from its own files " +
+            "(add_library in CMakeLists.txt), whose folder is not here.",
+            "Install the library, or add the folder of the project that builds it - or, if the program uses nothing from it, " +
+            "take it out of the build file.",
+            """
+            # CMakeLists.txt, linking only what is used
+            add_executable(search search.c)
+            target_link_libraries(search m)
+            """),
+
         Gcc(@"undefined reference to|unresolved external symbol",
             "Building a program has two steps: compiling each file, then linking them together. The compiler was satisfied " +
             "because the function is declared, but the linker could not find the function's actual code in any of the files " +

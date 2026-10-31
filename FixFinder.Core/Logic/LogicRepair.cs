@@ -109,24 +109,38 @@ public sealed class LogicRepair
         var ranked = coverageUsed ? suspicious.Take(MostLines).ToDictionary(s => s.Line, s => s.Ochiai) : [];
         var scores = Enumerable.Range(1, source.Count).ToDictionary(line => line, line => ranked.GetValueOrDefault(line, -1.0));
 
+        // Of lines equally suspicious, the one a wrong run crashed on is tried first: two lines that score the same cannot be
+        // told apart by which runs went through them, but the crash says which of the two the program went wrong on.
+        var crashedOn = wrong.Select(w => w.Result.CrashedOn).OfType<int>().ToHashSet();
+        if (crashedOn.Count > 0) Log?.Invoke("A wrong run crashed on line(s) " + string.Join(", ", crashedOn.Order()));
+
         var edits = scores.Keys
             .SelectMany(line => Mutations.For(source, line))
             .OrderByDescending(m => Math.Round(scores[m.Line], 6))
+            .ThenByDescending(m => crashedOn.Contains(m.Line))
             .ThenBy(m => m.Cost)
             .ThenBy(m => m.Line)
             .ToList();
 
         foreach (var mutation in edits)
         {
-            candidates.Add((LocalFix.ReplaceLine(
-                "logic-edit", $"Change {mutation.From} to {mutation.To} on line {mutation.Line}",
-                $"Line {mutation.Line} looks like {mutation.Kind}.", source.Path, mutation.Line, mutation.NewText), false));
+            candidates.Add((mutation.Placement is { } placement
+                ? new LocalFix
+                {
+                    RuleId = "logic-edit", Title = $"Add {mutation.To} {placement} line {mutation.Line}",
+                    Explanation = $"Line {mutation.Line} looks like {mutation.Kind}.", File = source.Path,
+                    StartLine = mutation.Line, RemoveCount = 1, NewLines = mutation.NewText.Split('\n'),
+                }
+                : LocalFix.ReplaceLine(
+                    "logic-edit", $"Change {mutation.From} to {mutation.To} on line {mutation.Line}",
+                    $"Line {mutation.Line} looks like {mutation.Kind}.", source.Path, mutation.Line, mutation.NewText), false));
         }
 
         foreach (var reordered in BranchOrder.For(source, scores.Keys.ToHashSet()))
             candidates.Add((reordered, false));
 
         var repeated = edits
+            .Where(m => m.Placement is null)
             .GroupBy(m => (m.From, m.To, m.Kind))
             .Select(g => g.GroupBy(m => m.Line).Select(l => l.First()).OrderBy(m => m.Line).ToList())
             .Where(g => g.Count is >= 2 and <= 4 && g[^1].Line - g[0].Line <= 12)
@@ -230,7 +244,26 @@ public sealed class LogicRepair
             baseline.Results.Count(r => r.Mismatch is null), expected.Runs.Count, coverageUsed, notes);
     }
 
-    private sealed record RunVerdict(OutputMismatch? Mismatch, TimeSpan Duration, RunOutcome Outcome);
+    /// <summary>One run's verdict: <paramref name="CrashedOn"/> is the line of the program's own file it crashed on, if it crashed.</summary>
+    private sealed record RunVerdict(OutputMismatch? Mismatch, TimeSpan Duration, RunOutcome Outcome, int? CrashedOn);
+
+    /// <summary>
+    /// The innermost line of <paramref name="file"/> in a crash's stack trace - the frame nearest the crash that is in the
+    /// program's own file, not a library's.
+    /// </summary>
+    private static int? CrashLineIn(string file, TargetRunResult result)
+    {
+        if (result.Error?.RootCause is not { } crash) return null;
+
+        var full = Path.GetFullPath(file);
+        return crash.Frames
+            .Where(frame => frame is { File: { } path, Line: not null } &&
+                            (Path.IsPathRooted(path)
+                                ? string.Equals(Path.GetFullPath(path), full, StringComparison.OrdinalIgnoreCase)
+                                : string.Equals(Path.GetFileName(path), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)))
+            .Select(frame => frame.Line)
+            .FirstOrDefault();
+    }
 
     private sealed record Evaluation(TargetSpec? Spec, IReadOnlyList<RunVerdict> Results);
 
@@ -270,7 +303,7 @@ public sealed class LogicRepair
 
             var mismatch = OutputComparison.Compare(OutputComparison.Printed(result), run.ExpectedOutput, OutputComparison.EndingOf(result.Outcome));
 
-            results[i] = new RunVerdict(mismatch, result.Duration, result.Outcome);
+            results[i] = new RunVerdict(mismatch, result.Duration, result.Outcome, mismatch is null ? null : CrashLineIn(file, result));
             if (mismatch is not null && stopAtFirstWrong) return new Evaluation(plan.Spec, results.Where(r => r is not null).ToList()!);
         }
 

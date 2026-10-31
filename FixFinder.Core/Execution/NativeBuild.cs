@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FixFinder.Core.Execution.BuildFiles;
 
@@ -267,18 +268,82 @@ public sealed partial record NativeBuild(
 
         IReadOnlyList<string> sources = first is null ? program.Sources : [first, .. program.Sources.Where(source => !source.Equals(first, StringComparison.OrdinalIgnoreCase))];
 
+        var libraries = new List<string>();
+
+        foreach (var library in program.Libraries.Where(library => LibraryName().IsMatch(library)))
+        {
+            if (IsOnThisComputer(library, program.LibraryFolders, cpp)) libraries.Add(library);
+            else notFollowed.Add($"it links {library}, which is not a library on this computer, so FixFinder built it without it - " +
+                                 "if the program uses it, the build says which of its functions are missing");
+        }
+
         return new NativeBuild(
             Path.GetFullPath(buildFile),
             program.Name,
             sources,
             program.IncludeFolders,
             definitions,
-            program.Libraries.Where(library => LibraryName().IsMatch(library)).ToList(),
+            libraries,
             program.LibraryFolders,
             program.LinkedFiles,
             program.Threads,
             standard,
             notFollowed);
+    }
+
+    /// <summary>Whether each library, by name and compiler, is somewhere that compiler's linker looks - asked once each.</summary>
+    private static readonly ConcurrentDictionary<(string Compiler, string Library), bool> LibrariesFound = new();
+
+    /// <summary>
+    /// Whether gcc or clang can link a library by its name: as libNAME.a, .dll.a or .so in a folder the build file names,
+    /// or where the compiler itself looks, which it says when asked with -print-file-name. A library the project builds
+    /// itself from a folder that is not there - TheAlgorithms' function_timer, linked by name from CMakeLists.txt - is in
+    /// neither, and linking it by name fails the whole build. With no gcc or clang to ask, every library is taken to be there.
+    /// </summary>
+    private static bool IsOnThisComputer(string library, IReadOnlyList<string> folders, bool cpp)
+    {
+        string[] files = [$"lib{library}.a", $"lib{library}.dll.a", $"lib{library}.so", $"{library}.lib"];
+        if (folders.Any(folder => files.Any(file => File.Exists(Path.Combine(folder, file))))) return true;
+        if (Toolchains.FindGnu(cpp) is not { } gnu) return true;
+
+        return LibrariesFound.GetOrAdd((gnu.Program, library), _ => files.Take(3).Any(file => CompilerFinds(gnu.Program, file) is not false));
+    }
+
+    /// <summary>Whether the compiler finds a library file where it looks, or null when it could not be asked in ten seconds.</summary>
+    private static bool? CompilerFinds(string compiler, string file)
+    {
+        try
+        {
+            var start = new ProcessStartInfo(compiler, $"-print-file-name={file}")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = Process.Start(start);
+            if (process is null) return null;
+
+            var output = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(TimeSpan.FromSeconds(10)) || !output.Wait(ToolOutput.AfterExit))
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) { }
+
+                return null;
+            }
+
+            // Asked for a file it cannot find, gcc gives back the name it was asked for, unchanged.
+            var said = output.Result.Trim();
+            return process.ExitCode != 0 ? null : Path.IsPathRooted(said) && File.Exists(said);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Whether any of the program's sources includes the header, directly or through the headers they include.</summary>
