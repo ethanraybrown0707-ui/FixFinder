@@ -460,6 +460,18 @@ internal static class JavaGuides
             """),
 
         Thrown("NoSuchElementException",
+            "get() takes the value out of an Optional - and this Optional was empty. findFirst, findAny, max and min give one, and " +
+            "it is empty when the stream has nothing in it: no item passed the filter, or the list was empty.",
+            "The program stops at get().",
+            "Say what to use when there is nothing: orElse(0), or ifPresent to do something only when there is a value - or " +
+            "check isPresent() first.",
+            """
+            int high = marks.stream().filter(mark -> mark > 95).findFirst().orElse(0);
+            """,
+            pattern: @"^No value present$"),
+
+        // The Scanner says "No line found" when nextLine has nothing to read, and nothing at all from nextInt and next.
+        Thrown("NoSuchElementException",
             "The program asked the Scanner for another piece of input, but the input had already run out - nothing more was " +
             "typed, or the file ended.",
             "The program stops at the question it asked.",
@@ -468,7 +480,8 @@ internal static class JavaGuides
             if (scanner.hasNextLine()) {
                 String name = scanner.nextLine();
             }
-            """),
+            """,
+            pattern: @"^(?:No line found)?$"),
 
         Thrown("ClassCastException",
             "A cast tells Java 'treat this object as this type'. Java checks it when the program runs, and this object is not " +

@@ -65,6 +65,7 @@ public class AbstractInterpretationTests : IDisposable
     [InlineData("analysis-never-true", "Likely", "def grade(mark):\n    if mark > 100 and mark < 0:\n        return 'impossible'\n    return 'ok'\n", "mark > 100")]
     [InlineData("analysis-always-true", "Likely", "def grade(mark):\n    if mark >= 50:\n        return 'pass'\n    elif mark < 50:\n        return 'fail'\n", "elif mark < 50")]
     [InlineData("analysis-index-out-of-range", "Certain", "def f():\n    points = [3, 5, 8]\n    return points[3]\n", "points[3]")]
+    [InlineData("analysis-empty-collection", "Possible", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    return items.pop()\n", "items.pop()")]
     [InlineData("analysis-empty-collection", "Certain", "def f():\n    stack = []\n    return stack.pop()\n", "stack.pop()")]
     [InlineData("analysis-loop-never-runs", "Likely", "def f():\n    n = 0\n    while n > 0:\n        n -= 1\n    return n\n", "while n > 0")]
     [InlineData("analysis-assert-always-fails", "Certain", "def f():\n    n = 3\n    assert n > 5\n    return n\n", "assert n > 5")]
@@ -99,11 +100,43 @@ public class AbstractInterpretationTests : IDisposable
     [InlineData("a run-time check of a type hint", "def set_flags(flags: str):\n    if not isinstance(flags, str):\n        raise TypeError('flags')\n    return flags\n")]
     [InlineData("an attribute every object has", "def f():\n    return None.__class__\n")]
     [InlineData("the last item of a list of unknown length", "def last(items):\n    return items[-1]\n")]
+    [InlineData("a pop from a list the function is given", "def take(items):\n    return items.pop()\n")]
+    [InlineData("a pop the list's items guard", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    if items:\n        return items.pop()\n    return None\n")]
+    [InlineData("a pop after an append on every way", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    else:\n        items.append(2)\n    return items.pop()\n")]
     [InlineData("a switch set once", "def f():\n    debug = False\n    if debug:\n        print('debugging')\n    return 1\n")]
     public async Task CorrectCodeIsLeftAlone(string shape, string code)
     {
         if (await Analyse(code) is not { } findings) return;
 
         Assert.True(findings.Count == 0, $"{shape}: {string.Join("; ", findings.Select(f => $"{f.CheckId} line {f.Span.Line}: {f.Message}"))}");
+    }
+
+    /// <summary>
+    /// if not marks: is tested as marks, with its two ways swapped - and is said as written, of the code written under it: with
+    /// marks empty, not marks is always true; with marks holding an item, the code under it never runs.
+    /// </summary>
+    [Theory]
+    [InlineData("def f():\n    marks = []\n    if not marks:\n        return 0\n    return 1\n", "analysis-always-true", "`not marks` is always true here, so checking it changes nothing")]
+    [InlineData("def f():\n    marks = [1]\n    if not marks:\n        return 0\n    return 1\n", "analysis-never-true", "`not marks` can never be true here, so the code it guards never runs")]
+    public async Task AConditionWrittenWithNotIsSaidAsWritten(string code, string check, string message)
+    {
+        if (await Analyse(code) is not { } findings) return;
+
+        var condition = Assert.Single(findings, finding => finding.CheckId == check);
+        Assert.Equal((3, message), (condition.Span.Line, condition.Message));
+    }
+
+    /// <summary>
+    /// A list empty on one way to a pop and not on another is found as possibly empty - and then shown to fail, with the input
+    /// that takes the program down the empty way given as an example of it: "for example when `flag` is False".
+    /// </summary>
+    [Fact]
+    public async Task AListEmptyOnOneWayIsShownEmptyForTheInputThatTakesThatWay()
+    {
+        if (await Analyse("def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    return items.pop()\n") is not { } findings) return;
+
+        var empty = Assert.Single(findings, finding => finding.CheckId == "analysis-empty-collection");
+        Assert.Equal("`flag` is False", empty.Witness);
+        Assert.Equal("On one way through the code `items` is always empty here - for example when `flag` is False - so `items.pop()` fails with IndexError", empty.Message);
     }
 }

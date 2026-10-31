@@ -25,7 +25,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string SeverityText => Finding.Severity.ToString();
 
-    public string ConfidenceText => Finding.Confidence.ToString();
+    /// <summary>The confidence word with where it comes from: "Certain (seen when it ran)".</summary>
+    public string ConfidenceText => Evidence.Labelled(Finding);
 
     public string ConfidenceDots => Finding.Confidence switch
     {
@@ -112,6 +113,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     /// <summary>A habit that stops this kind of mistake happening again.</summary>
     public string NextTime => Further.NextTime;
+
+    /// <summary>How to make it happen for yourself, from what FixFinder ran - empty when nothing ran it.</summary>
+    public string Reproduce => Further.Reproduce ?? "";
+
+    public bool HasReproduce => Further.Reproduce is not null;
 
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
@@ -300,6 +306,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
         lines.Add("Step by step:");
         lines.AddRange(Steps.Select(step => $"    {step.NumberText} {step.Text}"));
+        if (HasReproduce) lines.Add($"To see it happen: {Reproduce}");
 
         if (HasMessage)
         {

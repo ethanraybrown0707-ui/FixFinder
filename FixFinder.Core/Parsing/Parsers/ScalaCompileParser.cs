@@ -32,7 +32,7 @@ public sealed partial class ScalaCompileParser : IStackTraceParser, IMultiErrorP
 
     public string DisplayName => "Scala compiler";
 
-    /// <summary>What Scala CLI's errors are called when it could not find something in its cache, which FixFinder never downloads.</summary>
+    /// <summary>What Scala CLI's errors are called when it could not find something in its cache, which a check never downloads.</summary>
     public const string MissingDownload = "missing download";
 
     [GeneratedRegex(@"^-- (?:\[(?<code>E\d+)\] )?(?<kind>.*?)(?<severity>Error|Warning|Info): (?<file>.+?):(?<line>\d+):(?<column>\d+)\s*-*\s*$")]

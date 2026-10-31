@@ -85,10 +85,10 @@ public static partial class LibraryErrors
 
     public static Sorted Sort(IReadOnlyList<ParsedError> errors, string chosen)
     {
-        // A Go module that is not in Go's module cache - which FixFinder never downloads - is a library not here too.
+        // A Go module that is not in Go's module cache - which a check never downloads - is a library not here too.
         if (chosen.EndsWith(".go", StringComparison.OrdinalIgnoreCase)) return GoModuleErrors.Sort(errors, chosen);
 
-        // A library or a version of Scala that is not in Scala CLI's cache - which FixFinder never downloads - is not here either.
+        // A library or a version of Scala that is not in Scala CLI's cache - which a check never downloads - is not here either.
         if (ScalaProgram.IsScala(chosen)) return ScalaDownloadErrors.Sort(errors, chosen);
 
         if (!chosen.EndsWith(".java", StringComparison.OrdinalIgnoreCase) || errors.Count == 0) return new Sorted(errors, null, 0);
@@ -332,7 +332,8 @@ public static partial class LibraryErrors
             { Missing.Count: > 0, DeclaredIn: { } declared } =>
                 $"{And(libraries.Missing.Select(missing => missing.Name).Distinct(StringComparer.Ordinal).Take(6).ToList())} " +
                 $"{(libraries.Missing.Count == 1 ? "is" : "are")} named in {declared} but not on this computer: {libraries.Missing[0].Reason}. Opening the " +
-                "project in its IDE, or building it once with its build tool, downloads what it needs - FixFinder never downloads anything itself.",
+                "project in its IDE, or building it once with its build tool, downloads what it needs - a check never downloads anything, and " +
+                "FixFinder does not restore a Java project's libraries.",
             { MissingProjects.Count: > 0 } => "",
             { DeclaredIn: { } declared } =>
                 $"None of the libraries from {declared} has {(one ? "it" : "them")}, so the library {(one ? "it comes" : "they come")} from is not named there.",

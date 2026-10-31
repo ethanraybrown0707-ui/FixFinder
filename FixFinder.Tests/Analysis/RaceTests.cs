@@ -438,4 +438,52 @@ public class RaceTests : IDisposable
             StringComparison.Ordinal));
         Assert.True(repaired.Count == 0, Summary(repaired));
     }
+
+    private const string PythonMarksTotal =
+        "import threading\n\ntotal = 0\n\n\ndef add_marks():\n    global total\n    for mark in range(100000):\n        total += mark\n\n\n" +
+        "worker = threading.Thread(target=add_marks)\nworker.start()\nprint(total)\n";
+
+    private const string JavaMarksTotal =
+        "public class Main {\n    static long total = 0;\n\n    public static void main(String[] args) throws InterruptedException {\n" +
+        "        Thread worker = new Thread(() -> {\n            for (int mark = 0; mark < 100000; mark++) {\n                total += mark;\n" +
+        "            }\n        });\n        worker.start();\n        System.out.println(total);\n    }\n}\n";
+
+    private const string CSharpMarksTotal =
+        "using System;\nusing System.Threading;\n\nclass Program\n{\n    static long total = 0;\n\n    static void Main()\n    {\n" +
+        "        var worker = new Thread(() =>\n        {\n            for (int mark = 0; mark < 100000; mark++)\n            {\n" +
+        "                total += mark;\n            }\n        });\n        worker.Start();\n        Console.WriteLine(total);\n    }\n}\n";
+
+    /// <summary>
+    /// Nothing waits for the thread, so the change waits for it on the line before the read, by the name that holds it.
+    /// Run, the three printed 4999950000 with the change - and Java 21, .NET 10 and, once in five, Python 3.13 printed
+    /// less without it: 0, 0 and 749561121.
+    /// </summary>
+    [Fact]
+    public async Task NothingWaitsForTheThreadSoTheChangeWaitsBeforeTheRead()
+    {
+        if (await Python(PythonMarksTotal) is { } python)
+        {
+            var found = Assert.Single(python);
+            Assert.Equal((14, 14, "worker.join()"), (found.Span.Line, found.Fix?.StartLine, found.Fix?.NewLines.Single()));
+        }
+
+        if (await Java(JavaMarksTotal) is { } java)
+            Assert.Equal("        worker.join();", Assert.Single(java).Fix?.NewLines.Single());
+
+        Assert.Equal("        worker.Join();", Assert.Single(await CSharp(CSharpMarksTotal)).Fix?.NewLines.Single());
+    }
+
+    /// <summary>
+    /// No change where it cannot be written: Java's join() throws InterruptedException, so a method that does not say it
+    /// throws it would not build; a join after the read already waits, only too late, and moving the read is not one line.
+    /// </summary>
+    [Fact]
+    public async Task NoChangeWhereJoinCannotBeAddedOrAlreadyFollows()
+    {
+        if (await Java(JavaMarksTotal.Replace(" throws InterruptedException", "", StringComparison.Ordinal)) is { } unthrown)
+            Assert.Null(Assert.Single(unthrown).Fix);
+
+        if (await Java(PrintedBeforeJoin) is { } joinedLater)
+            Assert.Null(Assert.Single(joinedLater).Fix);
+    }
 }

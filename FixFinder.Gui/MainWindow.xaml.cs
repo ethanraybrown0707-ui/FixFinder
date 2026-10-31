@@ -10,6 +10,7 @@ using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Reporting;
@@ -86,6 +87,12 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _cancellation;
     private FixFinderLogger? _logger;
+
+    /// <summary>The inputs the last check tried, for the saved report.</summary>
+    private IReadOnlyList<Core.Analysis.Dynamic.InputTried> _tried = [];
+
+    /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
+    private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// What the analyses found in each function during this session, so checking again after an edit only analyses the
@@ -187,6 +194,7 @@ public partial class MainWindow : Window
 
         _programs.Clear();
         FolderList.ItemsSource = _programs;
+        _manifestsSeenInFolder.Clear();
 
         _pasting = false;
         _pastedLanguage = null;
@@ -285,10 +293,15 @@ public partial class MainWindow : Window
     /// <summary>Checks one program of a folder, away from the window, and gives back what it found.</summary>
     private async Task<CheckReport?> CheckOneAsync(string file, CancellationToken cancellation)
     {
+        var libraries = await LibrariesForFolderProgramAsync(file, cancellation);
+
         var launch = TargetFactory.FromFile(file);
         if (!launch.Ok) return null;
 
-        var checker = new ProgramChecker(_http, _sources) { Language = CodeLanguage.Of(file) ?? CodeLanguage.Any, Cache = _analysisCache };
+        var checker = new ProgramChecker(_http, _sources)
+        {
+            Language = CodeLanguage.Of(file) ?? CodeLanguage.Any, Cache = _analysisCache, NotesFirst = libraries is null ? [] : [libraries],
+        };
 
         return await Task.Run(() => checker.CheckAsync(launch, cancellation), cancellation);
     }
@@ -495,6 +508,11 @@ public partial class MainWindow : Window
     {
         // A full check reads the code as well, and does more besides.
         _codeCheck?.Cancel();
+
+        // Before the program is set up to run, as a restore can make the environment it runs in.
+        var libraries = await LibrariesBeforeCheckingAsync(_chosenPath!);
+        if (libraries.Stopped) return;
+
         _launch = TargetFactory.FromFile(_chosenPath!);
 
         if (!_launch.Ok || _launch.Spec is null)
@@ -531,6 +549,7 @@ public partial class MainWindow : Window
             Expected = expected.IsEmpty ? null : expected,
             Cache = _analysisCache,
             WindowsRunUntilClosed = _preferences.WindowsRunUntilClosed,
+            NotesFirst = libraries.Note is { } librariesNote ? [librariesNote] : [],
         };
         checker.FindingsChanged += OnFindingsChanged;
         checker.Progress += OnProgress;
@@ -568,6 +587,54 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// What is done about the libraries the program's project names that are not on this computer, as Settings says:
+    /// named, asked about, or restored. Whether Stop was pressed while it was done, and the note for the report.
+    /// </summary>
+    private async Task<(bool Stopped, string? Note)> LibrariesBeforeCheckingAsync(string program)
+    {
+        using var restoring = new CancellationTokenSource();
+        _cancellation = restoring;
+        SetBusy(true);
+        ShowActivity(true, "Looking at the project's libraries…");
+
+        try
+        {
+            // Finding out what is missing can start Python, or go: away from the window, so it does not stop.
+            if (await Task.Run(() => LibraryRestore.PlanForAsync(program, restoring.Token), restoring.Token) is not { } plan) return (false, null);
+
+            return (false, await LibraryRestore.DecideAsync(plan, _preferences.RestoreLibraries, AskToRestoreAsync, ShowRestoring, restoring.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            return (true, null);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>
+    /// The same for one program of a folder - asked about, or restored, once for each project: the folder's other programs
+    /// of that project are told what is still missing.
+    /// </summary>
+    private async Task<string?> LibrariesForFolderProgramAsync(string program, CancellationToken cancellation)
+    {
+        if (await Task.Run(() => LibraryRestore.PlanForAsync(program, cancellation), cancellation) is not { } plan) return null;
+        if (!_manifestsSeenInFolder.Add(plan.Manifest)) return plan.StillMissingNote;
+
+        return await LibraryRestore.DecideAsync(plan, _preferences.RestoreLibraries, AskToRestoreAsync, ShowRestoring, cancellation);
+    }
+
+    /// <summary>Asks before anything is downloaded, saying what is missing, what would download it from where, into where - and the risk.</summary>
+    private Task<bool> AskToRestoreAsync(RestorePlan plan) =>
+        Task.FromResult(MessageBox.Show(this, plan.Question, "Restore this project's libraries?", MessageBoxButton.YesNo, MessageBoxImage.Question,
+            MessageBoxResult.No) == MessageBoxResult.Yes);
+
+    private void ShowRestoring(RestorePlan plan) => ShowActivity(true, $"Restoring the libraries {plan.ManifestName} names, with {plan.Tool}…");
+
     private void StartReport(LaunchPlan launch)
     {
         _output.Clear();
@@ -581,6 +648,8 @@ public partial class MainWindow : Window
         ViewTabs.Visibility = Visibility.Collapsed;
         EfficiencyIntro.Visibility = Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Collapsed;
+        TriedExpander.Visibility = Visibility.Collapsed;
+        _tried = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         SinceLastPanel.Visibility = Visibility.Collapsed;
@@ -605,6 +674,10 @@ public partial class MainWindow : Window
         }
 
         foreach (var note in report.Notes) _notes.Add(note);
+
+        TriedList.ItemsSource = report.Tried.Select(tried => new TriedInputRow(tried)).ToList();
+        TriedExpander.Visibility = report.Tried.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _tried = report.Tried;
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -718,6 +791,7 @@ public partial class MainWindow : Window
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
             Notes = [.. _notes],
+            Tried = _tried,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
             Output = [.. _output.Select(row => row.DisplayLine)],
@@ -986,6 +1060,10 @@ public partial class MainWindow : Window
     {
         _notes.Clear();
         foreach (var note in report.Notes) _notes.Add(note);
+
+        // Read again, not run: no input was tried.
+        TriedExpander.Visibility = Visibility.Collapsed;
+        _tried = [];
 
         // Only read, so it is not set beside a check that compiled and ran the program.
         _comparison = null;

@@ -25,7 +25,14 @@ internal sealed record ThreadStart(
     SourceSpan? JoinedAt,
     Expr? JoinedBy,
     bool Several,
-    bool Followed);
+    bool Followed)
+{
+    /// <summary>
+    /// The one variable that holds this thread and nothing else - worker, after worker = threading.Thread(...) - for a thread
+    /// that runs only once started; null for one a list, a pool or a task holds, or one of several.
+    /// </summary>
+    public string? Handle { get; init; }
+}
 
 /// <summary>
 /// Happens-before between a function and the threads it starts, built from the operations that order them. Each
@@ -502,8 +509,11 @@ internal sealed class HappensBefore
                 var waitedInLoop = inLoop && joined is { } end && end >= made.Loops[^1].First && end <= made.Loops[^1].Last;
                 var several = made.Several || inLoop && !waitedInLoop;
 
+                var holderNames = _handles.Where(pair => pair.Value.Threads.Contains(made)).ToList();
+                var handle = made.Starting == Starting.WhenStarted && !several && holderNames is [{ Value.Threads.Count: 1 } only] ? only.Key : null;
+
                 threads.Add(new ThreadStart(made.Body, _launcher, made.Receiver, made.Arguments, made.Bound, started,
-                    start.Value.At, joined, joinedAt, joinedBy, several, followed));
+                    start.Value.At, joined, joinedAt, joinedBy, several, followed) { Handle = handle });
             }
 
             return threads;

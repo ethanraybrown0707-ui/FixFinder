@@ -34,13 +34,69 @@ public static partial class FindingFactory
         if (line is null && fix?.LocalFix is { } change && string.Equals(Path.GetFullPath(change.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase))
             line = change.StartLine;
 
+        // An error the program raised itself, on purpose - the line it stopped at is its own raise or throw - is explained as
+        // that: a check refusing a value. The guide for the error's name says what goes wrong when the language raises it -
+        // ValueError's is int("forty-two") - which a raise ValueError("count must not be 0") in a check is not.
+        if (!isWarning && kind == FindingKind.Runtime && fix?.LocalFix is null && line is { } stopped && RaisedHere(file, stopped) is { } raises)
+            guide = GeneralGuides.RaisedOnPurpose(Guidebook.LanguageName(file), raises);
+
         return Build(kind, severity, confidence, file, line, TitleOf(error), guide.Explanation, guide, fix) with
         {
             RuleId = fix?.LocalFix?.RuleId ?? error.ErrorCode ?? error.ShortExceptionType ?? "",
             Error = error,
-            Family = CrashExplainedBy.GetValueOrDefault(error.ShortExceptionType ?? ""),
+            Family = CrashFamily(error, file),
         };
     }
+
+    [GeneratedRegex(@"^\s*(?<raises>raise|throw)\b")]
+    private static partial Regex RaiseOrThrow();
+
+    /// <summary>"raise" or "throw" when the line is one in the program's own code - raise ValueError(...), throw new ... - or null.</summary>
+    private static string? RaisedHere(string file, int line) =>
+        SourceFile.Read(file)?.Line(line) is { } written && RaiseOrThrow().Match(written) is { Success: true } said ? said.Groups["raises"].Value : null;
+
+    [GeneratedRegex(@"^pop from (?:an )?empty (?:list|deque)$")]
+    private static partial Regex PoppedFromEmpty();
+
+    /// <summary>
+    /// The check that finds the mistake a crash is, so the run that crashed and the analysis that proved it are one finding:
+    /// by the exception's name, and by its message where one name means more than one mistake - Python's IndexError is a
+    /// list read past its end, or pop() on an empty list; NoSuchElementException is Scala's None.get, Java's get() on an empty
+    /// Optional, or Java's getFirst() on an empty list. Each message is the one Python 3.13, Java 21 and .NET 10 were seen to give.
+    /// </summary>
+    private static string? CrashFamily(ParsedError error, string file) =>
+        (error.ShortExceptionType, error.Message ?? "", Path.GetExtension(file).ToLowerInvariant()) switch
+        {
+            ("IndexError", var said, _) when PoppedFromEmpty().IsMatch(said) => "analysis-empty-collection",
+            ("IndexError", "list index out of range", _) => "analysis-index-out-of-range",
+            ("EmptyStackException", _, ".java") => "analysis-empty-collection",
+            ("NoSuchElementException", "No value present", ".java") => "logic-java-optional-get-unchecked",
+            ("NoSuchElementException", _, ".java") => "analysis-empty-collection",
+            // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
+            ("NoSuchElementException", _, ".scala" or ".sc") => "logic-scala-option-get",
+            ("InvalidOperationException", "Stack empty." or "Queue empty." or "Sequence contains no elements", ".cs") => "analysis-empty-collection",
+
+            // A file, a connection or a socket used when closed, and a socket used before it was connected - as Python 3.13 on
+            // Windows, Java 21 and .NET 10 said it.
+            ("ValueError", "I/O operation on closed file.", _) => "analysis-used-after-close",
+            ("ProgrammingError", "Cannot operate on a closed database.", _) => "analysis-connection-used-after-close",
+            ("OSError", var said, ".py" or ".pyw") when said.StartsWith("[WinError 10057]", StringComparison.Ordinal) => "analysis-used-before-connect",
+            ("OSError", var said, ".py" or ".pyw") when said.StartsWith("[WinError 10038]", StringComparison.Ordinal) => "analysis-connection-used-after-close",
+            ("SocketException", "Socket is not connected", ".java") => "analysis-used-before-connect",
+            ("SocketException", "Socket is closed", ".java") => "analysis-connection-used-after-close",
+            ("InvalidOperationException", "The operation is not allowed on non-connected sockets.", ".cs") => "analysis-used-before-connect",
+            ("SocketException", var said, ".cs") when said.Contains("the socket is not connected", StringComparison.Ordinal) => "analysis-used-before-connect",
+            ("ObjectDisposedException", var said, ".cs") when said.Contains("System.Net.Sockets.", StringComparison.Ordinal) => "analysis-connection-used-after-close",
+
+            // asyncio.run inside an async def: the crash, and the check that finds the call, are one mistake.
+            ("RuntimeError", "asyncio.run() cannot be called from a running event loop", ".py" or ".pyw") => "logic-python-asyncio-run-in-async",
+
+            // A function that called itself until there was no room left for the calls.
+            ("RecursionError", _, ".py" or ".pyw") => "analysis-recursion-never-ends",
+            ("StackOverflowError", _, ".java") => "analysis-recursion-never-ends",
+            ("RangeError", "Maximum call stack size exceeded", _) => "analysis-recursion-never-ends",
+            var (type, _, _) => CrashExplainedBy.GetValueOrDefault(type ?? ""),
+        };
 
     /// <summary>
     /// The file a frame names: as named, when that is a whole path; else the file of that name beside the chosen one, when
@@ -84,9 +140,6 @@ public static partial class FindingFactory
         ["DivideByZeroException"] = "analysis-division-by-zero",
         ["ArithmeticException"] = "analysis-division-by-zero",
         ["NullReferenceException"] = "analysis-null-used",
-
-        // Scala's None.get: the crash, and the check that finds .get on an Option nothing checked first, are one mistake.
-        ["NoSuchElementException"] = "logic-scala-option-get",
     };
 
     public static Finding FromWarning(ParsedError warning, WarningRating rating, string fallbackFile, FixCandidate? fix = null) =>

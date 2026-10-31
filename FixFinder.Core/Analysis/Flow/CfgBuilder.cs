@@ -462,13 +462,17 @@ public static class CfgBuilder
             }
         }
 
-        /// <summary>Branches on a condition, splitting and, or and not so every branch tests one simple condition.</summary>
-        private void Condition(Expr condition, int whenTrue, int whenFalse)
+        /// <summary>
+        /// Branches on a condition, splitting and, or and not so every branch tests one simple condition. A simple condition
+        /// written with not in front of it keeps that not, as <paramref name="writtenAsNot"/>: not not x is x again, and the
+        /// parts of and and or are tested one by one, so neither keeps it.
+        /// </summary>
+        private void Condition(Expr condition, int whenTrue, int whenFalse, Unary? writtenAsNot = null)
         {
             switch (condition)
             {
                 case Unary { Operator: UnaryOperator.Not } negation:
-                    Condition(negation.Operand, whenFalse, whenTrue);
+                    Condition(negation.Operand, whenFalse, whenTrue, writtenAsNot is null ? negation : null);
                     break;
 
                 case Binary { Operator: BinaryOperator.And } both:
@@ -486,7 +490,7 @@ public static class CfgBuilder
                     break;
 
                 default:
-                    Seal(new Branch(condition.Span, condition, whenTrue, whenFalse) { TestsACase = _testingCases });
+                    Seal(new Branch(condition.Span, condition, whenTrue, whenFalse) { TestsACase = _testingCases, WrittenAsNot = writtenAsNot });
                     break;
             }
         }

@@ -55,6 +55,38 @@ until the program prints what it should. FixFinder never changes your files.
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is
    noted rather than reported as having no mistakes.
 
+**Restoring a project's libraries** is off unless you turn it on, in **Settings**, under **Advanced** and then
+**Libraries**: **Never restore them** - the choice for anybody who has not made one - **Ask me each time**, or **Restore
+them without asking**. A check itself never downloads anything. When it is on, and the project's `requirements.txt`,
+`package.json`, `go.mod` or `pubspec.yaml` - in the program's folder, or one above it up to the project's own - names
+libraries that are not on this computer, they are restored before the program is checked, with the project's own tool.
+Asking says which are missing, which tool would download them from where, where they would go, the commands it would
+run, and that a package can run its own install or build scripts on this computer while it is installed - so restore
+only a project you trust. Each was run here, and the program then ran with what it restored: pip installs into the
+project's own environment, and when it has none makes one, `.venv`, beside `requirements.txt`, which can also use what
+the Python on this computer has installed; npm installs into `node_modules`, with `npm ci` when there is a
+`package-lock.json` and otherwise `npm install`, told not to write one; `go mod download all` fills Go's module cache
+and writes the checksums into `go.sum`; and `dart pub get` fills pub's cache and writes `.dart_tool\package_config.json`
+and `pubspec.lock`. Which are missing is worked out first: a requirement Python's `importlib.metadata` cannot find, a
+package with no folder in `node_modules`, a module not in Go's module cache or not in `go.sum`, a package not in
+`package_config.json`. A note in the report says what was done - restored, with what the tool said; not restored, and
+why, quoting the tool's error; or what is missing while restoring is off. A `.venv` made for a restore whose pip then
+failed is left in place, and used from then on, as it can still use what the Python on this computer has. From a
+folder's check, each project is asked about once. From the command line, `--restore never|ask|auto` chooses for one
+check, and `ask` with nobody at the terminal to answer - an editor running it - downloads nothing. A Ruby `Gemfile` is
+not restored, as `bundle install` would put the gems into the Ruby on this computer, for every program; nor are Rust's
+crates or C#'s NuGet packages, as FixFinder builds Rust with `rustc` and C# with `csc`, which would not use them; nor
+Maven, Gradle or Composer projects, as none of those tools was here to try it with.
+
+**Try these inputs**, under the notes, shows what each way through a Python program does: for a program whose top-level
+code goes different ways on what is typed, FixFinder follows each way, works out answers that take it, and runs the
+program with each - with its own Python, in its own folder - showing what each printed, and what stopped it. For `score
+= int(input())` and `if score >= 70` ... `elif score >= 50` the answers are 70, 50 and 0, and the three runs printed A,
+B and Fail; for `total // people`, people 0 stopped with ZeroDivisionError and -1 printed a share. It is closed until
+opened, and in a saved report and on the command line too. It is only for a program that asks all its questions in
+straight-line top-level code - asked in a loop, a branch or a function, an answer could go to the wrong question - and
+it is left out when nothing typed decides the way, or every input printed the same.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
@@ -80,14 +112,20 @@ reported as a program that never finishes; what it does when someone uses the wi
 checked. For matplotlib, a socket and the servers after it, importing one is not enough - the program has to make the call
 that waits - so a program that only saves a chart to a file, or talks to a server, is not taken for one.
 
-**Let a program with a window run until I close it**, in Settings, keeps such a program open for you to use: it
-is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it printed
-and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies FixFinder
-runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's programs are each
-given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it keeps the usual time;
-**Stop** ends any run. How long a run is given is chosen in Settings - ten seconds to ten minutes, one minute unless
-chosen - and every run follows it: the program's own, and each copy a change is tried in. Go is always given six minutes
-for its first build, which compiles its standard library.
+**Let a program with a window run until I close it**, in Settings under Advanced, keeps such a program open for you to
+use: it is given no time limit, the report says it is waiting for its window to be closed, and once you close it what it
+printed and how it ended are checked, with a note that it ran this way. Only the program's own run waits - the copies
+FixFinder runs to try changes are given the usual time, as nobody is there to close their windows - and a folder's
+programs are each given the usual time, so checking a folder is not held up. A server is not closed by anybody, so it
+keeps the usual time; **Stop** ends any run. How long a run is given is chosen in Settings, under Advanced - ten seconds
+to ten minutes, one minute unless chosen - and every run follows it: the program's own, and each copy a change is tried
+in. Go and C# are built before they run - go build, dotnet build - and the build is given six minutes, as Go's first
+build compiles its standard library; the run is then given the time chosen, as every program's is, so a Go program that
+never finishes is stopped then, not six minutes on.
+
+Settings keeps what most people never change - how long runs are given, programs with a window, and restoring
+libraries - under **Advanced**, which stays closed unless one of them has been changed from what FixFinder does by
+itself.
 
 A program runs from the folder its own files are looked for in, so one that opens `scores.txt` finds it. Java starts from
 the project's folder - the one holding `src`, or `src/main/java` - as an IDE or a build tool starts it; C and C++ start
@@ -205,13 +243,13 @@ when go.mod's toolchain line names a later Go than the one on PATH and one is he
 would run it. Every go command FixFinder starts is given `GOTOOLCHAIN=local`, `GOPROXY=off` and `GOSUMDB=off`, so the Go
 chosen is the Go that runs and nothing is downloaded: left to itself, the go command downloads a later Go when a module
 asks for one, the modules a `go.mod` requires that are not in its module cache, and checksums from Go's checksum
-database - and FixFinder never downloads. A module the program needs that is not in the module cache is said once in a
-note, naming it and saying that `go mod download` in the module's folder downloads it, and go's errors about it are not
-reported as mistakes in the code. How it ran says which Go and why. When Go will not build a module because it asks for
-a later Go than any here, a note says which Go to install; when the code uses part of the language newer than its go
-line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or later (-lang was set to
-go1.21; check go.mod)` - a note says to raise the go line; and when the code needs a later Go than any here, a note says
-so and how to install one.
+database - and a check never downloads. A module the program needs that is not in the module cache is said once in a
+note, naming it and saying that restoring libraries, or `go mod download all` in the module's folder, downloads it, and
+go's errors about it are not reported as mistakes in the code. How it ran says which Go and why. When Go will not build
+a module because it asks for a later Go than any here, a note says which Go to install; when the code uses part of the
+language newer than its go line - Go then builds the module as that older Go's code, and says so: `requires go1.22 or
+later (-lang was set to go1.21; check go.mod)` - a note says to raise the go line; and when the code needs a later Go
+than any here, a note says so and how to install one.
 
 A JavaScript program runs with **a Node.js new enough for it**. FixFinder finds every Node.js on the computer - the one on
 PATH, the one Node.js's installer puts in Program Files, and those nvm for Windows keeps - and knows each by the version
@@ -230,7 +268,7 @@ so and how to install one.
 
 A **Scala** program - a `.scala` file, or a Scala CLI script, `.sc` - is built and run by **Scala CLI**, which FixFinder
 finds on PATH, in its Windows installer's folder in Program Files, in Coursier's folder of installed applications or in
-Scoop's shims. It is run offline, as FixFinder never downloads anything, and without Scala CLI's compile server, which
+Scoop's shims. It is run offline, as a check never downloads anything, and without Scala CLI's compile server, which
 would go on running after the check; Scala CLI's own build is kept in FixFinder's build folder, so nothing is written
 into the program's. The versions of Scala it can build with are those already in Coursier's cache, where Scala CLI, sbt
 and Metals keep what they download; Settings lists them. The version is the one the program asks for - in a `//> using
@@ -338,8 +376,8 @@ nothing runs and nothing is said - `value == Float::NAN`, which is false even wh
 change makes the quotes double. The eleventh is `backup = marks` taken as a copy: both names are one array, so after
 `marks << 100`, `p backup` prints `[70, 80, 90, 100]`; the change is `marks.dup`. The twelfth is a grid made by
 repeating one row - `Array.new(3, Array.new(3, 0))` - whose rows are then one array, so `grid[0][0] = 1` changes every
-row; the change is `Array.new(3) { Array.new(3, 0) }`. The thirteenth is a root written as a power of one over a number
-- `side ** 1/2`, described below with the other languages that write it - and the fourteenth is what a `!` method gives
+row; the change is `Array.new(3) { Array.new(3, 0) }`. The thirteenth is a root written as a power of one over a
+number - `side ** 1/2`, described below with the other languages that write it - and the fourteenth is what a `!` method gives
 back, kept: `fixed = name.strip!` changes `name` itself and gives back `nil` when there was nothing to change, so
 `fixed` was `nil` for `"Ada"` - and so it was for each of `uniq!`, `compact!`, `gsub!` and sixteen more, given a value
 they had nothing to change in. The change uses the method without its `!`, which gives back a changed copy every time -
@@ -462,7 +500,8 @@ tested with Strawberry Perl 5.42.2.
 A **Dart** program - a `.dart` file - is read by `dart analyze` before it runs, with every file it imports, and every
 error and warning the analyzer lists is a finding, with its own advice and the problem's name. It is run as `dart
 main.dart`, not `dart run`: `dart run` resolves a package's dependencies first, fetching them when it has to, and
-FixFinder never downloads - a program whose packages were never fetched says so and stops. An exception is placed at the
+a check never downloads - a program whose packages were never fetched says so and stops, unless restoring libraries is
+on, which runs `dart pub get` first. An exception is placed at the
 first line of the program's own code in its frames, past Dart's own. The analyzer's diagnostics become fixes: a missing
 `;`, a misspelt name, function, method or property - the nearest one the file, or Dart's own type, has - `/` stored in
 an `int` becomes `~/`, a map lookup stored where null cannot go gets `?? 0`, a number joined to text gets `.toString()`,
@@ -631,10 +670,10 @@ F# 10, from the .NET SDK 10.0.400.
 
 A **TypeScript** program - a `.ts`, `.mts` or `.cts` file - is run by Node.js itself, which runs TypeScript by taking
 its types out, with the Node.js the program's project and code ask for. It is not run with `npx tsx`: npm installs a
-package it does not have, and with no one at a terminal to ask it says yes by itself, and FixFinder never downloads; a
+package it does not have, and with no one at a terminal to ask it says yes by itself, and a check never downloads; a
 Node.js that does not run TypeScript itself - its `process.features.typescript` says so - is said to be one, and the
 program is not run. Its **types are checked by TypeScript's own compiler, `tsc`**, when this computer has one already -
-the project's own, in a `node_modules` above the program, or else one installed with npm for every project. FixFinder
+the project's own, in a `node_modules` above the program, or else one installed with npm for every project. A check
 never downloads one: with none here, a note says the types were not checked. A program with a `tsconfig.json` - in its
 folder, or one above it up to its project's - is checked as the project says. A file on its own is checked the way
 Node.js runs it: strictly, as `tsc --init` sets a project up, with an import's `.ts` allowed, and every file a module,
@@ -721,7 +760,8 @@ record; and jars kept in a `lib`, `libs` or `jars` folder. The JUnit that comes 
 as its JUnit 4, 5 or 6 container, is taken from an Eclipse on this computer: the jars Eclipse makes that container of, at
 the versions Eclipse allows, from among the bundles an Eclipse the installer put in the `eclipse` folder of the home folder
 uses, or from the installer's shared pool of bundles in `.p2`. Each is looked for among what Maven and Gradle have already
-downloaded to this computer - FixFinder never downloads anything, and does not run Maven or Gradle. A library that is
+downloaded to this computer - a check never downloads anything, and FixFinder does not run Maven or Gradle, or restore a
+Java project's libraries. A library that is
 named but not here, or not named anywhere, is said once in a note, saying which it is and where FixFinder looked, and the
 errors javac gives because of it are not reported as mistakes in the code - nor are uses of what such a library would
 have written into the program's own classes, such as the getters Lombok adds to a class marked `@Data`, which cannot be
@@ -827,11 +867,12 @@ changed.
 | | |
 |---|---|
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
-| **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. |
+| **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. Beside the word, where it comes from, read off what happened: *run reproduced it* - the analysis said this line breaks and a run with its values broke it; *seen when it ran* - the program crashed, or printed the wrong thing; *compiler said so*; *failing input worked out* - an input that makes it fail was worked out from the code, which can still hang on what is typed in; *values followed through the code*; or *pattern only* - the way the code is written. Its tooltip, and **More detail**, say it in a sentence. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
 | **Why it matters** | What goes wrong because of it. |
 | **Suggested fix** | What to change. |
+| **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
 | **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |
@@ -942,8 +983,8 @@ TypeScript it finds the same in `for (const mark in marks)` over an array, whose
 gives the positions, as text - `"0"`, `"1"`, `"2"` - so `total += mark` joins them, and Node prints `Total: 0012` for
 marks of 70, 80 and 90; the change is `for...of`, and a loop that reads `marks[mark]` is left alone. In Python and
 JavaScript it finds a decimal worked out by arithmetic and then compared exactly - `0.1 + 0.2 == 0.3` is false in both -
-and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or `for (let mark of marks)`
-- which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position compared with `> 0`, which
+and a loop that gives its own variable a new value - `mark += 5` inside `for mark in marks` or `for (let mark of
+marks)` - which leaves the list as it was; and in Python, Java, C# and JavaScript a search's position compared with `> 0`, which
 takes a match at the very start, position 0, for no match - and in Python, JavaScript and TypeScript a search's position
 used as true or false, `if (marks.indexOf(70))`, which is wrong both ways: a match at the start, 0, is false, and no
 match, -1, is true. The change asks whether it is there, with `includes` or `in`. In C++ it finds an array of numbers
@@ -1048,8 +1089,8 @@ it - and in Python `type(age) == "int"`, which compares a type with text and is 
 meant, with `Array.isArray(marks)` and `isinstance(age, int)`. In JavaScript and TypeScript it also finds
 `Math.max(marks)` given an array, which takes numbers one by one and so turns the array into one number from its text,
 `70,85,90` - `NaN`; the change spreads it into its items, `Math.max(...marks)`. In Python, Java, C#, JavaScript,
-TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value == float("nan")`
-- which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
+TypeScript, Go, Ruby, PHP, Scala, F#, PowerShell, C and C++ it finds a value compared with NaN - `value ==
+float("nan")` - which is false even when the value is NaN, and `!=` always true, as NaN is equal to nothing, not even itself; none of
 their toolchains says anything of it, and the change is the language's own test, such as `math.isnan(value)`. Dart and
 Rust warn of it themselves. In Python, C# and Dart it finds a map run for what its function does, on a line of its own -
 `map(print, marks)`, `marks.Select(...)` with `Console.WriteLine` in it, `marks.map((mark) => print(mark))` - which
@@ -1069,40 +1110,45 @@ with the language's own tools, its warnings on. In Java: a Thread's `run()` call
 the work on the main thread; `new BigDecimal(0.1)`, which holds
 `0.1000000000000000055511151231257827021181583404541015625` - the change makes it from text, `new BigDecimal("0.1")`,
 and a decimal a double holds exactly, such as 0.5, is left alone; `Arrays.asList` of an `int[]`, a list of one item, so
-`contains(80)` was false; and `Math.abs(key.hashCode()) % 10`, which was -8 for `"polygenelubricants"`, whose hashCode
-is the smallest int - the change is `Math.floorMod`. In C#: a lambda made in a `for` loop, which keeps the loop's one
-counter - three printed 3, 3 and 3 - and is given a copy made inside the loop; and an async method's result kept without
-`await` and printed, which printed the Task's type name - the change adds `await` where it can be written. In Python:
-`worker.run()`, which ran on the main thread; `Decimal(0.1)`; `groups.get(team, []).append(name)`, which left `groups`
-as `{}` - the change is `setdefault`; an iterator - `map`, `filter`, a generator - read twice, whose second read got
-nothing, so `sum` was 7 and `len(list(...))` 0 - the change keeps it in a list; `"test.txt".rstrip(".txt")`, which takes
-off characters, not text, and gave `tes` - the change is `removesuffix`; and a lambda made in a loop, which keeps the
-loop's variable - `[lambda x: x + step for step in range(3)]` all added 2 - and is given the value as a default,
-`step=step`. In JavaScript and TypeScript: `new Array(3).map(...)`, whose three holes `map` passes by - `[ <3 empty
-items> ]` - the change is `Array.from({ length: 3 })`; `replace("-", "")`, which replaced the first `-` only - the
-change is `replaceAll`, offered as possible, as one replacement may be what was meant; an async function's result used
-without `await`, which printed `Promise { 3 }`, and a `map` with an async function, a list of Promises - the change adds
-`await`, or `await Promise.all(...)`, where it can be written: in an async function, or at the top of a module, which
-Node 24 took a `.js` file to be unless it used `require`; `setTimeout(greet(), 1000)`, which called `greet` at once and
-stopped with `ERR_INVALID_ARG_TYPE` - a function of the file's own that gives back a function is left alone;
-`getYear()`, 124 for 2024; and `getDay()` beside the month or the year, the day of the week - 1 for Monday 5 February -
-where `getDate()` was meant. In C: `char word[5] = "hello"`, with no room for its `'\0'`, which printed `helloabc` - C++
-refuses it; `char c = getchar()` compared with `EOF`, which stopped at a byte 255 and counted 2 of 5 - in C++ too; and
-`malloc(count)` for ints, which gave 4 bytes for 4 ints - the change is `malloc(count * sizeof *marks)`. In C++:
-`"Total: " + count`, which moved along the text and printed `al: ` - the change is `std::to_string(count)`; and
-`reserve(3)` and then `marks[0] = 70`, a write past the vector's end, which C++ leaves undefined - built by gcc 13.2 the
-program printed a size of 0, and by gcc 15.2 it was stopped - and the change is `resize`, which printed 3 with both. In
-Go: `time.Sleep(2)`, two nanoseconds - the change says the unit; `copy` into a slice made with length 0, which copied
-nothing; `name[0]` of a string printed, which printed 104 - the change is `string(name[0])`; and a goroutine `main`
-never waits for, whose line was never printed, which has no change, as the ways to wait for one are too many to write
-one for.
+`contains(80)` was false; `Math.abs(key.hashCode()) % 10`, which was -8 for `"polygenelubricants"`, whose hashCode is
+the smallest int - the change is `Math.floorMod`; and `get()` straight after `findFirst()`, `findAny()`, `max(...)` or
+`min(...)`, which threw `NoSuchElementException: No value present` when no mark passed the filter - it has no change, as
+what to use when there is nothing is the program's to say: `orElse(0)`, or `orElseThrow` with a reason. The crash and
+the check are one finding, and the Scanner's own NoSuchElementException, out of input, keeps its guide. In C#: a lambda
+made in a `for` loop, which keeps the loop's one counter - three printed 3, 3 and 3 - and is given a copy made inside
+the loop; and an async method's result kept without `await` and printed, which printed the Task's type name - the change
+adds `await` where it can be written. In Python: `worker.run()`, which ran on the main thread; `Decimal(0.1)`;
+`groups.get(team, []).append(name)`, which left `groups` as `{}` - the change is `setdefault`; an iterator - `map`,
+`filter`, a generator - read twice, whose second read got nothing, so `sum` was 7 and `len(list(...))` 0 - the change
+keeps it in a list; `"test.txt".rstrip(".txt")`, which takes off characters, not text, and gave `tes` - the change is
+`removesuffix`; a lambda made in a loop, which keeps the loop's variable - `[lambda x: x + step for step in range(3)]`
+all added 2 - and is given the value as a default, `step=step`; and `asyncio.run(fetch())` inside an `async def`, which
+stopped with `RuntimeError: asyncio.run() cannot be called from a running event loop` - the change is `await fetch()`,
+which printed 42, and the crash and the check are one finding. In JavaScript and TypeScript: `new Array(3).map(...)`,
+whose three holes `map` passes by - `[ <3 empty items> ]` - the change is `Array.from({ length: 3 })`; `replace("-",
+"")`, which replaced the first `-` only - the change is `replaceAll`, offered as possible, as one replacement may be
+what was meant; an async function's result used without `await`, which printed `Promise { 3 }`, and a `map` with an
+async function, a list of Promises - the change adds `await`, or `await Promise.all(...)`, where it can be written: in
+an async function, or at the top of a module, which Node 24 took a `.js` file to be unless it used `require`;
+`setTimeout(greet(), 1000)`, which called `greet` at once and stopped with `ERR_INVALID_ARG_TYPE` - a function of the
+file's own that gives back a function is left alone; `getYear()`, 124 for 2024; and `getDay()` beside the month or the
+year, the day of the week - 1 for Monday 5 February - where `getDate()` was meant. In C: `char word[5] = "hello"`, with
+no room for its `'\0'`, which printed `helloabc` - C++ refuses it; `char c = getchar()` compared with `EOF`, which
+stopped at a byte 255 and counted 2 of 5 - in C++ too; and `malloc(count)` for ints, which gave 4 bytes for 4 ints - the
+change is `malloc(count * sizeof *marks)`. In C++: `"Total: " + count`, which moved along the text and printed `al: ` -
+the change is `std::to_string(count)`; and `reserve(3)` and then `marks[0] = 70`, a write past the vector's end, which
+C++ leaves undefined - built by gcc 13.2 the program printed a size of 0, and by gcc 15.2 it was stopped - and the
+change is `resize`, which printed 3 with both. In Go: `time.Sleep(2)`, two nanoseconds - the change says the unit;
+`copy` into a slice made with length 0, which copied nothing; `name[0]` of a string printed, which printed 104 - the
+change is `string(name[0])`; and a goroutine `main` never waits for, whose line was never printed, which has no change,
+as the ways to wait for one are too many to write one for.
 
 In Ruby it finds `Hash.new([])`, whose one array every missing key shares - `groups[:red] << "Ada"` left the hash `{}` -
 and the change gives each key its own, `Hash.new { |hash, key| hash[key] = [] }`. In PHP: a `foreach` by reference whose
 variable is used again after it, which wrote over the last item - 10, 20, 30 became 10, 20, 20 - and the change is
 `unset($mark);` after the loop; and `rtrim("test.txt", ".txt")`, which takes off characters and gave `tes` - the change
-is a `preg_replace` that matches the text at the end. In Perl: `my $name = @_`, the count of the arguments - "Hello, 1"
-- whose change is `my ($name) = @_`; and `@first == @second`, which compares counts - two arrays of different numbers
+is a `preg_replace` that matches the text at the end. In Perl: `my $name = @_`, the count of the arguments - "Hello,
+1" - whose change is `my ($name) = @_`; and `@first == @second`, which compares counts - two arrays of different numbers
 were "same" - and is changed to `"@first" eq "@second"`. In Lua, `marks[#marks / 2]`, which is `marks[1.5]` - nil - for
 three items; the change divides with `//`. In PowerShell: `"hello world" -contains "world"`, False, as `-contains` looks
 for an item of a list - the change is `-like "*world*"`; `$items -eq $null` with an array on the left, which gives back
@@ -1201,19 +1247,51 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | Dividing by something that can be zero | `total / count` when the loop that counts may never run |
 | Using something that can be null | a variable set to null and only sometimes given a value; the result of `?.` used unchecked |
 | A position that does not exist | `points[3]` on a list of three |
-| Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack |
+| Taking an item from something empty | `pop()` on an empty list, `Pop()` on an empty stack - or on one empty only on some ways to it: `items = []`, an `append` only `if flag:`, then `items.pop()` |
 | Text that is not a number | `int("twelve")`, `Integer.parseInt("twelve")`, `int.Parse("twelve")` |
-| A condition that can never be true, or is always true | `mark > 100 && mark < 0` |
+| A condition that can never be true, or is always true | `mark > 100 && mark < 0`; `if not marks:` with `marks` still empty, said as written |
 | A loop that never runs, an assert that always fails | `while (n > 0)` with `n` still 0 |
 | A loop that never ends | `while n > 0: print(n)` - nothing inside changes `n` |
 | A call that breaks what a function checks for | `root(-4)`, when `root` starts with `if x < 0: raise ValueError` |
 | A call with the wrong arguments (Python) | `area(3)`, when `area` takes a width and a height |
 | A value that can never match its type hint (Python) | `def label(score: int) -> str` that returns `score` |
 | Using a file after it is closed | `handle.readline()` after the `with` block that opened it |
+| Using a connection or a socket after it is closed | `conn.execute(...)` after `conn.close()` - a sqlite3 connection, or a socket in Python, Java or C# |
+| Sending on a socket before connecting it | `socket.socket()`, then `sendall` with no `connect`; `new Socket()`, then `getOutputStream()`; `new TcpClient()`, then `GetStream()` |
+| A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
+| A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java, C#, C, C++, and Go for an `int32` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
+
+**Recursion that never ends** is a function that cannot return - nor raise, nor end the program - without calling
+itself, or without calling the next of a ring of functions that each cannot return without calling the next. Every way
+from the function's start to a way out is followed, and when each passes a call to the same function, the calls never
+end. Only a call certainly made counts: one in a conditional expression's branches - `return 1 if n <= 1 else n *
+factorial(n - 1)` - after an `and` or an `or`, or behind a base case, is not; a method a subclass can replace, a
+generator and an async function are left alone; and `sys.exit`, `System.exit`, `Environment.Exit`, `process.exit` and
+`os.Exit` are ways out. Each is said with what the language did when it was run: Python 3.13 stopped with
+`RecursionError: maximum recursion depth exceeded` after a thousand calls, Java with `StackOverflowError`, .NET ended
+the whole program with `Stack overflow.` - a `try` and `catch` around the call did not catch it - Node.js with
+`RangeError: Maximum call stack size exceeded`, and Go with `fatal error: stack overflow`. A ring is said once, at its
+first function, and a run that crashed in it is the same finding. C and C++ are left to `gcc -Wall`, which warns
+`infinite recursion detected`.
+
+**A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
+2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
+24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
+long only after it has wrapped. C and C++ leave what happens then undefined - gcc 13.2, building as FixFinder does,
+printed 1471228928 too, with no warning even with `-Wall -Wextra` - and Go wraps an `int32` round, as its rules say:
+with `days` an `int32`, Go 1.27 printed 1471228928, and neither `go vet` nor `go build` said anything. Go's own `int`
+is 64 bits, and holds it. The finding works out the exact value and the one it wraps to, and its change makes the
+arithmetic 64 bits from its first number: `(long) days * ...`, or an `L` after a written number, in Java and C#;
+`(long long) days * ...`, or `LL`, in C and C++, as a `long` is 32 bits on Windows - `(long) days` printed 1471228928
+there; and `int64(days) * ...` in Go, only when the rest are written numbers, as Go refuses to build an `int64` beside
+an `int32` - mismatched types int64 and int32. A long, an `L`, a cast to long, a value the code does not show, a
+result that fits, C's `long` and its unsigned types, and Go's `int` are left alone. Arithmetic written all in numbers
+is the logic check's in Java and Scala; C#'s compiler refuses it (CS0220), Go's refuses it for an `int32`, and gcc
+warns of it in C and C++, with -Woverflow.
 
 The checks look across functions. A call to one of the program's own functions is matched to it, so the call can be
 checked against the arguments the function takes, the type hints it gives and the guards it starts with - its
@@ -1249,9 +1327,17 @@ function in another file that changes its `items` is not taken to change the cal
 The order things happen in is checked too (**temporal properties**): once a file or stream is closed it must not be
 used, and a lock that is taken must be released on every way out of the function.
 
-Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed;
-a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a thread a
-second time, or joining one never started, is found - including a thread made before a loop and started inside it.
+Protocols are followed as **state machines** along every way through a function: a file is opened, used, then closed; a
+database connection - `sqlite3.connect` - or a socket is made, connected, used, then closed, and is reported when it is
+used once closed, sent on or received from before it is connected, or left open when the function returns. Each failure
+is said as the language raised it on this computer: `sqlite3.ProgrammingError: Cannot operate on a closed database.`,
+Python's `OSError`, Java's `SocketException: Socket is not connected`, .NET's `InvalidOperationException` and
+`ObjectDisposedException`. The end of a `with` block closes a file or a socket, but not a sqlite3 connection - its
+`with` block commits and leaves it open, as Python 3.13 did, reading from it after the block - so the advice for one
+left open is `contextlib.closing`; and a server socket, which binds, listens and accepts, is never taken to send before
+connecting; a lock is taken, then released; a thread is made, then started - once - and only then waited for. Starting a
+thread a second time, or joining one never started, is found - including a thread made before a loop and started inside
+it.
 
 **Exception flow**: a `return`, `break` or `continue` in a `finally` block replaces what the `try` block returned and
 throws its error away, so it is reported in Java and Python (C# refuses to compile one). In Python, a variable given its
@@ -1330,10 +1416,15 @@ holding them; a Python `threading.Lock` cannot, which is why taking one twice is
 Races come from two relations. **Happens-before** orders the code that starts threads against the threads: what comes
 before `start()` happens before everything the thread does, and everything the thread does happens before the `join()`
 that waits for it - so code between the two runs at the same time as the thread. A thread handed to other code, which
-could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it -
-by `synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the
-function it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock
-is held at both. A field of an object is only shared by threads using that same object.
+could join it anywhere, is never claimed to be unfinished. The **lockset** of each access is every lock held at it - by
+`synchronized`, `lock` or `with`, by `lock()` and an `unlock()` in a `finally`, or by the code that called the function
+it is in. Two accesses to the same field or variable race when nothing orders them, one changes it, and no lock is held
+at both. A field of an object is only shared by threads using that same object. When nothing waits for a thread that one
+name holds - `worker`, started with `worker.start()` - a result read before it is waited for gets a change that waits
+first, on the line before: `worker.join()` in Python, `worker.Join()` in C#, and `worker.join()` in Java only where the
+method already says it throws `InterruptedException`, as Java will not build the call otherwise. Run, the read printed 0
+in Java 21 and .NET 10, and in Python 3.13 the whole total four times in five and 749561121 once; with the change, all
+three printed 4999950000.
 
 Each finding that is an instance of a weakness in MITRE's **Common Weakness Enumeration** says which - CWE-89 for SQL
 injection, CWE-833 for a deadlock, CWE-835 for a loop that never ends, and so on - with a link to the entry, an
@@ -1375,8 +1466,9 @@ fractions, with branching for whole numbers.
 - A line that can fail gets the inputs that make it fail: *Fails when `values` is empty*, *Fails when `person` is null*.
 - A possible mistake no path can actually reach is dropped as a false alarm, once every path has been followed - for
   example a `None` that only one branch gives, guarded later by the same test.
-- A line that some path cannot help failing on is reported even where the values seen together could not show it:
-  `if a == b:` and then `1 / (a - b)`.
+- A line that some path cannot help failing on is reported even where the values seen together could not show it: `if a
+  == b:` and then `1 / (a - b)`. Its input is given as an example of that way through, never as all of it: for `if a ==
+  b: return 1 / (a - b)` the solver's `a` is 0 and `b` is 0 is one of every equal pair that fails.
 - Dividing by a number someone types is reported with the number that breaks it.
 
 A loop is followed as many times as its bound when the code shows one (`for i in range(10)`, `for (i = 0; i < n; i++)`
@@ -1393,7 +1485,18 @@ inputs - or, for top-level code, the program is run with them typed in - under a
 predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
 `average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
 ran are compressed, so a loop that went round three times shows as `(5-7)×3`; in a notebook they are given cell by cell,
-`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was.
+`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. When the program's own run crashes at a
+line the analysis shows can fail, the two are one mistake, so they are **one finding**: what the language said, with the
+input that fails, the lines that decide it and the run that confirmed it - `take(False)` stopping with `IndexError: pop
+from empty list` is one finding that says *On one way through the code `items` is always empty here - for example when
+`flag` is False*. A crash is matched to its check by its exception and, where one exception means more than one mistake,
+by its message: Python's `IndexError` is `pop from empty list` or `list index out of range`, Java's
+`NoSuchElementException` an empty list's `getFirst()` but not `Optional.get()`, C#'s `InvalidOperationException` `Stack
+empty.` or `Sequence contains no elements`. A crash raised by a broken contract's own check is one finding with the call
+that broke it - `divide(10, 0)`, when `divide` raises `ValueError` for a count of 0 - at the call, where the fix
+belongs. And an error the program raised itself, at its own `raise` or `throw`, is explained as that: a check refusing a
+value, with the mistake in what gave it that value - not by the guide for the error's name, whose `ValueError` is
+`int("forty-two")`.
 
 Every fix for Python, Java or C# code is also checked for **what it changes** (semantic diffing). The fix is made in a
 copy, both versions are read, and each function it touches is followed path by path in both - the same parameter, list
@@ -1503,14 +1606,16 @@ file and line.
 
 Some limits are part of how FixFinder works:
 
-- **Time.** Each run of a program is given the time chosen in Settings - a minute unless chosen, and never less than six
-  minutes for Go, whose first build compiles its standard library - and is stopped when its time runs out. A server runs
-  until it is stopped, so it is always stopped this way, and so is a program with a window unless it is let run until it
-  is closed: what it did until then is checked, and what it would do when someone uses the window, or something
-  connects, is not.
-- **Libraries.** FixFinder never downloads anything. A library a project names that is not on this computer is said once,
-  in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its build tool,
-  downloads it.
+- **Time.** Each run of a program is given the time chosen in Settings, under Advanced - a minute unless chosen; Go and
+  C# are built first, given six minutes, as Go's first build compiles its standard library - and is stopped when its
+  time runs out. A server runs until it is stopped, so it is always stopped this way, and so is a program with a window
+  unless it is let run until it is closed: what it did until then is checked, and what it would do when someone uses the
+  window, or something connects, is not.
+- **Libraries.** A check never downloads anything. Restoring the libraries a project names is off unless chosen, and
+  covers `requirements.txt`, `package.json`, `go.mod` and `pubspec.yaml` - not a Ruby `Gemfile`, Rust's crates, C#'s
+  NuGet packages, or Maven, Gradle and Composer projects. Any other library a project names that is not on this computer
+  is said once, in a note, with where FixFinder looked; opening the project in its IDE, or building it once with its
+  build tool, downloads it.
 - **Files.** The code is read for logic mistakes from at most 200 of a program's files: the file chosen and the files its
   code uses come first, and a note says how many were left out. Python's and JavaScript's own syntax checks look at the
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
@@ -1576,6 +1681,7 @@ dotnet FixFinder.Cli/bin/Debug/net8.0/fixfinder.dll Grades.java --expect "Averag
 | `--expect` | What the program should print, so a program that runs but gives the wrong answer is caught too. |
 | `--html` | A file to save the whole report in as a web page as well, as **Save report…** saves it. |
 | `--time-limit` | How many seconds each run is given, from 1 to 3600 - your Settings choice otherwise. |
+| `--restore` | `never`, `ask` or `auto`: whether the libraries the project names that are not here are restored first - your Settings choice otherwise. With nobody at the terminal to answer, `ask` downloads nothing. |
 
 It compiles and runs the program, exactly as the window does, and only ever the one named on its command line. Only
 findings go to standard output; what it says about the run goes to standard error, so an editor never mistakes it for a

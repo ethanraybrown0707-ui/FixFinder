@@ -8,7 +8,8 @@ namespace FixFinder.Core.Analysis.Checks;
 /// Temporal logic checking. Two properties about the order things happen in, each checked as a small automaton run over
 /// every way through a function:
 /// <list type="bullet">
-/// <item>□(close → □¬use) - once a file or stream is closed it is never used again;</item>
+/// <item>□(close → □¬use) - once a file, stream, database connection or socket is closed it is never used again;</item>
+/// <item>□(send → connected) - a socket that is made and not yet connected is not sent on or received from;</item>
 /// <item>□(acquire → ◇release) - a lock that is taken is always let go before the function is left.</item>
 /// </list>
 /// Each variable's possible states are carried forward through the graph and joined where ways meet; a violation is
@@ -18,13 +19,18 @@ public sealed class Protocols(
     ControlFlowGraph graph, SourceLanguage language, Func<Expr, string> quote, Action<string, SourceSpan, string, Severity, Confidence> report,
     IReadOnlySet<string>? threadClasses = null)
 {
-    private enum Phase { Open, Closed, Held, Released, Untracked, ThreadNew, ThreadStarted }
+    private enum Phase { Open, Closed, Held, Released, Untracked, ThreadNew, ThreadStarted, Unconnected }
+
+    /// <summary>What a variable that is opened and closed holds: a file or stream, a database connection, or a socket.</summary>
+    private enum Resource { File, Database, Socket }
 
     /// <summary>Where a tracked variable is in its protocol, and the line that put it there.</summary>
     private sealed record Mark(Phase Phase, int Line, SourceSpan At)
     {
         /// <summary>Whether the file was opened for writing, so leaving it open can lose what was written.</summary>
         public bool Writes { get; init; }
+
+        public Resource Kind { get; init; } = Resource.File;
     }
 
     private sealed class State : Dictionary<string, HashSet<Mark>>
@@ -154,7 +160,8 @@ public sealed class Protocols(
         {
             case AssignInstruction { Target: Name { Identifier: var name }, Value: var value } assign:
                 Uses(state, value, reporting);
-                if (Opens(value)) state[name] = [new Mark(Phase.Open, assign.Span.Line, assign.Span) { Writes = OpensForWriting(value) }];
+                if (Opened(value) is { } opened)
+                    state[name] = [new Mark(opened.Connected ? Phase.Open : Phase.Unconnected, assign.Span.Line, assign.Span) { Writes = OpensForWriting(value), Kind = opened.Kind }];
                 else if (MakesThread(value)) state[name] = [new Mark(Phase.ThreadNew, assign.Span.Line, assign.Span)];
                 else state.Remove(name);
                 break;
@@ -168,8 +175,10 @@ public sealed class Protocols(
                 if (!Moves(state, value, block, reporting)) Uses(state, value, reporting);
                 break;
 
-            case ReleaseInstruction { Resource: Name { Identifier: var released } } release when state.ContainsKey(released):
-                state[released] = [new Mark(Phase.Closed, release.Span.Line, release.Span)];
+            // The end of a with block closes a file or a socket - but not a sqlite3 connection: its with block commits, or rolls
+            // back, and leaves it open, as Python 3.13 did, reading from it after the block.
+            case ReleaseInstruction { Resource: Name { Identifier: var released } } release when state.ContainsKey(released) && KindOf(state, released) != Resource.Database:
+                state[released] = [new Mark(Phase.Closed, release.Span.Line, release.Span) { Kind = KindOf(state, released) }];
                 break;
         }
     }
@@ -209,13 +218,13 @@ public sealed class Protocols(
             {
                 if (!_reported.Add(opened.At)) continue;
 
-                var consequence = opened.Writes
-                    ? "so what was written to it may never reach the file"
+                var consequence = opened.Kind != Resource.File ? "so the connection stays open until the program ends"
+                    : opened.Writes ? "so what was written to it may never reach the file"
                     : "so the file stays open until the program ends";
 
-                report("analysis-resource-not-closed", opened.At,
+                report(opened.Kind == Resource.File ? "analysis-resource-not-closed" : "analysis-connection-not-closed", opened.At,
                     $"`{name}`, opened here, is still open {(everyWay ? "" : "on some ways ")}when the function returns on line {leave.Span.Line}, and nothing " +
-                    $"else was given it to close - {consequence}. {CloseAdvice}",
+                    $"else was given it to close - {consequence}. {CloseAdviceFor(opened.Kind)}",
                     IsPython ? Severity.Suggestion : Severity.Warning, Confidence.Likely);
             }
         }
@@ -295,6 +304,15 @@ public sealed class Protocols(
         _ => false,
     };
 
+    /// <summary>How to close what is left open: a sqlite3 connection's own with block does not close it.</summary>
+    private string CloseAdviceFor(Resource kind) => (kind, language) switch
+    {
+        (Resource.Database, _) => "Close it in a finally, or open it with `with contextlib.closing(sqlite3.connect(...)) as conn:` - " +
+                                  "`with sqlite3.connect(...)` on its own commits, but leaves the connection open",
+        (Resource.Socket, SourceLanguage.Python) => "Make it with `with socket.socket(...) as s:`, which closes it however the function ends",
+        _ => CloseAdvice,
+    };
+
     private string CloseAdvice => language switch
     {
         SourceLanguage.Python => "Open it with `with open(...) as f:`, which closes it however the function ends",
@@ -318,7 +336,13 @@ public sealed class Protocols(
                 return true;
 
             case Call { Callee: Member { Target: var closed, MemberName: "close" or "Close" or "Dispose" } } close when Owner(closed) is { } owner && state.ContainsKey(owner):
-                state[owner] = [new Mark(Phase.Closed, close.Span.Line, close.Span)];
+                state[owner] = [new Mark(Phase.Closed, close.Span.Line, close.Span) { Kind = KindOf(state, owner) }];
+                return true;
+
+            // A socket made and not yet connected is connected - and counts as open from the line that made it.
+            case Call { Callee: Member { Target: var socket, MemberName: "connect" or "connect_ex" or "Connect" } } when
+                Owner(socket) is { } owner && state.TryGetValue(owner, out var made) && made.Count > 0 && made.All(m => m.Phase == Phase.Unconnected):
+                state[owner] = [.. made.Select(m => m with { Phase = Phase.Open })];
                 return true;
 
             case Call { Callee: Member { Target: var taken, MemberName: var method } } call when Acquires(method) && Owner(taken) is { } owner && !_handedOn.Contains(owner):
@@ -384,6 +408,28 @@ public sealed class Protocols(
 
     private bool Releases(string method) => IsPython ? method == "release" : method is "unlock" or "Unlock" or "RUnlock";
 
+    /// <summary>What a variable holds once it is closed: what it held before, the same on every way to here, or a file.</summary>
+    private static Resource KindOf(State state, string name) =>
+        state.TryGetValue(name, out var marks) && marks.Select(m => m.Kind).Distinct().ToList() is [var kind] ? kind : Resource.File;
+
+    /// <summary>
+    /// What opens something that has to be closed, and whether it is ready to use when made: a file or stream; a database
+    /// connection, sqlite3.connect(...); or a socket - connected when made with where to connect to, socket.create_connection,
+    /// new Socket(host, port), new TcpClient(host, port), and not yet connected when made with nothing, socket.socket(),
+    /// new Socket(), new TcpClient().
+    /// </summary>
+    private (Resource Kind, bool Connected)? Opened(Expr value) => value switch
+    {
+        _ when Opens(value) => (Resource.File, true),
+        Call { Callee: Member { Target: Name { Identifier: "sqlite3" }, MemberName: "connect" } } when IsPython => (Resource.Database, true),
+        Call { Callee: Member { Target: Name { Identifier: "socket" }, MemberName: "socket" } } when IsPython => (Resource.Socket, false),
+        Call { Callee: Member { Target: Name { Identifier: "socket" }, MemberName: "create_connection" } } when IsPython => (Resource.Socket, true),
+        NewObject { Type.Name: "Socket", Arguments.Count: var given } when language == SourceLanguage.Java => (Resource.Socket, given > 0),
+        NewObject { Type.Name: "TcpClient", Arguments.Count: var given } when language == SourceLanguage.CSharp => (Resource.Socket, given > 0),
+        NewObject { Type.Name: "Socket" } when language == SourceLanguage.CSharp => (Resource.Socket, false),
+        _ => null,
+    };
+
     /// <summary>What opens a file or stream: open(...), new FileReader(...), File.OpenText(...) and their like.</summary>
     private bool Opens(Expr value) => value switch
     {
@@ -401,29 +447,61 @@ public sealed class Protocols(
     private void Uses(State state, Expr expression, bool reporting)
     {
         if (expression is Call { Callee: Member { Target: Name { Identifier: var owner }, MemberName: var method } } call)
-            Use(state, owner, call.Span, $"`{quote(call)}`", reporting && method is not ("close" or "Close" or "Dispose" or "closed"));
+            Use(state, owner, call.Span, $"`{quote(call)}`", reporting && method is not ("close" or "Close" or "Dispose" or "closed"), method);
 
         if (expression is NextItem { Items: Name { Identifier: var items } } next) Use(state, items, next.Span, $"the loop over `{items}`", reporting);
 
         foreach (var child in IrWalk.Children(expression)) Uses(state, child, reporting);
     }
 
-    private void Use(State state, string name, SourceSpan span, string what, bool reporting)
+    private void Use(State state, string name, SourceSpan span, string what, bool reporting, string? method = null)
     {
-        if (!reporting || !state.TryGetValue(name, out var marks) || marks.Count == 0 || !marks.All(m => m.Phase == Phase.Closed)) return;
+        if (!reporting || !state.TryGetValue(name, out var marks) || marks.Count == 0) return;
+
+        if (marks.All(m => m.Phase == Phase.Unconnected) && method is { } talking && SendsOrReceives(talking) && _reported.Add(span))
+        {
+            report("analysis-used-before-connect", span,
+                $"`{name}` was made on line {marks.Min(m => m.Line)} and is not connected yet, so {what} fails with {NotConnected(talking)}",
+                Severity.Error, Confidence.Certain);
+            return;
+        }
+
+        if (!marks.All(m => m.Phase == Phase.Closed)) return;
         if (!_reported.Add(span)) return;
 
         var closedAt = marks.Select(m => m.Line).Distinct().Order().ToList();
-        var failure = language switch
+        var kind = KindOf(state, name);
+        var failure = (kind, language) switch
         {
-            SourceLanguage.Python => "ValueError: I/O operation on closed file",
-            SourceLanguage.CSharp => "an ObjectDisposedException",
+            (Resource.Database, _) => "sqlite3.ProgrammingError: Cannot operate on a closed database.",
+            (Resource.Socket, SourceLanguage.Python) => "OSError",
+            (Resource.Socket, SourceLanguage.Java) => "a SocketException (Socket is closed)",
+            (_, SourceLanguage.Python) => "ValueError: I/O operation on closed file",
+            (_, SourceLanguage.CSharp) => "an ObjectDisposedException",
             _ => "an IOException (Stream closed)",
         };
 
-        report("analysis-used-after-close", span,
+        report(kind == Resource.File ? "analysis-used-after-close" : "analysis-connection-used-after-close", span,
             $"`{name}` was closed on line {string.Join(" or ", closedAt)}, so {what} fails with {failure}", Severity.Error, Confidence.Certain);
     }
+
+    /// <summary>What sends or receives on a socket - which a socket not yet connected refuses; bind, listen and their like do not.</summary>
+    private bool SendsOrReceives(string method) => language switch
+    {
+        SourceLanguage.Python => method is "send" or "sendall" or "recv" or "recv_into",
+        SourceLanguage.Java => method is "getOutputStream" or "getInputStream",
+        SourceLanguage.CSharp => method is "Send" or "Receive" or "GetStream",
+        _ => false,
+    };
+
+    /// <summary>What sending or receiving on a socket not yet connected fails with, as Python 3.13, Java 21 and .NET 10 gave it.</summary>
+    private string NotConnected(string method) => language switch
+    {
+        SourceLanguage.Python => "OSError",
+        SourceLanguage.Java => "a SocketException (Socket is not connected)",
+        _ when method == "GetStream" => "an InvalidOperationException (The operation is not allowed on non-connected sockets.)",
+        _ => "a SocketException",
+    };
 
     private void StillHeld(State state, Leave leave)
     {

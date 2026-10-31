@@ -43,6 +43,8 @@ public class LibraryMistakeTests : IDisposable
     [InlineData("app.py", "logic-python-iterator-used-twice", "squares = (n * n for n in range(4))\nprint(sum(squares))\nprint(sorted(squares))\n", 1, "squares = list(n * n for n in range(4))")]
     [InlineData("app.py", "logic-python-strip-word", "name = \"photo.jpg\"\nprint(name.rstrip(\".jpg\"))\n", 2, "print(name.removesuffix(\".jpg\"))")]
     [InlineData("app.py", "logic-python-strip-word", "url = \"www.example.com\"\nprint(url.lstrip(\"www.\"))\n", 2, "print(url.removeprefix(\"www.\"))")]
+    [InlineData("app.py", "logic-python-asyncio-run-in-async", "import asyncio\n\nasync def main():\n    value = asyncio.run(fetch())\n", 4, "    value = await fetch()")]
+    [InlineData("app.py", "logic-python-asyncio-run-in-async", "import asyncio\n\nclass Loader:\n    async def load(self):\n        if self.ready:\n            return asyncio.run(self.fetch(1))\n", 6, "            return await self.fetch(1)")]
     [InlineData("app.py", "logic-python-lambda-in-loop", "adders = [lambda x: x + step for step in range(3)]\n", 1, "adders = [lambda x, step=step: x + step for step in range(3)]")]
     [InlineData("app.py", "logic-python-lambda-in-loop", "callbacks = []\nfor step in range(3):\n    callbacks.append(lambda: step)\n", 3, "    callbacks.append(lambda step=step: step)")]
     // JavaScript.
@@ -134,6 +136,9 @@ public class LibraryMistakeTests : IDisposable
     // A final String cannot be given its copy, and await cannot be written outside an async function.
     [InlineData("main.dart", "logic-dart-result-discarded", "void main() {\n  final name = 'ada';\n  name.trim();\n}\n")]
     [InlineData("main.dart", "logic-dart-future-used-as-value", "Future<int> load() async => 1;\nvoid main() {\n  var data = load();\n  print(data);\n}\n")]
+    // What to give back when an Optional is empty is the program's to say.
+    [InlineData("Main.java", "logic-java-optional-get-unchecked", "import java.util.List;\nclass Main {\n    int high(List<Integer> marks) { return marks.stream().filter(mark -> mark > 95).findFirst().get(); }\n}\n")]
+    [InlineData("Main.java", "logic-java-optional-get-unchecked", "import java.util.List;\nclass Main {\n    int top(List<Integer> marks) {\n        return marks.stream()\n            .max(Integer::compare).get();\n    }\n}\n")]
     public void AMistakeWithNoSureChangeIsFoundWithoutOne(string fileName, string check, string code) =>
         Assert.Null(Assert.Single(Scan(fileName, code, check)).Fix);
 
@@ -153,6 +158,10 @@ public class LibraryMistakeTests : IDisposable
     [InlineData("app.py", "logic-python-iterator-used-twice", "numbers = list(map(int, ['3']))\nprint(sum(numbers), max(numbers))\nsquares = map(abs, [-1])\nprint(sum(squares))\n")]
     [InlineData("app.py", "logic-python-strip-word", "line = input()\nprint(line.rstrip(\" \\n\"), line.rstrip(\"/\"), line.lstrip(\"0\"))\n")]
     [InlineData("app.py", "logic-python-lambda-in-loop", "adders = [lambda x, step=step: x + step for step in range(3)]\nfor step in range(3):\n    print((lambda: step)())\n")]
+    // Python: asyncio.run where no loop is running - at the top, in a plain def, in a plain def inside an async def - and await.
+    [InlineData("app.py", "logic-python-asyncio-run-in-async", "import asyncio\n\nasync def main():\n    value = await fetch()\n\n    def later():\n        return asyncio.run(fetch())\n\ndef start():\n    asyncio.run(main())\n\nasyncio.run(main())\n")]
+    // Java: an Optional given a value for when it is empty, the item Collections.max gives, and get with a position.
+    [InlineData("Main.java", "logic-java-optional-get-unchecked", "import java.util.*;\nclass Main {\n    int high(List<Integer> marks, List<java.util.concurrent.atomic.AtomicInteger> counters) {\n        int top = Collections.max(counters, Comparator.comparingInt(java.util.concurrent.atomic.AtomicInteger::get)).get();\n        return marks.stream().findFirst().orElse(0) + marks.stream().max(Integer::compare).orElseThrow() + top + marks.get(0);\n    }\n}\n")]
     // JavaScript: holes filled first, a regular expression, await and then, the function itself, a factory, the year and the weekday.
     [InlineData("app.js", "logic-js-array-holes-mapped", "const zeros = new Array(3).fill(0).map((n) => n);\nconst named = new Array(\"a\").map((s) => s);\n")]
     [InlineData("app.js", "logic-js-replace-first-only", "const phone = '555-1234';\nconsole.log(phone.replace(/-/g, ''), phone.replace('555', ''));\n")]

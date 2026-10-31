@@ -34,7 +34,7 @@ public static class ScalaDownloadErrors
             _ => $"It needs {string.Join(", ", named.Take(named.Count - 1))} and {named[^1]}, which are not in Scala CLI's cache on this computer.",
         };
 
-        var note = $"{what} FixFinder never downloads anything - it runs Scala CLI offline - so {Path.GetFileName(chosen)} was not built, which is not a " +
+        var note = $"{what} A check never downloads anything - it runs Scala CLI offline - so {Path.GetFileName(chosen)} was not built, which is not a " +
                    "mistake in the code. Building it once with Scala CLI while online - scala-cli compile . in its folder - downloads what it needs, and FixFinder " +
                    "builds it after that.";
 

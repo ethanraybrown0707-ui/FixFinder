@@ -1,14 +1,18 @@
+using System.Globalization;
+using System.Numerics;
+using System.Text.RegularExpressions;
 using FixFinder.Core.Analysis.Abstract;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Slicing;
 using FixFinder.Core.Analysis.Symbolic;
 using FixFinder.Core.Checking;
+using FixFinder.Core.LocalFixes;
 
 namespace FixFinder.Core.Analysis.Checks;
 
 /// <summary>Contradictions and unsafe operations, found by running each function on abstract values.</summary>
-public static class AbstractChecks
+public static partial class AbstractChecks
 {
     public const string FoundBy = "abstract interpretation";
 
@@ -104,6 +108,10 @@ public static class AbstractChecks
         cache?.Finished(reused, analysed);
 
         findings = WithDivisionsNoCallMakesToldAsSuch(findings, program, functions, source, targets, effects, ContractsOf);
+
+        findings.AddRange(EndlessRecursion.Find(
+            functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())), targets, program.Language, source,
+            "following every way through each function, and the calls it makes"));
 
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
@@ -377,7 +385,7 @@ public static class AbstractChecks
         return state;
     }
 
-    private sealed class FunctionChecks(
+    private sealed partial class FunctionChecks(
         ControlFlowGraph graph, Fixpoint fixpoint, Evaluator evaluator, SourceText source, List<AnalysisFinding> findings, CallTargets targets, Effects effects,
         Func<IrFunction, IReadOnlyList<Precondition>> contractsOf)
     {
@@ -535,6 +543,7 @@ public static class AbstractChecks
 
                 case Binary binary:
                     CheckDivision(binary, state);
+                    CheckOverflow(binary, state);
                     CheckOperandTypes(binary, state);
                     break;
 
@@ -581,6 +590,154 @@ public static class AbstractChecks
             NextItem next => [next.Items],
             Opaque opaque => opaque.Parts,
             _ => [],
+        };
+
+        /// <summary>
+        /// Whole-number arithmetic that passes what an int holds: two ints, each of a value the code shows, whose sum, difference
+        /// or product is above 2,147,483,647 or below -2,147,483,648. Java and C# work it out as an int, and it wraps round -
+        /// days * 24 * 60 * 60 * 1000 with days 365 gave 1471228928 in Java 21 and .NET 10, even stored in a long, as it is made
+        /// a long only after it has wrapped. A sum written all in numbers is the logic check's in Java, and C#'s compiler
+        /// refuses it (CS0220), so only arithmetic with a name in it is looked at here.
+        /// </summary>
+        /// <remarks>
+        /// C and C++ leave what happens then undefined; gcc 13.2, building as FixFinder does, gave 1471228928 too, with no
+        /// warning even with -Wall -Wextra. Go defines it: an int32 wraps round, and days as an int32 gave 1471228928, which
+        /// neither go vet nor go build said anything of - Go's own int is 64 bits, and gave 31536000000.
+        /// </remarks>
+        private void CheckOverflow(Binary binary, AbstractState state)
+        {
+            if (evaluator.Language is not (SourceLanguage.Java or SourceLanguage.CSharp or SourceLanguage.C or SourceLanguage.Cpp or SourceLanguage.Go)) return;
+            if (binary.Operator is not (BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply)) return;
+            if (!IsInt(binary.Left) || !IsInt(binary.Right) || !NamesSomething(binary)) return;
+
+            var left = evaluator.Evaluate(binary.Left, state);
+            var right = evaluator.Evaluate(binary.Right, state);
+            if (!left.IsOnly(ValueKind.Integer) || !right.IsOnly(ValueKind.Integer) || !left.Number.IsExact || !right.Number.IsExact) return;
+
+            var (first, second) = (new BigInteger(left.Number.Low), new BigInteger(right.Number.Low));
+            var (exact, sign) = binary.Operator switch
+            {
+                BinaryOperator.Add => (first + second, "+"),
+                BinaryOperator.Subtract => (first - second, "-"),
+                _ => (first * second, "*"),
+            };
+            if (exact >= int.MinValue && exact <= int.MaxValue) return;
+
+            var bits = ((exact % 4294967296) + 4294967296) % 4294967296;
+            var wrapped = bits > int.MaxValue ? bits - 4294967296 : bits;
+            var intNamed = evaluator.Language == SourceLanguage.Go ? "an int32" : "an int";
+            var limit = exact > int.MaxValue ? $"the largest {intNamed} holds, 2,147,483,647" : $"the smallest {intNamed} holds, -2,147,483,648";
+
+            // C and C++ leave what an int does past its limits undefined: what gcc, building as FixFinder does, was seen to do is said as that.
+            var then = evaluator.Language switch
+            {
+                SourceLanguage.C => $"C leaves what happens then undefined, and gcc, building it as FixFinder does, wraps it round to {Number(wrapped)}, with no error or warning",
+                SourceLanguage.Cpp => $"C++ leaves what happens then undefined, and g++, building it as FixFinder does, wraps it round to {Number(wrapped)}, with no error or warning",
+                _ => $"so it wraps round to {Number(wrapped)}, with no error",
+            };
+
+            Report("analysis-integer-overflow", binary.Span,
+                $"`{Quote(binary)}` is worked out as {intNamed}, and {Number(first)} {sign} {Number(second)} is {Number(exact)} - past {limit} - {then}",
+                Severity.Error, Confidence.Certain, FindingKind.Logic);
+
+            if (findings.Count > 0 && findings[^1].CheckId == "analysis-integer-overflow" && WidenedFirst(binary) is { } change)
+                findings[^1] = findings[^1] with { Fix = change };
+        }
+
+        private static string Number(BigInteger value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+        /// <summary>Whether arithmetic has a name in it - days * 24 - rather than numbers alone.</summary>
+        private static bool NamesSomething(Expr expression) => expression switch
+        {
+            Name => true,
+            Binary binary => NamesSomething(binary.Left) || NamesSomething(binary.Right),
+            Unary unary => NamesSomething(unary.Operand),
+            _ => false,
+        };
+
+        /// <summary>A whole number written with nothing after it - no L, U or LL, which make it another kind of number.</summary>
+        [GeneratedRegex(@"^(?:0[xX][0-9a-fA-F_]+|[0-9][0-9_]*)$")]
+        private static partial Regex PlainWholeNumber();
+
+        /// <summary>
+        /// Whether an expression is a 32-bit int: a whole number written with nothing after it that an int holds, a name declared
+        /// a type the language works out as an int, or arithmetic on such ints. A long anywhere makes it a long.
+        /// </summary>
+        private bool IsInt(Expr expression) => expression switch
+        {
+            Literal { Kind: LiteralKind.Integer, Value: var value } number => PlainWholeNumber().IsMatch(Quote(number).Trim()) && FitsAnInt(value),
+            Name { Identifier: var name } => evaluator.DeclaredTypes.TryGetValue(name, out var type) && WorkedOutAsAnInt(type.Name),
+            Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply } arithmetic => IsInt(arithmetic.Left) && IsInt(arithmetic.Right),
+            Unary { Operator: UnaryOperator.Negate } negated => IsInt(negated.Operand),
+            Cast { Type.Name: "int" or "Int32" } => true,
+            _ => false,
+        };
+
+        private static bool FitsAnInt(object? value) => value switch
+        {
+            int => true,
+            long whole => whole is >= int.MinValue and <= int.MaxValue,
+            BigInteger whole => whole >= int.MinValue && whole <= int.MaxValue,
+            double whole => whole is >= int.MinValue and <= int.MaxValue,
+            _ => false,
+        };
+
+        /// <summary>
+        /// The types each language works out as a 32-bit int: Java's and C#'s short and byte are made ints to work with, and so
+        /// are C's short and char; Go reads its int32 as int, and works out its int16 and int8 as themselves. C's long is left
+        /// out - 32 bits on Windows, 64 elsewhere - and so is every unsigned type, which wraps by a different rule.
+        /// </summary>
+        private bool WorkedOutAsAnInt(string type) => evaluator.Language switch
+        {
+            SourceLanguage.Go => type == "int",
+            SourceLanguage.C or SourceLanguage.Cpp => type is "int" or "short" or "sbyte",
+            _ => type is "int" or "short" or "byte" or "Int32" or "Int16",
+        };
+
+        /// <summary>
+        /// The change that makes the arithmetic 64 bits from its first number, so each step after it is worked out in 64 bits
+        /// and nothing wraps: in Java and C#, (long) before a name or L after a written number; in C and C++, (long long) or LL,
+        /// as a long is 32 bits on Windows. In Go, int64(days) - only when every other part is a written number, which Go then
+        /// takes as an int64 too: an int32 name beside an int64 is an error Go refuses to build.
+        /// </summary>
+        private LocalFix? WidenedFirst(Binary binary)
+        {
+            Expr first = binary;
+            while (first is Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply } inner) first = inner.Left;
+
+            var span = first.Span;
+            if (span.Line != binary.Span.Line || source.Line(span.File, span.Line) is not { } line || span.Column < 0 || span.Column >= line.Length) return null;
+
+            var native = evaluator.Language is SourceLanguage.C or SourceLanguage.Cpp;
+            var (cast, suffix, wide) = native ? ("(long long) ", "LL", "a long long") : ("(long) ", "L", "a long");
+            var literalEnds = span.EndLine == span.Line && span.EndColumn > span.Column && span.EndColumn <= line.Length;
+
+            var (changed, how) = (evaluator.Language, first) switch
+            {
+                (SourceLanguage.Go, Name) when literalEnds && OnlyNumbersBeside(binary, first) =>
+                    (line[..span.Column] + "int64(" + line[span.Column..span.EndColumn] + ")" + line[span.EndColumn..], $"int64({Quote(first)})"),
+                (SourceLanguage.Go, _) => (null, null),
+                (_, Name) => (line[..span.Column] + cast + line[span.Column..], $"{cast.Trim()} before `{Quote(first)}`"),
+                (_, Literal) when literalEnds => (line[..span.EndColumn] + suffix + line[span.EndColumn..], $"{suffix} after {Quote(first)}"),
+                _ => (null, null),
+            };
+            if (changed is null) return null;
+
+            var why = evaluator.Language == SourceLanguage.Go
+                ? "An int64 holds whole numbers up to 9,223,372,036,854,775,807. Made an int64 from its first number, the written numbers after it are int64s too, so nothing wraps."
+                : $"{char.ToUpperInvariant(wide[0])}{wide[1..]} holds whole numbers up to 9,223,372,036,854,775,807. Made {wide} from its first number, every step after it is worked out as {wide}, so nothing wraps.";
+
+            return LocalFix.ReplaceLine("analysis-integer-overflow",
+                $"Make it {(evaluator.Language == SourceLanguage.Go ? "an int64" : wide)} from the start: {how}", why, span.File, span.Line, changed);
+        }
+
+        /// <summary>Whether every part of the arithmetic but its first is a written number.</summary>
+        private static bool OnlyNumbersBeside(Expr arithmetic, Expr first) => arithmetic switch
+        {
+            _ when ReferenceEquals(arithmetic, first) => true,
+            Binary binary => OnlyNumbersBeside(binary.Left, first) && OnlyNumbersBeside(binary.Right, first),
+            Literal => true,
+            _ => false,
         };
 
         private void CheckDivision(Binary binary, AbstractState state)
@@ -733,10 +890,22 @@ public static class AbstractChecks
             }
 
             if (call.Callee is Member { Target: var owner, MemberName: var taking } && call.Arguments.Count == 0 && TakesAnItem(taking) is { } empty &&
-                evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List) && popped.Length is { IsExact: true, Low: 0 })
+                evaluator.Evaluate(owner, state) is var popped && popped.IsOnly(ValueKind.List))
             {
-                Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
-                    Severity.Error, Confidence.Certain);
+                if (popped.Length is { IsExact: true, Low: 0 })
+                {
+                    Report("analysis-empty-collection", call.Span, $"`{Quote(owner)}` is empty here, so `{Quote(call)}` fails with {empty}" + SharedWith(owner, state),
+                        Severity.Error, Confidence.Certain);
+                }
+                // Empty on one way here and not on another - items = [], then an append only when a test passes: a size this
+                // analysis knows the bounds of, from 0 to some number. One it knows nothing of - a list it was given - is not
+                // reported, as nearly every pop would be.
+                else if (popped.Length is { Low: 0, High: >= 1 } && !double.IsPositiveInfinity(popped.Length.High) && Followable(owner))
+                {
+                    Report("analysis-empty-collection", call.Span,
+                        $"`{Quote(owner)}` can still be empty here, so `{Quote(call)}` can fail with {empty}" + SharedWith(owner, state),
+                        Severity.Error, Confidence.Possible);
+                }
             }
 
             if (!IsPython)
@@ -775,7 +944,7 @@ public static class AbstractChecks
         private string? TakesAnItem(string method) => evaluator.Language switch
         {
             SourceLanguage.Python when method == "pop" => Failures.TakingFromEmpty(SourceLanguage.Python),
-            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" => Failures.TakingFromEmpty(SourceLanguage.CSharp),
+            SourceLanguage.CSharp when method is "Pop" or "Dequeue" or "Peek" or "First" or "Last" or "Single" => Failures.TakingFromEmpty(SourceLanguage.CSharp),
             SourceLanguage.Java when method is "pop" or "element" or "getFirst" or "getLast" or "removeFirst" or "removeLast" =>
                 "a NoSuchElementException (EmptyStackException for a Stack)",
             _ => null,
@@ -981,13 +1150,19 @@ public static class AbstractChecks
 
         private void ReportConditions()
         {
-            foreach (var (span, (canBeTrue, canBeFalse, block, branch)) in _conditions)
+            foreach (var (span, (testedCanBeTrue, testedCanBeFalse, block, branch)) in _conditions)
             {
-                if (canBeTrue == canBeFalse || IsDeliberateConstant(branch.Condition) ||
+                if (testedCanBeTrue == testedCanBeFalse || IsDeliberateConstant(branch.Condition) ||
                     branch.Condition is Name { Identifier: var flag } && Switches.Contains(flag) || ChecksAHint(branch.Condition)) continue;
 
-                var text = Quote(branch.Condition);
-                var failing = graph.Blocks[branch.WhenFalse];
+                // if not marks: is tested as marks, the two ways swapped; what is said is said of not marks, as written, and of
+                // the code written under it - not of marks, and of the code after the if.
+                var written = branch.WrittenAsNot;
+                var (canBeTrue, guarded, unguarded) = written is null
+                    ? (testedCanBeTrue, branch.WhenTrue, branch.WhenFalse)
+                    : (testedCanBeFalse, branch.WhenFalse, branch.WhenTrue);
+                var text = Quote((Expr?)written ?? branch.Condition);
+                var failing = graph.Blocks[unguarded];
                 var isAssert = failing.Instructions.Count == 0 && failing.Terminator is Raise { Exception: Opaque { What: "AssertionError" } };
 
                 if (isAssert)
@@ -1008,7 +1183,7 @@ public static class AbstractChecks
                     continue;
                 }
 
-                if (!canBeTrue && OnlyThrows(branch.WhenTrue) || canBeTrue && branch.TestsACase) continue;
+                if (!canBeTrue && OnlyThrows(guarded) || canBeTrue && branch.TestsACase) continue;
 
                 if (!canBeTrue)
                     Report("analysis-never-true", span, $"`{text}` can never be true here, so the code it guards never runs",

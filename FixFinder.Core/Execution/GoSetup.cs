@@ -16,7 +16,7 @@ public sealed record GoSetup(string Go, string Explained, string? CodeNeeds, Ver
     private const string Language = "Go";
 
     /// <summary>
-    /// What every go command FixFinder starts is given, as FixFinder never downloads anything: GOTOOLCHAIN=local, so the
+    /// What every go command a check starts is given, as a check never downloads anything: GOTOOLCHAIN=local, so the
     /// Go chosen is the Go that runs - a go command left to itself downloads and runs a later Go when the module asks for
     /// one; GOPROXY=off, so a module its go.mod requires that is not in Go's module cache is not downloaded, from a proxy
     /// or - for a private one - from where its code is kept; and GOSUMDB=off, as with no proxy the go command would reach

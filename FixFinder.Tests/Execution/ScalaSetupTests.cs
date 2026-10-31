@@ -171,7 +171,7 @@ public class ScalaSetupTests : IDisposable
 
         Assert.Null(setup);
         Assert.Contains("needs Scala 2.12.18, as its build.sbt asks for it, and no Scala 2.12 is in Scala CLI's cache on this computer - only 3.8.4, 2.13.18", problem);
-        Assert.Contains("FixFinder never downloads anything", problem);
+        Assert.Contains("A check never downloads anything", problem);
     }
 
     [Fact]

@@ -123,20 +123,52 @@ public class TargetFactoryTests : IDisposable
     }
 
     /// <summary>
-    /// Go compiles the standard library before it runs anything on a machine that has never built Go, which
-    /// outlasts the ordinary wait. Killing it there does not make FixFinder slow, it makes it wrong: the
-    /// program is stopped before it reaches the line that crashes, and a program that fails instantly is
-    /// reported as one that never finished.
+    /// Go compiles the standard library before it runs anything on a machine that has never built Go, which outlasts the
+    /// ordinary wait - and go run does it inside the run. Killing it there does not make FixFinder slow, it makes it wrong:
+    /// the program is stopped before it reaches the line that crashes, and a program that fails at once is reported as one
+    /// that never finished. So go build runs first, writing nothing beside the program, given a first build's time, with
+    /// the run's own environment - its proxy off - and the run is timed on the program alone.
     /// </summary>
     [Fact]
-    public void GoIsGivenTimeToCompileTheStandardLibraryFirst()
+    public void GoIsBuiltFirstGivenTimeToCompileTheStandardLibrary()
     {
-        var plan = TargetFactory.FromFile(Make("crash.go", "package main"));
+        var file = Make("crash.go", "package main");
+        var plan = TargetFactory.FromFile(file);
 
         if (!plan.Ok) return;
 
-        Assert.Equal(TargetFactory.FirstRunTimeout, plan.Spec!.Timeout);
-        Assert.True(plan.Spec.Timeout > TargetFactory.DefaultTimeout);
+        var build = plan.Spec!.BuildFirst!;
+        Assert.Equal(($"build -o NUL \"{file}\"", TargetFactory.FirstRunTimeout, "off"), (build.Arguments, build.Timeout, build.ExtraEnvironment["GOPROXY"]));
+        Assert.Equal(plan.Spec.ExecutablePath, build.ExecutablePath);
+        Assert.Equal(TargetFactory.RunTimeLimit, plan.Spec.Timeout);
+    }
+
+    /// <summary>dotnet run builds the file, or the project, first: dotnet build does it on its own. Nothing else is built first.</summary>
+    [Fact]
+    public void CSharpIsBuiltFirstAndNothingElseIs()
+    {
+        var file = Make("Program.cs", "System.Console.WriteLine(1);\n");
+        if (TargetFactory.FromFile(file) is { Ok: true } single)
+            Assert.Equal($"build \"{file}\"", single.Spec!.BuildFirst?.Arguments);
+
+        var project = Make(Path.Combine("app", "App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup></Project>\n");
+        Make(Path.Combine("app", "Program.cs"), "System.Console.WriteLine(1);\n");
+        if (TargetFactory.FromFile(project) is { Ok: true } built)
+            Assert.Equal($"build \"{project}\"", built.Spec!.BuildFirst?.Arguments);
+
+        Assert.Null(TargetFactory.FromFile(Make("main.py")).Spec?.BuildFirst);
+        Assert.Null(TargetFactory.FromFile(Make("main.js", "console.log(1);\n")).Spec?.BuildFirst);
+    }
+
+    /// <summary>What the program is given - its arguments, what is typed in, its time - does not lose the build done first.</summary>
+    [Fact]
+    public void TheBuildDoneFirstStaysWithTheRunWhateverItIsGiven()
+    {
+        if (TargetFactory.FromFile(Make("main.go", "package main\n\nfunc main() {}\n")) is not { Ok: true } plan) return;
+
+        var given = plan.Spec!.WithArguments("marks.txt").WithInput("5\n").WithTimeout(TimeSpan.FromSeconds(3));
+        Assert.Same(plan.Spec.BuildFirst, given.BuildFirst);
+        Assert.DoesNotContain("marks.txt", given.BuildFirst!.Arguments, StringComparison.Ordinal);
     }
 
     [Theory]

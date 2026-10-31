@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Checking;
 
@@ -412,8 +413,47 @@ internal sealed class Races(IrProgram program, ProgramNames names)
 
             _findings.Add(new AnalysisFinding(ReadBeforeJoinRule, reportAt,
                 $"{what} while the thread started on {Places.Line(thread.StartedAt, reportAt)} may still be changing it at {Places.Line(change.At, reportAt)} - {wait}",
-                Severity.Warning, Confidence.Likely, FindingKind.Logic, Concurrency.FoundBy));
+                Severity.Warning, Confidence.Likely, FindingKind.Logic, Concurrency.FoundBy)
+            {
+                Fix = thread.JoinedAt is null ? WaitFirst(thread, reportAt) : null,
+            });
         }
+    }
+
+    /// <summary>
+    /// The change that waits for the thread on the line before the read: worker.join() in Python; worker.Join() in C#; and in
+    /// Java worker.join(), only where the method already says it throws InterruptedException - join() can throw it, and Java
+    /// will not build the call otherwise. Only for a thread one name holds, started by that name - worker.start() - so the
+    /// name waits for that thread and no other.
+    /// </summary>
+    private LocalFixes.LocalFix? WaitFirst(ThreadStart thread, SourceSpan read)
+    {
+        if (thread.Handle is not { } handle || LocalFixes.SourceFile.Read(read.File) is not { } source) return null;
+        if (source.Line(thread.StartedAt.Line) is not { } startedOn ||
+            !Regex.IsMatch(startedOn, $@"(?<![\w.]){Regex.Escape(handle)}\s*\.\s*[sS]tart\s*\(")) return null;
+        if (source.Line(read.Line) is not { } readOn) return null;
+
+        var call = program.Language switch
+        {
+            SourceLanguage.Python => $"{handle}.join()",
+            SourceLanguage.CSharp => $"{handle}.Join();",
+            SourceLanguage.Java when SaysItThrowsInterrupted(thread.Launcher, source) => $"{handle}.join();",
+            _ => null,
+        };
+        if (call is null) return null;
+
+        var indent = readOn[..(readOn.Length - readOn.TrimStart().Length)];
+        return LocalFixes.LocalFix.Insert(ReadBeforeJoinRule, $"Wait for the thread first: {call}",
+            "This waits until the thread has finished, so what is read after it is what the thread left.", read.File, read.Line, [indent + call]);
+    }
+
+    /// <summary>Whether a Java method's header says it throws InterruptedException, or an Exception or Throwable that holds it.</summary>
+    private static bool SaysItThrowsInterrupted(IrFunction method, LocalFixes.SourceFile source)
+    {
+        var header = string.Join(" ", Enumerable.Range(method.Span.Line, 4).Select(source.Line).TakeWhile(line => line is not null)
+            .Select(line => line!).TakeWhile((line, index) => index == 0 || !line.Contains('{')));
+        var upToBody = header.Contains('{') ? header[..header.IndexOf('{')] : header;
+        return Regex.IsMatch(upToBody, @"\bthrows\b[^{]*\b(?:InterruptedException|Exception|Throwable)\b");
     }
 
     private string Waiting(ThreadStart thread) => thread.JoinedBy is { } by ? $"`{names.Shown(by)}`" : "the end of the block that closes its pool";

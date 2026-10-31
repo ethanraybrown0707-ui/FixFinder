@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 
 namespace FixFinder.Core.Engine;
 
@@ -48,6 +49,12 @@ public sealed class Preferences
     public bool WindowsRunUntilClosed { get; set; }
 
     /// <summary>
+    /// Whether the libraries a project names that are not on this computer are restored before it is checked - which
+    /// downloads them - and whether to ask first. Never, unless chosen.
+    /// </summary>
+    public RestoreChoice RestoreLibraries { get; set; } = RestoreChoice.Never;
+
+    /// <summary>
     /// The preferences written down last time. What earlier versions of FixFinder wrote and this one no longer asks - a
     /// depth of explanation, a version of each language - is passed over, as each program's version is now worked out
     /// from its project and its code.
@@ -60,7 +67,11 @@ public sealed class Preferences
         {
             if (!File.Exists(file)) return new Preferences();
 
-            return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file), JsonOptions.Default) ?? new Preferences();
+            var loaded = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file), JsonOptions.Default) ?? new Preferences();
+
+            // A choice this version has no name for is taken as never, so nothing is downloaded that nobody chose.
+            if (!Enum.IsDefined(loaded.RestoreLibraries)) loaded.RestoreLibraries = RestoreChoice.Never;
+            return loaded;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

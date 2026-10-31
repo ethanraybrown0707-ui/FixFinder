@@ -63,6 +63,7 @@ public static class ConceptMap
         new(Concepts.Arguments) { Codes = ["E0061"] },
         new(Concepts.ReadBeforeSet) { Codes = ["E0381"] },
         new(Concepts.EndlessRecursion) { Codes = ["unconditional_recursion"] },
+        new(Concepts.EndlessRecursion) { CheckIds = ["analysis-recursion-never-ends"] },
         new(Concepts.NeverUsed) { Codes = ["unused_variables", "unused_assignments", "unused_mut", "dead_code", "unused_imports"] },
         new(Concepts.StatementEnd) { ExceptionTypes = ["compile error"], Message = Words(@"^expected `;`") },
         new(Concepts.UnclosedPair) { ExceptionTypes = ["compile error"], Message = Words(@"^mismatched closing delimiter|^unclosed delimiter|^this file contains an unclosed delimiter") },

@@ -44,9 +44,15 @@ public static class SymbolicChecks
 
             if (report.Outcomes.TryGetValue((finding.CheckId, finding.Span), out var outcome))
             {
+                // A line that could fail, now shown to fail for the inputs found: said as that - "When `flag` is False, `items`
+                // is empty here, so `items.pop()` fails" - in place of "can still be empty here", which said only that it might.
                 if (outcome.CanFail)
                     refined.Add(outcome.Witness is { Facts.Count: > 0 } witness
-                        ? finding with { Witness = witness.ToString(), WitnessValues = witness.Values, FoundBy = Confirmed }
+                        ? finding with
+                        {
+                            Message = finding.Confidence == Confidence.Possible ? Message(finding.CheckId, finding.Span, outcome, evaluator.Language, source) : finding.Message,
+                            Witness = witness.ToString(), WitnessValues = witness.Values, FoundBy = Confirmed,
+                        }
                         : finding);
                 else if (!(mayDrop && !outcome.Unsure))
                     refined.Add(finding);
@@ -106,6 +112,21 @@ public static class SymbolicChecks
                 "analysis-index-out-of-range" => $"`{culprit}` is outside the list when {when}, so `{whole}` fails with {Failure(language, "index")}",
                 "analysis-null-used" => $"`{culprit}` is {none} when {when}, so `{whole}` fails with {Failure(language, "null")}",
                 _ => $"`{culprit}` is empty when {when}, so `{whole}` fails with {Failure(language, "empty")}",
+            };
+        }
+
+        // The way through that is certain to fail, with an input that takes the program down it when one is known. The input
+        // is one example the solver found, not every input that fails - if a == b: 1 / (a - b) fails for every a equal to b,
+        // and the solver gives a = 0 and b = 0 - so it is said as an example of the way, never as its whole condition.
+        if (outcome.Witness is { Facts.Count: > 0 } path)
+        {
+            var example = $" - for example when {path} -";
+            return check switch
+            {
+                "analysis-division-by-zero" => $"On one way through the code `{culprit}` is always 0 here{example} so `{whole}` fails with {Failure(language, "zero")}",
+                "analysis-index-out-of-range" => $"On one way through the code `{culprit}` is always outside the list here{example} so `{whole}` fails with {Failure(language, "index")}",
+                "analysis-null-used" => $"On one way through the code `{culprit}` is always {none} here{example} so `{whole}` fails with {Failure(language, "null")}",
+                _ => $"On one way through the code `{culprit}` is always empty here{example} so `{whole}` fails with {Failure(language, "empty")}",
             };
         }
 

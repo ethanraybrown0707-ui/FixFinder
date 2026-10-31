@@ -153,7 +153,7 @@ public static partial class CompilerDiagnostics
 
         if (TypeScriptCompiler.For(chosen) is not { } compiler)
             return ([], [], $"{NotChecked}: no TypeScript compiler, tsc, was found - in a node_modules above the program, or installed with npm - " +
-                            "and Node.js takes the types out without checking them. FixFinder never downloads one.");
+                            "and Node.js takes the types out without checking them. A check never downloads one.");
 
         if (!compiler.ChecksAsNodeRuns)
             return ([], [], $"{NotChecked}: the TypeScript compiler here, {compiler.Description}, is older than 5.0, the first to allow an import " +

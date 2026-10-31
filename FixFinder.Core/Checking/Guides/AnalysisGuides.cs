@@ -46,7 +46,7 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "pop() takes the last item off a list, and there has to be an item there to take. On every way to this line the list has nothing in it, so there is nothing to take.",
+            "pop() takes the last item off a list, and there has to be an item there to take. On the way through the code named here, the list has nothing in it when pop() runs, so there is nothing to take.",
             "pop() on an empty list stops the program with an IndexError.",
             "Check that it has items first.",
             """
@@ -336,6 +336,56 @@ internal static class AnalysisGuides
                 node = queue.popleft()
                 print(node)
             """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a connection after it is closed",
+            "A database connection or a socket has to be open to use it. close() closes it - and so does the end of a with block, for a socket - and every way to this line has already closed it.",
+            "Using a closed sqlite3 connection stops the program with sqlite3.ProgrammingError: Cannot operate on a closed database., and a closed socket with OSError.",
+            "Do everything you need with it before closing it, or connect again.",
+            """
+            import sqlite3
+
+            conn = sqlite3.connect("marks.db")
+            tables = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()
+            conn.close()
+            print(tables)
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A connection that is never closed",
+            "A database connection or a socket holds on to something outside the program - the database file, or a connection over the network - until it is closed. On this way out of the function nothing closes it. with sqlite3.connect(...) does not either: its with block commits, and leaves the connection open.",
+            "It stays open until Python gets round to tidying it up - CPython does when the last name for it goes, other Pythons may not - and until then it keeps hold of the file or the connection.",
+            "Close it in a finally, or open it with contextlib.closing(sqlite3.connect(...)), which closes it however the function ends; make a socket with with socket.socket() as s:.",
+            """
+            import contextlib
+            import sqlite3
+
+
+            def count_tables(path):
+                with contextlib.closing(sqlite3.connect(path)) as conn:
+                    return conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0]
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Sending on a socket before connecting it",
+            "socket.socket() makes a socket that is not connected to anything. It has to be connected - s.connect((host, port)) - before anything can be sent on it or received from it.",
+            "Sending or receiving on a socket that is not connected stops the program with OSError.",
+            "Connect it first, or make it connected with socket.create_connection((host, port)).",
+            """
+            import socket
+
+            with socket.create_connection(("example.org", 80)) as connection:
+                connection.sendall(b"HEAD / HTTP/1.0\r\n\r\n")
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Python stops the program with RecursionError: maximum recursion depth exceeded, once a thousand calls are waiting.",
+            "Give it a stopping point before the call - if n <= 0: return 0 - and make each call get closer to it: countdown(n - 1).",
+            """
+            def countdown(n):
+                if n <= 0:
+                    return 0
+                print(n)
+                return countdown(n - 1)
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -394,6 +444,36 @@ internal static class AnalysisGuides
             count++
             mu.Unlock()
             """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Go stops the program with fatal error: stack overflow.",
+            "Give it a stopping point before the call - if n <= 0 { return 0 } - and make each call get closer to it: countdown(n - 1).",
+            """
+            func countdown(n int) int {
+            	if n <= 0 {
+            		return 0
+            	}
+            	fmt.Println(n)
+            	return countdown(n - 1)
+            }
+            """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int32",
+            "An int32 holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on int32s is worked out as an int32, so a result past those limits does not fit: Go wraps it round, starting again from the other end, and gives no error.",
+            "The number is wrong, and nothing says so: days * 24 * 60 * 60 * 1000, with days an int32 of 365, gave 1471228928, not 31536000000 - and neither go vet nor go build said anything.",
+            "Work it out as an int64 from its first number - int64(days) * 24 * 60 * 60 * 1000 - or make days an int, which is 64 bits on a 64-bit computer.",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+                var days int32 = 365
+                millis := int64(days) * 24 * 60 * 60 * 1000
+                fmt.Println(millis)
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
@@ -419,6 +499,20 @@ internal static class AnalysisGuides
             let left = items.length;
             while (left > 0) {
               left -= 1;
+            }
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A function that never stops calling itself",
+            "A function that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a function that calls it back, so each call makes another.",
+            "The calls never end: Node.js stops the program with RangeError: Maximum call stack size exceeded.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: countdown(n - 1).",
+            """
+            function countdown(n) {
+              if (n <= 0) {
+                return 0;
+              }
+              console.log(n);
+              return countdown(n - 1);
             }
             """),
     ];
@@ -508,6 +602,16 @@ internal static class AnalysisGuides
             int total = 0;
             printf("%d\n", total);
             """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit. Storing it in a long long afterwards does not help, as it was worked out as an int first.",
+            "C and C++ leave what happens then undefined, and nothing says so: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928 built with gcc, not 31536000000, with no warning.",
+            "Make the arithmetic a long long from its first number - (long long) days * 24 * 60 * 60 * 1000, or 365LL * 24 * ... - so every step after it is worked out as a long long. A long is not enough on Windows, where it is 32 bits, like an int: (long) days gave 1471228928 too.",
+            """
+            int days = 365;
+            long long millis = (long long) days * 24 * 60 * 60 * 1000;
+            printf("%lld\n", millis);
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> Java { get; } =
@@ -548,7 +652,7 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "pop() and remove() take an item out of a stack or a queue, and there has to be an item there to take. On every way to this line the collection has nothing in it.",
+            "pop() and remove() take an item out of a stack or a queue, and there has to be an item there to take. On the way through the code named here, the collection has nothing in it at this line.",
             "Taking an item from an empty stack or queue stops the program with an exception.",
             "Check that it has items first.",
             """
@@ -855,6 +959,91 @@ internal static class AnalysisGuides
                 System.out.println(node);
             }
             """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a socket after it is closed",
+            "A socket has to be open to use it. close() closes it - and so does the end of its try-with-resources - and every way to this line has already closed it.",
+            "Using a closed socket throws a SocketException: Socket is closed.",
+            "Finish with the socket before closing it, or connect a new one.",
+            """
+            import java.io.IOException;
+            import java.io.OutputStream;
+            import java.net.Socket;
+
+            public class Ping {
+                public static void main(String[] args) throws IOException {
+                    try (Socket socket = new Socket("example.org", 80)) {
+                        OutputStream out = socket.getOutputStream();
+                        out.write("HEAD / HTTP/1.0\r\n\r\n".getBytes());
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A socket that is never closed",
+            "A socket holds a connection over the network until it is closed. On one way out of this method it is never closed, and nothing else was given it to close.",
+            "The connection stays open until the program ends.",
+            "Make it in a try-with-resources, which closes it however the method ends.",
+            """
+            import java.io.IOException;
+            import java.net.Socket;
+
+            public class Ping {
+                static boolean reachable(String host) throws IOException {
+                    try (Socket socket = new Socket(host, 80)) {
+                        return socket.isConnected();
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Using a socket before connecting it",
+            "new Socket() makes a socket that is not connected to anything. It has to be connected - socket.connect(new InetSocketAddress(host, port)) - before its streams can be used.",
+            "getOutputStream() or getInputStream() on a socket that is not connected throws a SocketException: Socket is not connected.",
+            "Connect it first, or make it connected: new Socket(host, port).",
+            """
+            import java.io.IOException;
+            import java.net.InetSocketAddress;
+            import java.net.Socket;
+
+            public class Ping {
+                public static void main(String[] args) throws IOException {
+                    try (Socket socket = new Socket()) {
+                        socket.connect(new InetSocketAddress("example.org", 80));
+                        socket.getOutputStream().write("HEAD / HTTP/1.0\r\n\r\n".getBytes());
+                    }
+                }
+            }
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A method that never stops calling itself",
+            "A method that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a method that calls it back, so each call makes another.",
+            "The calls never end: Java stops the program with a StackOverflowError.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: countdown(n - 1).",
+            """
+            public class Countdown {
+                static int countdown(int n) {
+                    if (n <= 0) {
+                        return 0;
+                    }
+                    System.out.println(n);
+                    return countdown(n - 1);
+                }
+            }
+            """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit: it wraps round, starting again from the other end. Storing it in a long afterwards does not help, as it has wrapped already.",
+            "The number is wrong, with no error: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928, not 31536000000.",
+            "Make the arithmetic a long from its first number - (long) days * 24 * 60 * 60 * 1000, or 365L * 24 * ... - so every step after it is worked out as a long.",
+            """
+            public class Year {
+                public static void main(String[] args) {
+                    int days = 365;
+                    long millis = (long) days * 24 * 60 * 60 * 1000;
+                    System.out.println(millis);
+                }
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -889,8 +1078,8 @@ internal static class AnalysisGuides
             """),
 
         GuideFor(["analysis-empty-collection"], "Taking an item from something empty",
-            "Pop, Dequeue and First take an item out, and there has to be one there to take. On every way to this line the collection is empty.",
-            "Pop, Dequeue, Peek, First and Last on an empty collection stop the program with an InvalidOperationException.",
+            "Pop, Dequeue and First take an item out, and there has to be one there to take. On the way through the code named here, the collection is empty at this line.",
+            "Pop, Dequeue, Peek, First, Last and Single on an empty collection stop the program with an InvalidOperationException.",
             "Check Count first, or use TryPop, TryDequeue or FirstOrDefault.",
             """
             if (stack.TryPop(out var top))
@@ -1156,6 +1345,72 @@ internal static class AnalysisGuides
                 var node = queue.Dequeue();
                 Console.WriteLine(node);
             }
+            """),
+
+        GuideFor(["analysis-connection-used-after-close"], "Using a socket after it is closed",
+            "A Socket or a TcpClient has to be open to use it. Close() or Dispose() closes it - and so does the end of its using block - and every way to this line has already closed it.",
+            "Using a closed socket throws an ObjectDisposedException.",
+            "Finish with it before closing it, or connect a new one.",
+            """
+            using System.Net.Sockets;
+            using System.Text;
+
+            using var client = new TcpClient("example.org", 80);
+            var stream = client.GetStream();
+            stream.Write(Encoding.ASCII.GetBytes("HEAD / HTTP/1.0\r\n\r\n"));
+            """),
+
+        GuideFor(["analysis-connection-not-closed"], "A socket that is never disposed of",
+            "A Socket or a TcpClient holds a connection over the network until it is disposed of. On one way out of this method it never is, and nothing else was given it to dispose of.",
+            "The connection stays open until the program ends.",
+            "Declare it with using, which disposes of it however the method ends.",
+            """
+            using System.Net.Sockets;
+
+            static bool Reachable(string host)
+            {
+                using var client = new TcpClient(host, 80);
+                return client.Connected;
+            }
+            """),
+
+        GuideFor(["analysis-used-before-connect"], "Using a socket before connecting it",
+            "new TcpClient() and new Socket(...) make a socket that is not connected to anything. It has to be connected - client.Connect(host, port) - before anything can be sent or received on it.",
+            "GetStream() on a TcpClient that is not connected throws an InvalidOperationException, and Send or Receive on a Socket that is not, a SocketException.",
+            "Connect it first, or make it connected: new TcpClient(host, port).",
+            """
+            using System.Net.Sockets;
+            using System.Text;
+
+            using var client = new TcpClient();
+            client.Connect("example.org", 80);
+            client.GetStream().Write(Encoding.ASCII.GetBytes("HEAD / HTTP/1.0\r\n\r\n"));
+            """),
+
+        GuideFor(["analysis-recursion-never-ends"], "A method that never stops calling itself",
+            "A method that calls itself - recursion - needs a stopping point: a way through it that returns without calling itself again, and calls that get closer to it. This one has no such way: every way through it calls itself again, or calls a method that calls it back, so each call makes another.",
+            "The calls never end: .NET ends the whole program with Stack overflow. - a try and catch around the call does not catch it.",
+            "Give it a stopping point before the call - if (n <= 0) return 0; - and make each call get closer to it: Countdown(n - 1).",
+            """
+            static int Countdown(int n)
+            {
+                if (n <= 0)
+                {
+                    return 0;
+                }
+                Console.WriteLine(n);
+                return Countdown(n - 1);
+            }
+            """),
+
+        GuideFor(["analysis-integer-overflow"], "A sum too big for an int",
+            "An int holds whole numbers from -2,147,483,648 to 2,147,483,647. Arithmetic on ints is worked out as an int, so a result past those limits does not fit: it wraps round, starting again from the other end. Storing it in a long afterwards does not help, as it has wrapped already.",
+            "The number is wrong, with no error: days * 24 * 60 * 60 * 1000, with days 365, gave 1471228928, not 31536000000.",
+            "Make the arithmetic a long from its first number - (long)days * 24 * 60 * 60 * 1000 - so every step after it is worked out as a long. Or put it in a checked block, which throws an OverflowException instead of wrapping.",
+            """
+            int days = 365;
+            long millis = (long)days * 24 * 60 * 60 * 1000;
+            Console.WriteLine(millis);
             """),
     ];
 }

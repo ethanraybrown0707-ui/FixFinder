@@ -1,5 +1,6 @@
 using FixFinder.Core.Checking;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
 using FixFinder.Core.Logic;
 using FixFinder.Core.Sources;
@@ -40,6 +41,10 @@ public static class CommandLine
                                       print or hand in
           --time-limit <seconds>      how long each run is given, from 1 to 3600
                                       (default: your setting, else 60)
+          --restore never|ask|auto    whether the libraries the project's requirements.txt,
+                                      package.json, go.mod or pubspec.yaml names that are not
+                                      here are downloaded first (default: your setting, else
+                                      never); ask needs someone at the terminal to answer
 
         The program is compiled and run, exactly as the FixFinder window does it.
         Exit code: 0 nothing wrong, 1 at least one error, 2 it could not be checked.
@@ -70,7 +75,7 @@ public static class CommandLine
 
         try
         {
-            return await CheckAsync(asked, output, errors, cancellationToken);
+            return await CheckAsync(asked, asked.Restore ?? preferences.RestoreLibraries, output, errors, cancellationToken);
         }
         finally
         {
@@ -78,8 +83,16 @@ public static class CommandLine
         }
     }
 
-    private static async Task<int> CheckAsync(Asked asked, TextWriter output, TextWriter errors, CancellationToken cancellationToken)
+    private static async Task<int> CheckAsync(
+        Asked asked, RestoreChoice restore, TextWriter output, TextWriter errors, CancellationToken cancellationToken)
     {
+        // Before the program is set up to run, as a restore can make the environment it runs in. An editor running this has
+        // nobody at the terminal to answer a question, so nothing is downloaded when it would have to be asked.
+        var libraries = restore == RestoreChoice.Ask && Console.IsInputRedirected
+            ? (await LibraryRestore.PlanForAsync(asked.File!, cancellationToken))?.UnansweredNote
+            : await LibraryRestore.PrepareAsync(asked.File!, restore, plan => AskAtTheTerminalAsync(plan, errors),
+                plan => errors.WriteLine($"restoring: {string.Join(" && ", plan.Steps.Select(step => step.Shown))}"), cancellationToken);
+
         var launch = TargetFactory.FromFile(asked.File!);
         if (!launch.Ok)
         {
@@ -94,11 +107,15 @@ public static class CommandLine
         {
             Language = asked.Language ?? CodeLanguage.Of(asked.File!) ?? CodeLanguage.Any,
             Expected = expected is { IsEmpty: false } ? expected : null,
+            NotesFirst = libraries is null ? [] : [libraries],
         };
 
         var report = await checker.CheckAsync(launch, cancellationToken);
 
         foreach (var note in report.Notes) await errors.WriteLineAsync($"note: {note}");
+        foreach (var tried in report.Tried)
+            await errors.WriteLineAsync($"try: typing {tried.TypedSaid} printed \"{string.Join(" / ", tried.Printed)}\"" +
+                                        (tried.StoppedWith is { } stopped ? $" and stopped with {stopped}" : ""));
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
 
@@ -131,6 +148,7 @@ public static class CommandLine
             SyntaxSummary = report.SyntaxSummary,
             LogicSummary = report.LogicSummary,
             Notes = report.Notes,
+            Tried = report.Tried,
             Findings = report.Findings,
             Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
         };
@@ -148,6 +166,13 @@ public static class CommandLine
         }
     }
 
+    /// <summary>Asks on the terminal before anything is downloaded, and reads the answer: only y or yes restores.</summary>
+    private static async Task<bool> AskAtTheTerminalAsync(RestorePlan plan, TextWriter errors)
+    {
+        await errors.WriteLineAsync(plan.Question.Replace("\n\n", "\n") + " [y/N]");
+        return (Console.ReadLine() ?? "").Trim().ToLowerInvariant() is "y" or "yes";
+    }
+
     /// <summary>What was asked for on the command line.</summary>
     private sealed record Asked(
         string? File, DiagnosticFormat Format, CodeLanguage? Language, string? Expect, string? Problem)
@@ -157,6 +182,9 @@ public static class CommandLine
 
         /// <summary>How long each run is given, when asked for on the command line.</summary>
         public TimeSpan? TimeLimit { get; init; }
+
+        /// <summary>Whether the project's libraries are restored first, when asked for on the command line.</summary>
+        public RestoreChoice? Restore { get; init; }
     }
 
     /// <summary>The command line read, or null when it asked for help rather than a check.</summary>
@@ -166,6 +194,7 @@ public static class CommandLine
 
         string? file = null, expect = null, html = null;
         TimeSpan? timeLimit = null;
+        RestoreChoice? restore = null;
         var format = DiagnosticFormat.MsBuild;
         CodeLanguage? language = null;
 
@@ -211,12 +240,23 @@ public static class CommandLine
                     timeLimit = TimeSpan.FromSeconds(seconds);
                     break;
 
+                case "--restore":
+                    restore = value.ToLowerInvariant() switch
+                    {
+                        "never" => RestoreChoice.Never,
+                        "ask" => RestoreChoice.Ask,
+                        "auto" or "automatically" => RestoreChoice.Automatically,
+                        _ => null,
+                    };
+                    if (restore is null) return Refused($"'{value}' is not a way to restore libraries - use never, ask or auto");
+                    break;
+
                 default:
                     return Refused($"there is no option called {arg}");
             }
         }
 
-        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, language, expect, null) { HtmlReport = html, TimeLimit = timeLimit };
+        return file is null ? Refused("no program was named") : new Asked(Path.GetFullPath(file), format, language, expect, null) { HtmlReport = html, TimeLimit = timeLimit, Restore = restore };
     }
 
     /// <summary>A language by the name somebody would type for it.</summary>

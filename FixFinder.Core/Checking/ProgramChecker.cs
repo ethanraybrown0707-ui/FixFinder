@@ -28,7 +28,11 @@ public sealed record CheckReport(
     IReadOnlyList<string> Notes,
     string SyntaxSummary,
     string LogicSummary,
-    SessionOutcome? Run);
+    SessionOutcome? Run)
+{
+    /// <summary>Inputs that take the program each of its ways, and what it printed with each - for a program that reads what is typed.</summary>
+    public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
+}
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
 /// to fix it.</summary>
@@ -58,12 +62,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private LaunchPlan? _launch;
     private CancellationToken _cancellation;
 
+    /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
+    private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
+
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
     public ExpectedBehaviour? Expected { get; init; }
 
     /// <summary>Whether a program with a window runs until its window is closed, rather than for the time a run is given.</summary>
     public bool WindowsRunUntilClosed { get; init; }
+
+    /// <summary>Notes said before the check started - what was done about the project's libraries - put first in the report.</summary>
+    public IReadOnlyList<string> NotesFirst { get; init; } = [];
 
     /// <summary>
     /// What earlier checks in this session found in each function, so a check after an edit analyses only what the edit
@@ -87,6 +97,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _launch = launch;
         _cancellation = cancellationToken;
+        foreach (var note in NotesFirst) Note(note);
         NoteWhatANotebookIsCheckedAs();
         NoteFilesLeftOut(found, launch);
 
@@ -138,7 +149,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run));
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried };
         }
     }
 
@@ -622,7 +633,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         {
             Note($"{name}'s tests are written for pytest, which is not part of Python and is not installed for the Python it was run with, " +
                  "so they were not run; the file was run as a program instead, and its code was still read for mistakes. Installing pytest " +
-                 "for that Python - python -m pip install pytest - lets them be run. FixFinder never installs anything itself.");
+                 "for that Python - python -m pip install pytest - lets them be run. A check never installs anything itself.");
             return;
         }
 
@@ -882,7 +893,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     Title = RunTitle(error, outcome.Run),
                     Explanation = withoutLibraries,
                     SuggestedFix = "Open the project in its IDE, or build it once with its build tool, so that what it names is downloaded, then check " +
-                                   "it again - FixFinder never downloads anything itself.",
+                                   "it again - a check never downloads anything, and FixFinder does not restore a Java project's libraries.",
                     CorrectedExample = "",
                 });
                 return;
@@ -927,6 +938,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Add(FindingFactory.FromError(error, kind, finishedNormally ? Severity.Warning : Severity.Error, Confidence.Certain, chosen, local) with
             {
                 Title = kind != FindingKind.Runtime ? FindingFactory.TitleOf(error) : RunTitle(error, outcome.Run),
+                RanWith = kind == FindingKind.Runtime && launch.Spec is { } spec
+                    ? new RunGiven(Path.GetFileName(launch.ShownFile ?? chosen), spec.ProgramArguments, spec.StandardInput)
+                    : null,
             });
 
             return;
@@ -1245,6 +1259,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 _analysedFunctions = run.Analysed;
             }
 
+            // One input for each way through the program that what is typed decides, run to show what each way does - for a
+            // program run on its own, not one with a window or a server, which a run that waits for nobody would not show.
+            if (!_codeOnly && program.Language == SourceLanguage.Python && launch.ChosenFile is { } chosen && launch.Spec is { } spec &&
+                NotebookScript.Of(chosen) is null && RunsUntilStoppedOf(chosen) is null &&
+                Analysis.Dynamic.InputsToTry.AnswersFor(program, chosen) is { Count: > 0 } answerSets)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Trying an input for each way through the program...");
+                _tried = await Analysis.Dynamic.InputsToTry.TryAsync(spec, answerSets, cancellationToken);
+            }
+
             // Confirming runs the program's own functions, which a check of the code alone never does.
             if (!_codeOnly && program.Language == SourceLanguage.Python && PythonInterpreter(launch) is { } python && findings.Any(f => f.WitnessValues is { Count: > 0 }))
             {
@@ -1394,14 +1418,19 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate)
         {
             var twin = _findings.FirstOrDefault(f => string.Equals(f.File, finding.File, StringComparison.OrdinalIgnoreCase) &&
-                                                     (SameFamily(f, finding) || SameFix(f, finding)));
+                                                     (SameFamily(f, finding) || SameFix(f, finding) || RefusedBy(f, finding) || RefusedBy(finding, f) ||
+                                                      CrashedThrough(f, finding) || CrashedThrough(finding, f)));
 
             if (twin is not null)
             {
-                var better = Outranks(finding, twin) ? finding : twin;
+                // A call that breaks a contract is where the mistake is, so it is kept, with the crash its check raised.
+                var better = RefusedBy(finding, twin) || Explains(finding, twin) ? finding
+                    : RefusedBy(twin, finding) || Explains(twin, finding) ? twin
+                    : Outranks(finding, twin) ? finding : twin;
+                var other = ReferenceEquals(better, finding) ? twin : finding;
                 var surest = (Confidence)Math.Min((int)finding.Confidence, (int)twin.Confidence);
                 _findings.Remove(twin);
-                finding = better with { Confidence = surest };
+                finding = Joined(better, other) with { Confidence = surest };
             }
 
             if (finding.Fix is { } fix && _fixChanges.TryGetValue(FixKey(fix), out var changes)) finding = finding with { FixChanges = changes };
@@ -1523,11 +1552,64 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     private static bool SameFamily(Finding a, Finding b) => a.Family is { } family && family == b.Family && a.Line == b.Line;
 
+    /// <summary>
+    /// Whether an analysis's finding says why a crash happened - the same mistake - and so is the one kept, with the crash's
+    /// own error and the certainty its run gave: the crash says what stopped, the analysis which functions call each other,
+    /// or which input empties the list. A crash with a change the analysis lacks is kept instead, as the change ranks first.
+    /// </summary>
+    private static bool Explains(Finding found, Finding crash) =>
+        found.Error is null && crash.Error is not null && found.RuleId.StartsWith("analysis-", StringComparison.Ordinal) &&
+        (found.Fix is not null || crash.Fix is null) && (SameFamily(found, crash) || CrashedThrough(found, crash));
+
+    /// <summary>
+    /// Whether a crash is the mistake an analysis found, though it stopped at another of its calls: one of the same family,
+    /// and the analysis's line one of the calls the crash went through. Recursion that never ends stops wherever the room runs
+    /// out - in is_odd, though the analysis found it in is_even, whose call is on the way.
+    /// </summary>
+    private static bool CrashedThrough(Finding found, Finding crash) =>
+        found.Error is null && found.Family is { } family && family == crash.Family && found.Line is { } line &&
+        crash.Error is { } error && error.Frames.Any(frame => frame.Line == line && frame.File is { } file &&
+                                                               string.Equals(Path.GetFileName(file), Path.GetFileName(found.File), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether a crash is the one a broken contract's own check raised: the call the analysis found breaking it - divide(10, 0),
+    /// when divide refuses a count of 0 by raising ValueError - is one of the calls the crash was made through, and the crash
+    /// is the very error the contract says the check raises. The run proves the call, and the call says where to fix it.
+    /// </summary>
+    private static bool RefusedBy(Finding call, Finding crash) =>
+        call.RuleId == "analysis-contract-broken" && call.Line is { } line &&
+        crash.Error is { ShortExceptionType: { Length: > 0 } raised } error &&
+        (call.Found ?? "").Contains($"it raises {raised}", StringComparison.Ordinal) &&
+        error.Frames.Any(frame => frame.Line == line && frame.File is { } file &&
+                                  string.Equals(Path.GetFileName(file), Path.GetFileName(call.File), StringComparison.OrdinalIgnoreCase));
+
     private static bool SameFix(Finding a, Finding b) =>
         a.Fix is { } x && b.Fix is { } y && x.StartLine == y.StartLine && x.RemoveCount == y.RemoveCount && x.NewLines.SequenceEqual(y.NewLines);
 
+    /// <summary>
+    /// How a finding ranks against another of the same mistake: a change first, then how serious it is, a corrected example
+    /// from the code itself, the inputs that make it fail - which turn "this can fail" into "this fails, and here is how" -
+    /// and how sure it is.
+    /// </summary>
     private static int Rank(Finding finding) =>
-        (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) + (2 - (int)finding.Confidence);
+        (finding.Fix is not null ? 1000 : 0) + (2 - (int)finding.Severity) * 100 + (finding.ExampleIsFromYourCode ? 10 : 0) +
+        (finding.Witness is not null ? 5 : 0) + (2 - (int)finding.Confidence);
+
+    /// <summary>
+    /// One finding of a mistake two ways of looking found: the better of the two, with what only the other knows - the inputs
+    /// that make it fail, the lines that decide it, the run that confirmed it and how it was found, from an analysis; and
+    /// what the language itself said, from the run that crashed.
+    /// </summary>
+    private static Finding Joined(Finding better, Finding other) => better with
+    {
+        Error = better.Error ?? other.Error,
+        RanWith = better.RanWith ?? other.RanWith,
+        FoundBy = better.FoundBy ?? other.FoundBy,
+        Witness = better.Witness ?? other.Witness,
+        Slice = better.Slice ?? other.Slice,
+        Confirmation = better.Confirmation ?? other.Confirmation,
+        State = better.State ?? other.State,
+    };
 
     /// <summary>
     /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when
