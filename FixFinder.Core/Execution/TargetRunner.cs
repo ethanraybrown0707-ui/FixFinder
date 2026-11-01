@@ -164,7 +164,8 @@ public sealed class TargetRunner
         var encodingWarning = DetectEncodingProblem(captured, spec);
         if (encodingWarning is not null) Log?.Invoke(encodingWarning);
 
-        var parsed = _parsers.Parse(captured, SourceRoots);
+        // The traceback doctest prints for an example that raised is its report of the example, not the program stopping.
+        var parsed = _parsers.Parse(DoctestReport.WithoutReports(captured), SourceRoots);
         if (parsed is not null)
             Log?.Invoke($"Detected: {parsed.LanguageId} · {parsed.Summary} · confidence {parsed.Confidence}");
 

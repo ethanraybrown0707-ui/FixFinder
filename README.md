@@ -846,7 +846,11 @@ its `__main__` block does not run, and with the options its own `doctest.testmod
 with at most a `__main__` block that runs `doctest.testmod()`. A file that also does work of its own - calls `main()`,
 prints, reads what is typed in - is checked as the program it is. Each docstring is one doctest, and the first of its
 examples that does not give what it shows is an error on that example's own line: `double_eights(88): expected True, got
-False`, or, for an example that raised, what was raised and the line of the code it was raised on.
+False`, or, for an example that raised, what was raised and the line of the code it was raised on. A program that runs
+its doctests with `doctest.testmod()` and then does its own work carries on past an example that fails, as doctest only
+prints it: each example doctest printed as failed is an error on its own line all the same, the summary says the program
+ran to the end but some of its doctests' examples failed, and the traceback doctest prints for an example that raised is
+not taken for the program stopping - a crash after the doctests still is.
 
 Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
 folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for

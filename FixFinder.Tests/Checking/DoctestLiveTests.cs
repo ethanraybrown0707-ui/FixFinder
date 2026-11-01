@@ -235,4 +235,68 @@ public class DoctestLiveTests(ITestOutputHelper output) : IDisposable
         if (report.SyntaxSummary == "It could not be started") return;
         Assert.Equal("No syntax errors, and it runs to the end", report.SyntaxSummary);
     }
+
+    private const string Doubler = """"
+        def double(x):
+            """
+            >>> double(2)
+            4
+            >>> double(5)
+            10
+            """
+            return x * 2 if x < 5 else x * 3
+
+
+        def average(marks):
+            """
+            >>> average([])
+            0
+            """
+            return sum(marks) / len(marks)
+
+
+        def main():
+            print(double(21))
+
+
+        if __name__ == "__main__":
+            import doctest
+            doctest.testmod()
+            main()
+        """";
+
+    /// <summary>
+    /// A program that runs its doctests and then its own work carries on past the examples that fail, as doctest only prints
+    /// them: each is a finding on its own line, and the traceback doctest printed for the one that raised is not the program stopping.
+    /// </summary>
+    [Fact]
+    public async Task TheExamplesAProgramsOwnDoctestsFailedAreEachAFinding()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var report = await CheckAsync(Write(@"doubler\doubler.py", Doubler));
+
+        if (report.SyntaxSummary == "It could not be started") return;
+        Assert.Equal("No syntax errors, and it runs to the end, but 2 examples of its doctests failed", report.SyntaxSummary);
+
+        var failed = report.Findings.Where(finding => finding.RuleId == "doctest-failed").OrderBy(finding => finding.Line).ToList();
+        Assert.Equal([5, 13], failed.Select(finding => finding.Line));
+        Assert.Equal("An example in the docstring of double failed: double(5): expected 10, got 15", failed[0].Title);
+        Assert.Equal("An example in the docstring of average stopped with ZeroDivisionError: division by zero", failed[1].Title);
+        Assert.DoesNotContain(report.Findings, finding => finding.Title.StartsWith("It ran to the end, but printed an exception", StringComparison.Ordinal));
+    }
+
+    /// <summary>A crash after the doctests is still the program stopping, found as any crash is.</summary>
+    [Fact]
+    public async Task ACrashAfterTheDoctestsIsStillFound()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var report = await CheckAsync(Write(@"crasher\crasher.py", Doubler.Replace("print(double(21))", "print(average([]))")));
+
+        if (report.SyntaxSummary == "It could not be started") return;
+        Assert.Equal("No syntax errors, but it stops with an error when run", report.SyntaxSummary);
+        Assert.Contains(report.Findings, finding => finding.Line == 16 && finding.Title == "It crashed: ZeroDivisionError: division by zero");
+        Assert.Equal(2, report.Findings.Count(finding => finding.RuleId == "doctest-failed"));
+    }
 }

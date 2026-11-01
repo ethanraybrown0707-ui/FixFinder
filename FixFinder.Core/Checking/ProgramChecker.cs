@@ -286,6 +286,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
             await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
+            RecordDoctestFailuresPrinted(outcome, launch);
             await RepairTestsAsync(outcome, launch, cancellationToken);
             return outcome;
         }
@@ -401,6 +402,42 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Add(FindingFactory.FromError(warning, FindingKind.Runtime, Severity.Warning, Confidence.Certain, chosen, fix) with
             {
                 Title = $"It printed {CarriedOnPast.WhatItWas(warning) ?? "a warning"} and carried on: {warning.Message ?? FindingFactory.TitleOf(warning)}",
+            });
+        }
+    }
+
+    /// <summary>
+    /// A Python program that runs its own doctests with doctest.testmod() and then does its own work carries on past an
+    /// example that failed: doctest only prints it. Each one printed is a finding on that example's own line, as a doctest
+    /// run by itself is.
+    /// </summary>
+    private void RecordDoctestFailuresPrinted(SessionOutcome outcome, LaunchPlan launch)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || DoctestExamplesFailed(outcome, chosen) == 0) return;
+
+        foreach (var failure in DoctestReport.FailuresIn(run.Lines.Select(line => line.Text).ToList()))
+        {
+            var what = failure.Exception is { } raised
+                ? $"stopped with {raised}"
+                : $"did not give what it shows: {failure.Example}: expected {failure.Expected}, got {failure.Got}";
+
+            Add(new Finding
+            {
+                Kind = FindingKind.Runtime,
+                Severity = Severity.Error,
+                Confidence = Confidence.Certain,
+                File = File.Exists(failure.File) ? failure.File : chosen,
+                Line = failure.Line,
+                Title = failure.Exception is { } stopped
+                    ? $"An example in the docstring of {failure.Name} stopped with {stopped}"
+                    : $"An example in the docstring of {failure.Name} failed: {failure.Example}: expected {failure.Expected}, got {failure.Got}",
+                Explanation = $"doctest.testmod() ran the examples in the docstring of {failure.Name} as the program ran, and the one on line " +
+                              $"{failure.Line} {what}. doctest only prints an example that fails, so the program carried on after it.",
+                WhyItMatters = "A doctest that fails is a check the code did not pass: either the code does not do what the example shows, " +
+                               "or the example shows the wrong thing.",
+                SuggestedFix = "Compare what the example shows with what the code gives back for it, and follow the code to where the two part.",
+                CorrectedExample = "",
+                RuleId = "doctest-failed",
             });
         }
     }
@@ -1254,9 +1291,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut && RunsUntilStoppedOf(chosen) is { } runsOn =>
                 $"{reads}{warnings}, and it was still running when its time ran out, as {runsOn.Like} does",
             _ when outcome.Run?.Outcome == RunOutcome.TimedOut => $"{reads}{warnings}, but it never finished",
+            _ when DoctestExamplesFailed(outcome, chosen) is > 0 and var failedExamples =>
+                $"{reads}{warnings}, and it runs to the end, but {(failedExamples == 1 ? "an example of its doctests" : $"{failedExamples} examples of its doctests")} failed",
             _ => $"{reads}{warnings}, and it runs to the end",
         };
     }
+
+    /// <summary>How many examples of a Python program's doctests failed as it ran them itself, with doctest.testmod().</summary>
+    private static int DoctestExamplesFailed(SessionOutcome outcome, string chosen) =>
+        outcome.Run is { } run && IsPython(chosen) && PythonTests.FrameworkOf(chosen) == PythonTests.Framework.None
+            ? DoctestReport.FailuresIn(run.Lines.Select(line => line.Text).ToList()).Count
+            : 0;
 
     private async Task<FixCandidate?> FixAsync(
         ParsedError error, IReadOnlyList<ParsedError> all, IReadOnlyList<CapturedLine> output, string? root, bool fromBuild, CancellationToken cancellationToken)
