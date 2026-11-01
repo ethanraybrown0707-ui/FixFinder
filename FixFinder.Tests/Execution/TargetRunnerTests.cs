@@ -166,19 +166,20 @@ public class TargetRunnerTests
 
     /// <summary>
     /// What builds a program before it runs - go build, dotnet build - is done first, and its time is not the run's: a
-    /// "build" that waits twelve seconds, then a run given ten that finishes at once, runs and is said to have finished.
-    /// What the build printed is not passed on as the program's.
+    /// "build" that waits thirty-two seconds, then a run given thirty that finishes at once, runs and is said to have
+    /// finished. Thirty, not ten: a CI runner busy with other tests once took longer than ten to start cmd and echo a
+    /// line. What the build printed is not passed on as the program's.
     /// </summary>
     [Fact]
     public async Task TheBuildDoneFirstIsNotTimedAsPartOfTheRun()
     {
         if (!OnWindows) return;
 
-        var run = Cmd("/c echo the-program-ran", timeoutSeconds: 10);
+        var run = Cmd("/c echo the-program-ran", timeoutSeconds: 30);
         var spec = new TargetSpec
         {
             ExecutablePath = run.ExecutablePath, Arguments = run.Arguments, WorkingDirectory = run.WorkingDirectory, Timeout = run.Timeout,
-            BuildFirst = Cmd("/c echo the-build-said & ping -n 13 127.0.0.1 > nul", timeoutSeconds: 120),
+            BuildFirst = Cmd("/c echo the-build-said & ping -n 33 127.0.0.1 > nul", timeoutSeconds: 120),
         };
 
         var result = await new TargetRunner().RunAsync(spec, CancellationToken.None);

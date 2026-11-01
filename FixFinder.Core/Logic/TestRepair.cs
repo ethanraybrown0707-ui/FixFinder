@@ -373,8 +373,14 @@ public sealed partial class TestRepair
             var failedBefore = latest.Where(test => test.Status == "FAILED").Select(IdentityOf).Distinct(StringComparer.Ordinal).ToList();
             var anyFailed = after.Any(test => test.Status is "FAILED" or "SETUP-FAILED" or "TEARDOWN-FAILED");
 
-            if (!anyFailed && ran.All(passing.Contains) && passing.Count >= allTests && run.Outcome != RunOutcome.TimedOut)
-                return new TestRun(TestVerdict.EveryTestPasses, compiled, after, allTests - passedBefore.Count);
+            if (!anyFailed && ran.All(passing.Contains) && passing.Count >= allTests)
+            {
+                // Every test passed, and the run was still stopped for time - on a busy computer, before it could end: that
+                // shows nothing about whether it finishes, so it is a run to try again with longer, not a step to build on.
+                return run.Outcome == RunOutcome.TimedOut
+                    ? new TestRun(TestVerdict.RanOutOfTime, compiled, after, 0)
+                    : new TestRun(TestVerdict.EveryTestPasses, compiled, after, allTests - passedBefore.Count);
+            }
 
             // Better: none that passed fails, and more pass - ones that failed, or never finished before.
             var nowFixed = passing.Count - passedBefore.Count;
