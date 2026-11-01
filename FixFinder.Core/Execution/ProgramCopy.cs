@@ -43,9 +43,33 @@ public static class ProgramCopy
             ".go" when ProgramLayout.GoPackageOf(file).Module is { } module => module,
             ".scala" or ".sc" => ScalaProgram.Of(file).Folder,
             ".py" when NotebookScript.Of(file) is { } notebook => Path.GetDirectoryName(notebook.Notebook)!,
-            ".py" when ProgramLayout.PythonModule(file) is { } module => module.Folder,
+            ".py" => FolderHoldingAll([ProgramLayout.PythonModule(file)?.Folder ?? Path.GetDirectoryName(Path.GetFullPath(file))!, .. ProgramLayout.PythonImportFoldersOfTests(file), .. PytestUses(file)]),
             _ => Path.GetDirectoryName(file)!,
         };
+    }
+
+    /// <summary>
+    /// The folders above a file of tests pytest runs that it uses when it runs them: where its settings and conftest.py
+    /// files are, and the folders its settings tell it to look for modules in - so a copy of the tests runs as they do.
+    /// </summary>
+    private static IEnumerable<string> PytestUses(string file) =>
+        PythonTests.FrameworkOf(file) == PythonTests.Framework.Pytest ? [.. ProgramLayout.PytestFoldersAbove(file), .. ProgramLayout.PytestPythonPath(file)] : [];
+
+    /// <summary>The innermost folder that holds every one of these: a test file's own and the folder of the modules it imports.</summary>
+    internal static string FolderHoldingAll(IReadOnlyList<string> folders)
+    {
+        var holding = Path.GetFullPath(folders[0]);
+
+        foreach (var folder in folders.Skip(1).Select(Path.GetFullPath))
+        {
+            while (!(folder + Path.DirectorySeparatorChar).StartsWith(holding.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) &&
+                   Path.GetDirectoryName(holding) is { } parent)
+            {
+                holding = parent;
+            }
+        }
+
+        return holding;
     }
 
     /// <summary>

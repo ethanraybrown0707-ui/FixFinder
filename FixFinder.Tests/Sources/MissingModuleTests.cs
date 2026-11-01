@@ -168,6 +168,32 @@ public class MissingModuleTests
         Assert.DoesNotContain("published as", candidate!.BodyText, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The program's own module, in a folder Python does not look in, is not a package: one published under its name would
+    /// be somebody else's code, so no install is offered. Named with a dot, it was found and what is in it was not.
+    /// </summary>
+    [Fact]
+    public void TheProgramsOwnModuleInAFolderPythonDoesNotLookInIsNotOfferedAsAPackage()
+    {
+        using var temp = new TempFolder();
+
+        var module = Path.Combine(temp.Path, "app", "grades.py");
+        var tests = Path.Combine(temp.Path, "tests", "test_grades.py");
+        Directory.CreateDirectory(Path.GetDirectoryName(module)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(tests)!);
+        File.WriteAllText(module, "def grade(mark):\n    return mark\n");
+        File.WriteAllText(tests, "from grades import grade\n");
+
+        ErrorFrame[] importedFrom = [new ErrorFrame { Order = 0, Symbol = "<module>", File = tests, Line = 1, RawLine = "" }];
+
+        var ownModule = Error("No module named 'grades'", frames: importedFrom);
+        Assert.Equal(module, MissingModule.OwnModuleOutOfReach(ownModule), ignoreCase: true);
+        Assert.Null(MissingModule.For(ownModule, Spec()));
+
+        Assert.Null(MissingModule.OwnModuleOutOfReach(Error("No module named 'grades.marks'", frames: importedFrom)));
+        Assert.Null(MissingModule.OwnModuleOutOfReach(Error("No module named 'requests'", frames: importedFrom)));
+    }
+
     [Fact]
     public async Task ARealMissingImportProducesTheRightCommand()
     {

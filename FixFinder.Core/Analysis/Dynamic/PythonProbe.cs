@@ -146,14 +146,12 @@ public static class PythonProbe
                 ["FIXFINDER_MOST_STATES"] = MostStates.ToString(),
             };
 
-            // A notebook's code runs from the notebook's folder, where its data and its own modules are, not the script's.
+            // A notebook's code runs from the notebook's folder, where its data and its own modules are, not the script's; a
+            // file in a folder of its own imports the program's modules from the folders the program runs it with.
             var folderOfCode = NotebookScript.FolderOfCode(file);
-            if (!string.Equals(folderOfCode, Path.GetDirectoryName(Path.GetFullPath(file)), StringComparison.OrdinalIgnoreCase))
-            {
-                environment["PYTHONPATH"] = Environment.GetEnvironmentVariable("PYTHONPATH") is { Length: > 0 } already
-                    ? folderOfCode + Path.PathSeparator + already
-                    : folderOfCode;
-            }
+            var importFolders = ProgramLayout.PythonImportFolders(file, interpreter).ToList();
+            if (!string.Equals(folderOfCode, Path.GetDirectoryName(Path.GetFullPath(file)), StringComparison.OrdinalIgnoreCase)) importFolders.Insert(0, folderOfCode);
+            if (importFolders.Count > 0) environment["PYTHONPATH"] = ProgramLayout.PythonPathWith(importFolders);
 
             await new TargetRunner().RunAsync(new TargetSpec
             {

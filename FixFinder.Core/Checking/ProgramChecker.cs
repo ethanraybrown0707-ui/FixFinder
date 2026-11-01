@@ -921,6 +921,46 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>Why the program's own module was not found: where it is, and where Python looked instead.</summary>
+    private static string OwnModuleExplanation(string ownModule, string chosen)
+    {
+        var module = Path.GetFileNameWithoutExtension(ownModule);
+        var folder = Path.GetDirectoryName(ownModule)!;
+
+        return $"{module} is the program's own module - {Path.GetFileName(ownModule)} in {folder} - not a package to install. Python looks " +
+               $"for modules beside the file it runs, in {Path.GetDirectoryName(chosen)}, and in the folders it is told to look in, and " +
+               $"{folder} is none of them, so the import found nothing. A package published as {module} would be somebody else's code.";
+    }
+
+    /// <summary>
+    /// How to have Python find the program's own module: where to move it - or, for a program, running it as a module from
+    /// the folder the module is in, and for tests pytest runs, pytest's setting that says where to look.
+    /// </summary>
+    private static string OwnModuleFix(string ownModule, string importing, string chosen)
+    {
+        var folder = Path.GetDirectoryName(ownModule)!;
+        var beside = $"Move {Path.GetFileName(ownModule)} to where Python looks for it: beside {Path.GetFileName(importing)}";
+        var framework = PythonTests.FrameworkOf(chosen);
+
+        if (framework == PythonTests.Framework.None)
+        {
+            // python -m scripts.run, started in the folder above scripts, has Python look in the folder it was started in.
+            var fromFolder = Path.GetRelativePath(folder, chosen);
+            if (fromFolder.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(fromFolder)) return beside + ".";
+
+            var asModule = Path.ChangeExtension(fromFolder, null).Replace(Path.DirectorySeparatorChar, '.');
+            return $"{beside}. Or run {Path.GetFileName(chosen)} as a module, started in {folder}, where Python then looks too: python -m {asModule}";
+        }
+
+        var moveIt = $"{beside}, or into a folder above it - which FixFinder looks in, and so does python -m pytest started there.";
+        if (framework != PythonTests.Framework.Pytest) return moveIt;
+
+        var holdingBoth = ProgramCopy.FolderHoldingAll([Path.GetDirectoryName(importing)!, folder]);
+        var relative = Path.GetRelativePath(holdingBoth, folder).Replace('\\', '/');
+
+        return $"{moveIt} Or have pytest look in {folder}: a pytest.ini in {holdingBoth} holding [pytest] and, below it, pythonpath = {relative}.";
+    }
+
     /// <summary>Whether an expected-output run is the very run the syntax check made: the same input typed in.</summary>
     private static bool SameRunAsTheCheck(ExpectedRun run, LaunchPlan launch) =>
         string.Equals(run.Input ?? "", launch.Spec?.StandardInput ?? "", StringComparison.Ordinal);
@@ -1011,6 +1051,22 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                                    "files.upload - and open the files it reads by their paths on this computer instead.",
                     CorrectedExample = "",
                     RuleId = "python-colab-only",
+                });
+                return;
+            }
+
+            // The program's own module, in a folder Python was not told to look in: a package published under its name would
+            // be somebody else's code, so installing one is never what puts this right.
+            if (kind == FindingKind.Runtime && MissingModule.OwnModuleOutOfReach(error) is { } ownModule &&
+                LocalFixContext.OwnFrame(error)?.File is { } importing)
+            {
+                Add(FindingFactory.FromError(error, kind, Severity.Error, Confidence.Certain, chosen) with
+                {
+                    Title = RunTitle(error, outcome.Run),
+                    Explanation = OwnModuleExplanation(ownModule, chosen),
+                    SuggestedFix = OwnModuleFix(ownModule, importing, chosen),
+                    CorrectedExample = "",
+                    RuleId = "python-own-module-out-of-reach",
                 });
                 return;
             }

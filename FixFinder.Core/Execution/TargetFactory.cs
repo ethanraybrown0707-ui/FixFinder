@@ -259,9 +259,11 @@ public static class TargetFactory
 
             case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Pytest:
                 // Its tests are run with pytest itself, one by one, from where running the file - or its package - would start;
-                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there.
+                // pytest finds the project's own settings and conftest.py from the file, as it does when it is run there - and
+                // below a conftest.py, with no settings file to say where the project is, it is told that folder is the project's.
                 workingDirectory = ProgramLayout.PythonModule(full)?.Folder ?? workingDirectory;
-                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"";
+                arguments = $"-X utf8 \"{PythonTests.WritePytestLauncher()}\" \"{full}\"" +
+                            (ProgramLayout.PytestRootFolder(full) is { } projectFolder ? $" \"{projectFolder}\"" : "");
                 testsRunBy = "pytest";
                 break;
 
@@ -304,6 +306,12 @@ public static class TargetFactory
         }
 
         var environmentGiven = go is null ? new Dictionary<string, string>() : GoSetup.Environment;
+
+        // Tests in a folder of their own import the program's modules from the project's folder, which Python looks in
+        // when the tests are run from there, as python -m pytest and an IDE run them - so it is told to look there too.
+        var importFolders = isPython ? ProgramLayout.PythonImportFolders(full, found) : [];
+        if (importFolders.Count > 0) environmentGiven = new Dictionary<string, string> { ["PYTHONPATH"] = ProgramLayout.PythonPathWith(importFolders) };
+
         var spec = new TargetSpec
         {
             ExecutablePath = viaDotnet ? full : found,
@@ -320,7 +328,11 @@ public static class TargetFactory
         var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
-            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "");
+            : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "") +
+            (importFolders.Count > 0
+                ? $" Python also looks for the program's own modules in {string.Join(" and ", importFolders)}, " +
+                  "where they are - as it does when it is run from the project's folder."
+                : "");
 
         return new LaunchPlan(spec, null, how) { ChosenFile = full, SourceFolder = workingDirectory };
     }

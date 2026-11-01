@@ -839,10 +839,26 @@ not start - an option in the project's settings from a plugin that is not instal
 compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
 project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
 
+Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
+folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for
+the program's own modules where they are, in the folders above the test file and the `src` folder in each, at most three
+folders up and no further than the project's own folder (the first with a `.git`, `pyproject.toml`, `requirements.txt` or
+the like). A module Python has itself - `random`, or an installed package - is never taken from a folder above, so a
+`random.py` written for an earlier exercise there is left alone. When no settings file says where the project is, pytest is
+told the project's folder is the one with the `conftest.py` above the tests (its `--rootdir`), so that file's fixtures are
+there, as they are when pytest is started in the project's folder. A program that is not tests runs as `python scripts\run.py` runs it, looking for modules only in
+its own folder, so one that imports from the folder above fails here as it does there. When an import fails and the
+module is the program's own - a `grades.py` in an `app` folder Python was not told to look in - the finding says so, says
+where it is, and says how to have Python find it: moving it, running a program as a module (`python -m scripts.run`,
+started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
+package of that name, which would be somebody else's code.
+
 When some of a file's JUnit, unittest or pytest tests fail, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
-test file imports. It tries the same small changes as the search against an expected output, each in a private copy of
-the program, and runs the whole file of tests with each; a change counts only when every test that ran before runs again
+test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names. It tries the same
+small changes as the search against an expected output, each in a private copy of the program - which holds the tests'
+folder, the program's, and pytest's settings and `conftest.py` files, so the tests run there as they do in the project -
+and runs the whole file of tests with each; a change counts only when every test that ran before runs again
 and passes, so one that passes the failing tests by breaking another, or by stopping the tests being found, does not. The
 functions the failing tests call, and the passing ones do not, are tried first - the Ochiai formula, given what each test
 calls - and of those, the line of the program's code each failure was raised on. Code with more than one mistake has no one change that makes

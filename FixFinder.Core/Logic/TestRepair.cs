@@ -261,8 +261,9 @@ public sealed partial class TestRepair
         var file = Path.GetFileName(changes[0].File);
         if (changes.Count == 1) return changes[0] with { Title = $"In {file}: {changes[0].Title}" };
 
+        // Changes are only made together when each is one line, so the file's lines with all of them made are always there.
         var source = targets.First(target => SamePath(target.Path, changes[0].File));
-        var lines = Combined(source, changes);
+        var lines = Combined(source, changes)!;
         var (first, last) = (changes.Min(change => change.StartLine), changes.Max(change => change.StartLine));
 
         return new LocalFix
@@ -451,8 +452,9 @@ public sealed partial class TestRepair
     }
 
     /// <summary>
-    /// The program's own files a test file imports: in Python, a module beside it or under the program's folder, by its
-    /// import lines; in Java, a class it names whose .java file is beside it or under the program's folder.
+    /// The program's own files a test file imports: in Python, a module beside it, under the program's folder or in a
+    /// folder above it that Python, or pytest's settings, tell it to look in - src beside the tests folder - by its import
+    /// lines; in Java, a class it names whose .java file is beside it or under the program's folder.
     /// </summary>
     private static IEnumerable<string> Imported(SourceFile tests, string root)
     {
@@ -468,10 +470,15 @@ public sealed partial class TestRepair
                 else if (PythonImport().Match(line) is { Success: true } plain) modules.AddRange(plain.Groups["modules"].Value.Split(',').Select(module => module.Trim()));
             }
 
+            var lookedIn = new[] { folder, root }
+                .Concat(ProgramLayout.PythonImportFoldersOfTests(tests.Path))
+                .Concat(ProgramLayout.PytestPythonPath(tests.Path))
+                .ToList();
+
             foreach (var module in modules.Distinct(StringComparer.Ordinal))
             {
                 var relative = module.Replace('.', Path.DirectorySeparatorChar) + ".py";
-                foreach (var under in new[] { folder, root })
+                foreach (var under in lookedIn)
                     if (File.Exists(Path.Combine(under, relative))) yield return Path.GetFullPath(Path.Combine(under, relative));
             }
 

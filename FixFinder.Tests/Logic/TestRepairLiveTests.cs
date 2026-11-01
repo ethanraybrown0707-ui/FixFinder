@@ -1,6 +1,7 @@
 using FixFinder.Core;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Execution;
+using FixFinder.Core.Execution.Libraries;
 using FixFinder.Core.Http;
 using FixFinder.Core.Sources;
 using Xunit.Abstractions;
@@ -307,5 +308,82 @@ public class TestRepairLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(["        return left + right;"], fixedFirst.Fix.NewLines);
         Assert.True(fixedFirst.Verified.IsVerified, fixedFirst.Verified.Summary);
         Assert.StartsWith("With this change every one of the 3 tests in CalculatorTest.java passes - 2 of which failed before.", fixedFirst.FixCheckedBy, StringComparison.Ordinal);
+    }
+
+    /// <summary>Maven's layout: the tests in src\test\java, the code they call in src\main\java, and JUnit named in pom.xml.</summary>
+    [Fact]
+    public async Task InAMavenProjectTheChangeIsFoundInItsMainCode()
+    {
+        if (Toolchains.FindJavac() is null || JUnitJar("junit-platform-console-standalone") is not { } junit) return;
+
+        var version = Path.GetFileNameWithoutExtension(junit)["junit-platform-console-standalone-".Length..];
+        var repository = Path.Combine(_temp.Path, "repository");
+        var jarFolder = Path.Combine(repository, "org", "junit", "platform", "junit-platform-console-standalone", version);
+        Directory.CreateDirectory(jarFolder);
+        File.Copy(junit, Path.Combine(jarFolder, Path.GetFileName(junit)));
+
+        Write(@"calculator\pom.xml", $"""
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>uni</groupId>
+              <artifactId>calculator</artifactId>
+              <version>1.0</version>
+              <dependencies>
+                <dependency>
+                  <groupId>org.junit.platform</groupId>
+                  <artifactId>junit-platform-console-standalone</artifactId>
+                  <version>{version}</version>
+                  <scope>test</scope>
+                </dependency>
+              </dependencies>
+            </project>
+            """);
+        var program = Write(@"calculator\src\main\java\uni\Calculator.java", """
+            package uni;
+
+            public class Calculator {
+                public int add(int left, int right) {
+                    return left - right;
+                }
+
+                public int multiply(int left, int right) {
+                    return left * right;
+                }
+            }
+            """);
+        var tests = Write(@"calculator\src\test\java\uni\CalculatorTest.java", """
+            package uni;
+
+            import static org.junit.jupiter.api.Assertions.assertEquals;
+
+            import org.junit.jupiter.api.Test;
+
+            class CalculatorTest {
+                private final Calculator calculator = new Calculator();
+
+                @Test
+                void addsTwoNumbers() {
+                    assertEquals(4, calculator.add(2, 2));
+                }
+
+                @Test
+                void addsANegativeNumber() {
+                    assertEquals(2, calculator.add(3, -1));
+                }
+
+                @Test
+                void multipliesTwoNumbers() {
+                    assertEquals(6, calculator.multiply(2, 3));
+                }
+            }
+            """);
+
+        using var stores = JavaLibraries.UsingStores(new LibraryStores([new MavenRepository(repository)]));
+        var report = await CheckAsync(tests, CodeLanguage.Java);
+
+        var fixedFirst = Assert.Single(report.Findings, finding => finding is { RuleId: "test-failed", Fix: not null });
+        Assert.Equal(program, fixedFirst.Fix!.File, ignoreCase: true);
+        Assert.Equal(["        return left + right;"], fixedFirst.Fix.NewLines);
+        Assert.True(fixedFirst.Verified.IsVerified, fixedFirst.Verified.Summary);
     }
 }

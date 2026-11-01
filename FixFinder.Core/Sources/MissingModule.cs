@@ -94,6 +94,19 @@ public static partial class MissingModule
                Regex.IsMatch(importing, @"^\s*(?:from\s+google\.colab\b|import\s+google\.colab\b)");
     }
 
+    /// <summary>
+    /// The program's own module that Python could not find - its .py file, or its package's folder, in the project of the
+    /// file that imported it - or null when what is missing is no part of the program. A module named with a dot is left
+    /// alone: Python says marks.grades is missing when it found marks and not grades in it, which is not out of reach.
+    /// </summary>
+    public static string? OwnModuleOutOfReach(ParsedError error)
+    {
+        if (ModuleIn(error) is not { } module || module.Contains('.')) return null;
+        if (LocalFixes.LocalFixContext.OwnFrame(error)?.File is not { } importing || !File.Exists(importing)) return null;
+
+        return ProgramLayout.PythonModuleInProject(importing, module);
+    }
+
     /// <summary>The module an import could not find, as the error names it; null for any other error.</summary>
     private static string? ModuleIn(ParsedError error)
     {
@@ -119,6 +132,9 @@ public static partial class MissingModule
     public static FixCandidate? For(ParsedError error, TargetSpec? spec)
     {
         if (Read(error) is not { } missing) return null;
+
+        // The program's own module is not a package: one published under its name would be somebody else's code.
+        if (OwnModuleOutOfReach(error) is not null) return null;
 
         var interpreter = Interpreter(spec);
         if (interpreter is null) return null;

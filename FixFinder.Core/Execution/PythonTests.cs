@@ -216,8 +216,9 @@ public static partial class PythonTests
         """;
 
     /// <summary>
-    /// The pytest launcher: python launcher.py file. It runs pytest itself on the file - with the project's own pytest
-    /// settings and conftest.py, as pytest finds them - and prints one line for each test in the form TestReport reads,
+    /// The pytest launcher: python launcher.py file [project-folder]. It runs pytest itself on the file - with the project's
+    /// own pytest settings and conftest.py, as pytest finds them, from the project's folder when that is given - and prints
+    /// one line for each test in the form TestReport reads,
     /// with where a failure was raised. When pytest is not installed it says so, and runs the file as a program instead, as
     /// running it would. A file pytest cannot import is said as Python says an error that stops a program. Nothing is
     /// written into the project: pytest's cache goes in a folder of its own, removed afterwards.
@@ -239,6 +240,9 @@ public static partial class PythonTests
 
         test_file = os.path.abspath(sys.argv[1])
         test_module = os.path.splitext(os.path.basename(test_file))[0]
+
+        # The project's folder, when FixFinder found one pytest would not from the file alone: the one with the conftest.py above it.
+        project_folder = sys.argv[2] if len(sys.argv) > 2 else None
 
         # The file's own folder is where Python looks first for what it imports, as running the file would - not this launcher's.
         sys.path[0] = os.path.dirname(test_file)
@@ -371,7 +375,10 @@ public static partial class PythonTests
             sys.dont_write_bytecode = True
             cache = tempfile.mkdtemp(prefix="fixfinder-pytest-")
             try:
-                ended = pytest.main([test_file, "-q", "--tb=no", "-rN", "--color=no", "-o", "cache_dir=" + cache], plugins=[reporter])
+                options = [test_file, "-q", "--tb=no", "-rN", "--color=no", "-o", "cache_dir=" + cache]
+                if project_folder:
+                    options.append("--rootdir=" + project_folder)
+                ended = pytest.main(options, plugins=[reporter])
             finally:
                 shutil.rmtree(cache, ignore_errors=True)
             reporter.emit([ENDED, str(int(ended))])
