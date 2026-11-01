@@ -150,11 +150,12 @@ public static partial class PythonTests
 
     /// <summary>
     /// Writes a launcher where every Python can read it - the temp folder, which the Microsoft Store's Python sees and
-    /// its LocalAppData it does not - named for its own text, so every run uses the same copy, and says where.
+    /// its LocalAppData it does not - named for its own text, so every run uses the same copy, and says where. Node.js's
+    /// test reporter is written the same way, as a .mjs file.
     /// </summary>
-    private static string Written(string prefix, string source)
+    internal static string Written(string prefix, string source, string extension = ".py")
     {
-        var name = $"{prefix}_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..12].ToLowerInvariant()}.py";
+        var name = $"{prefix}_{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..12].ToLowerInvariant()}{extension}";
         var launcher = Path.Combine(Path.GetTempPath(), "FixFinder-tests", name);
 
         if (!File.Exists(launcher))

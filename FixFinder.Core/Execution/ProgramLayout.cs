@@ -421,6 +421,46 @@ public static partial class ProgramLayout
         return null;
     }
 
+    /// <summary>A module a JavaScript or TypeScript file brings in by a path of its own: require("./grades"), import ... from "../src/stack.js", import("./x").</summary>
+    [GeneratedRegex(@"(?:\brequire\s*\(\s*|\bfrom\s+|\bimport\s*\(\s*|^\s*import\s+)(?<quote>['""])(?<path>\.{1,2}/[^'""]+)\k<quote>", RegexOptions.Multiline)]
+    private static partial Regex JavaScriptRelativeImport();
+
+    /// <summary>What Node.js tries after a path given without its extension, in this order.</summary>
+    private static readonly string[] JavaScriptExtensions = [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"];
+
+    /// <summary>
+    /// The program's own files a JavaScript or TypeScript file brings in by a path relative to it - not a package by its
+    /// name - each found as Node.js finds it: the path as written, or with an extension, or the index file of a folder.
+    /// </summary>
+    public static IReadOnlyList<string> JavaScriptImports(string file)
+    {
+        if (Read(file) is not { } text) return [];
+
+        var lines = text.ReplaceLineEndings("\n").Split('\n');
+        var masked = LocalFixes.CodeText.MaskAll(lines, LocalFixes.Syntax.CLike);
+        var folder = Path.GetDirectoryName(Path.GetFullPath(file))!;
+        var found = new List<string>();
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            // A comment masks to nothing; a line of code keeps its words, if not what is in its quotes.
+            if (masked[index].Trim().Length == 0) continue;
+
+            foreach (Match import in JavaScriptRelativeImport().Matches(lines[index]))
+            {
+                var written = Path.GetFullPath(Path.Combine(folder, import.Groups["path"].Value.Replace('/', Path.DirectorySeparatorChar)));
+                var resolved = new[] { written }
+                    .Concat(JavaScriptExtensions.Select(extension => written + extension))
+                    .Concat(JavaScriptExtensions.Select(extension => Path.Combine(written, "index" + extension)))
+                    .FirstOrDefault(File.Exists);
+
+                if (resolved is not null && !found.Contains(resolved, StringComparer.OrdinalIgnoreCase)) found.Add(resolved);
+            }
+        }
+
+        return found;
+    }
+
     /// <summary>How many files of a project are looked through for a module of its own that Python could not find.</summary>
     private const int MostFilesLookedThrough = 2000;
 

@@ -424,15 +424,28 @@ public sealed partial class TestRepair
 
     private static bool IsPython(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".pyw";
 
+    private static bool IsJavaScript(string file) => Path.GetExtension(file).ToLowerInvariant() is ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts";
+
+    /// <summary>Whether two files are of one language: the same extension, or both JavaScript or TypeScript, which import each other.</summary>
+    private static bool SameLanguage(string first, string second) =>
+        Path.GetExtension(first).Equals(Path.GetExtension(second), StringComparison.OrdinalIgnoreCase) || IsJavaScript(first) && IsJavaScript(second);
+
+    /// <summary>A JavaScript or TypeScript function's head: function grade(, const grade = (mark) =>, or a method's, pop() {.</summary>
+    [GeneratedRegex(@"^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s*\*?\s*(?<name>[A-Za-z_$][\w$]*)\s*[(<]|^\s*(?:export\s+)?(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*(?::[^=]+)?=>|[A-Za-z_$][\w$]*\s*=>)|^\s*(?:(?:public|private|protected|static|async|get|set)\s+)*(?<name>[A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::[^{]+)?\{\s*$")]
+    private static partial Regex JavaScriptFunction();
+
+    /// <summary>The head of a node:test test, or one in a describe block: test( or it( - the name it is given is text, which masking leaves out.</summary>
+    [GeneratedRegex(@"\b(?:test|it)(?:\.(?:only|skip|todo))?\s*\(")]
+    private static partial Regex NodeTestHead();
+
     /// <summary>
     /// The files of the program the failing tests call: the ones their failures were raised through, most first, or else
     /// the program's own files the test file imports - never a file of tests, and only files of the test file's language.
     /// </summary>
     private static List<SourceFile> CodeUnderTest(SourceFile tests, IReadOnlyList<TestReport.TestResult> failing, string root, bool doctests)
     {
-        var extension = Path.GetExtension(tests.Path);
         bool Usable(string file) =>
-            File.Exists(file) && !SamePath(file, tests.Path) && Path.GetExtension(file).Equals(extension, StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(file) && !SamePath(file, tests.Path) && SameLanguage(file, tests.Path) &&
             !Path.GetRelativePath(root, file).StartsWith("..", StringComparison.Ordinal) && !IsTestFile(file);
 
         var raisedThrough = failing.SelectMany(test => test.Frames)
@@ -454,11 +467,12 @@ public sealed partial class TestRepair
         return chosen.Select(SourceFile.Read).OfType<SourceFile>().ToList();
     }
 
-    /// <summary>Whether a file is one of tests: test_x.py or x_test.py, or a Java class with an @Test method.</summary>
+    /// <summary>Whether a file is one of tests: test_x.py or x_test.py, one of node:test's tests, or a Java class with an @Test method.</summary>
     private static bool IsTestFile(string file)
     {
         var name = Path.GetFileNameWithoutExtension(file);
         if (IsPython(file)) return name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase);
+        if (IsJavaScript(file)) return NodeTests.AreItsTests(file);
 
         try
         {
@@ -473,10 +487,17 @@ public sealed partial class TestRepair
     /// <summary>
     /// The program's own files a test file imports: in Python, a module beside it, under the program's folder or in a
     /// folder above it that Python, or pytest's settings, tell it to look in - src beside the tests folder - by its import
-    /// lines; in Java, a class it names whose .java file is beside it or under the program's folder.
+    /// lines; in JavaScript and TypeScript, a file it brings in by a path of its own; in Java, a class it names whose .java
+    /// file is beside it or under the program's folder.
     /// </summary>
     private static IEnumerable<string> Imported(SourceFile tests, string root)
     {
+        if (IsJavaScript(tests.Path))
+        {
+            foreach (var imported in ProgramLayout.JavaScriptImports(tests.Path)) yield return imported;
+            yield break;
+        }
+
         var folder = Path.GetDirectoryName(tests.Path)!;
         var masked = CodeText.MaskAll(tests.Lines, IsPython(tests.Path) ? Syntax.Python : Syntax.CLike);
 
@@ -534,7 +555,8 @@ public sealed partial class TestRepair
         var functions = functionOf.OfType<string>().ToHashSet(StringComparer.Ordinal);
 
         var called = before.Where(test => test.Status is "SUCCESSFUL" or "FAILED")
-            .Select(test => (Failed: test.Status == "FAILED", Calls: doctests ? CallsInExamples(tests, test.Method) : CallsIn(tests, test.Method)))
+            .Select(test => (Failed: test.Status == "FAILED",
+                Calls: doctests ? CallsInExamples(tests, test.Method) : IsJavaScript(tests.Path) ? CallsInNamedTest(tests, test.Method) : CallsIn(tests, test.Method)))
             .Where(test => test.Calls is not null)
             .Select(test => (test.Failed, Calls: test.Calls!.Where(functions.Contains).ToHashSet(StringComparer.Ordinal)))
             .ToList();
@@ -552,7 +574,8 @@ public sealed partial class TestRepair
 
     /// <summary>
     /// The function or method each line of a file is in: the nearest head above it that is indented less - def in
-    /// Python, a method's head in Java - or null outside every one, such as a class's fields or the module's own code.
+    /// Python, a function's or a method's head in JavaScript, a method's in Java - or null outside every one, such as a
+    /// class's fields or the module's own code.
     /// </summary>
     private static string?[] FunctionOfEachLine(SourceFile source)
     {
@@ -573,16 +596,23 @@ public sealed partial class TestRepair
             var indent = line.Length - line.TrimStart().Length;
             while (open.Count > 0 && open.Peek().Indent >= indent) open.Pop();
 
-            if (HeadOf(line, python) is { } name) open.Push((indent, name));
+            if (HeadOf(line, source.Path) is { } name) open.Push((indent, name));
             functionOf[index] = open.Count > 0 ? open.Peek().Name : null;
         }
 
         return functionOf;
     }
 
-    private static string? HeadOf(string maskedLine, bool python)
+    private static string? HeadOf(string maskedLine, string file)
     {
-        if (python) return PythonFunction().Match(maskedLine) is { Success: true } def ? def.Groups["name"].Value : null;
+        if (IsPython(file)) return PythonFunction().Match(maskedLine) is { Success: true } def ? def.Groups["name"].Value : null;
+
+        if (IsJavaScript(file))
+        {
+            return JavaScriptFunction().Match(maskedLine) is { Success: true } function && !NotNames.Contains(function.Groups["name"].Value)
+                ? function.Groups["name"].Value
+                : null;
+        }
 
         return JavaMethod().Match(maskedLine) is { Success: true } method && !NotNames.Contains(method.Groups["name"].Value) && !NotNames.Contains(method.Groups["type"].Value)
             ? method.Groups["name"].Value
@@ -603,7 +633,7 @@ public sealed partial class TestRepair
 
         for (var index = 0; index < masked.Count; index++)
         {
-            if (HeadOf(masked[index], python: true) != function) continue;
+            if (HeadOf(masked[index], tests.Path) != function) continue;
 
             var indent = masked[index].Length - masked[index].TrimStart().Length;
             var calls = new HashSet<string>(StringComparer.Ordinal);
@@ -654,7 +684,39 @@ public sealed partial class TestRepair
 
         for (var index = 0; index < masked.Count; index++)
         {
-            if (HeadOf(masked[index], python) != name) continue;
+            if (HeadOf(masked[index], tests.Path) != name) continue;
+
+            var indent = masked[index].Length - masked[index].TrimStart().Length;
+            var calls = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var inside = index + 1; inside < masked.Count; inside++)
+            {
+                var line = masked[inside];
+                if (line.Trim().Length == 0) continue;
+                if (line.Length - line.TrimStart().Length <= indent) break;
+
+                foreach (Match call in CallOf().Matches(line))
+                    if (!NotNames.Contains(call.Groups["name"].Value)) calls.Add(call.Groups["name"].Value);
+            }
+
+            return calls;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The names a node:test test calls in its own code - test("pops the last pushed", () => { ... }) - found by the name
+    /// it is given, in the body below its head; null when no test of that name is in the file.
+    /// </summary>
+    private static HashSet<string>? CallsInNamedTest(SourceFile tests, string name)
+    {
+        var masked = CodeText.MaskAll(tests.Lines, Syntax.CLike);
+        string[] named = [$"\"{name}\"", $"'{name}'", $"`{name}`"];
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (!NodeTestHead().IsMatch(masked[index]) || !named.Any(quoted => tests.Lines[index].Contains(quoted, StringComparison.Ordinal))) continue;
 
             var indent = masked[index].Length - masked[index].TrimStart().Length;
             var calls = new HashSet<string>(StringComparer.Ordinal);

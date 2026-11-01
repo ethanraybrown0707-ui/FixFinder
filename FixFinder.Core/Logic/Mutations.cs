@@ -608,7 +608,8 @@ public static partial class Mutations
     [GeneratedRegex(@"(?<![\w.])len\([^()]*\)(?!\s*[-+]\s*1(?![\w.]))")]
     private static partial Regex PythonLength();
 
-    [GeneratedRegex(@"(?<![\w.$])[A-Za-z_$][\w$]*(?:\.(?:length|Length|Count)(?![\w(])|\.size\(\))(?!\s*[-+]\s*1(?![\w.]))")]
+    /// <summary>A length worked with - items.length, this.items.length, list.size() - not already one more or less.</summary>
+    [GeneratedRegex(@"(?<![\w.$])[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*?(?:\.(?:length|Length|Count)(?![\w(])|\.size\(\))(?!\s*[-+]\s*1(?![\w.]))")]
     private static partial Regex Length();
 
     [GeneratedRegex(@"(?<![\w.])(?<name>any|all)(?=\s*\()")]

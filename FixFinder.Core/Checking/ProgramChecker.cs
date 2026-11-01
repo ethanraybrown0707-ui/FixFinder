@@ -744,8 +744,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                "such as void main(). Choose the file of the program that has one. The code in this file was still read for mistakes.";
     }
 
-    /// <summary>The framework a file's tests are run with: for Python, pytest, unittest or doctest, whichever the file is written for; JUnit for Java.</summary>
-    private static string TestFrameworkOf(string chosen) => !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
+    /// <summary>
+    /// The framework a file's tests are run with: for Python, pytest, unittest or doctest, whichever the file is written for;
+    /// node:test for JavaScript and TypeScript; JUnit for Java.
+    /// </summary>
+    private static string TestFrameworkOf(string chosen) => NodeTests.AreItsTests(chosen) ? NodeTests.RunnerName : !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
     {
         PythonTests.Framework.Pytest => "pytest",
         PythonTests.Framework.Doctest => "doctest",
@@ -794,6 +797,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "unittest" => $"unittest found no tests to run in {name}. It runs the methods of a unittest.TestCase class whose names begin with test.",
                 "doctest" => $"doctest found no examples to run in {name}. It runs the >>> examples in the docstrings of the module and of the " +
                              "functions and classes defined in it.",
+                NodeTests.RunnerName => $"node:test found no tests to run in {name}. It runs what is given to test() or it(), and to those " +
+                                        "inside describe().",
                 _ => $"JUnit found no tests to run in {name}. JUnit 5 runs methods marked @Test that are not private and return nothing; " +
                      "JUnit 4 needs them public.",
             });
@@ -802,7 +807,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var skipped = results.Count(result => result.Status is "SKIPPED" or "ABORTED");
         if (skipped > 0)
         {
-            Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped{(IsPython(chosen) ? "" : ", or stopped by an assumption that did not hold")}, " +
+            Note($"{Count(skipped, "test")} {(skipped == 1 ? "was" : "were")} skipped{(framework == "JUnit" ? ", or stopped by an assumption that did not hold" : "")}, " +
                  $"so {framework} did not say whether {(skipped == 1 ? "it passes" : "they pass")}.");
         }
 
@@ -861,8 +866,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         var python = IsPython(chosen);
 
+        // Python's frames, and node:test's, name each file in full; JUnit's name the class and the file's name alone.
+        var framesNameFilesInFull = python || framework == NodeTests.RunnerName;
+
         // Python's frames name the file in full, and unittest's own are left out by its launcher; Java's name the class and file.
-        bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => python
+        bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => framesNameFilesInFull
             ? frame.File is { } file && string.Equals(Path.GetFullPath(file), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)
             : test.ClassName.Length > 0 && (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
               string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase);
@@ -873,12 +881,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? test.Frames.LastOrDefault(frame => InTheTestFile(frame) && frame.Line > 0)
             : test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
 
-        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (python || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
+        var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (framesNameFilesInFull || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("jdk.", StringComparison.Ordinal) && !frame.Class.StartsWith("sun.", StringComparison.Ordinal))));
 
         var exception = test.Exception ?? "";
-        var assertion = python
+        var assertion = framesNameFilesInFull
             ? exception == "AssertionError"
             : exception is "java.lang.AssertionError" or "junit.framework.AssertionFailedError" or "org.junit.ComparisonFailure" ||
               exception.StartsWith("org.opentest4j.", StringComparison.Ordinal) || exception.EndsWith(".AssertionFailedError", StringComparison.Ordinal);
@@ -887,7 +895,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         // Said in one line, its runs of spaces made one; a title takes only its first line, as a long message is best read whole.
         var message = test.Message is { Length: > 0 } said && said != "null" ? Regex.Replace(said.Trim(), @"\s+", " ") : null;
-        var firstLine = test.Message is { Length: > 0 } && message is not null ? test.Message.Trim().Split('\n')[0].Trim() : null;
+        // A first line that ends with a colon says what follows it - node:assert's "Expected values to be strictly equal:" - so the
+        // title goes on to the next line said: '2:1' !== 'First'.
+        var saidLines = test.Message is { Length: > 0 } && message is not null
+            ? test.Message.Trim().Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0).ToList()
+            : [];
+        var firstLine = saidLines.Count == 0 ? null : saidLines[0].EndsWith(':') && saidLines.Count > 1 ? $"{saidLines[0]} {saidLines[1]}" : saidLines[0];
         var shown = firstLine is null ? "" : $": {(firstLine.Length <= 120 ? firstLine : firstLine[..117] + "...")}";
 
         // A Python subtest is named with what it was run with: test_shares (people=4); a pytest test with its parameters: test_shares[4-20].
@@ -1166,6 +1179,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         switch (outcome.Result)
         {
+            // node --test ends with code 1 when a test failed, which its tests' own findings already say.
+            case SessionResult.FailedSilently when outcome.Run is { } testRun && TestReport.ResultsIn(testRun.Lines.Select(line => line.Text)).Count > 0:
+                break;
+
             case SessionResult.FailedSilently when outcome.Run?.Outcome != RunOutcome.Crashed:
                 Add(new Finding
                 {

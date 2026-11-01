@@ -176,6 +176,8 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "class Stack:\n    def pop(self):\n        return self.items.pop(0)\n", 3, "        return self.items.pop()")]
     [InlineData("app.js", "function next(queue) {\n    return queue.pop();\n}\n", 2, "    return queue.shift();")]
     [InlineData("App.java", "class App {\n    static int last(java.util.LinkedList<Integer> xs) {\n        return xs.removeFirst();\n    }\n}\n", 3, "        return xs.removeLast();")]
+    // The last item read one past the end, through a property of this: this.items[this.items.length].
+    [InlineData("stack.js", "class Stack {\n  peek() {\n    return this.items[this.items.length];\n  }\n}\n", 3, "    return this.items[this.items.length - 1];")]
     // A place value off by a digit: the last digit taken off with // 100, and two digits kept with % 1000.
     [InlineData("app.py", "def digits(n):\n    n = n // 100\n", 2, "    n = n // 10")]
     [InlineData("App.java", "class App {\n    static int lastTwo(int n) {\n        return n % 1000;\n    }\n}\n", 3, "        return n % 100;")]

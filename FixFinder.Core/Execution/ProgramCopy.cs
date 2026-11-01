@@ -44,6 +44,9 @@ public static class ProgramCopy
             ".scala" or ".sc" => ScalaProgram.Of(file).Folder,
             ".py" when NotebookScript.Of(file) is { } notebook => Path.GetDirectoryName(notebook.Notebook)!,
             ".py" => FolderHoldingAll([ProgramLayout.PythonModule(file)?.Folder ?? Path.GetDirectoryName(Path.GetFullPath(file))!, .. ProgramLayout.PythonImportFoldersOfTests(file), .. PytestUses(file)]),
+            // Tests for Node.js's test runner bring in the program's files by paths of their own, ../src/grades.js among them.
+            ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.AreItsTests(file) =>
+                FolderHoldingAll([Path.GetDirectoryName(Path.GetFullPath(file))!, .. ProgramLayout.JavaScriptImports(file).Select(imported => Path.GetDirectoryName(imported)!)]),
             _ => Path.GetDirectoryName(file)!,
         };
     }

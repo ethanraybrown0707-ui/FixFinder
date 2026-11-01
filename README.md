@@ -852,6 +852,14 @@ prints it: each example doctest printed as failed is an error on its own line al
 ran to the end but some of its doctests' examples failed, and the traceback doctest prints for an example that raised is
 not taken for the program stopping - a crash after the doctests still is.
 
+A JavaScript or TypeScript file of tests for Node.js's own test runner, **node:test** - one that requires or imports
+`node:test`, with `test()`, or `it()` inside `describe()` - is run with `node --test`, test by test, through a reporter of
+FixFinder's; node:test is part of Node.js, so nothing is installed to run it. A test that fails is an error on the line of
+the test it failed on, in node:assert's own words - `Expected values to be strictly equal: '2:1' !== 'First'` - named
+with the `describe` blocks it is in, and an error thrown in the code it calls names the line it was thrown on. `node --test`
+ends with code 1 when a test fails, which is the failed test's finding, not one of its own. Jest's and Mocha's tests need
+their own packages, which a check never downloads.
+
 Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
 folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for
 the program's own modules where they are, in the folders above the test file and the `src` folder in each, at most three
@@ -866,9 +874,10 @@ where it is, and says how to have Python find it: moving it, running a program a
 started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
 package of that name, which would be somebody else's code.
 
-When some of a file's JUnit, unittest, pytest or doctest tests fail, FixFinder looks for **the change that makes every test pass**,
+When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
-test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names. It tries the same
+test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
+node:test, by a path of its own such as `../src/grades.ts`. It tries the same
 small changes as the search against an expected output, each in a private copy of the program - which holds the tests'
 folder, the program's, and pytest's settings and `conftest.py` files, so the tests run there as they do in the project -
 and runs the whole file of tests with each; a change counts only when every test that ran before runs again
@@ -889,7 +898,9 @@ never reaches 0, had no test fail and every run stopped, and the change found, `
 pass. The fix then goes on the run that was stopped. A file of doctests is the code its examples call as well as its
 tests, so changes are tried in its own code - never in a line of a docstring or a comment, which would change the tests
 rather than the code: a `double_eights` whose `n // 100` took two digits off at a time was fixed with `n // 10`, and a
-`Stack` whose `pop` and `peek` docstrings both failed was fixed a change at a time, as above.
+`Stack` whose `pop` and `peek` docstrings both failed was fixed a change at a time, as above. So was a JavaScript `Stack`
+tested with node:test in a `describe` block, whose `pop` used `shift()` and whose `peek` read
+`this.items[this.items.length]`: the change found is `pop()` and `this.items.length - 1`.
 
 Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
 corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 26,

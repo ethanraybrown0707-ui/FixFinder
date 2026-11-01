@@ -274,6 +274,12 @@ public static class TargetFactory
                 testsRunBy = "doctest";
                 break;
 
+            case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.AreItsTests(full):
+                // Its tests are run with Node.js's own test runner, node --test, test by test, through a reporter of FixFinder's.
+                arguments = $"--test --test-reporter={NodeTests.ReporterUrl()} \"{full}\"";
+                testsRunBy = NodeTests.RunnerName;
+                break;
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."
