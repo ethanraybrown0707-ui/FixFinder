@@ -12,7 +12,7 @@ namespace FixFinder.Core.Execution;
 /// </summary>
 public static partial class PythonTests
 {
-    public enum Framework { None, Unittest, Pytest }
+    public enum Framework { None, Unittest, Pytest, Doctest }
 
     [GeneratedRegex(@"(?m)^[ \t]*(?:import[ \t]+unittest\b|from[ \t]+unittest\b)")]
     private static partial Regex UnittestImport();
@@ -30,7 +30,8 @@ public static partial class PythonTests
     /// <summary>
     /// Which framework a file's tests are written for: pytest when it imports pytest - pytest runs a TestCase class too, and
     /// such a file uses what only pytest gives; unittest when it imports unittest and has a TestCase class; pytest when it
-    /// is named test_*.py or *_test.py and has test functions of its own; None otherwise.
+    /// is named test_*.py or *_test.py and has test functions of its own; doctest when the examples in its docstrings are
+    /// all it runs; None otherwise.
     /// </summary>
     public static Framework FrameworkOf(string pythonFile)
     {
@@ -50,7 +51,64 @@ public static partial class PythonTests
         var name = Path.GetFileNameWithoutExtension(pythonFile);
         var namedAsTests = name.StartsWith("test_", StringComparison.Ordinal) || name.EndsWith("_test", StringComparison.Ordinal);
 
-        return namedAsTests && TopLevelTestFunction().IsMatch(text) ? Framework.Pytest : Framework.None;
+        if (namedAsTests && TopLevelTestFunction().IsMatch(text)) return Framework.Pytest;
+
+        return OnlyRunsItsDoctests(text) ? Framework.Doctest : Framework.None;
+    }
+
+    /// <summary>An example in a docstring, as doctest finds one: >>> and a space, or >>> ending the line.</summary>
+    [GeneratedRegex(@"^\s*>>>(?: |$)")]
+    private static partial Regex DoctestExample();
+
+    [GeneratedRegex(@"^if\s+__name__\s*==\s*(?:'__main__'|""__main__"")\s*:")]
+    private static partial Regex MainBlockHead();
+
+    /// <summary>What a module whose doctests are all it runs has at its top: a definition, an import, a decorator, or a name given a value.</summary>
+    [GeneratedRegex(@"^(?:(?:async\s+)?def|class|import|from)\b|^@|^[A-Za-z_][\w.]*(?:\s*,\s*[A-Za-z_][\w.]*)*\s*(?::[^=]+)?=(?!=)")]
+    private static partial Regex Definition();
+
+    /// <summary>A line of a __main__ block that runs the doctests and nothing else: import doctest, doctest.testmod(), testmod(verbose=True), pass.</summary>
+    [GeneratedRegex(@"^\s*(?:import\s+doctest\b.*|from\s+doctest\s+import\b.*|(?:doctest\.)?testmod\s*\(.*|pass)$")]
+    private static partial Regex RunsTheDoctests();
+
+    /// <summary>
+    /// Whether a file's doctests - the examples in its docstrings - are all it runs: it has examples, and at its top only
+    /// defines functions, classes and names, maybe with a __main__ block that runs doctest.testmod() and nothing else. Such a
+    /// file run as a program does nothing but run its doctests, or nothing at all, so its examples are its tests. A program
+    /// that also does something of its own - reads input, prints, calls main() - is run as the program it is.
+    /// </summary>
+    private static bool OnlyRunsItsDoctests(string text)
+    {
+        var lines = text.ReplaceLineEndings("\n").Split('\n');
+        var masked = LocalFixes.CodeText.MaskAll(lines, LocalFixes.Syntax.Python);
+
+        // An example is in a docstring, so it is text: the line masks to nothing.
+        if (!Enumerable.Range(0, lines.Length).Any(index => DoctestExample().IsMatch(lines[index]) && masked[index].Trim().Length == 0)) return false;
+
+        var openBrackets = 0;
+        var inMainBlock = false;
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = masked[index];
+            var startsStatement = openBrackets == 0;
+            openBrackets = Math.Max(0, openBrackets + line.Count(c => c is '(' or '[' or '{') - line.Count(c => c is ')' or ']' or '}'));
+            if (!startsStatement || line.Trim().Length == 0) continue;
+
+            if (char.IsWhiteSpace(line[0]))
+            {
+                if (inMainBlock && !RunsTheDoctests().IsMatch(line.TrimEnd())) return false;
+                continue;
+            }
+
+            // "__main__" is text, which masking leaves out, so the block's head is read as it is written.
+            inMainBlock = MainBlockHead().IsMatch(lines[index].TrimEnd());
+            if (inMainBlock) continue;
+
+            if (!Definition().IsMatch(line) || line.Contains("input(", StringComparison.Ordinal)) return false;
+        }
+
+        return true;
     }
 
     /// <summary>The name the unittest launcher is written under, so a report can tell a failure of FixFinder's own launcher from the tests'.</summary>
@@ -58,6 +116,12 @@ public static partial class PythonTests
 
     /// <summary>The name the pytest launcher is written under, for the same reason.</summary>
     public const string PytestLauncherPrefix = "fixfinder_pytest_launcher";
+
+    /// <summary>The name the doctest launcher is written under, for the same reason.</summary>
+    public const string DoctestLauncherPrefix = "fixfinder_doctest_launcher";
+
+    /// <summary>Writes the doctest launcher where every Python can read it, and says where.</summary>
+    public static string WriteDoctestLauncher() => Written(DoctestLauncherPrefix, DoctestLauncherSource);
 
     /// <summary>What the pytest launcher prints when pytest is not installed for the Python it was run with.</summary>
     public const string PytestMissingMarker = "FIXFINDER-PYTEST-MISSING";
@@ -383,6 +447,146 @@ public static partial class PythonTests
                 shutil.rmtree(cache, ignore_errors=True)
             reporter.emit([ENDED, str(int(ended))])
             sys.exit(1 if reporter.collection_failed else 0)
+
+
+        main()
+        """;
+
+    /// <summary>
+    /// The doctest launcher: python launcher.py file. It imports the file by its own name from its own folder, as python -m
+    /// doctest file.py does - so its __main__ block does not run - and runs the examples in each of its docstrings with
+    /// doctest itself, with the options the file's own doctest.testmod(optionflags=...) gives, printing one line for each
+    /// docstring in the form TestReport reads: the first example that did not give what it shows, on its own line of the file.
+    /// </summary>
+    private const string DoctestLauncherSource = """
+        # Written by FixFinder: runs the examples in one file's docstrings with doctest and prints what each docstring's did, one line each.
+
+        import ast
+        import doctest
+        import importlib.util
+        import os
+        import sys
+        import tokenize
+
+        RESULT = "FIXFINDER-TEST"
+        FOUND = "FIXFINDER-TESTS-FOUND"
+
+
+        def clean(text):
+            return str(text).replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n")
+
+
+        def part(text):
+            # The parts of a place are joined with # and ;, which a folder's name can hold, so those - and % - are written %23, %3B and %25.
+            return str(text).replace("%", "%25").replace("#", "%23").replace(";", "%3B")
+
+
+        def option_flags(source):
+            # The options the file's own doctest.testmod(optionflags=...) gives - ELLIPSIS, NORMALIZE_WHITESPACE - so its
+            # examples are judged here as they are when it runs them itself.
+            flags = 0
+            names = dict(doctest.OPTIONFLAGS_BY_NAME, doctest=doctest)
+            for node in ast.walk(ast.parse(source)):
+                called = getattr(node, "func", None)
+                if isinstance(node, ast.Call) and getattr(called, "attr", getattr(called, "id", None)) == "testmod":
+                    for keyword in node.keywords:
+                        if keyword.arg == "optionflags":
+                            try:
+                                flags |= eval(compile(ast.Expression(keyword.value), "<optionflags>", "eval"), {"__builtins__": {}}, names)
+                            except Exception:
+                                pass
+            return flags
+
+
+        class Reporter(doctest.DocTestRunner):
+            # Keeps the first example of a docstring that did not give what it shows, rather than printing doctest's report.
+            def __init__(self, optionflags):
+                super().__init__(verbose=False, optionflags=optionflags)
+                self.first_failure = None
+
+            def report_start(self, out, test, example):
+                pass
+
+            def report_success(self, out, test, example, got):
+                pass
+
+            def report_failure(self, out, test, example, got):
+                if self.first_failure is None:
+                    self.first_failure = (example, got, None)
+
+            def report_unexpected_exception(self, out, test, example, exc_info):
+                if self.first_failure is None:
+                    self.first_failure = (example, None, exc_info)
+
+
+        def line_of(test, example):
+            # doctest's own numbering: the docstring's first line in the file, counted from 0, and the example's in the docstring.
+            return (test.lineno or 0) + example.lineno + 1
+
+
+        def frames_of(module_name, name, test_file, test, example, exc_info):
+            # Where it went wrong, innermost first: the example's own line, and for an exception the lines it was raised
+            # through, with doctest's own left out.
+            example_place = "%s#%s#%s#%d" % (part(module_name), part(name), part(test_file), line_of(test, example))
+            if exc_info is None:
+                return example_place
+            frames = []
+            trace = exc_info[2]
+            while trace is not None:
+                frame = trace.tb_frame
+                code = frame.f_code
+                if code.co_filename.startswith("<doctest "):
+                    frames.append(example_place)
+                elif frame.f_globals.get("__name__") != "doctest":
+                    frames.append("%s#%s#%s#%d" % (part(frame.f_globals.get("__name__", "")), part(code.co_name), part(code.co_filename), trace.tb_lineno))
+                trace = trace.tb_next
+            frames.reverse()
+            return ";".join(frames)
+
+
+        def main():
+            test_file = os.path.abspath(sys.argv[1])
+            module_name = os.path.splitext(os.path.basename(test_file))[0]
+
+            # The file's own folder is where Python looks first for what it imports, as python -m doctest has it.
+            sys.path[0] = os.path.dirname(test_file)
+            sys.argv = [test_file]
+
+            spec = importlib.util.spec_from_file_location(module_name, test_file)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            try:
+                spec.loader.exec_module(module)
+            except SystemExit as ended:
+                raise RuntimeError("%s ended the program with sys.exit(%r) while it was being imported, so its doctests could not be run"
+                                   % (os.path.basename(test_file), ended.code)) from None
+
+            with tokenize.open(test_file) as reading:
+                flags = option_flags(reading.read())
+
+            tests = sorted((test for test in doctest.DocTestFinder().find(module, module_name) if test.examples), key=lambda test: test.lineno or 0)
+            print("%s\t%d" % (FOUND, len(tests)), flush=True)
+
+            runner = Reporter(flags)
+            for test in tests:
+                runner.first_failure = None
+                runner.run(test, out=lambda text: None)
+                # Named as the code is: grade, or Stack.push - the module's own docstring by the module's name.
+                name = test.name[len(module_name) + 1:] if test.name.startswith(module_name + ".") else test.name
+                method = name.split(".")[-1]
+                if runner.first_failure is None:
+                    fields = [RESULT, "SUCCESSFUL", name, module_name, method, "", "", ""]
+                else:
+                    example, got, exc_info = runner.first_failure
+                    if exc_info is None:
+                        message = "%s: expected %s, got %s" % (example.source.strip(), example.want.strip() or "nothing", got.strip() or "nothing")
+                        exception = ""
+                    else:
+                        message = str(exc_info[1])
+                        exception = exc_info[0].__name__
+                    fields = [RESULT, "FAILED", name, module_name, method, exception, message,
+                              frames_of(module_name, name, test_file, test, example, exc_info)]
+                print("\t".join(clean(field) if index > 0 else field for index, field in enumerate(fields)), flush=True)
 
 
         main()

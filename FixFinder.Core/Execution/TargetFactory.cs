@@ -267,6 +267,13 @@ public static class TargetFactory
                 testsRunBy = "pytest";
                 break;
 
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Doctest:
+                // The examples in its docstrings are run with doctest, docstring by docstring, as python -m doctest runs them:
+                // the file imported by its own name from its own folder, so its __main__ block does not run.
+                arguments = $"-X utf8 \"{PythonTests.WriteDoctestLauncher()}\" \"{full}\"";
+                testsRunBy = "doctest";
+                break;
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."
@@ -326,7 +333,9 @@ public static class TargetFactory
         // dotnet runs an F# script through F# Interactive, which is what is named.
         var fsharp = extension.Equals(".fsx", StringComparison.OrdinalIgnoreCase) ? "F# Interactive, dotnet fsi" : null;
         var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
-        var how = (testsRunBy is not null
+        var how = (testsRunBy is "doctest"
+            ? $"Running the examples in its docstrings with doctest, docstring by docstring, using {interpreterNamed}."
+            : testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
             : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "") +
             (importFolders.Count > 0

@@ -143,6 +143,13 @@ public static partial class Mutations
 
             Add(m.Index, m.Length, (value + 1).ToString(), "a constant off by one", value <= 1 ? 2 : 3);
             if (value > 0) Add(m.Index, m.Length, (value - 1).ToString(), "a constant off by one", value <= 1 ? 2 : 3);
+
+            // A place value off by a digit - n // 100 where n // 10 was meant, to take the last digit off a number.
+            if (IsPowerOfTen(value))
+            {
+                if (value >= 100) Add(m.Index, m.Length, (value / 10).ToString(), "a place value off by a digit", 3);
+                Add(m.Index, m.Length, (value * 10).ToString(), "a place value off by a digit", 3);
+            }
         }
 
         foreach (Match m in MaxMin().Matches(masked))
@@ -296,6 +303,14 @@ public static partial class Mutations
             .Select(parameter => Regex.Match(parameter, @"^\s*\**(?<name>[A-Za-z_]\w*)").Groups["name"].Value)
             .Where(name => name.Length > 0 && name != "self")
             .ToList();
+
+    /// <summary>Whether a number is 10, 100, 1000 and so on: one place value of a decimal number.</summary>
+    private static bool IsPowerOfTen(long value)
+    {
+        if (value < 10) return false;
+        while (value % 10 == 0) value /= 10;
+        return value == 1;
+    }
 
     /// <summary>
     /// The counters a line's function counts up and down - depth += 1 and depth -= 1, or depth++ and depth-- - in Python the

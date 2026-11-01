@@ -839,6 +839,15 @@ not start - an option in the project's settings from a plugin that is not instal
 compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
 project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
 
+A Python file of **doctests** - examples in its docstrings, `>>> double_eights(88)` above the answer `True` - is run with
+doctest itself, docstring by docstring, as `python -m doctest` runs it: imported by its own name from its own folder, so
+its `__main__` block does not run, and with the options its own `doctest.testmod(optionflags=...)` gives, such as
+`ELLIPSIS`. That is so when the examples are all the file runs: at its top it only defines functions, classes and names,
+with at most a `__main__` block that runs `doctest.testmod()`. A file that also does work of its own - calls `main()`,
+prints, reads what is typed in - is checked as the program it is. Each docstring is one doctest, and the first of its
+examples that does not give what it shows is an error on that example's own line: `double_eights(88): expected True, got
+False`, or, for an example that raised, what was raised and the line of the code it was raised on.
+
 Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
 folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for
 the program's own modules where they are, in the folders above the test file and the `src` folder in each, at most three
@@ -853,7 +862,7 @@ where it is, and says how to have Python find it: moving it, running a program a
 started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
 package of that name, which would be somebody else's code.
 
-When some of a file's JUnit, unittest or pytest tests fail, FixFinder looks for **the change that makes every test pass**,
+When some of a file's JUnit, unittest, pytest or doctest tests fail, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names. It tries the same
 small changes as the search against an expected output, each in a private copy of the program - which holds the tests'
@@ -873,7 +882,10 @@ pass `pop(1)` as well as `pop()` - so the finding says to check the change is th
 lines makes every test pass, a note says how many were tried. A test that never finishes - a loop that never ends, so the
 run of the tests is stopped for time - counts as one that does not pass yet: QuixBugs' `bitcount`, whose `n ^= n - 1`
 never reaches 0, had no test fail and every run stopped, and the change found, `n &= n - 1`, lets every test finish and
-pass. The fix then goes on the run that was stopped.
+pass. The fix then goes on the run that was stopped. A file of doctests is the code its examples call as well as its
+tests, so changes are tried in its own code - never in a line of a docstring or a comment, which would change the tests
+rather than the code: a `double_eights` whose `n // 100` took two digits off at a time was fixed with `n // 10`, and a
+`Stack` whose `pop` and `peek` docstrings both failed was fixed a change at a time, as above.
 
 Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
 corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 26,
@@ -1285,13 +1297,16 @@ unused; that warning and the check are one finding, whose change names it `add_t
    the wrong variable, a running best replaced rather than kept (`max(longest, length + 1)`), a generator's own call
    yielded whole, a base case that answers nothing (`[]` for `[[]]` or `[n]`) or is one too small (`len(arr) == 0` for
    `<= 1`), a count never checked (`return True` for `return depth == 0`), a recursive base case that does not stop at
-   an empty list, a list not shortened like the one beside it, and a loop over items already taken. Two edits add a
+   an empty list, a list not shortened like the one beside it, a loop over items already taken, and a place value one
+   digit out (`n // 100` for `n // 10`, which takes two digits off a number where one was meant). Two edits add a
    line rather than change one: the piece left over when a loop ends (`lines.append(text)` before `return lines`), and
    the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
    Several edits are tried at once, so on a busy computer one can be stopped for time, which shows nothing either way:
    it is tried again straight away, on its own and with three times as long, rather than after every edit ranked below it.
+   When the edits tried beside it finished in a fifth of the time, though, the computer was not busy and the edit itself
+   ran on - as `while n >= 0` does where `n > 0` stopped the loop - so it is not tried again, and the time goes on others.
 
 Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
 five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the

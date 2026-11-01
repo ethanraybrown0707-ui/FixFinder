@@ -82,7 +82,9 @@ public sealed partial class TestRepair
         if (failing.Count == 0 && unfinished <= 0 || before.Any(test => test.Status is "SETUP-FAILED" or "TEARDOWN-FAILED")) return null;
         if (SourceFile.Read(testFile) is not { } tests) return null;
         var root = ProgramCopy.RootOf(testFile);
-        var targets = CodeUnderTest(tests, failing, root);
+        var doctests = PythonTests.FrameworkOf(testFile) == PythonTests.Framework.Doctest;
+        var testNoun = doctests ? "doctest" : "test";
+        var targets = CodeUnderTest(tests, failing, root, doctests);
 
         if (targets.Count == 0)
         {
@@ -121,10 +123,10 @@ public sealed partial class TestRepair
 
             if (await SearchAsync([], before) is { } found) return Result(found.Fix, found.Steps);
 
-            notes.Add($"FixFinder tried {Count(tried, "small change")} to {names}, the code the failing tests call" +
+            notes.Add($"FixFinder tried {Count(tried, "small change")} to {names}, the code the failing {testNoun}s call" +
                       (stepsTriedOn > 0 ? $" - building on {Count(stepsTriedOn, "change")} that made more of them pass and none fail, in turn -" : ",") +
-                      " and none made every test pass - so the mistake probably needs more than a one-word change." +
-                      (stoppedForTime > 0 ? $" The tests were stopped for time with {Count(stoppedForTime, "change")}, which showed nothing either way." : ""));
+                      $" and none made every {testNoun} pass - so the mistake probably needs more than a one-word change." +
+                      (stoppedForTime > 0 ? $" The {testNoun}s were stopped for time with {Count(stoppedForTime, "change")}, which showed nothing either way." : ""));
             return Result(null, 0);
         }
         finally
@@ -138,7 +140,7 @@ public sealed partial class TestRepair
         // adding 1 to every item pushed onto a stack made a test of what pop gives back pass, and lead nowhere.
         async Task<(LocalFix Fix, int Steps)?> SearchAsync(IReadOnlyList<LocalFix> kept, IReadOnlyList<TestReport.TestResult> latest)
         {
-            var candidates = CandidatesNow(targets, tests, latest, kept);
+            var candidates = CandidatesNow(targets, tests, latest, kept, doctests);
 
             if (candidates.Count > MostChanges)
             {
@@ -167,7 +169,9 @@ public sealed partial class TestRepair
                 Progress?.Invoke($"Running the tests with changes {tried + 1}-{tried + slice.Count}...");
 
                 var batchStarted = DateTime.UtcNow;
-                var runs = await Task.WhenAll(slice.Select((candidate, i) => TryAsync(workers[i], root, targets, kept, candidate, ran, allTests, latest, perRun, runTimeout, cancellationToken)));
+                var timed = await Task.WhenAll(slice.Select((candidate, i) =>
+                    LogicRepair.TimedAsync(() => TryAsync(workers[i], root, targets, kept, candidate, ran, allTests, latest, perRun, runTimeout, cancellationToken))));
+                var runs = timed.Select(each => each.Verdict).ToArray();
                 tried += slice.Count;
                 Log?.Invoke($"Ran the tests with {Count(slice.Count, "change")} in {(DateTime.UtcNow - batchStarted).TotalSeconds:0.0} s: " +
                             string.Join(", ", runs.Select(run => run.Verdict switch
@@ -183,8 +187,10 @@ public sealed partial class TestRepair
                     compiled |= runs[i].Compiled;
 
                     // Stopped for time beside other runs shows nothing either way, so the change is tried again at once, on its
-                    // own and with three times as long - as the search against an expected output does.
-                    if (runs[i].Verdict == TestVerdict.RanOutOfTime && !runStoppedForTime && triedAgainForTime < MostTriedAgainForTime)
+                    // own and with three times as long - as the search against an expected output does - unless the runs beside
+                    // it finished quickly, when the change itself ran on.
+                    if (runs[i].Verdict == TestVerdict.RanOutOfTime && !runStoppedForTime && triedAgainForTime < MostTriedAgainForTime &&
+                        LogicRepair.WorthTryingAgainForTime(timed.Where((_, other) => other != i).Select(each => each.Took).ToList(), perRun))
                     {
                         triedAgainForTime++;
                         runs[i] = await TryAsync(workers[0], root, targets, kept, slice[i], ran, allTests, latest, perRun * 3, runTimeout, cancellationToken);
@@ -225,9 +231,12 @@ public sealed partial class TestRepair
 
     /// <summary>
     /// The changes to try next. With none kept yet, every change to every file the tests call, most suspicious first; after
-    /// one is kept, only one-line changes to other lines of its file, ranked again by the tests that still fail.
+    /// one is kept, only one-line changes to other lines of its file, ranked again by the tests that still fail. A file of
+    /// doctests is the code its examples call as well as its tests, and a change to a line of its docstrings - or of its
+    /// comments - would change the tests, not the code, so none is tried.
     /// </summary>
-    private List<LocalFix> CandidatesNow(IReadOnlyList<SourceFile> targets, SourceFile tests, IReadOnlyList<TestReport.TestResult> latest, IReadOnlyList<LocalFix> kept)
+    private List<LocalFix> CandidatesNow(
+        IReadOnlyList<SourceFile> targets, SourceFile tests, IReadOnlyList<TestReport.TestResult> latest, IReadOnlyList<LocalFix> kept, bool doctests)
     {
         var candidates = new List<LocalFix>();
         var stillFailing = latest.Where(test => test.Status == "FAILED").ToList();
@@ -242,7 +251,8 @@ public sealed partial class TestRepair
                 .Select(frame => frame.Line)
                 .ToHashSet();
 
-            var changes = LogicRepair.CandidatesFor(target, Suspicion(target, tests, latest), raisedThrough, Log).Select(candidate => candidate.Fix);
+            var changes = LogicRepair.CandidatesFor(target, Suspicion(target, tests, latest, doctests), raisedThrough, Log).Select(candidate => candidate.Fix);
+            if (doctests && SamePath(target.Path, tests.Path)) changes = changes.Where(change => !ChangesTextLines(target, change)).ToList();
             candidates.AddRange(kept.Count == 0 ? changes : changes.Where(change => IsOneLine(change) && kept.All(done => done.StartLine != change.StartLine)));
         }
 
@@ -412,7 +422,7 @@ public sealed partial class TestRepair
     /// The files of the program the failing tests call: the ones their failures were raised through, most first, or else
     /// the program's own files the test file imports - never a file of tests, and only files of the test file's language.
     /// </summary>
-    private static List<SourceFile> CodeUnderTest(SourceFile tests, IReadOnlyList<TestReport.TestResult> failing, string root)
+    private static List<SourceFile> CodeUnderTest(SourceFile tests, IReadOnlyList<TestReport.TestResult> failing, string root, bool doctests)
     {
         var extension = Path.GetExtension(tests.Path);
         bool Usable(string file) =>
@@ -428,6 +438,9 @@ public sealed partial class TestRepair
             .Select(group => group.Key);
 
         var chosen = raisedThrough.Take(MostFilesChanged).ToList();
+
+        // A file's doctests test the code beside them in it, so that is where changes are tried first.
+        if (doctests) chosen = [Path.GetFullPath(tests.Path), .. chosen.Take(MostFilesChanged - 1)];
 
         // A module beside the tests and one under the program's folder are often the same file, found both ways.
         if (chosen.Count == 0) chosen = Imported(tests, root).Where(Usable).Distinct(StringComparer.OrdinalIgnoreCase).Take(MostFilesChanged).ToList();
@@ -509,13 +522,13 @@ public sealed partial class TestRepair
     /// failing tests that call that function and the passing ones that call it. Every line has a score: 0 for one in a
     /// function no failing test calls by name, and -1 everywhere when no test's own code could be found to read.
     /// </summary>
-    private static Dictionary<int, double> Suspicion(SourceFile target, SourceFile tests, IReadOnlyList<TestReport.TestResult> before)
+    private static Dictionary<int, double> Suspicion(SourceFile target, SourceFile tests, IReadOnlyList<TestReport.TestResult> before, bool doctests)
     {
         var functionOf = FunctionOfEachLine(target);
         var functions = functionOf.OfType<string>().ToHashSet(StringComparer.Ordinal);
 
         var called = before.Where(test => test.Status is "SUCCESSFUL" or "FAILED")
-            .Select(test => (Failed: test.Status == "FAILED", Calls: CallsIn(tests, test.Method)))
+            .Select(test => (Failed: test.Status == "FAILED", Calls: doctests ? CallsInExamples(tests, test.Method) : CallsIn(tests, test.Method)))
             .Where(test => test.Calls is not null)
             .Select(test => (test.Failed, Calls: test.Calls!.Where(functions.Contains).ToHashSet(StringComparer.Ordinal)))
             .ToList();
@@ -570,6 +583,59 @@ public sealed partial class TestRepair
             : null;
     }
 
+    /// <summary>An example of a docstring, or a line it goes on to: >>> grade(70), or ... and more of it.</summary>
+    [GeneratedRegex(@"^\s*(?:>>>|\.\.\.)(?: (?<code>.*))?$")]
+    private static partial Regex DoctestExampleLine();
+
+    /// <summary>
+    /// The names the examples in a function's docstring call - its doctests, found by the function's name in the file - or
+    /// null when there is no function of that name: a class's docstring, or the module's own.
+    /// </summary>
+    private static HashSet<string>? CallsInExamples(SourceFile tests, string function)
+    {
+        var masked = CodeText.MaskAll(tests.Lines, Syntax.Python);
+
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (HeadOf(masked[index], python: true) != function) continue;
+
+            var indent = masked[index].Length - masked[index].TrimStart().Length;
+            var calls = new HashSet<string>(StringComparer.Ordinal);
+
+            for (var inside = index + 1; inside < masked.Count; inside++)
+            {
+                var line = tests.Lines[inside];
+                if (line.Trim().Length == 0) continue;
+                if (masked[inside].Trim().Length > 0 && masked[inside].Length - masked[inside].TrimStart().Length <= indent) break;
+
+                if (DoctestExampleLine().Match(line) is { Success: true } example)
+                {
+                    foreach (Match call in CallOf().Matches(example.Groups["code"].Value))
+                        if (!NotNames.Contains(call.Groups["name"].Value)) calls.Add(call.Groups["name"].Value);
+                }
+            }
+
+            return calls;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a change alters a line that is only text or a comment - a line of a docstring, where a file's doctests are -
+    /// rather than code: one it replaces with something else, or takes out, or puts others among.
+    /// </summary>
+    private static bool ChangesTextLines(SourceFile source, LocalFix change)
+    {
+        var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
+        bool IsTextOnly(int line) => line >= 1 && line <= source.Count && source.Lines[line - 1].Trim().Length > 0 && masked[line - 1].Trim().Length == 0;
+
+        var replaced = Enumerable.Range(change.StartLine, Math.Max(0, change.RemoveCount)).ToList();
+        if (change.NewLines.Count != change.RemoveCount) return replaced.Any(IsTextOnly);
+
+        return replaced.Where((line, offset) => source.Lines[line - 1] != change.NewLines[offset]).Any(IsTextOnly);
+    }
+
     /// <summary>The names a test calls in its own code, found by its method's name in the file of tests; null when it is not there.</summary>
     private static HashSet<string>? CallsIn(SourceFile tests, string method)
     {
@@ -607,21 +673,24 @@ public sealed partial class TestRepair
     public static string Describe(TestRepairResult result, string testFile)
     {
         var tests = Path.GetFileName(testFile);
-        var all = result.Tests == 1 ? $"the test in {tests} passes" : $"every one of the {result.Tests} tests in {tests} passes";
+
+        // doctest's tests are the examples in each docstring, which are called its doctests.
+        var testNoun = PythonTests.FrameworkOf(testFile) == PythonTests.Framework.Doctest ? "doctest" : "test";
+        var all = result.Tests == 1 ? $"the {testNoun} in {tests} passes" : $"every one of the {result.Tests} {testNoun}s in {tests} passes";
         var before = (result.FailedBefore, result.UnfinishedBefore) switch
         {
             (var failed, 0) when failed == result.Tests => result.Tests == 1 ? "" : " - all of which failed before",
             (var failed, 0) => $" - {failed} of which failed before",
-            (0, var unfinished) => $" - {unfinished} of which never finished before, the tests stopped for time",
-            var (failed, unfinished) => $" - {failed} of which failed before, and {unfinished} never finished, the tests stopped for time",
+            (0, var unfinished) => $" - {unfinished} of which never finished before, the {testNoun}s stopped for time",
+            var (failed, unfinished) => $" - {failed} of which failed before, and {unfinished} never finished, the {testNoun}s stopped for time",
         };
         var code = string.Join(" and ", result.CodeUnderTest.Select(Path.GetFileName));
 
         var how = result.Steps > 1
-            ? $" No one change made every test pass, so it was built a change at a time: each of its {result.Steps} changes was kept only when it made " +
-              $"more of the failing tests pass and none fail that passed, of {Count(result.Tried, "small change")} tried in {code}, the code the failing tests call."
-            : result.Tried == 1 ? $" It is the one small change tried in {code}, the code the failing tests call." : $" It is the first of {result.Tried} small changes tried in {code}, the code the failing tests call, that does.";
+            ? $" No one change made every {testNoun} pass, so it was built a change at a time: each of its {result.Steps} changes was kept only when it made " +
+              $"more of the failing {testNoun}s pass and none fail that passed, of {Count(result.Tried, "small change")} tried in {code}, the code the failing {testNoun}s call."
+            : result.Tried == 1 ? $" It is the one small change tried in {code}, the code the failing {testNoun}s call." : $" It is the first of {result.Tried} small changes tried in {code}, the code the failing {testNoun}s call, that does.";
 
-        return $"With this change {all}{before}.{how} Another change could also make the tests pass, so check it is the one you meant; more tests narrow it down.";
+        return $"With this change {all}{before}.{how} Another change could also make the {testNoun}s pass, so check it is the one you meant; more {testNoun}s narrow it down.";
     }
 }

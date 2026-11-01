@@ -191,8 +191,8 @@ public static partial class ProgramLayout
     /// project's folder, as python -m pytest and an IDE do, has Python look for modules there; running the file from its
     /// own folder does not, and the import fails. Looked for in the folders above the file, the nearest first, up to its
     /// project's own folder; a module beside the file is the one Python finds, so nothing is looked for above it. None for
-    /// a file that is not one of tests: python scripts\run.py looks only in scripts, wherever it is started, so a program
-    /// that imports from the folder above fails there - which is said, not hidden.
+    /// a file that is not one of unittest's or pytest's tests: python scripts\run.py looks only in scripts, wherever it is
+    /// started, so a program that imports from the folder above fails there - which is said, not hidden.
     /// </summary>
     /// <param name="interpreter">
     /// The Python that runs the file, when known: a module it finds by itself - random, or an installed package - is the
@@ -204,7 +204,7 @@ public static partial class ProgramLayout
         var full = Path.GetFullPath(chosen);
         var original = ProgramCopy.OriginalOf(full);
 
-        if (PythonTests.FrameworkOf(original) == PythonTests.Framework.None || ImportedModuleNames(original) is not { Count: > 0 } imported) return [];
+        if (!IsRunFromTheProjectsFolder(original) || ImportedModuleNames(original) is not { Count: > 0 } imported) return [];
 
         var ownFolder = Path.GetDirectoryName(original)!;
         var packageFolder = PythonModule(original)?.Folder;
@@ -243,7 +243,14 @@ public static partial class ProgramLayout
     /// with sees them - which Python is asked only for a file of tests.
     /// </summary>
     public static IReadOnlyList<string> PythonImportFoldersOfTests(string file) =>
-        PythonTests.FrameworkOf(ProgramCopy.OriginalOf(Path.GetFullPath(file))) == PythonTests.Framework.None ? [] : PythonImportFolders(file, PythonFor(file));
+        IsRunFromTheProjectsFolder(ProgramCopy.OriginalOf(Path.GetFullPath(file))) ? PythonImportFolders(file, PythonFor(file)) : [];
+
+    /// <summary>
+    /// Whether a file is one of unittest's or pytest's tests, which are run from the project's folder; a program, or a
+    /// module's doctests - python -m doctest marks.py - look for modules only in the file's own folder.
+    /// </summary>
+    private static bool IsRunFromTheProjectsFolder(string file) =>
+        PythonTests.FrameworkOf(file) is PythonTests.Framework.Unittest or PythonTests.Framework.Pytest;
 
     /// <summary>The Python a file is run with, near enough to say which modules it has itself: its project's environment's, or the one on PATH.</summary>
     public static string? PythonFor(string file) =>

@@ -176,6 +176,9 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "class Stack:\n    def pop(self):\n        return self.items.pop(0)\n", 3, "        return self.items.pop()")]
     [InlineData("app.js", "function next(queue) {\n    return queue.pop();\n}\n", 2, "    return queue.shift();")]
     [InlineData("App.java", "class App {\n    static int last(java.util.LinkedList<Integer> xs) {\n        return xs.removeFirst();\n    }\n}\n", 3, "        return xs.removeLast();")]
+    // A place value off by a digit: the last digit taken off with // 100, and two digits kept with % 1000.
+    [InlineData("app.py", "def digits(n):\n    n = n // 100\n", 2, "    n = n // 10")]
+    [InlineData("App.java", "class App {\n    static int lastTwo(int n) {\n        return n % 1000;\n    }\n}\n", 3, "        return n % 100;")]
     // A line added: the piece left when the loop ends, and the item pushed after the stack was popped down to its place.
     [InlineData("app.py", "def wrap(text, cols):\n    lines = []\n    while len(text) > cols:\n        line, text = text[:cols], text[cols:]\n        lines.append(line)\n\n    return lines\n", 7, "    lines.append(text)\n    return lines")]
     [InlineData("app.py", "def rpn(tokens):\n    out = []\n    ops = []\n    for token in tokens:\n        if isinstance(token, int):\n            out.append(token)\n        else:\n            while ops and ops[-1] > token:\n                out.append(ops.pop())\n\n    return out\n", 9, "                out.append(ops.pop())\n            ops.append(token)")]
@@ -191,6 +194,9 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "def f(*args):\n    g(*args, 1)\n", 2, "    g(1, *args)")]
     [InlineData("app.py", "def f(length):\n    longest = length + 1\n", 2, "    longest = max(longest, length + 1)")]
     [InlineData("app.py", "outside = 1\ndef f(a, b):\n    return a + 1\n", 3, "    return outside + 1")]
+    // A number that is not a place value is not taken a digit up or down, nor is 10 taken down to 1.
+    [InlineData("app.py", "def f(n):\n    return n // 12\n", 2, "    return n // 120")]
+    [InlineData("app.py", "def f(n):\n    return n % 10\n", 2, "    return n % 1")]
     // A count only ever added to is not checked for nothing; a list nothing was added to in the loop is given no leftover;
     // a stack the loop never popped is pushed nothing; and a function that does not call itself is given no empty-list stop.
     [InlineData("app.py", "def ok(xs):\n    total = 0\n    for x in xs:\n        total += 1\n    return True\n", 5, "    return total == 0")]

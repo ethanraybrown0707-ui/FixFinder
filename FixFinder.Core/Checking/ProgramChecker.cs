@@ -707,9 +707,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                "such as void main(). Choose the file of the program that has one. The code in this file was still read for mistakes.";
     }
 
-    /// <summary>The framework a file's tests are run with: for Python, pytest or unittest, whichever the file is written for; JUnit for Java.</summary>
-    private static string TestFrameworkOf(string chosen) =>
-        !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) == PythonTests.Framework.Pytest ? "pytest" : "unittest";
+    /// <summary>The framework a file's tests are run with: for Python, pytest, unittest or doctest, whichever the file is written for; JUnit for Java.</summary>
+    private static string TestFrameworkOf(string chosen) => !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
+    {
+        PythonTests.Framework.Pytest => "pytest",
+        PythonTests.Framework.Doctest => "doctest",
+        _ => "unittest",
+    };
 
     private static bool IsPython(string file) => Path.GetExtension(file).ToLowerInvariant() is ".py" or ".pyw";
 
@@ -751,6 +755,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "pytest" => $"pytest found no tests to run in {name}. By default it runs the functions whose names begin with test, and " +
                             "the methods whose names begin with test of the classes whose names begin with Test and that have no __init__.",
                 "unittest" => $"unittest found no tests to run in {name}. It runs the methods of a unittest.TestCase class whose names begin with test.",
+                "doctest" => $"doctest found no examples to run in {name}. It runs the >>> examples in the docstrings of the module and of the " +
+                             "functions and classes defined in it.",
                 _ => $"JUnit found no tests to run in {name}. JUnit 5 runs methods marked @Test that are not private and return nothing; " +
                      "JUnit 4 needs them public.",
             });
@@ -824,7 +830,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : test.ClassName.Length > 0 && (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
               string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase);
 
-        var own = test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
+        // A doctest is in the file of the code its examples call, so its own line is the outermost of the file's: its example's.
+        var doctest = framework == "doctest";
+        var own = doctest
+            ? test.Frames.LastOrDefault(frame => InTheTestFile(frame) && frame.Line > 0)
+            : test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
 
         var thrownAt = test.Frames.FirstOrDefault(frame => frame.Line > 0 && (python || (!frame.Class.StartsWith("org.junit", StringComparison.Ordinal) &&
             !frame.Class.StartsWith("org.opentest4j", StringComparison.Ordinal) && !frame.Class.StartsWith("java.", StringComparison.Ordinal) &&
@@ -851,6 +861,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                           (thrownAt is { } at && at != own ? $", {thrown} in {at.Class}.{at.Method} on line {at.Line} of {Path.GetFileName(at.File)}" : line);
         var stoppedWithName = exception.Length > 0 ? exception.Split('.')[^1] : null;
 
+        // A doctest is the examples in a docstring, and the first that did not give what it shows is what failed.
+        var called = doctest ? $"An example in the docstring of {name}" : $"Test {name}";
+
         // Setting up for a test is not the test, and nor is cleaning up after it: when setting up fails, the test does not run
         // at all; when cleaning up fails, it has run. unittest names what failed - setUpClass (test_bank.BankTests) - and pytest
         // the test it was for.
@@ -870,6 +883,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ("TEARDOWN-FAILED", _) => (
                 $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
                 $"{framework} ran the tests, and then cleaning up after them stopped: {test.Name} stopped with {stoppedWith}."),
+            _ when doctest && exception.Length == 0 => (
+                $"{called} failed{shown}",
+                $"doctest ran the examples in the docstring of {name}, and the one{line} did not give what it shows{(message is null ? "." : $": {message}.")}"),
+            _ when doctest => (
+                $"{called} stopped with {stoppedWithName}{shown}",
+                $"doctest ran the examples in the docstring of {name}, and the one{line} stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+                (thrownAt is { } raisedAt && raisedAt != own ? $", raised in {raisedAt.Class}.{raisedAt.Method} on line {raisedAt.Line} of {Path.GetFileName(raisedAt.File)}." : ".")),
             _ when assertion => (
                 $"Test {name} failed{shown}",
                 $"{framework} ran the test {test.Name}, and the assertion{line} did not hold{(message is null ? "." : $": {message}.")}"),
@@ -899,6 +919,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                   "or the test expects the wrong thing.",
             SuggestedFix = cleaningUp
                 ? $"Go to the line the exception was {thrown} on, in the code that cleans up after the tests, and put right what failed there."
+                : doctest && exception.Length == 0
+                    ? "Compare what the example shows with what the code gives back for it, and follow the code to where the two part."
                 : assertion || failedByPytest || exception.Length == 0
                     ? "Compare what the test expects with what the code it calls gives back, and follow that code to where the two part."
                     : $"Go to the line the exception was {thrown} on - in the code the test calls, if it came from there - and put right what failed there.",
@@ -908,7 +930,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>
-    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's or pytest's for Python - rather
+    /// Whether an error came from FixFinder's own test launcher - JUnit's for Java, unittest's, pytest's or doctest's for Python - rather
     /// than from the program: the launcher is where it was raised, or the nearest place to that of the program's own.
     /// </summary>
     /// <remarks>
@@ -919,7 +941,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         new[] { error.CulpritFrame?.File, error.Frames.FirstOrDefault()?.File }.OfType<string>().Any(file =>
             Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
-            Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.DoctestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Why the program's own module was not found: where it is, and where Python looked instead.</summary>
     private static string OwnModuleExplanation(string ownModule, string chosen)
@@ -941,6 +964,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var folder = Path.GetDirectoryName(ownModule)!;
         var beside = $"Move {Path.GetFileName(ownModule)} to where Python looks for it: beside {Path.GetFileName(importing)}";
         var framework = PythonTests.FrameworkOf(chosen);
+
+        if (framework == PythonTests.Framework.Doctest) return beside + ".";
 
         if (framework == PythonTests.Framework.None)
         {
@@ -1205,9 +1230,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return $"{reads}{warnings}; pytest stopped after {ran} of its {Count(found, "test")}{(failed > 0 ? $", {failed} of which failed" : "")}";
             }
 
-            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, "test")} failed{othersNotRun}{notCleanedUp}"
+            // doctest's tests are the examples in each docstring, which are called its doctests.
+            var testNoun = framework == "doctest" ? "doctest" : "test";
+
+            return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, testNoun)} failed{othersNotRun}{notCleanedUp}"
                 : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}{notCleanedUp}"
-                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? "its test passes" : $"all {ran} of its tests pass")}{notCleanedUp}"
+                : ran > 0 ? $"{reads}{warnings}, and {(ran == 1 ? $"its {testNoun} passes" : $"all {ran} of its {testNoun}s pass")}{notCleanedUp}"
                 : notSetUp ? $"{reads}{warnings}, but setting up for its tests failed, so {framework} ran none of them"
                 : $"{reads}{warnings}, but {framework} ran none of its tests";
         }

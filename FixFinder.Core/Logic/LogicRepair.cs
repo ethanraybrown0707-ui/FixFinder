@@ -125,6 +125,7 @@ public sealed class LogicRepair
         // Changes are tried several at once, so on a busy computer a right one can be stopped for time - which showed nothing
         // about it. Each is tried again straight away, on its own and with three times as long to run: one near the top of
         // the ranking is likelier to be right than the changes after it, which, left until last, the time could run out before.
+        // Not when the changes tried beside it finished quickly, though: the computer was not busy, and the change ran on.
         var longerPerRun = TimeSpan.FromTicks(Math.Min(perRun.Ticks * 3, Math.Max(perRun.Ticks, runTimeout.Ticks)));
 
         try
@@ -151,7 +152,8 @@ public sealed class LogicRepair
                 var slice = candidates.Skip(batch).Take(workers.Count).ToList();
                 Progress?.Invoke($"Trying changes {batch + 1}-{batch + slice.Count} of {candidates.Count}...");
 
-                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrongFirst, cancellationToken)));
+                var timed = await Task.WhenAll(slice.Select((c, i) => TimedAsync(() => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrongFirst, cancellationToken))));
+                var verdicts = timed.Select(each => each.Verdict).ToArray();
                 tried += slice.Count;
 
                 for (var i = 0; i < slice.Count; i++)
@@ -164,7 +166,8 @@ public sealed class LogicRepair
 
                 for (var i = 0; i < slice.Count && triedAgainForTime < MostTriedAgainForTime; i++)
                 {
-                    if (verdicts[i] != ChangeVerdict.RanOutOfTime) continue;
+                    if (verdicts[i] != ChangeVerdict.RanOutOfTime || !WorthTryingAgainForTime(timed.Where((_, other) => other != i).Select(each => each.Took).ToList(), perRun))
+                        continue;
 
                     triedAgainForTime++;
                     Progress?.Invoke($"Trying again, with longer to run: {slice[i].Fix.Title}...");
@@ -348,6 +351,23 @@ public sealed class LogicRepair
     }
 
     /// <summary>A private copy of the program, where one change at a time is made, built and run.</summary>
+    /// <summary>What trying a change found, and how long trying it took.</summary>
+    internal static async Task<(T Verdict, TimeSpan Took)> TimedAsync<T>(Func<Task<T>> trying)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var verdict = await trying();
+        return (verdict, clock.Elapsed);
+    }
+
+    /// <summary>
+    /// Whether a change whose run was stopped for time is worth trying again, on its own and with longer: when the changes
+    /// tried beside it were slow too, the computer was busy and the stop showed nothing about it; when they finished in a
+    /// fifth of the time each run was given, the computer had time to spare, and the change itself ran on - as one that
+    /// makes a loop endless does.
+    /// </summary>
+    internal static bool WorthTryingAgainForTime(IReadOnlyList<TimeSpan> triedBeside, TimeSpan perRun) =>
+        triedBeside.Count == 0 || triedBeside.All(took => took >= perRun / 5);
+
     internal sealed class Workspace(string root, string chosen) : IDisposable
     {
         public string Folder { get; } = Path.Combine(Path.GetTempPath(), "FixFinder-logic", Guid.NewGuid().ToString("N")[..12]);
