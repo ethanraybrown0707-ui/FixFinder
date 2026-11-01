@@ -24,8 +24,8 @@ public sealed class LogicRepair
     public int AtOnce { get; init; } = LocalFixEngine.ChecksAtOnce;
 
     /// <summary>
-    /// How many changes whose run was stopped for time are tried again, one at a time and with longer to run, when no change
-    /// was found: a run stopped for time showed nothing either way, and on a busy computer even the right change can be slow.
+    /// How many changes whose run was stopped for time are tried again, one at a time and with longer to run, straight after
+    /// they were: a run stopped for time showed nothing either way, and on a busy computer even the right change can be slow.
     /// </summary>
     public int MostTriedAgainForTime { get; init; } = 3;
 
@@ -96,13 +96,6 @@ public sealed class LogicRepair
             notes.Add("Which lines each run went through could not be recorded for this language, so every line was treated as equally likely and the likeliest kinds of mistake were tried first.");
         }
 
-        var candidates = new List<(LocalFix Fix, bool FromPattern)>();
-
-        foreach (var finding in LogicPatterns.Scan(source, Log))
-        {
-            if (finding is { Fix: { } fix, Kind: Checking.FindingKind.Logic } && finding.Severity != Checking.Severity.Suggestion) candidates.Add((fix, true));
-        }
-
         // Suspiciousness decides the order changes are tried in, never which lines are tried at all: where a run's lines
         // were recorded imperfectly, the line holding the mistake can be missing from the ranking, and a change that is
         // never tried can never be the answer. Unranked lines simply come last.
@@ -113,6 +106,105 @@ public sealed class LogicRepair
         // told apart by which runs went through them, but the crash says which of the two the program went wrong on.
         var crashedOn = wrong.Select(w => w.Result.CrashedOn).OfType<int>().ToHashSet();
         if (crashedOn.Count > 0) Log?.Invoke("A wrong run crashed on line(s) " + string.Join(", ", crashedOn.Order()));
+
+        var candidates = CandidatesFor(source, scores, crashedOn, Log);
+
+        if (candidates.Count > MostChanges)
+        {
+            notes.Add($"There were {candidates.Count} small changes to try; the {MostChanges} on the most suspicious lines were tried.");
+            candidates = candidates.Take(MostChanges).ToList();
+        }
+
+        Log?.Invoke($"Trying {candidates.Count} change(s), {AtOnce} at a time");
+
+        var workers = Enumerable.Range(0, Math.Max(1, AtOnce)).Select(_ => new Workspace(root, chosenFile)).ToList();
+        var wrongFirst = wrong.Select(w => w.Index).ToList();
+        var triedAgainForTime = 0;
+        var tried = 0;
+
+        // Changes are tried several at once, so on a busy computer a right one can be stopped for time - which showed nothing
+        // about it. Each is tried again straight away, on its own and with three times as long to run: one near the top of
+        // the ranking is likelier to be right than the changes after it, which, left until last, the time could run out before.
+        var longerPerRun = TimeSpan.FromTicks(Math.Min(perRun.Ticks * 3, Math.Max(perRun.Ticks, runTimeout.Ticks)));
+
+        try
+        {
+            foreach (var workspace in workers)
+            {
+                if (workspace.Create()) continue;
+
+                notes.Add($"No changes were tried: {root} holds more than a program's worth of files to copy, so FixFinder does not " +
+                          "copy it to try changes in. Moving the program into a folder of its own lets it.");
+                return Result(null, false);
+            }
+
+            for (var batch = 0; batch < candidates.Count; batch += workers.Count)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (DateTime.UtcNow - started > Budget)
+                {
+                    notes.Add($"Stopped after {tried} changes: the search took longer than {Budget.TotalSeconds:0} seconds.");
+                    break;
+                }
+
+                var slice = candidates.Skip(batch).Take(workers.Count).ToList();
+                Progress?.Invoke($"Trying changes {batch + 1}-{batch + slice.Count} of {candidates.Count}...");
+
+                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrongFirst, cancellationToken)));
+                tried += slice.Count;
+
+                for (var i = 0; i < slice.Count; i++)
+                {
+                    if (verdicts[i] != ChangeVerdict.PrintsWhatWasExpected) continue;
+
+                    Log?.Invoke($"Accepted: {slice[i].Fix.Title} - every run now prints what was expected");
+                    return Result(slice[i].Fix, slice[i].FromPattern);
+                }
+
+                for (var i = 0; i < slice.Count && triedAgainForTime < MostTriedAgainForTime; i++)
+                {
+                    if (verdicts[i] != ChangeVerdict.RanOutOfTime) continue;
+
+                    triedAgainForTime++;
+                    Progress?.Invoke($"Trying again, with longer to run: {slice[i].Fix.Title}...");
+                    if (await TryAsync(workers[0], source, slice[i].Fix, expected, longerPerRun, runTimeout, wrongFirst, cancellationToken) != ChangeVerdict.PrintsWhatWasExpected)
+                        continue;
+
+                    Log?.Invoke($"Accepted: {slice[i].Fix.Title} - every run now prints what was expected, given longer to run");
+                    notes.Add($"A run of this change was stopped for time when it was first tried beside others, so it was tried again on its own, " +
+                              $"with {longerPerRun.TotalSeconds:0} seconds a run - and printed what you expected.");
+                    return Result(slice[i].Fix, slice[i].FromPattern);
+                }
+            }
+        }
+        finally
+        {
+            foreach (var workspace in workers) workspace.Dispose();
+        }
+
+        return Result(null, false);
+
+        LogicRepairResult Result(LocalFix? fix, bool fromPattern) => new(
+            first.Mismatch!, firstIndex + 1, suspicious, fix, fromPattern, tried,
+            baseline.Results.Count(r => r.Mismatch is null), expected.Runs.Count, coverageUsed, notes);
+    }
+
+    /// <summary>
+    /// Every change to try, in the order to try it: the fixes of mistakes recognised in the code first; then the small edits
+    /// on each line - the most suspicious line first, of lines as suspicious as each other the one a run crashed on, then
+    /// the likeliest kind of edit; then if / elif chains put in another order; then one edit made on several lines at once.
+    /// </summary>
+    /// <param name="scores">How suspicious each line of the file is - every line, -1 for one with nothing to say of it.</param>
+    internal static List<(LocalFix Fix, bool FromPattern)> CandidatesFor(
+        SourceFile source, IReadOnlyDictionary<int, double> scores, IReadOnlySet<int> crashedOn, Action<string>? log)
+    {
+        var candidates = new List<(LocalFix Fix, bool FromPattern)>();
+
+        foreach (var finding in LogicPatterns.Scan(source, log))
+        {
+            if (finding is { Fix: { } fix, Kind: Checking.FindingKind.Logic } && finding.Severity != Checking.Severity.Suggestion) candidates.Add((fix, true));
+        }
 
         var edits = scores.Keys
             .SelectMany(line => Mutations.For(source, line))
@@ -163,85 +255,7 @@ public sealed class LogicRepair
             }, false));
         }
 
-        if (candidates.Count > MostChanges)
-        {
-            notes.Add($"There were {candidates.Count} small changes to try; the {MostChanges} on the most suspicious lines were tried.");
-            candidates = candidates.Take(MostChanges).ToList();
-        }
-
-        Log?.Invoke($"Trying {candidates.Count} change(s), {AtOnce} at a time");
-
-        var workers = Enumerable.Range(0, Math.Max(1, AtOnce)).Select(_ => new Workspace(root, chosenFile)).ToList();
-        var wrongFirst = wrong.Select(w => w.Index).ToList();
-        var stoppedForTime = new List<(LocalFix Fix, bool FromPattern)>();
-        var tried = 0;
-
-        try
-        {
-            foreach (var workspace in workers)
-            {
-                if (workspace.Create()) continue;
-
-                notes.Add($"No changes were tried: {root} holds more than a program's worth of files to copy, so FixFinder does not " +
-                          "copy it to try changes in. Moving the program into a folder of its own lets it.");
-                return Result(null, false);
-            }
-
-            for (var batch = 0; batch < candidates.Count; batch += workers.Count)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (DateTime.UtcNow - started > Budget)
-                {
-                    notes.Add($"Stopped after {tried} changes: the search took longer than {Budget.TotalSeconds:0} seconds.");
-                    break;
-                }
-
-                var slice = candidates.Skip(batch).Take(workers.Count).ToList();
-                Progress?.Invoke($"Trying changes {batch + 1}-{batch + slice.Count} of {candidates.Count}...");
-
-                var verdicts = await Task.WhenAll(slice.Select((c, i) => TryAsync(workers[i], source, c.Fix, expected, perRun, runTimeout, wrongFirst, cancellationToken)));
-                tried += slice.Count;
-
-                for (var i = 0; i < slice.Count; i++)
-                {
-                    if (verdicts[i] == ChangeVerdict.RanOutOfTime) stoppedForTime.Add(slice[i]);
-                    if (verdicts[i] != ChangeVerdict.PrintsWhatWasExpected) continue;
-
-                    Log?.Invoke($"Accepted: {slice[i].Fix.Title} - every run now prints what was expected");
-                    return Result(slice[i].Fix, slice[i].FromPattern);
-                }
-            }
-
-            // Changes are tried several at once, so on a busy computer a right one can be stopped for time - which showed
-            // nothing about it. The most suspicious of those are tried again, one at a time, with three times as long to run.
-            var longerPerRun = TimeSpan.FromTicks(Math.Min(perRun.Ticks * 3, Math.Max(perRun.Ticks, runTimeout.Ticks)));
-
-            foreach (var again in stoppedForTime.Take(MostTriedAgainForTime))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (DateTime.UtcNow - started > Budget) break;
-
-                Progress?.Invoke($"Trying again, with longer to run: {again.Fix.Title}...");
-                if (await TryAsync(workers[0], source, again.Fix, expected, longerPerRun, runTimeout, wrongFirst, cancellationToken) != ChangeVerdict.PrintsWhatWasExpected)
-                    continue;
-
-                Log?.Invoke($"Accepted: {again.Fix.Title} - every run now prints what was expected, given longer to run");
-                notes.Add($"A run of this change was stopped for time when it was first tried beside others, so it was tried again on its own, " +
-                          $"with {longerPerRun.TotalSeconds:0} seconds a run - and printed what you expected.");
-                return Result(again.Fix, again.FromPattern);
-            }
-        }
-        finally
-        {
-            foreach (var workspace in workers) workspace.Dispose();
-        }
-
-        return Result(null, false);
-
-        LogicRepairResult Result(LocalFix? fix, bool fromPattern) => new(
-            first.Mismatch!, firstIndex + 1, suspicious, fix, fromPattern, tried,
-            baseline.Results.Count(r => r.Mismatch is null), expected.Runs.Count, coverageUsed, notes);
+        return candidates;
     }
 
     /// <summary>One run's verdict: <paramref name="CrashedOn"/> is the line of the program's own file it crashed on, if it crashed.</summary>
@@ -334,7 +348,7 @@ public sealed class LogicRepair
     }
 
     /// <summary>A private copy of the program, where one change at a time is made, built and run.</summary>
-    private sealed class Workspace(string root, string chosen) : IDisposable
+    internal sealed class Workspace(string root, string chosen) : IDisposable
     {
         public string Folder { get; } = Path.Combine(Path.GetTempPath(), "FixFinder-logic", Guid.NewGuid().ToString("N")[..12]);
 

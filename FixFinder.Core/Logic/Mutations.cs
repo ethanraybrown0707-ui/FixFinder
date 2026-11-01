@@ -242,6 +242,21 @@ public static partial class Mutations
         // A running best replaced rather than kept - longest = length + 1 where longest = max(longest, length + 1) was meant.
         foreach (var kept in KeptBest(source, number, line, masked, python)) found.Add(kept);
 
+        // Taken from the wrong end of a list - pop(0), the first item, where pop(), the last, was meant, or the reverse: a
+        // stack used as a queue, or a queue as a stack. JavaScript's shift and pop, and Java's removeFirst and removeLast.
+        foreach (Match m in Regex.Matches(masked, python ? @"\.pop\(\s*(?<first>0)?\s*\)" : @"\.(?<end>shift|pop|removeFirst|removeLast|pollFirst|pollLast|getFirst|getLast|peekFirst|peekLast)\(\s*\)"))
+        {
+            var otherEnd = python
+                ? m.Groups["first"].Success ? ".pop()" : ".pop(0)"
+                : "." + m.Groups["end"].Value switch
+                {
+                    "shift" => "pop", "pop" => "shift",
+                    var first when first.EndsWith("First", StringComparison.Ordinal) => first[..^5] + "Last",
+                    var last => last[..^4] + "First",
+                } + "()";
+            Add(m.Index, m.Length, otherEnd, "taken from the wrong end of the list - the first item where the last was meant, or the reverse", 1);
+        }
+
         // A base case that answers nothing - return [] where return [[]] was meant: the subsets of nothing are one, the empty one.
         if (Regex.Match(masked, python ? @"^\s*return\s*(?<empty>\[\s*\])\s*$" : @"^\s*return\s*(?<empty>\[\s*\])\s*;\s*$") is { Success: true } nothing)
             Add(nothing.Groups["empty"].Index, nothing.Groups["empty"].Length, "[[]]", "a base case that answers nothing where it should answer one empty answer", 3);

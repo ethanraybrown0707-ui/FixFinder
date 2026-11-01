@@ -286,6 +286,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             RecordRun(outcome, launch);
             RecordTests(outcome, launch);
             await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
+            await RepairTestsAsync(outcome, launch, cancellationToken);
             return outcome;
         }
         finally
@@ -294,6 +295,83 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             session.LineCaptured -= Forward;
             session.Progress -= Status;
         }
+    }
+
+    /// <summary>
+    /// When a file of tests ran and some failed: the change to the code they call that makes every one of them pass, found
+    /// by trying small changes and running the tests with each - put on the first failed test's finding, with what running
+    /// the tests showed. When none is found, a note says what was tried.
+    /// </summary>
+    private async Task RepairTestsAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = TestReport.ResultsIn(lines);
+        var found = TestReport.TestsFound(lines);
+        var stoppedForTime = run.Outcome == RunOutcome.TimedOut && (results.Count > 0 || found > 0);
+        if (!results.Any(result => result.Status == "FAILED") && !stoppedForTime) return;
+
+        var repair = new TestRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        TestRepairResult? result;
+        try
+        {
+            result = await repair.RunAsync(chosen, results, found, stoppedForTime, run.Duration, spec.Timeout, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Looking for the change that makes the tests pass stopped early: {ex.Message}");
+            return;
+        }
+
+        if (result is null) return;
+        foreach (var note in result.Notes) Note(note);
+        if (result.Fix is not { } fix) return;
+
+        var checkedBy = TestRepair.Describe(result, chosen);
+        var verified = (result.Compiled ? Verification.NotTested.With(VerificationStage.Compiled, StageResult.Passed, "The tests and the code they call were built with the change.") : Verification.NotTested)
+            .With(VerificationStage.Ran, StageResult.Passed, checkedBy);
+        var source = SourceFile.Read(fix.File);
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            // On the first test that failed - or, when none got as far as failing, on the run that never finished.
+            var index = _findings.FindIndex(finding => finding.RuleId == "test-failed");
+            if (index < 0) index = _findings.FindIndex(finding => finding.RuleId == "timed-out");
+            if (index < 0) return;
+
+            // The one change makes every test pass, so each other failed test says so, rather than seeming to have no fix.
+            var fixedFirst = Regex.Match(_findings[index].Title, @"^Test (?<name>\S+)") is { Success: true } named ? $"the test {named.Groups["name"].Value}" : "the first test that failed";
+            for (var other = index + 1; other < _findings.Count; other++)
+            {
+                if (_findings[other].RuleId != "test-failed") continue;
+                _findings[other] = _findings[other] with
+                {
+                    SuggestedFix = $"{_findings[other].SuggestedFix} The change FixFinder found for {fixedFirst} makes this test pass too.",
+                };
+            }
+
+            _findings[index] = _findings[index] with
+            {
+                SuggestedFix = $"{fix.Title.TrimEnd('.')}. {fix.Explanation}",
+                CorrectedExample = CorrectedCode.From(fix, source),
+                ExampleIsFromYourCode = true,
+                FixCheckedBy = checkedBy,
+                Fix = fix,
+                Change = CodeChange.From(fix, source),
+                CameFrom = FixOrigin.OwnRule(fix.RuleId),
+                Verified = verified,
+            };
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
     }
 
     /// <summary>

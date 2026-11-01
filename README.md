@@ -839,6 +839,33 @@ not start - an option in the project's settings from a plugin that is not instal
 compiled files are written beside the code. pytest is not part of Python, so when it is not installed for the Python the
 project runs with, a note says so, and the file is run as a program instead - FixFinder never installs it.
 
+When some of a file's JUnit, unittest or pytest tests fail, FixFinder looks for **the change that makes every test pass**,
+in the code the tests call: the file their failures were raised through, or else the program's own module or class the
+test file imports. It tries the same small changes as the search against an expected output, each in a private copy of
+the program, and runs the whole file of tests with each; a change counts only when every test that ran before runs again
+and passes, so one that passes the failing tests by breaking another, or by stopping the tests being found, does not. The
+functions the failing tests call, and the passing ones do not, are tried first - the Ochiai formula, given what each test
+calls - and of those, the line of the program's code each failure was raised on. Code with more than one mistake has no one change that makes
+every test pass, so a fix is built a change at a time: a one-line change that makes more of the failing tests pass, and
+none fail that passed, is built on, and given up for the next such change if it leads nowhere - up to three changes in one
+file. With a `Stack` whose `pop` gave back its first item and whose `peek` read one past the end, adding 1 to every item
+pushed made the `pop` test pass and led nowhere; FixFinder gave it up and found `pop()` and `len(self.items) - 1`, together
+one change, which every test passes. The fix goes on the first failed test, with how many tests pass with it and how many
+failed before, and each other failed test says the same change makes it pass too; the program's own files are never
+written to while changes are tried. Tests that pass a change can still be weak - two tests that only ever push two items
+pass `pop(1)` as well as `pop()` - so the finding says to check the change is the one meant. When no change of up to three
+lines makes every test pass, a note says how many were tried. A test that never finishes - a loop that never ends, so the
+run of the tests is stopped for time - counts as one that does not pass yet: QuixBugs' `bitcount`, whose `n ^= n - 1`
+never reaches 0, had no test fail and every run stopped, and the change found, `n &= n - 1`, lets every test finish and
+pass. The fix then goes on the run that was stopped.
+
+Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
+corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 26,
+and each of the 26 also gives the corrected version's answer on every one of the benchmark's cases for it. 22 make the
+program the same as the benchmark's corrected one; the other 4 do the same in another way. `bitcount` was fixed each
+time it was checked on its own, but not in that run; `kth`, `powerset` and `sqrt` were not fixed, and `lis` passes all
+five of its tests.
+
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
 it has one. IPython's commands are made plain Python where that can be done without touching anything outside the run:
@@ -1247,6 +1274,8 @@ unused; that warning and the check are one finding, whose change names it `add_t
    the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
    for every run is the answer. More runs, especially ones that go wrong in different ways, make the answer better.
+   Several edits are tried at once, so on a busy computer one can be stopped for time, which shows nothing either way:
+   it is tried again straight away, on its own and with three times as long, rather than after every edit ranked below it.
 
 Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
 five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the

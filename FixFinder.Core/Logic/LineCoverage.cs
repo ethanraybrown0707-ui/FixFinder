@@ -68,7 +68,9 @@ public static partial class LineCoverage
             return local
         def calls(frame, event, arg):
             if event == "call" and os.path.normcase(frame.f_code.co_filename) == wanted:
-                hits.add(frame.f_lineno)
+                # Python 3.13 says the module itself starts at line 0, and the file has no line 0 to show anyone.
+                if frame.f_lineno > 0:
+                    hits.add(frame.f_lineno)
                 return local
             return None
         def save():

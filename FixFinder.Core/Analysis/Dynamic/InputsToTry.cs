@@ -52,7 +52,9 @@ public static class InputsToTry
             new Dictionary<string, IrType>())
         {
             KeepEnds = true,
-            MostTime = TimeSpan.FromMilliseconds(800),
+            // The executor's steps and paths are what bound the work; the time is only a guard, and a long one, so how busy
+            // the computer is does not decide how many of the ways through are found.
+            MostTime = TimeSpan.FromSeconds(10),
             OwnTypes = program.Classes.Select(type => type.Name).ToHashSet(StringComparer.Ordinal),
         }.Explore();
         if (report.Symbols is not { } symbols) return [];

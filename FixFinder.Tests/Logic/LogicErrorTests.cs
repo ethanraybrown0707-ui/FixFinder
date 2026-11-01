@@ -90,6 +90,25 @@ public class LogicErrorTests : IDisposable
         Assert.DoesNotContain(ranked, s => s.Line == 3);
     }
 
+    /// <summary>
+    /// Python 3.13 says a module starts at line 0, which was then named among the most suspicious lines - "line 0 (Ochiai
+    /// 1.00)" - of a file that has no line 0.
+    /// </summary>
+    [Fact]
+    public async Task TheLinesAPythonRunWentThroughAreAllLinesOfTheFile()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        var path = Path.Combine(_temp.Path, "leap.py");
+        File.WriteAllText(path, "def is_leap(year):\n    return year % 4 == 0\n\n\nprint(is_leap(2024))\n");
+        var plan = TargetFactory.FromFile(path);
+
+        var lines = await LineCoverage.CollectAsync(path, plan.Spec!, null, null, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.NotNull(lines);
+        Assert.Equal([1, 2, 5], lines.Order());
+    }
+
     [Fact]
     public void AComparisonDecidingALoopIsTheFirstEditTried()
     {
@@ -153,6 +172,10 @@ public class LogicErrorTests : IDisposable
     // A list not shortened like the one beside it, and a loop over items already taken.
     [InlineData("app.py", "def lcs(a, b):\n    if not a or not b:\n        return ''\n    elif a[0] == b[0]:\n        return a[0] + lcs(a[1:], b)\n", 5, "        return a[0] + lcs(a[1:], b[1:])")]
     [InlineData("app.py", "def kheapsort(arr, k):\n    heap = arr[:k]\n    for x in arr:\n        yield x\n", 3, "    for x in arr[k:]:")]
+    // Taken from the wrong end of a list: a stack that gives back its first item, in Python, JavaScript and Java.
+    [InlineData("app.py", "class Stack:\n    def pop(self):\n        return self.items.pop(0)\n", 3, "        return self.items.pop()")]
+    [InlineData("app.js", "function next(queue) {\n    return queue.pop();\n}\n", 2, "    return queue.shift();")]
+    [InlineData("App.java", "class App {\n    static int last(java.util.LinkedList<Integer> xs) {\n        return xs.removeFirst();\n    }\n}\n", 3, "        return xs.removeLast();")]
     // A line added: the piece left when the loop ends, and the item pushed after the stack was popped down to its place.
     [InlineData("app.py", "def wrap(text, cols):\n    lines = []\n    while len(text) > cols:\n        line, text = text[:cols], text[cols:]\n        lines.append(line)\n\n    return lines\n", 7, "    lines.append(text)\n    return lines")]
     [InlineData("app.py", "def rpn(tokens):\n    out = []\n    ops = []\n    for token in tokens:\n        if isinstance(token, int):\n            out.append(token)\n        else:\n            while ops and ops[-1] > token:\n                out.append(ops.pop())\n\n    return out\n", 9, "                out.append(ops.pop())\n            ops.append(token)")]

@@ -140,6 +140,11 @@ public static class SnippetRunner
             if (result.Outcome == RunOutcome.LaunchFailed)
                 return new Observation { Ran = false, WhyNotRun = result.LaunchError ?? "The program could not be started.", Output = output };
 
+            // go run builds the program and starts it itself, so when Windows refuses the program it built, go run says so and
+            // fails - which, with nothing printed to stdout, read as a program that ran to the end and printed nothing.
+            if (Engine.FixFinderSession.WindowsRefused(result) is { } windowsSaid)
+                return new Observation { Ran = false, WhyNotRun = $"Windows would not start the program it built: {windowsSaid}", Output = output };
+
             if (result.Outcome == RunOutcome.TimedOut)
                 return new Observation { Ran = true, NeverFinished = true, Output = output };
 
