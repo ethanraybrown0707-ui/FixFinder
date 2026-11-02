@@ -42,6 +42,7 @@ public sealed partial class TestRepair
     public event Action<string>? Log;
     public event Action<string>? Progress;
 
+    /// <summary>How long the search goes on for once the changes it always tries have been - see <see cref="LogicRepair.OutOfTime"/>.</summary>
     public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(120);
 
     public int MostChanges { get; init; } = 400;
@@ -158,9 +159,10 @@ public sealed partial class TestRepair
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (DateTime.UtcNow - started > Budget)
+                if (LogicRepair.OutOfTime(DateTime.UtcNow - started, Budget, tried))
                 {
-                    if (!outOfTime) notes.Add($"Stopped after {tried} changes to {names}: running the tests with each took longer than {Budget.TotalSeconds:0} seconds in all.");
+                    if (!outOfTime) notes.Add($"Stopped after {tried} changes to {names}: running the tests with each took longer than " +
+                                              $"{(tried < LogicRepair.AlwaysTried ? LogicRepair.MostTime : Budget).TotalSeconds:0} seconds in all.");
                     outOfTime = true;
                     return null;
                 }

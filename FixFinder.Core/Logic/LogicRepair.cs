@@ -15,7 +15,17 @@ public sealed class LogicRepair
     public event Action<string>? Log;
     public event Action<string>? Progress;
 
+    /// <summary>How long the search goes on for once the changes it always tries have been - see <see cref="OutOfTime"/>.</summary>
     public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// How many changes, the likeliest first, are tried however long they take, so a busy computer does not decide how many
+    /// are tried: a CI runner busy with other work once took fourteen seconds for runs that took half a second here.
+    /// </summary>
+    public const int AlwaysTried = 40;
+
+    /// <summary>How long the search goes on for at most, however few changes it has tried.</summary>
+    public static readonly TimeSpan MostTime = TimeSpan.FromMinutes(5);
 
     public int MostChanges { get; init; } = 400;
 
@@ -143,9 +153,9 @@ public sealed class LogicRepair
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (DateTime.UtcNow - started > Budget)
+                if (OutOfTime(DateTime.UtcNow - started, Budget, tried))
                 {
-                    notes.Add($"Stopped after {tried} changes: the search took longer than {Budget.TotalSeconds:0} seconds.");
+                    notes.Add($"Stopped after {tried} changes: the search took longer than {(tried < AlwaysTried ? MostTime : Budget).TotalSeconds:0} seconds.");
                     break;
                 }
 
@@ -351,6 +361,13 @@ public sealed class LogicRepair
     }
 
     /// <summary>A private copy of the program, where one change at a time is made, built and run.</summary>
+    /// <summary>
+    /// Whether a search has run out of time: past its budget once it has tried the changes it always tries, or past five
+    /// minutes however few it has tried.
+    /// </summary>
+    internal static bool OutOfTime(TimeSpan taken, TimeSpan budget, int tried) =>
+        taken > MostTime || taken > budget && tried >= AlwaysTried;
+
     /// <summary>What trying a change found, and how long trying it took.</summary>
     internal static async Task<(T Verdict, TimeSpan Took)> TimedAsync<T>(Func<Task<T>> trying)
     {

@@ -1324,6 +1324,10 @@ unused; that warning and the check are one finding, whose change names it `add_t
    it is tried again straight away, on its own and with three times as long, rather than after every edit ranked below it.
    When the edits tried beside it finished in a fifth of the time, though, the computer was not busy and the edit itself
    ran on - as `while n >= 0` does where `n > 0` stopped the loop - so it is not tried again, and the time goes on others.
+   The first 40 edits, the likeliest first, are always tried, however long they take, so a busy computer does not decide
+   how many are: a CI runner busy with other work once took fourteen seconds for runs that took half a second here. After
+   them the search goes on for up to two minutes in all, and never for more than five. The search for the change that
+   makes failing tests pass works to the same times.
 
 Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
 five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the
