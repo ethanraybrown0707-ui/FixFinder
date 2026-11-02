@@ -928,6 +928,16 @@ and each of the 29 also gives the corrected version's answer on every one of the
 program the same as the benchmark's corrected one; the other 4 do the same in another way. `sqrt` was not fixed, and
 `lis` passes all five of its tests.
 
+A program that **stops at an assert of its own** - a Java program's `assert`, run with `-ea`; a Node.js program's
+`assert.strictEqual` from `node:assert`; a Python program's `assert` in one that also reads what is typed in, so is not run
+as one that only checks itself - has the assert as the test of the code it checks. FixFinder tries the same small changes
+in a private copy, run as the program was - with what was typed in and its arguments - and takes the first after which it
+runs to the end without stopping with an error; the code the assert calls is tried first, and an assert or a comment is
+never changed. In `Marks.java`, whose `total` summed from index 1, the change found was `int i = 0`, and the same in
+JavaScript. With only the one assert to go by, another change could also let it hold, so the finding says to check the
+change is the one meant. node:assert's `AssertionError`, whose message goes on over several lines before its stack, is read
+as the error it is; it was taken for a program that only ended with code 1.
+
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
 it has one. IPython's commands are made plain Python where that can be done without touching anything outside the run:

@@ -288,6 +288,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
             RecordDoctestFailuresPrinted(outcome, launch);
             await RepairTestsAsync(outcome, launch, cancellationToken);
+            await RepairAssertAsync(outcome, launch, cancellationToken);
             return outcome;
         }
         finally
@@ -356,6 +357,69 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                     SuggestedFix = $"{_findings[other].SuggestedFix} The change FixFinder found for {fixedFirst} makes this test pass too.",
                 };
             }
+
+            _findings[index] = _findings[index] with
+            {
+                SuggestedFix = $"{fix.Title.TrimEnd('.')}. {fix.Explanation}",
+                CorrectedExample = CorrectedCode.From(fix, source),
+                ExampleIsFromYourCode = true,
+                FixCheckedBy = checkedBy,
+                Fix = fix,
+                Change = CodeChange.From(fix, source),
+                CameFrom = FixOrigin.OwnRule(fix.RuleId),
+                Verified = verified,
+            };
+
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>
+    /// When the program stopped at an assert of its own - Java's, run with -ea, a Python program's that does other work too,
+    /// node:assert's - the change that lets it run past it, put on the finding for where it stopped. Not for a run of tests,
+    /// whose own search looks, nor when the output it should print was given, which the search against it uses instead.
+    /// </summary>
+    private async Task RepairAssertAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (Expected is { IsEmpty: false } || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
+        if (error.ShortExceptionType != "AssertionError" && error.ExceptionType?.EndsWith("AssertionError", StringComparison.Ordinal) != true) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } assertLine } frame ||
+            !string.Equals(Path.GetFileName(frame.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase)) return;
+
+        var repair = new AssertRepair();
+        repair.Log += message => Log?.Invoke(message);
+        repair.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        AssertRepairResult? result;
+        try
+        {
+            result = await repair.RunAsync(chosen, spec, assertLine, run.Duration, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Looking for the change that lets the assert hold stopped early: {ex.Message}");
+            return;
+        }
+
+        if (result is null) return;
+        foreach (var note in result.Notes) Note(note);
+        if (result.Fix is not { } fix) return;
+
+        var checkedBy = AssertRepair.Describe(result, chosen);
+        var verified = (result.Compiled ? Verification.NotTested.With(VerificationStage.Compiled, StageResult.Passed, "The program was built with the change.") : Verification.NotTested)
+            .With(VerificationStage.Ran, StageResult.Passed, checkedBy);
+        var source = SourceFile.Read(fix.File);
+
+        IReadOnlyList<Finding> snapshot;
+
+        lock (_gate)
+        {
+            var index = _findings.FindIndex(finding => finding.Kind == FindingKind.Runtime && finding.Line == assertLine &&
+                                                       string.Equals(Path.GetFileName(finding.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return;
 
             _findings[index] = _findings[index] with
             {

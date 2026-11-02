@@ -423,9 +423,9 @@ public sealed partial class TestRepair
     private static partial Regex JavaMethod();
 
     [GeneratedRegex(@"(?<![\w$])(?<name>[A-Za-z_$][\w$]*)\s*\(")]
-    private static partial Regex CallOf();
+    internal static partial Regex CallOf();
 
-    private static readonly HashSet<string> NotNames = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> NotNames = new(StringComparer.Ordinal)
     {
         "if", "for", "while", "switch", "catch", "return", "new", "else", "throw", "case", "do", "try", "synchronized",
     };
@@ -592,7 +592,7 @@ public sealed partial class TestRepair
     /// Python, a function's or a method's head in JavaScript, a method's in Java - or null outside every one, such as a
     /// class's fields or the module's own code.
     /// </summary>
-    private static string?[] FunctionOfEachLine(SourceFile source)
+    internal static string?[] FunctionOfEachLine(SourceFile source)
     {
         var python = IsPython(source.Path);
         var masked = CodeText.MaskAll(source.Lines, python ? Syntax.Python : Syntax.CLike);
