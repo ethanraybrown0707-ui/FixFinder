@@ -352,9 +352,13 @@ public static partial class CompiledLanguages
             [output, .. libraries.Resources.Select(folder => ProgramCopy.InCopyOf(source, folder)), .. classPath.Except(javaFx, StringComparer.OrdinalIgnoreCase)]);
         var entry = launcher is null ? MainClass(source) : $"{JavaTests.LauncherFullName} {MainClass(source)}";
 
+        // A program's own assert statements are checked, as its writer means them to be - java checks none without -ea - and
+        // so are those of the code tests call, as Maven and the IDEs run tests.
+        var checksAsserts = launcher is not null || HasAssertStatements([source, .. libraries.SourcesToName(source)]);
+
         var run = Spec(
             setup.Jdk.Java,
-            ShortEnough($"{setup.RunArguments}{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
+            ShortEnough($"{setup.RunArguments}{(checksAsserts ? "-ea " : "")}{modulePath}-cp \"{runPath}\" {entry}", output, "java"),
             start.Folder,
             timeout);
 
@@ -365,6 +369,7 @@ public static partial class CompiledLanguages
             : $", as the module {module.Name} its module-info.java declares";
         var then = launcher is not null ? $"running its tests with {(framework == JavaTests.Framework.JUnit4 ? "JUnit 4" : "JUnit 5")}"
             : javaFx.Count > 0 ? "running it with java, with JavaFX's modules on the module path"
+            : checksAsserts ? "running it with java -ea, so its assert statements are checked"
             : "running it with java";
 
         return (new BuildAndRun(compile, run,
@@ -410,6 +415,22 @@ public static partial class CompiledLanguages
 
         return start.IsProjectFolder ? $" from {folder}, the folder that holds src, as an IDE runs it" : $" from {folder}";
     }
+
+    /// <summary>Whether any of a program's Java files has an assert statement - assert total >= 0; - outside its comments and text.</summary>
+    private static bool HasAssertStatements(IEnumerable<string> sources) => sources.Any(file =>
+    {
+        try
+        {
+            return LocalFixes.CodeText.MaskAll(File.ReadAllLines(file), LocalFixes.Syntax.CLike).Any(line => AssertStatement().IsMatch(line));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    });
+
+    [GeneratedRegex(@"(?:^|[;{}])\s*assert\b")]
+    private static partial Regex AssertStatement();
 
     private static string MainClass(string source)
     {

@@ -815,7 +815,11 @@ A class of **JUnit** 4 or 5 tests is run with JUnit itself, through a small laun
 when JUnit is among the project's libraries; JUnit 5's launcher, which a Maven or Gradle project seldom names, is taken
 from what Maven or Gradle has downloaded, when it is there. A test that fails is an error on the line of the test it
 failed on, in JUnit's own words, and names the line of the program's code the failure was thrown from when it came from
-there. When JUnit cannot run the tests, a note says what it is missing.
+there. When JUnit cannot run the tests, a note says what it is missing. JUnit's tests run with `java -ea`, as Maven,
+Gradle and the IDEs run tests, so the `assert` statements of the code they call are checked. So are a program's own: java
+checks none unless it is started with `-ea`, so a Java program whose `assert` is false would carry on past it with the
+wrong value - FixFinder starts a program that has assert statements with `-ea`, says so, and an `AssertionError` it
+stops with says why that matters.
 
 A Python file of **unittest** tests - one that imports unittest and has a class deriving `TestCase` - is run with unittest
 itself, test by test, through a small launcher of FixFinder's, whether or not the file calls `unittest.main()`. A test that
@@ -912,10 +916,10 @@ tested with node:test in a `describe` block, whose `pop` used `shift()` and whos
 `this.items[this.items.length]`: the change found is `pop()` and `this.items.length - 1`.
 
 Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
-corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 28,
-and each of the 28 also gives the corrected version's answer on every one of the benchmark's cases for it. 24 make the
-program the same as the benchmark's corrected one; the other 4 do the same in another way. `bitcount` was fixed each
-time it was checked on its own, but not in that run; `sqrt` was not fixed, and `lis` passes all five of its tests.
+corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 29,
+and each of the 29 also gives the corrected version's answer on every one of the benchmark's cases for it. 25 make the
+program the same as the benchmark's corrected one; the other 4 do the same in another way. `sqrt` was not fixed, and
+`lis` passes all five of its tests.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
