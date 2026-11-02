@@ -38,6 +38,41 @@ public sealed class JavaMissingSemicolon : ILocalFixRule
     }
 }
 
+/// <summary>
+/// <c>')' expected</c>, or <c>')' or ',' expected</c>, on a statement that opens more round brackets than it closes:
+/// <c>System.out.println("total: " + (2 + 3);</c> - the brackets left open are closed where the statement ends, before its <c>;</c>.
+/// </summary>
+public sealed class JavaMissingClosingParenthesis : ILocalFixRule
+{
+    public string Id => "java-missing-closing-parenthesis";
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        var error = context.Error;
+
+        if (!JavaCode.IsCompileError(error) || error.Message is not ("')' expected" or "')' or ',' expected")) return null;
+        if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
+        if (source.Line(number) is not { } line) return null;
+
+        var (code, tail) = CodeText.SplitComment(line, Syntax.CLike);
+        var masked = CodeText.Mask(code, Syntax.CLike);
+        var leftOpen = masked.Count(c => c == '(') - masked.Count(c => c == ')');
+
+        // Only a statement on one line that ends with its semicolon, and leaves round brackets - and only those - open.
+        if (leftOpen < 1 || !code.TrimEnd().EndsWith(';') || masked.Count(c => c is '[' or '{') != masked.Count(c => c is ']' or '}')) return null;
+
+        var end = code.TrimEnd().Length - 1;
+        var corrected = code[..end] + new string(')', leftOpen) + code[end..] + tail;
+
+        return LocalFix.ReplaceLine(
+            Id,
+            leftOpen == 1 ? "Close the bracket left open" : $"Close the {leftOpen} brackets left open",
+            $"The statement on line {number} opens {(leftOpen == 1 ? "a round bracket it never closes" : $"{leftOpen} round brackets it never closes")}, " +
+            "so javac reached its `;` still inside it. Each `(` needs its `)`; here they all go where the statement ends.",
+            source.Path, number, corrected);
+    }
+}
+
 /// <summary><c>reached end of file while parsing</c> - a block never closed.</summary>
 public sealed class JavaMissingClosingBrace : ILocalFixRule
 {

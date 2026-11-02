@@ -177,6 +177,7 @@ public static partial class LocalFixEngine
         new JavaMissingImport(),
         new JavaNearestName(),
         new JavaMissingSemicolon(),
+        new JavaMissingClosingParenthesis(),
         new JavaUnreportedException(),
         new JavaNonStaticMember(),
         new JavaPublicClassName(),
