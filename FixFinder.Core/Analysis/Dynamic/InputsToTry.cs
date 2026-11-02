@@ -87,7 +87,13 @@ public static class InputsToTry
 
         foreach (var answers in answerSets)
         {
-            var run = await new TargetRunner().RunAsync(spec.WithInput(string.Concat(answers.Select(answer => answer + "\n"))).WithTimeout(TryTimeLimit), cancellation);
+            var typed = spec.WithInput(string.Concat(answers.Select(answer => answer + "\n")));
+            var run = await new TargetRunner().RunAsync(typed.WithTimeout(TryTimeLimit), cancellation);
+
+            // On a busy computer even a small run can be stopped for time - a CI runner once took longer than ten seconds over
+            // one - which shows nothing of the way it takes: it is run again, once, with three times as long. One that still
+            // does not finish is left out.
+            if (run.Outcome == RunOutcome.TimedOut) run = await new TargetRunner().RunAsync(typed.WithTimeout(TryTimeLimit * 3), cancellation);
             if (run.Outcome == RunOutcome.TimedOut || run.Error?.ShortExceptionType == "EOFError") continue;
 
             var printed = run.Lines.Where(line => line.Stream == StreamKind.StdOut).Select(line => line.Text).ToList();
