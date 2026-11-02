@@ -264,6 +264,14 @@ public static partial class Mutations
             Add(m.Index, m.Length, otherEnd, "taken from the wrong end of the list - the first item where the last was meant, or the reverse", 1);
         }
 
+        // Read from the wrong end - sorted(marks)[0], the smallest, where sorted(marks)[-1], the largest, was meant, or the
+        // reverse - in Python, where [-1] is the last item.
+        if (python)
+        {
+            foreach (Match m in Regex.Matches(masked, @"(?<=[\w)\]])\[\s*(?<end>0|-1)\s*\]"))
+                Add(m.Index, m.Length, m.Groups["end"].Value == "0" ? "[-1]" : "[0]", "read from the wrong end of the list - the first item where the last was meant, or the reverse", 2);
+        }
+
         // A base case that answers nothing - return [] where return [[]] was meant: the subsets of nothing are one, the empty one.
         if (Regex.Match(masked, python ? @"^\s*return\s*(?<empty>\[\s*\])\s*$" : @"^\s*return\s*(?<empty>\[\s*\])\s*;\s*$") is { Success: true } nothing)
             Add(nothing.Groups["empty"].Index, nothing.Groups["empty"].Length, "[[]]", "a base case that answers nothing where it should answer one empty answer", 3);

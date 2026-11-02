@@ -852,6 +852,15 @@ prints it: each example doctest printed as failed is an error on its own line al
 ran to the end but some of its doctests' examples failed, and the traceback doctest prints for an example that raised is
 not taken for the program stopping - a crash after the doctests still is.
 
+A Python program that **checks itself with assert** - functions, then `assert average([60, 80]) == 70` lines at its top or
+in its `__main__` block, with only names given values and prints beside them, and nothing read from what is typed in - is
+run as running it would, except that each of those asserts is a check of its own, so the first that fails does not hide
+the ones after it. One that fails is an error on its own line saying what its left side was - `average([60, 80]) is
+46.666666666666664, not 70` - after the assert's own message when it has one; one whose code raised says what was raised
+and the line of the code it was raised on. The summary counts them: `2 of 3 asserts failed`. An assert inside a function
+is the function's own, and is left as it is. The search for the change that makes every assert hold never changes an
+assert, which is the test: a `return total / (len(marks) + 1)` was fixed by taking out the `+ 1`.
+
 A JavaScript or TypeScript file of tests for Node.js's own test runner, **node:test** - one that requires or imports
 `node:test`, with `test()`, or `it()` inside `describe()` - is run with `node --test`, test by test, through a reporter of
 FixFinder's; node:test is part of Node.js, so nothing is installed to run it. A test that fails is an error on the line of
@@ -874,7 +883,7 @@ where it is, and says how to have Python find it: moving it, running a program a
 started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
 package of that name, which would be somebody else's code.
 
-When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, FixFinder looks for **the change that makes every test pass**,
+When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
 node:test, by a path of its own such as `../src/grades.ts`. It tries the same
@@ -1316,7 +1325,8 @@ unused; that warning and the check are one finding, whose change names it `add_t
    on to a function's call of itself on part of a list without being shifted past the items left behind (`kth(above, k)`
    for `kth(above, k - num_lessoreq)`, the counts tried being those worked out with `len`), and an answer built from the
    function's answer for less that leaves that answer out (`[[first] + subset for subset in rest_subsets]` for
-   `rest_subsets + [...]`: the subsets without the first item are subsets too). Two edits add a
+   `rest_subsets + [...]`: the subsets without the first item are subsets too) - and, in Python, an item read from the
+   wrong end of a list (`sorted(marks)[0]`, the smallest, for `sorted(marks)[-1]`, the largest). Two edits add a
    line rather than change one: the piece left over when a loop ends (`lines.append(text)` before `return lines`), and
    the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected

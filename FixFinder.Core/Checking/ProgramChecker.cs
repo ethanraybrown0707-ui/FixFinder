@@ -752,6 +752,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         PythonTests.Framework.Pytest => "pytest",
         PythonTests.Framework.Doctest => "doctest",
+        PythonTests.Framework.Asserts => "assert",
         _ => "unittest",
     };
 
@@ -861,6 +862,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         return $"\"{reason}\"{(settings is null ? "" : $" - and it takes options from {settings} as well as from how it is run")}.";
     }
 
+    private static string UpperFirst(string text) => text.Length > 0 && char.IsLower(text[0]) ? char.ToUpperInvariant(text[0]) + text[1..] : text;
+
     /// <summary>A failed test as a finding: which test, what its framework said, and the lines the failure came through.</summary>
     private static Finding TestFinding(TestReport.TestResult test, string chosen, string framework)
     {
@@ -875,9 +878,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : test.ClassName.Length > 0 && (frame.Class == test.ClassName || frame.Class.StartsWith(test.ClassName + "$", StringComparison.Ordinal)) &&
               string.Equals(frame.File, Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase);
 
-        // A doctest is in the file of the code its examples call, so its own line is the outermost of the file's: its example's.
+        // A doctest is in the file of the code its examples call, and so is a program's own assert: its own line is the
+        // outermost of the file's - its example's, or the assert's.
         var doctest = framework == "doctest";
-        var own = doctest
+        var checksItself = framework == "assert";
+        var own = doctest || checksItself
             ? test.Frames.LastOrDefault(frame => InTheTestFile(frame) && frame.Line > 0)
             : test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
 
@@ -933,6 +938,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ("TEARDOWN-FAILED", _) => (
                 $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
                 $"{framework} ran the tests, and then cleaning up after them stopped: {test.Name} stopped with {stoppedWith}."),
+            _ when checksItself && assertion => (
+                $"{UpperFirst(name)} failed{shown}",
+                $"The program checks itself with assert, and {name} did not hold{(message is null ? "." : $": {message}.")}"),
+            _ when checksItself => (
+                $"{UpperFirst(name)} stopped with {stoppedWithName}{shown}",
+                $"The program checks itself with assert, and {name} stopped with {exception}{(message is null ? "" : $" ({message})")}" +
+                (thrownAt is { } raisedIn && raisedIn != own ? $", raised in {raisedIn.Method} on line {raisedIn.Line} of {Path.GetFileName(raisedIn.File)}." : ".")),
             _ when doctest && exception.Length == 0 => (
                 $"{called} failed{shown}",
                 $"doctest ran the examples in the docstring of {name}, and the one{line} did not give what it shows{(message is null ? "." : $": {message}.")}"),
@@ -992,7 +1004,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Path.GetFileName(file).Equals(JavaTests.LauncherClass + ".java", StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file).StartsWith(PythonTests.LauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(file).StartsWith(PythonTests.PytestLauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
-            Path.GetFileName(file).StartsWith(PythonTests.DoctestLauncherPrefix, StringComparison.OrdinalIgnoreCase));
+            Path.GetFileName(file).StartsWith(PythonTests.DoctestLauncherPrefix, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(file).StartsWith(PythonTests.AssertLauncherPrefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Why the program's own module was not found: where it is, and where Python looked instead.</summary>
     private static string OwnModuleExplanation(string ownModule, string chosen)
@@ -1284,8 +1297,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return $"{reads}{warnings}; pytest stopped after {ran} of its {Count(found, "test")}{(failed > 0 ? $", {failed} of which failed" : "")}";
             }
 
-            // doctest's tests are the examples in each docstring, which are called its doctests.
-            var testNoun = framework == "doctest" ? "doctest" : "test";
+            // doctest's tests are the examples in each docstring, which are called its doctests; a program's own checks are its asserts.
+            var testNoun = framework is "doctest" or "assert" ? framework : "test";
 
             return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, testNoun)} failed{othersNotRun}{notCleanedUp}"
                 : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}{notCleanedUp}"

@@ -180,6 +180,9 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "def kth(arr, k):\n    pivot = arr[0]\n    above = [x for x in arr if x > pivot]\n    num_lessoreq = len(arr) - len(above)\n    if k >= num_lessoreq:\n        return kth(above, k)\n", 6, "        return kth(above, k - num_lessoreq)")]
     // The subsets without the first item left out of the power set built from them (QuixBugs' powerset).
     [InlineData("app.py", "def powerset(arr):\n    if arr:\n        first, *rest = arr\n        rest_subsets = powerset(rest)\n        return [[first] + subset for subset in rest_subsets]\n", 5, "        return rest_subsets + [[first] + subset for subset in rest_subsets]")]
+    // The largest read from the wrong end of a sorted list, and the smallest: [0] where [-1] was meant, and the reverse.
+    [InlineData("app.py", "def top(marks):\n    return sorted(marks)[0]\n", 2, "    return sorted(marks)[-1]")]
+    [InlineData("app.py", "def bottom(marks):\n    return sorted(marks)[-1]\n", 2, "    return sorted(marks)[0]")]
     // The last item read one past the end, through a property of this: this.items[this.items.length].
     [InlineData("stack.js", "class Stack {\n  peek() {\n    return this.items[this.items.length];\n  }\n}\n", 3, "    return this.items[this.items.length - 1];")]
     // A place value off by a digit: the last digit taken off with // 100, and two digits kept with % 1000.

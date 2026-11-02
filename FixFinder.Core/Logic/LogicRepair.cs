@@ -237,7 +237,7 @@ public sealed class LogicRepair
                     StartLine = mutation.Line, RemoveCount = 1, NewLines = mutation.NewText.Split('\n'),
                 }
                 : LocalFix.ReplaceLine(
-                    "logic-edit", $"Change {mutation.From} to {mutation.To} on line {mutation.Line}",
+                    "logic-edit", mutation.To.Trim().Length == 0 ? $"Take out {mutation.From.Trim()} on line {mutation.Line}" : $"Change {mutation.From} to {mutation.To} on line {mutation.Line}",
                     $"Line {mutation.Line} looks like {mutation.Kind}.", source.Path, mutation.Line, mutation.NewText), false));
         }
 

@@ -248,7 +248,7 @@ public class TestRepairLiveTests(ITestOutputHelper output) : IDisposable
 
         if (report.SyntaxSummary == "It could not be started") return;
         Assert.DoesNotContain(report.Findings, finding => finding is { RuleId: "test-failed", Fix: not null });
-        Assert.Contains(report.Notes, note => note.Contains("small change to basket.py, the code the failing tests call", StringComparison.Ordinal) &&
+        Assert.Contains(report.Notes, note => note.Contains("to basket.py, the code the failing tests call", StringComparison.Ordinal) &&
                                               note.Contains("none made every test pass", StringComparison.Ordinal));
     }
 

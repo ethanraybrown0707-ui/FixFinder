@@ -83,9 +83,9 @@ public sealed partial class TestRepair
         if (failing.Count == 0 && unfinished <= 0 || before.Any(test => test.Status is "SETUP-FAILED" or "TEARDOWN-FAILED")) return null;
         if (SourceFile.Read(testFile) is not { } tests) return null;
         var root = ProgramCopy.RootOf(testFile);
-        var doctests = PythonTests.FrameworkOf(testFile) == PythonTests.Framework.Doctest;
-        var testNoun = doctests ? "doctest" : "test";
-        var targets = CodeUnderTest(tests, failing, root, doctests);
+        var framework = PythonTests.FrameworkOf(testFile);
+        var testNoun = NounFor(framework);
+        var targets = CodeUnderTest(tests, failing, root, TestsAreInTheCode(framework));
 
         if (targets.Count == 0)
         {
@@ -141,7 +141,7 @@ public sealed partial class TestRepair
         // adding 1 to every item pushed onto a stack made a test of what pop gives back pass, and lead nowhere.
         async Task<(LocalFix Fix, int Steps)?> SearchAsync(IReadOnlyList<LocalFix> kept, IReadOnlyList<TestReport.TestResult> latest)
         {
-            var candidates = CandidatesNow(targets, tests, latest, kept, doctests);
+            var candidates = CandidatesNow(targets, tests, latest, kept, framework);
 
             if (candidates.Count > MostChanges)
             {
@@ -238,7 +238,7 @@ public sealed partial class TestRepair
     /// comments - would change the tests, not the code, so none is tried.
     /// </summary>
     private List<LocalFix> CandidatesNow(
-        IReadOnlyList<SourceFile> targets, SourceFile tests, IReadOnlyList<TestReport.TestResult> latest, IReadOnlyList<LocalFix> kept, bool doctests)
+        IReadOnlyList<SourceFile> targets, SourceFile tests, IReadOnlyList<TestReport.TestResult> latest, IReadOnlyList<LocalFix> kept, PythonTests.Framework framework)
     {
         var candidates = new List<LocalFix>();
         var stillFailing = latest.Where(test => test.Status == "FAILED").ToList();
@@ -253,8 +253,12 @@ public sealed partial class TestRepair
                 .Select(frame => frame.Line)
                 .ToHashSet();
 
-            var changes = LogicRepair.CandidatesFor(target, Suspicion(target, tests, latest, doctests), raisedThrough, Log).Select(candidate => candidate.Fix);
-            if (doctests && SamePath(target.Path, tests.Path)) changes = changes.Where(change => !ChangesTextLines(target, change)).ToList();
+            var changes = LogicRepair.CandidatesFor(target, Suspicion(target, tests, latest, framework), raisedThrough, Log).Select(candidate => candidate.Fix);
+            if (TestsAreInTheCode(framework) && SamePath(target.Path, tests.Path))
+            {
+                var testLines = LinesThatAreTests(target);
+                changes = changes.Where(change => !ChangesItsTests(target, change, testLines)).ToList();
+            }
             candidates.AddRange(kept.Count == 0 ? changes : changes.Where(change => IsOneLine(change) && kept.All(done => done.StartLine != change.StartLine)));
         }
 
@@ -444,7 +448,7 @@ public sealed partial class TestRepair
     /// The files of the program the failing tests call: the ones their failures were raised through, most first, or else
     /// the program's own files the test file imports - never a file of tests, and only files of the test file's language.
     /// </summary>
-    private static List<SourceFile> CodeUnderTest(SourceFile tests, IReadOnlyList<TestReport.TestResult> failing, string root, bool doctests)
+    private static List<SourceFile> CodeUnderTest(SourceFile tests, IReadOnlyList<TestReport.TestResult> failing, string root, bool testsAreInTheCode)
     {
         bool Usable(string file) =>
             File.Exists(file) && !SamePath(file, tests.Path) && SameLanguage(file, tests.Path) &&
@@ -460,8 +464,8 @@ public sealed partial class TestRepair
 
         var chosen = raisedThrough.Take(MostFilesChanged).ToList();
 
-        // A file's doctests test the code beside them in it, so that is where changes are tried first.
-        if (doctests) chosen = [Path.GetFullPath(tests.Path), .. chosen.Take(MostFilesChanged - 1)];
+        // A file's doctests, and a program's asserts, test the code beside them in it, so that is where changes are tried first.
+        if (testsAreInTheCode) chosen = [Path.GetFullPath(tests.Path), .. chosen.Take(MostFilesChanged - 1)];
 
         // A module beside the tests and one under the program's folder are often the same file, found both ways.
         if (chosen.Count == 0) chosen = Imported(tests, root).Where(Usable).Distinct(StringComparer.OrdinalIgnoreCase).Take(MostFilesChanged).ToList();
@@ -551,14 +555,19 @@ public sealed partial class TestRepair
     /// failing tests that call that function and the passing ones that call it. Every line has a score: 0 for one in a
     /// function no failing test calls by name, and -1 everywhere when no test's own code could be found to read.
     /// </summary>
-    private static Dictionary<int, double> Suspicion(SourceFile target, SourceFile tests, IReadOnlyList<TestReport.TestResult> before, bool doctests)
+    private static Dictionary<int, double> Suspicion(SourceFile target, SourceFile tests, IReadOnlyList<TestReport.TestResult> before, PythonTests.Framework framework)
     {
         var functionOf = FunctionOfEachLine(target);
         var functions = functionOf.OfType<string>().ToHashSet(StringComparer.Ordinal);
 
         var called = before.Where(test => test.Status is "SUCCESSFUL" or "FAILED")
             .Select(test => (Failed: test.Status == "FAILED",
-                Calls: doctests ? CallsInExamples(tests, test.Method) : IsJavaScript(tests.Path) ? CallsInNamedTest(tests, test.Method) : CallsIn(tests, test.Method)))
+                Calls: framework switch
+                {
+                    PythonTests.Framework.Doctest => CallsInExamples(tests, test.Method),
+                    PythonTests.Framework.Asserts => CallsInAssert(tests, test.Method),
+                    _ => IsJavaScript(tests.Path) ? CallsInNamedTest(tests, test.Method) : CallsIn(tests, test.Method),
+                }))
             .Where(test => test.Calls is not null)
             .Select(test => (test.Failed, Calls: test.Calls!.Where(functions.Contains).ToHashSet(StringComparer.Ordinal)))
             .ToList();
@@ -659,19 +668,89 @@ public sealed partial class TestRepair
         return null;
     }
 
+    /// <summary>Whether a file's tests are in the code they call: its doctests, or the asserts a program checks itself with.</summary>
+    private static bool TestsAreInTheCode(PythonTests.Framework framework) => framework is PythonTests.Framework.Doctest or PythonTests.Framework.Asserts;
+
+    /// <summary>What a framework's tests are called: a docstring's examples are its doctests, a program's own checks its asserts.</summary>
+    private static string NounFor(PythonTests.Framework framework) => framework switch
+    {
+        PythonTests.Framework.Doctest => "doctest",
+        PythonTests.Framework.Asserts => "assert",
+        _ => "test",
+    };
+
+    [GeneratedRegex(@"^if\s+__name__\s*==\s*(?:'__main__'|""__main__"")\s*:")]
+    private static partial Regex MainBlockHead();
+
+    [GeneratedRegex(@"^\s*assert\b")]
+    private static partial Regex AssertHead();
+
     /// <summary>
-    /// Whether a change alters a line that is only text or a comment - a line of a docstring, where a file's doctests are -
-    /// rather than code: one it replaces with something else, or takes out, or puts others among.
+    /// The lines of a file that are its tests rather than the code they call: every line only of text or a comment - a
+    /// docstring's, where its doctests are - and every line of an assert at its top or in its __main__ block.
     /// </summary>
-    private static bool ChangesTextLines(SourceFile source, LocalFix change)
+    private static HashSet<int> LinesThatAreTests(SourceFile source)
     {
         var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
-        bool IsTextOnly(int line) => line >= 1 && line <= source.Count && source.Lines[line - 1].Trim().Length > 0 && masked[line - 1].Trim().Length == 0;
+        var testLines = Enumerable.Range(1, source.Count).Where(line => source.Lines[line - 1].Trim().Length > 0 && masked[line - 1].Trim().Length == 0).ToHashSet();
 
+        var inMainBlock = false;
+        var inAssert = false;
+        var openBrackets = 0;
+
+        for (var index = 0; index < source.Count; index++)
+        {
+            var line = masked[index];
+            if (line.Trim().Length == 0) continue;
+
+            if (openBrackets == 0)
+            {
+                var indent = line.Length - line.TrimStart().Length;
+                if (indent == 0) inMainBlock = MainBlockHead().IsMatch(source.Lines[index].TrimEnd());
+                inAssert = (indent == 0 || inMainBlock) && AssertHead().IsMatch(line);
+            }
+
+            openBrackets = Math.Max(0, openBrackets + line.Count(c => c is '(' or '[' or '{') - line.Count(c => c is ')' or ']' or '}'));
+            if (inAssert) testLines.Add(index + 1);
+        }
+
+        return testLines;
+    }
+
+    /// <summary>
+    /// Whether a change alters a line that is one of the file's tests - one it replaces with something else, or takes out, or
+    /// puts others among - so that it would change the tests rather than the code.
+    /// </summary>
+    private static bool ChangesItsTests(SourceFile source, LocalFix change, IReadOnlySet<int> testLines)
+    {
         var replaced = Enumerable.Range(change.StartLine, Math.Max(0, change.RemoveCount)).ToList();
-        if (change.NewLines.Count != change.RemoveCount) return replaced.Any(IsTextOnly);
+        if (change.NewLines.Count != change.RemoveCount) return replaced.Any(testLines.Contains);
 
-        return replaced.Where((line, offset) => source.Lines[line - 1] != change.NewLines[offset]).Any(IsTextOnly);
+        return replaced.Where((line, offset) => source.Lines[line - 1] != change.NewLines[offset]).Any(testLines.Contains);
+    }
+
+    [GeneratedRegex(@"line (?<line>\d+)$")]
+    private static partial Regex AssertLine();
+
+    /// <summary>The names an assert at a program's top calls - the assert on line 17 - on its line and those it goes on over; null when there is none there.</summary>
+    private static HashSet<string>? CallsInAssert(SourceFile tests, string name)
+    {
+        if (AssertLine().Match(name) is not { Success: true } named || !int.TryParse(named.Groups["line"].Value, out var line) || line < 1 || line > tests.Count) return null;
+
+        var masked = CodeText.MaskAll(tests.Lines, Syntax.Python);
+        var calls = new HashSet<string>(StringComparer.Ordinal);
+        var openBrackets = 0;
+
+        for (var index = line - 1; index < tests.Count; index++)
+        {
+            foreach (Match call in CallOf().Matches(masked[index]))
+                if (!NotNames.Contains(call.Groups["name"].Value)) calls.Add(call.Groups["name"].Value);
+
+            openBrackets = Math.Max(0, openBrackets + masked[index].Count(c => c is '(' or '[' or '{') - masked[index].Count(c => c is ')' or ']' or '}'));
+            if (openBrackets == 0) break;
+        }
+
+        return calls;
     }
 
     /// <summary>The names a test calls in its own code, found by its method's name in the file of tests; null when it is not there.</summary>
@@ -745,7 +824,7 @@ public sealed partial class TestRepair
         var tests = Path.GetFileName(testFile);
 
         // doctest's tests are the examples in each docstring, which are called its doctests.
-        var testNoun = PythonTests.FrameworkOf(testFile) == PythonTests.Framework.Doctest ? "doctest" : "test";
+        var testNoun = NounFor(PythonTests.FrameworkOf(testFile));
         var all = result.Tests == 1 ? $"the {testNoun} in {tests} passes" : $"every one of the {result.Tests} {testNoun}s in {tests} passes";
         var before = (result.FailedBefore, result.UnfinishedBefore) switch
         {

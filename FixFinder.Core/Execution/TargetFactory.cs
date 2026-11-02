@@ -274,6 +274,12 @@ public static class TargetFactory
                 testsRunBy = "doctest";
                 break;
 
+            case ".py" when PythonTests.FrameworkOf(full) == PythonTests.Framework.Asserts:
+                // A program that checks itself with assert runs as running it would, with each assert at its top a check of its own.
+                arguments = $"-X utf8 \"{PythonTests.WriteAssertLauncher()}\" \"{full}\"";
+                testsRunBy = "assert";
+                break;
+
             case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.AreItsTests(full):
                 // Its tests are run with Node.js's own test runner, node --test, test by test, through a reporter of FixFinder's.
                 arguments = $"--test --test-reporter={NodeTests.ReporterUrl()} \"{full}\"";
@@ -341,6 +347,8 @@ public static class TargetFactory
         var interpreterNamed = python?.Explained ?? go?.Explained ?? node?.Explained ?? csharp?.Explained ?? fsharp ?? environment?.Described ?? Path.GetFileNameWithoutExtension(found);
         var how = (testsRunBy is "doctest"
             ? $"Running the examples in its docstrings with doctest, docstring by docstring, using {interpreterNamed}."
+            : testsRunBy is "assert"
+            ? $"Running it with each assert at its top checked on its own, so one that fails does not hide the ones after it, using {interpreterNamed}."
             : testsRunBy is not null
             ? $"Running its tests with {testsRunBy}, test by test, using {interpreterNamed}."
             : $"Running it{together} with {interpreterNamed}.") + ((python?.CodeNeeds ?? go?.CodeNeeds ?? node?.CodeNeeds ?? csharp?.Said) is { } needs ? " " + needs : "") +
