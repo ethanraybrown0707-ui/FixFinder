@@ -37,6 +37,7 @@ public static class LogicPatterns
         .. OCamlLogicPatterns.All,
         .. GoLogicPatterns.All,
         .. DecimalAndSearchPatterns.All,
+        .. RunningBestPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

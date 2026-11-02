@@ -101,6 +101,21 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-java-best-starts-at-zero"], "A largest or smallest started at 0",
+            "A loop that keeps the largest item of an array starts with some value to compare the first item against. Started at " +
+            "0, it only works when some item is above 0: with temperatures of -5, -2 and -8 no item is bigger than 0, so it stays " +
+            "0 - a temperature that was never in the array. A smallest started at 0 stays 0 the same way when every item is above 0.",
+            "The program prints or uses a value the array does not have, with no error to say so.",
+            "Start it at the array's first item, so it is one of the array's values from the start.",
+            """
+            int highest = temperatures[0];
+            for (int t : temperatures) {
+                if (t > highest) {
+                    highest = t;
+                }
+            }
+            """),
+
         GuideFor(["logic-java-scanner-skips-line"], "nextLine() straight after reading a number",
             "When someone types 42 and presses Enter, the input holds 42 followed by an invisible end of line. nextInt() takes " +
             "the 42 but leaves the end of line behind, so the next nextLine() finds it straight away and returns an empty line.",
