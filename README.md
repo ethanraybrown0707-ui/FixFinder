@@ -1909,7 +1909,7 @@ dependable way in. Each project signs its Debug build - its DLL, and the launche
 when a code-signing certificate is present, and does nothing when there is not one, as on CI.
 
 The logo is drawn by `FixFinder.Gui\Assets\make-icon.py`, which draws every icon size at its own scale so the small ones
-stay sharp.
+stay sharp, and fills its whole square at every size, so on the desktop it is as big as the icons beside it.
 
 ## Licence
 

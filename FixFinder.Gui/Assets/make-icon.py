@@ -6,7 +6,8 @@ white open book on a rounded tile blended from the logo's blue, lightened with w
 
 Writes FixFinder.ico and logo.png beside itself, and FixFinderLearn.ico and logo.png into FixFinder.Learn's Assets.
 Every size is drawn at its own scale rather than shrunk from one large picture, so the logo stays the logo at 16px: the
-small sizes get a tile that fills more of the square, and FixFinder's a larger logo with heavier chevrons.
+small sizes get a larger logo with heavier chevrons. At every size the tile fills its square to the edge, as other
+programs' icons do - one with a margin of its own looks smaller than theirs beside it on the desktop.
 """
 import io
 import os
@@ -102,11 +103,10 @@ def draw(size, icon):
     scale = pixels / 100
     tile, mark = ICONS[icon]
 
-    inset, corner = (1, 22) if size <= 20 else (2, 23) if size <= 40 else (4, 24)
+    corner = 22 if size <= 20 else 23 if size <= 40 else 24
 
     mask = Image.new("L", (pixels, pixels), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [inset * scale, inset * scale, (100 - inset) * scale, (100 - inset) * scale], radius=corner * scale, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, pixels - 1, pixels - 1], radius=corner * scale, fill=255)
 
     image = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
     image.paste(tile(pixels), (0, 0), mask)
