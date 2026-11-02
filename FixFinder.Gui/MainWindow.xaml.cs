@@ -118,6 +118,7 @@ public partial class MainWindow : Window
     public MainWindow(string? initialFile = null)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         OutputListBox.ItemsSource = _output;

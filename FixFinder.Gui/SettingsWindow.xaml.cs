@@ -26,6 +26,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(FixFinderHttpClient http)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         _http = http;

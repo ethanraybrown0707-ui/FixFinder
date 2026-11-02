@@ -1846,7 +1846,7 @@ problem. It exits with 0 when nothing is wrong, 1 when there is at least one err
 | `FixFinder.Core` | Everything but the windows. `net8.0`, so the tests run without a desktop. |
 | `FixFinder.Gui` | FixFinder's window. |
 | `FixFinder.Learn` | FixFinder Learn's window. Its lessons, and everything it runs, come from `FixFinder.Core`. |
-| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes, code shown in text, and fitting a window to its screen. |
+| `FixFinder.Desktop` | What the two windows share: the styles, the light and dark themes - the title bar included, coloured as the header under it - code shown in text, and fitting a window to its screen. |
 | `FixFinder.Cli` | `fixfinder`, the same check from a terminal or an editor. All of it is `Core/Engine/CommandLine.cs`; this only hands it the console. |
 | `FixFinder.Tests` | xUnit tests, in folders that mirror `FixFinder.Core`. |
 | `TestTargets` | Small programs that crash, hang or print the wrong thing, to point FixFinder at. |

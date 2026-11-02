@@ -23,6 +23,7 @@ public partial class LearnWindow : Window
     public LearnWindow(string? codeToOpen = null)
     {
         InitializeComponent();
+        Theme.FollowInTitleBar(this);
         ScreenFit.Apply(this);
 
         foreach (var language in Lessons.All.Select(lesson => lesson.Language.Name).Distinct())
