@@ -1717,8 +1717,8 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 89 | 74 | 41 |
-| Java | 57 | 60 | 51 |
+| Python | 91 | 76 | 41 |
+| Java | 58 | 62 | 51 |
 | C# | 50 | 49 | 49 |
 | C | 46 | 34 | 39 |
 | C++ | 45 | 43 | 39 |
