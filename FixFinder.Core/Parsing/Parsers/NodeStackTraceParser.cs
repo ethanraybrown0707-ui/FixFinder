@@ -52,14 +52,20 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
         return Math.Min(score, 100);
     }
 
+    /// <summary>How many lines node:assert's message - with the diff deepStrictEqual prints - is looked over for the stack after it.</summary>
+    private const int MostAssertionMessageLines = 80;
+
     public ParsedError? Parse(IReadOnlyList<CapturedLine> lines)
     {
         var headerIndex = -1;
         for (var i = lines.Count - 1; i >= 0; i--)
         {
-            if (!Header(lines[i].Text).Success) continue;
+            if (Header(lines[i].Text) is not { Success: true } found) continue;
 
-            for (var j = i + 1; j < Math.Min(i + 12, lines.Count); j++)
+            // node:assert's message goes on over several lines before the stack - a blank line, then 150 !== 210, or the diff
+            // deepStrictEqual prints, line by line - so an AssertionError's stack is looked for further down than another's.
+            var assertion = found.Groups["type"].Value == "AssertionError" || found.Groups["code"].Value == "ERR_ASSERTION";
+            for (var j = i + 1; j < Math.Min(i + (assertion ? MostAssertionMessageLines : 12), lines.Count); j++)
             {
                 if (FramePattern().IsMatch(lines[j].Text))
                 {
@@ -67,7 +73,8 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
                     break;
                 }
 
-                if (!IsRequireStack(lines[j].Text) && !IsCause(lines[j].Text) && j >= i + 2) break;
+                if (!assertion && !IsRequireStack(lines[j].Text) && !IsCause(lines[j].Text) && j >= i + 2) break;
+                if (assertion && Header(lines[j].Text).Success) break;
             }
             if (headerIndex >= 0) break;
         }
@@ -75,6 +82,7 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
         if (headerIndex < 0) return null;
 
         var header = Header(lines[headerIndex].Text);
+        var assertionMessage = header.Groups["type"].Value == "AssertionError" || header.Groups["code"].Value == "ERR_ASSERTION";
         var frames = new List<ErrorFrame>();
         var end = headerIndex + 1;
 
@@ -84,6 +92,9 @@ public sealed partial class NodeStackTraceParser : IStackTraceParser
             var frame = FramePattern().Match(text);
             if (!frame.Success)
             {
+                // The rest of node:assert's message, before its stack: 150 !== 210, or deepStrictEqual's diff.
+                if (assertionMessage && frames.Count == 0) continue;
+
                 if (text.Trim().Length == 0 || (frames.Count == 0 && (IsRequireStack(text) || IsCause(text))) ||
                     (text.Length > 0 && char.IsWhiteSpace(text[0]) && text.TrimStart().StartsWith("at ", StringComparison.Ordinal))) continue;
                 break;
