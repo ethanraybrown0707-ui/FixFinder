@@ -903,11 +903,11 @@ tested with node:test in a `describe` block, whose `pop` used `shift()` and whos
 `this.items[this.items.length]`: the change found is `pop()` and `this.items.length - 1`.
 
 Measured on the same 31 QuixBugs programs, each beside a unittest file of at most its first five test cases that the
-corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 26,
-and each of the 26 also gives the corrected version's answer on every one of the benchmark's cases for it. 22 make the
+corrected version answers quickly, checked two at a time with 10 seconds a run: a fix every test passes was found for 27,
+and each of the 27 also gives the corrected version's answer on every one of the benchmark's cases for it. 23 make the
 program the same as the benchmark's corrected one; the other 4 do the same in another way. `bitcount` was fixed each
-time it was checked on its own, but not in that run; `kth`, `powerset` and `sqrt` were not fixed, and `lis` passes all
-five of its tests.
+time it was checked on its own, but not in that run; `powerset` and `sqrt` were not fixed, and `lis` passes all five of
+its tests.
 
 A **Jupyter notebook** (`.ipynb`) is checked as Jupyter's Run All runs it: its code cells in order, as one program, from the
 notebook's folder - so its own modules and data files are found - and with its kernel's Python, or its project's own, when
@@ -1312,8 +1312,10 @@ unused; that warning and the check are one finding, whose change names it `add_t
    the wrong variable, a running best replaced rather than kept (`max(longest, length + 1)`), a generator's own call
    yielded whole, a base case that answers nothing (`[]` for `[[]]` or `[n]`) or is one too small (`len(arr) == 0` for
    `<= 1`), a count never checked (`return True` for `return depth == 0`), a recursive base case that does not stop at
-   an empty list, a list not shortened like the one beside it, a loop over items already taken, and a place value one
-   digit out (`n // 100` for `n // 10`, which takes two digits off a number where one was meant). Two edits add a
+   an empty list, a list not shortened like the one beside it, a loop over items already taken, a place value one
+   digit out (`n // 100` for `n // 10`, which takes two digits off a number where one was meant), and an index passed
+   on to a function's call of itself on part of a list without being shifted past the items left behind (`kth(above, k)`
+   for `kth(above, k - num_lessoreq)`, the counts tried being those worked out with `len`). Two edits add a
    line rather than change one: the piece left over when a loop ends (`lines.append(text)` before `return lines`), and
    the item pushed back onto a stack after the stack was popped down to its place.
 3. Each edit is made in a private copy, built and run with every input. The first that prints exactly what was expected
@@ -1325,11 +1327,11 @@ unused; that warning and the check are one finding, whose change names it `add_t
 
 Measured on the 31 Python programs of the QuixBugs benchmark that come with test inputs, each given at most its first
 five inputs that the corrected version answers quickly, with the corrected version's output as what was expected: the
-search found a change for 27, and each of the 27 also gives the corrected version's answer on every one of the
+search found a change for 28, and each of the 28 also gives the corrected version's answer on every one of the
 benchmark's tests for that program (leaving out one test each for `knapsack` and `levenshtein`, which the corrected
-versions themselves do not finish in 30 seconds). 23 make the program the same as the benchmark's corrected one; the other
-4 do the same in another way, such as `if perm[j] > perm[i]` for `if perm[i] < perm[j]`. It found none for `kth`, `powerset`, `sqrt` and `lis`,
-whose five inputs do not show its bug.
+versions themselves do not finish in 30 seconds). 24 make the program the same as the benchmark's corrected one; the other
+4 do the same in another way, such as `if perm[j] > perm[i]` for `if perm[i] < perm[j]`. It found none for `powerset` and
+`sqrt`, nor for `lis`, whose five inputs do not show its bug.
 
 A run that stops with an error, or is still going when the time runs out, is compared as far as it got and said to have
 stopped - never to have run to the end - and an edit only counts if the program then finishes.

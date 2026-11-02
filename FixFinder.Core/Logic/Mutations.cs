@@ -281,6 +281,7 @@ public static partial class Mutations
             foreach (var wrong in WrongVariable(source, number, line, masked)) found.Add(wrong);
             foreach (var yielded in YieldedCall(source, number, line, masked)) found.Add(yielded);
             foreach (var given in GivenBack(source, number, line, masked)) found.Add(given);
+            foreach (var shifted in ShiftedPastWhatWasLeftOut(source, number, line, masked, maskedLines)) found.Add(shifted);
             foreach (var emptied in NotStoppedWhenEmpty(source, number, line, masked, maskedLines)) found.Add(emptied);
             foreach (var shortened in ShortenedLikeTheOther(source, number, line, masked, maskedLines)) found.Add(shortened);
             foreach (var rest in LoopOverTheRest(source, number, line, masked, maskedLines)) found.Add(rest);
@@ -351,6 +352,43 @@ public static partial class Mutations
         foreach (var parameter in ParameterNames(function.Parameters))
             yield return new Mutation(number, line[..empty.Index] + $"[{parameter}]" + line[(empty.Index + empty.Length)..], "[]", $"[{parameter}]",
                 "a base case that gives back nothing where it should give back what it was given", 4);
+    }
+
+    /// <summary>
+    /// An index passed on to the function's call of itself on part of a list, not shifted past the items left behind -
+    /// kth(above, k) where kth(above, k - num_lessoreq) was meant: in the part, k counts from the part's own start. The
+    /// shifts tried are the counts the function works out above the line, each a name given a len(...).
+    /// </summary>
+    private static IEnumerable<Mutation> ShiftedPastWhatWasLeftOut(SourceFile source, int number, string line, string masked, IReadOnlyList<string> maskedLines)
+    {
+        if (Enclosing(source, number) is not { } function) yield break;
+
+        var parameters = ParameterNames(function.Parameters);
+        var counts = Enumerable.Range(function.First, Math.Max(0, number - 1 - function.First))
+            .Select(index => Regex.Match(maskedLines[index], @"^\s*(?<name>[A-Za-z_]\w*)\s*=(?!=).*(?<![\w.])len\s*\("))
+            .Where(count => count.Success)
+            .Select(count => count.Groups["name"].Value)
+            .Where(name => !parameters.Contains(name))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (counts.Count == 0) yield break;
+
+        foreach (Match call in Regex.Matches(masked, $@"(?<![\w.]){Regex.Escape(function.Name)}\s*\("))
+        {
+            if (Arguments(masked, call.Index + call.Length - 1) is not { } arguments) continue;
+
+            foreach (var argument in arguments)
+            {
+                var passed = line.Substring(argument.Start, argument.Length).TrimEnd();
+                if (!parameters.Contains(passed.Trim())) continue;
+
+                foreach (var count in counts)
+                {
+                    yield return new Mutation(number, line[..argument.Start] + $"{passed} - {count}" + line[(argument.Start + argument.Length)..],
+                        passed.Trim(), $"{passed.Trim()} - {count}", "an index not shifted past the items left behind", 3);
+                }
+            }
+        }
     }
 
     /// <summary>

@@ -176,6 +176,8 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "class Stack:\n    def pop(self):\n        return self.items.pop(0)\n", 3, "        return self.items.pop()")]
     [InlineData("app.js", "function next(queue) {\n    return queue.pop();\n}\n", 2, "    return queue.shift();")]
     [InlineData("App.java", "class App {\n    static int last(java.util.LinkedList<Integer> xs) {\n        return xs.removeFirst();\n    }\n}\n", 3, "        return xs.removeLast();")]
+    // An index passed on into the part of a list above the pivot, not shifted past the items below it (QuixBugs' kth).
+    [InlineData("app.py", "def kth(arr, k):\n    pivot = arr[0]\n    above = [x for x in arr if x > pivot]\n    num_lessoreq = len(arr) - len(above)\n    if k >= num_lessoreq:\n        return kth(above, k)\n", 6, "        return kth(above, k - num_lessoreq)")]
     // The last item read one past the end, through a property of this: this.items[this.items.length].
     [InlineData("stack.js", "class Stack {\n  peek() {\n    return this.items[this.items.length];\n  }\n}\n", 3, "    return this.items[this.items.length - 1];")]
     // A place value off by a digit: the last digit taken off with // 100, and two digits kept with % 1000.
