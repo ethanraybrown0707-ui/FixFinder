@@ -286,6 +286,13 @@ public static class TargetFactory
                 testsRunBy = NodeTests.RunnerName;
                 break;
 
+            case ".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts" when NodeTests.ChecksWithConsoleAssert(full):
+                // It runs as it is, with each console.assert it reaches said as a check of its own - console.assert only prints.
+                arguments = $"--require \"{NodeTests.WriteConsoleAssertWatcher()}\" \"{full}\"";
+                together = " - each console.assert it reaches said as a check of its own, as console.assert itself only prints " +
+                           "\"Assertion failed\" and carries on -";
+                break;
+
             case ".go" when ProgramLayout.GoPackageOf(full) is { IsSingleFile: false } program:
                 arguments = program.Module is not null
                     ? "run ."

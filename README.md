@@ -873,6 +873,13 @@ with the `describe` blocks it is in, and an error thrown in the code it calls na
 ends with code 1 when a test fails, which is the failed test's finding, not one of its own. Jest's and Mocha's tests need
 their own packages, which a check never downloads.
 
+A JavaScript or TypeScript program that **checks itself with console.assert** runs as it is, with a watcher of FixFinder's
+loaded first (`node --require`) that says of each `console.assert` it reaches whether what it checks held, on that
+`console.assert`'s own line - and then lets it do what it does. `console.assert` only prints `Assertion failed` and carries
+on, without saying where, so a check that failed is easy to miss: here each is an error on its own line, with what it was
+given to say, and the summary counts them - `2 of 2 checks failed`. The search for the change that makes every check hold
+never changes a `console.assert`.
+
 Python tests in a **folder of their own** - `tests\test_grades.py` importing `grades` from the folder above, or from a `src`
 folder beside `tests` - run as `python -m pytest` and an IDE run them, from the project's folder: Python is told to look for
 the program's own modules where they are, in the folders above the test file and the `src` folder in each, at most three
@@ -887,7 +894,7 @@ where it is, and says how to have Python find it: moving it, running a program a
 started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
 package of that name, which would be somebody else's code.
 
-When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts, FixFinder looks for **the change that makes every test pass**,
+When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
 node:test, by a path of its own such as `../src/grades.ts`. It tries the same

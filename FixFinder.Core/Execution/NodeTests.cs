@@ -34,6 +34,89 @@ public static partial class NodeTests
         }
     }
 
+    /// <summary>What a program's own checks are called where one is said to have failed.</summary>
+    public const string ConsoleAssertName = "console.assert";
+
+    [GeneratedRegex(@"\bconsole\s*\.\s*assert\s*\(")]
+    private static partial Regex ConsoleAssertCall();
+
+    /// <summary>
+    /// Whether a JavaScript or TypeScript program checks itself with console.assert - outside its comments - and is not a
+    /// file of node:test's tests. console.assert only prints "Assertion failed" and carries on, so a check that fails is
+    /// easy to miss, and says nothing of where it is.
+    /// </summary>
+    public static bool ChecksWithConsoleAssert(string file)
+    {
+        if (Path.GetExtension(file).ToLowerInvariant() is not (".js" or ".mjs" or ".cjs" or ".ts" or ".mts" or ".cts") || AreItsTests(file)) return false;
+
+        try
+        {
+            return LocalFixes.CodeText.MaskAll(File.ReadAllText(file).ReplaceLineEndings("\n").Split('\n'), LocalFixes.Syntax.CLike).Any(line => ConsoleAssertCall().IsMatch(line));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The name the console.assert watcher is written under.</summary>
+    public const string ConsoleAssertWatcherPrefix = "fixfinder_console_assert_watcher";
+
+    /// <summary>The console.assert watcher, written where Node.js can read it, for node --require to load before the program.</summary>
+    public static string WriteConsoleAssertWatcher() => PythonTests.Written(ConsoleAssertWatcherPrefix, ConsoleAssertWatcherSource, ".cjs");
+
+    /// <summary>
+    /// The console.assert watcher, loaded before the program with node --require: each console.assert the program reaches
+    /// is said as one line in the form TestReport reads - the console.assert on line 9, and whether what it checks held, with
+    /// what it was given to say - and then does what console.assert does, so the program runs as it would.
+    /// </summary>
+    private const string ConsoleAssertWatcherSource = """
+        // Written by FixFinder: says of each console.assert a program reaches whether what it checks held, one line each.
+        "use strict";
+
+        const path = require("node:path");
+        const util = require("node:util");
+        const { fileURLToPath } = require("node:url");
+
+        const RESULT = "FIXFINDER-TEST";
+
+        function clean(text) {
+          return String(text).replace(/\\/g, "\\\\").replace(/\t/g, "\\t").replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+        }
+
+        function part(text) {
+          // The parts of a place are joined with # and ;, which a folder's name can hold, so those - and % - are written %23, %3B and %25.
+          return String(text).replace(/%/g, "%25").replace(/#/g, "%23").replace(/;/g, "%3B");
+        }
+
+        function caller() {
+          // The place console.assert was called from: the first in the stack that is not this file's nor Node.js's own.
+          for (const line of String(new Error().stack ?? "").split("\n").slice(1)) {
+            const place = /^\s*at (?:.*? \()?(.+?):(\d+):(\d+)\)?$/.exec(line);
+            if (!place || place[1].startsWith("node:")) continue;
+            const file = place[1].startsWith("file:") ? fileURLToPath(place[1]) : place[1];
+            if (path.resolve(file) === path.resolve(__filename)) continue;
+            return { file, line: Number(place[2]) };
+          }
+          return null;
+        }
+
+        const consoleAssert = console.assert;
+        console.assert = function (condition, ...data) {
+          const from = caller();
+          if (from) {
+            const name = `the console.assert on line ${from.line}`;
+            const owner = path.basename(from.file).replace(/\.[^.]+$/, "");
+            const fields = condition
+              ? [RESULT, "SUCCESSFUL", name, owner, name, "", "", ""]
+              : [RESULT, "FAILED", name, owner, name, "AssertionError", data.length > 0 ? util.format(...data) : "",
+                 [part(owner), "<module>", part(from.file), from.line].join("#")];
+            process.stdout.write(fields.map((field, index) => (index > 0 ? clean(field) : field)).join("\t") + "\n");
+          }
+          return consoleAssert.call(this, condition, ...data);
+        };
+        """;
+
     /// <summary>The name the reporter is written under, so a report can tell a failure of FixFinder's own reporter from the tests'.</summary>
     public const string ReporterPrefix = "fixfinder_node_test_reporter";
 

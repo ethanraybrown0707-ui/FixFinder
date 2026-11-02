@@ -41,6 +41,15 @@ public class NodeTestsTests : IDisposable
     public void AFileThatDoesNotIsNot(string name, string source) =>
         Assert.False(NodeTests.AreItsTests(Write(name, source)));
 
+    [Theory]
+    [InlineData("average.js", "console.assert(average([1]) === 1);\n", true)]
+    [InlineData("average.ts", "function check(): void {\n  console.assert(1 + 1 === 2, \"sums\");\n}\n", true)]
+    // In a comment, or in a file of node:test's tests, whose own runner says what each test did.
+    [InlineData("average.js", "// console.assert(average([1]) === 1);\nconsole.log(1);\n", false)]
+    [InlineData("average.test.js", "const test = require(\"node:test\");\ntest(\"one\", () => { console.assert(true); });\n", false)]
+    public void AProgramThatChecksItselfWithConsoleAssertIsKnown(string name, string source, bool checksItself) =>
+        Assert.Equal(checksItself, NodeTests.ChecksWithConsoleAssert(Write(name, source)));
+
     [Fact]
     public void TheFilesATestBringsInByAPathOfItsOwnAreFoundAsNodeFindsThem()
     {

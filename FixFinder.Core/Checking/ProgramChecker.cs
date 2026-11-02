@@ -748,7 +748,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// The framework a file's tests are run with: for Python, pytest, unittest or doctest, whichever the file is written for;
     /// node:test for JavaScript and TypeScript; JUnit for Java.
     /// </summary>
-    private static string TestFrameworkOf(string chosen) => NodeTests.AreItsTests(chosen) ? NodeTests.RunnerName : !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
+    private static string TestFrameworkOf(string chosen) =>
+        NodeTests.AreItsTests(chosen) ? NodeTests.RunnerName : NodeTests.ChecksWithConsoleAssert(chosen) ? NodeTests.ConsoleAssertName : !IsPython(chosen) ? "JUnit" : PythonTests.FrameworkOf(chosen) switch
     {
         PythonTests.Framework.Pytest => "pytest",
         PythonTests.Framework.Doctest => "doctest",
@@ -869,8 +870,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         var python = IsPython(chosen);
 
-        // Python's frames, and node:test's, name each file in full; JUnit's name the class and the file's name alone.
-        var framesNameFilesInFull = python || framework == NodeTests.RunnerName;
+        // Python's frames, and Node.js's, name each file in full; JUnit's name the class and the file's name alone.
+        var framesNameFilesInFull = python || framework is NodeTests.RunnerName or NodeTests.ConsoleAssertName;
 
         // Python's frames name the file in full, and unittest's own are left out by its launcher; Java's name the class and file.
         bool InTheTestFile((string Class, string Method, string? File, int Line) frame) => framesNameFilesInFull
@@ -882,7 +883,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         // outermost of the file's - its example's, or the assert's.
         var doctest = framework == "doctest";
         var checksItself = framework == "assert";
-        var own = doctest || checksItself
+        var checksWithConsoleAssert = framework == NodeTests.ConsoleAssertName;
+        var own = doctest || checksItself || checksWithConsoleAssert
             ? test.Frames.LastOrDefault(frame => InTheTestFile(frame) && frame.Line > 0)
             : test.Frames.FirstOrDefault(frame => InTheTestFile(frame) && frame.Line > 0);
 
@@ -938,6 +940,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ("TEARDOWN-FAILED", _) => (
                 $"{name} {(stoppedWithName is null ? "failed" : $"stopped with {stoppedWithName}")}{shown}",
                 $"{framework} ran the tests, and then cleaning up after them stopped: {test.Name} stopped with {stoppedWith}."),
+            _ when checksWithConsoleAssert => (
+                $"{UpperFirst(name)} found what it checks false{shown}",
+                $"The program checks itself with console.assert, and {name} found what it checks false" +
+                (message is null ? "." : $" - it was given to say: {message}.") +
+                " console.assert only prints \"Assertion failed\" and carries on, so the program went on past it with the value it says is wrong."),
             _ when checksItself && assertion => (
                 $"{UpperFirst(name)} failed{shown}",
                 $"The program checks itself with assert, and {name} did not hold{(message is null ? "." : $": {message}.")}"),
@@ -1297,8 +1304,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 return $"{reads}{warnings}; pytest stopped after {ran} of its {Count(found, "test")}{(failed > 0 ? $", {failed} of which failed" : "")}";
             }
 
-            // doctest's tests are the examples in each docstring, which are called its doctests; a program's own checks are its asserts.
-            var testNoun = framework is "doctest" or "assert" ? framework : "test";
+            // doctest's tests are the examples in each docstring, which are called its doctests; a program's own checks are its
+            // asserts, or - console.assert's - its checks.
+            var testNoun = framework is "doctest" or "assert" ? framework : framework == NodeTests.ConsoleAssertName ? "check" : "test";
 
             return failed > 0 ? $"{reads}{warnings}; {failed} of {Count(ran, testNoun)} failed{othersNotRun}{notCleanedUp}"
                 : ran > 0 && notSetUp ? $"{reads}{warnings}; {(ran == 1 ? "the test that ran passes" : $"the {ran} tests that ran pass")}{othersNotRun}{notCleanedUp}"
