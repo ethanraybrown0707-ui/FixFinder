@@ -385,7 +385,8 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
         if (Expected is { IsEmpty: false } || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
-        if (error.ShortExceptionType != "AssertionError" && error.ExceptionType?.EndsWith("AssertionError", StringComparison.Ordinal) != true) return;
+        if (error.ShortExceptionType != "AssertionError" && error.ExceptionType?.EndsWith("AssertionError", StringComparison.Ordinal) != true &&
+            error.ExceptionType != Parsing.Parsers.CAssertParser.AssertionFailed) return;
         if (LocalFixContext.OwnFrame(error) is not { Line: { } assertLine } frame ||
             !string.Equals(Path.GetFileName(frame.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase)) return;
 

@@ -397,6 +397,24 @@ internal static class NativeGuides
             """,
             why: "The fraction or the high part of the number is silently thrown away."),
 
+        new GuideEntry
+        {
+            ExceptionTypes = [Parsing.Parsers.CAssertParser.AssertionFailed],
+            Guide = new MistakeGuide(
+                "assert checks that something is true at that point, and stops the program - it aborts - when it is not. What it " +
+                "checks was not true here, so the program stopped at the assert, before anything after it ran.",
+                "Nothing after the assert runs: the program ends as a crash ends, having printed only what it printed before it.",
+                "Find out why what it checks is not true - the assert is doing its job - and fix the value that broke it. Defining " +
+                "NDEBUG turns asserts off; it does not make the value right.",
+                """
+                int total = 0;
+                for (int i = 0; i < count; i++) {
+                    total += marks[i];
+                }
+                assert(total >= 0);
+                """),
+        },
+
         Crash(@"heap-buffer-overflow|stack-buffer-overflow|global-buffer-overflow",
             "An array, or a block from malloc, has a fixed number of places. The program read or wrote past the end of one, " +
             "into memory that belongs to something else. A checker built into the program, AddressSanitizer, caught it the " +

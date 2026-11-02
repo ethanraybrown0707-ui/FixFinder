@@ -116,6 +116,41 @@ public class AssertRepairLiveTests(ITestOutputHelper output) : IDisposable
         FixedAt(report, program, NodeTotal, 11, 5, "  for (let i = 0; i < marks.length; i++) {");
     }
 
+    private const string CMarks = """
+        #include <assert.h>
+        #include <stdio.h>
+
+        int total(const int marks[], int count) {
+            int sum = 0;
+            for (int i = 1; i < count; i++) {
+                sum += marks[i];
+            }
+            return sum;
+        }
+
+        int main(void) {
+            int marks[] = {60, 70, 80};
+            assert(total(marks, 3) == 210);
+            printf("Total: %d\n", total(marks, 3));
+            return 0;
+        }
+        """;
+
+    /// <summary>assert.h's assert prints what it checked and where, then aborts: read as the program stopping at that assert.</summary>
+    [Fact]
+    public async Task ACProgramsFailingAssertIsReadAndMadeToHold()
+    {
+        if (!LocalFixLiveTests.Available("c")) return;
+
+        var program = Write(@"marks\marks.c", CMarks);
+        var report = await CheckAsync(program, CodeLanguage.C);
+
+        if (report.SyntaxSummary == "It could not be started") return;
+        var stopped = Assert.Single(report.Findings, finding => finding.Line == 14);
+        Assert.Equal("It crashed: Assertion failed: total(marks, 3) == 210", stopped.Title);
+        FixedAt(report, program, CMarks, 14, 6, "    for (int i = 0; i < count; i++) {");
+    }
+
     private const string PythonDouble = """
         def double(x):
             return x * 3

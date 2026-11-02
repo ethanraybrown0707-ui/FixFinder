@@ -75,7 +75,8 @@ public class CodeLanguageTests : IDisposable
     [InlineData("Python", new[] { "python", "generic" })]
     [InlineData("Java", new[] { "java", "generic" })]
     [InlineData("C#", new[] { "csharp", "msvc", "generic" })]
-    [InlineData("C", new[] { "gcc", "msvc", "generic" })]
+    [InlineData("C", new[] { "gcc", "msvc", "c-assert", "generic" })]
+    [InlineData("C++", new[] { "gcc", "msvc", "c-assert", "generic" })]
     [InlineData("JavaScript", new[] { "node", "generic" })]
     [InlineData("Go", new[] { "go", "generic" })]
     public void ALanguageReadsOutputWithItsOwnParsersAndTheGenericOne(string name, string[] parsers)
