@@ -45,3 +45,51 @@ public sealed partial class PythonRecursionBaseCase : ILocalFixRule
             source.Path, header + 2, [$"{inner}if {parameter} <= 0:", $"{inner}{PythonCode.IndentUnit(source.Lines)}return"]);
     }
 }
+
+/// <summary>
+/// <c>list index out of range</c> in a loop over <c>range(len(marks) + 1)</c> - one position more than the list has: the
+/// positions of a list of three are 0, 1 and 2, and <c>range(len(marks))</c> goes over exactly those.
+/// </summary>
+public sealed partial class PythonOffByOneRange : ILocalFixRule
+{
+    public string Id => "python-off-by-one-range";
+
+    [GeneratedRegex(@"^(?:list|tuple|string) index out of range$")]
+    private static partial Regex Message();
+
+    [GeneratedRegex(@"^(?<indent>\s*)for\s+(?<index>[A-Za-z_]\w*)\s+in\s+range\(\s*(?:0\s*,\s*)?len\(\s*(?<items>[A-Za-z_][\w.]*)\s*\)(?<more>\s*\+\s*1)\s*\)\s*:")]
+    private static partial Regex LoopOneTooFar();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!PythonCode.Raised(context, "IndexError") || !Message().IsMatch(context.Error.Message ?? "")) return null;
+        if (PythonCode.Locate(context) is not { } at) return null;
+
+        var (source, number, line) = at;
+        var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
+        var indent = CodeText.Indentation(line).Length;
+
+        // The loop the line is in: the nearest line above it that is indented less, if it is a loop over one position too many.
+        for (var lineAbove = number - 2; lineAbove >= 0; lineAbove--)
+        {
+            if (masked[lineAbove].Trim().Length == 0 || CodeText.Indentation(masked[lineAbove]).Length >= indent) continue;
+            if (LoopOneTooFar().Match(masked[lineAbove]) is not { Success: true } loop) return null;
+
+            var items = loop.Groups["items"].Value;
+            var position = loop.Groups["index"].Value;
+            if (!Regex.IsMatch(masked[number - 1], $@"(?<![\w.]){Regex.Escape(items)}\s*\[\s*{Regex.Escape(position)}\s*\]")) return null;
+
+            var more = loop.Groups["more"];
+            var corrected = source.Lines[lineAbove][..more.Index] + source.Lines[lineAbove][(more.Index + more.Length)..];
+
+            return LocalFix.ReplaceLine(
+                Id, $"Loop over range(len({items})) on line {lineAbove + 1}",
+                $"The positions of `{items}` run from 0 to one less than how many items it has, and `range(len({items}) + 1)` goes one " +
+                $"further - so the last pass asks for `{items}[{position}]` at a position it does not have. `range(len({items}))` goes over " +
+                "exactly its positions.",
+                source.Path, lineAbove + 1, corrected);
+        }
+
+        return null;
+    }
+}

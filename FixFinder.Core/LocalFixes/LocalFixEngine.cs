@@ -48,6 +48,8 @@ public static partial class LocalFixEngine
         new PythonSlashComment(),
         new PythonLambdaReturn(),
         new PythonUnclosedBracket(),
+        new PythonMissingComma(),
+        new PythonOffByOneRange(),
         new PythonIndentedBlock(),
         new PythonStrConcatenation(),
         new PythonUnboundGlobal(),

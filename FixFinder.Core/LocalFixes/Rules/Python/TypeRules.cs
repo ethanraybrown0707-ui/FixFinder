@@ -810,7 +810,7 @@ public sealed partial class PythonJsonSet : ILocalFixRule
 }
 
 /// <summary><c>unsupported operand type(s) for +: 'NoneType' and 'int'</c> from a function that works a value out and never
-/// returns it.</summary>
+/// returns it - called where the value is used, or its result kept under a name first: <c>result = average(marks)</c>.</summary>
 public sealed partial class PythonMissingReturn : ILocalFixRule
 {
     public string Id => "python-missing-return";
@@ -823,6 +823,25 @@ public sealed partial class PythonMissingReturn : ILocalFixRule
 
     [GeneratedRegex(@"^(?<indent>\s+)(?<var>[A-Za-z_]\w*)\s*(?:[+\-*/%]|//|\*\*)?=(?!=)")]
     private static partial Regex Assignment();
+
+    [GeneratedRegex(@"^[A-Za-z_]\w*$")]
+    private static partial Regex Name();
+
+    /// <summary>A line that works a value out and drops it: no keyword first, no assignment, and not a call on its own, which can be for what it does.</summary>
+    [GeneratedRegex(@"^(?<indent>\s+)(?!(?:return|yield|pass|break|continue|raise|del|global|nonlocal|assert|import|from|if|elif|else|for|while|with|try|except|finally|def|class|print)\b)(?<expression>[^=]*?(?:[+\-*/%<>]|==|!=)[^=]*?|[A-Za-z_][\w.]*)\s*$")]
+    private static partial Regex ValueDropped();
+
+    /// <summary>The function whose call a name was last given, above the line it is used on: result = average(marks) gives average.</summary>
+    private static string? FunctionKeptIn(string name, IReadOnlyList<string> masked, int usedOn)
+    {
+        for (var lineAbove = usedOn - 2; lineAbove >= 0; lineAbove--)
+        {
+            if (Regex.Match(masked[lineAbove], $@"^\s*{Regex.Escape(name)}\s*=(?!=)\s*(?<value>.*?)\s*$") is not { Success: true } given) continue;
+            return Call().Match(given.Groups["value"].Value) is { Success: true } call ? call.Groups["func"].Value : null;
+        }
+
+        return null;
+    }
 
     public LocalFix? Propose(LocalFixContext context)
     {
@@ -842,11 +861,13 @@ public sealed partial class PythonMissingReturn : ILocalFixRule
         if (position < 0) return null;
 
         var operand = (leftIsNone ? text[..position] : text[(position + op.Length)..]).Trim();
-        if (Call().Match(operand) is not { Success: true } call) return null;
-
-        var func = call.Groups["func"].Value;
         var lines = source.Lines;
         var masked = CodeText.MaskAll(lines, Syntax.Python);
+
+        var func = Call().Match(operand) is { Success: true } call ? call.Groups["func"].Value
+            : Name().IsMatch(operand) ? FunctionKeptIn(operand, masked, number)
+            : null;
+        if (func is null) return null;
 
         var defs = Enumerable.Range(0, masked.Count).Where(i => Regex.IsMatch(masked[i], $@"^def\s+{Regex.Escape(func)}\s*\(")).ToList();
         if (defs is not [var def]) return null;
@@ -855,14 +876,27 @@ public sealed partial class PythonMissingReturn : ILocalFixRule
         if (end <= first || Enumerable.Range(first, end - first).Any(i => Regex.IsMatch(masked[i], @"\breturn\b|\byield\b"))) return null;
 
         var last = end - 1;
-        if (Assignment().Match(masked[last]) is not { Success: true } assigned) return null;
+        if (Assignment().Match(masked[last]) is { Success: true } assigned)
+        {
+            var variable = assigned.Groups["var"].Value;
 
-        var variable = assigned.Groups["var"].Value;
+            return LocalFix.Insert(
+                Id, $"Return {variable} from {func}",
+                $"`{func}` works out `{variable}` but never returns it, and a function with no `return` gives back `None` - which is what the " +
+                $"`{op}` then met. `return {variable}` hands the result back.",
+                source.Path, last + 2, [assigned.Groups["indent"].Value + "return " + variable]);
+        }
 
-        return LocalFix.Insert(
-            Id, $"Return {variable} from {func}",
-            $"`{func}` works out `{variable}` but never returns it, and a function with no `return` gives back `None` - which is what the " +
-            $"`{op}` then met. `return {variable}` hands the result back.",
-            source.Path, last + 2, [assigned.Groups["indent"].Value + "return " + variable]);
+        // Its last line works the value out and drops it: total / len(marks) on a line of its own.
+        if (ValueDropped().Match(masked[last]) is not { Success: true } dropped) return null;
+
+        var indent = dropped.Groups["indent"].Value;
+        var expression = lines[last][indent.Length..].TrimEnd();
+
+        return LocalFix.ReplaceLine(
+            Id, $"Return {expression} from {func}",
+            $"`{func}`'s last line works out `{expression}` and then drops it, as a line on its own does with its value, and a function " +
+            $"with no `return` gives back `None` - which is what the `{op}` then met. `return` hands the value back.",
+            source.Path, last + 1, indent + "return " + expression);
     }
 }

@@ -131,9 +131,10 @@ public class PythonCourseTests : IDisposable
     [Theory]
     [InlineData("numbers = [1, 2, 3\nprint(numbers)\n", "numbers = [1, 2, 3]")]
     [InlineData("squares = [x*x for x in range(10)\nprint(squares)\n", "squares = [x*x for x in range(10)]")]
-    [InlineData("data = [\n    1,\n    2,\nprint(data)\n", null)]
+    // A list laid out one item to a line is closed after its last item; Python 3.13 runs the result and prints [1, 2].
+    [InlineData("data = [\n    1,\n    2,\nprint(data)\n", "]")]
     [InlineData("values = [1, 2,\n    3,\nprint(values)\n", null)]
-    public void AnUnclosedBracketIsClosedOnlyWhereTheLinePlainlyEnds(string source, string? expected)
+    public void AnUnclosedBracketIsClosedOnlyWhereTheLineOrItsItemsPlainlyEnd(string source, string? expected)
     {
         var file = Write("app.py", source);
 
