@@ -466,11 +466,12 @@ public sealed partial class TestRepair
 
         var chosen = raisedThrough.Take(MostFilesChanged).ToList();
 
-        // A file's doctests, and a program's asserts, test the code beside them in it, so that is where changes are tried first.
-        if (testsAreInTheCode) chosen = [Path.GetFullPath(tests.Path), .. chosen.Take(MostFilesChanged - 1)];
-
         // A module beside the tests and one under the program's folder are often the same file, found both ways.
         if (chosen.Count == 0) chosen = Imported(tests, root).Where(Usable).Distinct(StringComparer.OrdinalIgnoreCase).Take(MostFilesChanged).ToList();
+
+        // A file's doctests, and a program's own asserts, test the code beside them in it, so that is where changes are tried
+        // first - then a module of the program's it imports, where a check that failed, rather than raised, leaves no trace.
+        if (testsAreInTheCode) chosen = [Path.GetFullPath(tests.Path), .. chosen.Take(MostFilesChanged - 1)];
 
         return chosen.Select(SourceFile.Read).OfType<SourceFile>().ToList();
     }

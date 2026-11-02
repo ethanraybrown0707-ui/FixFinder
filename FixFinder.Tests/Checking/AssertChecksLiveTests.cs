@@ -152,6 +152,26 @@ public class AssertChecksLiveTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(Top.ReplaceLineEndings("\n"), File.ReadAllText(program));
     }
 
+    /// <summary>The asserts check a function the program imports: an assert that fails raises nothing there, and the change is found there all the same.</summary>
+    [Fact]
+    public async Task TheChangeIsFoundInAModuleTheAssertsCall()
+    {
+        if (!LocalFixLiveTests.Available("python")) return;
+
+        const string Helpers = "def average(marks):\n    return sum(marks) / (len(marks) + 1)\n";
+        var helpers = Write(@"checked\helpers.py", Helpers);
+        var program = Write(@"checked\check.py", "from helpers import average\n\n\nassert average([60, 80]) == 70\nassert average([50]) == 50\n");
+
+        var report = await CheckAsync(program);
+
+        if (report.SyntaxSummary == "It could not be started") return;
+        var fixedFirst = Assert.Single(report.Findings, finding => finding is { RuleId: "test-failed", Fix: not null });
+        Assert.Equal(helpers, fixedFirst.Fix!.File, ignoreCase: true);
+        Assert.Equal(["    return sum(marks) / (len(marks))"], fixedFirst.Fix.NewLines);
+        Assert.True(fixedFirst.Verified.IsVerified, fixedFirst.Verified.Summary);
+        Assert.Equal(Helpers, File.ReadAllText(helpers));
+    }
+
     [Fact]
     public async Task WhenEveryAssertHoldsThatIsSaid()
     {
