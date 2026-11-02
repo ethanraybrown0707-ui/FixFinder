@@ -1948,9 +1948,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when
     /// the other is not, as a warning Perl printed and the check on length(@marks) both offer scalar(@marks). A run's warning
     /// and a logic check's answer can arrive in either order, so without this the one kept would depend on which came first.
+    /// Alike in both, the one on the earlier line is kept: javac's two errors for one int total; - used at line 5 and line 7
+    /// before it has a value - are fixed side by side, and the same int total = 0; for both was said at line 5 or at line 7
+    /// by which fix finished first.
     /// </summary>
     private static bool Outranks(Finding finding, Finding twin) =>
-        Rank(finding) != Rank(twin) ? Rank(finding) > Rank(twin) : finding.Kind == FindingKind.Logic && twin.Kind != FindingKind.Logic;
+        Rank(finding) != Rank(twin) ? Rank(finding) > Rank(twin)
+        : (finding.Kind == FindingKind.Logic) != (twin.Kind == FindingKind.Logic) ? finding.Kind == FindingKind.Logic
+        : (finding.Line ?? int.MaxValue) < (twin.Line ?? int.MaxValue);
 
     /// <summary>
     /// Says how many of a program's files its code was not read from for logic mistakes, when it has more than are read - so
