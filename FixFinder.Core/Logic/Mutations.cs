@@ -282,6 +282,7 @@ public static partial class Mutations
             foreach (var yielded in YieldedCall(source, number, line, masked)) found.Add(yielded);
             foreach (var given in GivenBack(source, number, line, masked)) found.Add(given);
             foreach (var shifted in ShiftedPastWhatWasLeftOut(source, number, line, masked, maskedLines)) found.Add(shifted);
+            foreach (var included in SmallerAnswerLeftOut(source, number, line, masked, maskedLines)) found.Add(included);
             foreach (var emptied in NotStoppedWhenEmpty(source, number, line, masked, maskedLines)) found.Add(emptied);
             foreach (var shortened in ShortenedLikeTheOther(source, number, line, masked, maskedLines)) found.Add(shortened);
             foreach (var rest in LoopOverTheRest(source, number, line, masked, maskedLines)) found.Add(rest);
@@ -352,6 +353,29 @@ public static partial class Mutations
         foreach (var parameter in ParameterNames(function.Parameters))
             yield return new Mutation(number, line[..empty.Index] + $"[{parameter}]" + line[(empty.Index + empty.Length)..], "[]", $"[{parameter}]",
                 "a base case that gives back nothing where it should give back what it was given", 4);
+    }
+
+    /// <summary>
+    /// An answer built from the function's answer for a smaller list that leaves that answer out - return [[first] + subset
+    /// for subset in rest_subsets] where rest_subsets + [...] was meant: the subsets without the first item are subsets too.
+    /// Only for a list built from a name given the function's call of itself, which is tried added before it and after it.
+    /// </summary>
+    private static IEnumerable<Mutation> SmallerAnswerLeftOut(SourceFile source, int number, string line, string masked, IReadOnlyList<string> maskedLines)
+    {
+        if (Regex.Match(masked, @"^(?<indent>\s*)return\s+(?<built>\[.+\bfor\s+\w+\s+in\s+(?<smaller>[A-Za-z_]\w*)\s*\])\s*$") is not { Success: true } returned) yield break;
+        if (Enclosing(source, number) is not { } function) yield break;
+
+        var smaller = returned.Groups["smaller"].Value;
+        var givenTheSmallerAnswer = Enumerable.Range(function.First, Math.Max(0, number - 1 - function.First))
+            .Any(index => Regex.IsMatch(maskedLines[index], $@"^\s*{Regex.Escape(smaller)}\s*=\s*{Regex.Escape(function.Name)}\s*\("));
+        if (!givenTheSmallerAnswer) yield break;
+
+        var built = line.Substring(returned.Groups["built"].Index, returned.Groups["built"].Length);
+        var indent = returned.Groups["indent"].Value;
+        const string Kind = "an answer built from the smaller one that leaves the smaller one out";
+
+        yield return new Mutation(number, $"{indent}return {smaller} + {built}", built, $"{smaller} + {built}", Kind, 3);
+        yield return new Mutation(number, $"{indent}return {built} + {smaller}", built, $"{built} + {smaller}", Kind, 3);
     }
 
     /// <summary>

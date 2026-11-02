@@ -178,6 +178,8 @@ public class LogicErrorTests : IDisposable
     [InlineData("App.java", "class App {\n    static int last(java.util.LinkedList<Integer> xs) {\n        return xs.removeFirst();\n    }\n}\n", 3, "        return xs.removeLast();")]
     // An index passed on into the part of a list above the pivot, not shifted past the items below it (QuixBugs' kth).
     [InlineData("app.py", "def kth(arr, k):\n    pivot = arr[0]\n    above = [x for x in arr if x > pivot]\n    num_lessoreq = len(arr) - len(above)\n    if k >= num_lessoreq:\n        return kth(above, k)\n", 6, "        return kth(above, k - num_lessoreq)")]
+    // The subsets without the first item left out of the power set built from them (QuixBugs' powerset).
+    [InlineData("app.py", "def powerset(arr):\n    if arr:\n        first, *rest = arr\n        rest_subsets = powerset(rest)\n        return [[first] + subset for subset in rest_subsets]\n", 5, "        return rest_subsets + [[first] + subset for subset in rest_subsets]")]
     // The last item read one past the end, through a property of this: this.items[this.items.length].
     [InlineData("stack.js", "class Stack {\n  peek() {\n    return this.items[this.items.length];\n  }\n}\n", 3, "    return this.items[this.items.length - 1];")]
     // A place value off by a digit: the last digit taken off with // 100, and two digits kept with % 1000.
@@ -198,6 +200,8 @@ public class LogicErrorTests : IDisposable
     [InlineData("app.py", "def f(*args):\n    g(*args, 1)\n", 2, "    g(1, *args)")]
     [InlineData("app.py", "def f(length):\n    longest = length + 1\n", 2, "    longest = max(longest, length + 1)")]
     [InlineData("app.py", "outside = 1\ndef f(a, b):\n    return a + 1\n", 3, "    return outside + 1")]
+    // A list built from something other than the function's own answer for less is not given that something.
+    [InlineData("app.py", "def squares(arr):\n    doubled = double(arr)\n    return [x * x for x in doubled]\n", 3, "    return doubled + [x * x for x in doubled]")]
     // A number that is not a place value is not taken a digit up or down, nor is 10 taken down to 1.
     [InlineData("app.py", "def f(n):\n    return n // 12\n", 2, "    return n // 120")]
     [InlineData("app.py", "def f(n):\n    return n % 10\n", 2, "    return n % 1")]
