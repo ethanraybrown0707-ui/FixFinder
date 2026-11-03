@@ -73,6 +73,105 @@ public sealed class JavaMissingClosingParenthesis : ILocalFixRule
     }
 }
 
+/// <summary>
+/// <c>missing return statement</c> at the end of a method that works its value out into a variable of the type it returns and
+/// never hands it back: <c>return doubled;</c> after <c>int doubled = x * 2;</c> as its last line, or, after a loop that adds up
+/// <c>int sum = 0;</c>, <c>return sum;</c> - when sum is the only variable of that type its body declares.
+/// </summary>
+public sealed partial class JavaMissingReturn : ILocalFixRule
+{
+    public string Id => "java-missing-return";
+
+    [GeneratedRegex(@"^\s*(?:(?:public|private|protected|static|final|synchronized)\s+)*(?<type>[\w$.]+(?:<[^()]*>)?(?:\[\])*)\s+(?<name>[\w$]+)\s*\((?<parameters>[^()]*)\)\s*(?:throws\s+[\w$., ]+)?\s*\{\s*$")]
+    private static partial Regex MethodHeader();
+
+    [GeneratedRegex(@"^(?<indent>\s*)(?:(?:final\s+)?(?<declared>[\w$.]+(?:<[^()]*>)?(?:\[\])*)\s+)?(?<variable>[\w$]+)\s*(?:[-+*/%]?=)(?!=).*;\s*$")]
+    private static partial Regex GivenAValue();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (context.Error.Message != "missing return statement" || JavaCode.Locate(context) is not { } at) return null;
+
+        var (source, number, _) = at;
+        var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
+        if (masked[number - 1].Trim() != "}") return null;
+
+        // The method the brace closes: up the file to the brace it matches, on the method's own line.
+        var depth = 0;
+        int? headerLine = null;
+        for (var lineAbove = number - 1; lineAbove >= 0 && headerLine is null; lineAbove--)
+        {
+            depth += masked[lineAbove].Count(c => c == '}') - masked[lineAbove].Count(c => c == '{');
+            if (depth == 0) headerLine = lineAbove;
+        }
+
+        if (headerLine is not { } header || MethodHeader().Match(masked[header]) is not { Success: true } method) return null;
+
+        var returned = method.Groups["type"].Value;
+        if (returned == "void") return null;
+
+        // The method's own body - its lines indented least, not those inside a loop or an if of it - and its last line.
+        var bodyLines = Enumerable.Range(header + 1, number - 2 - header).Where(lineIndex => masked[lineIndex].Trim().Length > 0).ToList();
+        if (bodyLines.Count == 0) return null;
+
+        var bodyIndent = bodyLines.Min(lineIndex => CodeText.Indentation(masked[lineIndex]).Length);
+        if (bodyIndent <= CodeText.Indentation(masked[header]).Length) return null;
+
+        var lastLine = bodyLines[^1];
+        if (CodeText.Indentation(masked[lastLine]).Length != bodyIndent) return null;
+
+        var variable = KeptInLastLine(masked, lastLine, returned, header, method.Groups["parameters"].Value)
+                       ?? OnlyOneOfItsType(masked, bodyLines, bodyIndent, returned);
+        if (variable is null) return null;
+
+        var methodName = method.Groups["name"].Value;
+
+        return LocalFix.Insert(
+            Id, $"Return {variable} from {methodName}",
+            $"`{methodName}` says it gives back {("aeiouAEIOU".Contains(returned[0]) ? "an" : "a")} {returned}, and works one out in `{variable}` - " +
+            $"but never hands it back. A method that returns a value has to end by returning one; `return {variable};` gives back " +
+            "the value it worked out.",
+            source.Path, lastLine + 2, [CodeText.Indentation(source.Lines[lastLine]) + $"return {variable};"]);
+    }
+
+    /// <summary>The variable the method's last line gives a value - <c>int doubled = x * 2;</c> - when it is of the type returned.</summary>
+    private static string? KeptInLastLine(IReadOnlyList<string> masked, int lastLine, string returned, int header, string parameters)
+    {
+        if (GivenAValue().Match(masked[lastLine]) is not { Success: true } given) return null;
+
+        var variable = given.Groups["variable"].Value;
+        var declaredAs = given.Groups["declared"].Success ? given.Groups["declared"].Value : DeclaredType(variable, masked, header, lastLine, parameters);
+
+        return declaredAs == returned || declaredAs == "var" ? variable : null;
+    }
+
+    /// <summary>The one variable of the type returned that the method's own body declares - int sum = 0; - or null when there are none or several.</summary>
+    private static string? OnlyOneOfItsType(IReadOnlyList<string> masked, IReadOnlyList<int> bodyLines, int bodyIndent, string returned)
+    {
+        var declared = bodyLines
+            .Where(lineIndex => CodeText.Indentation(masked[lineIndex]).Length == bodyIndent)
+            .Select(lineIndex => Regex.Match(masked[lineIndex], $@"^\s*(?:final\s+)?{Regex.Escape(returned)}\s+(?<variable>[\w$]+)\s*[=;]"))
+            .Where(declaration => declaration.Success)
+            .Select(declaration => declaration.Groups["variable"].Value)
+            .ToList();
+
+        return declared is [var only] ? only : null;
+    }
+
+    /// <summary>The type a variable was declared with in the method, or among its parameters; null when it is neither.</summary>
+    private static string? DeclaredType(string variable, IReadOnlyList<string> masked, int header, int lastLine, string parameters)
+    {
+        var declaration = $@"(?:^|[(,]|\s)(?:final\s+)?(?<type>[\w$.]+(?:<[^()]*>)?(?:\[\])*)\s+{Regex.Escape(variable)}\s*(?:[=;,)]|$)";
+
+        if (Regex.Match(parameters, declaration) is { Success: true } parameter) return parameter.Groups["type"].Value;
+
+        for (var lineIndex = header + 1; lineIndex < lastLine; lineIndex++)
+            if (Regex.Match(masked[lineIndex], declaration) is { Success: true } local) return local.Groups["type"].Value;
+
+        return null;
+    }
+}
+
 /// <summary><c>reached end of file while parsing</c> - a block never closed.</summary>
 public sealed class JavaMissingClosingBrace : ILocalFixRule
 {

@@ -185,6 +185,7 @@ public static partial class LocalFixEngine
         new JavaNearestName(),
         new JavaMissingSemicolon(),
         new JavaMissingClosingParenthesis(),
+        new JavaMissingReturn(),
         new JavaUnreportedException(),
         new JavaNonStaticMember(),
         new JavaPublicClassName(),
