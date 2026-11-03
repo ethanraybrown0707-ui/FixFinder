@@ -38,7 +38,6 @@ public static partial class CLikeLogicPatterns
         new Pattern("logic-js-numeric-sort", Script, NumericSort),
         new Pattern("logic-js-map-parseint", Script, MapParseInt),
         new Pattern("logic-return-in-loop", Braced, ReturnInLoop),
-        new Pattern("logic-reset-in-loop", Braced, ResetInLoop),
         new Pattern("logic-loop-never-advances", Braced, LoopNeverAdvances, Severity.Error),
     ];
 
@@ -619,45 +618,6 @@ public static partial class CLikeLogicPatterns
                         "search before any other item is looked at. The `else` belongs after the loop - reached only when no item matched.",
                     File = source.Path, StartLine = e + 1, RemoveCount = closeLoop - e + 1,
                     NewLines = [$"{Indent(lines[e])}}}", lines[closeLoop], $"{Indent(lines[loop])}{statement}"],
-                });
-        }
-    }
-
-    private static IEnumerable<LogicFinding> ResetInLoop(string id, SourceFile source, IReadOnlyList<string> masked)
-    {
-        var lines = source.Lines;
-        var depths = Brackets.BraceDepths(masked);
-        int depthsAt(int line) => depths[line];
-
-        for (var header = 0; header < masked.Count; header++)
-        {
-            if (!Regex.IsMatch(masked[header], @"^\s*(?:for|while)\s*\(.*\)\s*\{\s*$") || Brackets.BlockEnd(masked, header) is not { } close) continue;
-
-            var first = NextCode(masked, header + 1);
-            if (first < 0 || first >= close) continue;
-            if (Regex.Match(masked[first], @"^\s*(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?<value>0|0\.0|1|""\s*"")\s*;\s*$") is not { Success: true } reset) continue;
-
-            var name = reset.Groups["name"].Value;
-            var n = Regex.Escape(name);
-            var body = Enumerable.Range(first + 1, close - first - 1).Select(k => masked[k]).ToList();
-
-            if (!body.Any(l => Regex.IsMatch(l, $@"(?<![\w$.]){n}\s*(?:\+=|-=|\*=|\+\+|--)|(?<![\w$.]){n}\s*=\s*{n}\s*[+\-*]"))) continue;
-            if (body.Any(l => Regex.IsMatch(l, $@"(?<![\w$.]){n}\s*=(?!=)(?!\s*{n}\b)"))) continue;
-
-            var end = depthsAt(header) == 0 ? masked.Count - 1 : CCode.EnclosingFunction(masked, header).End;
-            if (!Enumerable.Range(close + 1, Math.Max(0, end - close)).Any(k => Regex.IsMatch(masked[k], $@"(?<![\w$.]){n}(?![\w$])"))) continue;
-
-            yield return new LogicFinding(id, first + 1,
-                $"`{name}` is set back to {reset.Groups["value"].Value} at the start of every pass, so after the loop it only holds the last item's part",
-                new LocalFix
-                {
-                    RuleId = id,
-                    Title = $"Start {name} once, before the loop",
-                    Explanation =
-                        $"`{lines[first].Trim()}` is inside the loop, so every pass throws away what the passes before it added and starts again. " +
-                        $"Set once before the loop, `{name}` keeps building up across every pass.",
-                    File = source.Path, StartLine = header + 1, RemoveCount = first - header + 1,
-                    NewLines = [Indent(lines[header]) + lines[first].Trim(), lines[header], .. lines.Skip(header + 1).Take(first - header - 1)],
                 });
         }
     }

@@ -367,18 +367,30 @@ public static partial class CLikeReviewPatterns
 
             var name = match.Groups["name"].Value;
             var value = match.Groups["value"].Value;
-            var abs = Extension(source) switch { ".java" => "Math.abs", ".cs" => "Math.Abs", _ => "fabs" };
-            var close = match.Groups["op"].Value == "==" ? $"{abs}({name} - {value}) < 1e-9" : $"{abs}({name} - {value}) >= 1e-9";
+            var equal = match.Groups["op"].Value == "==";
             var line = source.Lines[i];
+
+            // C and C++ have fabs only with math.h or cmath included; without it, the difference is checked both ways.
+            var abs = Extension(source) switch
+            {
+                ".java" => "Math.abs",
+                ".cs" => "Math.Abs",
+                _ when masked.Any(text => Regex.IsMatch(text, @"^\s*#\s*include\s*<(?:math\.h|cmath)>")) => Extension(source) == ".c" ? "fabs" : "std::fabs",
+                _ => null,
+            };
+            var wholeCondition = line[..match.Index].TrimEnd().EndsWith('(') && line[(match.Index + match.Length)..].TrimStart().StartsWith(')');
+            var bothWays = equal ? $"{name} - {value} < 1e-9 && {value} - {name} < 1e-9" : $"{name} - {value} >= 1e-9 || {value} - {name} >= 1e-9";
+            var close = abs is not null
+                ? equal ? $"{abs}({name} - {value}) < 1e-9" : $"{abs}({name} - {value}) >= 1e-9"
+                : wholeCondition ? bothWays : $"({bothWays})";
 
             yield return new LogicFinding(id, i + 1,
                 $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
-                Extension(source) is ".java" or ".cs"
-                    ? Replace(id, $"Compare within a small tolerance: {close}",
-                        "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value you " +
-                        "expect. Checking that the difference is tiny, rather than zero, compares them the way you meant.",
-                        source, i + 1, line[..match.Index] + close + line[(match.Index + match.Length)..])
-                    : null);
+                Replace(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value you " +
+                    "expect. Checking that the difference is tiny, rather than zero, compares them the way you meant." +
+                    (abs is null ? " Without math.h, the difference is checked from both sides rather than with fabs." : ""),
+                    source, i + 1, line[..match.Index] + close + line[(match.Index + match.Length)..]));
         }
     }
 

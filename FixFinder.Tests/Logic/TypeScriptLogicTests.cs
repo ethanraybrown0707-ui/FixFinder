@@ -83,7 +83,7 @@ public class TypeScriptLogicTests(ITestOutputHelper output) : IDisposable
         { "map parseInt", "const numbers: number[] = [\"1\", \"2\", \"3\"].map(parseInt);\nconsole.log(numbers);\n", "logic-js-map-parseint", 1,
             "const numbers: number[] = [\"1\", \"2\", \"3\"].map(Number);", "[ 1, NaN, NaN ]", "[ 1, 2, 3 ]" },
         { "reset in loop", "const prices: number[] = [3, 4];\nlet total: number = 0;\nfor (const price of prices) {\n  total = 0;\n  total += price;\n}\nconsole.log(total);\n",
-            "logic-reset-in-loop", 4, "total = 0;|for (const price of prices) {", "4", "7" },
+            "logic-reset-in-loop", 4, "", "4", "7" },
         { "self assignment", "class Person {\n  private name: string;\n  constructor(name: string) {\n    name = name;\n  }\n}\nconsole.log(new Person(\"Ada\"));\n",
             "logic-self-assignment", 4, "    this.name = name;", "Person { name: undefined }", "Person { name: 'Ada' }" },
         { "lost increment", "let count: number = 0;\ncount = count++;\nconsole.log(count);\n", "logic-lost-increment", 2, "count++;", "0", "1" },

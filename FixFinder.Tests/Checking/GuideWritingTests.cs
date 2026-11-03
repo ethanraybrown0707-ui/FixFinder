@@ -50,6 +50,7 @@ public class GuideWritingTests
         ["Python patterns"] = PythonPatternGuides.All,
         ["Brace patterns"] = BracePatternGuides.All,
         ["Managed patterns"] = ManagedPatternGuides.All,
+        ["Every language's patterns"] = EveryLanguagePatternGuides.All,
         ["Python analyses"] = AnalysisGuides.All,
         ["Go analyses"] = AnalysisGuides.Go,
         ["JavaScript analyses"] = AnalysisGuides.JavaScript,

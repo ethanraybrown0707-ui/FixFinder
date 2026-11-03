@@ -323,6 +323,7 @@ internal static class LogicGuides
         .. ElixirPatternGuides.All,
         .. FSharpPatternGuides.All,
         .. ErlangPatternGuides.All,
+        .. EveryLanguagePatternGuides.All,
         .. AnalysisGuides.All,
         .. Shared,
     ];

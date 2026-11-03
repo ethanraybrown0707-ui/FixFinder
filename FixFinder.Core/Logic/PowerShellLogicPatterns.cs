@@ -30,7 +30,39 @@ public static partial class PowerShellLogicPatterns
         Pattern("logic-powershell-variable-in-single-quotes", VariableInSingleQuotes, Severity.Error),
         Pattern("logic-powershell-plus-outside-brackets", PlusOutsideBrackets, Severity.Error, Confidence.Certain),
         Pattern("logic-powershell-arguments-with-commas", ArgumentsWithCommas, Severity.Error, Confidence.Certain),
+        Pattern("logic-powershell-float-equality", FloatEquality, Severity.Suggestion, Confidence.Possible),
     ];
+
+    /// <summary>A variable compared exactly with a decimal: <c>$total -eq 0.3</c>, <c>-ne</c>, and their c and i forms.</summary>
+    [GeneratedRegex(@"(?<name>\$[A-Za-z_]\w*)\s+(?<op>-[ci]?(?:eq|ne))\s+(?<value>\d*\.\d*[1-9]\d*)(?![\w.])", RegexOptions.IgnoreCase)]
+    private static partial Regex DecimalCompared();
+
+    /// <summary>
+    /// A variable given a decimal - $total = 0.1 + 0.2 - compared exactly with one: decimal arithmetic is rarely exact, and
+    /// $total -eq 0.3 is False, with nothing said. The change compares within a tiny tolerance with [math]::Abs.
+    /// </summary>
+    private static IEnumerable<LogicFinding> FloatEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (DecimalCompared().Match(masked[index]) is not { Success: true } compared) continue;
+
+            var name = compared.Groups["name"].Value;
+            if (!masked.Take(index).Any(text => Regex.IsMatch(text, $@"^\s*{Regex.Escape(name)}\s*=\s*[^=].*\d\.\d", RegexOptions.IgnoreCase))) continue;
+
+            var value = compared.Groups["value"].Value;
+            var equal = compared.Groups["op"].Value.EndsWith("eq", StringComparison.OrdinalIgnoreCase);
+            var close = $"[math]::Abs({name} - {value}) {(equal ? "-lt" : "-ge")} 1e-9";
+            var line = source.Lines[index];
+
+            yield return new LogicFinding(id, index + 1,
+                $"`{name}` is a decimal number compared exactly with {value}, and decimal arithmetic is rarely exact - 0.1 + 0.2 is 0.30000000000000004",
+                LocalFix.ReplaceLine(id, $"Compare within a small tolerance: {close}",
+                    "Most decimal fractions cannot be stored exactly in binary, so sums and products land a tiny amount away from the value " +
+                    "you expect. Checking that the difference is tiny, rather than zero, compares them the way you meant.",
+                    source.Path, index + 1, line[..compared.Index] + close + line[(compared.Index + compared.Length)..]));
+        }
+    }
 
     /// <summary><c>function Get-Area($width, $height)</c> - a function of the script's own, with two parameters or more.</summary>
     [GeneratedRegex(@"^\s*function\s+(?<name>[\w-]+)\s*\((?<parameters>[^()]*,[^()]*)\)", RegexOptions.IgnoreCase)]

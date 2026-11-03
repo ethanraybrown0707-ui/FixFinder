@@ -159,6 +159,16 @@ internal static class ScalaPatternGuides
               println("apple".compareTo("cherry") < 0)
             """),
 
+        GuideFor(["logic-scala-float-equality"], "Decimal numbers compared exactly",
+            "Computers store fractions like 0.1 in binary, where most of them can only be stored approximately - the way 1/3 can " +
+            "only be written as 0.333... in decimal. Adding them leaves a tiny error, so 0.1 + 0.2 is 0.30000000000000004, and " +
+            "total == 0.3 is false.",
+            "An exact comparison fails even when the numbers are equal for every practical purpose, so the code it guards never runs.",
+            "Check that the difference is smaller than a tiny tolerance, with math.abs.",
+            """
+            if math.abs(total - 0.3) < 1e-9 then println("equal")
+            """),
+
         GuideFor(["logic-scala-odd-test-negative"], "An odd number looked for with % 2 == 1",
             "% gives what is left over after dividing, and it keeps the sign of the number divided: 7 % 2 is 1, but -7 % 2 is -1. So " +
             "n % 2 == 1 is true only for odd numbers above 0 - a negative odd number leaves -1, and is taken for even.",

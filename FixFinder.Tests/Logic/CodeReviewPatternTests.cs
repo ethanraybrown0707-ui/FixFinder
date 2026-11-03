@@ -164,6 +164,11 @@ public class CodeReviewPatternTests : IDisposable
     [InlineData("logic-modified-while-looping", "App.java", "        for (String name : names) {\n            if (name.isEmpty()) {\n                names.remove(name);\n                break;\n            }\n        }\n", null)]
     [InlineData("logic-float-equality", "App.java", "        double total = 0.1 + 0.2;\n        if (total == 0.3) {\n", "        if (Math.abs(total - 0.3) < 1e-9) {")]
     [InlineData("logic-float-equality", "App.java", "        int total = 3;\n        if (total == 3) {\n", null)]
+    // C and C++ have fabs only with math.h or cmath; without it, the difference is checked from both sides.
+    [InlineData("logic-float-equality", "app.c", "#include <math.h>\n    double total = 0.1 + 0.2;\n    if (total == 0.3) {\n", "    if (fabs(total - 0.3) < 1e-9) {")]
+    [InlineData("logic-float-equality", "app.cpp", "#include <cmath>\n    double total = 0.1 + 0.2;\n    if (total != 0.3) {\n", "    if (std::fabs(total - 0.3) >= 1e-9) {")]
+    [InlineData("logic-float-equality", "app.c", "    double total = 0.1 + 0.2;\n    if (total == 0.3) {\n", "    if (total - 0.3 < 1e-9 && 0.3 - total < 1e-9) {")]
+    [InlineData("logic-float-equality", "app.c", "    double total = 0.1 + 0.2;\n    int same = ok && total == 0.3;\n", "    int same = ok && (total - 0.3 < 1e-9 && 0.3 - total < 1e-9);")]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        int age = in.nextInt();\n        String name = in.nextLine();\n", "        int age = in.nextInt();¦        in.nextLine();¦        String name = in.nextLine();")]
     [InlineData("logic-java-scanner-skips-line", "App.java", "        Scanner in = new Scanner(System.in);\n        String name = in.nextLine();\n        int age = in.nextInt();\n", null)]
     // The change made already: the rest of the number's line read and thrown away.

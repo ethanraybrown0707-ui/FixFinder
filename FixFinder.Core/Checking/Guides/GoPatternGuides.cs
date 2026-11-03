@@ -29,6 +29,29 @@ internal static class GoPatternGuides
             }
             """),
 
+        GuideFor(["logic-go-float-equality"], "Decimal numbers compared exactly",
+            "Computers store fractions like 0.1 in binary, where most of them can only be stored approximately - the way 1/3 can " +
+            "only be written as 0.333... in decimal. Adding them leaves a tiny error, so 0.1 + 0.2 is 0.30000000000000004, and " +
+            "total == 0.3 is false.",
+            "An exact comparison fails even when the numbers are equal for every practical purpose, so the code it guards never runs.",
+            "Check that the difference is smaller than a tiny tolerance, with math.Abs.",
+            """
+            package main
+
+            import (
+            	"fmt"
+            	"math"
+            )
+
+            func main() {
+            	total := 0.1
+            	total += 0.2
+            	if math.Abs(total-0.3) < 1e-9 {
+            		fmt.Println("equal")
+            	}
+            }
+            """),
+
         GuideFor(["logic-go-integer-average"], "A decimal that lost its fraction",
             "Dividing one int by another in Go gives an int: the part after the point is dropped, so 3 / 2 is 1. float64(...) " +
             "around the division comes too late - it turns the 1 into 1.0, as the fraction is already gone. Turning each number " +
