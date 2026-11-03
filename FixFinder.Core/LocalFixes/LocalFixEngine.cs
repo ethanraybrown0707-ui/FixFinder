@@ -190,6 +190,7 @@ public static partial class LocalFixEngine
         new JavaNonStaticMember(),
         new JavaPublicClassName(),
         new JavaOffByOneLoop(),
+        new JavaMirrorIndex(),
         new JavaStringConversion(),
         new JavaPrintfForPrintln(),
 

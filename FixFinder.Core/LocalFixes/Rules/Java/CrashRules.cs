@@ -61,6 +61,49 @@ public sealed partial class JavaOffByOneLoop : ILocalFixRule
     }
 }
 
+/// <summary>
+/// <c>StringIndexOutOfBoundsException: Index 5 out of bounds for length 5</c> from the position counted from the other end -
+/// <c>word.charAt(word.length() - i)</c> - which is one past the end when i is 0: <c>word.length() - 1 - i</c>.
+/// </summary>
+public sealed partial class JavaMirrorIndex : ILocalFixRule
+{
+    public string Id => "java-mirror-index";
+
+    [GeneratedRegex(@"(?:Index|index)\s*:?\s*(?<index>\d+)\D+?(?:length|Size|size)\s*:?\s*(?<length>\d+)")]
+    private static partial Regex Bounds();
+
+    /// <summary>word.charAt(word.length() - i), marks[marks.length - i] or items.get(items.size() - i).</summary>
+    [GeneratedRegex(@"(?<items>[A-Za-z_$][\w$.]*)(?:\.charAt\(|\.get\(|\[)\s*\k<items>(?<length>\.length\(\)|\.length|\.size\(\))\s*-\s*(?<counter>[A-Za-z_$][\w$]*)\s*[)\]]")]
+    private static partial Regex FromTheOtherEnd();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        var error = context.Error;
+
+        if (error.LanguageId != "java") return null;
+        if (error.ExceptionType is not ("java.lang.ArrayIndexOutOfBoundsException" or
+            "java.lang.StringIndexOutOfBoundsException" or "java.lang.IndexOutOfBoundsException")) return null;
+        if (Bounds().Match(error.Message ?? "") is not { Success: true } bounds || bounds.Groups["index"].Value != bounds.Groups["length"].Value) return null;
+        if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source || source.Line(number) is not { } line) return null;
+
+        var mirrored = FromTheOtherEnd().Matches(CodeText.Mask(line, Syntax.CLike));
+        if (mirrored.Count != 1) return null;
+
+        var length = mirrored[0].Groups["length"];
+        var items = mirrored[0].Groups["items"].Value;
+        var counter = mirrored[0].Groups["counter"].Value;
+        var afterLength = length.Index + length.Length;
+        var corrected = line[..afterLength] + " - 1" + line[afterLength..];
+
+        return LocalFix.ReplaceLine(
+            Id, $"Count from the other end with {items}{length.Value} - 1 - {counter}",
+            $"Positions run from 0 to one less than the length - here 0 to {int.Parse(bounds.Groups["length"].Value) - 1} - so the " +
+            $"position matching {counter} from the other end is {items}{length.Value} - 1 - {counter}. With {items}{length.Value} - " +
+            $"{counter}, the first pass, when {counter} is 0, asks for position {bounds.Groups["index"].Value}: one past the end.",
+            source.Path, number, corrected);
+    }
+}
+
 /// <summary><c>ConcurrentModificationException</c> from removing items inside a for-each over the same list.</summary>
 public sealed class JavaRemoveInForEach : ILocalFixRule
 {
