@@ -35,6 +35,7 @@ public static partial class CLikeReviewPatterns
         Pattern("logic-java-scanner-skips-line", Java, ScannerSkipsLine),
         Pattern("logic-java-random-always-zero", Java, RandomAlwaysZero, Severity.Error, Confidence.Certain),
         Pattern("logic-java-wrapper-equality", Java, WrapperEquality),
+        Pattern("logic-java-record-equality", Java, RecordEquality),
         Pattern("logic-java-misspelt-override", Java, MisspeltObjectMethod),
         Pattern("logic-java-equals-overload", Java, EqualsOverload),
         Pattern("logic-java-chars-added", Java, CharsAdded),
@@ -462,6 +463,47 @@ public static partial class CLikeReviewPatterns
                         "Java keeps one shared object for each Integer from -128 to 127, so == happens to work for those and then fails for 128 and " +
                         "above. equals compares the numbers themselves.",
                         source, i + 1, line[..match.Index] + equals + line[(match.Index + match.Length)..]));
+
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Two records compared with == or !=: new Point(1, 2) == new Point(1, 2) is false, as == asks whether they are one object.
+    /// A record's equals compares what it holds - its components - which is what a record is for.
+    /// </summary>
+    private static IEnumerable<LogicFinding> RecordEquality(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        var recordTypes = masked
+            .SelectMany(text => Regex.Matches(text, @"\brecord\s+(?<type>[A-Z][\w$]*)\s*(?:<[^>]*>)?\s*\(").Select(declared => declared.Groups["type"].Value))
+            .ToHashSet(StringComparer.Ordinal);
+        if (recordTypes.Count == 0) yield break;
+
+        var typeNames = string.Join("|", recordTypes.Select(Regex.Escape));
+        var records = masked
+            .SelectMany(text => Regex.Matches(text, $@"(?:\b(?:{typeNames})\s+(?<name>[a-z_]\w*)\s*[=;,)]|\bvar\s+(?<name>[a-z_]\w*)\s*=\s*new\s+(?:{typeNames})\s*\()"))
+            .Select(declared => declared.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        if (records.Count < 2) yield break;
+
+        for (var lineIndex = 0; lineIndex < masked.Count; lineIndex++)
+        {
+            foreach (Match compared in Regex.Matches(masked[lineIndex], @"(?<![\w.])(?<a>[A-Za-z_]\w*)\s*(?<op>==|!=)\s*(?<b>[A-Za-z_]\w*)(?![\w.(])"))
+            {
+                var (a, b) = (compared.Groups["a"].Value, compared.Groups["b"].Value);
+                if (!records.Contains(a) || !records.Contains(b)) continue;
+
+                var line = source.Lines[lineIndex];
+                var equals = compared.Groups["op"].Value == "==" ? $"{a}.equals({b})" : $"!{a}.equals({b})";
+
+                yield return new LogicFinding(id, lineIndex + 1,
+                    $"`{a}` and `{b}` are records, so `{compared.Value.Trim()}` asks whether they are the same object - two records holding " +
+                    "the same values are still two objects",
+                    Replace(id, $"Compare what they hold: {equals}",
+                        "== on two objects asks whether they are one and the same object, so two records made separately are never == even " +
+                        "when every value in them is the same. A record's equals compares its values, one by one.",
+                        source, lineIndex + 1, line[..compared.Index] + equals + line[(compared.Index + compared.Length)..]));
 
                 break;
             }

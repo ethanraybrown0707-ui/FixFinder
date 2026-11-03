@@ -149,6 +149,18 @@ internal static class BracePatternGuides
             }
             """),
 
+        GuideFor(["logic-java-record-equality"], "Records compared with ==",
+            "A record holds a few values - a Point its x and y - and == on two records asks whether they are the very same " +
+            "object, not whether they hold the same values. Two records made separately are two objects, so new Point(1, 2) == " +
+            "new Point(1, 2) is false. Every record has an equals that compares its values one by one.",
+            "Two records holding exactly the same values are said to be different, so the code for equal ones never runs.",
+            "Compare them with equals.",
+            """
+            if (a.equals(b)) {
+                System.out.println("same point");
+            }
+            """),
+
         GuideFor(["logic-java-misspelt-override"], "A misspelt toString, equals or hashCode",
             "Java looks for toString, equals and hashCode by their exact names, with the same capitals and the same " +
             "parameters. A method called tostring or ToString is just a different method, which nothing ever calls.",
