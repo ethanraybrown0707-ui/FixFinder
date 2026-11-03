@@ -108,8 +108,9 @@ public sealed partial class ElixirNearestFunction : ILocalFixRule
 }
 
 /// <summary>
-/// "function Enum.summ/1 is undefined or private. Did you mean: * sum/1": Elixir's own suggestion - when it makes only one
-/// - for the call on the line it stopped at.
+/// "function Enum.summ/1 is undefined or private. Did you mean: * sum/1": Elixir's own suggestion - when it suggests only one
+/// function, as for IO.put, whose suggestions puts/1 and puts/2 are one function taking one value or two - for the call on
+/// the line it stopped at.
 /// </summary>
 public sealed partial class ElixirDidYouMeanFunction : ILocalFixRule
 {
@@ -124,11 +125,11 @@ public sealed partial class ElixirDidYouMeanFunction : ILocalFixRule
     public LocalFix? Propose(LocalFixContext context)
     {
         if (!ElixirCode.Is(context, "UndefinedFunctionError") || Message().Match(context.Error.Message ?? "") is not { Success: true } said) return null;
-        if (Suggestion().Matches(context.Error.RawText) is not [var suggested] || ElixirCode.Locate(context) is not { } at) return null;
+        var suggestedNames = Suggestion().Matches(context.Error.RawText).Select(suggested => suggested.Groups["name"].Value).Distinct().ToList();
+        if (suggestedNames is not [var right] || ElixirCode.Locate(context) is not { } at) return null;
 
         var module = said.Groups["module"].Value;
         var wrong = said.Groups["name"].Value;
-        var right = suggested.Groups["name"].Value;
 
         if (new Regex($@"\b{Regex.Escape(module)}\.{Regex.Escape(wrong)}(?=\s*\()").Matches(ElixirCode.Masked(at.Line)) is not [var call]) return null;
 

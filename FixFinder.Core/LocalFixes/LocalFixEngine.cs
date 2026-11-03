@@ -562,6 +562,10 @@ public static partial class LocalFixEngine
         new CHeaderTypo(),
         new CMissingSemicolon(),
         new CMissingClosingBrace(),
+
+        // Read in every language's own words, after each language's own rules, so these close only what those leave.
+        .. LeftOpenRulesByLanguage.All,
+        .. MisspeltNameRulesByLanguage.All,
     ];
 
     [GeneratedRegex(@"(?:[A-Za-z]:)?[\\/](?:[^\\/'""\s]+[\\/])+")]
