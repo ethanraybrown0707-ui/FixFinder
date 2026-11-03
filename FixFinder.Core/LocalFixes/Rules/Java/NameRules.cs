@@ -150,12 +150,15 @@ public sealed partial class JavaMissingImport : ILocalFixRule
         string.Equals(path, source.Path, StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary><c>package system does not exist</c> - a java.lang class written in lower case.</summary>
+/// <summary>
+/// <c>package system does not exist</c> - a java.lang class written in lower case - or, for <c>io.println</c> in Java 25,
+/// <c>cannot find symbol (symbol: variable io)</c>: the class is <c>IO</c>.
+/// </summary>
 public sealed partial class JavaLowercaseClass : ILocalFixRule
 {
     public string Id => "java-lowercase-class";
 
-    [GeneratedRegex(@"^package (?<name>[a-z]\w*) does not exist$")]
+    [GeneratedRegex(@"^(?:package (?<name>[a-z]\w*) does not exist|cannot find symbol \(symbol:\s+variable (?<name>[a-z]\w*)\b.*)$")]
     private static partial Regex Message();
 
     public LocalFix? Propose(LocalFixContext context)
@@ -164,16 +167,17 @@ public sealed partial class JavaLowercaseClass : ILocalFixRule
 
         var (source, number, line) = at;
         var name = message.Groups["name"].Value;
-        var right = char.ToUpperInvariant(name[0]) + name[1..];
+        var tookItFor = context.Error.Message!.StartsWith("package", StringComparison.Ordinal) ? "a package" : "a variable";
 
-        if (!JavaTypes.Lang.Contains(right)) return null;
+        // The java.lang class it is but for its capitals: system is System, io is IO.
+        if (JavaTypes.Lang.FirstOrDefault(type => string.Equals(type, name, StringComparison.OrdinalIgnoreCase)) is not { } right) return null;
 
         var hits = Regex.Matches(CodeText.Mask(line, Syntax.CLike), $@"(?<![\w$.]){Regex.Escape(name)}(?=\s*\.)");
         if (hits.Count == 0) return null;
 
         return LocalFix.ReplaceLine(
             Id, $"Write {name} as {right}",
-            $"Java is case-sensitive, and the class is `{right}` with a capital letter. Written in lower case, javac took `{name}` for a package.",
+            $"Java tells capital letters from small ones, and the class is `{right}`. In lower case, javac took `{name}` for {tookItFor}.",
             source.Path, number, CCode.ReplaceEach(line, hits, _ => right));
     }
 }

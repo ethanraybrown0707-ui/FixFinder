@@ -44,7 +44,7 @@ internal static partial class JavaTypes
          "IndexOutOfBoundsException StringIndexOutOfBoundsException NumberFormatException ClassCastException " +
          "UnsupportedOperationException InterruptedException CloneNotSupportedException ClassNotFoundException " +
          "ReflectiveOperationException Iterable Comparable CharSequence Enum Record Override Deprecated " +
-         "SuppressWarnings FunctionalInterface Class Void Number Process ProcessBuilder Runtime AutoCloseable")
+         "SuppressWarnings FunctionalInterface Class Void Number Process ProcessBuilder Runtime AutoCloseable IO")
         .Split(' '), StringComparer.Ordinal);
 
     public static IReadOnlySet<string> Keywords { get; } = new HashSet<string>(
