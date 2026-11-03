@@ -15,9 +15,9 @@ namespace FixFinder.Tests;
 /// and the program itself left as it was.
 /// </summary>
 /// <remarks>
-/// A compact source file - methods with no class around them - needs Java 25, and FixFinder builds it with a JDK of 25 or
-/// later wherever one is installed; it is skipped where none is. A program written as a class is built with the default JDK,
-/// so it runs on CI's JDK 21, 25 and 27.
+/// FixFinder builds each program with a JDK new enough for the Java its code is written in - a compact source file, methods
+/// with no class around them, needs 25; a pattern in a switch, 21 - and each is skipped where this computer has none. CI's
+/// main job has only JDK 17, so there the records and arrow switches run and the rest wait for the Java 25 and 27 jobs.
 /// </remarks>
 public class Java25MistakesLiveTests(ITestOutputHelper output) : IDisposable
 {
@@ -32,14 +32,22 @@ public class Java25MistakesLiveTests(ITestOutputHelper output) : IDisposable
     /// <summary>A compact source file whose main holds these lines.</summary>
     private static string Compact(string mainBody) => "void main() {\n" + mainBody + "}\n";
 
-    /// <summary>Whether a program can be built here: a compact source file - one with no class - needs a JDK of Java 25.</summary>
-    private static bool CanBuild(string source) =>
-        LocalFixLiveTests.Available("java") && (source.Contains("class ", StringComparison.Ordinal) || Jdks.AtLeast(25) is not null);
-
-    private async Task<(CheckReport Report, string Program)> CheckAsync(string fileName, string source, string? typed = null)
+    /// <summary>
+    /// The program checked as the window checks it - or null when this computer has no JDK of the Java its code needs, as
+    /// FixFinder reads the code.
+    /// </summary>
+    private async Task<(CheckReport Report, string Program)?> CheckAsync(string fileName, string source, string? typed = null)
     {
+        if (!LocalFixLiveTests.Available("java")) return null;
+
         var program = Path.Combine(_temp.Path, fileName);
         File.WriteAllText(program, source);
+
+        if (JavaFeaturesUsed.For(program) is { AtLeast: { } needs, AtLeastBecause: var because } && Jdks.AtLeast(needs) is null)
+        {
+            output.WriteLine($"Not run on this computer: its code needs Java {needs} - {because} - and no JDK of it is here.");
+            return null;
+        }
 
         var launch = TargetFactory.FromFile(program, LiveAllowance.For(program, TimeSpan.FromMinutes(3)));
         Assert.True(launch.Ok, launch.Problem);
@@ -115,9 +123,7 @@ public class Java25MistakesLiveTests(ITestOutputHelper output) : IDisposable
     public async Task TheMistakeIsFoundWithItsChange(
         string mistake, string fileName, string source, string rule, int line, int fixStart, int fixRemoved, string fixLines, bool confirmedByARun)
     {
-        if (!CanBuild(source)) return;
-
-        var (report, program) = await CheckAsync(fileName, source);
+        if (await CheckAsync(fileName, source) is not (var report, var program)) return;
 
         var found = report.Findings.FirstOrDefault(finding => finding.RuleId == rule);
         Assert.True(found is not null, $"{mistake}: no {rule} among {string.Join(", ", report.Findings.Select(finding => finding.RuleId))}");
@@ -142,9 +148,7 @@ public class Java25MistakesLiveTests(ITestOutputHelper output) : IDisposable
     public async Task WhatIOReadlnGivesIsReadAsTheNumberItIsGivenTo(string numberType, string mainBody, string typed, string converted)
     {
         var source = Compact(mainBody);
-        if (!CanBuild(source)) return;
-
-        var (report, program) = await CheckAsync("Main.java", source, typed);
+        if (await CheckAsync("Main.java", source, typed) is not (var report, var program)) return;
 
         var found = report.Findings.FirstOrDefault(finding => finding.RuleId == "java-string-conversion");
         Assert.True(found is not null, $"{numberType}: no java-string-conversion among {string.Join(", ", report.Findings.Select(finding => finding.RuleId))}");
@@ -171,9 +175,7 @@ public class Java25MistakesLiveTests(ITestOutputHelper output) : IDisposable
     [MemberData(nameof(LookAlikes))]
     public async Task ALookAlikeIsNotGivenTheChange(string lookAlike, string fileName, string source, string rule)
     {
-        if (!CanBuild(source)) return;
-
-        var (report, program) = await CheckAsync(fileName, source);
+        if (await CheckAsync(fileName, source) is not (var report, var program)) return;
 
         Assert.True(report.Findings.Count > 0, $"{lookAlike}: nothing found at all");
         Assert.DoesNotContain(report.Findings, finding => finding.RuleId == rule);
