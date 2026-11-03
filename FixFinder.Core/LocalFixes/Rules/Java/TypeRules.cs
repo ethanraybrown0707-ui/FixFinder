@@ -42,6 +42,11 @@ public sealed partial class JavaStringConversion : ILocalFixRule
         if (CodeText.Caret(context.Output, error) is not { } caret || caret.Echo != line) return null;
 
         var start = caret.Column;
+
+        // javac points at a call's open bracket - int age = IO.readln("Age: "); at its ( - so the value starts at the call's name.
+        if (start < line.Length && line[start] == '(')
+            while (start > 0 && (char.IsLetterOrDigit(line[start - 1]) || line[start - 1] is '_' or '$' or '.')) start--;
+
         var before = line[..start].TrimEnd();
 
         var assigned = before.EndsWith('=') && !before.EndsWith("==") && (before.Length < 2 || !"!<>+-*/%&|^".Contains(before[^2]));
