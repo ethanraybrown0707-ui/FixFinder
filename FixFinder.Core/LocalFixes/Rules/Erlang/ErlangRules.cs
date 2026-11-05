@@ -351,3 +351,52 @@ public sealed partial class ErlangFormatValuesInList : ILocalFixRule
             file.Path, line + 1, text[..value.Start] + $"[{written}]" + text[value.End..]);
     }
 }
+
+/// <summary>
+/// "syntax error before: '.'" at the last clause of a case, if or receive whose end is missing: the function's full stop
+/// came before the end that closes the case. The clause loses its full stop, and end. goes under the case, at its indentation.
+/// </summary>
+public sealed partial class ErlangMissingEnd : ILocalFixRule
+{
+    public string Id => "erlang-missing-end";
+
+    /// <summary>A line that opens a block closed by end: case ... of, if, receive, begin, try.</summary>
+    [GeneratedRegex(@"^\s*(?:[A-Z_]\w*\s*=\s*)?(?:case\b.*\bof|if|receive|begin|try)\s*$")]
+    private static partial Regex OpensABlock();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!ErlangCode.Is(context, ErlangParser.CompileError) || context.Error.Message != "syntax error before: '.'") return null;
+        if (ErlangCode.Locate(context) is not (var source, var number, var line)) return null;
+
+        var lines = source.Lines;
+        var code = ErlangCode.Masked(line).TrimEnd();
+        if (!code.EndsWith('.')) return null;
+
+        // The block the clause is in: the nearest line above, indented less than it, that opens one - with no end between.
+        var clauseIndent = CodeText.Indentation(line).Length;
+        for (var above = number - 2; above >= 0; above--)
+        {
+            var text = ErlangCode.Masked(lines[above]);
+            if (text.Trim().Length == 0) continue;
+            if (Regex.IsMatch(text, @"\bend\b")) return null;
+            if (CodeText.Indentation(lines[above]).Length >= clauseIndent) continue;
+            if (!OpensABlock().IsMatch(text)) return null;
+
+            var stop = code.Length - 1;
+            return new LocalFix
+            {
+                RuleId = Id,
+                Title = $"Close the block opened on line {above + 1} with end",
+                Explanation = $"The block opened on line {above + 1} is closed by end, and the full stop that ends the function came first. " +
+                              "The last clause loses its full stop, and end. goes under the line that opened the block.",
+                File = source.Path,
+                StartLine = number,
+                RemoveCount = 1,
+                NewLines = [line[..stop] + line[(stop + 1)..].TrimEnd(), CodeText.Indentation(lines[above]) + "end."],
+            };
+        }
+
+        return null;
+    }
+}

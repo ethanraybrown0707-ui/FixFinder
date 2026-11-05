@@ -54,6 +54,8 @@ public class EveryLanguageSyntaxLiveTests(ITestOutputHelper output) : IDisposabl
         { "Perl", "pasted.pl", "use strict;\nuse warnings;\n\nmy $total = 5;\nprint \"$totl\\n\";\n", "perl-undeclared-variable", 5, 5, 1, "print \"$total\\n\";", true },
         { "Dart", "pasted.dart", "void main() {\n  prnt('hi');\n}\n", "dart-nearest-name", 2, 2, 1, "  print('hi');", true },
         { "Elixir", "pasted.exs", "IO.put(\"hi\")\n", "elixir-did-you-mean-function", 1, 1, 1, "IO.puts(\"hi\")", true },
+        { "Elixir", "pasted.exs", "Enum.each([60, 70], fn mark ->\n  IO.puts(mark)\nend\n", "elixir-call-left-open-around-fn", 3, 3, 1, "end)", true },
+        { "Erlang", "marks.erl", "-module(marks).\n-export([main/0]).\n\nmain() ->\n    case 1 of\n        1 -> io:format(\"one~n\");\n        _ -> io:format(\"other~n\").\n", "erlang-missing-end", 7, 7, 1, "        _ -> io:format(\"other~n\")|    end.", true },
     };
 
     [Theory]

@@ -128,8 +128,10 @@ public sealed partial class ElixirDidYouMeanFunction : ILocalFixRule
         var suggestedNames = Suggestion().Matches(context.Error.RawText).Select(suggested => suggested.Groups["name"].Value).Distinct().ToList();
         if (suggestedNames is not [var right] || ElixirCode.Locate(context) is not { } at) return null;
 
+        // Its own name in another arity - add/2 for add(1) - is a call given the wrong number of values, not a misspelt name.
         var module = said.Groups["module"].Value;
         var wrong = said.Groups["name"].Value;
+        if (right == wrong) return null;
 
         if (new Regex($@"\b{Regex.Escape(module)}\.{Regex.Escape(wrong)}(?=\s*\()").Matches(ElixirCode.Masked(at.Line)) is not [var call]) return null;
 
@@ -579,5 +581,44 @@ public sealed partial class ElixirStringLength : ILocalFixRule
             "length counts the items of a list, and text in double quotes is not a list, so Elixir stops. String.length counts the " +
             "characters of text.",
             at.Source.Path, at.Number, at.Line[..length.Index] + "String." + at.Line[length.Index..]);
+    }
+}
+
+/// <summary>
+/// "missing terminator: )" for a call whose last value is a function written over several lines - Enum.each(marks, fn mark ->
+/// ... end - and whose ) never comes: it closes right after the end that closes the fn, on that end's own line.
+/// </summary>
+public sealed partial class ElixirCallLeftOpenAroundFn : ILocalFixRule
+{
+    public string Id => "elixir-call-left-open-around-fn";
+
+    [GeneratedRegex(@"\bfn\b[^>]*->\s*$")]
+    private static partial Regex OpensAFunction();
+
+    public LocalFix? Propose(LocalFixContext context)
+    {
+        if (!ElixirCode.Is(context, "TokenMissingError") || context.Error.Message != "missing terminator: )" || ElixirCode.Locate(context) is not { } at) return null;
+
+        var lines = at.Source.Lines;
+        var masked = CodeText.MaskAll(lines, Syntax.Python);
+
+        // The line above the error, or the error's own, that opens a ( it does not close and ends by opening a fn.
+        for (var opener = Math.Min(at.Number, masked.Count) - 1; opener >= 0; opener--)
+        {
+            var code = masked[opener];
+            if (!OpensAFunction().IsMatch(code) || code.Count(c => c == '(') - code.Count(c => c == ')') != 1) continue;
+
+            var indent = CodeText.Indentation(lines[opener]).Length;
+            var closing = Enumerable.Range(opener + 1, masked.Count - opener - 1)
+                .FirstOrDefault(index => masked[index].Trim().Length > 0 && CodeText.Indentation(lines[index]).Length <= indent, -1);
+            if (closing < 0 || masked[closing].Trim() != "end") return null;
+
+            return LocalFix.ReplaceLine(Id, $"Close the call on line {opener + 1} after its fn's end",
+                $"The ( on line {opener + 1} is still open when the file ends. Its last value is the fn that starts there, so the ) " +
+                "goes right after the end that closes the fn.",
+                at.Source.Path, closing + 1, lines[closing].TrimEnd() + ")");
+        }
+
+        return null;
     }
 }
