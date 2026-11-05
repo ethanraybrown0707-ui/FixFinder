@@ -25,9 +25,9 @@ public static class StepByStep
             steps.Add("This one may follow from another problem in the report: put that one right first - this one may go with it.");
 
         steps.Add(finding.Fix is not null || finding.ExampleIsFromYourCode
-            ? "Work out the change from How to fix it, and make it yourself. When you have tried, Show the corrected code compares your " +
+            ? "Work out the change from the most likely fix, and make it yourself. When you have tried, Show the corrected code compares your " +
               "change with FixFinder's."
-            : "Make the change How to fix it describes.");
+            : "Make the change the most likely fix describes.");
 
         steps.Add(HowToSeeItWorked(finding, language));
 

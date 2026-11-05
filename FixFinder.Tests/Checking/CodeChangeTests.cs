@@ -134,6 +134,19 @@ public class CodeChangeTests
     }
 
     [Fact]
+    public void OneLineReplacedByTwoIsSaidInTheSingular()
+    {
+        var source = FileOf("print(member[\"age\"])");
+        var fix = new LocalFix
+        {
+            RuleId = "rule", Title = "Title", Explanation = "Explanation", File = @"C:\work\Readings.cs",
+            StartLine = 1, RemoveCount = 1, NewLines = ["if member is not None:", "    print(member[\"age\"])"],
+        };
+
+        Assert.Equal("1 line replaced by 2", CodeChange.From(fix, source)!.Summary);
+    }
+
+    [Fact]
     public void ALineReplacedBySomethingEntirelyDifferentIsNotMarkedInside()
     {
         var source = FileOf("counts[word] += 1");

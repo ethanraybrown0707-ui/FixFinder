@@ -156,26 +156,76 @@ public sealed record ReportPage
         page.Append(" <span class=\"where\">").Append(Text(FindingText.Location(finding))).Append("</span></p>\n")
             .Append("<h3>").Append(Prose(finding.Title)).Append("</h3>\n");
 
+        // 1 Summary: where it went wrong and where it showed, under the title.
+        if (FindingLayout.Summary(finding) is { } summary) page.Append("<p class=\"summary\">").Append(Prose(summary)).Append("</p>\n");
+
         foreach (var said in new[] { FindingText.FoundBy(finding), FindingText.Witness(finding), FindingText.Confirmation(finding) })
             if (said is not null) page.Append("<p class=\"found\">").Append(Prose(said)).Append("</p>\n");
 
-        Section(page, "What is wrong", finding.Explanation);
+        // 2 Cause: this program first, never the language first.
+        Section(page, "Cause", FindingLayout.Cause(finding));
 
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
         if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
 
-        Section(page, "Why FixFinder is this sure", Evidence.For(finding));
-        Section(page, "Why it matters", finding.WhyItMatters);
+        // 3 Most likely fix, and how sure FixFinder is of it - which is not how sure it is of the finding.
+        Section(page, "Most likely fix", FindingLayout.MostLikelyFix(finding));
+        if (FindingLayout.FixConfidence(finding) is { } certainty)
+            page.Append("<p class=\"certainty\"><span class=\"tag\">").Append(Text($"Fix confidence: {certainty.Level}")).Append("</span> ")
+                .Append(Prose(certainty.Because)).Append("</p>\n");
+
+        // 4 Exact code to change: the lines as they are, and as the fix leaves them.
+        if (finding.Change is { Lines.Count: > 0 } change)
+        {
+            page.Append("<h4>").Append(Text($"Exact code to change  ·  {change.Summary}")).Append("</h4>\n");
+            if (finding.Fix is { } fix && fix.Title.Length > 0) page.Append("<p>").Append(Prose(fix.Title)).Append("</p>\n");
+
+            foreach (var (label, shown) in new[] { ("Current", ChangeKind.Removed), ("Suggested", ChangeKind.Added) })
+            {
+                page.Append("<p class=\"label\">").Append(label).Append("</p>\n<pre class=\"change\">");
+                foreach (var line in change.Lines.Where(line => line.Kind == ChangeKind.Context || line.Kind == shown))
+                {
+                    var (kind, mark) = line.Kind switch
+                    {
+                        ChangeKind.Removed => ("removed", "-"),
+                        ChangeKind.Added => ("added", "+"),
+                        _ => ("context", " "),
+                    };
+
+                    page.Append("<span class=\"").Append(kind).Append("\">").Append(Text($"{line.Number,5} {mark} {line.Text}")).Append("</span>\n");
+                }
+
+                page.Append("</pre>\n");
+            }
+        }
+
+        if (finding.CorrectedExample.Trim().Length > 0)
+        {
+            page.Append("<h4>").Append(finding.ExampleIsFromYourCode ? "Corrected code, from your file" : "An example of corrected code").Append("</h4>\n")
+                .Append("<pre>").Append(Text(finding.CorrectedExample)).Append("</pre>\n");
+        }
+
+        if (finding.FixChanges is { Count: > 0 } fixChanges)
+        {
+            page.Append("<h4>What the fix changes</h4>\n<ul>\n");
+            foreach (var fixChange in fixChanges) page.Append("<li>").Append(Prose(fixChange)).Append("</li>\n");
+            page.Append("</ul>\n");
+        }
+
+        if (FindingText.Origin(finding) is { } origin)
+        {
+            page.Append("<h4>Where this fix came from</h4>\n<p>")
+                .Append(finding.CameFrom is { HasLink: true, Url: { } originUrl } ? Link(origin, originUrl) : Prose(origin)).Append("</p>\n");
+        }
+
+        // 5 Why FixFinder thinks this: what was seen, and how trying the fix went.
+        page.Append("<h4>Why FixFinder thinks this</h4>\n<ul class=\"steps\">\n");
+        foreach (var reason in FindingLayout.WhyItThinksThis(finding))
+            page.Append("<li class=\"").Append(reason.Mark.ToString().ToLowerInvariant()).Append("\">")
+                .Append(Text(FindingText.Mark(reason.Mark))).Append(' ').Append(Prose(reason.Text)).Append("</li>\n");
+        page.Append("</ul>\n");
 
         if (FindingText.Slice(finding) is { Length: > 0 } slice) page.Append("<h4>The lines that decide it</h4>\n<pre>").Append(Text(slice)).Append("</pre>\n");
-
-        Section(page, "How to fix it", finding.SuggestedFix);
-
-        var further = Teaching.FurtherExplanation.For(finding);
-
-        page.Append("<h4>Step by step</h4>\n<ol class=\"walkthrough\">\n");
-        foreach (var step in further.Steps) page.Append("<li>").Append(Prose(step)).Append("</li>\n");
-        page.Append("</ol>\n");
 
         if (finding.State is { Rows.Count: > 0 } state)
         {
@@ -194,57 +244,18 @@ public sealed record ReportPage
             if (state.WasCut) page.Append("<p class=\"hint\">").Append(Text(state.CutNote)).Append("</p>\n");
         }
 
-        if (FindingText.FurtherReading(finding) is { } reading && finding.FurtherReading?.Url is { } readingUrl)
-            page.Append("<h4>Read more about this</h4>\n<p>").Append(Link(reading, readingUrl)).Append("</p>\n");
-        if (FindingText.Weakness(finding) is { } weakness) page.Append("<p>").Append(Link(weakness, finding.Weakness!.Url)).Append("</p>\n");
-
-        if (FindingText.Origin(finding) is { } origin)
-        {
-            page.Append("<h4>Where this fix came from</h4>\n<p>")
-                .Append(finding.CameFrom is { HasLink: true, Url: { } originUrl } ? Link(origin, originUrl) : Prose(origin)).Append("</p>\n");
-        }
-
-        if (finding.Verified.WasTested)
-        {
-            page.Append("<h4>Verification</h4>\n<p class=\"verified\">").Append(Prose(finding.Verified.Summary)).Append("</p>\n<ul class=\"steps\">\n");
-            foreach (var step in finding.Verified.Steps.OrderBy(step => step.Stage))
-                page.Append("<li class=\"").Append(step.Result.ToString().ToLowerInvariant()).Append("\">")
-                    .Append(Text(FindingText.Mark(step.Result))).Append(' ').Append(Prose(step.Detail)).Append("</li>\n");
-            page.Append("</ul>\n");
-        }
-
-        if (finding.Change is { Lines.Count: > 0 } change)
-        {
-            page.Append("<h4>").Append(Text($"What changes  ·  {change.Summary}")).Append("</h4>\n<pre class=\"change\">");
-            foreach (var line in change.Lines)
-            {
-                var (kind, mark) = line.Kind switch
-                {
-                    ChangeKind.Removed => ("removed", "-"),
-                    ChangeKind.Added => ("added", "+"),
-                    _ => ("context", " "),
-                };
-
-                page.Append("<span class=\"").Append(kind).Append("\">").Append(Text($"{line.Number,5} {mark} {line.Text}")).Append("</span>\n");
-            }
-
-            page.Append("</pre>\n");
-        }
-
-        if (finding.CorrectedExample.Trim().Length > 0)
-        {
-            page.Append("<h4>").Append(finding.ExampleIsFromYourCode ? "Corrected code, from your file" : "An example of corrected code").Append("</h4>\n")
-                .Append("<pre>").Append(Text(finding.CorrectedExample)).Append("</pre>\n");
-        }
-
-        if (finding.FixChanges is { Count: > 0 } fixChanges)
-        {
-            page.Append("<h4>What the fix changes</h4>\n<ul>\n");
-            foreach (var fixChange in fixChanges) page.Append("<li>").Append(Prose(fixChange)).Append("</li>\n");
-            page.Append("</ul>\n");
-        }
-
         if (finding.FixCheckedBy is { Length: > 0 } checkedBy) page.Append("<p class=\"checked\">").Append(Prose(checkedBy)).Append("</p>\n");
+
+        // 6 Learn more: what this kind of mistake is, in general, once this program's own has been said.
+        var further = Teaching.FurtherExplanation.For(finding);
+        page.Append("<h4 class=\"part\">Learn more</h4>\n");
+
+        Section(page, "What this kind of mistake is", FindingLayout.LearnMore(finding));
+        Section(page, "Why it matters", finding.WhyItMatters);
+
+        page.Append("<h4>Step by step</h4>\n<ol class=\"walkthrough\">\n");
+        foreach (var step in further.Steps) page.Append("<li>").Append(Prose(step)).Append("</li>\n");
+        page.Append("</ol>\n");
 
         if (further.Message is { } message)
         {
@@ -262,6 +273,11 @@ public sealed record ReportPage
 
         var concept = Teaching.ConceptMap.Of(finding);
         page.Append("<h4>").Append(Text($"The idea behind it: {concept.Title}")).Append("</h4>\n<p>").Append(Prose(concept.Idea)).Append("</p>\n");
+
+        if (FindingText.FurtherReading(finding) is { } reading && finding.FurtherReading?.Url is { } readingUrl)
+            page.Append("<h4>Read more about this</h4>\n<p>").Append(Link(reading, readingUrl)).Append("</p>\n");
+        if (FindingText.Weakness(finding) is { } weakness) page.Append("<p>").Append(Link(weakness, finding.Weakness!.Url)).Append("</p>\n");
+
         if (Teaching.ProblemStore.CodeFor(finding) is { } code)
             page.Append("<p class=\"code\">Problem code <code>").Append(Text(code.Text)).Append("</code>, for FixFinder Learn</p>\n");
         if (further.Reproduce is { } reproduce) page.Append("<p><strong>To see it happen:</strong> ").Append(Prose(reproduce)).Append("</p>\n");
@@ -367,6 +383,9 @@ public sealed record ReportPage
         .tag.still { color: var(--secondary); }
         .tag.fixed { color: var(--success); background: var(--success-soft); }
         .relation, .found { font-style: italic; color: var(--secondary); }
+        .summary { font-weight: 600; }
+        .label { font-size: 12.5px; color: var(--secondary); margin: 8px 0 2px; }
+        h4.part { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 20px; color: var(--accent); }
         .checked { background: var(--success-soft); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; margin-top: 12px; }
         code, pre { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
         code { background: var(--subtle); border-radius: 4px; padding: 0 4px; }

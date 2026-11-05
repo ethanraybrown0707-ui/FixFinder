@@ -8,9 +8,10 @@ namespace FixFinder.Gui;
 
 /// <summary>One finding as the report shows it.</summary>
 /// <remarks>
-/// A card says what is wrong, why it matters and how to fix it in words first; the corrected code waits behind a button,
-/// so the reader can try the fix themselves before seeing it; and what lies behind the finding - the evidence, the
-/// verification, where the fix came from - waits under More detail.
+/// A card reads in the order the report does: what happened, its cause in this program, the most likely fix and how sure
+/// FixFinder is of it, the exact code to change - behind a button, so the reader can try the fix themselves before seeing
+/// it - what FixFinder saw that makes it say so, and then what this kind of mistake is in general. The rest of what lies
+/// behind the finding waits under More detail.
 /// </remarks>
 public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 {
@@ -43,8 +44,6 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// deciding whether to act on a finding wants the difference, not the dictionary definition.
     /// </remarks>
     public string ConfidenceTooltip => Evidence.Behind(Finding);
-
-    public string EvidenceText => Evidence.For(Finding);
 
     public string KindText => FindingText.Kind(Finding);
 
@@ -83,6 +82,32 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string WhyItMatters => Finding.WhyItMatters;
 
     public string SuggestedFix => Finding.SuggestedFix;
+
+    /// <summary>Where it went wrong and where it showed, under the title: "Crash on line 10. Root cause introduced on line 9."</summary>
+    public string SummaryText => FindingLayout.Summary(Finding) ?? "";
+
+    public bool HasSummary => FindingLayout.Summary(Finding) is not null;
+
+    /// <summary>Why it happened in this program - what was said of this code, before anything about the language.</summary>
+    public string Cause => FindingLayout.Cause(Finding);
+
+    public string MostLikelyFix => FindingLayout.MostLikelyFix(Finding);
+
+    /// <summary>How sure FixFinder is of the fix, beside how sure it is of the finding: "Fix confidence: Likely - ...".</summary>
+    public string FixConfidenceText => FindingLayout.FixConfidence(Finding) is { } certainty ? $"Fix confidence: {certainty.Labelled}" : "";
+
+    public bool HasFixConfidence => FindingLayout.FixConfidence(Finding) is not null;
+
+    /// <summary>One line of what FixFinder saw that makes it say so, with its mark.</summary>
+    public sealed record MarkedReason(string Mark, string Text, bool Failed);
+
+    public IReadOnlyList<MarkedReason> Reasons =>
+        FindingLayout.WhyItThinksThis(Finding).Select(reason => new MarkedReason(FindingText.Mark(reason.Mark), reason.Text, reason.Mark == StageResult.Failed)).ToList();
+
+    /// <summary>What this kind of mistake is in general, once what happened in this program has been said.</summary>
+    public string LearnMore => FindingLayout.LearnMore(Finding);
+
+    public bool HasLearnMore => LearnMore.Length > 0;
 
     private FurtherExplanation? _further;
 
@@ -286,23 +311,47 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public string ProblemCodeText => ProblemCode?.Text ?? "";
 
+    /// <summary>The card as text, in the order the card reads: summary, cause, most likely fix, the change, why, then learn more.</summary>
     public string AsText()
     {
-        var lines = new List<string>
+        var lines = new List<string> { $"{SeverityText} ({ConfidenceText}, {KindText}) - {LocationText}", Title };
+
+        if (HasSummary) lines.Add(SummaryText);
+        if (HasFoundBy) lines.Add(FoundByText);
+        if (HasWitness) lines.Add(WitnessText);
+        if (HasConfirmation) lines.Add(ConfirmationText);
+
+        lines.Add("");
+        lines.Add($"Cause: {Cause}");
+        lines.Add($"Most likely fix: {MostLikelyFix}");
+        if (HasFixConfidence) lines.Add(FixConfidenceText);
+
+        if (HasExample)
         {
-            $"{SeverityText} ({ConfidenceText}, {KindText}) - {LocationText}",
-            Title,
-            "",
-            $"What is wrong: {Explanation}",
-            $"Why it matters: {WhyItMatters}",
-            $"How to fix it: {SuggestedFix}",
-        };
+            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "A small example of this kind of fix (not your code):");
+            lines.AddRange(CorrectedExample.Split('\n').Select(line => "    " + line));
+        }
+
+        if (HasFixChanges)
+        {
+            lines.Add("What the fix changes:");
+            lines.AddRange(FixChanges.Select(change => "    " + change));
+        }
+
+        if (HasCheck) lines.Add($"Checked: {CheckedText}");
+
+        lines.Add("Why FixFinder thinks this:");
+        lines.AddRange(Reasons.Select(reason => $"    {reason.Mark} {reason.Text}"));
 
         if (HasSlice)
         {
-            lines.Insert(lines.Count - 1, "The lines that decide it:");
-            lines.InsertRange(lines.Count - 1, SliceCode.Split('\n').Select(line => "    " + line));
+            lines.Add("The lines that decide it:");
+            lines.AddRange(SliceCode.Split('\n').Select(line => "    " + line));
         }
+
+        lines.Add("Learn more:");
+        if (HasLearnMore) lines.Add($"What this kind of mistake is: {LearnMore}");
+        lines.Add($"Why it matters: {WhyItMatters}");
 
         lines.Add("Step by step:");
         lines.AddRange(Steps.Select(step => $"    {step.NumberText} {step.Text}"));
@@ -319,24 +368,6 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         {
             lines.Add("Words used here:");
             lines.AddRange(Words.Select(word => $"    {word.Word} - {word.Meaning}"));
-        }
-
-        if (HasConfirmation) lines.Insert(2, ConfirmationText);
-        if (HasWitness) lines.Insert(2, WitnessText);
-        if (HasFoundBy) lines.Insert(2, FoundByText);
-
-        if (HasExample)
-        {
-            lines.Add(Finding.ExampleIsFromYourCode ? "Corrected code:" : "A small example of this kind of fix (not your code):");
-            lines.AddRange(CorrectedExample.Split('\n').Select(line => "    " + line));
-        }
-
-        if (HasCheck) lines.Add($"Checked: {CheckedText}");
-
-        if (HasFixChanges)
-        {
-            lines.Add("What the fix changes:");
-            lines.AddRange(FixChanges.Select(change => "    " + change));
         }
 
         lines.Add($"The idea behind it: {Concept.Title}" + (HasProblemCode ? $" - problem code {ProblemCodeText}, for FixFinder Learn" : ""));

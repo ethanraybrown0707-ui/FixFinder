@@ -73,7 +73,7 @@ public sealed record CodeChange
         (0, var added) => added == 1 ? "1 line added" : $"{added} lines added",
         (var removed, 0) => removed == 1 ? "1 line removed" : $"{removed} lines removed",
         (1, 1) => "1 line changed",
-        var (removed, added) => $"{removed} lines replaced by {added}",
+        var (removed, added) => $"{removed} {(removed == 1 ? "line" : "lines")} replaced by {added}",
     };
 
     /// <summary>

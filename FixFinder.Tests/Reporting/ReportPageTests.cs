@@ -104,6 +104,46 @@ public class ReportPageTests
         Assert.Contains("The beginner wording.", Page([finding]).ToHtml(), StringComparison.Ordinal);
     }
 
+    /// <summary>The report's layout: summary, cause, most likely fix, the exact code, why FixFinder thinks this, then learn more.</summary>
+    [Fact]
+    public void AFindingReadsThisProgramFirstAndTheLanguageAfter()
+    {
+        var traced = Found("member is None on line 10 - it was made None on line 9", kind: FindingKind.Runtime) with
+        {
+            Found = "`member` became None on line 9.",
+            Explanation = "`member` became None on line 9. Square brackets pick one item out of a list.",
+            RootCause = new RootCause
+            {
+                Name = "member",
+                Value = "None",
+                CrashLine = 10,
+                IntroducedLine = 9,
+                IntroducedCode = "member = find_member(members, 2)",
+                Steps = ["`member` became None on line 9."],
+                Evidence = ["`member` held None when line 10 ran."],
+                LinesInvolved = [9],
+                WhatToDo = "Decide what `find_member` should give back.",
+            },
+        };
+
+        var html = Page([traced]).ToHtml();
+        var order = new[]
+        {
+            "<p class=\"summary\">Crash on line 10. Root cause introduced on line 9.</p>",
+            "<h4>Cause</h4>\n<p><code>member</code> became None on line 9.</p>",
+            "<h4>Most likely fix</h4>\n<p>Decide what <code>find_member</code> should give back.</p>",
+            "<h4>Why FixFinder thinks this</h4>",
+            "<li class=\"passed\">✓ <code>member</code> held None when line 10 ran.</li>",
+            "<h4 class=\"part\">Learn more</h4>",
+            "<h4>What this kind of mistake is</h4>\n<p>Square brackets pick one item out of a list.</p>",
+            "<h4>Why it matters</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
     [Fact]
     public void TheComparisonWithTheLastCheckIsOnThePage()
     {

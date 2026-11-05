@@ -4,8 +4,9 @@
 [![test count](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fethanraybrown0707-ui%2FFixFinder%2Fmain%2F.github%2Fbadges%2Ftests.json)](https://github.com/ethanraybrown0707-ui/FixFinder/actions/workflows/tests.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-FixFinder checks a program's **syntax and logic at the same time** and explains every mistake it finds: how serious it
-is, how sure FixFinder is, the line it is on, what is wrong, why it matters, how to fix it, and the corrected code.
+FixFinder checks a program's **syntax and logic at the same time** and explains every mistake it finds, this program
+first: what happened and on which line, its cause in this program, the most likely fix and how sure FixFinder is of it,
+the exact code to change, why FixFinder thinks so - and only then what this kind of mistake is in general.
 
 There is no AI in it. Every check is ordinary code you can read: compiler and interpreter output, rules that work a fix
 out from an error message, patterns that recognise mistakes in the code itself, and a search that tries small changes
@@ -29,15 +30,18 @@ until the program prints what it should. FixFinder never changes your files.
 4. **Read the report.** It has two tabs, laid out the same way. **Problems** lists what is wrong, and its filters show
    every problem, or only the errors, warnings or suggestions. **Efficiency** lists ways the program could do less work
    as its data grows - none of them is a mistake. Every finding is explained for someone new to programming, in plain
-   words: what is wrong, why it matters and how to fix it, then **step by step** - the file and line to go to, with the
-   code on it, what happened there, making the change and checking it again. Where the language said something about it,
+   words, and always in the same order, this program first: the **summary**; the **cause**, in the program's own names
+   and lines; the **most likely fix**, with its **fix confidence** - how sure FixFinder is of the change, which is not
+   how sure it is of the finding; the exact code to change; **why FixFinder thinks this**, as a list of what it saw, each
+   marked; and then **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line
+   to go to, with the code on it, what happened there, making the change and checking it again. Where the language said something about it,
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
    stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
    the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
    mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
-   [FixFinder Learn](#fixfinder-learn). **More detail** holds why FixFinder is this sure, the lines that decide it, how
-   the fix was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
+   [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
+   was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
    **Show in folder** opens the program's folder. **Copy report** copies every finding as plain text,
    and **Save report…** saves the whole report as a web page to keep, print or hand in: every finding with all the window
    shows of it, the notes, how the program was built and run, what it printed, and how this check compares with the last
@@ -976,9 +980,13 @@ changed.
 | **Severity** | **Error** - the program fails, or gives the wrong answer. **Warning** - it works, but not reliably, or not as intended. **Suggestion** - it works; this is a better way. |
 | **Confidence** | **Certain** - the compiler or a run proved it, or the code cannot mean anything else. **Likely** - true for nearly every program written this way. **Possible** - worth a look; it depends on what the program is for. Beside the word, where it comes from, read off what happened: *run reproduced it* - the analysis said this line breaks and a run with its values broke it; *seen when it ran* - the program crashed, or printed the wrong thing; *compiler said so*; *failing input worked out* - an input that makes it fail was worked out from the code, which can still hang on what is typed in; *values followed through the code*; or *pattern only* - the way the code is written. Its tooltip, and **More detail**, say it in a sentence. |
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
-| **Explanation** | What is wrong, in the program's own names, explained for someone new to programming, with the idea behind it spelled out in plain words. The finding starts with what was found in this program. |
+| **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
+| **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
+| **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
+| **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
+| **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
+| **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
-| **Suggested fix** | What to change. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |

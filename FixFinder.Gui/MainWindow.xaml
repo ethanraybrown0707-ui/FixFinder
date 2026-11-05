@@ -103,7 +103,11 @@
                             </StackPanel>
                         </DockPanel>
 
+                        <!-- 1 Summary: the title, and where it went wrong and where it showed. -->
                         <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding SummaryText}" FontSize="13" FontWeight="SemiBold" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingSummary"
+                                   Visibility="{Binding HasSummary, Converter={StaticResource Visible}}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding WitnessText}" FontSize="12.5" Margin="0,4,0,0" TextWrapping="Wrap"
                                    AutomationProperties.AutomationId="FindingWitness"
                                    Visibility="{Binding HasWitness, Converter={StaticResource Visible}}"/>
@@ -111,42 +115,23 @@
                                    Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingConfirmation"
                                    Visibility="{Binding HasConfirmation, Converter={StaticResource Visible}}"/>
 
-                        <TextBlock Text="WHAT IS WRONG" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding Explanation}" Style="{StaticResource Body}"/>
+                        <!-- 2 Cause: this program first, never the language first. -->
+                        <TextBlock Text="CAUSE" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding Cause}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingCause"/>
 
-                        <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
+                        <!-- 3 Most likely fix, with how sure FixFinder is of the fix - not the same as how sure it is of the finding. -->
+                        <TextBlock Text="MOST LIKELY FIX" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding MostLikelyFix}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingMostLikelyFix"/>
+                        <TextBlock Text="{Binding FixConfidenceText}" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" AutomationProperties.AutomationId="FindingFixConfidence"
+                                   Visibility="{Binding HasFixConfidence, Converter={StaticResource Visible}}"/>
 
-                        <TextBlock Text="HOW TO FIX IT" Style="{StaticResource Label}"/>
-                        <TextBlock desktop:InlineCode.Text="{Binding SuggestedFix}" Style="{StaticResource Body}"/>
-
-                        <!-- The same fix as numbered steps: where to look, what happened, the change, and how to see it worked. -->
-                        <TextBlock Text="STEP BY STEP" Style="{StaticResource Label}"/>
-                        <ItemsControl ItemsSource="{Binding Steps}" Focusable="False"
-                                      AutomationProperties.AutomationId="FindingSteps" AutomationProperties.Name="Step by step">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel Margin="0,2,0,2">
-                                        <TextBlock Text="{Binding NumberText}" Width="22" FontSize="13" FontWeight="SemiBold"
-                                                   VerticalAlignment="Top" Foreground="{DynamicResource HintBrush}"/>
-                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- How to make it happen, from what FixFinder ran: hidden when nothing ran it. -->
-                        <StackPanel Visibility="{Binding HasReproduce, Converter={StaticResource Visible}}">
-                            <TextBlock Text="TO SEE IT HAPPEN" Style="{StaticResource Label}"/>
-                            <TextBlock desktop:InlineCode.Text="{Binding Reproduce}" Style="{StaticResource Body}"
-                                       AutomationProperties.AutomationId="FindingReproduce"/>
-                        </StackPanel>
-
+                        <!-- 4 Exact code to change: behind a button, so the reader can try it themselves first. -->
                         <StackPanel Visibility="{Binding HasCorrection, Converter={StaticResource Visible}}">
                             <Button Content="{Binding CorrectionToggleText}" Style="{StaticResource LinkButton}" HorizontalAlignment="Left"
                                     Margin="0,10,0,0" Tag="{Binding}" Click="ToggleCorrection_Click"
                                     AutomationProperties.AutomationId="FindingCorrectionToggle"
-                                    ToolTip="Try the fix yourself first, from how to fix it above - then compare."/>
+                                    ToolTip="Try the fix yourself first, from the most likely fix above - then compare."/>
 
                             <StackPanel Visibility="{Binding CorrectionShown, Converter={StaticResource Visible}}">
                                 <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6" Margin="0,8,0,0"
@@ -208,6 +193,61 @@
                                     </DockPanel>
                                 </Border>
                             </StackPanel>
+                        </StackPanel>
+
+                        <!-- 5 Why FixFinder thinks this: what was seen, and how trying the fix went, each with its mark. -->
+                        <TextBlock Text="WHY FIXFINDER THINKS THIS" Style="{StaticResource Label}"/>
+                        <ItemsControl ItemsSource="{Binding Reasons}" Focusable="False"
+                                      AutomationProperties.AutomationId="FindingReasons" AutomationProperties.Name="Why FixFinder thinks this">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2,0,2">
+                                        <TextBlock x:Name="Mark" Text="{Binding Mark}" Width="20" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource SuccessBrush}"/>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
+                                    </DockPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Failed}" Value="True">
+                                            <Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- 6 Learn more: what this kind of mistake is, in general, once this program's own has been said. -->
+                        <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,10,0,0">
+                            <TextBlock Text="LEARN MORE" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding HasLearnMore, Converter={StaticResource Visible}}">
+                            <TextBlock Text="WHAT THIS KIND OF MISTAKE IS" Style="{StaticResource Label}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding LearnMore}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingLearnMore"/>
+                        </StackPanel>
+
+                        <TextBlock Text="WHY IT MATTERS" Style="{StaticResource Label}"/>
+                        <TextBlock desktop:InlineCode.Text="{Binding WhyItMatters}" Style="{StaticResource Body}"/>
+
+                        <!-- The same fix as numbered steps: where to look, what happened, the change, and how to see it worked. -->
+                        <TextBlock Text="STEP BY STEP" Style="{StaticResource Label}"/>
+                        <ItemsControl ItemsSource="{Binding Steps}" Focusable="False"
+                                      AutomationProperties.AutomationId="FindingSteps" AutomationProperties.Name="Step by step">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,2,0,2">
+                                        <TextBlock Text="{Binding NumberText}" Width="22" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Top" Foreground="{DynamicResource HintBrush}"/>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Style="{StaticResource Body}"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- How to make it happen, from what FixFinder ran: hidden when nothing ran it. -->
+                        <StackPanel Visibility="{Binding HasReproduce, Converter={StaticResource Visible}}">
+                            <TextBlock Text="TO SEE IT HAPPEN" Style="{StaticResource Label}"/>
+                            <TextBlock desktop:InlineCode.Text="{Binding Reproduce}" Style="{StaticResource Body}"
+                                       AutomationProperties.AutomationId="FindingReproduce"/>
                         </StackPanel>
 
                         <!-- What the language itself said, as it said it, and how to read a message like it. -->
@@ -287,9 +327,6 @@
                                                AutomationProperties.AutomationId="FindingFollows"/>
                                 </Border>
 
-                                <TextBlock Text="WHY FIXFINDER IS THIS SURE" Style="{StaticResource Label}"/>
-                                <TextBlock desktop:InlineCode.Text="{Binding EvidenceText}" Style="{StaticResource Body}"
-                                           AutomationProperties.AutomationId="FindingEvidence"/>
 
                                 <StackPanel Visibility="{Binding HasSlice, Converter={StaticResource Visible}}">
                                     <TextBlock Text="THE LINES THAT DECIDE IT" Style="{StaticResource Label}"/>
