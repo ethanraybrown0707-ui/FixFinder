@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FixFinder.Core.Checking;
+using FixFinder.Core.Execution;
 using FixFinder.Core.LocalFixes;
 using FixFinder.Core.LocalFixes.Rules;
 
@@ -48,6 +49,7 @@ public static partial class CLikeReviewPatterns
         Pattern("logic-js-loose-equality", Script, LooseEquality, Severity.Suggestion, Confidence.Likely, FindingKind.Style),
         Pattern("logic-js-template-in-quotes", Script, TemplateInQuotes),
         Pattern("logic-js-compare-with-new-array", Script, CompareWithNewArray, Severity.Error, Confidence.Certain),
+        Pattern("logic-js-too-few-arguments", Script, TooFewArguments),
         Pattern("logic-nan-comparison", CodePattern.Files(".js", ".mjs", ".cjs", ".java", ".cs"), NaNComparison, Severity.Error, Confidence.Certain),
     ];
 
@@ -479,6 +481,76 @@ public static partial class CLikeReviewPatterns
                 break;
             }
         }
+    }
+
+    /// <summary>A function the file declares - function add(a, b) or const add = (a, b) =&gt; - with its parameters.</summary>
+    [GeneratedRegex(@"\bfunction\s+(?<name>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^()]*)\)|\b(?:const|let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*=\s*(?:function\s*)?\((?<parameters>[^()]*)\)\s*(?:=>|\{)")]
+    private static partial Regex FunctionDeclared();
+
+    /// <summary>
+    /// A function of the file's own called with fewer values than it has parameters: JavaScript gives the rest undefined and
+    /// says nothing, so add(1) of function add(a, b) works out 1 + undefined, NaN. A parameter with a default, or a ...rest,
+    /// is left out of the count. TypeScript is not read here: its compiler says so itself (TS2554). The finding has no change -
+    /// only the program's writer knows what the missing value was.
+    /// </summary>
+    private static IEnumerable<LogicFinding> TooFewArguments(string id, SourceFile source, IReadOnlyList<string> masked)
+    {
+        // A program that reads arguments takes as many values as it is given, by design.
+        if (TypeScriptCheck.IsTypeScript(source.Path) || masked.Any(text => Regex.IsMatch(text, @"\barguments\b"))) yield break;
+
+        var needed = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var declared in masked.SelectMany(text => FunctionDeclared().Matches(text)))
+        {
+            var parameters = declared.Groups["parameters"].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parameters.Any(parameter => parameter.Contains('=') || parameter.StartsWith("...", StringComparison.Ordinal) || parameter.Contains('{'))) continue;
+
+            // A parameter the code expects to be left out - checked against undefined or null, or given a fallback with ?? or ||.
+            if (parameters.Any(parameter => masked.Any(text => Regex.IsMatch(text,
+                    $@"(?<![\w$.]){Regex.Escape(parameter)}\s*(?:[!=]==?\s*(?:undefined|null)|\?\?|\|\|)|typeof\s+{Regex.Escape(parameter)}\b")))) continue;
+
+            needed[declared.Groups["name"].Value] = parameters;
+        }
+        if (needed.Count == 0) yield break;
+
+        for (var lineIndex = 0; lineIndex < masked.Count; lineIndex++)
+        {
+            foreach (Match call in Regex.Matches(masked[lineIndex], @"(?<![\w$.])(?<name>[A-Za-z_$][\w$]*)\s*\("))
+            {
+                var name = call.Groups["name"].Value;
+                if (!needed.TryGetValue(name, out var parameters) || Regex.IsMatch(masked[lineIndex][..call.Index], @"\bfunction\s*$")) continue;
+
+                var open = call.Index + call.Length - 1;
+                if (Brackets.ClosingParenthesis(masked[lineIndex], open) is not { } close) continue;
+
+                var inside = masked[lineIndex][(open + 1)..close];
+                var given = inside.Trim().Length == 0 ? 0 : TopLevelCommas(inside) + 1;
+                if (given >= parameters.Length || inside.Contains("...", StringComparison.Ordinal)) continue;
+
+                var missing = parameters[given..];
+                yield return new LogicFinding(id, lineIndex + 1,
+                    $"`{name}` takes {parameters.Length} values - {string.Join(", ", parameters)} - and is given {given} here, so " +
+                    $"{string.Join(" and ", missing.Select(parameter => $"`{parameter}`"))} {(missing.Length == 1 ? "is" : "are")} undefined inside it, " +
+                    "and JavaScript says nothing",
+                    null);
+                break;
+            }
+        }
+    }
+
+    /// <summary>How many commas separate values at the top level of a call's brackets - not those inside brackets of their own.</summary>
+    private static int TopLevelCommas(string inside)
+    {
+        var depth = 0;
+        var commas = 0;
+
+        foreach (var character in inside)
+        {
+            if (character is '(' or '[' or '{') depth++;
+            else if (character is ')' or ']' or '}') depth--;
+            else if (character == ',' && depth == 0) commas++;
+        }
+
+        return commas;
     }
 
     /// <summary>

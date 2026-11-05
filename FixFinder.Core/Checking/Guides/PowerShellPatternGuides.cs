@@ -211,6 +211,20 @@ internal static class PowerShellPatternGuides
             Write-Output $total
             """),
 
+        GuideFor(["logic-powershell-too-few-arguments"], "A function given fewer values than it takes",
+            "A function written with two parameters, function Add($a, $b), is meant to be given two values. Called with one, Add 1, " +
+            "PowerShell does not stop the script: it gives the parameter that got nothing $null, and the function carries on with " +
+            "it - 1 + $null is 1.",
+            "The function works with $null where a value was meant, and the script prints a wrong answer, with no error.",
+            "Give the function every value it takes, separated by spaces - or give the parameter a default: function Add($a, $b = 0).",
+            """
+            function Add($a, $b) {
+                return $a + $b
+            }
+
+            Write-Output (Add 1 2)
+            """),
+
         GuideFor(["logic-powershell-float-equality"], "Decimal numbers compared exactly",
             "Computers store fractions like 0.1 in binary, where most of them can only be stored approximately - the way 1/3 can " +
             "only be written as 0.333... in decimal. Adding them leaves a tiny error, so 0.1 + 0.2 is 0.30000000000000004, and " +

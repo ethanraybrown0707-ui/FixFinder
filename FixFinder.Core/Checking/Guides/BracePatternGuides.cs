@@ -239,6 +239,20 @@ internal static class BracePatternGuides
             console.log(`Hello ${name}`);
             """),
 
+        GuideFor(["logic-js-too-few-arguments"], "A function given fewer values than it takes",
+            "A function written with two parameters, function add(a, b), is meant to be given two values. Called with one, add(1), " +
+            "JavaScript does not stop the program: it gives the parameter that got nothing the value undefined, and the function " +
+            "carries on with it - 1 + undefined is NaN.",
+            "The function works with undefined where a value was meant, and the program prints NaN or a wrong answer, with no error.",
+            "Give the function every value it takes - or, if a value may be left out, give its parameter a default: function add(a, b = 0).",
+            """
+            function add(a, b) {
+                return a + b;
+            }
+
+            console.log(add(1, 2));
+            """),
+
         GuideFor(["logic-js-compare-with-new-array"], "Comparing with []",
             "[] makes a brand-new, empty array. Comparing arrays asks 'are these the very same array?', and a brand-new one is " +
             "never the same as any other - so the check is always false. To ask 'is it empty?', check the length.",

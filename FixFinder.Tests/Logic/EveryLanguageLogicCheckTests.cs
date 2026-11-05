@@ -4,10 +4,10 @@ using FixFinder.Core.Logic;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// The same five logic mistakes written in each language as a beginner in it writes them - a largest started at 0, a total reset
-/// inside its loop, the other end counted one too far, a changed copy thrown away, decimals compared exactly - each found by
-/// the language's own check with its change, and found no more once the change is made. Each row is what the checks gave
-/// for the program when these were written.
+/// The same six logic mistakes written in each language as a beginner in it writes them - a largest started at 0, a total reset
+/// inside its loop, the other end counted one too far, a changed copy thrown away, decimals compared exactly, an average worked
+/// out in whole numbers - each found by the language's own check with its change, and found no more once the change is made.
+/// Each row is what the checks gave for the program when these were written.
 /// </summary>
 public class EveryLanguageLogicCheckTests : IDisposable
 {
@@ -124,6 +124,10 @@ public class EveryLanguageLogicCheckTests : IDisposable
         { "Rust", "pasted.rs", "fn main() {\n    let total = 0.1 + 0.2;\n    if total == 0.3 {\n        println!(\"equal\");\n    } else {\n        println!(\"not equal\");\n    }\n}\n", "logic-rust-float-equality", 3, 3, 1, "    if (total - 0.3_f64).abs() < 1e-9 {" },
         { "Scala", "pasted.scala", "@main def run(): Unit =\n  val total = 0.1 + 0.2\n  if total == 0.3 then println(\"equal\") else println(\"not equal\")\n", "logic-scala-float-equality", 3, 3, 1, "  if math.abs(total - 0.3) < 1e-9 then println(\"equal\") else println(\"not equal\")" },
         { "TypeScript", "pasted.ts", "const total: number = 0.1 + 0.2;\nif (total === 0.3) {\n    console.log(\"equal\");\n} else {\n    console.log(\"not equal\");\n}\n", "logic-js-float-equality", 2, 2, 1, "if (Math.abs(total - 0.3) < 1e-9) {" },
+        { "Go", "pasted.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\ttotal := 7\n\tcount := 2\n\taverage := float64(total / count)\n\tfmt.Println(average)\n}\n", "logic-go-integer-average", 8, 8, 1, "\taverage := float64(total) / float64(count)" },
+        { "Ruby", "pasted.rb", "total = 7\ncount = 2\naverage = total / count\nputs average\n", "logic-ruby-integer-average", 3, 3, 1, "average = total.to_f / count" },
+        { "Rust", "pasted.rs", "fn main() {\n    let total = 7;\n    let count = 2;\n    let average = (total / count) as f64;\n    println!(\"{}\", average);\n}\n", "logic-rust-integer-average", 4, 4, 1, "    let average = total as f64 / count as f64;" },
+        { "Scala", "pasted.scala", "@main def run(): Unit =\n  val total = 7\n  val count = 2\n  val average: Double = total / count\n  println(average)\n", "logic-scala-integer-average", 4, 4, 1, "  val average: Double = total.toDouble / count" },
     };
 
     [Theory]
