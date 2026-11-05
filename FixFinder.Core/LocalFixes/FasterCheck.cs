@@ -119,7 +119,7 @@ internal static partial class FasterCheck
 
             return everyLine
                 ? lines.Select(l => $"{l.Stream}: {l.Text}").ToList()
-                : lines.Select(l => l.Text.Trim()).Where(t => Diagnostic().IsMatch(t)).Order(StringComparer.Ordinal).ToList();
+                : lines.Select(l => l.Text.Trim()).Where(t => Diagnostic().IsMatch(t) && !NuGet().IsMatch(t)).Order(StringComparer.Ordinal).ToList();
         }
 
         var fromUsual = Output(usual, usualFolder);
@@ -136,4 +136,13 @@ internal static partial class FasterCheck
 
     [GeneratedRegex(@"\b(?:error|warning) [A-Za-z]+\d+: ")]
     private static partial Regex Diagnostic();
+
+    /// <summary>
+    /// A warning or error of NuGet's own, NUxxxx: it is about restoring the packages a build brings in, which only dotnet build
+    /// does, and never about the program, so it is not compared - the compiler run directly restores nothing. dotnet build of
+    /// one file warns NU1903 twice once an advisory names the Microsoft.DotNet.ILCompiler package the SDK's project for it
+    /// brings in, and without this, one advisory set the quicker C# check aside for good.
+    /// </summary>
+    [GeneratedRegex(@"\b(?:error|warning) NU\d+: ")]
+    private static partial Regex NuGet();
 }

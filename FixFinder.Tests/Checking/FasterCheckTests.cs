@@ -137,6 +137,21 @@ public class FasterCheckTests : IDisposable
     }
 
     [Fact]
+    public void NuGetsOwnWarningsAreNotComparedButTheCompilersAre()
+    {
+        const string Advisory = "C:\\one\\Program.cs.csproj : warning NU1903: Package 'Microsoft.DotNet.ILCompiler' 10.0.11 has a known high " +
+                                "severity vulnerability, https://github.com/advisories/GHSA-p3jp-9v83-76w9";
+        const string Unused = "C:\\one\\Program.cs(3,5): warning CS0168: The variable 'unused' is declared but never used";
+
+        var usual = Result(0, Advisory, Advisory, Unused);
+
+        Assert.True(FasterCheck.Agree(usual, "C:\\one", Result(0, Unused.Replace("one", "two")), "C:\\two", everyLine: false, out var difference), difference);
+        Assert.False(FasterCheck.Agree(usual, "C:\\one", Result(0), "C:\\two", everyLine: false, out difference));
+        Assert.Contains("CS0168", difference);
+        Assert.DoesNotContain("NU1903", difference);
+    }
+
+    [Fact]
     public void JavacOutputIsSplitIntoLinesTheWayAProcessIs()
     {
         var lines = JavaCompileServer.Lines("one\r\ntwo\nthree\rfour\n"u8.ToArray(), System.Text.Encoding.UTF8);
