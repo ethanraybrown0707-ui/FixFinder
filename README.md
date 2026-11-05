@@ -987,6 +987,20 @@ changed.
 When two checks find the same mistake - a compiler warning and a logic pattern, or a crash and the pattern that explains
 it - the report shows it once, at the surer of the two confidences.
 
+### Where a missing value came from
+
+A program stops on the line that uses a missing value, which is seldom the line that is wrong. When a Python program
+stops on None - `'NoneType' object is not subscriptable`, `has no attribute`, `is not iterable`, `unsupported operand`
+and the rest - FixFinder runs it a second time, recording as it runs what each name on that line held, which line last
+changed it, which calls to the program's own functions gave back None, and how many times each line ran. From that run
+alone it says which name held None, the line that gave it None - the root cause - and why: a function that reached its
+end without a return, or whose `return None` ran because the `if` above the other return was never true; a name set to
+None that the only line that would have changed it never reached; a dictionary's `get` for a key it does not have; a
+parameter the call gave None. When the second run does not stop with the same error on the same line, nothing is said.
+A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
+Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered,
+kept only when a copy with it runs without the error, and marked as only stopping the failure.
+
 ## FixFinder Learn
 
 FixFinder Learn is a second window, for learning the idea behind a mistake rather than fixing one program. Every finding

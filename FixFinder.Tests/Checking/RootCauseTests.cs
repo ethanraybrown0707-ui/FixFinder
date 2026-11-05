@@ -158,4 +158,82 @@ public class RootCauseTests
         Assert.Null(linked[0].CausedBy);
         Assert.NotNull(linked[1].CausedBy);
     }
+
+    /// <summary>A crash on None whose run recorded the None coming from line 9, out of the function on line 1, ending on line 2.</summary>
+    private static Finding StoppedOnNone(int line = 10) => new()
+    {
+        Kind = FindingKind.Runtime,
+        Severity = Severity.Error,
+        Confidence = Confidence.Certain,
+        File = @"C:\work\members.py",
+        Line = line,
+        Title = "member is None on line 10 - it was made None on line 9",
+        Explanation = "The program stopped on line 10.",
+        WhyItMatters = "why",
+        SuggestedFix = "fix",
+        CorrectedExample = "",
+        RuleId = "TypeError",
+        RootCause = new RootCause
+        {
+            Name = "member",
+            Value = "None",
+            CrashLine = line,
+            IntroducedLine = 9,
+            IntroducedCode = "member = find_member(members, 2)",
+            Steps = ["The program stopped on line 10."],
+            Evidence = ["`member` held None when line 10 ran."],
+            LinesInvolved = [9, 1, 2],
+            WhatToDo = "Give `find_member` a return at its end.",
+        },
+    };
+
+    private static Finding Checked(int line, string rule) => new()
+    {
+        Kind = FindingKind.Logic,
+        Severity = Severity.Warning,
+        Confidence = Confidence.Possible,
+        File = @"C:\work\members.py",
+        Line = line,
+        Title = rule,
+        Explanation = "what it is",
+        WhyItMatters = "why",
+        SuggestedFix = "fix",
+        CorrectedExample = "",
+        RuleId = rule,
+    };
+
+    [Fact]
+    public void ACrashOnNoneFollowsFromTheCheckThatSaysWhereTheNoneCameFrom()
+    {
+        var linked = RootCauses.Link([StoppedOnNone(), Checked(1, "logic-python-returns-nothing-sometimes")]);
+
+        var stopped = linked.Single(finding => finding.RootCause is not null);
+        var root = linked.Single(finding => finding.RootCause is null);
+
+        Assert.Equal(root.Id, stopped.CausedBy?.RootId);
+        Assert.Equal(RelationKind.ValueMadeThere, stopped.CausedBy!.Kind);
+        Assert.Equal(Confidence.Likely, stopped.CausedBy.Confidence);
+
+        // The cause comes first, then where it showed.
+        Assert.Same(root, linked[0]);
+    }
+
+    [Fact]
+    public void AnotherFindingOnALineTheNoneCameThroughIsNotItsCause()
+    {
+        // Line 2 is where the function's call ended - and a division there has nothing to do with the None.
+        var linked = RootCauses.Link([StoppedOnNone(), Checked(2, "analysis-division-by-zero"), Checked(9, "logic-python-unused-variable")]);
+
+        Assert.All(linked, finding => Assert.Null(finding.CausedBy));
+    }
+
+    [Fact]
+    public void TheCheckNearestTheRootCauseIsTheOneItFollowsFrom()
+    {
+        // The line that kept the None (9) is nearer the root cause than the function that gave it back (1).
+        var linked = RootCauses.Link([Checked(1, "logic-python-returns-nothing-sometimes"), StoppedOnNone(), Checked(9, "logic-python-none-returned-assigned")]);
+
+        var stopped = linked.Single(finding => finding.RootCause is not null);
+        Assert.Equal(linked.Single(finding => finding.Line == 9).Id, stopped.CausedBy?.RootId);
+    }
 }

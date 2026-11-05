@@ -10,6 +10,12 @@ public enum RelationKind
     /// removes them all.
     /// </summary>
     SameMissingName,
+
+    /// <summary>
+    /// A run that recorded where the value the program stopped on came from showed it was made on the line the other
+    /// finding is about - so the other is the mistake, and this is where it showed.
+    /// </summary>
+    ValueMadeThere,
 }
 
 /// <param name="RootId">The finding this one follows from.</param>
@@ -19,6 +25,7 @@ public sealed record Relation(string RootId, RelationKind Kind, Confidence Confi
     public string Because => Kind switch
     {
         RelationKind.SameMissingName => "the same name has no definition here",
+        RelationKind.ValueMadeThere => "a run showed the value it stopped on was made there",
         _ => "it follows from the same problem",
     };
 }
@@ -39,6 +46,13 @@ public static partial class RootCauses
     private static readonly HashSet<string> MissingName = new(StringComparer.OrdinalIgnoreCase)
     {
         "CS0103", "CS0246", "C2065", "NameError",
+    };
+
+    /// <summary>The checks and rules that say a line or a function gives back None: what a crash on None can follow from.</summary>
+    private static readonly HashSet<string> MakesNone = new(StringComparer.Ordinal)
+    {
+        "logic-python-none-returned-assigned", "logic-python-returns-nothing-sometimes", "logic-python-print-instead-of-return",
+        "logic-python-return-print", "python-missing-return", "python-in-place-result",
     };
 
     /// <summary>The same thing said by compilers that give no code for it.</summary>
@@ -79,6 +93,23 @@ public static partial class RootCauses
                 // undefined thing in the same file, so one definition settles both.
                 linked[index] = finding with { CausedBy = new Relation(root.Id, RelationKind.SameMissingName, Confidence.Certain) };
             }
+        }
+
+        for (var index = 0; index < linked.Length; index++)
+        {
+            if (linked[index] is not { RootCause: { } cause, CausedBy: null } stopped) continue;
+
+            // The finding that says a line or function gives back None, on a line the value came through, nearest the root
+            // cause - the line that gave it first, then the function that gave it back. Any other finding on those lines is
+            // about something else, however near.
+            var maker = cause.LinesInvolved
+                .Select(line => linked.FirstOrDefault(other => !ReferenceEquals(other, stopped) && other.Line == line && MakesNone.Contains(other.RuleId) &&
+                                                               other.CausedBy is null && string.Equals(other.File, stopped.File, StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefault(other => other is not null);
+
+            // Likely, not certain: the run showed where the value came from, which says the other finding is the mistake,
+            // not that changing that line is the only change that stops this one.
+            if (maker is not null) linked[index] = stopped with { CausedBy = new Relation(maker.Id, RelationKind.ValueMadeThere, Confidence.Likely) };
         }
 
         return Ordered(linked);

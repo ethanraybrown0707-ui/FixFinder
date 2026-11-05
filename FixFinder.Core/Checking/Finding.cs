@@ -126,6 +126,12 @@ public sealed record Finding
     /// </summary>
     public StateTrace? State { get; init; }
 
+    /// <summary>
+    /// Where the value the program stopped on came from - the line that gave it, and how - recorded by a second run of the
+    /// program. Null wherever that run did not show it, because a cause nobody saw would be a guess.
+    /// </summary>
+    public RootCause? RootCause { get; init; }
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 

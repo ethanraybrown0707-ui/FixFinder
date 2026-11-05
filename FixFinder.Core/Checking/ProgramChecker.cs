@@ -289,6 +289,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             RecordDoctestFailuresPrinted(outcome, launch);
             await RepairTestsAsync(outcome, launch, cancellationToken);
             await RepairAssertAsync(outcome, launch, cancellationToken);
+            await TraceMissingValueAsync(outcome, launch, cancellationToken);
             return outcome;
         }
         finally
@@ -434,6 +435,91 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 Verified = verified,
             };
 
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>
+    /// When a Python program stopped on None: where the None came from, from a second run that records it - the line that
+    /// gave it, and why a function of the program gave back None - put first in the finding for where it stopped, ahead of
+    /// what the error means in general. Where the finding has no fix of its own, the line it stopped on is made to run only
+    /// when the value is there, kept only when a copy with that change runs without the error.
+    /// </summary>
+    private async Task TraceMissingValueAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (error.LanguageId != "python" || error.Message is not { } message || !message.Contains("NoneType", StringComparison.Ordinal)) return;
+        if (NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame ||
+            !string.Equals(Path.GetFullPath(frame.File ?? ""), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)) return;
+        if (PythonInterpreter(launch) is not { } python || error.ShortExceptionType is not { } type) return;
+
+        // As long again as the run that failed took, and then some: the second run records every line, which is slower.
+        var timeout = TimeSpan.FromSeconds(Math.Clamp(run.Duration.TotalSeconds * 4 + 10, 10, 60));
+        RootCause? cause;
+
+        try
+        {
+            cause = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, spec.StandardInput ?? "", type, message, crashLine,
+                frame.Symbol ?? "<module>", timeout, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Following the None back to where it came from stopped early: {ex.Message}");
+            return;
+        }
+
+        if (cause is null) return;
+
+        Finding? stopped;
+        lock (_gate)
+        {
+            stopped = _findings.FirstOrDefault(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
+                                                          string.Equals(Path.GetFileName(finding.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (stopped is null) return;
+
+        var traced = stopped with
+        {
+            Title = $"{cause.Name} is None on line {cause.CrashLine}" + (cause.IntroducedLine != cause.CrashLine ? $" - it was made None on line {cause.IntroducedLine}" : ""),
+            Found = cause.Cause,
+            Explanation = string.IsNullOrWhiteSpace(stopped.Explanation) ? cause.Cause : $"{cause.Cause} {stopped.Explanation}",
+            SuggestedFix = stopped.Fix is null ? cause.WhatToDo : stopped.SuggestedFix,
+            RootCause = cause,
+        };
+
+        if (traced.Fix is null && SourceFile.Read(chosen) is { } source && Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing &&
+            Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing) is { } guard)
+        {
+            var verified = await FixRun.CheckAsync(Verification.NotTested, source, guard, error, Expected, cancellationToken, chosen, spec.StandardInput);
+
+            // Kept only when a copy with the check in it ran without the error: a check that moves the crash somewhere else is no fix.
+            if (verified.ResultOf(VerificationStage.Ran) == StageResult.Passed)
+            {
+                traced = traced with
+                {
+                    SuggestedFix = $"{guard.Title}. {guard.Explanation}",
+                    CorrectedExample = CorrectedCode.From(guard, source),
+                    ExampleIsFromYourCode = true,
+                    FixCheckedBy = verified.Summary,
+                    Fix = guard,
+                    Change = CodeChange.From(guard, source),
+                    CameFrom = FixOrigin.OwnRule(guard.RuleId),
+                    Verified = verified,
+                };
+            }
+        }
+
+        IReadOnlyList<Finding> snapshot;
+        lock (_gate)
+        {
+            var index = _findings.IndexOf(stopped);
+            if (index < 0) return;
+
+            _findings[index] = traced;
             snapshot = Sorted(_findings);
         }
 
@@ -1942,6 +2028,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         Slice = better.Slice ?? other.Slice,
         Confirmation = better.Confirmation ?? other.Confirmation,
         State = better.State ?? other.State,
+        RootCause = better.RootCause ?? other.RootCause,
     };
 
     /// <summary>

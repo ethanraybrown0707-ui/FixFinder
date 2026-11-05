@@ -28,6 +28,11 @@ public sealed partial class PythonStrConcatenation : ILocalFixRule
 
         if (error.LanguageId != "python" || error.ExceptionType != "TypeError") return null;
         if (Message().Match(error.Message ?? "") is not { Success: true } message) return null;
+
+        // str(None) is the text "None": joined on, the program prints "Hello None" instead of stopping, which hides the
+        // missing value rather than putting it right - where it came from is what to look at.
+        if (message.Groups["type"].Value == "NoneType") return null;
+
         if (context.Frame is not { Line: { } number } frame || context.Read(frame.File) is not { } source) return null;
         if (source.Line(number) is not { } line) return null;
 
