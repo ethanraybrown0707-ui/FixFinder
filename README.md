@@ -1005,9 +1005,21 @@ alone it says which name held None, the line that gave it None - the root cause 
 end without a return, or whose `return None` ran because the `if` above the other return was never true; a name set to
 None that the only line that would have changed it never reached; a dictionary's `get` for a key it does not have; a
 parameter the call gave None. When the second run does not stop with the same error on the same line, nothing is said.
+
+A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
+FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed
+wherever the null could have come from: after each line that sets that variable, as each of the program's methods
+begins, and at each of their returns and `if`s - every one put on the line it is about, so no line moves. From what the
+copy printed, the finding says the line that gave the variable null and why: a method whose `return null;` ran because
+the `if` above its other return was never true, with what the method was called with; a variable set to null that the
+only line that would have changed it never reached; a Map's `get`, where the file declares it a Map; a parameter the
+call gave null, and which method gave the call its null; and a method's null used straight away, as in
+`find(names, "c").length()`. Only a copy that stops with the same NullPointerException on the same line is read.
+
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
-Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered,
-kept only when a copy with it runs without the error, and marked as only stopping the failure.
+Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
+`if member is not None:` in Python, `if (member != null) { ... }` in Java - kept only when a copy with it runs without the
+error, and marked as only stopping the failure.
 
 ## FixFinder Learn
 

@@ -442,57 +442,56 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>
-    /// When a Python program stopped on None: where the None came from, from a second run that records it - the line that
-    /// gave it, and why a function of the program gave back None - put first in the finding for where it stopped, ahead of
-    /// what the error means in general. Where the finding has no fix of its own, the line it stopped on is made to run only
-    /// when the value is there, kept only when a copy with that change runs without the error.
+    /// When a program stopped on a missing value - Python's None, Java's null - where it came from, from a second run that
+    /// records it: the line that gave it, and why a method or function of the program gave it back. Put first in the finding
+    /// for where it stopped, ahead of what the error means in general. Where the finding has no fix of its own, the line it
+    /// stopped on is made to run only when the value is there, kept only when a copy with that change runs without the error.
     /// </summary>
     private async Task TraceMissingValueAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
     {
         if (outcome.Run is not { } run || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
-        if (error.LanguageId != "python" || error.Message is not { } message || !message.Contains("NoneType", StringComparison.Ordinal)) return;
-        if (NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
-        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame ||
-            !string.Equals(Path.GetFullPath(frame.File ?? ""), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)) return;
-        if (PythonInterpreter(launch) is not { } python || error.ShortExceptionType is not { } type) return;
+        if (error.Message is not { } message || NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame) return;
 
-        // As long again as the run that failed took, and then some: the second run records every line, which is slower.
-        var timeout = TimeSpan.FromSeconds(Math.Clamp(run.Duration.TotalSeconds * 4 + 10, 10, 60));
-        RootCause? cause;
+        (RootCause Cause, SourceFile Source, LocalFix? Guard)? followed;
 
         try
         {
-            cause = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, spec.StandardInput ?? "", type, message, crashLine,
-                frame.Symbol ?? "<module>", timeout, cancellationToken);
+            followed = error.LanguageId switch
+            {
+                "python" => await FollowNoneAsync(launch, run, error, frame, chosen, message, crashLine, cancellationToken),
+                "java" => await FollowNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                _ => null,
+            };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Log?.Invoke($"Following the None back to where it came from stopped early: {ex.Message}");
+            Log?.Invoke($"Following the missing value back to where it came from stopped early: {ex.Message}");
             return;
         }
 
-        if (cause is null) return;
+        if (followed is not var (cause, source, guard)) return;
 
         Finding? stopped;
         lock (_gate)
         {
             stopped = _findings.FirstOrDefault(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
-                                                          string.Equals(Path.GetFileName(finding.File), Path.GetFileName(chosen), StringComparison.OrdinalIgnoreCase));
+                                                          string.Equals(Path.GetFileName(finding.File), Path.GetFileName(source.Path), StringComparison.OrdinalIgnoreCase));
         }
 
         if (stopped is null) return;
 
         var traced = stopped with
         {
-            Title = $"{cause.Name} is None on line {cause.CrashLine}" + (cause.IntroducedLine != cause.CrashLine ? $" - it was made None on line {cause.IntroducedLine}" : ""),
+            Title = $"{cause.Name} is {cause.Value} on line {cause.CrashLine}" +
+                    (cause.IntroducedLine != cause.CrashLine ? $" - it was made {cause.Value} on line {cause.IntroducedLine}" : ""),
             Found = cause.Cause,
             Explanation = string.IsNullOrWhiteSpace(stopped.Explanation) ? cause.Cause : $"{cause.Cause} {stopped.Explanation}",
             SuggestedFix = stopped.Fix is null ? cause.WhatToDo : stopped.SuggestedFix,
             RootCause = cause,
         };
 
-        if (traced.Fix is null && SourceFile.Read(chosen) is { } source && Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing &&
-            Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing) is { } guard)
+        if (traced.Fix is null && guard is not null)
         {
             var verified = await FixRun.CheckAsync(Verification.NotTested, source, guard, error, Expected, cancellationToken, chosen, spec.StandardInput);
 
@@ -524,6 +523,48 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>Where a Python program's None came from, and the change that skips it on the line it stopped on.</summary>
+    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run, ParsedError error, ErrorFrame frame,
+        string chosen, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (!message.Contains("NoneType", StringComparison.Ordinal) || error.ShortExceptionType is not { } type) return null;
+        if (!string.Equals(Path.GetFullPath(frame.File ?? ""), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)) return null;
+        if (PythonInterpreter(launch) is not { } python || SourceFile.Read(chosen) is not { } source) return null;
+
+        // As long again as the run that failed took, and then some: the second run records every line, which is slower.
+        var timeout = TimeSpan.FromSeconds(Math.Clamp(run.Duration.TotalSeconds * 4 + 10, 10, 60));
+        var cause = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, launch.Spec?.StandardInput ?? "", type, message, crashLine,
+            frame.Symbol ?? "<module>", timeout, cancellationToken);
+        if (cause is null) return null;
+
+        var guard = Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing ? Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing) : null;
+        return (cause, source, guard);
+    }
+
+    /// <summary>
+    /// Where a Java program's null came from, and the change that skips it on the line it stopped on. Java's trace names the
+    /// file by its name alone, so the program's own file of that name is the one it stopped in.
+    /// </summary>
+    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+        string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named || frame.Symbol is not { } method) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source) return null;
+
+        // The line it was called from, when the call was made in the same file: what gave a parameter its null.
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } line, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? line
+            : (int?)null;
+
+        var cause = await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, method, calledFrom, cancellationToken);
+        if (cause is null) return null;
+
+        var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
+        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing));
     }
 
     /// <summary>
