@@ -43,6 +43,7 @@ public static class LogicPatterns
         .. ResultDroppedPatterns.All,
         .. CopyPastePatterns.All,
         .. WrongValuePatterns.All,
+        .. BinarySearchPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

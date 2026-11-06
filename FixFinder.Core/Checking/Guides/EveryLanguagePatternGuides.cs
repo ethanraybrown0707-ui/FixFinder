@@ -17,6 +17,19 @@ internal static class EveryLanguagePatternGuides
             "Keep what the function gives back, in the name it was made from.",
             example);
 
+    private static GuideEntry BinarySearch(string id, string example) =>
+        GuideFor([id], "A binary search that can stop moving, or read past the end",
+            "A binary search looks at the middle of the part still to search, then keeps the half the item can be in. The middle is " +
+            "rounded down, so when two positions are left it is the first of them: setting the low end to the middle leaves it where " +
+            "it was, and the same pass runs for ever - as it does for a high end set to the middle once the two ends meet, and for a " +
+            "search that calls itself again from the middle. A high end started at the list's length is one past its last position, " +
+            "and a loop that runs while the ends are equal then reads the list there. Where whole numbers stop at 2147483647, adding " +
+            "the two ends before halving them can go past that for a very long list.",
+            "For an item that is not in the list the program hangs, runs out of stack, or reads past the end of the list.",
+            "Move past the middle - low = mid + 1, high = mid - 1 - and keep where the high end starts, how it moves and the loop's " +
+            "condition in step: hi = length with hi = mid and lo < hi, or hi = length - 1 with hi = mid - 1 and lo <= hi.",
+            example);
+
     private static GuideEntry WrongValueUsed(string id, string example) =>
         GuideFor([id], "A value worked out, and another used in its place",
             "A program often works one value out from another - an average from a total. Here the average is worked out and then " +
@@ -563,6 +576,223 @@ internal static class EveryLanguagePatternGuides
               total = Enum.sum(marks)
               div(total, length(marks))
             end
+            """),
+        BinarySearch("logic-python-binary-search",
+            """
+            lo = 0
+            hi = len(arr) - 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                if arr[mid] == x:
+                    return mid
+                if arr[mid] < x:
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            """),
+        BinarySearch("logic-java-binary-search",
+            """
+            int lo = 0;
+            int hi = arr.length - 1;
+            while (lo <= hi) {
+                int mid = lo + (hi - lo) / 2;
+                if (arr[mid] == x) {
+                    return mid;
+                } else if (arr[mid] < x) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            """),
+        BinarySearch("logic-binary-search",
+            """
+            int lo = 0;
+            int hi = count - 1;
+            while (lo <= hi) {
+                int mid = lo + (hi - lo) / 2;
+                if (arr[mid] == x) {
+                    return mid;
+                } else if (arr[mid] < x) {
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            """),
+        BinarySearch("logic-go-binary-search",
+            """
+            package main
+
+            import "fmt"
+
+            func find(arr []int, x int) int {
+            	lo, hi := 0, len(arr)-1
+            	for lo <= hi {
+            		mid := lo + (hi-lo)/2
+            		if arr[mid] == x {
+            			return mid
+            		} else if arr[mid] < x {
+            			lo = mid + 1
+            		} else {
+            			hi = mid - 1
+            		}
+            	}
+            	return -1
+            }
+
+            func main() {
+            	fmt.Println(find([]int{1, 2, 3}, 3))
+            }
+            """),
+        BinarySearch("logic-rust-binary-search",
+            """
+            let mut lo = 0;
+            let mut hi = arr.len();
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2;
+                if arr[mid] < x {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+            """),
+        BinarySearch("logic-ruby-binary-search",
+            """
+            lo = 0
+            hi = arr.length - 1
+            while lo <= hi
+              mid = (lo + hi) / 2
+              return mid if arr[mid] == x
+              if arr[mid] < x
+                lo = mid + 1
+              else
+                hi = mid - 1
+              end
+            end
+            """),
+        BinarySearch("logic-php-binary-search",
+            """
+            $lo = 0;
+            $hi = count($arr) - 1;
+            while ($lo <= $hi) {
+                $mid = intdiv($lo + $hi, 2);
+                if ($arr[$mid] == $x) {
+                    return $mid;
+                } elseif ($arr[$mid] < $x) {
+                    $lo = $mid + 1;
+                } else {
+                    $hi = $mid - 1;
+                }
+            }
+            """),
+        BinarySearch("logic-lua-binary-search",
+            """
+            local lo, hi = 1, #arr
+            while lo <= hi do
+              local mid = (lo + hi) // 2
+              if arr[mid] == x then
+                return mid
+              elseif arr[mid] < x then
+                lo = mid + 1
+              else
+                hi = mid - 1
+              end
+            end
+            """),
+        BinarySearch("logic-perl-binary-search",
+            """
+            my ($lo, $hi) = (0, $#arr);
+            while ($lo <= $hi) {
+                my $mid = int(($lo + $hi) / 2);
+                return $mid if $arr[$mid] == $x;
+                if ($arr[$mid] < $x) {
+                    $lo = $mid + 1;
+                } else {
+                    $hi = $mid - 1;
+                }
+            }
+            """),
+        BinarySearch("logic-dart-binary-search",
+            """
+            var lo = 0;
+            var hi = arr.length - 1;
+            while (lo <= hi) {
+              final mid = (lo + hi) ~/ 2;
+              if (arr[mid] == x) {
+                return mid;
+              } else if (arr[mid] < x) {
+                lo = mid + 1;
+              } else {
+                hi = mid - 1;
+              }
+            }
+            """),
+        BinarySearch("logic-scala-binary-search",
+            """
+            var lo = 0
+            var hi = arr.length - 1
+            while (lo <= hi) {
+              val mid = lo + (hi - lo) / 2
+              if (arr(mid) == x) return mid
+              else if (arr(mid) < x) lo = mid + 1
+              else hi = mid - 1
+            }
+            """),
+        BinarySearch("logic-powershell-binary-search",
+            """
+            function Find($arr, $x) {
+                $lo = 0
+                $hi = $arr.Count - 1
+                while ($lo -le $hi) {
+                    $mid = [math]::Floor(($lo + $hi) / 2)
+                    if ($arr[$mid] -eq $x) { return $mid }
+                    if ($arr[$mid] -lt $x) { $lo = $mid + 1 } else { $hi = $mid - 1 }
+                }
+                return -1
+            }
+
+            Write-Output (Find @(1, 2, 3) 3)
+            """),
+        BinarySearch("logic-fsharp-binary-search",
+            """
+            let mutable lo = 0
+            let mutable hi = arr.Length - 1
+            while lo < hi do
+                let mid = (lo + hi) / 2
+                if arr.[mid] < x then
+                    lo <- mid + 1
+                else
+                    hi <- mid
+            """),
+        BinarySearch("logic-elixir-binary-search",
+            """
+            def search(arr, x, lo, hi) do
+              if lo > hi do
+                -1
+              else
+                mid = div(lo + hi, 2)
+                at = Enum.at(arr, mid)
+                cond do
+                  x < at -> search(arr, x, lo, mid - 1)
+                  x > at -> search(arr, x, mid + 1, hi)
+                  true -> mid
+                end
+              end
+            end
+            """),
+        BinarySearch("logic-erlang-binary-search",
+            """
+            search(_, _, Lo, Hi) when Lo > Hi -> -1;
+            search(Arr, X, Lo, Hi) ->
+                Mid = (Lo + Hi) div 2,
+                At = lists:nth(Mid + 1, Arr),
+                if
+                    X < At -> search(Arr, X, Lo, Mid - 1);
+                    X > At -> search(Arr, X, Mid + 1, Hi);
+                    true -> Mid
+                end.
             """),
     ];
 }
