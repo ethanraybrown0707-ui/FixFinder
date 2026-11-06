@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart or Lua program held where it stopped on a missing
-/// value, line by line - printed by the same copy of the program that follows the missing value back. Each row is what
-/// FixFinder gave for the program on this computer when these were written: every variable, every value it was given and
-/// the line - or the call - that gave it. A computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua or Ruby program held where it stopped on a
+/// missing value, line by line - printed by the same copy of the program that follows the missing value back. Each row is
+/// what FixFinder gave for the program on this computer when these were written: every variable, every value it was given
+/// and the line - or the call - that gave it. A computer without the language passes them over.
 /// </summary>
 /// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
 /// check - so the rows run alone, after the other tests.</remarks>
@@ -61,6 +61,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "stock: line 1 = {apples = {count = 4}, pears = {count = 0}}|item: line 2 = nil" },
         { "never_set.lua", "local scores = { 40, 55 }\nlocal best\nfor _, score in ipairs(scores) do\n  if score > 90 then\n    best = score\n  end\nend\nprint(\"Best plus one: \" .. best + 1)\n", 8,
             "scores: line 1 = {40, 55}|best: line 2 = nil" },
+        { "hash_lookup.rb", "prices = { \"tea\" => 2.5, \"cake\" => 3.0 }\nprice = prices[\"milk\"]\nputs \"Milk costs #{price.round(2)}\"\n", 3,
+            "prices: line 1 = {\"tea\"=>2.5, \"cake\"=>3.0}|price: line 2 = nil" },
+        { "never_set.rb", "Score = Struct.new(:points)\n\nscores = [Score.new(40), Score.new(55)]\nbest = nil\nscores.each do |score|\n  if score.points > 90\n    best = score\n  end\nend\nputs \"Best: #{best.points}\"\n", 10,
+            "scores: line 3 = [#<struct Score points=40>, #<struct Score points=55>]|best: line 4 = nil" },
     };
 
     [Theory]

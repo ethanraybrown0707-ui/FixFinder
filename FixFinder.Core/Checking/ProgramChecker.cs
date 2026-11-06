@@ -468,6 +468,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "php" => await FollowPhpNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "dart" => await FollowDartNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "lua" => await FollowLuaNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "ruby" => await FollowRubyNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -626,6 +627,29 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Ruby program's nil came from, and the change that skips it on the line it stopped on. Ruby's message names the
+    /// method called on nil, so what held nil is the variable the line calls it on.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowRubyNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.RubyNilOrigin.Read(message, line) is not var (doing, _, _)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.RubyNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.RubyNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

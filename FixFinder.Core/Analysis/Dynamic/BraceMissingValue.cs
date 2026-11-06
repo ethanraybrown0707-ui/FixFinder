@@ -85,6 +85,9 @@ internal abstract partial class BraceDialect
     /// <summary>Where a function's body starts on its header line, blanked - after its { - or null when it starts on the next.</summary>
     public virtual int? BodyStartsAfter(string masked) => masked.LastIndexOf('{') is var brace and >= 0 ? brace + 1 : null;
 
+    /// <summary>A statement as it is put where a function's body starts: as it is, or after Ruby's ; when the header has no brackets.</summary>
+    public virtual string OpeningStatement(string statement) => statement;
+
     /// <summary>A return with a print before it that is still one statement, where only one may stand: { print return x; }.</summary>
     public virtual string WrappedReturn(string print, string returned) => "{ " + print + " " + returned + " }";
 
@@ -364,7 +367,7 @@ internal static class BraceMissingValue
             {
                 var text = _lines[line - 1];
                 if ((text == original[line - 1] ? dialect.BodyStartsAfter(masked[line - 1]) : dialect.BodyStartsAfter(text)) is not { } at) continue;
-                _lines[line - 1] = text[..at] + " " + statement + text[at..];
+                _lines[line - 1] = text[..at] + " " + dialect.OpeningStatement(statement) + text[at..];
                 return;
             }
         }
