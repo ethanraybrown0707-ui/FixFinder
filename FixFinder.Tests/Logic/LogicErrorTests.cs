@@ -349,12 +349,13 @@ public class LogicErrorTests : IDisposable
         {
             // QuixBugs' find_in_sorted (MIT licence): lines 7 and 9 score the same by which runs went through them, so only
             // the crash - RecursionError, on line 9 - says which of the two to change. Changing line 7 first printed what all
-            // five of these runs expect, and was wrong on another of the benchmark's tests.
+            // five of these runs expect, and was wrong on another of the benchmark's tests. The binary search check names line 9
+            // itself - a search started again from mid - so its change is the one tried, before any found by trying changes.
             "python", "binary search that never moves past the middle",
             new() { ["app.py"] = "def find_in_sorted(arr, x):\n    def binsearch(start, end):\n        if start == end:\n            return -1\n        mid = start + (end - start) // 2\n        if x < arr[mid]:\n            return binsearch(start, mid)\n        elif x > arr[mid]:\n            return binsearch(mid, end)\n        else:\n            return mid\n\n    return binsearch(0, len(arr))\n\n\nvalues = [int(v) for v in input().split()]\nprint(find_in_sorted(values, int(input())))\n" },
             "app.py",
             [("3 4 5 5 5 5 6\n5\n", "3\n"), ("1 2 3 4 6 7 8\n5\n", "-1\n"), ("1 2 3 4 6 7 8\n4\n", "3\n"), ("2 4 6 8 10 12 14 16 18 20\n18\n", "8\n"), ("3 5 6 7 8 9 12 13 14 24 26 27\n0\n", "-1\n")],
-            "local:logic-edit", "return binsearch(mid + 1, end)"
+            "local:logic-python-binary-search", "return binsearch(mid + 1, end)"
         },
         {
             // QuixBugs' wrap: a line added, not changed - the text left when the loop ends is never added to the lines.
