@@ -465,6 +465,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "node" => await FollowUndefinedAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "csharp" => await FollowCSharpNullAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
                 "go" => await FollowGoNilAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
+                "php" => await FollowPhpNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -623,6 +624,29 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a PHP program's null came from, and the change that skips it on the line it stopped on. PHP's message names the
+    /// method called on null, or the property set on it, so what held null is the variable the line uses it on.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowPhpNullAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.PhpNullOrigin.Read(message, CodeText.Mask(line, Syntax.CLike)) is not var (doing, _, _)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.PhpNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.PhpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

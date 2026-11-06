@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C# or Go program held where it stopped on a missing value, line by
-/// line - printed by the same copy of the program that follows the missing value back. Each row is what FixFinder gave for
-/// the program on this computer when these were written: every variable, every value it was given and the line - or the
-/// call - that gave it. A computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go or PHP program held where it stopped on a missing value,
+/// line by line - printed by the same copy of the program that follows the missing value back. Each row is what FixFinder
+/// gave for the program on this computer when these were written: every variable, every value it was given and the line -
+/// or the call - that gave it. A computer without the language passes them over.
 /// </summary>
 /// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
 /// check - so the rows run alone, after the other tests.</remarks>
@@ -49,6 +49,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "stock: line 10 = map[\"apples\":&{Count:5} \"pears\":&{Count:0}]|item: line 11 = nil" },
         { "main.go", "package main\n\nimport \"fmt\"\n\ntype Score struct {\n\tPoints int\n}\n\nfunc main() {\n\tscores := []Score{{Points: 40}, {Points: 55}}\n\tvar best *Score\n\tfor i := range scores {\n\t\tif scores[i].Points > 90 {\n\t\t\tbest = &scores[i]\n\t\t}\n\t}\n\tfmt.Println(\"Best:\", best.Points)\n}\n", 17,
             "scores: line 10 = [{Points:40} {Points:55}]|best: line 11 = nil" },
+        { "array_find.php", "<?php\n\nclass Room\n{\n    public function __construct(public string $name, public int $seats)\n    {\n    }\n\n    public function book(): string\n    {\n        return \"Booked \" . $this->name;\n    }\n}\n\n$rooms = [new Room(\"A1\", 20), new Room(\"B2\", 35)];\n$room = array_find($rooms, fn(Room $room) => $room->seats >= 50);\necho $room->book() . \"\\n\";\n", 17,
+            "$rooms: line 15 = [{\"name\":\"A1\",\"seats\":20},{\"name\":\"B2\",\"seats\":35}]|$room: line 16 = null" },
+        { "returned_variable.php", "<?php\n\nclass Book\n{\n    public function __construct(public string $title, public int $pages)\n    {\n    }\n\n    public function label(): string\n    {\n        return $this->title . \" (\" . $this->pages . \" pages)\";\n    }\n}\n\nfunction longest(array $books): ?Book\n{\n    $best = null; // none found yet\n    foreach ($books as $book) {\n        if ($book->pages > 1000) {\n            $best = $book; // keep the longest so far\n        }\n    }\n    return $best;\n}\n\n$books = [new Book(\"Dune\", 412), new Book(\"Emma\", 474)];\n$chosen = longest($books);\necho $chosen->label() . \"\\n\";\n", 28,
+            "$books: line 26 = [{\"title\":\"Dune\",\"pages\":412},{\"title\":\"Emma\",\"pages\":474}]|$chosen: line 27 = null" },
     };
 
     [Theory]

@@ -76,6 +76,21 @@ internal abstract partial class BraceDialect
     /// <summary>What the copy needs put at the end of a line before it can print - Go's imports, on its package line - or nothing.</summary>
     public virtual IEnumerable<(int Line, string Added)> Additions(IReadOnlyList<string> masked) => [];
 
+    /// <summary>Text as the copy's prints write it: "text", or PHP's 'text', in which a $ is only a $.</summary>
+    public virtual string Quoted(string text) => "\"" + text + "\"";
+
+    /// <summary>What joins two pieces of text in the copy's prints: +, or PHP's dot.</summary>
+    public virtual string Joining => " + ";
+
+    /// <summary>
+    /// Whether a line gives a name a function, whose value says nothing - what follows the = starts with function, (x) =&gt;,
+    /// x =&gt; or Java's x -&gt; - and not a value a function worked out, as in members.find(member =&gt; member.id === 2).
+    /// </summary>
+    public virtual bool GivesAFunction(string masked) => FunctionAfterEquals().IsMatch(masked);
+
+    [GeneratedRegex(@"(?<![=!<>])=(?![=>])\s*(?:async\s+)?(?:function\b|\([^()]*\)\s*(?::[^=]*)?(?:=>|->)|[A-Za-z_$][\w$]*\s*(?:=>|->))")]
+    private static partial Regex FunctionAfterEquals();
+
     [GeneratedRegex(@"^\s*if\s*\(")]
     private static partial Regex IfInBrackets();
 
@@ -118,27 +133,27 @@ internal static class BraceMissingValue
         // The lines that set the variable where it stopped, and each of the program's functions: any of them may be the one
         // the missing value came from.
         foreach (var line in name is null ? [] : code.LinesSetting(name, stoppedIn))
-            marks.After(line, dialect.Print($"\"{Marker} set {line} \" + {dialect.MissingOrValue(name!)}"), dialect.StatementsEndInSemicolons);
+            marks.After(line, dialect.Print(dialect.Quoted($"{Marker} set {line} ") + dialect.Joining + dialect.MissingOrValue(name!)), dialect.StatementsEndInSemicolons);
 
         var followed = code.Unique.Values.Where(each => !code.CallsItself(each)).ToList();
         foreach (var each in followed)
         {
-            marks.AfterOpening(each.Header, dialect.Print($"\"{Marker} call {each.Name}{Between}\" + {code.ParametersShown(each)}"));
-            foreach (var line in code.Returns(each)) marks.WrapReturn(line, dialect.Print($"\"{Marker} return {each.Name} {line}\""));
+            marks.AfterOpening(each.Header, dialect.Print(dialect.Quoted($"{Marker} call {each.Name}{Between}") + dialect.Joining + code.ParametersShown(each)));
+            foreach (var line in code.Returns(each)) marks.WrapReturn(line, dialect.Print(dialect.Quoted($"{Marker} return {each.Name} {line}")));
 
             // A function that gives back a variable - return best; - says what each line setting it gave it, so where the
             // missing value it gave back came from can be told. Written as any value is, since its type may hold no null.
             foreach (var (line, variable) in code.LinesSettingWhatItReturns(each))
-                marks.After(line, dialect.Print($"\"{Marker} inner {line} \" + {dialect.Shown(code.TypeOf(variable, "", each), variable)}"), dialect.StatementsEndInSemicolons);
+                marks.After(line, dialect.Print(dialect.Quoted($"{Marker} inner {line} ") + dialect.Joining + dialect.Shown(code.TypeOf(variable, "", each), variable)), dialect.StatementsEndInSemicolons);
         }
 
         // Each if once, whichever function it is in, so how many times it was checked is counted once.
         foreach (var line in followed.Select(each => (BraceFunction?)each).Append(stoppedIn).SelectMany(code.Ifs).Distinct())
-            marks.Before(line, dialect.Print($"\"{Marker} if {line}\""));
+            marks.Before(line, dialect.Print(dialect.Quoted($"{Marker} if {line}")));
 
         // The variable timeline: each value a variable is given where it stopped, printed after the line that gives it.
         foreach (var (line, variable, type) in code.LinesSettingAny(stoppedIn).Take(MostLinesFollowed))
-            marks.After(line, dialect.Print($"\"{Marker} value {line} {variable}{Between}\" + {dialect.Shown(code.TypeOf(variable, type, stoppedIn), variable)}"),
+            marks.After(line, dialect.Print(dialect.Quoted($"{Marker} value {line} {variable}{Between}") + dialect.Joining + dialect.Shown(code.TypeOf(variable, type, stoppedIn), variable)),
                 dialect.StatementsEndInSemicolons);
 
         if (await Checking.FixRun.RunChangedAsync(source, marks.Lines, program, typed, cancellationToken) is not { } run) return null;
@@ -655,7 +670,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
             var text = masked[line - 1];
             if (dialect.SetsAnyName.Match(text) is not { Success: true } set) continue;
             if (text.Count(c => c == '(') != text.Count(c => c == ')') || text.Count(c => c == '{') != text.Count(c => c == '}')) continue;
-            if (text.Contains("=>", StringComparison.Ordinal) || Regex.IsMatch(text, @"\bfunction\b")) continue;
+            if (dialect.GivesAFunction(text)) continue;
             yield return (line, set.Groups["name"].Value, set.Groups["type"].Value);
         }
     }
@@ -750,8 +765,9 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
     /// <summary>Each parameter as "name = value", in the program's language, for the copy to print as the function begins.</summary>
     public string ParametersShown(BraceFunction function) =>
         function.Parameters.Count == 0
-            ? "\"\""
-            : string.Join($" + \"{BraceMissingValue.Between}\" + ", function.Parameters.Select(parameter => $"\"{parameter.Name} = \" + {dialect.Shown(parameter.Type, parameter.Name)}"));
+            ? dialect.Quoted("")
+            : string.Join(dialect.Joining + dialect.Quoted(BraceMissingValue.Between) + dialect.Joining,
+                function.Parameters.Select(parameter => dialect.Quoted($"{parameter.Name} = ") + dialect.Joining + dialect.Shown(parameter.Type, parameter.Name)));
 
     /// <summary>
     /// What a name's declaration in the file says it is: its type, or what it is first given - or null. A TypeScript type
