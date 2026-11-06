@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript or C# program held where it stopped on a missing value, line by line - printed by
-/// the same copy of the program that follows the missing value back. Each row is what FixFinder gave for the program on this
-/// computer when these were written: every variable, every value it was given and the line - or the call - that gave it. A
-/// computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C# or Go program held where it stopped on a missing value, line by
+/// line - printed by the same copy of the program that follows the missing value back. Each row is what FixFinder gave for
+/// the program on this computer when these were written: every variable, every value it was given and the line - or the
+/// call - that gave it. A computer without the language passes them over.
 /// </summary>
 public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
 {
@@ -42,6 +42,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "prices: line 1 = {\"tea\":2,\"cake\":3}|basket: line 2 = [\"tea\",\"milk\"]|total: line 3 = 0; line 6 = 2|price: line 5 = 2; line 5 = undefined" },
         { "class_method.ts", "class Library {\n    private shelves: Map<string, string[]> = new Map();\n\n    add(shelf: string, title: string): void {\n        if (!this.shelves.has(shelf)) {\n            this.shelves.set(shelf, []);\n        }\n        this.shelves.get(shelf)!.push(title);\n    }\n\n    firstOn(shelf: string): string | undefined {\n        const titles = this.shelves.get(shelf);\n        if (titles && titles.length > 0) {\n            return titles[0];\n        }\n        return undefined;\n    }\n}\n\nconst library = new Library();\nlibrary.add(\"science\", \"Cosmos\");\nconst first = library.firstOn(\"history\");\nconsole.log(first!.length);\n", 23,
             "library: line 20 = {\"shelves\":{}}|first: line 22 = undefined" },
+        { "main.go", "package main\n\nimport \"fmt\"\n\ntype Item struct {\n\tCount int\n}\n\nfunc main() {\n\tstock := map[string]*Item{\"apples\": {Count: 5}, \"pears\": {Count: 0}}\n\titem := stock[\"plums\"]\n\tfmt.Println(\"Left:\", item.Count+1)\n}\n", 12,
+            "stock: line 10 = map[\"apples\":&{Count:5} \"pears\":&{Count:0}]|item: line 11 = nil" },
+        { "main.go", "package main\n\nimport \"fmt\"\n\ntype Score struct {\n\tPoints int\n}\n\nfunc main() {\n\tscores := []Score{{Points: 40}, {Points: 55}}\n\tvar best *Score\n\tfor i := range scores {\n\t\tif scores[i].Points > 90 {\n\t\t\tbest = &scores[i]\n\t\t}\n\t}\n\tfmt.Println(\"Best:\", best.Points)\n}\n", 17,
+            "scores: line 10 = [{Points:40} {Points:55}]|best: line 11 = nil" },
     };
 
     [Theory]

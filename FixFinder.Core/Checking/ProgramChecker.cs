@@ -464,6 +464,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "java" => await FollowNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "node" => await FollowUndefinedAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "csharp" => await FollowCSharpNullAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
+                "go" => await FollowGoNilAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -600,6 +601,28 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Go program's nil came from, and the change that skips it on the line it stopped on. Go's panic names nothing,
+    /// so what was nil is the one variable the line reads a field through, or calls a method on, that the program sets or is given.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowGoNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.Message != Analysis.Dynamic.GoNilOrigin.Message || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || Analysis.Dynamic.GoNilOrigin.Read(source, crashLine) is not var (_, doing)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.GoNilOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

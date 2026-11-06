@@ -14,7 +14,7 @@ internal sealed record BraceFunction(string Name, int Header, int End, IReadOnly
 internal sealed record Documented(string Said, string WhatToDo);
 
 /// <summary>What one language written in braces writes and says, for following a missing value through a copy of a program in it.</summary>
-internal abstract class BraceDialect
+internal abstract partial class BraceDialect
 {
     /// <summary>The error the language stops with: NullPointerException, TypeError.</summary>
     public abstract string ErrorName { get; }
@@ -60,6 +60,27 @@ internal abstract class BraceDialect
     /// a declaration, its type as "type": what the variable timeline prints a value after.
     /// </summary>
     public abstract Regex SetsAnyName { get; }
+
+    /// <summary>A line that starts an if: <c>if (x)</c>, or Go's <c>if x {</c>.</summary>
+    public virtual Regex IfLine => IfInBrackets();
+
+    /// <summary>A line that starts an else if: <c>} else if (x)</c>, or Go's <c>} else if x {</c>.</summary>
+    public virtual Regex ElseIfLine => ElseIfInBrackets();
+
+    /// <summary>Whether a line of code, trimmed, ends a statement, so a line put after it runs after it.</summary>
+    public virtual bool EndsAStatement(string code) => code.EndsWith(';') || code.EndsWith('{') || code.EndsWith('}');
+
+    /// <summary>The first line of the check that runs a line only when the name holds a value.</summary>
+    public virtual string GuardOpening(string name) => $"if ({name} != null) {{";
+
+    /// <summary>What the copy needs put at the end of a line before it can print - Go's imports, on its package line - or nothing.</summary>
+    public virtual IEnumerable<(int Line, string Added)> Additions(IReadOnlyList<string> masked) => [];
+
+    [GeneratedRegex(@"^\s*if\s*\(")]
+    private static partial Regex IfInBrackets();
+
+    [GeneratedRegex(@"^\s*\}?\s*else\s+if\s*\(")]
+    private static partial Regex ElseIfInBrackets();
 }
 
 /// <summary>
@@ -92,6 +113,7 @@ internal static class BraceMissingValue
         var code = new BraceCode(dialect, source.Lines, CodeText.MaskAll(source.Lines, Syntax.CLike));
         var stoppedIn = code.FunctionAround(crashLine);
         var marks = new Marks(source.Lines, code.Masked);
+        foreach (var (line, added) in dialect.Additions(code.Masked)) marks.AtTheEnd(line, added);
 
         // The lines that set the variable where it stopped, and each of the program's functions: any of them may be the one
         // the missing value came from.
@@ -214,7 +236,7 @@ internal static class BraceMissingValue
             File = source.Path,
             StartLine = cause.CrashLine,
             RemoveCount = 1,
-            NewLines = [$"{indent}if ({cause.Name} != null) {{", $"{indent}{step}{line.TrimStart()}", $"{indent}}}"],
+            NewLines = [$"{indent}{dialect.GuardOpening(cause.Name)}", $"{indent}{step}{line.TrimStart()}", $"{indent}}}"],
             OnlyStopsTheFailure = true,
         };
     }
@@ -251,6 +273,13 @@ internal static class BraceMissingValue
         {
             var (code, comment) = Split(line);
             _lines[line - 1] = code + (endsInSemicolon || code.EndsWith(';') ? " " : "; ") + statement + comment;
+        }
+
+        /// <summary>Puts the text straight after the line's code, as it is.</summary>
+        public void AtTheEnd(int line, string added)
+        {
+            var (code, comment) = Split(line);
+            _lines[line - 1] = code + added + comment;
         }
 
         /// <summary>
@@ -578,12 +607,6 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
     [GeneratedRegex(@"^\s*return\s+(?<name>[A-Za-z_$][\w$]*)\s*;?\s*$")]
     private static partial Regex ReturnedVariable();
 
-    [GeneratedRegex(@"^\s*if\s*\(")]
-    private static partial Regex IfStatement();
-
-    [GeneratedRegex(@"^\s*\}?\s*else\s+if\s*\(")]
-    private static partial Regex ElseIf();
-
     public IReadOnlyList<string> Masked => masked;
 
     /// <summary>The line's code as written, without a comment it ends with - which the masked line, blank there, says.</summary>
@@ -686,7 +709,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
 
     /// <summary>The ifs of a function, or the file's top level, that start a line after a finished statement, so a line put before one runs where it does.</summary>
     public IEnumerable<int> Ifs(BraceFunction? function) =>
-        OwnLines(function).Where(line => IfStatement().IsMatch(masked[line - 1]) && EndsAStatement(line - 1));
+        OwnLines(function).Where(line => dialect.IfLine.IsMatch(masked[line - 1]) && EndsAStatement(line - 1));
 
     private bool EndsAStatement(int line)
     {
@@ -694,7 +717,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
         {
             var text = masked[above].TrimEnd();
             if (text.Trim().Length == 0) continue;
-            return text.EndsWith(';') || text.EndsWith('{') || text.EndsWith('}');
+            return dialect.EndsAStatement(text);
         }
 
         return true;
@@ -718,7 +741,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
             }
 
             var opens = braceOnItsOwn || text.EndsWith('{');
-            return (IfStatement().IsMatch(masked[above - 1]) || ElseIf().IsMatch(masked[above - 1])) && opens ? above : null;
+            return (dialect.IfLine.IsMatch(masked[above - 1]) || dialect.ElseIfLine.IsMatch(masked[above - 1])) && opens ? above : null;
         }
 
         return null;
