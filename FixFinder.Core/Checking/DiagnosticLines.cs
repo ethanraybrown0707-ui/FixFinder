@@ -100,6 +100,12 @@ public static class DiagnosticLines
                 rootCause = finding.RootCause is { } root
                     ? new { name = root.Name, value = root.Value, crashLine = root.CrashLine, introducedLine = root.IntroducedLine, introducedCode = root.IntroducedCode }
                     : null,
+                timeline = finding.Timeline.Select(variable => new
+                {
+                    name = variable.Name,
+                    cut = variable.Cut,
+                    values = variable.Changes.Select(change => new { line = change.Line, calledFrom = change.CalledFrom, value = change.Value }),
+                }),
                 learnMore = Reporting.FindingLayout.LearnMore(finding),
                 explanation = finding.Explanation,
                 whyItMatters = finding.WhyItMatters,

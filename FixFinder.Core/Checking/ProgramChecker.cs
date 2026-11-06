@@ -442,10 +442,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>
-    /// When a program stopped on a missing value - Python's None, Java's null - where it came from, from a second run that
-    /// records it: the line that gave it, and why a method or function of the program gave it back. Put first in the finding
-    /// for where it stopped, ahead of what the error means in general. Where the finding has no fix of its own, the line it
-    /// stopped on is made to run only when the value is there, kept only when a copy with that change runs without the error.
+    /// When a program stopped on a missing value - Python's None, Java's null, JavaScript's undefined - where it came from, from
+    /// a second run that records it: the line that gave it, and why a method or function of the program gave it back. Put first
+    /// in the finding for where it stopped, ahead of what the error means in general. Where the finding has no fix of its own,
+    /// the line it stopped on is made to run only when the value is there, kept only when a copy with that change runs without
+    /// the error. For a Python program that stopped on any error, what each variable held, line by line, goes on the finding too.
     /// </summary>
     private async Task TraceMissingValueAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
     {
@@ -453,7 +454,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (error.Message is not { } message || NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
         if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame) return;
 
-        (RootCause Cause, SourceFile Source, LocalFix? Guard)? followed;
+        (RootCause? Cause, SourceFile Source, LocalFix? Guard, IReadOnlyList<VariableHistory> Timeline)? followed;
 
         try
         {
@@ -471,7 +472,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return;
         }
 
-        if (followed is not var (cause, source, guard)) return;
+        if (followed is not var (cause, source, guard, timeline) || cause is null && timeline.Count == 0) return;
 
         Finding? stopped;
         lock (_gate)
@@ -486,7 +487,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (stopped is null) return;
 
-        var traced = stopped with
+        var traced = cause is null ? stopped with { Timeline = timeline } : stopped with
         {
             Title = $"{cause.Name} is {cause.Value} on line {cause.CrashLine}" +
                     (cause.IntroducedLine != cause.CrashLine ? $" - it was made {cause.Value} on line {cause.IntroducedLine}" : ""),
@@ -494,9 +495,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Explanation = string.IsNullOrWhiteSpace(stopped.Explanation) ? cause.Cause : $"{cause.Cause} {stopped.Explanation}",
             SuggestedFix = stopped.Fix is null ? cause.WhatToDo : stopped.SuggestedFix,
             RootCause = cause,
+            Timeline = timeline,
         };
 
-        if (traced.Fix is null && guard is not null)
+        if (cause is not null && traced.Fix is null && guard is not null)
         {
             var verified = await FixRun.CheckAsync(Verification.NotTested, source, guard, error, Expected, cancellationToken, chosen, spec.StandardInput);
 
@@ -530,29 +532,34 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         FindingsChanged?.Invoke(snapshot);
     }
 
-    /// <summary>Where a Python program's None came from, and the change that skips it on the line it stopped on.</summary>
-    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run, ParsedError error, ErrorFrame frame,
-        string chosen, string message, int crashLine, CancellationToken cancellationToken)
+    /// <summary>
+    /// What each variable of a Python program held where it stopped, from a second run - and, when it stopped on None, where
+    /// the None came from and the change that skips it on the line it stopped on.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run,
+        ParsedError error, ErrorFrame frame, string chosen, string message, int crashLine, CancellationToken cancellationToken)
     {
-        if (!message.Contains("NoneType", StringComparison.Ordinal) || error.ShortExceptionType is not { } type) return null;
+        if (error.ShortExceptionType is not { } type || LocalFixEngine.IsSyntaxPhase(error)) return null;
         if (!string.Equals(Path.GetFullPath(frame.File ?? ""), Path.GetFullPath(chosen), StringComparison.OrdinalIgnoreCase)) return null;
         if (PythonInterpreter(launch) is not { } python || SourceFile.Read(chosen) is not { } source) return null;
 
         // As long again as the run that failed took, and then some: the second run records every line, which is slower.
         var timeout = TimeSpan.FromSeconds(Math.Clamp(run.Duration.TotalSeconds * 4 + 10, 10, 60));
-        var cause = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, launch.Spec?.StandardInput ?? "", type, message, crashLine,
+        var traced = await Analysis.Dynamic.PythonNoneOrigin.TraceAsync(python, chosen, launch.Spec?.StandardInput ?? "", type, message, crashLine,
             frame.Symbol ?? "<module>", timeout, cancellationToken);
-        if (cause is null) return null;
+        if (traced is null) return null;
 
-        var guard = Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing ? Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing) : null;
-        return (cause, source, guard);
+        var guard = traced.Cause is { } cause && Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing
+            ? Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing)
+            : null;
+        return (traced.Cause, source, guard, traced.Timeline);
     }
 
     /// <summary>
     /// Where a Java program's null came from, and the change that skips it on the line it stopped on. Java's trace names the
     /// file by its name alone, so the program's own file of that name is the one it stopped in.
     /// </summary>
-    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
         string message, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named) return null;
@@ -569,14 +576,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (cause is null) return null;
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
-        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing));
+        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), []);
     }
 
     /// <summary>
     /// Where a JavaScript program's undefined or null came from, and the change that skips it on the line it stopped on. The
     /// column Node's trace gives says which part of the line read from it.
     /// </summary>
-    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
         string message, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType != "TypeError" || frame.File is not { } named) return null;
@@ -591,7 +598,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var cause = await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken);
         if (cause is null || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _)) return null;
 
-        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)));
+        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), []);
     }
 
     /// <summary>
@@ -2097,6 +2104,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         Confirmation = better.Confirmation ?? other.Confirmation,
         State = better.State ?? other.State,
         RootCause = better.RootCause ?? other.RootCause,
+        Timeline = better.Timeline.Count > 0 ? better.Timeline : other.Timeline,
     };
 
     /// <summary>

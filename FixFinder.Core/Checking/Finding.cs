@@ -132,6 +132,12 @@ public sealed record Finding
     /// </summary>
     public RootCause? RootCause { get; init; }
 
+    /// <summary>
+    /// What each variable held, line by line, where the program stopped - from a second run that recorded it. Empty wherever
+    /// no run recorded it, because a value nobody saw would be a guess.
+    /// </summary>
+    public IReadOnlyList<VariableHistory> Timeline { get; init; } = [];
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 

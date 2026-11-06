@@ -144,6 +144,42 @@ public class ReportPageTests
         Assert.Equal(at.OrderBy(index => index), at);
     }
 
+    /// <summary>One fold to a variable, each value with the line that gave it - the one the program stopped on open - and no script.</summary>
+    [Fact]
+    public void EachVariableOfTheTimelineOpensToItsValues()
+    {
+        var stopped = Found("best is None on line 10", kind: FindingKind.Runtime) with
+        {
+            RootCause = new RootCause
+            {
+                Name = "best",
+                Value = "None",
+                CrashLine = 10,
+                IntroducedLine = 8,
+                IntroducedCode = "best = None",
+                Steps = ["`best` was set to None on line 8."],
+                Evidence = ["`best` held None when line 10 ran."],
+                LinesInvolved = [8],
+                WhatToDo = "Give `best` a value.",
+            },
+            Timeline =
+            [
+                new VariableHistory("total", [new VariableChange(2, "0", null), new VariableChange(5, "55", null)], Cut: false),
+                new VariableHistory("best", [new VariableChange(8, "None", null)], Cut: false),
+                new VariableHistory("people", [new VariableChange(null, "0", 8)], Cut: false),
+            ],
+        };
+
+        var html = Page([stopped]).ToHtml();
+
+        Assert.Contains("<h4>Variable timeline</h4>", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"timeline\"><summary><code>total</code> - 2 values</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("<tr><td>line 5</td><td><code>55</code></td></tr>", html, StringComparison.Ordinal);
+        Assert.Contains("<details class=\"timeline\" open><summary><code>best</code> - 1 value</summary>", html, StringComparison.Ordinal);
+        Assert.Contains("<tr><td>the call on line 8</td><td><code>0</code></td></tr>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void TheComparisonWithTheLastCheckIsOnThePage()
     {

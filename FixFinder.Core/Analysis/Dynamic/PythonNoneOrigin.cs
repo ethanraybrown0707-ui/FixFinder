@@ -14,6 +14,9 @@ namespace FixFinder.Core.Analysis.Dynamic;
 /// line by line, which calls gave back None, and how many times each line ran. When that run does not stop with the same
 /// error on the same line, nothing is said, because it would no longer be about the run that failed.
 /// </remarks>
+/// <summary>What the second run of a Python program that stopped showed: where its None came from, when it stopped on one, and what each variable held.</summary>
+public sealed record PythonTraced(RootCause? Cause, IReadOnlyList<VariableHistory> Timeline);
+
 public static partial class PythonNoneOrigin
 {
     /// <summary>More names than this on one line and the line is not one a single missing value explains.</summary>
@@ -102,42 +105,52 @@ public static partial class PythonNoneOrigin
     private static partial Regex FunctionCalled();
 
     /// <summary>
-    /// Runs the program again, following the names the line that stopped could have found None in, and says where the None
-    /// came from - or null when the run does not stop the same way, or does not show it.
+    /// Runs the program again, recording what each variable held where it stopped, line by line - and, when it stopped on
+    /// None, following the names the line could have found None in, to say where the None came from. Null when the second run
+    /// does not stop with the same error on the same line, since it would no longer be about the run that failed.
     /// </summary>
     /// <param name="type">The error's type: TypeError.</param>
     /// <param name="message">Python's message, after the type: 'NoneType' object is not subscriptable.</param>
     /// <param name="scope">The function the program stopped in, or &lt;module&gt; for the file's own top level.</param>
-    public static async Task<RootCause?> TraceAsync(string interpreter, string file, string input, string type, string message, int crashLine,
+    public static async Task<PythonTraced?> TraceAsync(string interpreter, string file, string input, string type, string message, int crashLine,
         string scope, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        if (UseIn(message) is not { } use || SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } stoppedOn) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } stoppedOn) return null;
 
         var masked = CodeText.MaskAll(source.Lines, Syntax.Python);
         var stoppedMasked = masked[crashLine - 1];
+        var use = UseIn(message);
 
-        var holders = use.Holders
+        var holders = use is null ? [] : use.Holders
             .SelectMany(holder => holder.Matches(stoppedMasked))
             .Select(match => match.Groups["name"].Value)
             .Where(name => !Keywords.Contains(name))
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        var callsUsed = CallsUsed(stoppedMasked, stoppedOn, use);
-        if (holders.Count > MostNamesFollowed || holders.Count == 0 && callsUsed.Count == 0) return null;
+        var callsUsed = use is null ? [] : CallsUsed(stoppedMasked, stoppedOn, use);
 
-        var trace = await PythonProbe.FollowAsync(interpreter, file, input, holders, scope, crashLine, timeout, cancellationToken);
+        var trace = await PythonProbe.FollowAsync(interpreter, file, input, holders.Take(MostNamesFollowed).ToList(), scope, crashLine, timeout, cancellationToken);
 
         // Only a run that stopped the way the first one did, on the same line, says anything about that one.
         if (trace is null || trace.Error != type || trace.Message != message || trace.ErrorLine != crashLine) return null;
+
+        var timeline = trace.Followed
+            .Where(each => each.Value.Count > 0)
+            .Select(each => new VariableHistory(each.Key, [.. each.Value.Select(change => new VariableChange(change.Line, change.Value, change.CalledFrom))],
+                Cut: each.Value.Count >= VariableHistory.MostKept))
+            .ToList();
+
+        if (use is null || holders.Count > MostNamesFollowed || holders.Count == 0 && callsUsed.Count == 0) return new PythonTraced(null, timeline);
 
         var program = new ProgramRead(source.Lines, masked, trace);
         var heldNone = holders
             .Where(name => trace.Followed.TryGetValue(name, out var changes) && changes.Count > 0 && changes[^1].Value == "None")
             .ToList();
 
-        if (heldNone is [var name]) return FromName(program, use, name, trace.Followed[name], crashLine, type, scope);
-        if (heldNone.Count == 0) return FromCall(program, use, callsUsed, crashLine, type);
-        return null;
+        var cause = heldNone is [var name] ? FromName(program, use, name, trace.Followed[name], crashLine, type, scope)
+            : heldNone.Count == 0 ? FromCall(program, use, callsUsed, crashLine, type)
+            : null;
+        return new PythonTraced(cause, timeline);
     }
 
     /// <summary>

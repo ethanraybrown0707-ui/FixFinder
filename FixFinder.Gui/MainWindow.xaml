@@ -215,6 +215,34 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- The variable timeline: choose a variable, see each value it held and the line that gave it. -->
+                        <StackPanel Visibility="{Binding HasTimeline, Converter={StaticResource Visible}}" AutomationProperties.AutomationId="FindingTimeline">
+                            <TextBlock Text="VARIABLE TIMELINE" Style="{StaticResource Label}"/>
+                            <TextBlock Text="{Binding TimelineIntroduction}" Style="{StaticResource Body}" FontSize="12.5"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,6">
+                                <ComboBox ItemsSource="{Binding TimelineNames}" SelectedItem="{Binding SelectedTimelineName, Mode=TwoWay}" MinWidth="160"
+                                          FontFamily="{StaticResource CodeFont}" VerticalAlignment="Center"
+                                          AutomationProperties.AutomationId="FindingTimelineVariable" AutomationProperties.Name="Variable to show"/>
+                                <TextBlock Text="{Binding TimelineSummary}" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            </StackPanel>
+                            <Border Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8,6">
+                                <ItemsControl ItemsSource="{Binding TimelineRows}" Focusable="False"
+                                              AutomationProperties.AutomationId="FindingTimelineValues" AutomationProperties.Name="Values it held">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,1,0,1">
+                                                <TextBlock Text="{Binding GivenBy}" Width="150" FontSize="12.5" Foreground="{DynamicResource HintBrush}"/>
+                                                <TextBlock Text="{Binding Value}" FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                           Foreground="{DynamicResource CodeTextBrush}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+
                         <!-- 6 Learn more: what this kind of mistake is, in general, once this program's own has been said. -->
                         <Border BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,10,0,0">
                             <TextBlock Text="LEARN MORE" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>

@@ -225,6 +225,21 @@ public sealed record ReportPage
                 .Append(Text(FindingText.Mark(reason.Mark))).Append(' ').Append(Prose(reason.Text)).Append("</li>\n");
         page.Append("</ul>\n");
 
+        // The variable timeline: one variable to a fold, the one the program stopped on open, each value with the line that gave it.
+        if (finding.Timeline.Count > 0)
+        {
+            page.Append("<h4>Variable timeline</h4>\n<p class=\"hint\">").Append(Text(FindingText.TimelineIntroduction)).Append("</p>\n");
+            foreach (var variable in finding.Timeline)
+            {
+                page.Append(variable.Name == FindingText.TimelineShownFirst(finding) ? "<details class=\"timeline\" open>" : "<details class=\"timeline\">")
+                    .Append("<summary><code>").Append(Text(variable.Name)).Append("</code> - ").Append(Text(variable.Summary)).Append("</summary>\n")
+                    .Append("<table>\n<thead><tr><th>Given by</th><th>Value</th></tr></thead>\n<tbody>\n");
+                foreach (var given in variable.Changes)
+                    page.Append("<tr><td>").Append(Text(given.GivenBy)).Append("</td><td><code>").Append(Text(given.Value)).Append("</code></td></tr>\n");
+                page.Append("</tbody>\n</table>\n</details>\n");
+            }
+        }
+
         if (FindingText.Slice(finding) is { Length: > 0 } slice) page.Append("<h4>The lines that decide it</h4>\n<pre>").Append(Text(slice)).Append("</pre>\n");
 
         if (finding.State is { Rows.Count: > 0 } state)
@@ -384,6 +399,8 @@ public sealed record ReportPage
         .tag.fixed { color: var(--success); background: var(--success-soft); }
         .relation, .found { font-style: italic; color: var(--secondary); }
         .summary { font-weight: 600; }
+        details.timeline { margin: 4px 0; }
+        details.timeline summary { cursor: pointer; }
         .label { font-size: 12.5px; color: var(--secondary); margin: 8px 0 2px; }
         h4.part { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 20px; color: var(--accent); }
         .checked { background: var(--success-soft); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; margin-top: 12px; }

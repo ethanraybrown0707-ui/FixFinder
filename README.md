@@ -33,7 +33,8 @@ until the program prints what it should. FixFinder never changes your files.
    words, and always in the same order, this program first: the **summary**; the **cause**, in the program's own names
    and lines; the **most likely fix**, with its **fix confidence** - how sure FixFinder is of the change, which is not
    how sure it is of the finding; the exact code to change; **why FixFinder thinks this**, as a list of what it saw, each
-   marked; and then **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line
+   marked - with, for a Python program that stopped, a **variable timeline** of what each variable held, line by line; and
+   then **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line
    to go to, with the code on it, what happened there, making the change and checking it again. Where the language said something about it,
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
@@ -985,6 +986,7 @@ changed.
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
+| **Variable timeline** | For a Python program that stopped with an error in its own code: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. A second run records them as it goes, so every value is one the program held: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In a saved report, each variable is a fold to open. |
 | **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |

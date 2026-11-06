@@ -60,6 +60,14 @@ public static class FindingText
         : finding.InNotebook is { } place ? $"What line {state.Line} of cell {place.Cell} did, each time it ran"
         : $"What line {state.Line} did, each time it ran";
 
+    /// <summary>What the variable timeline is, said above it.</summary>
+    public const string TimelineIntroduction =
+        "What each variable held where the program stopped, and the line that gave it each value - recorded by a second run of the program.";
+
+    /// <summary>The variable whose timeline is shown first: the one the program stopped on, when it is in the timeline.</summary>
+    public static string? TimelineShownFirst(Finding finding) =>
+        finding.RootCause is { } cause && finding.Timeline.Any(variable => variable.Name == cause.Name) ? cause.Name : finding.Timeline.FirstOrDefault()?.Name;
+
     public static string? FurtherReading(Finding finding) =>
         finding.FurtherReading is { } reading ? $"Search {reading.SiteName} for {reading.Term}" : null;
 

@@ -104,6 +104,35 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public IReadOnlyList<MarkedReason> Reasons =>
         FindingLayout.WhyItThinksThis(Finding).Select(reason => new MarkedReason(FindingText.Mark(reason.Mark), reason.Text, reason.Mark == StageResult.Failed)).ToList();
 
+    /// <summary>Whether a run recorded what the variables held where the program stopped.</summary>
+    public bool HasTimeline => Finding.Timeline.Count > 0;
+
+    public string TimelineIntroduction => FindingText.TimelineIntroduction;
+
+    public IReadOnlyList<string> TimelineNames => [.. Finding.Timeline.Select(variable => variable.Name)];
+
+    private string? _timelineName;
+
+    /// <summary>The variable whose values are shown: the one the program stopped on, until another is chosen.</summary>
+    public string? SelectedTimelineName
+    {
+        get => _timelineName ??= FindingText.TimelineShownFirst(Finding);
+        set
+        {
+            _timelineName = value;
+            Changed(nameof(SelectedTimelineName), nameof(TimelineRows), nameof(TimelineSummary));
+        }
+    }
+
+    private VariableHistory? SelectedTimeline => Finding.Timeline.FirstOrDefault(variable => variable.Name == SelectedTimelineName);
+
+    /// <summary>One value the chosen variable was given, with the line that gave it.</summary>
+    public sealed record TimelineRow(string GivenBy, string Value);
+
+    public IReadOnlyList<TimelineRow> TimelineRows => SelectedTimeline is { } chosen ? [.. chosen.Changes.Select(change => new TimelineRow(change.GivenBy, change.Value))] : [];
+
+    public string TimelineSummary => SelectedTimeline?.Summary ?? "";
+
     /// <summary>What this kind of mistake is in general, once what happened in this program has been said.</summary>
     public string LearnMore => FindingLayout.LearnMore(Finding);
 
@@ -342,6 +371,16 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
         lines.Add("Why FixFinder thinks this:");
         lines.AddRange(Reasons.Select(reason => $"    {reason.Mark} {reason.Text}"));
+
+        if (HasTimeline)
+        {
+            lines.Add("Variable timeline:");
+            foreach (var variable in Finding.Timeline)
+            {
+                lines.Add($"    {variable.Name} ({variable.Summary}):");
+                lines.AddRange(variable.Changes.Select(change => $"        {change.GivenBy}: {change.Value}"));
+            }
+        }
 
         if (HasSlice)
         {

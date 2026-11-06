@@ -20,8 +20,9 @@ public sealed record Trace(IReadOnlyList<int> Lines, bool Cut, string? Error, st
     public bool WatchedCut { get; init; }
 
     /// <summary>
-    /// For each followed name, the last changes to what it held in the frame that stopped with the error, oldest first, up
-    /// to the moment it stopped. Empty unless names were followed.
+    /// For each variable of the frame that stopped with the error - the followed names, and every other one that held a value
+    /// - the last changes to what it held, oldest first, up to the moment it stopped: given another value, or a list,
+    /// dictionary or set that grew or shrank. Empty unless names were followed.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ValueChange>> Followed { get; init; } = new Dictionary<string, IReadOnlyList<ValueChange>>();
 
@@ -60,7 +61,7 @@ public static class PythonProbe
     private const int MostStates = 200;
 
     private const string Script = """
-        import ast, collections, json, os, runpy, sys, threading
+        import ast, collections, json, os, runpy, sys, threading, types
         out, target, mode = sys.argv[1], os.path.abspath(sys.argv[2]), sys.argv[3]
         wanted = os.path.normcase(target)
         lines, state = [], {"cut": False, "watchcut": False}
@@ -81,6 +82,19 @@ public static class PythonProbe
         held, changes, previous_line, times_run_in_call, started_with, unwinding = {}, {}, {}, {}, {}, set()
         gave_none = collections.deque(maxlen=50)
         followed_at_error = {}
+        not_values = (types.ModuleType, types.FunctionType, types.BuiltinFunctionType, type)
+        sizes = {}
+        def names_in(frame):
+            # Every variable of the frame that holds a value - not a module, a function or a class it can see - as many as
+            # a timeline can show, and the ones asked about whatever else there is.
+            own = [name for name, value in list(frame.f_locals.items()) if not name.startswith("__") and not isinstance(value, not_values)]
+            return list(dict.fromkeys(follow + own[:30]))
+        def resized(key, name, value):
+            # A list, dictionary or set that grew or shrank has changed, though the name still holds the same one.
+            if not isinstance(value, (list, dict, set)):
+                return False
+            size, sizes[(key, name)] = sizes.get((key, name)), len(value)
+            return size is not None and size != len(value)
         def caller_line(frame):
             caller = frame.f_back
             return caller.f_lineno if caller is not None and os.path.normcase(caller.f_code.co_filename) == wanted else None
@@ -96,17 +110,18 @@ public static class PythonProbe
                         parameters = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
                         started_with[key] = {name: repr(frame.f_locals.get(name))[:60] for name in parameters}
             if scope == follow_scope:
-                for name in follow:
+                for name in names_in(frame):
                     value = frame.f_locals.get(name, missing)
-                    if value is not held.get((key, name), missing):
+                    grew = resized(key, name, value)
+                    if value is not held.get((key, name), missing) or grew:
                         held[(key, name)] = value
                         if value is not missing:
                             made_by = previous_line.get(key)
-                            changes.setdefault((key, name), collections.deque(maxlen=20)).append(
+                            changes.setdefault((key, name), collections.deque(maxlen=50)).append(
                                 {"line": made_by, "value": repr(value)[:60], "from": caller_line(frame) if made_by is None else None})
                 if event == "exception" and frame.f_lineno == follow_line:
                     followed_at_error.clear()
-                    followed_at_error.update({name: list(changes.get((key, name), [])) for name in follow})
+                    followed_at_error.update({name: list(said) for (owner, name), said in changes.items() if owner == key})
             if event == "line":
                 previous_line[key] = frame.f_lineno
             elif event == "exception":
@@ -118,9 +133,11 @@ public static class PythonProbe
                                       "ran": {str(line): times for line, times in (ran or {}).items()}})
                 unwinding.discard(key)
                 previous_line.pop(key, None)
-                for name in follow:
-                    held.pop((key, name), None)
-                    changes.pop((key, name), None)
+                for owner, name in [each for each in changes if each[0] == key]:
+                    changes.pop((owner, name), None)
+                for owner, name in [each for each in held if each[0] == key]:
+                    held.pop((owner, name), None)
+                    sizes.pop((owner, name), None)
         def local(frame, event, arg):
             if event == "line":
                 note(frame.f_lineno)
