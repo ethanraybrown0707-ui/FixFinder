@@ -17,6 +17,15 @@ internal static class EveryLanguagePatternGuides
             "Keep what the function gives back, in the name it was made from.",
             example);
 
+    private static GuideEntry LoopNeverAdvances(string id, string example) =>
+        GuideFor([id], "A loop that never ends",
+            "A loop that counts its way through a list keeps going while the counter is below the end, so something in the loop has " +
+            "to move the counter on each pass. Nothing here does: the counter keeps the value it started with, the condition that " +
+            "was true on the first pass is true on every pass, and the loop never stops.",
+            "The program hangs - it never prints its answer and never finishes, and has to be stopped.",
+            "Move the counter on at the end of each pass.",
+            example);
+
     private static GuideEntry WrongList(string id, string example) =>
         GuideFor([id], "A loop that goes through a different list from the one its items are named for",
             "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
@@ -935,6 +944,105 @@ internal static class EveryLanguagePatternGuides
             """
             total_width = Enum.reduce(widths, 0, fn width, sum -> sum + width end)
             total_height = Enum.reduce(heights, 0, fn height, sum -> sum + height end)
+            """),
+        LoopNeverAdvances("logic-ruby-loop-never-advances",
+            """
+            i = 0
+            while i < marks.length
+              total += marks[i]
+              i += 1
+            end
+            """),
+        LoopNeverAdvances("logic-php-loop-never-advances",
+            """
+            $i = 0;
+            while ($i < count($marks)) {
+                $total += $marks[$i];
+                $i++;
+            }
+            """),
+        LoopNeverAdvances("logic-lua-loop-never-advances",
+            """
+            local i = 1
+            while i <= #marks do
+              total = total + marks[i]
+              i = i + 1
+            end
+            """),
+        LoopNeverAdvances("logic-go-loop-never-advances",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{50, 60, 70}
+            	i := 0
+            	total := 0
+            	for i < len(marks) {
+            		total += marks[i]
+            		i++
+            	}
+            	fmt.Println(total)
+            }
+            """),
+        LoopNeverAdvances("logic-rust-loop-never-advances",
+            """
+            let mut i = 0;
+            while i < marks.len() {
+                total += marks[i];
+                i += 1;
+            }
+            """),
+        LoopNeverAdvances("logic-powershell-loop-never-advances",
+            """
+            $marks = @(50, 60, 70)
+            $i = 0
+            $total = 0
+            while ($i -lt $marks.Count) {
+                $total += $marks[$i]
+                $i++
+            }
+            Write-Output $total
+            """),
+        LoopNeverAdvances("logic-perl-loop-never-advances",
+            """
+            my $i = 0;
+            while ($i < @marks) {
+                $total += $marks[$i];
+                $i++;
+            }
+            """),
+        LoopNeverAdvances("logic-dart-loop-never-advances",
+            """
+            var i = 0;
+            while (i < marks.length) {
+              total += marks[i];
+              i++;
+            }
+            """),
+        LoopNeverAdvances("logic-scala-loop-never-advances",
+            """
+            var i = 0
+            while (i < marks.length) {
+              total += marks(i)
+              i += 1
+            }
+            """),
+        LoopNeverAdvances("logic-fsharp-loop-never-advances",
+            """
+            let mutable i = 0
+            while i < marks.Length do
+                total <- total + marks.[i]
+                i <- i + 1
+            """),
+        LoopNeverAdvances("logic-fortran-loop-never-advances",
+            """
+            i = 1
+            do while (i <= size(marks))
+              total = total + marks(i)
+              i = i + 1
+            end do
             """),
     ];
 }

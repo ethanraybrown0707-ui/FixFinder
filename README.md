@@ -1775,20 +1775,20 @@ Python, Java and C# are checked most thoroughly.
 | C | 46 | 40 | 39 |
 | C++ | 46 | 50 | 39 |
 | JavaScript | 44 | 59 | 16 |
-| Go | 38 | 30 | 18 |
-| Scala | 6 | 26 | 28 |
+| Go | 38 | 31 | 18 |
+| Scala | 6 | 27 | 28 |
 | OCaml | 6 | 11 | 26 |
-| Rust | 7 | 18 | 33 |
-| Ruby | 13 | 35 | 26 |
-| PHP | 16 | 32 | 18 |
-| Lua | 12 | 23 | 25 |
-| Perl | 14 | 29 | 26 |
-| Dart | 16 | 20 | 23 |
-| Fortran | 13 | 18 | 19 |
-| PowerShell | 11 | 34 | 16 |
+| Rust | 7 | 19 | 33 |
+| Ruby | 13 | 36 | 26 |
+| PHP | 16 | 33 | 18 |
+| Lua | 12 | 24 | 25 |
+| Perl | 14 | 30 | 26 |
+| Dart | 16 | 21 | 23 |
+| Fortran | 13 | 19 | 19 |
+| PowerShell | 11 | 35 | 16 |
 | Elixir | 15 | 22 | 29 |
 | Erlang | 13 | 13 | 23 |
-| F# | 17 | 22 | 33 |
+| F# | 17 | 23 | 33 |
 | TypeScript | 48 | 59 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
