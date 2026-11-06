@@ -573,11 +573,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? line
             : (int?)null;
 
-        var cause = await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken);
-        if (cause is null) return null;
+        if (await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
-        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), []);
+        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), traced.Timeline);
     }
 
     /// <summary>
@@ -596,10 +596,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? called
             : (int?)null;
 
-        var cause = await Analysis.Dynamic.CSharpNullOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken);
-        if (cause is null) return null;
+        if (await Analysis.Dynamic.CSharpNullOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), []);
+        return (cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
@@ -618,10 +618,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? called
             : (int?)null;
 
-        var cause = await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken);
-        if (cause is null || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _)) return null;
+        if (await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _))
+            return (null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), []);
+        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

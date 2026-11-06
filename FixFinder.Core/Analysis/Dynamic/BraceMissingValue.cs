@@ -54,6 +54,12 @@ internal abstract class BraceDialect
 
     /// <summary>What the language's documentation says of the call on the right of the line that gave the missing value, or null.</summary>
     public abstract Documented? Library(string right, BraceCode code);
+
+    /// <summary>
+    /// A line that gives a name a value and holds nothing else - x = 1;, total += mark;, i++; - with the name as "name" and, for
+    /// a declaration, its type as "type": what the variable timeline prints a value after.
+    /// </summary>
+    public abstract Regex SetsAnyName { get; }
 }
 
 /// <summary>
@@ -62,6 +68,9 @@ internal abstract class BraceDialect
 /// begins, and at each of their returns and ifs, every one put on the line it is about, so no line moves. Only a copy that
 /// stops the way the program did, on the same line, is read; nothing is said of one that did not.
 /// </summary>
+/// <summary>What a copy of a program that stopped on a missing value showed: where the value came from, and what each variable held.</summary>
+public sealed record BraceTraced(RootCause? Cause, IReadOnlyList<VariableHistory> Timeline);
+
 internal static class BraceMissingValue
 {
     /// <summary>What every line the copy prints for FixFinder starts with, so the program's own output is never read as one.</summary>
@@ -75,7 +84,7 @@ internal static class BraceMissingValue
     /// <param name="calledFunction">The function whose result was used straight away, when <paramref name="name"/> is null.</param>
     /// <param name="calledFrom">The line of the same file the function it stopped in was called from, when the trace says so.</param>
     /// <param name="stoppedTheSameWay">Whether the copy's error is the program's: same kind, same message.</param>
-    public static async Task<RootCause?> TraceAsync(BraceDialect dialect, string program, SourceFile source, string? typed, int crashLine, int? calledFrom,
+    public static async Task<BraceTraced?> TraceAsync(BraceDialect dialect, string program, SourceFile source, string? typed, int crashLine, int? calledFrom,
         string doing, string? value, string? name, string? calledFunction, Func<ParsedError, bool> stoppedTheSameWay, CancellationToken cancellationToken)
     {
         if (source.Line(crashLine) is null || name is null && (calledFunction is null || value is null)) return null;
@@ -100,6 +109,11 @@ internal static class BraceMissingValue
         foreach (var line in followed.Select(each => (BraceFunction?)each).Append(stoppedIn).SelectMany(code.Ifs).Distinct())
             marks.Before(line, dialect.Print($"\"{Marker} if {line}\""));
 
+        // The variable timeline: each value a variable is given where it stopped, printed after the line that gives it.
+        foreach (var (line, variable, type) in code.LinesSettingAny(stoppedIn).Take(MostLinesFollowed))
+            marks.After(line, dialect.Print($"\"{Marker} value {line} {variable}{Between}\" + {dialect.Shown(code.TypeOf(variable, type, stoppedIn), variable)}"),
+                dialect.StatementsEndInSemicolons);
+
         if (await Checking.FixRun.RunChangedAsync(source, marks.Lines, program, typed, cancellationToken) is not { } run) return null;
         if (run.Error is not { } error || !stoppedTheSameWay(error) || LocalFixContext.OwnFrame(error)?.Line != crashLine) return null;
 
@@ -108,9 +122,61 @@ internal static class BraceMissingValue
             .Select(text => text[(Marker.Length + 1)..])
             .ToList();
         var story = new Story(dialect, code, events, crashLine, value);
+        var cause = name is not null ? story.FromName(name, doing, stoppedIn, calledFrom) : story.FromCall(calledFunction!, doing, value!);
 
-        return name is not null ? story.FromName(name, doing, stoppedIn, calledFrom) : story.FromCall(calledFunction!, doing, value!);
+        return new BraceTraced(cause, Timeline(events, stoppedIn, calledFrom));
     }
+
+    /// <summary>How many lines of where it stopped have their value printed: enough for a beginner's program, not a long file's.</summary>
+    private const int MostLinesFollowed = 60;
+
+    /// <summary>
+    /// What each variable held where the program stopped, in the order the copy printed it - from the call that began the
+    /// function it stopped in, its parameters first - with the last <see cref="VariableHistory.MostKept"/> values of each.
+    /// </summary>
+    private static IReadOnlyList<VariableHistory> Timeline(List<string> events, BraceFunction? stoppedIn, int? calledFrom)
+    {
+        var start = stoppedIn is null ? 0 : events.FindLastIndex(said => said.StartsWith($"call {stoppedIn.Name}{Between}", StringComparison.Ordinal));
+        if (start < 0) return [];
+
+        var held = new Dictionary<string, List<VariableChange>>(StringComparer.Ordinal);
+        var order = new List<string>();
+        void Add(string variable, VariableChange change)
+        {
+            if (!held.TryGetValue(variable, out var changes))
+            {
+                held[variable] = changes = [];
+                order.Add(variable);
+            }
+
+            changes.Add(change);
+        }
+
+        if (stoppedIn is not null)
+        {
+            foreach (var given in events[start][$"call {stoppedIn.Name}{Between}".Length..].Split(Between, StringSplitOptions.None))
+                if (given.IndexOf(" = ", StringComparison.Ordinal) is > 0 and var equals)
+                    Add(given[..equals], new VariableChange(null, Cut(given[(equals + 3)..]), calledFrom));
+        }
+
+        for (var index = stoppedIn is null ? 0 : start + 1; index < events.Count; index++)
+        {
+            if (stoppedIn is not null && events[index].StartsWith($"call {stoppedIn.Name}{Between}", StringComparison.Ordinal)) break;
+
+            var said = events[index];
+            if (!said.StartsWith("value ", StringComparison.Ordinal) || said.IndexOf(Between, StringComparison.Ordinal) is not (> 0 and var between)) continue;
+
+            var parts = said[..between].Split(' ');
+            if (parts.Length != 3 || !int.TryParse(parts[1], out var line)) continue;
+            Add(parts[2], new VariableChange(line, Cut(said[(between + Between.Length)..]), null));
+        }
+
+        return [.. order.Select(variable => held[variable] is var changes && changes.Count > VariableHistory.MostKept
+            ? new VariableHistory(variable, changes[^VariableHistory.MostKept..], Cut: true)
+            : new VariableHistory(variable, held[variable], Cut: false))];
+    }
+
+    private static string Cut(string value) => value.Length > 60 ? value[..60] : value;
 
     /// <summary>
     /// The change that stops the program stopping: line <paramref name="cause"/>.CrashLine runs only when the variable holds
@@ -472,6 +538,32 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
                                            (function is null || other.Header > function.Header));
             if (!inside) yield return line;
         }
+    }
+
+    /// <summary>
+    /// The lines of a function, or the file's top level, that give a name a value and hold nothing else - each with the name
+    /// and the type it is declared with there, if it is - leaving out a name given a function, whose value says nothing.
+    /// </summary>
+    public IEnumerable<(int Line, string Name, string Type)> LinesSettingAny(BraceFunction? function)
+    {
+        foreach (var line in OwnLines(function))
+        {
+            var text = masked[line - 1];
+            if (dialect.SetsAnyName.Match(text) is not { Success: true } set) continue;
+            if (text.Count(c => c == '(') != text.Count(c => c == ')') || text.Count(c => c == '{') != text.Count(c => c == '}')) continue;
+            if (text.Contains("=>", StringComparison.Ordinal) || Regex.IsMatch(text, @"\bfunction\b")) continue;
+            yield return (line, set.Groups["name"].Value, set.Groups["type"].Value);
+        }
+    }
+
+    /// <summary>What a name is declared as - on the line, among the function's parameters, or on a line of it that declares it - or "".</summary>
+    public string TypeOf(string name, string onTheLine, BraceFunction? function)
+    {
+        if (onTheLine.Length > 0 && onTheLine is not ("var" or "let" or "const" or "val" or "final")) return onTheLine;
+        if (function?.Parameters.FirstOrDefault(parameter => parameter.Name == name) is { Name.Length: > 0 } parameter) return parameter.Type;
+
+        return LinesSettingAny(function).Where(each => each.Name == name).Select(each => each.Type)
+            .FirstOrDefault(type => type.Length > 0 && type is not ("var" or "let" or "const" or "val" or "final")) ?? "";
     }
 
     /// <summary>The lines that give the variable a value and hold nothing else: <c>member = findMember(members, 2);</c>.</summary>

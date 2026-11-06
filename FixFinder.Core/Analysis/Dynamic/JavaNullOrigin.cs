@@ -40,14 +40,14 @@ public static partial class JavaNullOrigin
     /// <param name="file">The file it stopped in.</param>
     /// <param name="message">Java's message: Cannot invoke "java.util.Map.get(Object)" because "member" is null.</param>
     /// <param name="calledFrom">The line of the same file the method it stopped in was called from, when Java's trace says so.</param>
-    public static Task<RootCause?> TraceAsync(string program, string file, string? typed, string message, int crashLine, int? calledFrom,
+    public static Task<BraceTraced?> TraceAsync(string program, string file, string? typed, string message, int crashLine, int? calledFrom,
         CancellationToken cancellationToken)
     {
-        if (SourceFile.Read(file) is not { } source) return Task.FromResult<RootCause?>(null);
+        if (SourceFile.Read(file) is not { } source) return Task.FromResult<BraceTraced?>(null);
 
         var named = NamedNull().Match(message);
         var returned = ReturnedNull().Match(message);
-        if (!named.Success && !returned.Success) return Task.FromResult<RootCause?>(null);
+        if (!named.Success && !returned.Success) return Task.FromResult<BraceTraced?>(null);
 
         return BraceMissingValue.TraceAsync(Java, program, source, typed, crashLine, calledFrom, DoingIn(message), "null",
             named.Success ? named.Groups["name"].Value : null, returned.Success ? returned.Groups["method"].Value : null,
@@ -92,6 +92,11 @@ public static partial class JavaNullOrigin
         private static partial Regex GetCalled();
 
         public override string ErrorName => "NullPointerException";
+
+        public override Regex SetsAnyName => SetsAny();
+
+        [GeneratedRegex(@"^(?!\s*(?:if|else|for|while|do|return|case|switch|try|catch|throw|yield)\b)\s*(?:final\s+)?(?:(?<type>[\w.$]+(?:<[^;=]*>)?(?:\[\])*)\s+)?(?<name>[A-Za-z_$][\w$]*)\s*[-+*/%]?=(?!=)[^;]*;\s*$|^\s*(?<name>[A-Za-z_$][\w$]*)\s*(?:\+\+|--)\s*;\s*$")]
+        private static partial Regex SetsAny();
 
         public override IReadOnlyList<string> MissingWords { get; } = ["null"];
 

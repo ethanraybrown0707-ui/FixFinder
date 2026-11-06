@@ -36,11 +36,11 @@ public static partial class JavaScriptMissingOrigin
     /// null when the copy does not stop the same way, or does not show it.
     /// </summary>
     /// <param name="column">The column Node's trace gives for the line it stopped on: where the property read is.</param>
-    public static Task<RootCause?> TraceAsync(string program, string file, string? typed, string message, int crashLine, int? column, int? calledFrom,
+    public static Task<BraceTraced?> TraceAsync(string program, string file, string? typed, string message, int crashLine, int? column, int? calledFrom,
         CancellationToken cancellationToken)
     {
-        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return Task.FromResult<RootCause?>(null);
-        if (Read(message, line, column) is not var (doing, value, name, calledFunction)) return Task.FromResult<RootCause?>(null);
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return Task.FromResult<BraceTraced?>(null);
+        if (Read(message, line, column) is not var (doing, value, name, calledFunction)) return Task.FromResult<BraceTraced?>(null);
 
         return BraceMissingValue.TraceAsync(JavaScript, program, source, typed, crashLine, calledFrom, doing, value, name, calledFunction,
             error => error.ShortExceptionType == "TypeError" && error.Message == message, cancellationToken);
@@ -138,6 +138,11 @@ public static partial class JavaScriptMissingOrigin
         private static partial Regex LookedUp();
 
         public override string ErrorName => "TypeError";
+
+        public override Regex SetsAnyName => SetsAny();
+
+        [GeneratedRegex(@"^(?!\s*(?:if|else|for|while|do|return|case|switch|try|catch|throw|export|yield)\b)\s*(?:(?:const|let|var)\s+)?(?<name>[A-Za-z_$][\w$]*)\s*(?::[^=]+)?[-+*/%]?=(?![=>])[^;]*;?\s*$|^\s*(?<name>[A-Za-z_$][\w$]*)\s*(?:\+\+|--)\s*;?\s*$|^\s*(?:let|var)\s+(?<name>[A-Za-z_$][\w$]*)\s*(?::[^=;]+)?;?\s*$")]
+        private static partial Regex SetsAny();
 
         public override IReadOnlyList<string> MissingWords { get; } = ["undefined", "null"];
 

@@ -31,9 +31,9 @@ public static partial class CSharpNullOrigin
     /// <param name="program">The file the program is run from.</param>
     /// <param name="file">The file it stopped in.</param>
     /// <param name="calledFrom">The line of the same file the method it stopped in was called from, when .NET's trace says so.</param>
-    public static Task<RootCause?> TraceAsync(string program, string file, string? typed, int crashLine, int? calledFrom, CancellationToken cancellationToken)
+    public static Task<BraceTraced?> TraceAsync(string program, string file, string? typed, int crashLine, int? calledFrom, CancellationToken cancellationToken)
     {
-        if (SourceFile.Read(file) is not { } source || Read(source, crashLine) is not var (name, doing)) return Task.FromResult<RootCause?>(null);
+        if (SourceFile.Read(file) is not { } source || Read(source, crashLine) is not var (name, doing)) return Task.FromResult<BraceTraced?>(null);
 
         return BraceMissingValue.TraceAsync(CSharp, program, source, typed, crashLine, calledFrom, doing, "null", name, null,
             error => error.ShortExceptionType == "NullReferenceException", cancellationToken);
@@ -82,6 +82,11 @@ public static partial class CSharpNullOrigin
         private static partial Regex LookedUp();
 
         public override string ErrorName => "NullReferenceException";
+
+        public override Regex SetsAnyName => SetsAny();
+
+        [GeneratedRegex(@"^(?!\s*(?:if|else|for|foreach|while|do|return|case|switch|try|catch|throw|yield|using|lock)\b)\s*(?:(?<type>[\w.]+(?:<[^;=]*>)?(?:\[\])*\??)\s+)?(?<name>[A-Za-z_]\w*)\s*[-+*/%]?=(?![=>])[^;]*;\s*$|^\s*(?<name>[A-Za-z_]\w*)\s*(?:\+\+|--)\s*;\s*$")]
+        private static partial Regex SetsAny();
 
         public override IReadOnlyList<string> MissingWords { get; } = ["null"];
 
