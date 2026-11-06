@@ -492,8 +492,25 @@ internal static class BraceMissingValue
             return said + ".";
         }
 
-        private static string? CalledFunction(string right) =>
-            Regex.Match(right, @"^(?:await\s+)?(?:(?:this|[A-Z][\w$]*)\.)?(?<function>[A-Za-z_$][\w$]*)\s*\(.*\)$") is { Success: true } call ? call.Groups["function"].Value : null;
+        /// <summary>
+        /// The function of the program the right side is a call to - name(...), this.name(...) or Name.name(...), or
+        /// object.name(...) where the file declares object as one of its own classes and name is a method of that class - or
+        /// null. The call's brackets have to close at the end, so in find(list).get(0) the value is get's, not find's.
+        /// </summary>
+        private string? CalledFunction(string right)
+        {
+            if (Regex.Match(right, @"^(?:await\s+)?(?:(?<receiver>[A-Za-z_$][\w$]*)\.)?(?<function>[A-Za-z_$][\w$]*)\s*\(.*\)$") is not { Success: true } call) return null;
+
+            var masked = CodeText.Mask(right, Syntax.CLike);
+            var open = masked.IndexOf('(', call.Groups["function"].Index + call.Groups["function"].Length);
+            if (open < 0 || Brackets.ClosingParenthesis(masked, open) != masked.TrimEnd().Length - 1) return null;
+
+            var receiver = call.Groups["receiver"].Value;
+            var function = call.Groups["function"].Value;
+            if (receiver.Length == 0 || receiver == "this" || receiver[0] is >= 'A' and <= 'Z') return function;
+
+            return code.Unique.TryGetValue(function, out var method) && code.ClassOf(receiver) is { } type && code.InClass(method, type) ? function : null;
+        }
     }
 }
 
@@ -646,4 +663,30 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
         masked.Select(text => Regex.Match(text, $@"(?<type>\b[\w.$]+(?:<[^;=()]*>)?)\s+{Regex.Escape(name)}\s*(?::[^=;()]+)?(?<given>=\s*[^;]*|[;,)])")).FirstOrDefault(match => match.Success) is { } found
             ? found.Groups["type"].Value + (found.Groups["given"].Value.StartsWith('=') ? " " + found.Groups["given"].Value : "")
             : null;
+
+    /// <summary>The file's own class an object is declared as - <c>Library library</c>, or <c>library = new Library()</c> - or null.</summary>
+    public string? ClassOf(string name)
+    {
+        if (DeclaredAs(name) is not { } declared) return null;
+
+        var made = Regex.Match(declared, @"\bnew\s+(?<type>[A-Z][\w$]*)");
+        var type = made.Success ? made.Groups["type"].Value : Regex.Match(declared, @"^(?<type>[A-Z][\w$]*)").Groups["type"].Value;
+        return type.Length > 0 && ClassLines(type) is not null ? type : null;
+    }
+
+    /// <summary>Whether the function is written inside the file's class of that name.</summary>
+    public bool InClass(BraceFunction function, string type) =>
+        ClassLines(type) is { } body && body.First < function.Header && function.End <= body.Last;
+
+    /// <summary>The line the file's class of that name begins on and the line its body ends on, 1-based - or null.</summary>
+    private (int First, int Last)? ClassLines(string type)
+    {
+        for (var index = 0; index < masked.Count; index++)
+        {
+            if (!Regex.IsMatch(masked[index], $@"\bclass\s+{Regex.Escape(type)}\b")) continue;
+            return Brackets.BlockEnd(masked, index) is { } end ? (index + 1, end + 1) : null;
+        }
+
+        return null;
+    }
 }

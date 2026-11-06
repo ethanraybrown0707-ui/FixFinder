@@ -182,8 +182,15 @@ public static partial class JavaScriptMissingOrigin
 
         public override string MissingOrValue(string name) => $"({name} === undefined ? \"undefined\" : {name} === null ? \"null\" : \"value\")";
 
+        /// <summary>
+        /// The value as JSON - which writes a Map or a Set as {}, so a Map is written as the object of its keys and values (or
+        /// a list of its pairs, when a key is not a string or a number) and a Set as a list of its items, wherever they are.
+        /// </summary>
         public override string Shown(string type, string name) =>
-            $"(() => {{ try {{ const said = JSON.stringify({name}); return said === undefined ? String({name}) : said; }} catch {{ return String({name}); }} }})()";
+            $"(() => {{ try {{ const fixFinderSaid = JSON.stringify({name}, (fixFinderKey, fixFinderHeld) => " +
+            "fixFinderHeld instanceof Map ? ([...fixFinderHeld.keys()].every((fixFinderEach) => typeof fixFinderEach === \"string\" || typeof fixFinderEach === \"number\") " +
+            "? Object.fromEntries(fixFinderHeld) : [...fixFinderHeld]) : fixFinderHeld instanceof Set ? [...fixFinderHeld] : fixFinderHeld); " +
+            $"return fixFinderSaid === undefined ? String({name}) : fixFinderSaid; }} catch {{ return String({name}); }} }})()";
 
         /// <summary>
         /// An array's find, where the file declares the array, and a Map's get, where it declares the Map: JavaScript's

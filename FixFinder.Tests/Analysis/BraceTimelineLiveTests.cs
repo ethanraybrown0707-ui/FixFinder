@@ -38,6 +38,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "scores: line 1 = [40, 55]|best: line 2 = null" },
         { "Program.cs", "var members = new List<Member> { new Member(1, 30) };\nvar member = FindMember(members, 2);\nConsole.WriteLine(\"Age: \" + member.Age);\n\nstatic Member? FindMember(List<Member> members, int wanted)\n{\n    foreach (var member in members)\n    {\n        if (member.Id == wanted)\n        {\n            return member;\n        }\n    }\n    return null;\n}\n\nrecord Member(int Id, int Age);\n", 3,
             "members: line 1 = [Member { Id = 1, Age = 30 }]|member: line 2 = null" },
+        { "map_items.js", "const prices = new Map([[\"tea\", 2], [\"cake\", 3]]);\nconst basket = new Set([\"tea\", \"milk\"]);\nlet total = 0;\nfor (const item of basket) {\n    const price = prices.get(item);\n    total = total + price.valueOf();\n}\nconsole.log(total);\n", 6,
+            "prices: line 1 = {\"tea\":2,\"cake\":3}|basket: line 2 = [\"tea\",\"milk\"]|total: line 3 = 0; line 6 = 2|price: line 5 = 2; line 5 = undefined" },
+        { "class_method.ts", "class Library {\n    private shelves: Map<string, string[]> = new Map();\n\n    add(shelf: string, title: string): void {\n        if (!this.shelves.has(shelf)) {\n            this.shelves.set(shelf, []);\n        }\n        this.shelves.get(shelf)!.push(title);\n    }\n\n    firstOn(shelf: string): string | undefined {\n        const titles = this.shelves.get(shelf);\n        if (titles && titles.length > 0) {\n            return titles[0];\n        }\n        return undefined;\n    }\n}\n\nconst library = new Library();\nlibrary.add(\"science\", \"Cosmos\");\nconst first = library.firstOn(\"history\");\nconsole.log(first!.length);\n", 23,
+            "library: line 20 = {\"shelves\":{}}|first: line 22 = undefined" },
     };
 
     [Theory]
