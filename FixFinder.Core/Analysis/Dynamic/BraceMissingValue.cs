@@ -240,7 +240,7 @@ internal static class BraceMissingValue
         if (!before.EndsWith(';') && !before.EndsWith('{') && !before.EndsWith('}') && (dialect.StatementsEndInSemicolons || Regex.IsMatch(before, @"[-+*/%=&|<>?:,(\[.]$"))) return null;
 
         var indent = CodeText.Indentation(line);
-        var step = indent.Contains('\t') ? "\t" : "    ";
+        var step = indent.Contains('\t') ? "\t" : new string(' ', IndentStep(source.Lines));
 
         return new LocalFix
         {
@@ -255,6 +255,16 @@ internal static class BraceMissingValue
             OnlyStopsTheFailure = true,
         };
     }
+
+    /// <summary>
+    /// How many spaces the file indents a block by: the least any of its lines is indented with spaces - two in a file written
+    /// as Dart's guide writes it, four in most - or four for a file with none.
+    /// </summary>
+    private static int IndentStep(IReadOnlyList<string> lines) =>
+        lines.Where(line => line.Trim().Length > 0 && line.StartsWith(' '))
+            .Select(line => line.Length - line.TrimStart(' ').Length)
+            .DefaultIfEmpty(4)
+            .Min() is var least && least is >= 2 and <= 8 ? least : 4;
 
     public static string Code(string text) => $"`{text}`";
 

@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C#, Go or PHP program held where it stopped on a missing value,
-/// line by line - printed by the same copy of the program that follows the missing value back. Each row is what FixFinder
-/// gave for the program on this computer when these were written: every variable, every value it was given and the line -
-/// or the call - that gave it. A computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP or Dart program held where it stopped on a missing
+/// value, line by line - printed by the same copy of the program that follows the missing value back. Each row is what
+/// FixFinder gave for the program on this computer when these were written: every variable, every value it was given and
+/// the line - or the call - that gave it. A computer without the language passes them over.
 /// </summary>
 /// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
 /// check - so the rows run alone, after the other tests.</remarks>
@@ -53,6 +53,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "$rooms: line 15 = [{\"name\":\"A1\",\"seats\":20},{\"name\":\"B2\",\"seats\":35}]|$room: line 16 = null" },
         { "returned_variable.php", "<?php\n\nclass Book\n{\n    public function __construct(public string $title, public int $pages)\n    {\n    }\n\n    public function label(): string\n    {\n        return $this->title . \" (\" . $this->pages . \" pages)\";\n    }\n}\n\nfunction longest(array $books): ?Book\n{\n    $best = null; // none found yet\n    foreach ($books as $book) {\n        if ($book->pages > 1000) {\n            $best = $book; // keep the longest so far\n        }\n    }\n    return $best;\n}\n\n$books = [new Book(\"Dune\", 412), new Book(\"Emma\", 474)];\n$chosen = longest($books);\necho $chosen->label() . \"\\n\";\n", 28,
             "$books: line 26 = [{\"title\":\"Dune\",\"pages\":412},{\"title\":\"Emma\",\"pages\":474}]|$chosen: line 27 = null" },
+        { "map_lookup.dart", "void main() {\n  final stock = <String, int>{'apples': 4, 'pears': 0};\n  final count = stock['plums'];\n  print('Left: ${count! + 1}');\n}\n", 4,
+            "stock: line 2 = {apples: 4, pears: 0}|count: line 3 = null" },
+        { "try_parse.dart", "void main() {\n  final typed = 'twelve';\n  final age = int.tryParse(typed);\n  print('Next year: ${age! + 1}');\n}\n", 4,
+            "typed: line 2 = \"twelve\"|age: line 3 = null" },
     };
 
     [Theory]
