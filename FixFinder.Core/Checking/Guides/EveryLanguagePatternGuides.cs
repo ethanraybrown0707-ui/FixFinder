@@ -17,6 +17,15 @@ internal static class EveryLanguagePatternGuides
             "Keep what the function gives back, in the name it was made from.",
             example);
 
+    private static GuideEntry CopiedLine(string id, string example) =>
+        GuideFor([id], "A copied line that still reads what the line above read",
+            "When two lines do the same thing for two different values - one for the width, one for the height - the second is " +
+            "often written by copying the first and changing its name. Here the name was changed and what it reads was not: the " +
+            "height is given the width, so both hold the same value.",
+            "Anything worked out from the second value is wrong - an area of 9 where it should be 12 - with no error to say so.",
+            "Change what the copied line reads to match its own name.",
+            example);
+
     private static GuideEntry BestStartsAtZero(string id, string list, string example) =>
         GuideFor([id], "A largest or smallest started at 0",
             $"A loop that keeps the largest item of {list} starts with some value to compare the first item against. Started at 0, it " +
@@ -344,6 +353,98 @@ internal static class EveryLanguagePatternGuides
         BestStartsAtZero("logic-erlang-best-starts-at-zero", "a list",
             """
             Highest = lists:foldl(fun(T, Best) when T > Best -> T; (_, Best) -> Best end, hd(Temperatures), Temperatures).
+            """),
+        CopiedLine("logic-python-copied-line",
+            """
+            self.width = width
+            self.height = height
+            """),
+        CopiedLine("logic-java-copied-line",
+            """
+            this.width = width;
+            this.height = height;
+            """),
+        CopiedLine("logic-copied-line",
+            """
+            int width = b.width;
+            int height = b.height;
+            """),
+        CopiedLine("logic-go-copied-line",
+            """
+            package main
+
+            import "fmt"
+
+            type box struct{ width, height int }
+
+            func main() {
+            	b := box{width: 3, height: 4}
+            	width := b.width
+            	height := b.height
+            	fmt.Println(width * height)
+            }
+            """),
+        CopiedLine("logic-rust-copied-line",
+            """
+            let width = r.width;
+            let height = r.height;
+            """),
+        CopiedLine("logic-ruby-copied-line",
+            """
+            width = box[:width]
+            height = box[:height]
+            """),
+        CopiedLine("logic-php-copied-line",
+            """
+            $width = $box['width'];
+            $height = $box['height'];
+            """),
+        CopiedLine("logic-lua-copied-line",
+            """
+            local width = box.width
+            local height = box.height
+            """),
+        CopiedLine("logic-perl-copied-line",
+            """
+            my $width = $box{width};
+            my $height = $box{height};
+            """),
+        CopiedLine("logic-dart-copied-line",
+            """
+            final width = box['width']!;
+            final height = box['height']!;
+            """),
+        CopiedLine("logic-fortran-copied-line",
+            """
+            width = b%width
+            height = b%height
+            """),
+        CopiedLine("logic-powershell-copied-line",
+            """
+            $box = @{ Width = 3; Height = 4 }
+            $width = $box.Width
+            $height = $box.Height
+            Write-Output ($width * $height)
+            """),
+        CopiedLine("logic-fsharp-copied-line",
+            """
+            let width = box.Width
+            let height = box.Height
+            """),
+        CopiedLine("logic-scala-copied-line",
+            """
+            val width = box.width
+            val height = box.height
+            """),
+        CopiedLine("logic-elixir-copied-line",
+            """
+            width = box.width
+            height = box.height
+            """),
+        CopiedLine("logic-erlang-copied-line",
+            """
+            Width = maps:get(width, Box),
+            Height = maps:get(height, Box),
             """),
     ];
 }
