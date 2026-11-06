@@ -427,7 +427,7 @@ internal static class BraceMissingValue
         }
 
         private static string? CalledFunction(string right) =>
-            Regex.Match(right, @"^(?:await\s+)?(?:(?:this|[A-Z][\w$]*)\.)?(?<function>[a-z_$][\w$]*)\s*\(.*\)$") is { Success: true } call ? call.Groups["function"].Value : null;
+            Regex.Match(right, @"^(?:await\s+)?(?:(?:this|[A-Z][\w$]*)\.)?(?<function>[A-Za-z_$][\w$]*)\s*\(.*\)$") is { Success: true } call ? call.Groups["function"].Value : null;
     }
 }
 
@@ -519,11 +519,22 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
     /// <summary>The if or else if a line is the first statement under, when its block opens on its own line: the line that runs only when it is true.</summary>
     public int? IfAbove(int line)
     {
+        var braceOnItsOwn = false;
+
         for (var above = line - 1; above >= 1; above--)
         {
             var text = masked[above - 1].Trim();
             if (text.Length == 0) continue;
-            return (IfStatement().IsMatch(masked[above - 1]) || ElseIf().IsMatch(masked[above - 1])) && text.EndsWith('{') ? above : null;
+
+            // if (x)  then  {  on the next line: the brace belongs to the if above it.
+            if (text == "{" && !braceOnItsOwn)
+            {
+                braceOnItsOwn = true;
+                continue;
+            }
+
+            var opens = braceOnItsOwn || text.EndsWith('{');
+            return (IfStatement().IsMatch(masked[above - 1]) || ElseIf().IsMatch(masked[above - 1])) && opens ? above : null;
         }
 
         return null;

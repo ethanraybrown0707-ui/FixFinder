@@ -1027,10 +1027,17 @@ printed, the line that gave it that value and why: a function that reached its e
 that the only line that would have given it a value never reached; an array's `find`, or a Map's `get`, where the file
 declares the array or the Map; and a parameter the call gave it - written with semicolons or without.
 
+A C# program that stops with a NullReferenceException is followed with a copy too. .NET's message names nothing, so what
+was null is read from the line it stopped on: the one variable it reads a member or an item from that the program sets or
+is given as a parameter - when there is more than one, nothing is said. The finding then says the line that gave it null
+and why: a method whose `return null;` ran because the `if` above its other return was never true, with what it was
+called with; a variable set to null that the only line that would have changed it never reached; `FirstOrDefault`; and a
+parameter the call gave null, and which method gave the call its null.
+
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
-`if member is not None:` in Python, `if (member != null) { ... }` in Java and JavaScript - kept only when a copy with it
-runs without the error, and marked as only stopping the failure.
+`if member is not None:` in Python, `if (member != null) { ... }` in Java, JavaScript and C# - kept only when a copy with
+it runs without the error, and marked as only stopping the failure.
 
 ## FixFinder Learn
 

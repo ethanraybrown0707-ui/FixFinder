@@ -442,7 +442,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>
-    /// When a program stopped on a missing value - Python's None, Java's null, JavaScript's undefined - where it came from, from
+    /// When a program stopped on a missing value - Python's None, Java's and C#'s null, JavaScript's undefined - where it came from, from
     /// a second run that records it: the line that gave it, and why a method or function of the program gave it back. Put first
     /// in the finding for where it stopped, ahead of what the error means in general. Where the finding has no fix of its own,
     /// the line it stopped on is made to run only when the value is there, kept only when a copy with that change runs without
@@ -463,6 +463,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "python" => await FollowNoneAsync(launch, run, error, frame, chosen, message, crashLine, cancellationToken),
                 "java" => await FollowNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "node" => await FollowUndefinedAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "csharp" => await FollowCSharpNullAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -577,6 +578,28 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
         return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), []);
+    }
+
+    /// <summary>
+    /// Where a C# program's null came from, and the change that skips it on the line it stopped on. .NET's message names nothing,
+    /// so what was null is the one variable the line reads from that the program sets, or is given.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowCSharpNullAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "NullReferenceException" || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || Analysis.Dynamic.CSharpNullOrigin.Read(source, crashLine) is not var (_, doing)) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        var cause = await Analysis.Dynamic.CSharpNullOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken);
+        if (cause is null) return null;
+
+        return (cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), []);
     }
 
     /// <summary>
