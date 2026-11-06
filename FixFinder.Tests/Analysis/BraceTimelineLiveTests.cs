@@ -13,6 +13,9 @@ namespace FixFinder.Tests;
 /// the program on this computer when these were written: every variable, every value it was given and the line - or the
 /// call - that gave it. A computer without the language passes them over.
 /// </summary>
+/// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
+/// check - so the rows run alone, after the other tests.</remarks>
+[Collection(BuildsRunAlone.Name)]
 public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
 {
     private readonly TempFolder _temp = new();

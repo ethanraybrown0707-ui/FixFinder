@@ -13,6 +13,9 @@ namespace FixFinder.Tests;
 /// Each row is what FixFinder gave for the program on this computer when these were written. A computer without a JDK passes
 /// them over.
 /// </summary>
+/// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
+/// check - so the rows run alone, after the other tests.</remarks>
+[Collection(BuildsRunAlone.Name)]
 public class JavaRootCauseLiveTests(ITestOutputHelper output) : IDisposable
 {
     private readonly TempFolder _temp = new();

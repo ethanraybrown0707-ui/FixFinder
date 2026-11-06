@@ -13,6 +13,9 @@ namespace FixFinder.Tests;
 /// of it printed by a copy of the program, and what to do. Each row is what FixFinder gave for the program on this computer
 /// when these were written. A computer without Go passes them over.
 /// </summary>
+/// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
+/// check - so the rows run alone, after the other tests.</remarks>
+[Collection(BuildsRunAlone.Name)]
 public class GoRootCauseLiveTests(ITestOutputHelper output) : IDisposable
 {
     private readonly TempFolder _temp = new();
