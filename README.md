@@ -33,9 +33,10 @@ until the program prints what it should. FixFinder never changes your files.
    words, and always in the same order, this program first: the **summary**; the **cause**, in the program's own names
    and lines; the **most likely fix**, with its **fix confidence** - how sure FixFinder is of the change, which is not
    how sure it is of the finding; the exact code to change; **why FixFinder thinks this**, as a list of what it saw, each
-   marked - with, for a Python program that stopped, or a Java, JavaScript or C# program that stopped on a missing value,
-   a **variable timeline** of what each variable held, line by line; and then **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line
-   to go to, with the code on it, what happened there, making the change and checking it again. Where the language said something about it,
+   marked - with, for a Python program that stopped, or a Java, JavaScript, TypeScript or C# program that stopped on a
+   missing value, a **variable timeline** of what each variable held, line by line; and then **Learn more** - what this
+   kind of mistake is, why it matters, and **step by step**: the file and line to go to, with the code on it, what
+   happened there, making the change and checking it again. Where the language said something about it,
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
    stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
@@ -986,7 +987,7 @@ changed.
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
-| **Variable timeline** | For a Python program that stopped with an error in its own code, or a Java, JavaScript or C# program that stopped on a missing value: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. Every value is one the program held. In Python a second run records them as it goes: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In Java, JavaScript and C# the copy that follows the missing value back prints them: after each line that does nothing but give a variable a value, in the method or function it stopped in - or the file's top level - from the call that began it, up to 60 such lines and the last 50 values of each. In a saved report, each variable is a fold to open. |
+| **Variable timeline** | For a Python program that stopped with an error in its own code, or a Java, JavaScript, TypeScript or C# program that stopped on a missing value: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. Every value is one the program held. In Python a second run records them as it goes: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In Java, JavaScript, TypeScript and C# the copy that follows the missing value back prints them: after each line that does nothing but give a variable a value, in the method or function it stopped in - or the file's top level - from the call that began it, up to 60 such lines and the last 50 values of each. In a saved report, each variable is a fold to open. |
 | **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
@@ -1025,7 +1026,9 @@ from: a variable, or what a call gave back, as in `find(names, "c").length`. The
 printed, the line that gave it that value and why: a function that reached its end without a return, or whose
 `return null;` ran because the `if` above its other return was never true, with what it was called with; `let best;`
 that the only line that would have given it a value never reached; an array's `find`, or a Map's `get`, where the file
-declares the array or the Map; and a parameter the call gave it - written with semicolons or without.
+declares the array or the Map; and a parameter the call gave it - written with semicolons or without. A TypeScript
+program is followed the same way, as Node runs it with its types taken out: `found!.name` is read as reading name from
+`found`, and `const books: Book[] = [...]` declares `books` an array.
 
 A C# program that stops with a NullReferenceException is followed with a copy too. .NET's message names nothing, so what
 was null is read from the line it stopped on: the one variable it reads a member or an item from that the program sets or
@@ -1036,8 +1039,8 @@ parameter the call gave null, and which method gave the call its null.
 
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
-`if member is not None:` in Python, `if (member != null) { ... }` in Java, JavaScript and C# - kept only when a copy with
-it runs without the error, and marked as only stopping the failure.
+`if member is not None:` in Python, `if (member != null) { ... }` in Java, JavaScript, TypeScript and C# - kept only when
+a copy with it runs without the error, and marked as only stopping the failure.
 
 ## FixFinder Learn
 

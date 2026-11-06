@@ -109,7 +109,11 @@ public static partial class JavaScriptMissingOrigin
         var dot = masked[at] == '.' ? at : LastCode(masked, at - 1);
         if (dot is not { } found || masked[found] != '.') return null;
         var end = found >= 1 && masked[found - 1] == '?' ? found - 2 : found - 1;
-        return end >= 0 ? LastCode(masked, end) : null;
+        if (end < 0 || LastCode(masked, end) is not { } last) return null;
+
+        // TypeScript's found!.name says found is not null or undefined, and Node takes the ! away before it runs: what the
+        // property was read from ends before it.
+        return masked[last] == '!' ? (last >= 1 ? LastCode(masked, last - 1) : null) : last;
     }
 
     private static int? LastCode(string masked, int from)

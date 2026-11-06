@@ -26,6 +26,9 @@ public class JavaScriptMissingReadTests : IDisposable
     [InlineData("console.log(find([\"ann\", \"bob\"], \"c\").length);", 38, "Cannot read properties of undefined (reading 'length')", "reads length from {0}", "undefined", null, "find")]
     [InlineData("const { age } = person;", 9, "Cannot destructure property 'age' of 'person' as it is undefined.", "takes age out of {0}", "undefined", "person", null)]
     [InlineData("for (const mark of marks) {", 20, "marks is not iterable", "goes through {0} one item at a time", null, "marks", null)]
+    // TypeScript's ! - the columns are those Node 24 gave for these lines of a .ts file.
+    [InlineData("console.log(found!.name.toUpperCase());", 20, "Cannot read properties of null (reading 'name')", "reads name from {0}", "null", "found", null)]
+    [InlineData("console.log(best!.score);", 19, "Cannot read properties of undefined (reading 'score')", "reads score from {0}", "undefined", "best", null)]
     public void WhatHeldItIsReadFromTheMessageAndTheColumn(string line, int column, string message, string doing, string? value, string? name, string? calledFunction)
     {
         Assert.Equal((doing, value, name, calledFunction), JavaScriptMissingOrigin.Read(message, line, column));

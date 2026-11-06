@@ -638,9 +638,12 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
             ? "\"\""
             : string.Join($" + \"{BraceMissingValue.Between}\" + ", function.Parameters.Select(parameter => $"\"{parameter.Name} = \" + {dialect.Shown(parameter.Type, parameter.Name)}"));
 
-    /// <summary>What a name's declaration in the file says it is: its type, or what it is first given - or null.</summary>
+    /// <summary>
+    /// What a name's declaration in the file says it is: its type, or what it is first given - or null. A TypeScript type
+    /// after the name, as in <c>const books: Book[] = [...]</c>, is passed over.
+    /// </summary>
     public string? DeclaredAs(string name) =>
-        masked.Select(text => Regex.Match(text, $@"(?<type>\b[\w.$]+(?:<[^;=()]*>)?)\s+{Regex.Escape(name)}\s*(?<given>=\s*[^;]*|[;,)])")).FirstOrDefault(match => match.Success) is { } found
+        masked.Select(text => Regex.Match(text, $@"(?<type>\b[\w.$]+(?:<[^;=()]*>)?)\s+{Regex.Escape(name)}\s*(?::[^=;()]+)?(?<given>=\s*[^;]*|[;,)])")).FirstOrDefault(match => match.Success) is { } found
             ? found.Groups["type"].Value + (found.Groups["given"].Value.StartsWith('=') ? " " + found.Groups["given"].Value : "")
             : null;
 }
