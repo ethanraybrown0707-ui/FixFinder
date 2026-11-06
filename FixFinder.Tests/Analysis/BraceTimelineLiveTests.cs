@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP or Dart program held where it stopped on a missing
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart or Lua program held where it stopped on a missing
 /// value, line by line - printed by the same copy of the program that follows the missing value back. Each row is what
 /// FixFinder gave for the program on this computer when these were written: every variable, every value it was given and
 /// the line - or the call - that gave it. A computer without the language passes them over.
@@ -57,6 +57,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "stock: line 2 = {apples: 4, pears: 0}|count: line 3 = null" },
         { "try_parse.dart", "void main() {\n  final typed = 'twelve';\n  final age = int.tryParse(typed);\n  print('Next year: ${age! + 1}');\n}\n", 4,
             "typed: line 2 = \"twelve\"|age: line 3 = null" },
+        { "table_lookup.lua", "local stock = { apples = { count = 4 }, pears = { count = 0 } }\nlocal item = stock[\"plums\"]\nprint(\"Left: \" .. item.count)\n", 3,
+            "stock: line 1 = {apples = {count = 4}, pears = {count = 0}}|item: line 2 = nil" },
+        { "never_set.lua", "local scores = { 40, 55 }\nlocal best\nfor _, score in ipairs(scores) do\n  if score > 90 then\n    best = score\n  end\nend\nprint(\"Best plus one: \" .. best + 1)\n", 8,
+            "scores: line 1 = {40, 55}|best: line 2 = nil" },
     };
 
     [Theory]

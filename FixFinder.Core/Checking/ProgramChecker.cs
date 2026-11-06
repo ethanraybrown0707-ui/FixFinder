@@ -467,6 +467,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "go" => await FollowGoNilAsync(error, frame, chosen, spec.StandardInput, crashLine, cancellationToken),
                 "php" => await FollowPhpNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "dart" => await FollowDartNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "lua" => await FollowLuaNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -625,6 +626,32 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Lua program's nil came from, and the change that skips it on the line it stopped on. Lua's message names the
+    /// variable that held nil.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowLuaNilAsync(ParsedError error, ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.LuaNilOrigin.Read(message, CodeText.Mask(line, Syntax.Lua)) is not var (doing, _)) return null;
+
+        // Lua's traceback names again the place its message names - parameter.lua:2: in local 'greeting' - before the call.
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1)
+            .SkipWhile(each => each.Line == frame.Line && string.Equals(Path.GetFileName(each.File), Path.GetFileName(frame.File), StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFileName(callerFile), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        if (await Analysis.Dynamic.LuaNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.LuaNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

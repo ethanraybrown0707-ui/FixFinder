@@ -76,6 +76,24 @@ internal abstract partial class BraceDialect
     /// <summary>What the copy needs put at the end of a line before it can print - Go's imports, on its package line - or nothing.</summary>
     public virtual IEnumerable<(int Line, string Added)> Additions(IReadOnlyList<string> masked) => [];
 
+    /// <summary>How the language's comments and text are blanked when its lines are read: C's, or Lua's.</summary>
+    public virtual Syntax Syntax => Syntax.CLike;
+
+    /// <summary>Whether a line of code, trimmed, opens a block: it ends with {, or Lua's then.</summary>
+    public virtual bool OpensABlock(string code) => code.EndsWith('{');
+
+    /// <summary>Where a function's body starts on its header line, blanked - after its { - or null when it starts on the next.</summary>
+    public virtual int? BodyStartsAfter(string masked) => masked.LastIndexOf('{') is var brace and >= 0 ? brace + 1 : null;
+
+    /// <summary>A return with a print before it that is still one statement, where only one may stand: { print return x; }.</summary>
+    public virtual string WrappedReturn(string print, string returned) => "{ " + print + " " + returned + " }";
+
+    /// <summary>The line that ends the check that runs a line only when its value is there: }, or Lua's end.</summary>
+    public virtual string GuardClosing => "}";
+
+    /// <summary>What the copy puts before the program's first line - Lua's function that writes a value - or null.</summary>
+    public virtual string? BeforeTheFirstLine => null;
+
     /// <summary>Text as the copy's prints write it: "text", or PHP's 'text', in which a $ is only a $.</summary>
     public virtual string Quoted(string text) => "\"" + text + "\"";
 
@@ -125,9 +143,13 @@ internal static class BraceMissingValue
     {
         if (source.Line(crashLine) is null || name is null && (calledFunction is null || value is null)) return null;
 
-        var code = new BraceCode(dialect, source.Lines, CodeText.MaskAll(source.Lines, Syntax.CLike));
+        var code = new BraceCode(dialect, source.Lines, CodeText.MaskAll(source.Lines, dialect.Syntax));
         var stoppedIn = code.FunctionAround(crashLine);
-        var marks = new Marks(source.Lines, code.Masked);
+
+        // A line inside the function it stopped in is not the call that began it - only a function that calls itself has one
+        // there, and then which call gave the value cannot be told - so nothing is said of that call.
+        if (calledFrom is { } from && stoppedIn is { } inside && inside.Header <= from && from <= inside.End) calledFrom = null;
+        var marks = new Marks(dialect, source.Lines, code.Masked);
         foreach (var (line, added) in dialect.Additions(code.Masked)) marks.AtTheEnd(line, added);
 
         // The lines that set the variable where it stopped, and each of the program's functions: any of them may be the one
@@ -155,6 +177,10 @@ internal static class BraceMissingValue
         foreach (var (line, variable, type) in code.LinesSettingAny(stoppedIn).Take(MostLinesFollowed))
             marks.After(line, dialect.Print(dialect.Quoted($"{Marker} value {line} {variable}{Between}") + dialect.Joining + dialect.Shown(code.TypeOf(variable, type, stoppedIn), variable)),
                 dialect.StatementsEndInSemicolons);
+
+        // Before everything else on its line, so it is there before any of the program runs: not on a #! line, which has to stay first.
+        if (dialect.BeforeTheFirstLine is { } first && Enumerable.Range(1, source.Lines.Count).FirstOrDefault(line => !source.Lines[line - 1].StartsWith("#!", StringComparison.Ordinal)) is > 0 and var firstLine)
+            marks.AtTheStart(firstLine, first);
 
         if (await Checking.FixRun.RunChangedAsync(source, marks.Lines, program, typed, cancellationToken) is not { } run) return null;
         if (run.Error is not { } error || !stoppedTheSameWay(error) || LocalFixContext.OwnFrame(error)?.Line != crashLine) return null;
@@ -229,7 +255,7 @@ internal static class BraceMissingValue
     {
         if (cause.ChangeTheCause || !Regex.IsMatch(cause.Name, @"^[A-Za-z_$][\w$]*$") || source.Line(cause.CrashLine) is not { } line) return null;
 
-        var masked = CodeText.MaskAll(source.Lines, Syntax.CLike);
+        var masked = CodeText.MaskAll(source.Lines, dialect.Syntax);
         var stopped = masked[cause.CrashLine - 1].TrimEnd();
         if (dialect.NotAStatementToSkip.IsMatch(stopped) || dialect.StatementsEndInSemicolons && !stopped.EndsWith(';')) return null;
         if (stopped.Count(c => c is '(') != stopped.Count(c => c is ')') || stopped.Count(c => c is '[') != stopped.Count(c => c is ']') ||
@@ -251,7 +277,7 @@ internal static class BraceMissingValue
             File = source.Path,
             StartLine = cause.CrashLine,
             RemoveCount = 1,
-            NewLines = [$"{indent}{dialect.GuardOpening(cause.Name)}", $"{indent}{step}{line.TrimStart()}", $"{indent}}}"],
+            NewLines = [$"{indent}{dialect.GuardOpening(cause.Name)}", $"{indent}{step}{line.TrimStart()}", $"{indent}{dialect.GuardClosing}"],
             OnlyStopsTheFailure = true,
         };
     }
@@ -287,7 +313,7 @@ internal static class BraceMissingValue
     /// at the end of a line, where it would not run.
     /// </summary>
     /// <param name="masked">The lines with their text and comments blanked, which say where each line's code ends.</param>
-    private sealed class Marks(IReadOnlyList<string> original, IReadOnlyList<string> masked)
+    private sealed class Marks(BraceDialect dialect, IReadOnlyList<string> original, IReadOnlyList<string> masked)
     {
         private readonly string[] _lines = [.. original];
 
@@ -299,6 +325,9 @@ internal static class BraceMissingValue
             var (code, comment) = Split(line);
             _lines[line - 1] = code + (endsInSemicolon || code.EndsWith(';') ? " " : "; ") + statement + comment;
         }
+
+        /// <summary>Puts the text before everything on the line, as it is.</summary>
+        public void AtTheStart(int line, string added) => _lines[line - 1] = added + " " + _lines[line - 1];
 
         /// <summary>Puts the text straight after the line's code, as it is.</summary>
         public void AtTheEnd(int line, string added)
@@ -325,14 +354,17 @@ internal static class BraceMissingValue
             _lines[line - 1] = CodeText.Indentation(text) + statement + " " + text.TrimStart();
         }
 
-        /// <summary>Puts the statement just inside the function's opening brace, on the line the brace is on.</summary>
+        /// <summary>
+        /// Puts the statement where the function's body starts - just inside its opening brace, on the header's line or the
+        /// next, or after Lua's header - found in the blanked line, so a brace in a comment or in text is passed over.
+        /// </summary>
         public void AfterOpening(int header, string statement)
         {
             for (var line = header; line <= Math.Min(header + 1, _lines.Length); line++)
             {
-                var brace = _lines[line - 1].LastIndexOf('{');
-                if (brace < 0) continue;
-                _lines[line - 1] = _lines[line - 1][..(brace + 1)] + " " + statement + _lines[line - 1][(brace + 1)..];
+                var text = _lines[line - 1];
+                if ((text == original[line - 1] ? dialect.BodyStartsAfter(masked[line - 1]) : dialect.BodyStartsAfter(text)) is not { } at) continue;
+                _lines[line - 1] = text[..at] + " " + statement + text[at..];
                 return;
             }
         }
@@ -349,7 +381,7 @@ internal static class BraceMissingValue
             var end = code.LastIndexOf(';');
             if (at < 0) return;
             if (end < at) end = code.TrimEnd().Length - 1;
-            _lines[line - 1] = text[..at] + "{ " + statement + " " + text[at..(end + 1)] + " }" + text[(end + 1)..];
+            _lines[line - 1] = text[..at] + dialect.WrappedReturn(statement, text[at..(end + 1)]) + text[(end + 1)..];
         }
     }
 
@@ -610,7 +642,7 @@ internal static class BraceMissingValue
         {
             if (Regex.Match(right, @"^(?:await\s+)?(?:(?<receiver>[A-Za-z_$][\w$]*)\.)?(?<function>[A-Za-z_$][\w$]*)\s*\(.*\)$") is not { Success: true } call) return null;
 
-            var masked = CodeText.Mask(right, Syntax.CLike);
+            var masked = CodeText.Mask(right, dialect.Syntax);
             var open = masked.IndexOf('(', call.Groups["function"].Index + call.Groups["function"].Length);
             if (open < 0 || Brackets.ClosingParenthesis(masked, open) != masked.TrimEnd().Length - 1) return null;
 
@@ -765,7 +797,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
                 continue;
             }
 
-            var opens = braceOnItsOwn || text.EndsWith('{');
+            var opens = braceOnItsOwn || dialect.OpensABlock(text);
             return (dialect.IfLine.IsMatch(masked[above - 1]) || dialect.ElseIfLine.IsMatch(masked[above - 1])) && opens ? above : null;
         }
 
