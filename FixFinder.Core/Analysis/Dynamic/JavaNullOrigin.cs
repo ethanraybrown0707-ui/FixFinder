@@ -114,7 +114,7 @@ public static partial class JavaNullOrigin
         }
 
         public override Regex Sets(string name) =>
-            new($@"^\s*(?:final\s+)?(?:[\w.$]+(?:<[^;=]*>)?(?:\[\])*\s+)?{Regex.Escape(name)}\s*=(?!=)\s*(?<right>[^;]*?)\s*;\s*$");
+            new($@"^\s*(?:final\s+)?(?:[\w.$]+(?:<[^;=]*>)?(?:\[\])*\s+)?{Regex.Escape(name)}\s*=(?!=)\s*(?<right>[^;]*[^;\s])\s*;\s*$");
 
         public override string Print(string expression) => $"System.err.println({expression});";
 

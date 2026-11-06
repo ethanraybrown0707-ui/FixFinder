@@ -163,7 +163,7 @@ public static partial class JavaScriptMissingOrigin
         }
 
         public override Regex Sets(string name) =>
-            new($@"^\s*(?:(?:const|let|var)\s+)?{Regex.Escape(name)}\s*(?::[^=]+)?=(?![=>])\s*(?<right>[^;]*?)\s*;?\s*$");
+            new($@"^\s*(?:(?:const|let|var)\s+)?{Regex.Escape(name)}\s*(?::[^=]+)?=(?![=>])\s*(?<right>[^;]*[^;\s])\s*(?:;\s*)?$");
 
         /// <summary><c>let best;</c> gives best undefined without saying so.</summary>
         public override string? SetsWithoutSaying(string masked, string name) =>

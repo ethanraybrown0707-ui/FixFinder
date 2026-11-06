@@ -27,38 +27,38 @@ public static partial class CopyPastePatterns
     /// </summary>
     private const string BraceAssignment =
         @"^(?<lead>\s*(?:(?:final|const|let|var|val|auto|static|readonly|mut)\s+)*(?:[A-Za-z_][\w.<>\[\],?*&]*\s+(?=[A-Za-z_$][\w.$]*\s*=))?)" +
-        @"(?<target>[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*=(?![=>])\s*(?<right>[^;]+?)\s*;?\s*$(?<!,\s*)";
+        @"(?<target>[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*=(?![=>])\s*(?<right>[^;]*[^;\s])\s*(?:;\s*)?$(?<!,\s*)";
 
     private static readonly Dialect[] Dialects =
     [
         new("logic-python-copied-line", CodePattern.Files(".py", ".pyw"), Syntax.Python,
-            new(@"^(?<lead>\s*)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.*\S)\s*$")),
         new("logic-java-copied-line", CodePattern.Files(".java"), Syntax.CLike, new(BraceAssignment)),
         new("logic-copied-line", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++", ".cs", ".js", ".mjs", ".cjs"), Syntax.CLike, new(BraceAssignment)),
         new("logic-go-copied-line", CodePattern.Files(".go"), Syntax.CLike,
-            new(@"^(?<lead>\s*(?:var\s+)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*(?<op>:=|=)(?!=)\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*(?:var\s+)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*(?<op>:=|=)(?!=)\s*(?<right>.*\S)\s*$")),
         new("logic-rust-copied-line", CodePattern.Files(".rs"), Syntax.CLike,
-            new(@"^(?<lead>\s*(?:let\s+(?:mut\s+)?)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*(?::\s*[^=]+)?=(?![=>])\s*(?<right>.+?)\s*;\s*$")),
+            new(@"^(?<lead>\s*(?:let\s+(?:mut\s+)?)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*(?::\s*[^=]+)?=(?![=>])\s*(?<right>[^;]*[^;\s])\s*;\s*$")),
         new("logic-ruby-copied-line", CodePattern.Files(".rb"), Syntax.Python,
-            new(@"^(?<lead>\s*)(?<target>@{0,2}[A-Za-z_]\w*(?:\.\w+)*)\s*=(?![=~>])\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>@{0,2}[A-Za-z_]\w*(?:\.\w+)*)\s*=(?![=~>])\s*(?<right>.*\S)\s*$")),
         new("logic-php-copied-line", CodePattern.Files(".php"), Syntax.CLike,
-            new(@"^(?<lead>\s*)(?<target>\$[A-Za-z_]\w*(?:->\w+)*)\s*=(?![=>])\s*(?<right>.+?)\s*;\s*$")),
+            new(@"^(?<lead>\s*)(?<target>\$[A-Za-z_]\w*(?:->\w+)*)\s*=(?![=>])\s*(?<right>[^;]*[^;\s])\s*;\s*$")),
         new("logic-lua-copied-line", CodePattern.Files(".lua"), Syntax.Lua,
-            new(@"^(?<lead>\s*(?:local\s+)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*(?:local\s+)?)(?<target>[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.*\S)\s*$")),
         new("logic-perl-copied-line", CodePattern.Files(".pl", ".pm"), Syntax.Perl,
-            new(@"^(?<lead>\s*(?:my\s+)?)(?<target>\$[A-Za-z_]\w*)\s*=(?![=~>])\s*(?<right>.+?)\s*;\s*$")),
+            new(@"^(?<lead>\s*(?:my\s+)?)(?<target>\$[A-Za-z_]\w*)\s*=(?![=~>])\s*(?<right>[^;]*[^;\s])\s*;\s*$")),
         new("logic-dart-copied-line", CodePattern.Files(".dart"), Syntax.CLike, new(BraceAssignment)),
         new("logic-fortran-copied-line", CodePattern.Files(".f90", ".f95", ".f03", ".f08", ".f"), Syntax.Fortran,
-            new(@"^(?<lead>\s*)(?<target>[A-Za-z_]\w*(?:%\w+)*)\s*=(?![=>])\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>[A-Za-z_]\w*(?:%\w+)*)\s*=(?![=>])\s*(?<right>.*\S)\s*$")),
         new("logic-powershell-copied-line", CodePattern.Files(".ps1"), Syntax.Python,
-            new(@"^(?<lead>\s*)(?<target>\$[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>\$[A-Za-z_]\w*(?:\.\w+)*)\s*=(?!=)\s*(?<right>.*\S)\s*$")),
         new("logic-fsharp-copied-line", CodePattern.Files(".fs", ".fsx"), Syntax.FSharp,
-            new(@"^(?<lead>\s*let\s+(?:mutable\s+)?)(?<target>[A-Za-z_]\w*)\s*=(?!=)\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*let\s+(?:mutable\s+)?)(?<target>[A-Za-z_]\w*)\s*=(?!=)\s*(?<right>.*\S)\s*$")),
         new("logic-scala-copied-line", CodePattern.Files(".scala", ".sc"), Syntax.Scala, new(BraceAssignment)),
         new("logic-elixir-copied-line", CodePattern.Files(".ex", ".exs"), Syntax.Python,
-            new(@"^(?<lead>\s*)(?<target>[a-z_]\w*)\s*=(?![=~>])\s*(?<right>.+?)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>[a-z_]\w*)\s*=(?![=~>])\s*(?<right>.*\S)\s*$")),
         new("logic-erlang-copied-line", CodePattern.Files(".erl"), Syntax.Erlang,
-            new(@"^(?<lead>\s*)(?<target>[A-Z]\w*)\s*=(?![=:<])\s*(?<right>.+?)\s*(?<end>,)\s*$")),
+            new(@"^(?<lead>\s*)(?<target>[A-Z]\w*)\s*=(?![=:<])\s*(?<right>.*[^,\s])\s*(?<end>,)\s*$")),
     ];
 
     public static IReadOnlyList<ILogicPattern> All { get; } =

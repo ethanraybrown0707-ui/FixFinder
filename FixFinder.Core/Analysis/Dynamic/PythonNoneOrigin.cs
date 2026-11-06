@@ -463,7 +463,7 @@ public static partial class PythonNoneOrigin
 
         /// <summary>The right side of the line's assignment to <paramref name="name"/>, masked, or null when the line is not one.</summary>
         public string? AssignedFrom(int line, string name) =>
-            Regex.Match(masked[line - 1], $@"^\s*{Regex.Escape(name)}\s*(?::[^=]*)?=(?!=)\s*(?<right>.+?)\s*$") is { Success: true } assignment
+            Regex.Match(masked[line - 1], $@"^\s*{Regex.Escape(name)}\s*(?::[^=]*)?=(?!=)\s*(?<right>.*\S)\s*$") is { Success: true } assignment
                 ? lines[line - 1].Substring(assignment.Groups["right"].Index, assignment.Groups["right"].Length)
                 : null;
 

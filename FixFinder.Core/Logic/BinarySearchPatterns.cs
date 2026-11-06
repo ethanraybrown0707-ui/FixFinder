@@ -83,7 +83,7 @@ public static partial class BinarySearchPatterns
         var name = dialect.Name;
 
         // The middle: a name given a value worked out from two others and halved, rounded down.
-        var middle = new Regex($@"^\s*(?:(?:let|var|const|final|int|long|my|local|auto|val|mut)\s+)*(?<mid>{name})\s*(?::\s*\w+\s*)?(?:{dialect.Assigns}|=)(?!=)\s*(?<right>.+?)\s*[;,]?\s*$");
+        var middle = new Regex($@"^\s*(?:(?:let|var|const|final|int|long|my|local|auto|val|mut)\s+)*(?<mid>{name})\s*(?::\s*\w+\s*)?(?:{dialect.Assigns}|=)(?!=)\s*(?<right>.*[^;,\s])\s*(?:[;,]\s*)?$");
 
         for (var at = 0; at < masked.Count; at++)
         {
@@ -135,7 +135,7 @@ public static partial class BinarySearchPatterns
     {
         var body = Enumerable.Range(at + 1, Math.Max(0, loop.End - at - 1)).ToList();
         int? SetTo(string end, string value) => body.Cast<int?>().FirstOrDefault(line =>
-            Regex.IsMatch(masked[line!.Value], $@"(?<![\w$]){Regex.Escape(end)}\s*{dialect.Assigns}(?!=)\s*{Regex.Escape(value)}\s*[;,]?\s*(?:$|\b(?:end|then)\b)"));
+            Regex.IsMatch(masked[line!.Value], $@"(?<![\w$]){Regex.Escape(end)}\s*{dialect.Assigns}(?!=)\s*{Regex.Escape(value)}\s*(?:[;,]\s*)?(?:$|\b(?:end|then)\b)"));
 
         var lowToMid = SetTo(loop.Low, mid);
         var highToMid = SetTo(loop.High, mid);
@@ -198,7 +198,7 @@ public static partial class BinarySearchPatterns
         {
             var list = form.StartsWith('#') || form.Contains("@{0}") ? @"[A-Za-z_]\w*" : dialect.Name;
             var pattern = Regex.Escape(form).Replace(@"\{0}", $"(?:{list})", StringComparison.Ordinal);
-            if (Regex.Match(masked, $@"(?<![\w$]){Regex.Escape(high)}\s*{dialect.Assigns}(?!=)\s*(?<length>{pattern})\s*[;,]?\s*$") is { Success: true } started)
+            if (Regex.Match(masked, $@"(?<![\w$]){Regex.Escape(high)}\s*{dialect.Assigns}(?!=)\s*(?<length>{pattern})\s*(?:[;,]\s*)?$") is { Success: true } started)
                 return started.Groups["length"].Value;
         }
 
