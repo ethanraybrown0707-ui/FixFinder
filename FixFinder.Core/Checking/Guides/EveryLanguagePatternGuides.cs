@@ -17,6 +17,15 @@ internal static class EveryLanguagePatternGuides
             "Keep what the function gives back, in the name it was made from.",
             example);
 
+    private static GuideEntry WrongValueUsed(string id, string example) =>
+        GuideFor([id], "A value worked out, and another used in its place",
+            "A program often works one value out from another - an average from a total. Here the average is worked out and then " +
+            "never used: the line after it gives back, or prints, the total it came from, though the function's name, or the " +
+            "words printed beside it, say it is the average.",
+            "The program gives the total where the average was meant - 210 where 70 is right - with no error to say so.",
+            "Give back, or print, the value that was worked out for it.",
+            example);
+
     private static GuideEntry CopiedLine(string id, string example) =>
         GuideFor([id], "A copied line that still reads what the line above read",
             "When two lines do the same thing for two different values - one for the width, one for the height - the second is " +
@@ -445,6 +454,115 @@ internal static class EveryLanguagePatternGuides
             """
             Width = maps:get(width, Box),
             Height = maps:get(height, Box),
+            """),
+        WrongValueUsed("logic-python-wrong-value-used",
+            """
+            def average(marks):
+                total = sum(marks)
+                return total / len(marks)
+            """),
+        WrongValueUsed("logic-java-wrong-value-used",
+            """
+            static int average(int[] marks) {
+                int total = 0;
+                for (int mark : marks) {
+                    total += mark;
+                }
+                return total / marks.length;
+            }
+            """),
+        WrongValueUsed("logic-wrong-value-used",
+            """
+            int average(const int marks[], int count) {
+                int total = 0;
+                for (int i = 0; i < count; i++) {
+                    total += marks[i];
+                }
+                return total / count;
+            }
+            """),
+        WrongValueUsed("logic-rust-wrong-value-used",
+            """
+            fn average(marks: &[i32]) -> i32 {
+                let total: i32 = marks.iter().sum();
+                total / marks.len() as i32
+            }
+            """),
+        WrongValueUsed("logic-ruby-wrong-value-used",
+            """
+            def average(marks)
+              marks.sum / marks.length
+            end
+            """),
+        WrongValueUsed("logic-php-wrong-value-used",
+            """
+            function average($marks) {
+                return intdiv(array_sum($marks), count($marks));
+            }
+            """),
+        WrongValueUsed("logic-lua-wrong-value-used",
+            """
+            local function average(marks)
+              local total = 0
+              for _, mark in ipairs(marks) do
+                total = total + mark
+              end
+              return total // #marks
+            end
+            """),
+        WrongValueUsed("logic-perl-wrong-value-used",
+            """
+            sub average {
+                my @marks = @_;
+                my $total = 0;
+                $total += $_ for @marks;
+                return $total / scalar(@marks);
+            }
+            """),
+        WrongValueUsed("logic-dart-wrong-value-used",
+            """
+            int average(List<int> marks) {
+              var total = 0;
+              for (final mark in marks) {
+                total += mark;
+              }
+              return total ~/ marks.length;
+            }
+            """),
+        WrongValueUsed("logic-fortran-wrong-value-used",
+            """
+            total = sum(marks)
+            average = total / size(marks)
+            print *, 'Average:', average
+            """),
+        WrongValueUsed("logic-powershell-wrong-value-used",
+            """
+            function Get-Average($marks) {
+                $total = ($marks | Measure-Object -Sum).Sum
+                return $total / $marks.Count
+            }
+
+            Write-Output (Get-Average @(50, 70, 90))
+            """),
+        WrongValueUsed("logic-fsharp-wrong-value-used",
+            """
+            let average (marks: int list) =
+                let total = List.sum marks
+                total / List.length marks
+            """),
+        WrongValueUsed("logic-scala-wrong-value-used",
+            """
+            def average(marks: List[Int]): Int = {
+              val total = marks.sum
+              total / marks.length
+            }
+            """),
+        WrongValueUsed("logic-elixir-wrong-value-used",
+            """
+            def average(marks) do
+              total = Enum.sum(marks)
+              div(total, length(marks))
+            end
             """),
     ];
 }

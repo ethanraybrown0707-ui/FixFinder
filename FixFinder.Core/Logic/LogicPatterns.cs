@@ -42,6 +42,7 @@ public static class LogicPatterns
         .. MirrorIndexPatterns.All,
         .. ResultDroppedPatterns.All,
         .. CopyPastePatterns.All,
+        .. WrongValuePatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
