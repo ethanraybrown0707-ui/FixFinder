@@ -550,7 +550,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
         string message, int crashLine, CancellationToken cancellationToken)
     {
-        if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named || frame.Symbol is not { } method) return null;
+        if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named) return null;
         if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
         if (SourceFile.Read(file) is not { } source) return null;
 
@@ -560,7 +560,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             ? line
             : (int?)null;
 
-        var cause = await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, method, calledFrom, cancellationToken);
+        var cause = await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken);
         if (cause is null) return null;
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
