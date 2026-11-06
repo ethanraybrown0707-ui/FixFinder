@@ -17,6 +17,15 @@ internal static class EveryLanguagePatternGuides
             "Keep what the function gives back, in the name it was made from.",
             example);
 
+    private static GuideEntry WrongList(string id, string example) =>
+        GuideFor([id], "A loop that goes through a different list from the one its items are named for",
+            "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
+            "written by copying the first and renaming its item. Here the item was renamed and the list it goes through was not: " +
+            "each item is called height, the program has a list of heights, and the loop still goes through the widths.",
+            "Whatever the loop works out comes from the wrong list - a total of 7 where it should be 11 - with no error to say so.",
+            "Go through the list the loop's items are named for.",
+            example);
+
     private static GuideEntry BinarySearch(string id, string example) =>
         GuideFor([id], "A binary search that can stop moving, or read past the end",
             "A binary search looks at the middle of the part still to search, then keeps the half the item can be in. The middle is " +
@@ -793,6 +802,139 @@ internal static class EveryLanguagePatternGuides
                     X > At -> search(Arr, X, Mid + 1, Hi);
                     true -> Mid
                 end.
+            """),
+        WrongList("logic-python-wrong-list",
+            """
+            for width in widths:
+                total_width += width
+            for height in heights:
+                total_height += height
+            """),
+        WrongList("logic-java-wrong-list",
+            """
+            for (int width : widths) {
+                totalWidth += width;
+            }
+            for (int height : heights) {
+                totalHeight += height;
+            }
+            """),
+        WrongList("logic-wrong-list",
+            """
+            for (const width of widths) {
+                totalWidth += width;
+            }
+            for (const height of heights) {
+                totalHeight += height;
+            }
+            """),
+        WrongList("logic-go-wrong-list",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	widths := []int{3, 4}
+            	heights := []int{5, 6}
+            	totalWidth, totalHeight := 0, 0
+            	for _, width := range widths {
+            		totalWidth += width
+            	}
+            	for _, height := range heights {
+            		totalHeight += height
+            	}
+            	fmt.Println(totalWidth, totalHeight)
+            }
+            """),
+        WrongList("logic-rust-wrong-list",
+            """
+            for width in &widths {
+                total_width += width;
+            }
+            for height in &heights {
+                total_height += height;
+            }
+            """),
+        WrongList("logic-ruby-wrong-list",
+            """
+            widths.each do |width|
+              total_width += width
+            end
+            heights.each do |height|
+              total_height += height
+            end
+            """),
+        WrongList("logic-php-wrong-list",
+            """
+            foreach ($widths as $width) {
+                $totalWidth += $width;
+            }
+            foreach ($heights as $height) {
+                $totalHeight += $height;
+            }
+            """),
+        WrongList("logic-lua-wrong-list",
+            """
+            for _, width in ipairs(widths) do
+              total_width = total_width + width
+            end
+            for _, height in ipairs(heights) do
+              total_height = total_height + height
+            end
+            """),
+        WrongList("logic-perl-wrong-list",
+            """
+            foreach my $width (@widths) {
+                $total_width += $width;
+            }
+            foreach my $height (@heights) {
+                $total_height += $height;
+            }
+            """),
+        WrongList("logic-dart-wrong-list",
+            """
+            for (final width in widths) {
+              totalWidth += width;
+            }
+            for (final height in heights) {
+              totalHeight += height;
+            }
+            """),
+        WrongList("logic-scala-wrong-list",
+            """
+            for (width <- widths) {
+              totalWidth += width
+            }
+            for (height <- heights) {
+              totalHeight += height
+            }
+            """),
+        WrongList("logic-powershell-wrong-list",
+            """
+            $widths = @(3, 4)
+            $heights = @(5, 6)
+            $totalWidth = 0
+            $totalHeight = 0
+            foreach ($width in $widths) {
+                $totalWidth += $width
+            }
+            foreach ($height in $heights) {
+                $totalHeight += $height
+            }
+            Write-Output "$totalWidth $totalHeight"
+            """),
+        WrongList("logic-fsharp-wrong-list",
+            """
+            for width in widths do
+                totalWidth <- totalWidth + width
+            for height in heights do
+                totalHeight <- totalHeight + height
+            """),
+        WrongList("logic-elixir-wrong-list",
+            """
+            total_width = Enum.reduce(widths, 0, fn width, sum -> sum + width end)
+            total_height = Enum.reduce(heights, 0, fn height, sum -> sum + height end)
             """),
     ];
 }
