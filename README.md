@@ -1016,10 +1016,19 @@ only line that would have changed it never reached; a Map's `get`, where the fil
 call gave null, and which method gave the call its null; and a method's null used straight away, as in
 `find(names, "c").length()`. Only a copy that stops with the same NullPointerException on the same line is read.
 
+A JavaScript program that stops on undefined or null - reading or setting a property of it, taking a property out of it
+with `const { age } = person`, or going through it with `for ... of` - is followed with a copy in the same way. Node's
+message says which property and which of undefined and null, and the column of its trace says what the property was read
+from: a variable, or what a call gave back, as in `find(names, "c").length`. The finding then says, from what the copy
+printed, the line that gave it that value and why: a function that reached its end without a return, or whose
+`return null;` ran because the `if` above its other return was never true, with what it was called with; `let best;`
+that the only line that would have given it a value never reached; an array's `find`, or a Map's `get`, where the file
+declares the array or the Map; and a parameter the call gave it - written with semicolons or without.
+
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
-`if member is not None:` in Python, `if (member != null) { ... }` in Java - kept only when a copy with it runs without the
-error, and marked as only stopping the failure.
+`if member is not None:` in Python, `if (member != null) { ... }` in Java and JavaScript - kept only when a copy with it
+runs without the error, and marked as only stopping the failure.
 
 ## FixFinder Learn
 

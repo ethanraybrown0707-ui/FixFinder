@@ -461,6 +461,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             {
                 "python" => await FollowNoneAsync(launch, run, error, frame, chosen, message, crashLine, cancellationToken),
                 "java" => await FollowNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "node" => await FollowUndefinedAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -475,8 +476,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         Finding? stopped;
         lock (_gate)
         {
-            stopped = _findings.FirstOrDefault(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
-                                                          string.Equals(Path.GetFileName(finding.File), Path.GetFileName(source.Path), StringComparison.OrdinalIgnoreCase));
+            // The finding the error itself made, before another the run confirmed on the same line.
+            stopped = _findings
+                .Where(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
+                                  string.Equals(Path.GetFileName(finding.File), Path.GetFileName(source.Path), StringComparison.OrdinalIgnoreCase))
+                .OrderBy(finding => finding.Error is null)
+                .FirstOrDefault();
         }
 
         if (stopped is null) return;
@@ -565,6 +570,28 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
         return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing));
+    }
+
+    /// <summary>
+    /// Where a JavaScript program's undefined or null came from, and the change that skips it on the line it stopped on. The
+    /// column Node's trace gives says which part of the line read from it.
+    /// </summary>
+    private static async Task<(RootCause, SourceFile, LocalFix?)?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+        string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (error.ShortExceptionType != "TypeError" || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFullPath(file), Path.GetFullPath(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+
+        var below = error.Frames.SkipWhile(each => !ReferenceEquals(each, frame)).Skip(1).FirstOrDefault();
+        var calledFrom = below is { Line: { } called, File: { } callerFile } && string.Equals(Path.GetFullPath(callerFile), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)
+            ? called
+            : (int?)null;
+
+        var cause = await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken);
+        if (cause is null || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _)) return null;
+
+        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)));
     }
 
     /// <summary>
