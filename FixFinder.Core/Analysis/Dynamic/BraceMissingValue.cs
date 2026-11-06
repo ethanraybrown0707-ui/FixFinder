@@ -79,6 +79,12 @@ internal abstract partial class BraceDialect
     /// <summary>How the language's comments and text are blanked when its lines are read: C's, or Lua's.</summary>
     public virtual Syntax Syntax => Syntax.CLike;
 
+    /// <summary>The lines with their comments and text blanked, as the language writes them - Rust's lifetimes are no text.</summary>
+    public virtual IReadOnlyList<string> Blanked(IReadOnlyList<string> lines) => CodeText.MaskAll(lines, Syntax);
+
+    /// <summary>One line with its comments and text blanked.</summary>
+    public virtual string Blanked(string line) => CodeText.Mask(line, Syntax);
+
     /// <summary>Whether a line of code, trimmed, opens a block: it ends with {, or Lua's then.</summary>
     public virtual bool OpensABlock(string code) => code.EndsWith('{');
 
@@ -152,7 +158,7 @@ internal static class BraceMissingValue
     {
         if (source.Line(crashLine) is null || name is null && (calledFunction is null || value is null)) return null;
 
-        var code = new BraceCode(dialect, source.Lines, CodeText.MaskAll(source.Lines, dialect.Syntax));
+        var code = new BraceCode(dialect, source.Lines, dialect.Blanked(source.Lines));
         var stoppedIn = code.FunctionAround(crashLine);
 
         // A line inside the function it stopped in is not the call that began it - only a function that calls itself has one
@@ -264,7 +270,7 @@ internal static class BraceMissingValue
     {
         if (cause.ChangeTheCause || !Regex.IsMatch(cause.Name, @"^[A-Za-z_$][\w$]*$") || source.Line(cause.CrashLine) is not { } line) return null;
 
-        var masked = CodeText.MaskAll(source.Lines, dialect.Syntax);
+        var masked = dialect.Blanked(source.Lines);
         var stopped = masked[cause.CrashLine - 1].TrimEnd();
         if (dialect.NotAStatementToSkip.IsMatch(stopped) || dialect.StatementsEndInSemicolons && !stopped.EndsWith(';')) return null;
         if (stopped.Count(c => c is '(') != stopped.Count(c => c is ')') || stopped.Count(c => c is '[') != stopped.Count(c => c is ']') ||
@@ -651,7 +657,7 @@ internal static class BraceMissingValue
         {
             if (Regex.Match(right, @"^(?:await\s+)?(?:(?<receiver>[A-Za-z_$][\w$]*)\.)?(?<function>[A-Za-z_$][\w$]*)\s*\(.*\)$") is not { Success: true } call) return null;
 
-            var masked = CodeText.Mask(right, dialect.Syntax);
+            var masked = dialect.Blanked(right);
             var open = masked.IndexOf('(', call.Groups["function"].Index + call.Groups["function"].Length);
             if (open < 0 || Brackets.ClosingParenthesis(masked, open) != masked.TrimEnd().Length - 1) return null;
 

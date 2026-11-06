@@ -470,6 +470,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "lua" => await FollowLuaNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "ruby" => await FollowRubyNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "perl" => await FollowPerlUndefAsync(frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "rust" => await FollowRustNoneAsync(frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -628,6 +629,24 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Rust program's None came from, and the change that skips it on the line it stopped on. Rust's panic gives the
+    /// column of the unwrap, so what held None is the name - or the call - just before it.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowRustNoneAsync(ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (message != Analysis.Dynamic.RustNoneOrigin.Message || frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.RustNoneOrigin.Read(line, frame.Column) is not var (doing, _, _)) return null;
+
+        if (await Analysis.Dynamic.RustNoneOrigin.TraceAsync(chosen, file, typed, crashLine, frame.Column, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.RustNoneOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

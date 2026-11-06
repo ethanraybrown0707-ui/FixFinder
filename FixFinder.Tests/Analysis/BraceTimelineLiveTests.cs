@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby or Perl program held where it
-/// stopped on a missing value, line by line - printed by the same copy of the program that follows the missing value back.
-/// Each row is what FixFinder gave for the program on this computer when these were written: every variable, every value
-/// it was given and the line - or the call - that gave it. A computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl or Rust program held
+/// where it stopped on a missing value, line by line - printed by the same copy of the program that follows the missing
+/// value back. Each row is what FixFinder gave for the program on this computer when these were written: every variable,
+/// every value it was given and the line - or the call - that gave it. A computer without the language passes them over.
 /// </summary>
 /// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
 /// check - so the rows run alone, after the other tests.</remarks>
@@ -69,6 +69,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "%stock: line 4 = {'apples' => {'count' => 4},'pears' => {'count' => 0}}|$item: line 5 = undef" },
         { "returned_variable.pl", "use strict;\nuse warnings;\n\nsub longest {\n    my ($titles) = @_;\n    my $best; # none found yet\n    foreach my $title (@$titles) {\n        if (length($title) > 20) {\n            $best = [$title]; # keep the longest so far\n        }\n    }\n    return $best;\n}\n\nmy @titles = (\"Dune\", \"Emma\", \"Ulysses\");\nmy $chosen = longest(\\@titles);\nmy @first = @$chosen;\nprint \"First: $first[0]\\n\";\n", 17,
             "@titles: line 15 = ['Dune','Emma','Ulysses']|$chosen: line 16 = undef" },
+        { "main.rs", "fn main() {\n    let scores = vec![40, 55];\n    let mut best: Option<u32> = None;\n    for score in &scores {\n        if *score > 90 {\n            best = Some(*score);\n        }\n    }\n    println!(\"Best: {}\", best.unwrap());\n}\n", 9,
+            "scores: line 2 = [40, 55]|best: line 3 = None" },
+        { "main.rs", "#[derive(Debug)]\nstruct Item {\n    name: String,\n    price: f64,\n}\n\nfn look_up<'a>(items: &'a [Item], name: &str) -> Option<&'a Item> {\n    for item in items {\n        if item.name == name {\n            return Some(item);\n        }\n    }\n    return None;\n}\n\nfn main() {\n    let items = vec![Item { name: String::from(\"tea\"), price: 2.5 }];\n    println!(\"{:.2}\", look_up(&items, \"milk\").unwrap().price);\n}\n", 18,
+            "items: line 17 = [Item { name: \"tea\", price: 2.5 }]" },
     };
 
     [Theory]
