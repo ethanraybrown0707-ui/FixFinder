@@ -1037,6 +1037,11 @@ and why: a method whose `return null;` ran because the `if` above its other retu
 called with; a variable set to null that the only line that would have changed it never reached; `FirstOrDefault`; and a
 parameter the call gave null, and which method gave the call its null.
 
+When the function that gave the missing value gives back a variable - `return best;` - the copy also prints what each
+line of the function setting that variable gave it, so the finding goes on to say which line gave it the missing value
+in that call and which lines that would have changed it never ran - in Java, JavaScript, TypeScript and C#. Each of the
+copy's prints goes before a comment its line ends with, where it would not run.
+
 In Java, JavaScript, TypeScript and C#, a method called on an object - `shelf.longest()` - is followed into the method
 when the file declares the object as one of its own classes, as `Shelf shelf = new Shelf();` does, and the method is in
 that class; a method of a list, a Map or any class the file does not have is not. The call has to be all the line gives:

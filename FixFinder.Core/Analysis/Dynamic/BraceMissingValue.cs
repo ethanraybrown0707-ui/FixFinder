@@ -91,7 +91,7 @@ internal static class BraceMissingValue
 
         var code = new BraceCode(dialect, source.Lines, CodeText.MaskAll(source.Lines, Syntax.CLike));
         var stoppedIn = code.FunctionAround(crashLine);
-        var marks = new Marks(source.Lines);
+        var marks = new Marks(source.Lines, code.Masked);
 
         // The lines that set the variable where it stopped, and each of the program's functions: any of them may be the one
         // the missing value came from.
@@ -103,6 +103,11 @@ internal static class BraceMissingValue
         {
             marks.AfterOpening(each.Header, dialect.Print($"\"{Marker} call {each.Name}{Between}\" + {code.ParametersShown(each)}"));
             foreach (var line in code.Returns(each)) marks.WrapReturn(line, dialect.Print($"\"{Marker} return {each.Name} {line}\""));
+
+            // A function that gives back a variable - return best; - says what each line setting it gave it, so where the
+            // missing value it gave back came from can be told. Written as any value is, since its type may hold no null.
+            foreach (var (line, variable) in code.LinesSettingWhatItReturns(each))
+                marks.After(line, dialect.Print($"\"{Marker} inner {line} \" + {dialect.Shown(code.TypeOf(variable, "", each), variable)}"), dialect.StatementsEndInSemicolons);
         }
 
         // Each if once, whichever function it is in, so how many times it was checked is counted once.
@@ -230,8 +235,12 @@ internal static class BraceMissingValue
         return all.Count <= 1 ? string.Concat(all) : $"{string.Join(", ", all.Take(all.Count - 1))} and {all[^1]}";
     }
 
-    /// <summary>The copy's lines, with what it prints put on the lines it is about, so no line changes its number.</summary>
-    private sealed class Marks(IReadOnlyList<string> original)
+    /// <summary>
+    /// The copy's lines, with what it prints put on the lines it is about, so no line changes its number - and before a comment
+    /// at the end of a line, where it would not run.
+    /// </summary>
+    /// <param name="masked">The lines with their text and comments blanked, which say where each line's code ends.</param>
+    private sealed class Marks(IReadOnlyList<string> original, IReadOnlyList<string> masked)
     {
         private readonly string[] _lines = [.. original];
 
@@ -240,8 +249,20 @@ internal static class BraceMissingValue
         /// <summary>After the line's own statement; a semicolon first where the language lets a line end without one.</summary>
         public void After(int line, string statement, bool endsInSemicolon)
         {
+            var (code, comment) = Split(line);
+            _lines[line - 1] = code + (endsInSemicolon || code.EndsWith(';') ? " " : "; ") + statement + comment;
+        }
+
+        /// <summary>
+        /// The line as the copy has it so far, cut where its code ends: what is put after its statement goes before the comment
+        /// the line ends with, which is as long as the original line is longer than its code.
+        /// </summary>
+        private (string Code, string Comment) Split(int line)
+        {
             var text = _lines[line - 1].TrimEnd();
-            _lines[line - 1] = text + (endsInSemicolon || text.EndsWith(';') ? " " : "; ") + statement;
+            var commentLength = original[line - 1].TrimEnd().Length - masked[line - 1].TrimEnd().Length;
+            if (commentLength <= 0 || commentLength > text.Length) return (text, "");
+            return (text[..^commentLength].TrimEnd(), " " + text[^commentLength..].TrimStart());
         }
 
         public void Before(int line, string statement)
@@ -266,10 +287,14 @@ internal static class BraceMissingValue
         public void WrapReturn(int line, string statement)
         {
             var text = _lines[line - 1];
-            var at = text.IndexOf("return", StringComparison.Ordinal);
-            var end = text.LastIndexOf(';');
+            if (text != original[line - 1]) return;
+
+            // Found in the masked line, so a ; or a return in a comment or in text is passed over.
+            var code = masked[line - 1];
+            var at = code.IndexOf("return", StringComparison.Ordinal);
+            var end = code.LastIndexOf(';');
             if (at < 0) return;
-            if (end < at) end = text.TrimEnd().Length - 1;
+            if (end < at) end = code.TrimEnd().Length - 1;
             _lines[line - 1] = text[..at] + "{ " + statement + " " + text[at..(end + 1)] + " }" + text[(end + 1)..];
         }
     }
@@ -469,6 +494,8 @@ internal static class BraceMissingValue
             var given = call.Given.Split(Between, StringSplitOptions.None).Where(part => part.Length > 0).Select(part => part.Length > 70 ? part[..70] + "..." : part).ToList();
             if (given.Count > 0) steps.Add($"It was called with {AndJoined(given)}.");
 
+            if (call.Returned is { } gaveBack) SayWhereTheReturnedVariableGotIt(function, gaveBack, call.During, steps, evidence, involved);
+
             foreach (var line in code.Returns(function).Where(line => line != call.Returned))
             {
                 steps.Add(NeverRan(line, call.During, inThatCall: true));
@@ -476,6 +503,34 @@ internal static class BraceMissingValue
             }
 
             return whatToChange;
+        }
+
+        /// <summary>
+        /// For a return that gave back a variable of the function - return best; - the line that gave it the missing value in
+        /// that call, from what the copy printed after each line setting it, and the lines setting it that never ran. Said only
+        /// when the last of those lines to run gave it the missing value; the call's events reach its return, so none are missing.
+        /// </summary>
+        private void SayWhereTheReturnedVariableGotIt(BraceFunction function, int gaveBack, IReadOnlyList<string> during, List<string> steps,
+            List<string> evidence, List<int> involved)
+        {
+            if (code.ReturnedName(gaveBack) is not { } returned || code.LinesSetting(returned, function).ToList() is not { Count: > 0 } setting) return;
+
+            var ran = during.Select(said => said.Split(' ', 3))
+                .Where(said => said is ["inner", _, _] && int.TryParse(said[1], out var line) && setting.Contains(line))
+                .Select(said => (Line: int.Parse(said[1]), Value: said[2]))
+                .ToList();
+            if (ran.Count == 0 || ran[^1].Value != value) return;
+
+            var made = ran[^1].Line;
+            if (!involved.Contains(made)) involved.Add(made);
+            steps.Add($"{Code(returned)} was set to {value} on line {made}, {Code(code.Text(made))}, and nothing changed it after that in that call.");
+            evidence.Add($"Line {made} was the last line of {Code(function.Name)} to set {Code(returned)} in that call, and it set it to {value}.");
+
+            foreach (var line in setting.Where(line => ran.All(each => each.Line != line)))
+            {
+                steps.Add(NeverRan(line, during, inThatCall: true));
+                evidence.Add($"Line {line} did not run in that call.");
+            }
         }
 
         /// <summary>
@@ -520,6 +575,9 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
     [GeneratedRegex(@"^\s*return\b[^;{}]*;?\s*$")]
     private static partial Regex ReturnStatement();
 
+    [GeneratedRegex(@"^\s*return\s+(?<name>[A-Za-z_$][\w$]*)\s*;?\s*$")]
+    private static partial Regex ReturnedVariable();
+
     [GeneratedRegex(@"^\s*if\s*\(")]
     private static partial Regex IfStatement();
 
@@ -528,7 +586,13 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
 
     public IReadOnlyList<string> Masked => masked;
 
-    public string Text(int line) => lines[line - 1].Trim();
+    /// <summary>The line's code as written, without a comment it ends with - which the masked line, blank there, says.</summary>
+    public string Text(int line)
+    {
+        var text = lines[line - 1].TrimEnd();
+        var codeEnd = masked[line - 1].TrimEnd().Length;
+        return (codeEnd > 0 && codeEnd < text.Length ? text[..codeEnd] : text).Trim();
+    }
 
     private readonly List<BraceFunction> _all = [.. dialect.Functions(masked)];
 
@@ -608,6 +672,17 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
         OwnLines(function).Any(line => Regex.IsMatch(masked[line - 1], $@"(?<![\w.$]){Regex.Escape(function.Name)}\s*\("));
 
     public IEnumerable<int> Returns(BraceFunction function) => OwnLines(function).Where(line => ReturnStatement().IsMatch(masked[line - 1]));
+
+    /// <summary>The variable a return gives back, when that is all it gives - return best; - or null.</summary>
+    public string? ReturnedName(int line) =>
+        ReturnedVariable().Match(masked[line - 1]) is { Success: true } returned && returned.Groups["name"].Value is not ("null" or "nil" or "undefined" or "this" or "true" or "false")
+            ? returned.Groups["name"].Value
+            : null;
+
+    /// <summary>Each line of the function setting a variable one of its returns gives back, with the variable.</summary>
+    public IEnumerable<(int Line, string Name)> LinesSettingWhatItReturns(BraceFunction function) =>
+        Returns(function).Select(ReturnedName).OfType<string>().Distinct()
+            .SelectMany(name => LinesSetting(name, function).Select(line => (line, name)));
 
     /// <summary>The ifs of a function, or the file's top level, that start a line after a finished statement, so a line put before one runs where it does.</summary>
     public IEnumerable<int> Ifs(BraceFunction? function) =>
