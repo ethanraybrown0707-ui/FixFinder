@@ -344,6 +344,8 @@ public static partial class FindingFactory
             "compile error" or "compile warning" or "link error" when error.ErrorCode is { Length: > 0 } code => $"{code}: {message}",
             "compile error" or "compile warning" or "link error" => Capitalised(message),
             _ when message.Length == 0 => error.ShortExceptionType ?? "Error",
+            // Go's "runtime error: invalid memory address or nil pointer dereference" already starts with its kind.
+            _ when error.ShortExceptionType is { Length: > 0 } kind && message.StartsWith(kind + ":", StringComparison.Ordinal) => message,
             _ => $"{error.ShortExceptionType ?? error.ErrorCode ?? "Error"}: {message}",
         };
     }
