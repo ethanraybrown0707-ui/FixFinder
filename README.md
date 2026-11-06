@@ -33,8 +33,8 @@ until the program prints what it should. FixFinder never changes your files.
    words, and always in the same order, this program first: the **summary**; the **cause**, in the program's own names
    and lines; the **most likely fix**, with its **fix confidence** - how sure FixFinder is of the change, which is not
    how sure it is of the finding; the exact code to change; **why FixFinder thinks this**, as a list of what it saw, each
-   marked - with, for a Python program that stopped, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua or Ruby
-   program that stopped on a missing value, a **variable timeline** of what each variable held, line by line; and then
+   marked - with, for a Python program that stopped, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby or
+   Perl program that stopped on a missing value, a **variable timeline** of what each variable held, line by line; and then
    **Learn more** - what this kind of mistake is, why it matters, and **step by step**: the file and line to go to, with
    the code on it, what happened there, making the change and checking it again. Where the language said something about it,
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
@@ -987,7 +987,7 @@ changed.
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
-| **Variable timeline** | For a Python program that stopped with an error in its own code, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua or Ruby program that stopped on a missing value: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. Every value is one the program held. In Python a second run records them as it goes: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua and Ruby the copy that follows the missing value back prints them: after each line that does nothing but give a variable a value, in the method or function it stopped in - or the file's top level - from the call that began it, up to 60 such lines and the last 50 values of each. In JavaScript and TypeScript a Map is shown as its keys and values and a Set as its items, which JSON alone would write as {}. In Go a pointer inside a list or a map is followed, where Go's own `%+v` writes its address, and nil is written as nil. In PHP a value is written as `json_encode` writes it, an object with its class's name first; in Dart as its `toString` writes it - an object of the program's own class as `Instance of 'Member'` - with text in quotes; and in Lua a table as its items and then its keys, `{apples = {count = 4}}`, where Lua's own `tostring` writes an address; and in Ruby as `inspect` writes it, without an object's address. In a saved report, each variable is a fold to open. |
+| **Variable timeline** | For a Python program that stopped with an error in its own code, or a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby or Perl program that stopped on a missing value: choose a variable, and see each value it held where the program stopped, in order, with the line that gave it - or, for a parameter, the call that did. Every value is one the program held. In Python a second run records them as it goes: each time a name was given a value, and each time a list, dictionary or set it held grew or shrank, up to the last 50 for each. In Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby and Perl the copy that follows the missing value back prints them: after each line that does nothing but give a variable a value, in the method or function it stopped in - or the file's top level - from the call that began it, up to 60 such lines and the last 50 values of each. In JavaScript and TypeScript a Map is shown as its keys and values and a Set as its items, which JSON alone would write as {}. In Go a pointer inside a list or a map is followed, where Go's own `%+v` writes its address, and nil is written as nil. In PHP a value is written as `json_encode` writes it, an object with its class's name first; in Dart as its `toString` writes it - an object of the program's own class as `Instance of 'Member'` - with text in quotes; and in Lua a table as its items and then its keys, `{apples = {count = 4}}`, where Lua's own `tostring` writes an address; in Ruby as `inspect` writes it, without an object's address; and in Perl as `Data::Dumper` writes it, on one line, with a hash's keys in order. In a saved report, each variable is a fold to open. |
 | **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
@@ -1083,10 +1083,20 @@ which gives back nil when no item passes its test; a Hash indexed with a key it 
 Hash; and a parameter the call gave nil. A Ruby method also gives back its last line without saying `return`, so one
 that ended that way is said only to have given back nil.
 
+A Perl program that stops on undef - ``Can't call method "describe" on an undefined value``, or `Can't use an undefined
+value as an ARRAY reference` or a HASH one - is followed too. Perl's message names the method, so what held undef is the
+variable the line calls it on, `$member->describe()`, or uses as a list or a hash, `@$chosen` - or the program's own sub
+whose result it is called on straight away. A sub's parameters are the names its first line copies out of `@_`, and the
+copy prints them from `$_[0]`, `$_[1]` and on as the sub begins. The finding then says the line that gave the variable
+undef and why: a sub whose `return undef;` ran because the `if` above its other return was never true, with what it was
+called with; `my $best;` that the only line setting it never reached; and a hash looked up by a key it does not have,
+where the file fills the hash. Perl's `die` gives no trace of the calls that led to it, so a parameter the call gave undef
+is not followed, and a sub that ended without a `return` is said only to have given back undef.
+
 When the function that gave the missing value gives back a variable - `return best;` - the copy also prints what each
 line of the function setting that variable gave it, so the finding goes on to say which line gave it the missing value
 in that call and which lines that would have changed it never ran - in Java, JavaScript, TypeScript, C#, Go, PHP, Dart,
-Lua and Ruby.
+Lua, Ruby and Perl.
 Each of the copy's prints goes before a comment its line ends with, where it would not run.
 
 In Java, JavaScript, TypeScript and C#, a method called on an object - `shelf.longest()` - is followed into the method
@@ -1098,8 +1108,8 @@ A crash traced this way follows from the logic check that names the same functio
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -
 `if member is not None:` in Python, `if (member != null) { ... }` in Java, JavaScript, TypeScript, C# and Dart,
 `if member != nil { ... }` in Go, `if ($member !== null) { ... }` in PHP, `if member ~= nil then ... end` in Lua and
-`unless member.nil? ... end` in Ruby, indented as the file indents - kept only when a copy with it runs without the
-error, and marked as only stopping the failure.
+`unless member.nil? ... end` in Ruby and `if (defined $member) { ... }` in Perl, indented as the file indents - kept
+only when a copy with it runs without the error, and marked as only stopping the failure.
 
 ## FixFinder Learn
 

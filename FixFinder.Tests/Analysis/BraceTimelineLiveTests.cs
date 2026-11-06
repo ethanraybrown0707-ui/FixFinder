@@ -8,10 +8,10 @@ using Xunit.Abstractions;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua or Ruby program held where it stopped on a
-/// missing value, line by line - printed by the same copy of the program that follows the missing value back. Each row is
-/// what FixFinder gave for the program on this computer when these were written: every variable, every value it was given
-/// and the line - or the call - that gave it. A computer without the language passes them over.
+/// What each variable of a Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby or Perl program held where it
+/// stopped on a missing value, line by line - printed by the same copy of the program that follows the missing value back.
+/// Each row is what FixFinder gave for the program on this computer when these were written: every variable, every value
+/// it was given and the line - or the call - that gave it. A computer without the language passes them over.
 /// </summary>
 /// <remarks>Each row builds its program up to three times - as it is, the copy that prints, and the copy with the
 /// check - so the rows run alone, after the other tests.</remarks>
@@ -65,6 +65,10 @@ public class BraceTimelineLiveTests(ITestOutputHelper output) : IDisposable
             "prices: line 1 = {\"tea\"=>2.5, \"cake\"=>3.0}|price: line 2 = nil" },
         { "never_set.rb", "Score = Struct.new(:points)\n\nscores = [Score.new(40), Score.new(55)]\nbest = nil\nscores.each do |score|\n  if score.points > 90\n    best = score\n  end\nend\nputs \"Best: #{best.points}\"\n", 10,
             "scores: line 3 = [#<struct Score points=40>, #<struct Score points=55>]|best: line 4 = nil" },
+        { "hash_lookup.pl", "use strict;\nuse warnings;\n\nmy %stock = (apples => { count => 4 }, pears => { count => 0 });\nmy $item = $stock{plums};\nmy %counted = %$item;\nprint \"Left: $counted{count}\\n\";\n", 6,
+            "%stock: line 4 = {'apples' => {'count' => 4},'pears' => {'count' => 0}}|$item: line 5 = undef" },
+        { "returned_variable.pl", "use strict;\nuse warnings;\n\nsub longest {\n    my ($titles) = @_;\n    my $best; # none found yet\n    foreach my $title (@$titles) {\n        if (length($title) > 20) {\n            $best = [$title]; # keep the longest so far\n        }\n    }\n    return $best;\n}\n\nmy @titles = (\"Dune\", \"Emma\", \"Ulysses\");\nmy $chosen = longest(\\@titles);\nmy @first = @$chosen;\nprint \"First: $first[0]\\n\";\n", 17,
+            "@titles: line 15 = ['Dune','Emma','Ulysses']|$chosen: line 16 = undef" },
     };
 
     [Theory]

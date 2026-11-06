@@ -469,6 +469,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 "dart" => await FollowDartNullAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "lua" => await FollowLuaNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 "ruby" => await FollowRubyNilAsync(error, frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
+                "perl" => await FollowPerlUndefAsync(frame, chosen, spec.StandardInput, message, crashLine, cancellationToken),
                 _ => null,
             };
         }
@@ -627,6 +628,24 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
 
         return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+    }
+
+    /// <summary>
+    /// Where a Perl program's undef came from, and the change that skips it on the line it stopped on. Perl's message names the
+    /// method called on undef, so what held it is the variable the line calls it on; its die gives no calls to follow back.
+    /// </summary>
+    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowPerlUndefAsync(ErrorFrame frame,
+        string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
+    {
+        if (frame.File is not { } named) return null;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return null;
+        if (SourceFile.Read(file) is not { } source || source.Line(crashLine) is not { } line) return null;
+        if (Analysis.Dynamic.PerlUndefOrigin.Read(message, CodeText.Mask(line, Syntax.Perl)) is not var (doing, _, _)) return null;
+
+        if (await Analysis.Dynamic.PerlUndefOrigin.TraceAsync(chosen, file, typed, message, crashLine, cancellationToken) is not { } traced) return null;
+        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+
+        return (cause, source, Analysis.Dynamic.PerlUndefOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>

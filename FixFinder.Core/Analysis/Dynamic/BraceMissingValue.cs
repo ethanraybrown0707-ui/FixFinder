@@ -85,6 +85,12 @@ internal abstract partial class BraceDialect
     /// <summary>Where a function's body starts on its header line, blanked - after its { - or null when it starts on the next.</summary>
     public virtual int? BodyStartsAfter(string masked) => masked.LastIndexOf('{') is var brace and >= 0 ? brace + 1 : null;
 
+    /// <summary>
+    /// What holds a parameter's value as the function begins: its name, or - in Perl, whose parameters are copied out of @_
+    /// by the function's first line - the item of @_ it is copied from.
+    /// </summary>
+    public virtual string ParameterValue(int index, string name) => name;
+
     /// <summary>A statement as it is put where a function's body starts: as it is, or after Ruby's ; when the header has no brackets.</summary>
     public virtual string OpeningStatement(string statement) => statement;
 
@@ -812,7 +818,7 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
         function.Parameters.Count == 0
             ? dialect.Quoted("")
             : string.Join(dialect.Joining + dialect.Quoted(BraceMissingValue.Between) + dialect.Joining,
-                function.Parameters.Select(parameter => dialect.Quoted($"{parameter.Name} = ") + dialect.Joining + dialect.Shown(parameter.Type, parameter.Name)));
+                function.Parameters.Select((parameter, index) => dialect.Quoted($"{parameter.Name} = ") + dialect.Joining + dialect.Shown(parameter.Type, dialect.ParameterValue(index, parameter.Name))));
 
     /// <summary>
     /// What a name's declaration in the file says it is: its type, or what it is first given - or null. A TypeScript type
