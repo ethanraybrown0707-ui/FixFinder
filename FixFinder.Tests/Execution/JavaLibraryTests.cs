@@ -337,7 +337,7 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
         using var stores = JavaLibraries.UsingStores(new LibraryStores([new GradleCache(cache)]));
 
         var libraries = JavaLibraries.For(app);
-        Assert.Equal(["greeting-processor-1.0.jar"], libraries.ProcessorPath.Select(Path.GetFileName).ToArray());
+        Assert.Equal(["greeting-processor-1.0.jar"], libraries.ProcessorPath.Select(jar => Path.GetFileName(jar)).ToArray());
         Assert.DoesNotContain(libraries.ClassPath, jar => Path.GetFileName(jar) == "greeting-processor-1.0.jar");
 
         var report = await CheckAsync(app, "Hello from a processor");
@@ -1320,8 +1320,8 @@ public class JavaLibraryTests(ITestOutputHelper output) : IDisposable
 
         // Each program is its own file, what it uses, and what nothing's main uses: Main uses Window, Counter and Hello use
         // nothing, and Dialogs is used by nobody.
-        Assert.Equal(["Dialogs.java", "Hello.java"], ProgramFiles.Of(hello).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray());
-        Assert.Equal(["Dialogs.java", "Main.java", "Window.java"], ProgramFiles.Of(windowProgram).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(["Dialogs.java", "Hello.java"], ProgramFiles.Of(hello).Select(file => Path.GetFileName(file)).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(["Dialogs.java", "Main.java", "Window.java"], ProgramFiles.Of(windowProgram).Select(file => Path.GetFileName(file)).Order(StringComparer.Ordinal).ToArray());
 
         var report = await CheckAsync(hello, "hello");
 
