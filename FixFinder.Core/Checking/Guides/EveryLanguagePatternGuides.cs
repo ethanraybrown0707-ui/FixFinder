@@ -47,6 +47,16 @@ internal static class EveryLanguagePatternGuides
             "Make each call move n towards the stop, stop at the number or past it, and give back 1 where a product stops.",
             example);
 
+    private static GuideEntry NewNodeLost(string id, string example) =>
+        GuideFor([id], "A tree's insert that throws away the node it makes",
+            "An insert that works by calling itself goes down the tree until it reaches an empty place, makes a new node there and " +
+            "gives it back. The call one level up has to keep it - node.left = insert(node.left, value) - since an empty place " +
+            "cannot be changed from inside the call it was given to. Written as insert(node.left, value) on its own, the new node is " +
+            "made and lost.",
+            "Nothing below the first node is ever added: a tree of 50, 30, 70, 20 and 40 prints only 50, with no error to say so.",
+            "Give the field what the call gives back: node.left = insert(node.left, value).",
+            example);
+
     private static GuideEntry WrongList(string id, string example) =>
         GuideFor([id], "A loop that goes through a different list from the one its items are named for",
             "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
@@ -1277,6 +1287,189 @@ internal static class EveryLanguagePatternGuides
                 return 1
               }
               n * factorial(n - 1)
+            }
+            """),
+        NewNodeLost("logic-python-new-node-lost",
+            """
+            def insert(node, value):
+                if node is None:
+                    return Node(value)
+                if value < node.value:
+                    node.left = insert(node.left, value)
+                else:
+                    node.right = insert(node.right, value)
+                return node
+            """),
+        NewNodeLost("logic-ruby-new-node-lost",
+            """
+            def insert(node, value)
+              return Node.new(value, nil, nil) if node.nil?
+              if value < node.value
+                node.left = insert(node.left, value)
+              else
+                node.right = insert(node.right, value)
+              end
+              node
+            end
+            """),
+        NewNodeLost("logic-lua-new-node-lost",
+            """
+            local function insert(node, value)
+              if node == nil then
+                return { value = value }
+              end
+              if value < node.value then
+                node.left = insert(node.left, value)
+              else
+                node.right = insert(node.right, value)
+              end
+              return node
+            end
+            """),
+        NewNodeLost("logic-go-new-node-lost",
+            """
+            package main
+
+            import "fmt"
+
+            type Node struct {
+            	Value       int
+            	Left, Right *Node
+            }
+
+            func insert(node *Node, value int) *Node {
+            	if node == nil {
+            		return &Node{Value: value}
+            	}
+            	if value < node.Value {
+            		node.Left = insert(node.Left, value)
+            	} else {
+            		node.Right = insert(node.Right, value)
+            	}
+            	return node
+            }
+
+            func main() {
+            	root := insert(nil, 50)
+            	root = insert(root, 30)
+            	fmt.Println(root.Left.Value)
+            }
+            """),
+        NewNodeLost("logic-js-new-node-lost",
+            """
+            function insert(node, value) {
+                if (node === null) {
+                    return { value: value, left: null, right: null };
+                }
+                if (value < node.value) {
+                    node.left = insert(node.left, value);
+                } else {
+                    node.right = insert(node.right, value);
+                }
+                return node;
+            }
+            """),
+        NewNodeLost("logic-java-new-node-lost",
+            """
+            static Node insert(Node node, int value) {
+                if (node == null) {
+                    return new Node(value);
+                }
+                if (value < node.value) {
+                    node.left = insert(node.left, value);
+                } else {
+                    node.right = insert(node.right, value);
+                }
+                return node;
+            }
+            """),
+        NewNodeLost("logic-csharp-new-node-lost",
+            """
+            static Node Insert(Node? node, int value)
+            {
+                if (node == null)
+                {
+                    return new Node(value);
+                }
+                if (value < node.Value)
+                {
+                    node.Left = Insert(node.Left, value);
+                }
+                else
+                {
+                    node.Right = Insert(node.Right, value);
+                }
+                return node;
+            }
+            """),
+        NewNodeLost("logic-c-new-node-lost",
+            """
+            struct Node *insert(struct Node *node, int value) {
+                if (node == NULL) {
+                    return make_node(value);
+                }
+                if (value < node->value) {
+                    node->left = insert(node->left, value);
+                } else {
+                    node->right = insert(node->right, value);
+                }
+                return node;
+            }
+            """),
+        NewNodeLost("logic-dart-new-node-lost",
+            """
+            Node insert(Node? node, int value) {
+              if (node == null) {
+                return Node(value);
+              }
+              if (value < node.value) {
+                node.left = insert(node.left, value);
+              } else {
+                node.right = insert(node.right, value);
+              }
+              return node;
+            }
+            """),
+        NewNodeLost("logic-php-new-node-lost",
+            """
+            function insert(?Node $node, int $value): Node
+            {
+                if ($node === null) {
+                    return new Node($value);
+                }
+                if ($value < $node->value) {
+                    $node->left = insert($node->left, $value);
+                } else {
+                    $node->right = insert($node->right, $value);
+                }
+                return $node;
+            }
+            """),
+        NewNodeLost("logic-perl-new-node-lost",
+            """
+            sub insert {
+                my ($node, $value) = @_;
+                return { value => $value } if !defined $node;
+                if ($value < $node->{value}) {
+                    $node->{left} = insert($node->{left}, $value);
+                } else {
+                    $node->{right} = insert($node->{right}, $value);
+                }
+                return $node;
+            }
+            """),
+        NewNodeLost("logic-scala-new-node-lost",
+            """
+            def insert(node: Node, value: Int): Node = {
+              if (node == null) {
+                return new Node(value)
+              }
+              if (value < node.value) {
+                node.left = insert(node.left, value)
+              } else {
+                node.right = insert(node.right, value)
+              }
+              node
             }
             """),
     ];

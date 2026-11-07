@@ -16,6 +16,12 @@ namespace FixFinder.Core.Logic;
 /// answer has 0 in its product, and is 0.</item>
 /// </list>
 /// A function with no way to stop at all is a different mistake, found by analysis-recursion-never-ends.
+/// <para>
+/// And, as a check of its own, a tree's or a list's insert that throws away what it gives back: insert gives back a new node
+/// when the place it is given is empty - if node is None: return Node(value) - and calls itself on a field of that place as a
+/// statement of its own, insert(node.left, value). When node.left is empty, the new node is made and lost, and nothing is
+/// added. The change keeps it: node.left = insert(node.left, value).
+/// </para>
 /// </summary>
 /// <remarks>
 /// Only what the code shows is said: one parameter, one test of it against a number in the function, and every call the
@@ -31,8 +37,11 @@ public static partial class RecursionPatterns
     /// <param name="Parameter">The parameter's name in what the brackets hold: the last word (int n), the first (n: u32), or the $ name.</param>
     /// <param name="Copied">Perl's: the line that copies the parameter out of @_, my ($n) = @_; - where the brackets hold none.</param>
     /// <param name="Words">Whether comparisons are written as words - -eq, -le - as PowerShell's are.</param>
+    /// <param name="FieldOf">A field of the parameter {p} - node.left, root-&gt;left, $node-&gt;{left} - or null where the new-node check is not made.</param>
     private sealed record Dialect(string Id, IReadOnlySet<string> Files, Syntax Syntax, Regex Header, Body Body, string Parameter,
-        Regex? Copied = null, bool Words = false);
+        Regex? Copied = null, bool Words = false, string? FieldOf = Dotted);
+
+    private const string Dotted = @"{p}\.[A-Za-z_]\w*";
 
     private const string LastWord = @"(?<name>[A-Za-z_]\w*)\s*(?:=.*)?$";
     private const string FirstWord = @"^\s*(?:mut\s+)?(?<name>[A-Za-z_]\w*)";
@@ -49,7 +58,7 @@ public static partial class RecursionPatterns
         new("logic-go-recursion-never-stops", CodePattern.Files(".go"), Syntax.CLike,
             new(@"^(?<indent>\s*)func\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord),
         new("logic-rust-recursion-never-stops", CodePattern.Files(".rs"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:pub\s+)?fn\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord),
+            new(@"^(?<indent>\s*)(?:pub\s+)?fn\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord, FieldOf: null),
         new("logic-js-recursion-never-stops", CodePattern.Files(".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:export\s+)?function\s+(?<function>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord),
         new("logic-java-recursion-never-stops", CodePattern.Files(".java"), Syntax.CLike,
@@ -57,23 +66,122 @@ public static partial class RecursionPatterns
         new("logic-csharp-recursion-never-stops", CodePattern.Files(".cs"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:(?:public|private|protected|internal|static)\s+)*[\w<>\[\]?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
         new("logic-c-recursion-never-stops", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:(?:static|inline|unsigned|long|const)\s+)*[A-Za-z_]\w*[\s*&]+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
+            new(@"^(?<indent>\s*)(?:(?:static|inline|unsigned|long|const)\s+)*(?:(?:struct|enum|union)\s+)?[A-Za-z_]\w*[\s*&]+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord, FieldOf: @"{p}\s*(?:->|\.)\s*[A-Za-z_]\w*"),
         new("logic-dart-recursion-never-stops", CodePattern.Files(".dart"), Syntax.CLike,
             new(@"^(?<indent>\s*)[\w<>?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
         new("logic-php-recursion-never-stops", CodePattern.Files(".php"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:(?:public|private|protected|static)\s+)*function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, DollarName),
+            new(@"^(?<indent>\s*)(?:(?:public|private|protected|static)\s+)*function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, DollarName,
+            FieldOf: @"{p}->[A-Za-z_]\w*"),
         new("logic-perl-recursion-never-stops", CodePattern.Files(".pl", ".pm"), Syntax.Perl,
             new(@"^(?<indent>\s*)sub\s+(?<function>[A-Za-z_]\w*)\s*(?<parameters>)\{?\s*$"), Body.Braces, DollarName,
-            Copied: new(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*\)\s*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)")),
+            Copied: new(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*\)\s*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)"), FieldOf: @"{p}->\{\s*\w+\s*\}"),
         new("logic-powershell-recursion-never-stops", CodePattern.Files(".ps1"), Syntax.Python,
-            new(@"^(?<indent>\s*)function\s+(?<function>[A-Za-z_][\w-]*)\s*\((?<parameters>[^)]*)\)", RegexOptions.IgnoreCase), Body.Braces, DollarName, Words: true),
+            new(@"^(?<indent>\s*)function\s+(?<function>[A-Za-z_][\w-]*)\s*\((?<parameters>[^)]*)\)", RegexOptions.IgnoreCase), Body.Braces, DollarName, Words: true, FieldOf: null),
         new("logic-scala-recursion-never-stops", CodePattern.Files(".scala", ".sc"), Syntax.Scala,
             new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.BracesOrIndented, FirstWord),
     ];
 
     public static IReadOnlyList<ILogicPattern> All { get; } =
-        [.. Dialects.Select(dialect => new CodePattern(dialect.Id, dialect.Files, dialect.Syntax,
-            (id, source, masked) => Recursions(id, source, masked, dialect), Severity.Error, Confidence.Likely))];
+    [
+        .. Dialects.Select(dialect => new CodePattern(dialect.Id, dialect.Files, dialect.Syntax,
+            (id, source, masked) => Recursions(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+        .. Dialects.Where(dialect => dialect.FieldOf is not null).Select(dialect => new CodePattern(
+            dialect.Id.Replace("recursion-never-stops", "new-node-lost", StringComparison.Ordinal), dialect.Files, dialect.Syntax,
+            (id, source, masked) => LostNodes(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+    ];
+
+    /// <summary>Perl's first parameter, copied out of @_ by the sub's first line: my ($node, $value) = @_; or my $node = shift;.</summary>
+    [GeneratedRegex(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*[,)].*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)")]
+    private static partial Regex FirstCopied();
+
+    /// <summary>
+    /// What a return gives back, with an if or an unless written after it, or Lua's end, taken off - and nothing for Ruby's
+    /// return if node.nil?, which gives back nothing.
+    /// </summary>
+    [GeneratedRegex(@"\breturn\s+(?!(?:if|unless)\b)(?<value>.*?\S)\s*;?\s*(?:\s(?:if|unless)\s.*|\s+end)?\s*$")]
+    private static partial Regex Returned();
+
+    /// <summary>
+    /// Each statement that calls a function giving back something new for an empty first parameter on a field of that
+    /// parameter, and keeps nothing it gives back.
+    /// </summary>
+    private static IEnumerable<LogicFinding> LostNodes(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect)
+    {
+        for (var header = 0; header < masked.Count; header++)
+        {
+            if (dialect.Header.Match(masked[header]) is not { Success: true } function) continue;
+            if (Lines(masked, header, dialect.Body, function.Groups["indent"].Value) is not { Count: > 0 } body) continue;
+            if (FirstParameter(dialect, function.Groups["parameters"].Value, masked, body) is not { } first) continue;
+
+            var name = function.Groups["function"].Value;
+            var place = Regex.Escape(first);
+
+            // The test that the first parameter is empty, and the new value given back there - the first return on its line or
+            // the eight after it, as C's comes after the lines that make the node.
+            var empty = new Regex($@"(?<![\w$]){place}\s+is\s+None\b|\bnot\s+{place}(?![\w$])|(?<![\w$]){place}\s*={{2,3}}\s*(?:None|null|NULL|nullptr|nil|undefined)\b|" +
+                                  $@"(?<![\w$]){place}\s+is\s+null\b|!\s*{place}(?![\w$])|(?<![\w$]){place}\.nil\?|is_null\(\s*{place}\s*\)|!\s*defined\s*\(?\s*{place}(?![\w$])|" +
+                                  $@"\bunless\s*\(?\s*(?:defined\s*\(?\s*)?{place}(?![\w$])");
+            if (body.FirstOrDefault(line => empty.IsMatch(masked[line]), -1) is not (>= 0 and var testLine)) continue;
+
+            var given = body.Where(line => line >= testLine && line <= testLine + 8)
+                .Select(line => (Line: line, Return: Returned().Match(source.Lines[line])))
+                .FirstOrDefault(each => each.Return.Success);
+            if (given.Return is not { Success: true } returned) continue;
+
+            var value = returned.Groups["value"].Value.Trim();
+            if (value == first || value is "None" or "null" or "NULL" or "nullptr" or "nil" or "undefined" or "0" or "false") continue;
+
+            var call = new Regex($@"^(?<indent>\s*)(?<call>(?:(?:self|this)\s*(?:\.|->)\s*)?{Regex.Escape(name)}\s*\(\s*(?<field>{dialect.FieldOf!.Replace("{p}", place, StringComparison.Ordinal)})\s*(?:,[^;]*)?\))\s*(?<end>;?)\s*$");
+            var lost = body.Select(line => (Line: line, Call: call.Match(masked[line]))).Where(each => each.Call.Success).ToList();
+            if (lost.Count == 0) continue;
+
+            // One change for them all, from the first lost call's line to the last's: the tree is right only when each is kept.
+            var changed = Enumerable.Range(lost[0].Line, lost[^1].Line - lost[0].Line + 1).Select(line => source.Lines[line]).ToList();
+            var fields = new List<string>();
+            foreach (var (line, match) in lost)
+            {
+                var written = source.Lines[line].Substring(match.Groups["call"].Index, match.Groups["call"].Length);
+                var field = source.Lines[line].Substring(match.Groups["field"].Index, match.Groups["field"].Length);
+                fields.Add(field);
+                changed[line - lost[0].Line] = $"{match.Groups["indent"].Value}{field} = {written}{match.Groups["end"].Value}";
+            }
+
+            var places = string.Join(" and ", fields.Select(field => $"`{field}`"));
+            yield return new LogicFinding(id, lost[0].Line + 1,
+                $"{(lost.Count == 1 ? "Line" : "Lines")} {string.Join(" and ", lost.Select(each => (each.Line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)))} " +
+                $"{(lost.Count == 1 ? "calls" : "call")} {name} on {places} and {(lost.Count == 1 ? "keeps" : "keep")} nothing it gives back. {name} gives back " +
+                $"`{value}` when it is given an empty {first} - line {given.Line + 1} - so when {places} {(lost.Count == 1 ? "is" : "are")} empty, the new one is " +
+                "made and lost, and nothing is added there.",
+                new LocalFix
+                {
+                    RuleId = id,
+                    Title = $"Keep what {name} gives back: {string.Join(", ", fields.Select(field => $"{field} = {name}(...)"))}",
+                    Explanation = $"Each field then holds what {name} gives back - the new one, when it was empty - so what was added stays in it.",
+                    File = source.Path,
+                    StartLine = lost[0].Line + 1,
+                    RemoveCount = changed.Count,
+                    NewLines = changed,
+                })
+            {
+                Severity = Severity.Error,
+                Confidence = Confidence.Likely,
+            };
+        }
+    }
+
+    /// <summary>The function's first parameter's name - after self or this - or Perl's first copied out of @_; null for none.</summary>
+    private static string? FirstParameter(Dialect dialect, string parameters, IReadOnlyList<string> masked, List<int> body)
+    {
+        if (dialect.Copied is not null)
+            return body.Count > 0 && FirstCopied().Match(masked[body[0]]) is { Success: true } line ? line.Groups["name"].Value : null;
+
+        var pieces = parameters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .SkipWhile(piece => piece is "self" or "this" or "&self" or "&mut self").ToList();
+        if (pieces.Count == 0) return null;
+
+        var name = Regex.Match(pieces[0], dialect.Parameter);
+        return name.Success && name.Groups["name"].Value is not ("self" or "mut" or "const" or "final") ? name.Groups["name"].Value : null;
+    }
 
     /// <summary>A line starting with a word that opens a block closed by end, in Ruby and Lua - an if after a statement opens none.</summary>
     [GeneratedRegex(@"^\s*(?:[a-z_]\w*\s*=\s*|local\s+)?(?<word>if|unless|while|until|case|begin|def|class|module|for|function|repeat)\b")]
