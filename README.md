@@ -128,7 +128,9 @@ keeps the usual time; **Stop** ends any run. How long a run is given is chosen i
 to ten minutes, one minute unless chosen - and every run follows it: the program's own, and each copy a change is tried
 in. Go and C# are built before they run - go build, dotnet build - and the build is given six minutes, as Go's first
 build compiles its standard library; the run is then given the time chosen, as every program's is, so a Go program that
-never finishes is stopped then, not six minutes on.
+never finishes is stopped then, not six minutes on. On Windows each program FixFinder starts - and whatever that program
+starts - is held in a Windows job of its own, so if FixFinder is closed, or stops, in the middle of a run, Windows ends
+the program too, rather than leaving one that never finishes running on its own.
 
 Settings keeps what most people never change - how long runs are given, programs with a window, and restoring
 libraries - under **Advanced**, which stays closed unless one of them has been changed from what FixFinder does by

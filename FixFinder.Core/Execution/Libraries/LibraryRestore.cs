@@ -216,6 +216,9 @@ public static partial class LibraryRestore
 
         if (process is null) return (-1, [], ["it did not start"]);
 
+        // Ended with FixFinder if FixFinder is closed, or stops, while the step runs; closed when the step is done.
+        using var job = ProgramJob.Hold(process);
+
         using (process)
         {
             process.StandardInput.Close();

@@ -73,9 +73,13 @@ public sealed class TargetRunner
         Log?.Invoke($"Launching: {spec.DisplayCommandLine}");
         Log?.Invoke($"Working directory: {spec.WorkingDirectory}");
 
+        ProgramJob? held = null;
         try
         {
             process.Start();
+
+            // Ended with FixFinder if FixFinder is closed, or stops, in the middle of the run - which nothing else would.
+            held = ProgramJob.Hold(process);
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or PlatformNotSupportedException)
         {
@@ -92,6 +96,9 @@ public sealed class TargetRunner
                 Explanation = reason,
             };
         }
+
+        // Closed as the run ends, after the program has ended, which ends anything it left running.
+        using var job = held;
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
