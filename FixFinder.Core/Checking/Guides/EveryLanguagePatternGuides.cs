@@ -57,6 +57,16 @@ internal static class EveryLanguagePatternGuides
             "Give the field what the call gives back: node.left = insert(node.left, value).",
             example);
 
+    private static GuideEntry MemoNeverKept(string id, string example) =>
+        GuideFor([id], "A memo that is asked and never given an answer",
+            "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
+            "worked out again: fib(n) asks memo for n first. That only helps when each answer is put into the memo once it is " +
+            "worked out. Here nothing ever is, so the memo is always empty, and every call works its answer out again.",
+            "The program works out the right answer, but as slowly as it would with no memo at all - a fib(60) written this way was " +
+            "still running when FixFinder's time ran out.",
+            "Put the answer into the memo where the function works it out, and give back what is in the memo.",
+            example);
+
     private static GuideEntry WrongList(string id, string example) =>
         GuideFor([id], "A loop that goes through a different list from the one its items are named for",
             "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
@@ -1470,6 +1480,187 @@ internal static class EveryLanguagePatternGuides
                 node.right = insert(node.right, value)
               }
               node
+            }
+            """),
+        MemoNeverKept("logic-python-memo-never-kept",
+            """
+            memo = {}
+
+
+            def fib(n):
+                if n in memo:
+                    return memo[n]
+                if n <= 1:
+                    return n
+                memo[n] = fib(n - 1) + fib(n - 2)
+                return memo[n]
+            """),
+        MemoNeverKept("logic-ruby-memo-never-kept",
+            """
+            def fib(n, memo)
+              return memo[n] if memo.key?(n)
+              return n if n <= 1
+              memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
+            end
+            """),
+        MemoNeverKept("logic-lua-memo-never-kept",
+            """
+            local memo = {}
+
+            local function fib(n)
+              if memo[n] then
+                return memo[n]
+              end
+              if n <= 1 then
+                return n
+              end
+              memo[n] = fib(n - 1) + fib(n - 2)
+              return memo[n]
+            end
+            """),
+        MemoNeverKept("logic-go-memo-never-kept",
+            """
+            package main
+
+            import "fmt"
+
+            var memo = map[int]int{}
+
+            func fib(n int) int {
+            	if value, ok := memo[n]; ok {
+            		return value
+            	}
+            	if n <= 1 {
+            		return n
+            	}
+            	memo[n] = fib(n-1) + fib(n-2)
+            	return memo[n]
+            }
+
+            func main() {
+            	fmt.Println(fib(60))
+            }
+            """),
+        MemoNeverKept("logic-js-memo-never-kept",
+            """
+            const memo = new Map();
+
+            function fib(n) {
+                if (memo.has(n)) {
+                    return memo.get(n);
+                }
+                if (n <= 1) {
+                    return n;
+                }
+                memo.set(n, fib(n - 1) + fib(n - 2));
+                return memo.get(n);
+            }
+            """),
+        MemoNeverKept("logic-java-memo-never-kept",
+            """
+            static Map<Integer, Long> memo = new HashMap<>();
+
+            static long fib(int n) {
+                if (memo.containsKey(n)) {
+                    return memo.get(n);
+                }
+                if (n <= 1) {
+                    return n;
+                }
+                memo.put(n, fib(n - 1) + fib(n - 2));
+                return memo.get(n);
+            }
+            """),
+        MemoNeverKept("logic-csharp-memo-never-kept",
+            """
+            var memo = new Dictionary<int, long>();
+
+            long Fib(int n)
+            {
+                if (memo.ContainsKey(n))
+                {
+                    return memo[n];
+                }
+                if (n <= 1)
+                {
+                    return n;
+                }
+                memo[n] = Fib(n - 1) + Fib(n - 2);
+                return memo[n];
+            }
+            """),
+        MemoNeverKept("logic-c-memo-never-kept",
+            """
+            std::map<int, long long> memo;
+
+            long long fib(int n) {
+                if (memo.count(n)) {
+                    return memo[n];
+                }
+                if (n <= 1) {
+                    return n;
+                }
+                memo[n] = fib(n - 1) + fib(n - 2);
+                return memo[n];
+            }
+            """),
+        MemoNeverKept("logic-dart-memo-never-kept",
+            """
+            final memo = <int, int>{};
+
+            int fib(int n) {
+              if (memo.containsKey(n)) {
+                return memo[n]!;
+              }
+              if (n <= 1) {
+                return n;
+              }
+              memo[n] = fib(n - 1) + fib(n - 2);
+              return memo[n]!;
+            }
+            """),
+        MemoNeverKept("logic-perl-memo-never-kept",
+            """
+            my %memo;
+
+            sub fib {
+                my ($n) = @_;
+                return $memo{$n} if exists $memo{$n};
+                return $n if $n <= 1;
+                $memo{$n} = fib($n - 1) + fib($n - 2);
+                return $memo{$n};
+            }
+            """),
+        MemoNeverKept("logic-powershell-memo-never-kept",
+            """
+            $memo = @{}
+
+            function Get-Fib($n) {
+                if ($memo.ContainsKey($n)) {
+                    return $memo[$n]
+                }
+                if ($n -le 1) {
+                    return $n
+                }
+                $memo[$n] = (Get-Fib ($n - 1)) + (Get-Fib ($n - 2))
+                return $memo[$n]
+            }
+
+            Write-Output (Get-Fib 60)
+            """),
+        MemoNeverKept("logic-scala-memo-never-kept",
+            """
+            val memo = mutable.Map[Int, Long]()
+
+            def fib(n: Int): Long = {
+              if (memo.contains(n)) {
+                return memo(n)
+              }
+              if (n <= 1) {
+                return n
+              }
+              memo(n) = fib(n - 1) + fib(n - 2)
+              memo(n)
             }
             """),
     ];

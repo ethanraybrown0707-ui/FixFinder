@@ -22,6 +22,12 @@ namespace FixFinder.Core.Logic;
 /// statement of its own, insert(node.left, value). When node.left is empty, the new node is made and lost, and nothing is
 /// added. The change keeps it: node.left = insert(node.left, value).
 /// </para>
+/// <para>
+/// And a memo that is asked and never given anything: fib asks memo for n - if n in memo: return memo[n] - but nothing in the
+/// file ever puts an answer into memo, so it is always empty and every call works its answer out again, as if there were no
+/// memo: fib(60) does not finish. The change keeps the answer where fib works it out - memo[n] = fib(n - 1) + fib(n - 2),
+/// then return memo[n].
+/// </para>
 /// </summary>
 /// <remarks>
 /// Only what the code shows is said: one parameter, one test of it against a number in the function, and every call the
@@ -38,8 +44,20 @@ public static partial class RecursionPatterns
     /// <param name="Copied">Perl's: the line that copies the parameter out of @_, my ($n) = @_; - where the brackets hold none.</param>
     /// <param name="Words">Whether comparisons are written as words - -eq, -le - as PowerShell's are.</param>
     /// <param name="FieldOf">A field of the parameter {p} - node.left, root-&gt;left, $node-&gt;{left} - or null where the new-node check is not made.</param>
+    /// <param name="Memo">How the language asks a memo and puts into one, or null where the memo check is not made.</param>
     private sealed record Dialect(string Id, IReadOnlySet<string> Files, Syntax Syntax, Regex Header, Body Body, string Parameter,
-        Regex? Copied = null, bool Words = false, string? FieldOf = Dotted);
+        Regex? Copied = null, bool Words = false, string? FieldOf = Dotted, Memo? Memo = null);
+
+    /// <summary>
+    /// How one language asks a memo whether it has a key - with the memo as "map" and the key as "key", and "set" when it is a
+    /// Map asked with has - what puts a value into the memo named {m}, and the lines that keep an answer and give it back.
+    /// </summary>
+    /// <param name="Kept">The lines of the change, from the indentation, the memo, the key, the answer, the ; the line ended
+    /// with, and whether the line said return - Ruby's and Scala's last line gives back its value without one.</param>
+    private sealed record Memo(Regex Asked, string Put, Func<string, string, string, string, string, bool, Match, IReadOnlyList<string>> Kept);
+
+    private static IReadOnlyList<string> KeptByIndex(string indent, string map, string key, string answer, string end, bool said) =>
+        [$"{indent}{map}[{key}] = {answer}{end}", $"{indent}return {map}[{key}]{end}"];
 
     private const string Dotted = @"{p}\.[A-Za-z_]\w*";
 
@@ -50,35 +68,62 @@ public static partial class RecursionPatterns
     private static readonly Dialect[] Dialects =
     [
         new("logic-python-recursion-never-stops", CodePattern.Files(".py", ".pyw"), Syntax.Python,
-            new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Indented, FirstWord),
+            new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Indented, FirstWord,
+            Memo: new(new(@"\bif\s+(?<key>[A-Za-z_]\w*)\s+in\s+(?<map>[A-Za-z_]\w*)\s*:"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)|\b{m}\s*\|=|\b{m}\.(?:update|setdefault|add|append|extend|insert)\(",
+                (indent, map, key, answer, end, said, asked) => KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-ruby-recursion-never-stops", CodePattern.Files(".rb"), Syntax.Python,
-            new(@"^(?<indent>\s*)def\s+(?:self\.)?(?<function>[a-z_]\w*[?!]?)\s*\((?<parameters>[^)]*)\)"), Body.Ends, FirstWord),
+            new(@"^(?<indent>\s*)def\s+(?:self\.)?(?<function>[a-z_]\w*[?!]?)\s*\((?<parameters>[^)]*)\)"), Body.Ends, FirstWord,
+            Memo: new(new(@"\b(?<map>[a-z_]\w*)\.(?:key\?|has_key\?|include\?)\(\s*(?<key>[a-z_]\w*)\s*\)"), @"\b{m}\s*\[[^\]]+\]\s*(?:\|\|)?=(?![=~>])|\b{m}\.store\(",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}{(said ? "return " : "")}{map}[{key}] = {answer}"])),
         new("logic-lua-recursion-never-stops", CodePattern.Files(".lua"), Syntax.Lua,
-            new(@"^(?<indent>\s*)(?:local\s+)?function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Ends, FirstWord),
+            new(@"^(?<indent>\s*)(?:local\s+)?function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Ends, FirstWord,
+            Memo: new(new(@"\bif\s+(?<map>[A-Za-z_]\w*)\[\s*(?<key>[A-Za-z_]\w*)\s*\]\s*(?:~=\s*nil\s*)?then\b"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)",
+                (indent, map, key, answer, end, said, asked) => KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-go-recursion-never-stops", CodePattern.Files(".go"), Syntax.CLike,
-            new(@"^(?<indent>\s*)func\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord),
+            new(@"^(?<indent>\s*)func\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord,
+            Memo: new(new(@",\s*(?:ok|found|exists|has)\s*:?=\s*(?<map>[A-Za-z_]\w*)\[\s*(?<key>[A-Za-z_]\w*)\s*\]"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)",
+                (indent, map, key, answer, end, said, asked) => KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-rust-recursion-never-stops", CodePattern.Files(".rs"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:pub\s+)?fn\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord, FieldOf: null),
         new("logic-js-recursion-never-stops", CodePattern.Files(".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:export\s+)?function\s+(?<function>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord),
+            new(@"^(?<indent>\s*)(?:export\s+)?function\s+(?<function>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, FirstWord,
+            Memo: new(new(@"\b(?<map>[A-Za-z_$][\w$]*)\.has\(\s*(?<key>[A-Za-z_$][\w$]*)\s*\)(?<set>)|\b(?<key>[A-Za-z_$][\w$]*)\s+in\s+(?<map>[A-Za-z_$][\w$]*)\b"),
+                @"\b{m}\s*\[[^\]]+\]\s*=(?!=)|\b{m}\.set\(",
+                (indent, map, key, answer, end, said, asked) => asked.Groups["set"].Success
+                    ? [$"{indent}{map}.set({key}, {answer});", $"{indent}return {map}.get({key});"]
+                    : KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-java-recursion-never-stops", CodePattern.Files(".java"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:(?:public|private|protected|static|final)\s+)*[\w<>\[\]]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
+            new(@"^(?<indent>\s*)(?:(?:public|private|protected|static|final)\s+)*[\w<>\[\]]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord,
+            Memo: new(new(@"\b(?<map>[A-Za-z_]\w*)\.containsKey\(\s*(?<key>[A-Za-z_]\w*)\s*\)"), @"\b{m}\.(?:put|putIfAbsent|computeIfAbsent|compute|merge|putAll)\(",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}{map}.put({key}, {answer});", $"{indent}return {map}.get({key});"])),
         new("logic-csharp-recursion-never-stops", CodePattern.Files(".cs"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:(?:public|private|protected|internal|static)\s+)*[\w<>\[\]?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
+            new(@"^(?<indent>\s*)(?:(?:public|private|protected|internal|static)\s+)*[\w<>\[\]?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord,
+            Memo: new(new(@"\b(?<map>[A-Za-z_]\w*)\.(?:ContainsKey|TryGetValue)\(\s*(?<key>[A-Za-z_]\w*)\s*[,)]"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)|\b{m}\.(?:Add|TryAdd)\(",
+                (indent, map, key, answer, end, said, asked) => KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-c-recursion-never-stops", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++"), Syntax.CLike,
-            new(@"^(?<indent>\s*)(?:(?:static|inline|unsigned|long|const)\s+)*(?:(?:struct|enum|union)\s+)?[A-Za-z_]\w*[\s*&]+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord, FieldOf: @"{p}\s*(?:->|\.)\s*[A-Za-z_]\w*"),
+            new(@"^(?<indent>\s*)(?:(?:static|inline|unsigned|long|const)\s+)*(?:(?:struct|enum|union)\s+)?[A-Za-z_]\w*[\s*&]+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord, FieldOf: @"{p}\s*(?:->|\.)\s*[A-Za-z_]\w*",
+            Memo: new(new(@"\b(?<map>[A-Za-z_]\w*)\.(?:count|contains|find)\(\s*(?<key>[A-Za-z_]\w*)\s*\)"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)|\b{m}\.(?:insert|emplace|try_emplace|insert_or_assign)\(",
+                (indent, map, key, answer, end, said, asked) => KeptByIndex(indent, map, key, answer, end, said))),
         new("logic-dart-recursion-never-stops", CodePattern.Files(".dart"), Syntax.CLike,
-            new(@"^(?<indent>\s*)[\w<>?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord),
+            new(@"^(?<indent>\s*)[\w<>?]+\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Body.Braces, LastWord,
+            Memo: new(new(@"\b(?<map>[A-Za-z_]\w*)\.containsKey\(\s*(?<key>[A-Za-z_]\w*)\s*\)"), @"\b{m}\s*\[[^\]]+\]\s*=(?!=)|\b{m}\.(?:putIfAbsent|update|addAll)\(",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}{map}[{key}] = {answer};", $"{indent}return {map}[{key}]!;"])),
         new("logic-php-recursion-never-stops", CodePattern.Files(".php"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:(?:public|private|protected|static)\s+)*function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.Braces, DollarName,
             FieldOf: @"{p}->[A-Za-z_]\w*"),
         new("logic-perl-recursion-never-stops", CodePattern.Files(".pl", ".pm"), Syntax.Perl,
             new(@"^(?<indent>\s*)sub\s+(?<function>[A-Za-z_]\w*)\s*(?<parameters>)\{?\s*$"), Body.Braces, DollarName,
-            Copied: new(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*\)\s*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)"), FieldOf: @"{p}->\{\s*\w+\s*\}"),
+            Copied: new(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*\)\s*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)"), FieldOf: @"{p}->\{\s*\w+\s*\}",
+            Memo: new(new(@"\bexists\s+\$(?<map>[A-Za-z_]\w*)\{\s*(?<key>\$[A-Za-z_]\w*)\s*\}"), @"\${m}\{[^}]+\}\s*(?:\|\||//)?=(?![=~>])",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}${map}{{{key}}} = {answer};", $"{indent}return ${map}{{{key}}};"])),
         new("logic-powershell-recursion-never-stops", CodePattern.Files(".ps1"), Syntax.Python,
-            new(@"^(?<indent>\s*)function\s+(?<function>[A-Za-z_][\w-]*)\s*\((?<parameters>[^)]*)\)", RegexOptions.IgnoreCase), Body.Braces, DollarName, Words: true, FieldOf: null),
+            new(@"^(?<indent>\s*)function\s+(?<function>[A-Za-z_][\w-]*)\s*\((?<parameters>[^)]*)\)", RegexOptions.IgnoreCase), Body.Braces, DollarName, Words: true, FieldOf: null,
+            Memo: new(new(@"\$(?<map>[A-Za-z_]\w*)\.(?:ContainsKey|Contains)\(\s*(?<key>\$[A-Za-z_]\w*)\s*\)", RegexOptions.IgnoreCase), @"\${m}\s*\[[^\]]+\]\s*=(?!=)|\${m}\.Add\(",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}${map}[{key}] = {answer}", $"{indent}return ${map}[{key}]"])),
         new("logic-scala-recursion-never-stops", CodePattern.Files(".scala", ".sc"), Syntax.Scala,
-            new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.BracesOrIndented, FirstWord),
+            new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Body.BracesOrIndented, FirstWord,
+            Memo: new(new(@"\b(?<map>[A-Za-z_]\w*)\.contains\(\s*(?<key>[A-Za-z_]\w*)\s*\)"), @"\b{m}\s*\([^()]+\)\s*=(?!=)|\b{m}\s*\+=|\b{m}\.(?:put|update|getOrElseUpdate|addOne)\(",
+                (indent, map, key, answer, end, said, asked) => [$"{indent}{map}({key}) = {answer}", $"{indent}{(said ? "return " : "")}{map}({key})"])),
     ];
 
     public static IReadOnlyList<ILogicPattern> All { get; } =
@@ -88,7 +133,75 @@ public static partial class RecursionPatterns
         .. Dialects.Where(dialect => dialect.FieldOf is not null).Select(dialect => new CodePattern(
             dialect.Id.Replace("recursion-never-stops", "new-node-lost", StringComparison.Ordinal), dialect.Files, dialect.Syntax,
             (id, source, masked) => LostNodes(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+        .. Dialects.Where(dialect => dialect.Memo is not null).Select(dialect => new CodePattern(
+            dialect.Id.Replace("recursion-never-stops", "memo-never-kept", StringComparison.Ordinal), dialect.Files, dialect.Syntax,
+            (id, source, masked) => EmptyMemos(id, source, masked, dialect), Severity.Warning, Confidence.Likely)),
     ];
+
+    /// <summary>
+    /// Each recursive function that asks a memo for an answer the file never puts into it - said once for the function, with
+    /// the change that keeps the answer on the last line that works it out by calling the function.
+    /// </summary>
+    private static IEnumerable<LogicFinding> EmptyMemos(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect)
+    {
+        var memo = dialect.Memo!;
+        for (var header = 0; header < masked.Count; header++)
+        {
+            if (dialect.Header.Match(masked[header]) is not { Success: true } function) continue;
+            if (Lines(masked, header, dialect.Body, function.Groups["indent"].Value) is not { Count: > 0 } body) continue;
+
+            var name = function.Groups["function"].Value;
+            var called = new Regex($@"(?<![\w.$:-]){Regex.Escape(name)}\s*\(");
+            var working = body.LastOrDefault(line => called.IsMatch(masked[line]), -1);
+            if (working < 0) continue;
+
+            if (body.Select(line => (Line: line, Asked: memo.Asked.Match(masked[line]))).FirstOrDefault(each => each.Asked.Success) is not { Asked.Success: true } ask) continue;
+
+            // Asked, and given nothing anywhere in the file: no line puts a value into it.
+            var map = ask.Asked.Groups["map"].Value;
+            var put = new Regex(memo.Put.Replace("{m}", Regex.Escape(map), StringComparison.Ordinal));
+            if (masked.Any(line => put.IsMatch(line))) continue;
+
+            if (!OnlyAMemo(masked, header, body, map, memo, called)) continue;
+
+            var key = source.Lines[ask.Line].Substring(ask.Asked.Groups["key"].Index, ask.Asked.Groups["key"].Length);
+            var said = $"Line {ask.Line + 1} asks `{map}` for an answer for `{key}`, but no line of the file ever puts one into `{map}`: it stays empty, " +
+                       $"so every call to {name} works its answer out again, as many times as it would with no memo at all.";
+
+            // The answer on the last line that calls the function: return fib(n - 1) + fib(n - 2), or Ruby's and Scala's last line.
+            var line = source.Lines[working];
+            var returned = Regex.Match(masked[working], @"^(?<indent>\s*)(?<said>return\s+)?(?<answer>.*?\S)\s*(?<end>;?)\s*$");
+            var tail = !returned.Groups["said"].Success && dialect.Id is "logic-ruby-recursion-never-stops" or "logic-scala-recursion-never-stops" &&
+                       working == body.Where(each => masked[each].Trim() is not ("" or "}" or "end")).Max();
+            if (!returned.Success || !returned.Groups["said"].Success && !tail)
+            {
+                yield return new LogicFinding(id, ask.Line + 1, said, null) { Severity = Severity.Warning, Confidence = Confidence.Likely };
+                continue;
+            }
+
+            var answer = line.Substring(returned.Groups["answer"].Index, returned.Groups["answer"].Length);
+            var lines = memo.Kept(returned.Groups["indent"].Value, map, key, answer, returned.Groups["end"].Value, returned.Groups["said"].Success, ask.Asked);
+
+            // TypeScript's Map.get may give undefined for all its types say, so a function giving back a number says it does not: !.
+            if (Path.GetExtension(source.Path) is ".ts" or ".mts" or ".cts")
+                lines = [.. lines.Select(kept => Regex.Replace(kept, @"(\breturn\s+[^;]*\.get\([^()]*\))(;?)\s*$", "$1!$2"))];
+            yield return new LogicFinding(id, ask.Line + 1, said,
+                new LocalFix
+                {
+                    RuleId = id,
+                    Title = $"Keep each answer in {map}: {map} gets what line {working + 1} works out",
+                    Explanation = $"Each answer is then in {map} the next time it is asked for, so it is worked out once.",
+                    File = source.Path,
+                    StartLine = working + 1,
+                    RemoveCount = 1,
+                    NewLines = lines,
+                })
+            {
+                Severity = Severity.Warning,
+                Confidence = Confidence.Likely,
+            };
+        }
+    }
 
     /// <summary>Perl's first parameter, copied out of @_ by the sub's first line: my ($node, $value) = @_; or my $node = shift;.</summary>
     [GeneratedRegex(@"^\s*my\s*(?:\(\s*(?<name>\$[A-Za-z_]\w*)\s*[,)].*=\s*@_|(?<name>\$[A-Za-z_]\w*)\s*=\s*shift\b)")]
@@ -167,6 +280,31 @@ public static partial class RecursionPatterns
                 Confidence = Confidence.Likely,
             };
         }
+    }
+
+    /// <summary>
+    /// Whether the file shows the map is a memo of this function's alone: its answers are read back - memo[n], memo.get(n),
+    /// $memo{$n} - as a set of places visited never is; outside the function nothing touches it but lines making it empty, and
+    /// one does unless it is the function's own parameter; and inside, each line naming it asks it, reads it, or passes it to
+    /// the function itself. A map named anywhere else may be filled there, and is left alone.
+    /// </summary>
+    private static bool OnlyAMemo(IReadOnlyList<string> masked, int header, List<int> body, string map, Memo memo, Regex called)
+    {
+        var name = Regex.Escape(map);
+        var read = new Regex($@"(?<![\w$])[$%]?{name}\s*(?:\[|\.(?:get|at|TryGetValue|fetch|getOrElse)\(|\{{|\()");
+        if (!body.Any(line => read.IsMatch(masked[line]))) return false;
+
+        var named = new Regex($@"(?<![\w$])[$%]?{name}(?![\w$])");
+        var madeEmpty = new Regex($@"^\s*(?:(?:static|final|private|public|readonly|const|let|var|val|local|my|our)\s+)*(?:[\w.:<>\[\], ?]+\s+)?[$%]?{name}\s*(?::[^=]*)?" +
+                                  $@"(?:=\s*(?:\{{\s*\}}|dict\(\s*\)|new\s*[\w.<>\[\], ]*\(\s*\)|map\[[^\]]+\][\w\[\]*.]*\{{\s*\}}|mutable\.\w+(?:\[[^\]]*\])?\(\s*\)|@\{{\s*\}}|<[^>]*>\s*\{{\s*\}}|\(\s*\)))?\s*;?\s*$");
+
+        var inside = new HashSet<int>(body) { header };
+        var outside = Enumerable.Range(0, masked.Count).Where(line => !inside.Contains(line) && named.IsMatch(masked[line])).ToList();
+        if (outside.Any(line => !madeEmpty.IsMatch(masked[line]))) return false;
+        if (outside.Count == 0 && !named.IsMatch(masked[header])) return false;
+
+        return body.Where(line => named.IsMatch(masked[line]))
+            .All(line => memo.Asked.IsMatch(masked[line]) || read.IsMatch(masked[line]) || called.IsMatch(masked[line]));
     }
 
     /// <summary>The function's first parameter's name - after self or this - or Perl's first copied out of @_; null for none.</summary>
