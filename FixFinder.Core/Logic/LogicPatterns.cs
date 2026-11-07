@@ -47,6 +47,7 @@ public static class LogicPatterns
         .. WrongCollectionPatterns.All,
         .. LoopNeverAdvancesPatterns.All,
         .. SwapPatterns.All,
+        .. RecursionPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

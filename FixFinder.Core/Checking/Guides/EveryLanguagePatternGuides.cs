@@ -36,6 +36,17 @@ internal static class EveryLanguagePatternGuides
             "Keep the first value in a name of its own before it is changed, or swap the two in one step, as the language allows.",
             example);
 
+    private static GuideEntry RecursionNeverStops(string id, string example) =>
+        GuideFor([id], "Recursion that never reaches where it stops, or stops with the wrong value",
+            "A function that calls itself needs a case where it stops - if n <= 1 - and each call has to bring n closer to it. A call " +
+            "with n + 1 moves away from a stop at 1, a call with n as it is never moves, and a call that takes 2 off n each time goes " +
+            "past n == 0 when n is odd. A product such as a factorial also has to stop with 1: n times what the next call gives back, " +
+            "with the stop giving back 0, makes every answer 0.",
+            "A function that never stops calls itself until the language runs out of room for the calls - RecursionError in Python, " +
+            "StackOverflowError in Java, a crash in C. One that stops with 0 gives back 0 for every n, with no error to say so.",
+            "Make each call move n towards the stop, stop at the number or past it, and give back 1 where a product stops.",
+            example);
+
     private static GuideEntry WrongList(string id, string example) =>
         GuideFor([id], "A loop that goes through a different list from the one its items are named for",
             "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
@@ -1133,6 +1144,140 @@ internal static class EveryLanguagePatternGuides
             val held = marks(i)
             marks(i) = marks(j)
             marks(j) = held
+            """),
+        RecursionNeverStops("logic-python-recursion-never-stops",
+            """
+            def factorial(n):
+                if n <= 1:
+                    return 1
+                return n * factorial(n - 1)
+            """),
+        RecursionNeverStops("logic-ruby-recursion-never-stops",
+            """
+            def factorial(n)
+              return 1 if n <= 1
+              n * factorial(n - 1)
+            end
+            """),
+        RecursionNeverStops("logic-lua-recursion-never-stops",
+            """
+            local function factorial(n)
+              if n <= 1 then
+                return 1
+              end
+              return n * factorial(n - 1)
+            end
+            """),
+        RecursionNeverStops("logic-go-recursion-never-stops",
+            """
+            package main
+
+            import "fmt"
+
+            func factorial(n int) int {
+            	if n <= 1 {
+            		return 1
+            	}
+            	return n * factorial(n-1)
+            }
+
+            func main() {
+            	fmt.Println(factorial(5))
+            }
+            """),
+        RecursionNeverStops("logic-rust-recursion-never-stops",
+            """
+            fn factorial(n: u64) -> u64 {
+                if n <= 1 {
+                    return 1;
+                }
+                n * factorial(n - 1)
+            }
+            """),
+        RecursionNeverStops("logic-js-recursion-never-stops",
+            """
+            function factorial(n) {
+                if (n <= 1) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-java-recursion-never-stops",
+            """
+            static long factorial(int n) {
+                if (n <= 1) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-csharp-recursion-never-stops",
+            """
+            static long Factorial(int n)
+            {
+                if (n <= 1)
+                {
+                    return 1;
+                }
+                return n * Factorial(n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-c-recursion-never-stops",
+            """
+            long factorial(int n) {
+                if (n <= 1) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-dart-recursion-never-stops",
+            """
+            int factorial(int n) {
+              if (n <= 1) {
+                return 1;
+              }
+              return n * factorial(n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-php-recursion-never-stops",
+            """
+            function factorial(int $n): int
+            {
+                if ($n <= 1) {
+                    return 1;
+                }
+                return $n * factorial($n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-perl-recursion-never-stops",
+            """
+            sub factorial {
+                my ($n) = @_;
+                return 1 if $n <= 1;
+                return $n * factorial($n - 1);
+            }
+            """),
+        RecursionNeverStops("logic-powershell-recursion-never-stops",
+            """
+            function Get-Factorial($n) {
+                if ($n -le 1) {
+                    return 1
+                }
+                return $n * (Get-Factorial ($n - 1))
+            }
+
+            Write-Output (Get-Factorial 5)
+            """),
+        RecursionNeverStops("logic-scala-recursion-never-stops",
+            """
+            def factorial(n: Int): Long = {
+              if (n <= 1) {
+                return 1
+              }
+              n * factorial(n - 1)
+            }
             """),
     ];
 }

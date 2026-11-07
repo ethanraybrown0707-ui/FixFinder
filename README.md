@@ -1854,27 +1854,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 82 | 41 |
-| Java | 67 | 69 | 51 |
-| C# | 52 | 56 | 49 |
-| C | 46 | 41 | 39 |
-| C++ | 46 | 51 | 39 |
-| JavaScript | 44 | 60 | 16 |
-| Go | 38 | 32 | 18 |
-| Scala | 6 | 28 | 28 |
+| Python | 91 | 83 | 41 |
+| Java | 67 | 70 | 51 |
+| C# | 52 | 57 | 49 |
+| C | 46 | 42 | 39 |
+| C++ | 46 | 52 | 39 |
+| JavaScript | 44 | 61 | 16 |
+| Go | 38 | 33 | 18 |
+| Scala | 6 | 29 | 28 |
 | OCaml | 6 | 11 | 26 |
-| Rust | 7 | 20 | 33 |
-| Ruby | 13 | 37 | 26 |
-| PHP | 16 | 34 | 18 |
-| Lua | 12 | 25 | 25 |
-| Perl | 14 | 31 | 26 |
-| Dart | 16 | 22 | 23 |
+| Rust | 7 | 21 | 33 |
+| Ruby | 13 | 38 | 26 |
+| PHP | 16 | 35 | 18 |
+| Lua | 12 | 26 | 25 |
+| Perl | 14 | 32 | 26 |
+| Dart | 16 | 23 | 23 |
 | Fortran | 13 | 19 | 19 |
-| PowerShell | 11 | 36 | 16 |
+| PowerShell | 11 | 37 | 16 |
 | Elixir | 15 | 22 | 29 |
 | Erlang | 13 | 13 | 23 |
 | F# | 17 | 23 | 33 |
-| TypeScript | 48 | 60 | 26 |
+| TypeScript | 48 | 61 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
