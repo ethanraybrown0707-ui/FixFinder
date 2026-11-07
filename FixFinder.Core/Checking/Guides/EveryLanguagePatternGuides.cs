@@ -26,6 +26,16 @@ internal static class EveryLanguagePatternGuides
             "Move the counter on at the end of each pass.",
             example);
 
+    private static GuideEntry SwapLosesValue(string id, string example) =>
+        GuideFor([id], "A swap that loses one of its two values",
+            "To swap two values, one of them has to be kept somewhere first. Written as two lines - a = b and then b = a - the first " +
+            "line gives a what b holds, so by the second line a holds b's value too, and b is given its own value back. What a held " +
+            "before is gone.",
+            "Nothing is swapped: both places end up holding the same value, and a sort that swaps this way loses some items and " +
+            "repeats others, with no error to say so.",
+            "Keep the first value in a name of its own before it is changed, or swap the two in one step, as the language allows.",
+            example);
+
     private static GuideEntry WrongList(string id, string example) =>
         GuideFor([id], "A loop that goes through a different list from the one its items are named for",
             "When a program has two lists that go together - widths and heights - and a loop for each, the second loop is often " +
@@ -1043,6 +1053,86 @@ internal static class EveryLanguagePatternGuides
               total = total + marks(i)
               i = i + 1
             end do
+            """),
+        SwapLosesValue("logic-python-swap-loses-value",
+            """
+            marks[i], marks[j] = marks[j], marks[i]
+            """),
+        SwapLosesValue("logic-ruby-swap-loses-value",
+            """
+            marks[i], marks[j] = marks[j], marks[i]
+            """),
+        SwapLosesValue("logic-lua-swap-loses-value",
+            """
+            marks[i], marks[j] = marks[j], marks[i]
+            """),
+        SwapLosesValue("logic-go-swap-loses-value",
+            """
+            package main
+
+            import "fmt"
+
+            func main() {
+            	marks := []int{55, 40}
+            	marks[0], marks[1] = marks[1], marks[0]
+            	fmt.Println(marks)
+            }
+            """),
+        SwapLosesValue("logic-powershell-swap-loses-value",
+            """
+            $marks = @(55, 40)
+            $marks[0], $marks[1] = $marks[1], $marks[0]
+            Write-Output $marks
+            """),
+        SwapLosesValue("logic-php-swap-loses-value",
+            """
+            [$marks[$i], $marks[$j]] = [$marks[$j], $marks[$i]];
+            """),
+        SwapLosesValue("logic-perl-swap-loses-value",
+            """
+            ($marks[$i], $marks[$j]) = ($marks[$j], $marks[$i]);
+            """),
+        SwapLosesValue("logic-js-swap-loses-value",
+            """
+            [marks[i], marks[j]] = [marks[j], marks[i]];
+            """),
+        SwapLosesValue("logic-csharp-swap-loses-value",
+            """
+            (marks[i], marks[j]) = (marks[j], marks[i]);
+            """),
+        SwapLosesValue("logic-java-swap-loses-value",
+            """
+            int held = marks[i];
+            marks[i] = marks[j];
+            marks[j] = held;
+            """),
+        SwapLosesValue("logic-cpp-swap-loses-value",
+            """
+            auto held = marks[i];
+            marks[i] = marks[j];
+            marks[j] = held;
+            """),
+        SwapLosesValue("logic-c-swap-loses-value",
+            """
+            int held = marks[i];
+            marks[i] = marks[j];
+            marks[j] = held;
+            """),
+        SwapLosesValue("logic-dart-swap-loses-value",
+            """
+            final held = marks[i];
+            marks[i] = marks[j];
+            marks[j] = held;
+            """),
+        SwapLosesValue("logic-rust-swap-loses-value",
+            """
+            marks.swap(i, j);
+            """),
+        SwapLosesValue("logic-scala-swap-loses-value",
+            """
+            val held = marks(i)
+            marks(i) = marks(j)
+            marks(j) = held
             """),
     ];
 }
