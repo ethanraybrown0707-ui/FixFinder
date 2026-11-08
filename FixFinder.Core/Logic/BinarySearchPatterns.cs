@@ -275,6 +275,7 @@ public static partial class BinarySearchPatterns
 
                 var arguments = Split(masked[line][(open + 1)..close]);
                 if (arguments.Count != parameters.Count || arguments[low] != mid || arguments[high] != parameters[high]) continue;
+                if (!AgainOnceOneIsLeft(source, masked, function, line, called.Index, parameters[low], parameters[high])) continue;
 
                 var text = source.Lines[line];
                 var argumentAt = ArgumentStart(masked[line], open, low);
@@ -291,6 +292,7 @@ public static partial class BinarySearchPatterns
                 var arguments = called.Groups["arguments"];
                 var each = Regex.Matches(arguments.Value, @"\S+").ToList();
                 if (each.Count != parameters.Count || each[low].Value != mid || each[high].Value != parameters[high]) continue;
+                if (!AgainOnceOneIsLeft(source, masked, function, line, called.Index, parameters[low], parameters[high])) continue;
 
                 var text = source.Lines[line];
                 var argumentAt = arguments.Index + each[low].Index;
@@ -302,6 +304,45 @@ public static partial class BinarySearchPatterns
                     $"`({mid} + 1)` starts past the position just looked at, so each call has fewer to look through.");
             }
         }
+    }
+
+    /// <summary>
+    /// Whether the search is made again from the middle once one place is left, hi one more than lo: the call is the search's
+    /// choice - in a branch of a test of something other than the two ends, if x &lt; arr[mid], or in an arm guarded by one,
+    /// x &gt; at -&gt; search(arr, x, mid, hi) - and every test of the ends on
+    /// the way to it lets it through then. A merge sort calls itself on both halves every time, and a search that stops at
+    /// one place - if hi - lo &lt;= 1: return - never gets that far, so neither is said to go on for ever.
+    /// </summary>
+    private static bool AgainOnceOneIsLeft(SourceFile source, IReadOnlyList<string> masked, Function function, int line, int callAt, string low, string high)
+    {
+        var path = source.Path;
+        var colonEnds = path.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".pyw", StringComparison.OrdinalIgnoreCase);
+        var modifiers = path.EndsWith(".rb", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".pm", StringComparison.OrdinalIgnoreCase);
+        var ignoreCase = path.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase);
+        var options = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+
+        var tests = Reaching.Tests(masked, function.First, line, new HashSet<int>(), colonEnds, modifiers, ignoreCase);
+        string Whole(string name) => $@"(?<![\w$@.]){Regex.Escape(name)}(?!\w)";
+        bool Names(string condition) => Regex.IsMatch(condition, Whole(low), options) || Regex.IsMatch(condition, Whole(high), options);
+
+        // An arm of a cond, a case or an if, written before the call on its line - x > at -> search(arr, x, mid, hi) - chooses it too.
+        var arm = Regex.Match(masked[line][..callAt], @"^\s*(?<guard>.+?)\s*->\s*$");
+        var armChooses = arm.Success && !Names(arm.Groups["guard"].Value);
+        if (!armChooses && !tests.Any(test => test.Role is Reaching.Role.Inside or Reaching.Role.InElse && !Names(test.Condition))) return false;
+
+        foreach (var test in tests.Where(test => Names(test.Condition)))
+        {
+            if (test.Role == Reaching.Role.Unread) return false;
+            foreach (var (lowValue, highValue) in new[] { (0, 1), (5, 6) })
+            {
+                var put = Regex.Replace(Regex.Replace(test.Condition, Whole(low), lowValue.ToString(), options), Whole(high), highValue.ToString(), options);
+                if (Reaching.Holds(put) is not { } holds) return false;
+                if (test.Unless) holds = !holds;
+                if ((test.Role == Reaching.Role.Inside) != holds) return false;
+            }
+        }
+
+        return true;
     }
 
     private static int ArgumentStart(string masked, int open, int index)
