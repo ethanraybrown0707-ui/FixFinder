@@ -73,4 +73,16 @@ public class MemoNeverKeptTests : IDisposable
     {
         Assert.DoesNotContain(LogicPatterns.Scan(Program(fileName, code)), finding => finding.PatternId.EndsWith("memo-never-kept", StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// Lua's if visited[node] then and Perl's exists $seen{$node} ask a set of places visited the way a memo is asked, and
+    /// were taken for memos: the asking is no answer read back, so neither is.
+    /// </summary>
+    [Theory]
+    [InlineData("reach.lua", "local graph = { [0] = { 1 }, [1] = { 2 }, [2] = { 0, 3 }, [3] = {} }\nlocal visited = {}\n\nlocal function reach(node)\n  if visited[node] then\n    return 0\n  end\n  local count = 1\n  for _, next_node in ipairs(graph[node]) do\n    count = count + reach(next_node)\n  end\n  return count\nend\n\nprint(reach(0))\n")]
+    [InlineData("reach.pl", "use strict;\nuse warnings;\n\nmy %graph = (0 => [1], 1 => [2], 2 => [0, 3], 3 => []);\nmy %seen;\n\nsub reach {\n    my ($node) = @_;\n    return 0 if exists $seen{$node};\n    my $count = 1;\n    $count += reach($_) for @{ $graph{$node} };\n    return $count;\n}\n\nprint reach(0), \"\\n\";\n")]
+    public void ASetOfPlacesVisitedIsNotTakenForAMemo(string fileName, string code)
+    {
+        Assert.DoesNotContain(LogicPatterns.Scan(Program(fileName, code)), finding => finding.PatternId.EndsWith("memo-never-kept", StringComparison.Ordinal));
+    }
 }

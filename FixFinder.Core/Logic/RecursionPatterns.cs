@@ -288,11 +288,15 @@ public static partial class RecursionPatterns
     /// one does unless it is the function's own parameter; and inside, each line naming it asks it, reads it, or passes it to
     /// the function itself. A map named anywhere else may be filled there, and is left alone.
     /// </summary>
+    /// <remarks>
+    /// The asking is no reading back, where it is written as a read - Lua's if visited[node] then, Perl's exists $seen{$n} - but
+    /// an ask handing over the answer is: C#'s TryGetValue(n, out var answer), and Go's answer, ok := memo[n].
+    /// </remarks>
     private static bool OnlyAMemo(IReadOnlyList<string> masked, int header, List<int> body, string map, Memo memo, Regex called)
     {
         var name = Regex.Escape(map);
         var read = new Regex($@"(?<![\w$])[$%]?{name}\s*(?:\[|\.(?:get|at|TryGetValue|fetch|getOrElse)\(|\{{|\()");
-        if (!body.Any(line => read.IsMatch(masked[line]))) return false;
+        if (!body.Any(line => ReadsAnAnswer(masked[line], read, memo.Asked, map))) return false;
 
         var named = new Regex($@"(?<![\w$])[$%]?{name}(?![\w$])");
         var madeEmpty = new Regex($@"^\s*(?:(?:static|final|private|public|readonly|const|let|var|val|local|my|our)\s+)*(?:[\w.:<>\[\], ?]+\s+)?[$%]?{name}\s*(?::[^=]*)?" +
@@ -305,6 +309,17 @@ public static partial class RecursionPatterns
 
         return body.Where(line => named.IsMatch(masked[line]))
             .All(line => memo.Asked.IsMatch(masked[line]) || read.IsMatch(masked[line]) || called.IsMatch(masked[line]));
+    }
+
+    /// <summary>Whether the line reads an answer out of the map: a read outside its asking, or an ask that hands the answer over.</summary>
+    private static bool ReadsAnAnswer(string text, Regex read, Regex asked, string map)
+    {
+        var asks = asked.Matches(text).Where(ask => ask.Groups["map"].Value == map).ToList();
+        if (asks.Any(ask => ask.Value.Contains("TryGetValue", StringComparison.Ordinal) ||
+                            ask.Value.StartsWith(',') && Regex.IsMatch(text[..ask.Index], @"(?<![\w$])(?!_\b)[A-Za-z_]\w*\s*$")))
+            return true;
+
+        return read.Matches(text).Any(each => !asks.Any(ask => each.Index >= ask.Index && each.Index < ask.Index + ask.Length));
     }
 
     /// <summary>The function's first parameter's name - after self or this - or Perl's first copied out of @_; null for none.</summary>
