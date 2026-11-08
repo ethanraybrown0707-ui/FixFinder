@@ -57,6 +57,18 @@ internal static class EveryLanguagePatternGuides
             "Give the field what the call gives back: node.left = insert(node.left, value).",
             example);
 
+    private static GuideEntry VisitedNeverAdded(string id, string example) =>
+        GuideFor([id], "A set of places visited that is asked and never given anything",
+            "A search keeps the places it has been in a set - visited - and asks it about each place it comes to, so that it goes " +
+            "on from each place only once. That only works when each place is added to the set as the search comes to it. Here " +
+            "nothing is ever added, so the set is always empty, and every place looks new each time the search reaches it.",
+            "The search goes to the same places again and again. On a graph whose edges come back round - a cycle, or any " +
+            "undirected graph - a search that calls itself can do so until the program runs out of room for its calls and stops " +
+            "with an error, and a search going round a loop can go on for ever.",
+            "Add each place to the set as the search comes to it: first thing in the function that searches from it, or straight " +
+            "after the line that asks whether it is there.",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -1661,6 +1673,201 @@ internal static class EveryLanguagePatternGuides
               }
               memo(n) = fib(n - 1) + fib(n - 2)
               memo(n)
+            }
+            """),
+        VisitedNeverAdded("logic-python-visited-never-added",
+            """
+            visited = set()
+
+
+            def reach(node):
+                if node in visited:
+                    return 0
+                visited.add(node)
+                return 1 + sum(reach(next_node) for next_node in graph[node])
+            """),
+        VisitedNeverAdded("logic-java-visited-never-added",
+            """
+            static Set<Integer> visited = new HashSet<>();
+
+            static int reach(int node) {
+                if (visited.contains(node)) {
+                    return 0;
+                }
+                visited.add(node);
+                int count = 1;
+                for (int next : graph.get(node)) {
+                    count += reach(next);
+                }
+                return count;
+            }
+            """),
+        VisitedNeverAdded("logic-csharp-visited-never-added",
+            """
+            static int Reach(int node, HashSet<int> visited)
+            {
+                if (visited.Contains(node)) return 0;
+                visited.Add(node);
+                int count = 1;
+                foreach (int next in Graph[node]) count += Reach(next, visited);
+                return count;
+            }
+            """),
+        VisitedNeverAdded("logic-js-visited-never-added",
+            """
+            const visited = new Set();
+            let node = 0;
+            let steps = 0;
+            while (true) {
+                if (visited.has(node)) {
+                    break;
+                }
+                visited.add(node);
+                steps += 1;
+                node = links[node];
+            }
+            """),
+        VisitedNeverAdded("logic-c-visited-never-added",
+            """
+            int visited[4];
+
+            int main(void) {
+                int node = 0;
+                int steps = 0;
+                while (!visited[node]) {
+                    visited[node] = 1;
+                    steps++;
+                    node = links[node];
+                }
+                printf("%d\n", steps);
+                return 0;
+            }
+            """),
+        VisitedNeverAdded("logic-cpp-visited-never-added",
+            """
+            std::set<int> visited;
+
+            int reach(int node) {
+                if (visited.count(node)) {
+                    return 0;
+                }
+                visited.insert(node);
+                int count = 1;
+                for (int next : graph[node]) {
+                    count += reach(next);
+                }
+                return count;
+            }
+            """),
+        VisitedNeverAdded("logic-go-visited-never-added",
+            """
+            visited := map[int]bool{}
+            node := 0
+            steps := 0
+            for !visited[node] {
+            	visited[node] = true
+            	steps++
+            	node = links[node]
+            }
+            """),
+        VisitedNeverAdded("logic-rust-visited-never-added",
+            """
+            fn reach(node: usize, graph: &Vec<Vec<usize>>, visited: &mut HashSet<usize>) -> usize {
+                if visited.contains(&node) {
+                    return 0;
+                }
+                visited.insert(node);
+                let mut count = 1;
+                for &next in &graph[node] {
+                    count += reach(next, graph, visited);
+                }
+                count
+            }
+            """),
+        VisitedNeverAdded("logic-ruby-visited-never-added",
+            """
+            visited = Set.new
+            node = 0
+            steps = 0
+            until visited.include?(node)
+              visited.add(node)
+              steps += 1
+              node = links[node]
+            end
+            """),
+        VisitedNeverAdded("logic-lua-visited-never-added",
+            """
+            local visited = {}
+
+            local function reach(node)
+              if visited[node] then
+                return 0
+              end
+              visited[node] = true
+              local count = 1
+              for _, next_node in ipairs(graph[node]) do
+                count = count + reach(next_node)
+              end
+              return count
+            end
+            """),
+        VisitedNeverAdded("logic-php-visited-never-added",
+            """
+            $visited = [];
+            $node = 0;
+            $steps = 0;
+            while (!isset($visited[$node])) {
+                $visited[$node] = true;
+                $steps++;
+                $node = $links[$node];
+            }
+            """),
+        VisitedNeverAdded("logic-perl-visited-never-added",
+            """
+            my %visited;
+            my $node = 0;
+            my $steps = 0;
+            while (!exists $visited{$node}) {
+                $visited{$node} = 1;
+                $steps++;
+                $node = $links[$node];
+            }
+            """),
+        VisitedNeverAdded("logic-powershell-visited-never-added",
+            """
+            $visited = [System.Collections.Generic.HashSet[int]]::new()
+            $node = 0
+            $steps = 0
+            while (-not $visited.Contains($node)) {
+                [void]$visited.Add($node)
+                $steps++
+                $node = $links[$node]
+            }
+            """),
+        VisitedNeverAdded("logic-dart-visited-never-added",
+            """
+            final visited = <int>{};
+
+            int reach(int node) {
+              if (visited.contains(node)) return 0;
+              visited.add(node);
+              var count = 1;
+              for (final next in graph[node]) {
+                count += reach(next);
+              }
+              return count;
+            }
+            """),
+        VisitedNeverAdded("logic-scala-visited-never-added",
+            """
+            val visited = mutable.Set[Int]()
+
+            def reach(node: Int): Int = {
+              if (visited.contains(node)) {
+                return 0
+              }
+              visited += node
+              1 + graph(node).map(reach).sum
             }
             """),
     ];
