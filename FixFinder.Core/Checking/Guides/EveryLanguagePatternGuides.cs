@@ -96,6 +96,17 @@ internal static class EveryLanguagePatternGuides
             "beside the pivot.",
             example);
 
+    private static GuideEntry PathFromWrongEnd(string id, string example) =>
+        GuideFor([id], "A shortest path worked out from the end the edge goes to",
+            "Dijkstra's search keeps, for each place, the shortest length found to it so far. At each place it comes to, it looks " +
+            "at each edge going out: the way through this place to the next one is the length to this place plus the edge's, and " +
+            "when that is shorter than what is kept for the next place, it is kept instead. Here the edge's length is added to " +
+            "what is kept for the next place itself - dist[next] + length - not to the length to the place the edge comes from.",
+            "The length of a way through the place the search is at is never worked out, so the lengths found are wrong: a place " +
+            "can keep the length it started with, or the length of one edge alone, however the graph is joined.",
+            "Start the sum from the place the edge comes from: dist[node] + length, or the length the search took with that place.",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -2344,6 +2355,135 @@ internal static class EveryLanguagePatternGuides
                 let lower = List.filter (fun x -> x < pivot) rest in
                 let higher = List.filter (fun x -> x >= pivot) rest in
                 quick_sort lower @ [pivot] @ quick_sort higher
+            """),
+        PathFromWrongEnd("logic-python-path-from-wrong-end",
+            """
+            for next_node, length in graph[node]:
+                if dist[node] + length < dist[next_node]:
+                    dist[next_node] = dist[node] + length
+                    heapq.heappush(heap, (dist[next_node], next_node))
+            """),
+        PathFromWrongEnd("logic-java-path-from-wrong-end",
+            """
+            for (int[] edge : graph.get(node)) {
+                int next = edge[0];
+                int length = edge[1];
+                if (dist[node] + length < dist[next]) {
+                    dist[next] = dist[node] + length;
+                }
+            }
+            """),
+        PathFromWrongEnd("logic-csharp-path-from-wrong-end",
+            """
+            foreach (var (next, length) in graph[node])
+            {
+                int shorter = Math.Min(dist[next], dist[node] + length);
+                if (shorter < dist[next])
+                {
+                    dist[next] = shorter;
+                    queue.Enqueue(next, shorter);
+                }
+            }
+            """),
+        PathFromWrongEnd("logic-js-path-from-wrong-end",
+            """
+            for (const [next, length] of graph[node]) {
+              if (dist[node] + length < dist[next]) {
+                dist[next] = dist[node] + length;
+              }
+            }
+            """),
+        PathFromWrongEnd("logic-c-path-from-wrong-end",
+            """
+            for (int next = 0; next < N; next++) {
+                if (graph[node][next] > 0 && dist[node] + graph[node][next] < dist[next]) dist[next] = dist[node] + graph[node][next];
+            }
+            """),
+        PathFromWrongEnd("logic-cpp-path-from-wrong-end",
+            """
+            for (auto [next, length] : graph[node]) {
+                int shorter = std::min(dist[next], dist[node] + length);
+                if (shorter < dist[next]) {
+                    dist[next] = shorter;
+                    queue.push({shorter, next});
+                }
+            }
+            """),
+        PathFromWrongEnd("logic-go-path-from-wrong-end",
+            """
+            for _, e := range graph[node] {
+            	if dist[node]+e.length < dist[e.to] {
+            		dist[e.to] = dist[node] + e.length
+            	}
+            }
+            """),
+        PathFromWrongEnd("logic-rust-path-from-wrong-end",
+            """
+            for &(next, length) in &graph[node] {
+                dist[next] = dist[next].min(dist[node] + length);
+            }
+            """),
+        PathFromWrongEnd("logic-ruby-path-from-wrong-end",
+            """
+            graph[node].each do |nxt, length|
+              dist[nxt] = [dist[nxt], dist[node] + length].min
+            end
+            """),
+        PathFromWrongEnd("logic-lua-path-from-wrong-end",
+            """
+            for _, edge in ipairs(graph[node]) do
+              local nxt, length = edge[1], edge[2]
+              if dist[node] + length < dist[nxt] then
+                dist[nxt] = dist[node] + length
+              end
+            end
+            """),
+        PathFromWrongEnd("logic-php-path-from-wrong-end",
+            """
+            foreach ($graph[$node] as [$next, $length]) {
+                $dist[$next] = min($dist[$next], $dist[$node] + $length);
+            }
+            """),
+        PathFromWrongEnd("logic-perl-path-from-wrong-end",
+            """
+            for my $edge (@{ $graph{$node} }) {
+                my ($next, $length) = @$edge;
+                if ($dist{$node} + $length < $dist{$next}) {
+                    $dist{$next} = $dist{$node} + $length;
+                }
+            }
+            """),
+        PathFromWrongEnd("logic-powershell-path-from-wrong-end",
+            """
+            foreach ($edge in $graph[$node]) {
+                $next = $edge[0]
+                $length = $edge[1]
+                if ($dist[$node] + $length -lt $dist[$next]) {
+                    $dist[$next] = $dist[$node] + $length
+                }
+            }
+            """),
+        PathFromWrongEnd("logic-dart-path-from-wrong-end",
+            """
+            for (final edge in graph[node]) {
+              final next = edge[0];
+              final length = edge[1];
+              if (dist[node] + length < dist[next]) {
+                dist[next] = dist[node] + length;
+              }
+            }
+            """),
+        PathFromWrongEnd("logic-scala-path-from-wrong-end",
+            """
+            for ((next, length) <- graph(node)) {
+              dist(next) = math.min(dist(next), dist(node) + length)
+            }
+            """),
+        PathFromWrongEnd("logic-fortran-path-from-wrong-end",
+            """
+            do nxt = 1, n
+              if (graph(node, nxt) > 0 .and. dist(node) + graph(node, nxt) < dist(nxt)) dist(nxt) = dist(node) + graph(node, nxt)
+            end do
             """),
     ];
 }

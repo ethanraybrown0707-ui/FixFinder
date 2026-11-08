@@ -50,6 +50,7 @@ public static class LogicPatterns
         .. RecursionPatterns.All,
         .. VisitedPatterns.All,
         .. SortingPatterns.All,
+        .. ShortestPathPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
