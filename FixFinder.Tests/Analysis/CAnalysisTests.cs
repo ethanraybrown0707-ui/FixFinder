@@ -971,4 +971,52 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         var finding = Assert.Single(findings, f => f.CheckId == "analysis-null-used");
         Assert.StartsWith("`end` is NULL here, so reading `*end` fails", finding.Message);
     }
+
+    /// <summary>
+    /// lower[lowerCount++] = items[i] stores and counts at once, so the loops after it that go up to lowerCount and
+    /// higherCount do run - a correct quicksort, which prints 1 1 2 3 3. Stored without being counted, both counts stay 0
+    /// and those two loops never run.
+    /// </summary>
+    [Theory]
+    [InlineData("lowerCount++", "higherCount++", false)]
+    [InlineData("lowerCount", "higherCount", true)]
+    public async Task ACountRaisedInsideAnIndexIsSeenByTheLoopsAfterIt(string lowerAt, string higherAt, bool neverRun)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <stdio.h>
+
+            static void quicksort(int *items, int count) {
+                if (count <= 1) return;
+                int pivot = items[0];
+                int lower[16], higher[16];
+                int lowerCount = 0, higherCount = 0;
+                for (int i = 1; i < count; i++) {
+                    if (items[i] < pivot) {
+                        lower[{{lowerAt}}] = items[i];
+                    } else if (items[i] >= pivot) {
+                        higher[{{higherAt}}] = items[i];
+                    }
+                }
+                quicksort(lower, lowerCount);
+                quicksort(higher, higherCount);
+                int at = 0;
+                for (int i = 0; i < lowerCount; i++) items[at++] = lower[i];
+                items[at++] = pivot;
+                for (int i = 0; i < higherCount; i++) items[at++] = higher[i];
+            }
+
+            int main(void) {
+                int numbers[] = {3, 1, 2, 3, 1};
+                quicksort(numbers, 5);
+                for (int i = 0; i < 5; i++) {
+                    printf(i > 0 ? " %d" : "%d", numbers[i]);
+                }
+                printf("\n");
+                return 0;
+            }
+            """);
+
+        int[] expected = neverRun ? [18, 20] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
 }

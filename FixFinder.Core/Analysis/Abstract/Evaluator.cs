@@ -688,12 +688,22 @@ public sealed class Evaluator(SourceLanguage language)
         return state;
     }
 
-    /// <summary>Assignments made inside an expression - Python's := - happen before the rest of it is used.</summary>
+    /// <summary>
+    /// Assignments made inside an expression - Python's :=, C's count++ - happen before the rest of it is used: those in the
+    /// value given, and those in the place it is written to, as in lower[lowerCount++] = item, which counts as well as stores.
+    /// </summary>
+    /// <remarks>
+    /// Only a place written through - the array and index of an element, the object or pointer of a member - is looked into,
+    /// not a pattern taken apart: the default in [first = 0] = values is given only when values has no first item.
+    /// </remarks>
     private AbstractState Embedded(AbstractState state, Expr expression)
     {
         foreach (var assigned in Assignments(expression))
         {
-            state = AssignTo(Embedded(state, assigned.Value), assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
+            var after = Embedded(state, assigned.Value);
+            if (assigned.Target is ElementAccess or Member) after = Embedded(after, assigned.Target);
+
+            state = AssignTo(after, assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
             if (WritesThroughPointer(assigned.Target)) state = Forget(state, Addresses.ChangedByWriteTo(assigned.Target));
         }
 
