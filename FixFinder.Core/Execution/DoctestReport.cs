@@ -11,7 +11,7 @@ public static partial class DoctestReport
     /// <summary>One example that did not give what it shows.</summary>
     /// <param name="Name">What its docstring belongs to, as the code names it: grade, or Stack.push.</param>
     /// <param name="Exception">For an example that raised, the last line of what was raised: ZeroDivisionError: division by zero.</param>
-    /// <param name="FirstPrinted">Where among the lines printed doctest's report of it begins.</param>
+    /// <param name="FirstPrinted">Where among the lines read doctest's report of it begins - of a run's, among those it printed to its standard output.</param>
     /// <param name="LastPrinted">Where it ends.</param>
     public sealed record Failure(
         string File, int Line, string Name, string Example, string Expected, string Got, string? Exception, int FirstPrinted, int LastPrinted);
@@ -23,7 +23,16 @@ public static partial class DoctestReport
     /// <summary>A line of an example, of what it shows or of what it gave: doctest indents each by four spaces.</summary>
     private const string Indent = "    ";
 
-    /// <summary>Every failure a run printed, in the order it printed them; none when what it printed is not doctest's report.</summary>
+    /// <summary>
+    /// Every failure a run printed, read from its standard output alone, which is where doctest prints its report. A program
+    /// that crashes after its doctests prints its traceback to its standard error, and the two arrive down two pipes at once,
+    /// so the lines of one are sometimes captured in among the lines of the other - and a traceback line inside a report
+    /// would be read as part of an example, or keep the report from being read at all.
+    /// </summary>
+    public static IReadOnlyList<Failure> FailuresIn(IReadOnlyList<CapturedLine> captured) =>
+        FailuresIn(OnStandardOutput(captured).Select(line => line.Text).ToList());
+
+    /// <summary>Every failure in these lines, in the order they were printed; none when they are not doctest's report.</summary>
     public static IReadOnlyList<Failure> FailuresIn(IReadOnlyList<string> lines)
     {
         var failures = new List<Failure>();
@@ -81,9 +90,18 @@ public static partial class DoctestReport
     /// </summary>
     public static IReadOnlyList<CapturedLine> WithoutReports(IReadOnlyList<CapturedLine> captured)
     {
-        var failures = FailuresIn(captured.Select(line => line.Text).ToList());
+        var printed = OnStandardOutput(captured);
+        var failures = FailuresIn(printed.Select(line => line.Text).ToList());
         if (failures.Count == 0) return captured;
 
-        return captured.Where((_, index) => !failures.Any(failure => index >= failure.FirstPrinted && index <= failure.LastPrinted)).ToList();
+        // Only the reports' own lines are left out: a line of the program's own traceback captured in among them is kept.
+        var reports = new HashSet<CapturedLine>(
+            failures.SelectMany(failure => printed.GetRange(failure.FirstPrinted, failure.LastPrinted - failure.FirstPrinted + 1)),
+            ReferenceEqualityComparer.Instance);
+
+        return captured.Where(line => !reports.Contains(line)).ToList();
     }
+
+    private static List<CapturedLine> OnStandardOutput(IReadOnlyList<CapturedLine> captured) =>
+        captured.Where(line => line.Stream == StreamKind.StdOut).ToList();
 }

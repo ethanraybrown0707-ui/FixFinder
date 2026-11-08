@@ -825,7 +825,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     {
         if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || DoctestExamplesFailed(outcome, chosen) == 0) return;
 
-        foreach (var failure in DoctestReport.FailuresIn(run.Lines.Select(line => line.Text).ToList()))
+        foreach (var failure in DoctestReport.FailuresIn(run.Lines))
         {
             var what = failure.Exception is { } raised
                 ? $"stopped with {raised}"
@@ -1748,7 +1748,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// <summary>How many examples of a Python program's doctests failed as it ran them itself, with doctest.testmod().</summary>
     private static int DoctestExamplesFailed(SessionOutcome outcome, string chosen) =>
         outcome.Run is { } run && IsPython(chosen) && PythonTests.FrameworkOf(chosen) == PythonTests.Framework.None
-            ? DoctestReport.FailuresIn(run.Lines.Select(line => line.Text).ToList()).Count
+            ? DoctestReport.FailuresIn(run.Lines).Count
             : 0;
 
     private async Task<FixCandidate?> FixAsync(

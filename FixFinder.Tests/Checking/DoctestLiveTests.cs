@@ -286,7 +286,10 @@ public class DoctestLiveTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(report.Findings, finding => finding.Title.StartsWith("It ran to the end, but printed an exception", StringComparison.Ordinal));
     }
 
-    /// <summary>A crash after the doctests is still the program stopping, found as any crash is.</summary>
+    /// <summary>
+    /// A crash after the doctests is still the program stopping, found as any crash is - and the examples that failed are each
+    /// still read whole, though the crash's traceback, on standard error, can be captured in among doctest's report of them.
+    /// </summary>
     [Fact]
     public async Task ACrashAfterTheDoctestsIsStillFound()
     {
@@ -297,6 +300,10 @@ public class DoctestLiveTests(ITestOutputHelper output) : IDisposable
         if (report.SyntaxSummary == "It could not be started") return;
         Assert.Equal("No syntax errors, but it stops with an error when run", report.SyntaxSummary);
         Assert.Contains(report.Findings, finding => finding.Line == 16 && finding.Title == "It crashed: ZeroDivisionError: division by zero");
-        Assert.Equal(2, report.Findings.Count(finding => finding.RuleId == "doctest-failed"));
+
+        var failed = report.Findings.Where(finding => finding.RuleId == "doctest-failed").OrderBy(finding => finding.Line).ToList();
+        Assert.Equal([5, 13], failed.Select(finding => finding.Line));
+        Assert.Equal("An example in the docstring of double failed: double(5): expected 10, got 15", failed[0].Title);
+        Assert.Equal("An example in the docstring of average stopped with ZeroDivisionError: division by zero", failed[1].Title);
     }
 }
