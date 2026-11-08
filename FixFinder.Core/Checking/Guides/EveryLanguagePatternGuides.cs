@@ -69,6 +69,20 @@ internal static class EveryLanguagePatternGuides
             "after the line that asks whether it is there.",
             example);
 
+    private static GuideEntry HalvingNeverStops(string id, string example) =>
+        GuideFor([id], "A list split in half that stops only when nothing is left",
+            "A merge sort - or any function that splits what it is given in half and calls itself on each half - has to stop " +
+            "before a half can be all of what it was given. The middle is the length halved and rounded down, so with one item " +
+            "left the middle is 0, and the half from the middle on is that one item. When the function stops only for an empty " +
+            "list, or an empty range, it calls itself with that one item again, and that call does the same.",
+            "The calls never stop: the program runs until it has no room left for them and stops with an error, or runs on " +
+            "without an answer. Halving any list that is not empty comes down to one item, so the function never finishes for any " +
+            "of them.",
+            "Stop at one item as well as none - a list of one item is in order already - or, for a range, at one place: lo >= hi " +
+            "when both ends are in it, hi - lo <= 1 when hi is one past its end. Where a function is written as clauses, add one " +
+            "for a list of one item.",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -1869,6 +1883,193 @@ internal static class EveryLanguagePatternGuides
               visited += node
               1 + graph(node).map(reach).sum
             }
+            """),
+        HalvingNeverStops("logic-python-halving-never-stops",
+            """
+            def merge_sort(items):
+                if len(items) <= 1:
+                    return items
+                middle = len(items) // 2
+                return merge(merge_sort(items[:middle]), merge_sort(items[middle:]))
+            """),
+        HalvingNeverStops("logic-java-halving-never-stops",
+            """
+            static void sortRange(int[] items, int lo, int hi) {
+                if (lo >= hi) return;
+                int mid = lo + (hi - lo) / 2;
+                sortRange(items, lo, mid);
+                sortRange(items, mid + 1, hi);
+                merge(items, lo, mid, hi);
+            }
+            """),
+        HalvingNeverStops("logic-csharp-halving-never-stops",
+            """
+            static int[] MergeSort(int[] items)
+            {
+                if (items.Length <= 1)
+                {
+                    return items;
+                }
+
+                int mid = items.Length / 2;
+                return Merge(MergeSort(items[..mid]), MergeSort(items[mid..]));
+            }
+            """),
+        HalvingNeverStops("logic-js-halving-never-stops",
+            """
+            function mergeSort(items) {
+              if (items.length <= 1) return items;
+              const mid = Math.floor(items.length / 2);
+              return merge(mergeSort(items.slice(0, mid)), mergeSort(items.slice(mid)));
+            }
+            """),
+        HalvingNeverStops("logic-c-halving-never-stops",
+            """
+            static void merge_sort(int *items, int count) {
+                if (count <= 1) return;
+                int mid = count / 2;
+                merge_sort(items, mid);
+                merge_sort(items + mid, count - mid);
+                merge(items, mid, count);
+            }
+            """),
+        HalvingNeverStops("logic-cpp-halving-never-stops",
+            """
+            std::vector<int> merge_sort(const std::vector<int>& items) {
+                if (items.size() <= 1) return items;
+                std::size_t mid = items.size() / 2;
+                std::vector<int> left(items.begin(), items.begin() + mid);
+                std::vector<int> right(items.begin() + mid, items.end());
+                return merge(merge_sort(left), merge_sort(right));
+            }
+            """),
+        HalvingNeverStops("logic-go-halving-never-stops",
+            """
+            func mergeSort(items []int) []int {
+            	if len(items) <= 1 {
+            		return items
+            	}
+            	mid := len(items) / 2
+            	return merge(mergeSort(items[:mid]), mergeSort(items[mid:]))
+            }
+            """),
+        HalvingNeverStops("logic-rust-halving-never-stops",
+            """
+            fn merge_sort(items: Vec<i32>) -> Vec<i32> {
+                if items.len() <= 1 {
+                    return items;
+                }
+                let mid = items.len() / 2;
+                let left = merge_sort(items[..mid].to_vec());
+                let right = merge_sort(items[mid..].to_vec());
+                merge(left, right)
+            }
+            """),
+        HalvingNeverStops("logic-ruby-halving-never-stops",
+            """
+            def merge_sort(items)
+              return items if items.length <= 1
+              mid = items.length / 2
+              merge(merge_sort(items[0...mid]), merge_sort(items[mid..]))
+            end
+            """),
+        HalvingNeverStops("logic-lua-halving-never-stops",
+            """
+            local function merge_sort(items)
+              if #items <= 1 then return items end
+              local mid = math.floor(#items / 2)
+              local left = merge_sort({ table.unpack(items, 1, mid) })
+              local right = merge_sort({ table.unpack(items, mid + 1) })
+              return merge(left, right)
+            end
+            """),
+        HalvingNeverStops("logic-php-halving-never-stops",
+            """
+            function merge_sort(array $items): array {
+                if (count($items) <= 1) return $items;
+                $mid = intdiv(count($items), 2);
+                return merge_lists(merge_sort(array_slice($items, 0, $mid)), merge_sort(array_slice($items, $mid)));
+            }
+            """),
+        HalvingNeverStops("logic-perl-halving-never-stops",
+            """
+            sub merge_sort {
+                my @items = @_;
+                return @items if @items <= 1;
+                my $mid = int(@items / 2);
+                my @left = merge_sort(@items[0 .. $mid - 1]);
+                my @right = merge_sort(@items[$mid .. $#items]);
+                return merge_lists(\@left, \@right);
+            }
+            """),
+        HalvingNeverStops("logic-powershell-halving-never-stops",
+            """
+            function Merge-Sort($items) {
+                if ($items.Count -le 1) { return ,$items }
+                $mid = [math]::Floor($items.Count / 2)
+                $left = Merge-Sort $items[0..($mid - 1)]
+                $right = Merge-Sort $items[$mid..($items.Count - 1)]
+                return ,(Merge-Lists $left $right)
+            }
+            """),
+        HalvingNeverStops("logic-dart-halving-never-stops",
+            """
+            List<int> mergeSort(List<int> items) {
+              if (items.length <= 1) return items;
+              final mid = items.length ~/ 2;
+              return merge(mergeSort(items.sublist(0, mid)), mergeSort(items.sublist(mid)));
+            }
+            """),
+        HalvingNeverStops("logic-scala-halving-never-stops",
+            """
+            def mergeSort(items: List[Int]): List[Int] = {
+              if (items.length <= 1) items
+              else {
+                val (left, right) = items.splitAt(items.length / 2)
+                merge(mergeSort(left), mergeSort(right))
+              }
+            }
+            """),
+        HalvingNeverStops("logic-fortran-halving-never-stops",
+            """
+            recursive subroutine sort_range(items, lo, hi)
+              integer, intent(inout) :: items(:)
+              integer, intent(in) :: lo, hi
+              integer :: mid
+              if (lo >= hi) return
+              mid = (lo + hi) / 2
+              call sort_range(items, lo, mid)
+              call sort_range(items, mid + 1, hi)
+              call merge(items, lo, mid, hi)
+            end subroutine sort_range
+            """),
+        HalvingNeverStops("logic-elixir-halving-never-stops",
+            """
+            def merge_sort([]), do: []
+            def merge_sort([item]), do: [item]
+
+            def merge_sort(items) do
+              {left, right} = Enum.split(items, div(length(items), 2))
+              merge(merge_sort(left), merge_sort(right))
+            end
+            """),
+        HalvingNeverStops("logic-erlang-halving-never-stops",
+            """
+            merge_sort([]) -> [];
+            merge_sort([Item]) -> [Item];
+            merge_sort(Items) ->
+                {Left, Right} = lists:split(length(Items) div 2, Items),
+                merge(merge_sort(Left), merge_sort(Right)).
+            """),
+        HalvingNeverStops("logic-fsharp-halving-never-stops",
+            """
+            let rec mergeSort items =
+                match items with
+                | [] -> []
+                | [item] -> [item]
+                | _ ->
+                    let left, right = List.splitAt (List.length items / 2) items
+                    merge (mergeSort left) (mergeSort right)
             """),
     ];
 }
