@@ -107,6 +107,17 @@ internal static class EveryLanguagePatternGuides
             "Start the sum from the place the edge comes from: dist[node] + length, or the length the search took with that place.",
             example);
 
+    private static GuideEntry PathPartsDontMeet(string id, string example) =>
+        GuideFor([id], "A way through a place whose two parts do not meet there",
+            "Floyd-Warshall's search tries every place k as a stop on the way from i to j: the way through k is the length from " +
+            "i to k, then the length from k to j, and it is kept when it is shorter. The two parts have to meet at k. Here the " +
+            "second part is written dist[j][k], the length from j to k - the way back - so the sum is not the length of any way " +
+            "from i to j.",
+            "On a graph whose every edge goes both ways at the same length the two are the same, and the answer happens to be " +
+            "right; on any graph whose edges go one way, the lengths found are wrong - a place can be left unreached.",
+            "Write the second part from k to j: dist[i][k] + dist[k][j].",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -2483,6 +2494,178 @@ internal static class EveryLanguagePatternGuides
             """
             do nxt = 1, n
               if (graph(node, nxt) > 0 .and. dist(node) + graph(node, nxt) < dist(nxt)) dist(nxt) = dist(node) + graph(node, nxt)
+            end do
+            """),
+        PathPartsDontMeet("logic-python-path-parts-dont-meet",
+            """
+            for k in range(n):
+                for i in range(n):
+                    for j in range(n):
+                        dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+            """),
+        PathPartsDontMeet("logic-java-path-parts-dont-meet",
+            """
+            for (int k = 0; k < n; k++) {
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        if (dist[i][k] + dist[k][j] < dist[i][j]) {
+                            dist[i][j] = dist[i][k] + dist[k][j];
+                        }
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-csharp-path-parts-dont-meet",
+            """
+            for (int k = 0; k < n; k++)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    for (int j = 0; j < n; j++)
+                    {
+                        dist[i, j] = Math.Min(dist[i, j], dist[i, k] + dist[k, j]);
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-js-path-parts-dont-meet",
+            """
+            for (let k = 0; k < n; k++) {
+              for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                  dist[i][j] = Math.min(dist[i][j], dist[i][k] + dist[k][j]);
+                }
+              }
+            }
+            """),
+        PathPartsDontMeet("logic-c-path-parts-dont-meet",
+            """
+            for (int k = 0; k < N; k++) {
+                for (int i = 0; i < N; i++) {
+                    for (int j = 0; j < N; j++) {
+                        if (dist[i][k] + dist[k][j] < dist[i][j]) dist[i][j] = dist[i][k] + dist[k][j];
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-cpp-path-parts-dont-meet",
+            """
+            for (int k = 0; k < n; k++) {
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        dist[i][j] = std::min(dist[i][j], dist[i][k] + dist[k][j]);
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-go-path-parts-dont-meet",
+            """
+            for k := 0; k < n; k++ {
+            	for i := 0; i < n; i++ {
+            		for j := 0; j < n; j++ {
+            			if dist[i][k]+dist[k][j] < dist[i][j] {
+            				dist[i][j] = dist[i][k] + dist[k][j]
+            			}
+            		}
+            	}
+            }
+            """),
+        PathPartsDontMeet("logic-rust-path-parts-dont-meet",
+            """
+            for k in 0..n {
+                for i in 0..n {
+                    for j in 0..n {
+                        dist[i][j] = dist[i][j].min(dist[i][k] + dist[k][j]);
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-ruby-path-parts-dont-meet",
+            """
+            (0...n).each do |k|
+              (0...n).each do |i|
+                (0...n).each do |j|
+                  dist[i][j] = [dist[i][j], dist[i][k] + dist[k][j]].min
+                end
+              end
+            end
+            """),
+        PathPartsDontMeet("logic-lua-path-parts-dont-meet",
+            """
+            for k = 1, n do
+              for i = 1, n do
+                for j = 1, n do
+                  if dist[i][k] + dist[k][j] < dist[i][j] then
+                    dist[i][j] = dist[i][k] + dist[k][j]
+                  end
+                end
+              end
+            end
+            """),
+        PathPartsDontMeet("logic-php-path-parts-dont-meet",
+            """
+            for ($k = 0; $k < $n; $k++) {
+                for ($i = 0; $i < $n; $i++) {
+                    for ($j = 0; $j < $n; $j++) {
+                        $dist[$i][$j] = min($dist[$i][$j], $dist[$i][$k] + $dist[$k][$j]);
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-perl-path-parts-dont-meet",
+            """
+            for my $k (0 .. $n - 1) {
+                for my $i (0 .. $n - 1) {
+                    for my $j (0 .. $n - 1) {
+                        if ($dist[$i][$k] + $dist[$k][$j] < $dist[$i][$j]) {
+                            $dist[$i][$j] = $dist[$i][$k] + $dist[$k][$j];
+                        }
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-powershell-path-parts-dont-meet",
+            """
+            foreach ($k in 0..($n - 1)) {
+                foreach ($i in 0..($n - 1)) {
+                    foreach ($j in 0..($n - 1)) {
+                        if ($dist[$i][$k] + $dist[$k][$j] -lt $dist[$i][$j]) {
+                            $dist[$i][$j] = $dist[$i][$k] + $dist[$k][$j]
+                        }
+                    }
+                }
+            }
+            """),
+        PathPartsDontMeet("logic-dart-path-parts-dont-meet",
+            """
+            for (var k = 0; k < n; k++) {
+              for (var i = 0; i < n; i++) {
+                for (var j = 0; j < n; j++) {
+                  if (dist[i][k] + dist[k][j] < dist[i][j]) {
+                    dist[i][j] = dist[i][k] + dist[k][j];
+                  }
+                }
+              }
+            }
+            """),
+        PathPartsDontMeet("logic-scala-path-parts-dont-meet",
+            """
+            for (k <- 0 until n) {
+              for (i <- 0 until n) {
+                for (j <- 0 until n) {
+                  dist(i)(j) = math.min(dist(i)(j), dist(i)(k) + dist(k)(j))
+                }
+              }
+            }
+            """),
+        PathPartsDontMeet("logic-fortran-path-parts-dont-meet",
+            """
+            do k = 1, n
+              do i = 1, n
+                do j = 1, n
+                  if (dist(i, k) + dist(k, j) < dist(i, j)) dist(i, j) = dist(i, k) + dist(k, j)
+                end do
+              end do
             end do
             """),
     ];
