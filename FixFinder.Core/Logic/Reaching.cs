@@ -101,9 +101,9 @@ internal static partial class Reaching
     }
 
     /// <summary>A test's condition, where it starts, and what follows it on the line.</summary>
-    private sealed record Wording(int Start, string Condition, string Rest, int RestStart);
+    internal sealed record Wording(int Start, string Condition, string Rest, int RestStart);
 
-    private static Wording? Written(string text, int from, bool colonEnds)
+    internal static Wording? Written(string text, int from, bool colonEnds)
     {
         var at = from;
         while (at < text.Length && char.IsWhiteSpace(text[at])) at++;

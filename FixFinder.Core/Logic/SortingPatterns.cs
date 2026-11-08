@@ -7,9 +7,18 @@ using FixFinder.Core.LocalFixes.Rules;
 namespace FixFinder.Core.Logic;
 
 /// <summary>
-/// A split in half that stops only when nothing is left - merge sort's, or any function that halves what it is given and
+/// Two mistakes of the sorts that split a list and sort each part by calling themselves.
+/// <para>
+/// A quicksort whose parts leave out what equals the pivot: it keeps the values below the pivot - x &lt; pivot - and the values
+/// above it - x &gt; pivot - and puts only the pivot itself back between them, so any other value equal to the pivot is never
+/// put back. QuixBugs' quicksort is this mistake, in Python and in Java. The change keeps them with the values above it,
+/// x &gt;= pivot.
+/// </para>
+/// <para>
+/// And a split in half that stops only when nothing is left - merge sort's, or any function that halves what it is given and
 /// calls itself on the halves. Once one item, or one place, is left, the half from the middle on is all of it, and the
 /// function calls itself with it again, and so on for ever:
+/// </para>
 /// <list type="bullet">
 /// <item>a list: <c>if len(arr) == 0: return arr</c>, <c>middle = len(arr) // 2</c>, <c>mergesort(arr[middle:])</c> - with one
 /// item, middle is 0, and arr[middle:] is that item again. QuixBugs' mergesort is this mistake, in Python and in Java;</item>
@@ -22,12 +31,20 @@ namespace FixFinder.Core.Logic;
 /// The change stops at one item, or one place, too.
 /// </summary>
 /// <remarks>
-/// Said only when the file shows all of it: the middle is worked out from the list's length, or the two ends, halved and
+/// The quicksort's mistake is said only when the file shows all of it: two parts keep, from the same list, the items below
+/// the pivot and the items above it, each by a strict comparison - a filter, or the if and else if of one loop - and nothing
+/// else is drawn from that list against the pivot: no part for what equals it, no else; the pivot is an item of the list -
+/// items[0], a pattern's head - and is named again outside the parts, as it is put back; and the function calls itself with
+/// both parts, in the same branch, so both are sorted on every pass. A quickselect, which goes on into one part chosen by a
+/// test, is left alone. The change is offered when the parts are drawn from the items other than the pivot.
+/// <para>
+/// The merge sort's is said only when the file shows all of it: the middle is worked out from the list's length, or the two ends, halved and
 /// rounded down; the call is given the part from the middle on, every other argument as it came; and each test on the way
 /// to the call, read with one item - or one place - left, lets it through, while one of them stops an empty list. A test of
 /// anything else on the way to the call, or a call inside a loop, leaves the function alone.
+/// </para>
 /// </remarks>
-public static partial class HalvingPatterns
+public static partial class SortingPatterns
 {
     /// <summary>How a language writes a function's parameters: name first, type first, with a $, or Go's names sharing a type.</summary>
     private enum Parameters { NameFirst, TypeFirst, Dollar, GoGroups, PerlCopy, Spaced }
@@ -63,7 +80,7 @@ public static partial class HalvingPatterns
 
     private static Regex Halving(string pattern, RegexOptions options = RegexOptions.None) => new($"^{pattern}$", options);
 
-    private static readonly Regex[] Slashed = [Halving(@"(?<e>.+?)\s*/\s*2"), Halving(@"(?<e>.+?)\s*>>>?\s*1")];
+    private static readonly Regex[] Slashed = [Halving(@"(?<e>.+)\s*/\s*2"), Halving(@"(?<e>.*[^>\s])\s*>>>?\s*1")];
 
     private const string Integer = @"\b(?:int|long|short|size_t|ssize_t|unsigned|signed|Integer|Long|Short|Int|Int32|Int64|nint|uint|ulong|ushort|i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|integer|byte|sbyte)\b";
 
@@ -71,7 +88,7 @@ public static partial class HalvingPatterns
     [
         new("logic-python-halving-never-stops", CodePattern.Files(".py", ".pyw"), Syntax.Python,
             new(@"^(?<indent>\s*)def\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Parameters.NameFirst,
-            ["len( {x} )"], [Halving(@"(?<e>.+?)\s*//\s*2"), Halving(@"(?<e>.+?)\s*>>\s*1"), Halving(@"int\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"math\.floor\(\s*(?<e>.+?)\s*/\s*2\s*\)")],
+            ["len( {x} )"], [Halving(@"(?<e>.+)\s*//\s*2"), Halving(@"(?<e>.*[^>\s])\s*>>\s*1"), Halving(@"int\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"math\.floor\(\s*(?<e>.+)\s*/\s*2\s*\)")],
             ["{x}[ {m} : ]", "{x}[ {m} : {len} ]"], Empties: ["{x} == [ ]", "[ ] == {x}"], Fills: ["{x} != [ ]"],
             Adds: ["{n}.extend( {u} )", "{n} += {u}"], ColonEnds: true, Bare: Bare.HasItems),
         new("logic-java-halving-never-stops", CodePattern.Files(".java"), Syntax.CLike,
@@ -89,7 +106,7 @@ public static partial class HalvingPatterns
         new("logic-js-halving-never-stops", CodePattern.Files(".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:(?:export\s+)?(?:async\s+)?function\s*\*?\s*(?<function>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^)]*)\)|(?:export\s+)?(?:const|let|var)\s+(?<function>[A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:function\s*)?\((?<parameters>[^)]*)\)\s*(?:=>\s*)?\{|(?:static\s+)?(?!(?:if|for|while|switch|catch|function|return)\b)(?<function>[A-Za-z_$][\w$]*)\s*\((?<parameters>[^)]*)\)\s*\{\s*$)"), Parameters.NameFirst,
             ["{x}.length"],
-            [Halving(@"Math\.(?:floor|trunc)\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"(?<e>.+?)\s*>>>?\s*1"), Halving(@"\(\s*(?<e>.+?)\s*/\s*2\s*\)\s*\|\s*0"), Halving(@"parseInt\(\s*(?<e>.+?)\s*/\s*2\s*\)")],
+            [Halving(@"Math\.(?:floor|trunc)\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"(?<e>.*[^>\s])\s*>>>?\s*1"), Halving(@"\(\s*(?<e>.+)\s*/\s*2\s*\)\s*\|\s*0"), Halving(@"parseInt\(\s*(?<e>.+)\s*/\s*2\s*\)")],
             ["{x}.slice( {m} )", "{x}.slice( {m} , {len} )"], Adds: ["{n}.push( ...{u} );", "{n}.push( ...{u} )"], Bare: Bare.Always),
         new("logic-c-halving-never-stops", CodePattern.Files(".c"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?!(?:return|else|if|while|for|switch)\b)(?:(?:static|inline|extern|const|unsigned|signed|long|short)\s+)*(?:struct\s+)?[A-Za-z_]\w*[\s*]+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Parameters.TypeFirst,
@@ -115,26 +132,26 @@ public static partial class HalvingPatterns
             Empties: ["{x}.empty?"], Fills: ["{x}.any?"], SlashFloors: true, Modifiers: true, Bare: Bare.Always),
         new("logic-lua-halving-never-stops", CodePattern.Files(".lua"), Syntax.Lua,
             new(@"^(?<indent>\s*)(?:local\s+)?function\s+(?:[A-Za-z_]\w*[.:])?(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Parameters.NameFirst,
-            ["#{x}"], [Halving(@"math\.floor\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"(?<e>.+?)\s*//\s*2"), Halving(@"(?<e>.+?)\s*>>\s*1")],
+            ["#{x}"], [Halving(@"math\.floor\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"(?<e>.+)\s*//\s*2"), Halving(@"(?<e>.*[^>\s])\s*>>\s*1")],
             ["{ table.unpack( {x} , {m} + 1 ) }", "{ table.unpack( {x} , {m} + 1 , {len} ) }", "{ unpack( {x} , {m} + 1 ) }", "{ unpack( {x} , {m} + 1 , {len} ) }", "table.move( {x} , {m} + 1 , {len} , 1 , { } )"],
             Empties: ["next( {x} ) == nil"], Fills: ["next( {x} ) ~= nil"], Bare: Bare.Always),
         new("logic-php-halving-never-stops", CodePattern.Files(".php"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?:(?:public|private|protected|static|final)\s+)*function\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)"), Parameters.Dollar,
             ["count( {x} )", "sizeof( {x} )"],
-            [Halving(@"intdiv\(\s*(?<e>.+?)\s*,\s*2\s*\)"), Halving(@"(?:\(int\)\s*)?floor\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"\(int\)\s*\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"(?<e>.+?)\s*>>\s*1")],
+            [Halving(@"intdiv\(\s*(?<e>.+)\s*,\s*2\s*\)"), Halving(@"(?:\(int\)\s*)?floor\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"\(int\)\s*\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"(?<e>.*[^>\s])\s*>>\s*1")],
             ["array_slice( {x} , {m} )", "array_slice( {x} , {m} , {len} )", "array_slice( {x} , {m} , {len} - {m} )"],
             Empties: ["empty( {x} )", "{x} == [ ]", "{x} === [ ]"], Fills: ["!empty( {x} )"], Bare: Bare.HasItems),
         new("logic-perl-halving-never-stops", CodePattern.Files(".pl", ".pm"), Syntax.Perl,
             new(@"^(?<indent>\s*)sub\s+(?<function>[A-Za-z_]\w*)\s*(?<parameters>)\{?\s*$"), Parameters.PerlCopy,
-            ["scalar( {x} )", "scalar {x}", "{x}"], [Halving(@"int\(\s*(?<e>.+?)\s*/\s*2\s*\)"), Halving(@"(?<e>.+?)\s*>>\s*1")],
+            ["scalar( {x} )", "scalar {x}", "{x}"], [Halving(@"int\(\s*(?<e>.+)\s*/\s*2\s*\)"), Halving(@"(?<e>.*[^>\s])\s*>>\s*1")],
             ["@{xb}[ {m} .. $#{xb} ]", "@{xb}[ {m} .. {len} - 1 ]"], Modifiers: true),
         new("logic-powershell-halving-never-stops", CodePattern.Files(".ps1"), Syntax.Python,
             new(@"^(?<indent>\s*)function\s+(?<function>[A-Za-z_][\w-]*)\s*(?:\((?<parameters>[^)]*)\))?", RegexOptions.IgnoreCase), Parameters.Dollar,
-            ["{x}.Count", "{x}.Length"], [Halving(@"(?:\[int\]\s*)?\[math\]::(?:Floor|Truncate)\(\s*(?<e>.+?)\s*/\s*2\s*\)", RegexOptions.IgnoreCase)],
+            ["{x}.Count", "{x}.Length"], [Halving(@"(?:\[int\]\s*)?\[math\]::(?:Floor|Truncate)\(\s*(?<e>.+)\s*/\s*2\s*\)", RegexOptions.IgnoreCase)],
             ["{x}[ {m} .. ( {len} - 1 ) ]", "@( {x}[ {m} .. ( {len} - 1 ) ] )"], Words: true, Commands: true, IgnoreCase: true),
         new("logic-dart-halving-never-stops", CodePattern.Files(".dart"), Syntax.CLike,
             new(@"^(?<indent>\s*)(?!(?:return|new|else|throw)\b)(?:static\s+)?[\w.]+(?:\s*<[^()]*>)?\??\s+(?<function>[A-Za-z_]\w*)\s*\((?<parameters>[^)]*)\)\s*\{?\s*$"), Parameters.TypeFirst,
-            ["{x}.length"], [Halving(@"(?<e>.+?)\s*~/\s*2"), Halving(@"\(\s*(?<e>.+?)\s*/\s*2\s*\)\.floor\(\)"), Halving(@"(?<e>.+?)\s*>>\s*1")],
+            ["{x}.length"], [Halving(@"(?<e>.+)\s*~/\s*2"), Halving(@"\(\s*(?<e>.+)\s*/\s*2\s*\)\.floor\(\)"), Halving(@"(?<e>.*[^>\s])\s*>>\s*1")],
             ["{x}.sublist( {m} )", "{x}.sublist( {m} , {len} )", "{x}.skip( {m} ).toList()", "{x}.getRange( {m} , {len} ).toList()"],
             Empties: ["{x}.isEmpty"], Fills: ["{x}.isNotEmpty"]),
         new("logic-scala-halving-never-stops", CodePattern.Files(".scala", ".sc"), Syntax.Scala,
@@ -146,12 +163,12 @@ public static partial class HalvingPatterns
             ["size( {x} )"], Slashed, ["{x}( {m} + 1 : )", "{x}( {m} + 1 : {len} )"], SlashFloors: true, IgnoreCase: true),
         new("logic-elixir-halving-never-stops", CodePattern.Files(".ex", ".exs"), Syntax.Python,
             new(@"^(?<indent>\s*)(?<def>defp?)\s+(?<function>[a-z_]\w*[?!]?)\s*\((?<parameters>[^)]*)\)(?:\s+when\s+(?<guard>.+?))?\s*(?:,\s*do:.*|\bdo\s*)$"), Parameters.NameFirst,
-            ["length( {x} )", "Enum.count( {x} )"], [Halving(@"div\(\s*(?<e>.+?)\s*,\s*2\s*\)"), Halving(@"Integer\.floor_div\(\s*(?<e>.+?)\s*,\s*2\s*\)")],
+            ["length( {x} )", "Enum.count( {x} )"], [Halving(@"div\(\s*(?<e>.+)\s*,\s*2\s*\)"), Halving(@"Integer\.floor_div\(\s*(?<e>.+)\s*,\s*2\s*\)")],
             ["Enum.drop( {x} , {m} )", "Enum.slice( {x} , {m} , {len} )"], Splits: ["{ {a} , {n} } = Enum.split( {x} , {m} )"],
             Empties: ["{x} == [ ]", "Enum.empty?( {x} )"], Clauses: true, OneItem: "{indent}{def} {name}([item]), do: [item]"),
         new("logic-erlang-halving-never-stops", CodePattern.Files(".erl"), Syntax.Erlang,
             new(@"^(?<indent>\s*)(?<function>[a-z]\w*)\s*\((?<parameters>[^)]*)\)\s*(?:when\s+(?<guard>.+?))?\s*->"), Parameters.NameFirst,
-            ["length( {x} )"], [Halving(@"(?<e>.+?)\s+div\s+2")],
+            ["length( {x} )"], [Halving(@"(?<e>.+)\s+div\s+2")],
             ["lists:nthtail( {m} , {x} )"], Splits: ["{ {a} , {n} } = lists:split( {m} , {x} )"],
             Empties: ["{x} == [ ]", "{x} =:= [ ]"], Clauses: true, OneItem: "{indent}{name}([Item]) -> [Item];"),
         new("logic-fsharp-halving-never-stops", CodePattern.Files(".fs", ".fsx"), Syntax.FSharp,
@@ -160,11 +177,24 @@ public static partial class HalvingPatterns
             ["List.skip {m} {x}", "{x}.[ {m} .. ]"], Splits: ["let {a} , {n} = List.splitAt {m} {x}", "let ( {a} , {n} ) = List.splitAt {m} {x}", "let {a} , {n} = Array.splitAt {m} {x}", "let ( {a} , {n} ) = Array.splitAt {m} {x}"],
             Empties: ["List.isEmpty {x}", "{x}.IsEmpty", "Array.isEmpty {x}", "{x} = [ ]"], SlashFloors: true, Arms: true, Juxtaposed: true, EqualsCompares: true,
             OneItem: "{indent}| [item] -> [item]"),
+
+        // Read for its quicksorts alone: OCaml's own library has no split at a position, so a merge sort's halves are the file's own function's.
+        new("logic-ocaml-halving-never-stops", CodePattern.Files(".ml"), Syntax.OCaml,
+            new(@"^(?<indent>\s*)let\s+(?:rec\s+)?(?<function>[A-Za-z_]\w*)\s+(?<parameters>(?:\(\s*[A-Za-z_]\w*\s*(?::[^()=]+)?\)\s*|[A-Za-z_]\w*\s+)+)=\s*$"), Parameters.Spaced,
+            ["List.length {x}"], [], [], Juxtaposed: true, EqualsCompares: true),
     ];
 
-    public static IReadOnlyList<ILogicPattern> All { get; } =
-        [.. Dialects.Select(dialect => new CodePattern(dialect.Id, dialect.Files, dialect.Syntax,
-            (id, source, masked) => Halvings(id, source, masked, dialect), Severity.Error, Confidence.Likely))];
+    /// <summary>Both checks in every language that writes them - made when first asked for, once the tables below are made too.</summary>
+    public static IReadOnlyList<ILogicPattern> All => Every.Value;
+
+    private static readonly Lazy<IReadOnlyList<ILogicPattern>> Every = new(() =>
+    [
+        .. Dialects.Where(dialect => dialect.Halves.Length > 0).Select(dialect => new CodePattern(dialect.Id, dialect.Files, dialect.Syntax,
+            (id, source, masked) => Halvings(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+        .. Partitions.Select(partition => (Partition: partition, Dialect: Dialects.Single(dialect => dialect.Id == $"logic-{partition.Language}-halving-never-stops")))
+            .Select(each => new CodePattern($"logic-{each.Partition.Language}-partition-drops-equal", each.Dialect.Files, each.Dialect.Syntax,
+                (id, source, masked) => PartsLeavingOutEqual(id, source, masked, each.Dialect, each.Partition), Severity.Error, Confidence.Likely)),
+    ]);
 
     /// <summary>A function the file writes: its header's line, its name, its parameters - each name with how it is declared - its body's lines, and the lines of any function written inside it.</summary>
     private sealed record Function(int Header, string Name, List<(string Name, string Declared)> Parameters, List<int> Body, HashSet<int> Inner);
@@ -201,12 +231,20 @@ public static partial class HalvingPatterns
 
     // ---- The functions of the file ----------------------------------------------------------------------------------
 
-    private static List<Function> Functions(IReadOnlyList<string> masked, Dialect dialect)
+    /// <param name="namedParameters">Whether only a function whose parameters are all names is kept - not a clause whose
+    /// parameter is a pattern, quick_sort([pivot | rest]), whose parameters are then given as none.</param>
+    private static List<Function> Functions(IReadOnlyList<string> masked, Dialect dialect, bool namedParameters = true)
     {
-        var functions = new List<Function>();
+        // Each line heading a function, read once: the functions written inside others are among them.
+        var headers = new Dictionary<int, Match>();
         for (var line = 0; line < masked.Count; line++)
         {
-            if (dialect.Header.Match(masked[line]) is not { Success: true } header) continue;
+            if (dialect.Header.Match(masked[line]) is { Success: true } header) headers[line] = header;
+        }
+
+        var functions = new List<Function>();
+        foreach (var (line, header) in headers.OrderBy(pair => pair.Key))
+        {
             var indent = header.Groups["indent"].Value.Length;
             var body = new List<int>();
             for (var at = line + 1; at < masked.Count; at++)
@@ -224,13 +262,13 @@ public static partial class HalvingPatterns
             if (body.Count == 0) continue;
 
             var parameters = ParametersOf(dialect, header.Groups["parameters"].Value, masked, body);
-            if (parameters.Count == 0) continue;
+            if (parameters.Count == 0 && namedParameters) continue;
 
             // The lines of a function written inside this one are its own.
             var inner = new HashSet<int>();
             foreach (var at in body)
             {
-                if (inner.Contains(at) || dialect.Header.Match(masked[at]) is not { Success: true } nested) continue;
+                if (inner.Contains(at) || !headers.TryGetValue(at, out var nested)) continue;
                 var width = nested.Groups["indent"].Value.Length;
                 inner.Add(at);
                 foreach (var below in body.Where(below => below > at))
@@ -324,9 +362,16 @@ public static partial class HalvingPatterns
 
     // ---- The middle ------------------------------------------------------------------------------------------------
 
-    /// <summary>A name given a value: mid = len(arr) // 2, int mid = (lo + hi) / 2;, ArrayList&lt;Integer&gt; right = new ArrayList&lt;Integer&gt;(100);.</summary>
-    [GeneratedRegex(@"^\s*(?:(?:let|var|const|final|val|local|my|our|auto|mut|static|integer|int|long|short|unsigned|size_t|usize|isize|i32|i64|u32|u64|Int|Integer|Long|uint)\s+)*(?:(?!(?:return|else|throw|yield|print|echo)\b)[A-Za-z_][\w.:]*(?:\s*<[^=;()]*>)?(?:\s*\[\s*\])*\s+)?(?<mid>[$@]?[A-Za-z_]\w*)\s*(?::\s*[\w<>\[\]]+\s*)?(?::=|=(?![=>~]))\s*(?<right>.+?)\s*(?:[;,]|\s+in)?\s*$")]
+    /// <summary>
+    /// A name given a value: mid = len(arr) // 2, int mid = (lo + hi) / 2;, ArrayList&lt;Integer&gt; right = new ArrayList&lt;Integer&gt;(100);.
+    /// The value ends on a letter, not a space, so a long line - a string masked out - is read once, not again for each
+    /// space; F#'s and OCaml's in after it is taken off by <see cref="ValueOf"/>.
+    /// </summary>
+    [GeneratedRegex(@"^\s*(?:(?:let|var|const|final|val|local|my|our|auto|mut|static|integer|int|long|short|unsigned|size_t|usize|isize|i32|i64|u32|u64|Int|Integer|Long|uint)\s+)*(?:(?!(?:return|else|throw|yield|print|echo)\b)[A-Za-z_][\w.:]*(?:\s*<[^=;()]*>)?(?:\s*\[\s*\])*\s+)?(?<mid>[$@]?[A-Za-z_]\w*)\s*(?::\s*[\w<>\[\]]+\s*)?(?::=|=(?![=>~]))\s*(?<right>.*[^;,\s])\s*(?:[;,]\s*)?$")]
     private static partial Regex Assigned();
+
+    /// <summary>The value an assignment gives, without the in that ends F#'s and OCaml's: let mid = (lo + hi) / 2 in.</summary>
+    private static string ValueOf(Match assigned) => Regex.Replace(assigned.Groups["right"].Value.Trim(), @"\s+in$", "");
 
     /// <summary>A new empty list: new ArrayList&lt;Integer&gt;(100), [], list(), new List&lt;int&gt;().</summary>
     [GeneratedRegex(@"^(?:new\s+[\w.]+(?:\s*<[^>]*>)?\s*\(\s*\d*\s*\)|\[\s*\]|list\(\s*\)|array\(\s*\))$")]
@@ -342,7 +387,7 @@ public static partial class HalvingPatterns
         {
             if (function.Inner.Contains(line) || Assigned().Match(masked[line]) is not { Success: true } assigned) continue;
             var mid = assigned.Groups["mid"].Value;
-            var right = assigned.Groups["right"].Value.Trim();
+            var right = ValueOf(assigned);
 
             // n = len(arr): a name for the list's length.
             if (LengthOf(right, names, dialect, options) is { } length)
@@ -501,8 +546,8 @@ public static partial class HalvingPatterns
         {
             if (function.Inner.Contains(line)) continue;
             var text = masked[line];
-            // merge_sort(...), or a method's call on its own object: self.merge_sort(...), this.mergeSort(...), $this->mergeSort(...).
-            foreach (Match call in Regex.Matches(text, $@"(?:(?<![\w$.:-])|(?<=(?<![\w$.])(?:self|this)\.)|(?<=\$this->)|(?<=\b(?:self|static)::)){name}\s*\(", options))
+            // merge_sort(...), spread out - ...quickSort(lower) - or a method's call on its own object: self.merge_sort(...), $this->mergeSort(...).
+            foreach (Match call in Regex.Matches(text, $@"(?:(?<![\w$.:-])|(?<=(?<![\w$.])\.\.\.)|(?<=(?<![\w$.])(?:self|this)\.)|(?<=\$this->)|(?<=\b(?:self|static)::)){name}\s*\(", options))
             {
                 var open = call.Index + call.Length - 1;
                 if (Brackets.ClosingParenthesis(text, open) is not { } close) continue;
@@ -795,7 +840,7 @@ public static partial class HalvingPatterns
             foreach (var line in function.Body.Where(line => line < call.Line && !function.Inner.Contains(line)))
             {
                 if (Assigned().Match(masked[line]) is { Success: true } assigned && Same(assigned.Groups["mid"].Value, argument, dialect) &&
-                    IsUpper(assigned.Groups["right"].Value.Trim(), masked, dialect, function, middle, options))
+                    IsUpper(ValueOf(assigned), masked, dialect, function, middle, options))
                 {
                     return (Shape.List, call, argument);
                 }
@@ -823,7 +868,7 @@ public static partial class HalvingPatterns
         if (dialect.Adds is not { } adds) return false;
         var lines = function.Body.Where(line => line < callLine && !function.Inner.Contains(line)).ToList();
         var made = lines.Where(line => Assigned().Match(masked[line]) is { Success: true } assigned && Same(assigned.Groups["mid"].Value, name, dialect)).ToList();
-        if (made is not [var madeLine] || !MadeEmpty().IsMatch(Assigned().Match(masked[madeLine]).Groups["right"].Value.Trim())) return false;
+        if (made is not [var madeLine] || !MadeEmpty().IsMatch(ValueOf(Assigned().Match(masked[madeLine])))) return false;
 
         var named = new Regex($@"(?<![\w$@.]){Regex.Escape(name)}(?!\w)", options);
         var given = lines.Where(line => line > madeLine && named.IsMatch(masked[line])).ToList();
@@ -1053,6 +1098,486 @@ public static partial class HalvingPatterns
             source.Path, stop.Line + 2, [added]);
     }
 
+    // ---- A quicksort's parts ---------------------------------------------------------------------------------------
+
+    /// <summary>How one language writes a quicksort's parts, beside its dialect above, named by its id's language.</summary>
+    /// <param name="Keeps">The items of the list {s}, each named {v}, for which {c} holds: [x for x in s if c], s.filter(x => c) -
+    /// a form with no {v} names each item in {c} itself, as $_, _ or &amp;1, or is the list itself, as Fortran's pack does.</param>
+    /// <param name="Walks">A loop's first line going through the list {s}, each item named {v} - or through the positions of the
+    /// list {x}, {i} from the number {k}.</param>
+    /// <param name="Puts">A line putting the item {v} into the list named {n}.</param>
+    /// <param name="Firsts">The list {x}'s first item, beside the list of its other items - x[0] and x[1:] - so that a part
+    /// drawn from those leaves the pivot out.</param>
+    /// <param name="Counts">Whether a list's positions start at 1, as Lua's and Fortran's do.</param>
+    private sealed record Partition(string Language, string[] Keeps, string[] Walks, string[] Puts, (string First, string Others)[] Firsts, bool CountsFromOne = false);
+
+    private const string CountedLoop = "for ( int {i} = {k} ; {i} < {any} ; {i}++ ) {";
+
+    private static readonly Partition[] Partitions =
+    [
+        new("python", ["[ {v} for {v} in {s} if {c} ]", "filter( lambda {v} : {c} , {s} )"], ["for {v} in {s} :"], ["{n}.append( {v} )", "{n} += [ {v} ]"],
+            [("{x}[ 0 ]", "{x}[ 1 : ]"), ("{x}[ -1 ]", "{x}[ : -1 ]")]),
+        new("java", ["{s}.stream().filter( {v} -> {c} )"], ["for ( {t} {v} : {s} ) {", CountedLoop], ["{n}.add( {v} );", "{n}[ {any} ] = {v};"],
+            [("{x}.get( 0 )", "{x}.subList( 1 , {len} )"), ("{x}[ 0 ]", "Arrays.copyOfRange( {x} , 1 , {len} )")]),
+        new("csharp", ["{s}.Where( {v} => {c} )"], ["foreach ( {t} {v} in {s} )", CountedLoop], ["{n}.Add( {v} );", "{n}[ {any} ] = {v};"],
+            [("{x}[ 0 ]", "{x}.Skip( 1 ).ToList()"), ("{x}[ 0 ]", "{x}.Skip( 1 ).ToArray()"), ("{x}[ 0 ]", "{x}.Skip( 1 )"), ("{x}[ 0 ]", "{x}[ 1 .. ]"), ("{x}.First()", "{x}.Skip( 1 )")]),
+        new("js", ["{s}.filter( ( {v} ) => {c} )", "{s}.filter( {v} => {c} )", "{s}.filter( function ( {v} ) { return {c}; } )"],
+            ["for ( const {v} of {s} ) {", "for ( let {v} of {s} ) {", "for ( let {i} = {k} ; {i} < {any} ; {i}++ ) {"], ["{n}.push( {v} );", "{n}.push( {v} )"],
+            [("{x}[ 0 ]", "{x}.slice( 1 )")]),
+        new("c", [], [CountedLoop, "for ( {i} = {k} ; {i} < {any} ; {i}++ ) {"], ["{n}[ {any} ] = {v};"], [("{x}[ 0 ]", "")]),
+        new("cpp", [], ["for ( {t} {v} : {s} ) {", "for ( const {t}& {v} : {s} ) {", CountedLoop], ["{n}.push_back( {v} );", "{n}[ {any} ] = {v};"],
+            [("{x}[ 0 ]", "std::vector< {t} >( {x}.begin() + 1 , {x}.end() )")]),
+        new("go", [], ["for _ , {v} := range {s} {"], ["{n} = append( {n} , {v} )"], [("{x}[ 0 ]", "{x}[ 1 : ]")]),
+        new("rust", ["{s}.iter().filter( |&&{v}| {c} )", "{s}.iter().filter( |&{v}| {c} )", "{s}.iter().filter( |{v}| {c} )", "{s}.into_iter().filter( |&{v}| {c} )", "{s}.into_iter().filter( |{v}| {c} )"],
+            ["for {v} in {s} {", "for &{v} in {s}.iter() {"], ["{n}.push( {v} );", "{n}.push( *{v} );"],
+            [("{x}[ 0 ]", "&{x}[ 1 .. ]"), ("{x}[ 0 ]", "{x}[ 1 .. ].to_vec()"), ("{x}[ 0 ]", "{x}[ 1 .. ]")]),
+        new("ruby", ["{s}.select { | {v} | {c} }", "{s}.filter { | {v} | {c} }"], ["{s}.each do | {v} |", "for {v} in {s}"], ["{n} << {v}", "{n}.push( {v} )"],
+            [("{x}[ 0 ]", "{x}[ 1 .. ]"), ("{x}[ 0 ]", "{x}[ 1 .. -1 ]"), ("{x}[ 0 ]", "{x}.drop( 1 )"), ("{x}.first", "{x}.drop( 1 )")]),
+        new("lua", [], ["for _ , {v} in ipairs( {s} ) do", "for {i} = {k} , #{x} do"], ["table.insert( {n} , {v} )", "{n}[ #{n} + 1 ] = {v}"],
+            [("{x}[ 1 ]", "{ table.unpack( {x} , 2 ) }")], CountsFromOne: true),
+        new("php", ["array_filter( {s} , fn( {v} ) => {c} )", "array_filter( {s} , function ( {v} ) use ( {any} ) { return {c}; } )"],
+            ["foreach ( {s} as {v} ) {", "for ( {i} = {k} ; {i} < {any} ; {i}++ ) {"], ["{n}[] = {v};", "array_push( {n} , {v} );"],
+            [("{x}[ 0 ]", "array_slice( {x} , 1 )")]),
+        new("perl", ["grep { {c} } {s}"], ["for my {v} ( {s} ) {", "foreach my {v} ( {s} ) {"], ["push {n} , {v};", "push( {n} , {v} );"], []),
+        new("powershell", ["{s} | Where-Object { {c} }", "{s} | ? { {c} }", "{s}.Where( { {c} } )"], ["foreach ( {v} in {s} ) {"], ["{n} += {v}", "{n}.Add( {v} )", "[void]{n}.Add( {v} )"],
+            [("{x}[ 0 ]", "{x}[ 1 .. ( {len} - 1 ) ]")]),
+        new("dart", ["{s}.where( ( {v} ) => {c} )", "{s}.where( {v} => {c} )"], ["for ( final {v} in {s} ) {", "for ( var {v} in {s} ) {"], ["{n}.add( {v} );"],
+            [("{x}[ 0 ]", "{x}.sublist( 1 )"), ("{x}.first", "{x}.skip( 1 )")]),
+        new("scala", ["{s}.filter( {c} )", "{s}.filter( {v} => {c} )"], ["for ( {v} <- {s} ) {"], ["{n} += {v}"], [("{x}.head", "{x}.tail"), ("{x}( 0 )", "{x}.drop( 1 )")]),
+        new("fortran", ["pack( {s} , {c} )"], [], [], [("{x}( 1 )", "{x}( 2 : )")], CountsFromOne: true),
+        new("elixir", ["for {v} <- {s} , {c} , do: {v}", "Enum.filter( {s} , fn {v} -> {c} end )", "Enum.filter( {s} , &( {c} ) )"], [], [], []),
+        new("erlang", ["[ {v} || {v} <- {s} , {c} ]"], [], [], []),
+        new("fsharp", ["List.filter ( fun {v} -> {c} ) {s}", "[ for {v} in {s} do if {c} then yield {v} ]"], [], [], []),
+        new("ocaml", ["List.filter ( fun {v} -> {c} ) {s}"], [], [], []),
+    ];
+
+    /// <summary>
+    /// One part of a quicksort: the values it keeps, below the pivot or above it - on its line, where its text is there, what
+    /// it is drawn from, each item's name and the pivot's, where the comparison's sign is and how it is written, and the list
+    /// it is put into, when it is.
+    /// </summary>
+    private sealed record Part(int Line, int Start, int Length, string Source, string Item, bool Below, string Pivot, int SignAt, string Sign, string? Into, bool Strict, bool Walked = false);
+
+    /// <summary>
+    /// The pivot: its name, the list it is an item of, the name a pattern gives the list's other items, and - where it is an
+    /// item the table knows, x[0] - how those other items are written: x[1:].
+    /// </summary>
+    private sealed record Pivot(string Name, string List, string? Others, IReadOnlyList<string> OthersWritten);
+
+    /// <summary>A comparison of two plain sides: x &lt; pivot, $_ -gt $pivot, items[i] &gt;= pivot, items(2:) &lt; pivot, x == pivot.</summary>
+    [GeneratedRegex(@"^\s*(?<a>[$@*&]*(?:[A-Za-z_]\w*(?:\[[^\[\]]*\]|\([^()]*\))?|_|&1))\s*(?<sign>===|==|=:=|=<|<=|>=|<(?![<=\-])|>(?![>=])|-(?:lt|gt|le|ge|eq)\b|\.(?:lt|gt|le|ge|eq)\.|=(?![=>]))\s*(?<b>[$@*&]*(?:[A-Za-z_]\w*(?:\[[^\[\]]*\]|\([^()]*\))?|_|&1))\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex Compared();
+
+    /// <summary>The pivot taken as the list's items are named: pivot, *rest = items; const [pivot, ...rest] = items; my ($pivot, @rest) = @_;.</summary>
+    [GeneratedRegex(@"^\s*(?:(?:const|let|var|my|local)\s*)?[\[(]?\s*(?<p>[$]?[A-Za-z_]\w*)\s*,\s*(?:\*|\.\.\.|(?=@))(?<r>[@$]?[A-Za-z_]\w*)\s*[\])]?\s*=\s*(?<x>@_|[A-Za-z_]\w*)\s*;?\s*$")]
+    private static partial Regex NamedFirst();
+
+    /// <summary>The pivot as a pattern names it: [pivot | rest], pivot :: rest.</summary>
+    [GeneratedRegex(@"\[\s*(?<p>[A-Za-z_]\w*)\s*\|\s*(?<r>[A-Za-z_]\w*)\s*\]|^\s*(?:\||case)\s*(?<p>[A-Za-z_]\w*)\s*::\s*(?<r>[A-Za-z_]\w*)\s*(?:->|=>)")]
+    private static partial Regex PatternFirst();
+
+    /// <summary>An item of a list: items[0], items.get(0), items(1), items.head, items.First().</summary>
+    [GeneratedRegex(@"^(?<x>[$@]?[A-Za-z_]\w*)\s*(?:\[\s*[^\[\]]+\]|\(\s*[^()]+\)|\.(?:get|at|First|Last|ElementAt)\s*\([^()]*\)|\.(?:first|last|head|First|Last))$")]
+    private static partial Regex ItemOf();
+
+    /// <summary>A type's arguments, List&lt;int&gt; and Dictionary&lt;string, int&gt; - not a comparison.</summary>
+    [GeneratedRegex(@"<\s*[\w.?]+(?:\s*\[\s*\])?(?:\s*,\s*[\w.?]+(?:\s*\[\s*\])?)*\s*>")]
+    private static partial Regex TypeArguments();
+
+    /// <summary>
+    /// Whether some name is compared both ways in the lines - something below it, and something above it - as a quicksort's
+    /// pivot is: x &lt; pivot and x &gt; pivot, $_ -lt $pivot and $_ -gt $pivot. Read by looking at each sign and the names beside it.
+    /// </summary>
+    private static bool ComparedBothWays(IEnumerable<string> lines)
+    {
+        var below = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var above = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var written in lines)
+        {
+            var line = written.Contains('<') && written.Contains('>') ? TypeArguments().Replace(written, " ") : written;
+            for (var at = 0; at < line.Length; at++)
+            {
+                var length = StrictSignAt(line, at);
+                if (length == 0) continue;
+
+                var less = line[at] == '<' || line[at] is '-' or '.' && char.ToLowerInvariant(line[at + 1]) == 'l';
+                // x < pivot keeps x below pivot - and pivot above x.
+                if (NameAfter(line, at + length) is { } after) (less ? below : above).Add(after);
+                if (NameBefore(line, at) is { } before) (less ? above : below).Add(before);
+                at += length - 1;
+            }
+        }
+
+        return below.Overlaps(above);
+    }
+
+    /// <summary>How long the strict comparison's sign at the place is - &lt;, &gt;, -lt, -gt, .lt., .gt. - or 0 where there is none.</summary>
+    private static int StrictSignAt(string line, int at)
+    {
+        var c = line[at];
+        var before = at > 0 ? line[at - 1] : ' ';
+        var after = at + 1 < line.Length ? line[at + 1] : ' ';
+        if (c == '<') return before is '<' or '=' or '>' or '-' || after is '<' or '=' or '>' or '-' ? 0 : 1;
+        if (c == '>') return before is '=' or '>' or '-' || after is '>' or '=' ? 0 : 1;
+        if (c is '-' or '.' && at + 2 < line.Length && char.ToLowerInvariant(line[at + 1]) is 'l' or 'g' && char.ToLowerInvariant(line[at + 2]) == 't')
+        {
+            if (c == '.') return at + 3 < line.Length && line[at + 3] == '.' ? 4 : 0;
+            return at + 3 >= line.Length || !char.IsLetterOrDigit(line[at + 3]) ? 3 : 0;
+        }
+
+        return 0;
+    }
+
+    /// <summary>The name just after the place, past spaces - or null.</summary>
+    private static string? NameAfter(string line, int at)
+    {
+        while (at < line.Length && line[at] == ' ') at++;
+        var start = at;
+        while (at < line.Length && (char.IsLetterOrDigit(line[at]) || line[at] is '_' or '$' or '@')) at++;
+        return at > start ? line[start..at] : null;
+    }
+
+    /// <summary>The name just before the place, past spaces and a closing bracket - items[i] &lt;, items(2:) &lt; - or null.</summary>
+    private static string? NameBefore(string line, int at)
+    {
+        var end = at;
+        while (end > 0 && line[end - 1] is ' ' or ')' or ']' or ':') end--;
+        var start = end;
+        while (start > 0 && (char.IsLetterOrDigit(line[start - 1]) || line[start - 1] is '_' or '$' or '@')) start--;
+        return end > start ? line[start..end] : null;
+    }
+
+    private static IEnumerable<LogicFinding> PartsLeavingOutEqual(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect, Partition partition)
+    {
+        if (!ComparedBothWays(masked)) yield break;
+        var options = Options(dialect);
+        foreach (var function in Functions(masked, dialect, namedParameters: false))
+        {
+            if (!ComparedBothWays(function.Body.Where(line => !function.Inner.Contains(line)).Select(line => masked[line]))) continue;
+            var pivots = Pivots(masked, dialect, partition, function, options);
+            if (pivots.Count == 0) continue;
+
+            var parts = KeptParts(masked, dialect, partition, function, pivots, options).Concat(WalkedParts(masked, dialect, partition, function, pivots, options)).ToList();
+            foreach (var below in parts.Where(part => part.Below && part.Strict))
+            {
+                var above = parts.FirstOrDefault(part => !part.Below && part.Strict && SameText(part.Source, below.Source, dialect) && Same(part.Pivot, below.Pivot, dialect));
+                if (above is null) continue;
+
+                // Nothing else drawn from the same list against the same pivot: no part for what equals it, nor an else.
+                if (parts.Count(part => SameText(part.Source, below.Source, dialect) && Same(part.Pivot, below.Pivot, dialect)) != 2) continue;
+                // Both parts sorted on every pass, in the same branch: a quickselect goes on into one of them, chosen by a test.
+                if (SortedAgain(masked, dialect, function, below) is not { } belowSorted || SortedAgain(masked, dialect, function, above) is not { } aboveSorted) continue;
+                if (!SameBranch(masked, function, belowSorted, aboveSorted)) continue;
+                if (!PutBack(masked, dialect, function, below, above, options)) continue;
+
+                yield return Dropped(id, source, masked, dialect, partition, pivots.First(pivot => Same(pivot.Name, below.Pivot, dialect)), below, above, options);
+                break;
+            }
+        }
+    }
+
+    /// <summary>Each name the function gives an item of its list - pivot = items[0], pivot, *rest = items, [pivot | rest].</summary>
+    private static List<Pivot> Pivots(IReadOnlyList<string> masked, Dialect dialect, Partition partition, Function function, RegexOptions options)
+    {
+        var pivots = new List<Pivot>();
+        var lists = function.Parameters.Select(parameter => parameter.Name).ToList();
+        foreach (var line in new[] { function.Header }.Concat(function.Body.Where(line => !function.Inner.Contains(line))))
+        {
+            var text = masked[line];
+            if ((text.Contains('|') || text.Contains("::", StringComparison.Ordinal)) && PatternFirst().Match(text) is { Success: true } pattern)
+                pivots.Add(new Pivot(pattern.Groups["p"].Value, "", pattern.Groups["r"].Value, []));
+            else if (line != function.Header && text.Contains(',') && text.Contains('=') && NamedFirst().Match(text) is { Success: true } named && (named.Groups["x"].Value == "@_" || lists.Any(list => Same(list, named.Groups["x"].Value, dialect))))
+                pivots.Add(new Pivot(named.Groups["p"].Value, named.Groups["x"].Value, named.Groups["r"].Value, []));
+            else if (line != function.Header && text.Contains('=') && Assigned().Match(text) is { Success: true } assigned &&
+                     ItemOf().Match(ValueOf(assigned)) is { Success: true } item && lists.Any(list => Same(list, item.Groups["x"].Value, dialect)))
+            {
+                var list = item.Groups["x"].Value;
+                var othersWritten = partition.Firsts.Where(pair => Form(pair.First, list, dialect, options, "^", "$").IsMatch(ValueOf(assigned)))
+                    .Select(pair => pair.Others).ToList();
+                pivots.Add(new Pivot(assigned.Groups["mid"].Value, list, null, othersWritten));
+            }
+        }
+
+        return pivots;
+    }
+
+    /// <summary>The parts a filter keeps: [x for x in rest if x &lt; pivot], rest.filter((x) =&gt; x &gt; pivot).</summary>
+    private static IEnumerable<Part> KeptParts(IReadOnlyList<string> masked, Dialect dialect, Partition partition, Function function, List<Pivot> pivots, RegexOptions options)
+    {
+        foreach (var line in function.Body.Where(line => !function.Inner.Contains(line)))
+        {
+            var text = masked[line];
+            foreach (var keep in partition.Keeps)
+            {
+                foreach (Match kept in Form(keep, "", dialect, options).Matches(text))
+                {
+                    var items = kept.Groups["v"].Captures.Select(capture => capture.Value).Distinct().ToList();
+                    if (items.Count > 1) continue;
+                    var source = kept.Groups["s"].Value.Trim();
+                    var named = items.Count == 1 ? items[0] : null;
+                    if (Comparison(kept.Groups["c"], named, source, pivots, dialect) is not { } compared) continue;
+
+                    // Given a name on its line: lower = [x for x in rest if x < pivot], with whatever wraps it.
+                    var into = Assigned().Match(text) is { Success: true } assigned && assigned.Groups["right"].Index <= kept.Index ? assigned.Groups["mid"].Value : null;
+                    yield return new Part(line, kept.Index, kept.Length, source, compared.Item, compared.Below, compared.Pivot, compared.SignAt, compared.Sign, into, compared.Strict);
+                }
+            }
+        }
+    }
+
+    /// <summary>A comparison of an item with a pivot, which way it keeps the item, and where its sign is.</summary>
+    private sealed record Comparing(string Item, string Pivot, bool Below, bool Strict, int SignAt, string Sign);
+
+    /// <summary>
+    /// The condition read as a comparison of the item with a pivot - x &lt; pivot, pivot &gt; x, $_ -gt $pivot - or null. With no
+    /// item named, the item is $_, _ or &amp;1, or the list itself, as pack(items(2:), items(2:) &lt; pivot) compares it.
+    /// </summary>
+    private static Comparing? Comparison(Group condition, string? named, string source, List<Pivot> pivots, Dialect dialect)
+    {
+        if (Compared().Match(condition.Value) is not { Success: true } compared) return null;
+        var (first, second) = (compared.Groups["a"].Value, compared.Groups["b"].Value);
+        bool IsPivot(string side) => pivots.Any(pivot => Same(pivot.Name, side, dialect));
+        bool IsItem(string side) => named is not null
+            ? Same(side.TrimStart('*', '&'), named.TrimStart('*', '&'), dialect)
+            : side is "$_" or "_" or "&1" || Same(Spaceless(side), Spaceless(source), dialect);
+
+        var sign = compared.Groups["sign"].Value.ToLowerInvariant();
+        var less = sign is "<" or "<=" or "=<" or "-lt" or "-le" or ".lt." or ".le.";
+        var strict = sign is "<" or ">" or "-lt" or "-gt" or ".lt." or ".gt.";
+        var at = condition.Index + compared.Groups["sign"].Index;
+
+        if (IsItem(first) && IsPivot(second)) return new Comparing(first, second, less, strict, at, compared.Groups["sign"].Value);
+        if (IsPivot(first) && IsItem(second)) return new Comparing(second, first, !less, strict, at, compared.Groups["sign"].Value);
+        return null;
+    }
+
+    /// <summary>
+    /// The parts a loop puts items into: for x in rest: if x &lt; pivot: lower.append(x) elif x &gt; pivot: higher.append(x) - the
+    /// two branches of one test, each putting the item into a list; an else after them is a part of its own, for what equals the pivot.
+    /// </summary>
+    private static IEnumerable<Part> WalkedParts(IReadOnlyList<string> masked, Dialect dialect, Partition partition, Function function, List<Pivot> pivots, RegexOptions options)
+    {
+        foreach (var header in function.Body.Where(line => !function.Inner.Contains(line)))
+        {
+            foreach (var walk in partition.Walks)
+            {
+                if (Form(walk, "", dialect, options, @"^\s*", @"\s*$").Match(masked[header].TrimEnd()) is not { Success: true } walked) continue;
+
+                var lines = BlockBelow(masked, header, function.Body);
+                if (lines.Count == 0) continue;
+
+                // Through positions: the item is items[i] where it is used - or the name the loop's first line gives it, local x = items[i].
+                string item, source;
+                var bindingLines = 0;
+                if (walked.Groups["i"].Success)
+                {
+                    var position = walked.Groups["i"].Value;
+                    var list = walked.Groups["x"].Success ? walked.Groups["x"].Value : null;
+                    item = $"[{position}]";
+                    if (Assigned().Match(masked[lines[0]]) is { Success: true } named &&
+                        Regex.Match(ValueOf(named), $@"^(?<x>[A-Za-z_]\w*)\s*\[\s*{Regex.Escape(position)}\s*\]$") is { Success: true } read)
+                    {
+                        item = named.Groups["mid"].Value;
+                        list ??= read.Groups["x"].Value;
+                        bindingLines = 1;
+                    }
+
+                    source = $"{list ?? "?"} from {walked.Groups["k"].Value}";
+                }
+                else
+                {
+                    item = walked.Groups["v"].Value;
+                    source = walked.Groups["s"].Value.Trim();
+                }
+
+                foreach (var part in Branches(masked, dialect, lines.Skip(bindingLines).ToList(), item, source, pivots, partition, options)) yield return part;
+            }
+        }
+    }
+
+    /// <summary>The lines of the block a line heads, by indentation - after a { on a line of its own, up to the } closing it.</summary>
+    private static List<int> BlockBelow(IReadOnlyList<string> masked, int header, List<int> body)
+    {
+        var indent = CodeText.Indentation(masked[header]).Length;
+        var lines = new List<int>();
+        foreach (var line in body.Where(line => line > header))
+        {
+            var width = CodeText.Indentation(masked[line]).Length;
+            if (lines.Count == 0 && width == indent && masked[line].Trim() == "{") continue;
+            if (width <= indent) break;
+            lines.Add(line);
+        }
+
+        return lines;
+    }
+
+    /// <summary>The parts the loop's one test makes: its if and else if branches, each putting the item into a list - and an else, as a part for the rest.</summary>
+    private static List<Part> Branches(IReadOnlyList<string> masked, Dialect dialect, List<int> lines, string item, string source, List<Pivot> pivots, Partition partition, RegexOptions options)
+    {
+        var parts = new List<Part>();
+        if (lines.Count == 0) return parts;
+
+        // A branch not read as one of the two - an else, or a test of anything else - keeps what they leave: a part of its own.
+        var others = new List<(int Line, int Start, int Length)>();
+        var top = CodeText.Indentation(masked[lines[0]]).Length;
+        foreach (var line in lines.Where(line => CodeText.Indentation(masked[line]).Length == top))
+        {
+            var text = masked[line];
+            var branch = Regex.Match(text, @"^\s*(?:\}\s*)?(?<word>else\s+if|elseif|elsif|elif|if|else)\b", options);
+            if (!branch.Success) continue;
+
+            if (branch.Groups["word"].Value.Equals("else", StringComparison.OrdinalIgnoreCase) ||
+                ReadBranch(masked, dialect, lines, line, top, branch, item, source, pivots, partition, options) is not { } part)
+            {
+                others.Add((line, branch.Index, branch.Length));
+                continue;
+            }
+
+            parts.Add(part);
+        }
+
+        // Each other branch draws from the same list as the two do, for every pivot.
+        var drawnFrom = parts.Count > 0 ? parts[0].Source : source;
+        foreach (var (line, start, length) in others)
+            parts.AddRange(pivots.Select(pivot => new Part(line, start, length, drawnFrom, item, false, pivot.Name, -1, "", null, false, Walked: true)));
+        return parts;
+    }
+
+    /// <summary>One branch of the loop's test as a part: a comparison of the item with a pivot, and one line putting the item into a list - or null.</summary>
+    private static Part? ReadBranch(IReadOnlyList<string> masked, Dialect dialect, List<int> lines, int line, int top, Match branch, string item, string source, List<Pivot> pivots, Partition partition, RegexOptions options)
+    {
+        var text = masked[line];
+        if (Reaching.Written(text, branch.Index + branch.Length, dialect.ColonEnds) is not { } wording) return null;
+        var condition = new Regex(Regex.Escape(wording.Condition)).Match(text, wording.Start);
+        if (!condition.Success) return null;
+
+        // The item as the comparison reads it: x, or items[i] for a loop through positions - whose list is then the one named there.
+        var named = item.StartsWith('[') ? Regex.Match(wording.Condition, $@"[A-Za-z_]\w*\s*\[\s*{Regex.Escape(item[1..^1])}\s*\]").Value : item;
+        if (named.Length == 0) return null;
+        var drawnFrom = source.StartsWith("? from ", StringComparison.Ordinal) ? named[..named.IndexOf('[')].Trim() + source[1..] : source;
+        if (Comparison(condition, named, drawnFrom, pivots, dialect) is not { } compared) return null;
+
+        // What the branch does: one line putting the item, as written, into a list - on the test's own line or the one under it.
+        var does = wording.Rest.Length > 0 ? wording.Rest : lines.SkipWhile(each => each <= line).TakeWhile(each => CodeText.Indentation(masked[each]).Length > top)
+            .Select(each => masked[each].Trim()).FirstOrDefault(each => each is not ("{" or "}")) ?? "";
+        var into = partition.Puts.Select(put => Form(put.Replace("{v}", named, StringComparison.Ordinal), "", dialect, options, @"^\s*", @"\s*(?:\}\s*)?$").Match(does.Trim()))
+            .FirstOrDefault(put => put.Success);
+        if (into is null) return null;
+
+        return new Part(line, condition.Index, condition.Length, drawnFrom, named, compared.Below, compared.Pivot, compared.SignAt, compared.Sign,
+            into.Groups["n"].Captures[0].Value, compared.Strict, Walked: true);
+    }
+
+    /// <summary>The line of the function's call to itself with the part - in the call's brackets, or by the name it is given - or null.</summary>
+    private static int? SortedAgain(IReadOnlyList<string> masked, Dialect dialect, Function function, Part part)
+    {
+        foreach (var call in SelfCalls(masked, dialect, function))
+        {
+            if (call.Line == part.Line && part.Start >= call.Start && part.Start + part.Length <= call.Start + call.Written.Length) return call.Line;
+            if (part.Into is { } into && call.Arguments.Any(argument => Same(Spaceless(Unbracketed(argument)), Spaceless(into), dialect))) return call.Line;
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether two lines of the function are in the same blocks - each line heading one, by indentation, the same for both.</summary>
+    private static bool SameBranch(IReadOnlyList<string> masked, Function function, int first, int second)
+    {
+        List<int> Heads(int line)
+        {
+            var heads = new List<int>();
+            var indent = CodeText.Indentation(masked[line]).Length;
+            foreach (var above in function.Body.Where(above => above < line).Reverse())
+            {
+                if (masked[above].Trim().Length == 0 || CodeText.Indentation(masked[above]).Length >= indent) continue;
+                indent = CodeText.Indentation(masked[above]).Length;
+                heads.Add(above);
+            }
+
+            return heads;
+        }
+
+        return first == second || Heads(first).SequenceEqual(Heads(second));
+    }
+
+    /// <summary>Whether the pivot is named again outside the two parts - lesser + [pivot] + greater - so it is put back between them.</summary>
+    private static bool PutBack(IReadOnlyList<string> masked, Dialect dialect, Function function, Part below, Part above, RegexOptions options)
+    {
+        var pivot = new Regex($@"(?<![\w$@.]){Regex.Escape(below.Pivot)}(?!\w)", options);
+        var firstLine = Math.Min(below.Line, above.Line);
+        var lastLine = Math.Max(below.Line, above.Line);
+        foreach (var line in function.Body.Where(line => line >= firstLine && !function.Inner.Contains(line)))
+        {
+            var text = masked[line];
+
+            // A loop's two tests, and the lines putting the items into their lists, are the parts themselves.
+            if (below.Walked && line <= lastLine + 1) continue;
+            foreach (var part in new[] { below, above }.Where(part => part.Line == line).OrderByDescending(part => part.Start))
+                text = text[..part.Start] + new string(' ', part.Length) + text[(part.Start + part.Length)..];
+            if (pivot.IsMatch(text)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The finding, said of the part above the pivot - with the change that keeps what equals it there, x &gt;= pivot, when the
+    /// part is drawn from the list's other items, so the pivot itself is not among them.
+    /// </summary>
+    private static LogicFinding Dropped(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect, Partition partition, Pivot pivot, Part below, Part above, RegexOptions options)
+    {
+        var shown = pivot.Name;
+        string Kept(Part part) => $"`{source.Lines[part.Line].Substring(part.Start, part.Length).Trim()}`";
+
+        var kept = below.Walked
+            ? $"Line {below.Line + 1} puts the values below `{shown}` into `{below.Into}` - {Kept(below)} - and line {above.Line + 1} those above it into `{above.Into}` - {Kept(above)}"
+            : $"Line {below.Line + 1} keeps the values below `{shown}` - {Kept(below)} - and line {above.Line + 1} the values above it - {Kept(above)}";
+        var told = $"{kept} - so a value equal to `{shown}` goes into neither. Only `{shown}` itself is put back between them, so any other value equal to it is " +
+                   "not put back at all.";
+
+        var others = OthersOf(masked, dialect, partition, pivot, above.Source, options);
+        LocalFix? fix = null;
+        if (others)
+        {
+            var text = source.Lines[above.Line];
+            var sign = above.Sign;
+            var wider = sign switch { ">" => ">=", "<" => "<=", "-gt" or "-GT" => "-ge", "-lt" or "-LT" => "-le", ".gt." => ".ge.", ".lt." => ".le.", _ => sign };
+            var changed = text[..above.SignAt] + wider + text[(above.SignAt + sign.Length)..];
+            fix = LocalFix.ReplaceLine(id, $"Keep what equals {shown} with the values above it: {wider}",
+                $"With {wider}, each value equal to `{shown}` goes in with the values above it, and is sorted and put back with them - and as the part is drawn " +
+                $"from the other items, `{shown}` itself is not among them.", source.Path, above.Line + 1, changed);
+        }
+
+        return new LogicFinding(id, above.Line + 1, told, fix) { Severity = Severity.Error, Confidence = Confidence.Likely };
+    }
+
+    /// <summary>
+    /// Whether the parts are drawn from the list's items other than the pivot: the name a pattern gives them - [pivot | rest] -
+    /// or, for the list's first item as the pivot, its other items written out, or a loop from its second position.
+    /// </summary>
+    private static bool OthersOf(IReadOnlyList<string> masked, Dialect dialect, Partition partition, Pivot pivot, string source, RegexOptions options)
+    {
+        if (pivot.Others is { } others && Same(Spaceless(source), Spaceless(others), dialect)) return true;
+        if (pivot.OthersWritten.Count == 0 || pivot.List.Length == 0) return false;
+
+        // A loop through positions from the second: items from 1, or from 2 where they count from 1.
+        if (Regex.Match(source, @"^(?<x>\S+) from (?<k>\d+)$") is { Success: true } walked)
+            return Same(walked.Groups["x"].Value, pivot.List, dialect) && walked.Groups["k"].Value == (partition.CountsFromOne ? "2" : "1");
+
+        bool IsOthers(string text) => pivot.OthersWritten.Any(written => written.Length > 0 && Form(written, pivot.List, dialect, options, "^", "$").IsMatch(text.Trim()));
+        if (IsOthers(source)) return true;
+
+        // A name given them: rest = items[1:], or C++'s std::vector<int> rest(items.begin() + 1, items.end());.
+        foreach (var text in masked)
+        {
+            if (Assigned().Match(text) is { Success: true } assigned && Same(assigned.Groups["mid"].Value, source, dialect) && IsOthers(ValueOf(assigned))) return true;
+            if (Regex.Match(text, $@"^\s*(?<type>(?:std::)?vector\s*<[^>]*>)\s+{Regex.Escape(source)}\s*\((?<from>.*)\)\s*;\s*$") is { Success: true } declared &&
+                IsOthers($"{declared.Groups["type"].Value}({declared.Groups["from"].Value})")) return true;
+        }
+
+        return false;
+    }
+
     // ---- Forms -----------------------------------------------------------------------------------------------------
 
     private static RegexOptions Options(Dialect dialect) => dialect.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
@@ -1090,7 +1615,15 @@ public static partial class HalvingPatterns
                 var placeholder = form[(at + 1)..close];
                 var piece = placeholder switch
                 {
+                    // With no list given, {x} is any list's name: for {i} = {k}, #{x} do.
+                    "x" when list.Length == 0 => @"(?<x>[$@]?[A-Za-z_]\w*)",
                     "x" => $@"(?<![\w$@.]){Regex.Escape(list)}(?!\w)",
+                    "s" => @"(?<![\w$@.])(?<s>[$@]?[A-Za-z_]\w*(?:\((?:[^()]|\([^()]*\))*\)|\[(?:[^\[\]]|\[[^\[\]]*\])*\]|\.[A-Za-z_]\w*)*)",
+                    "v" => @"(?<v>[$@]?[A-Za-z_]\w*)",
+                    "c" => @"(?<c>(?:[^(){};]|\((?:[^()]|\([^()]*\))*\))+?)",
+                    "i" => @"(?<i>[$]?[A-Za-z_]\w*)",
+                    "k" => @"(?<k>\d+)",
+                    "any" => @"(?:[^()\[\]{};]|\([^()]*\)|\[[^\[\]]*\])+?",
                     "xb" => $@"{Regex.Escape(bare)}(?!\w)",
                     "m" => @"(?<m>(?:[^()\[\]{},;]|\((?:[^()]|\([^()]*\))*\)|\[[^\[\]]*\])+?)",
                     "len" => $"(?:{lengths})",

@@ -83,6 +83,19 @@ internal static class EveryLanguagePatternGuides
             "for a list of one item.",
             example);
 
+    private static GuideEntry PartitionDropsEqual(string id, string example) =>
+        GuideFor([id], "A quicksort whose parts leave out what equals the pivot",
+            "A quicksort takes one item, the pivot, and puts the other items into two parts - those below it and those above it - " +
+            "sorts each part by calling itself, and puts the pivot back between them. When one part keeps the items below the " +
+            "pivot, x < pivot, and the other the items above it, x > pivot, an item equal to the pivot goes into neither. Only the " +
+            "pivot itself is put back, so any other item equal to it never is.",
+            "A list that holds a value more than once does not come back sorted: the copies of a repeated value go missing - or, " +
+            "where the sort writes its answer over the list, what was there before is left in their places.",
+            "Keep the items equal to the pivot in one of the parts - x >= pivot for the items above it - when the parts are drawn " +
+            "from the items other than the pivot, so the pivot is not among them; or give them a part of their own, put back " +
+            "beside the pivot.",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -2070,6 +2083,267 @@ internal static class EveryLanguagePatternGuides
                 | _ ->
                     let left, right = List.splitAt (List.length items / 2) items
                     merge (mergeSort left) (mergeSort right)
+            """),
+        PartitionDropsEqual("logic-python-partition-drops-equal",
+            """
+            def quicksort(items):
+                if not items:
+                    return []
+                pivot = items[0]
+                lesser = quicksort([x for x in items[1:] if x < pivot])
+                greater = quicksort([x for x in items[1:] if x >= pivot])
+                return lesser + [pivot] + greater
+            """),
+        PartitionDropsEqual("logic-java-partition-drops-equal",
+            """
+            static ArrayList<Integer> quicksort(ArrayList<Integer> items) {
+                if (items.isEmpty()) return new ArrayList<>();
+                Integer pivot = items.get(0);
+                ArrayList<Integer> lesser = new ArrayList<>();
+                ArrayList<Integer> greater = new ArrayList<>();
+                for (Integer x : items.subList(1, items.size())) {
+                    if (x < pivot) {
+                        lesser.add(x);
+                    } else if (x >= pivot) {
+                        greater.add(x);
+                    }
+                }
+                ArrayList<Integer> sorted = quicksort(lesser);
+                sorted.add(pivot);
+                sorted.addAll(quicksort(greater));
+                return sorted;
+            }
+            """),
+        PartitionDropsEqual("logic-csharp-partition-drops-equal",
+            """
+            static List<int> QuickSort(List<int> items)
+            {
+                if (items.Count <= 1) return items;
+                int pivot = items[0];
+                var rest = items.Skip(1).ToList();
+                var sorted = QuickSort(rest.Where(x => x < pivot).ToList());
+                sorted.Add(pivot);
+                sorted.AddRange(QuickSort(rest.Where(x => x >= pivot).ToList()));
+                return sorted;
+            }
+            """),
+        PartitionDropsEqual("logic-js-partition-drops-equal",
+            """
+            function quickSort(items) {
+              if (items.length <= 1) return items;
+              const [pivot, ...rest] = items;
+              const lower = rest.filter((x) => x < pivot);
+              const higher = rest.filter((x) => x >= pivot);
+              return [...quickSort(lower), pivot, ...quickSort(higher)];
+            }
+            """),
+        PartitionDropsEqual("logic-c-partition-drops-equal",
+            """
+            static void quicksort(int *items, int count) {
+                if (count <= 1) return;
+                int pivot = items[0];
+                int lower[64], higher[64];
+                int lowerCount = 0, higherCount = 0;
+                for (int i = 1; i < count; i++) {
+                    if (items[i] < pivot) {
+                        lower[lowerCount++] = items[i];
+                    } else if (items[i] >= pivot) {
+                        higher[higherCount++] = items[i];
+                    }
+                }
+                quicksort(lower, lowerCount);
+                quicksort(higher, higherCount);
+                int at = 0;
+                for (int i = 0; i < lowerCount; i++) items[at++] = lower[i];
+                items[at++] = pivot;
+                for (int i = 0; i < higherCount; i++) items[at++] = higher[i];
+            }
+            """),
+        PartitionDropsEqual("logic-cpp-partition-drops-equal",
+            """
+            std::vector<int> quicksort(const std::vector<int>& items) {
+                if (items.size() <= 1) return items;
+                int pivot = items[0];
+                std::vector<int> rest(items.begin() + 1, items.end());
+                std::vector<int> lower, higher;
+                for (int x : rest) {
+                    if (x < pivot) {
+                        lower.push_back(x);
+                    } else if (x >= pivot) {
+                        higher.push_back(x);
+                    }
+                }
+                std::vector<int> sorted = quicksort(lower);
+                sorted.push_back(pivot);
+                for (int x : quicksort(higher)) sorted.push_back(x);
+                return sorted;
+            }
+            """),
+        PartitionDropsEqual("logic-go-partition-drops-equal",
+            """
+            func quickSort(items []int) []int {
+            	if len(items) <= 1 {
+            		return items
+            	}
+            	pivot := items[0]
+            	var lower, higher []int
+            	for _, x := range items[1:] {
+            		if x < pivot {
+            			lower = append(lower, x)
+            		} else if x >= pivot {
+            			higher = append(higher, x)
+            		}
+            	}
+            	sorted := append(quickSort(lower), pivot)
+            	return append(sorted, quickSort(higher)...)
+            }
+            """),
+        PartitionDropsEqual("logic-rust-partition-drops-equal",
+            """
+            fn quick_sort(items: Vec<i32>) -> Vec<i32> {
+                if items.len() <= 1 {
+                    return items;
+                }
+                let pivot = items[0];
+                let rest = &items[1..];
+                let lower: Vec<i32> = rest.iter().filter(|&&x| x < pivot).cloned().collect();
+                let higher: Vec<i32> = rest.iter().filter(|&&x| x >= pivot).cloned().collect();
+                let mut sorted = quick_sort(lower);
+                sorted.push(pivot);
+                sorted.extend(quick_sort(higher));
+                sorted
+            }
+            """),
+        PartitionDropsEqual("logic-ruby-partition-drops-equal",
+            """
+            def quick_sort(items)
+              return items if items.length <= 1
+              pivot, *rest = items
+              quick_sort(rest.select { |x| x < pivot }) + [pivot] + quick_sort(rest.select { |x| x >= pivot })
+            end
+            """),
+        PartitionDropsEqual("logic-lua-partition-drops-equal",
+            """
+            local function quick_sort(items)
+              if #items <= 1 then return items end
+              local pivot = items[1]
+              local lower, higher = {}, {}
+              for i = 2, #items do
+                local x = items[i]
+                if x < pivot then
+                  table.insert(lower, x)
+                elseif x >= pivot then
+                  table.insert(higher, x)
+                end
+              end
+              local sorted = quick_sort(lower)
+              table.insert(sorted, pivot)
+              for _, x in ipairs(quick_sort(higher)) do table.insert(sorted, x) end
+              return sorted
+            end
+            """),
+        PartitionDropsEqual("logic-php-partition-drops-equal",
+            """
+            function quick_sort(array $items): array {
+                if (count($items) <= 1) return $items;
+                $pivot = $items[0];
+                $rest = array_slice($items, 1);
+                $lower = array_values(array_filter($rest, fn($x) => $x < $pivot));
+                $higher = array_values(array_filter($rest, fn($x) => $x >= $pivot));
+                return array_merge(quick_sort($lower), [$pivot], quick_sort($higher));
+            }
+            """),
+        PartitionDropsEqual("logic-perl-partition-drops-equal",
+            """
+            sub quick_sort {
+                my ($pivot, @rest) = @_;
+                return () unless defined $pivot;
+                my @lower = grep { $_ < $pivot } @rest;
+                my @higher = grep { $_ >= $pivot } @rest;
+                return (quick_sort(@lower), $pivot, quick_sort(@higher));
+            }
+            """),
+        PartitionDropsEqual("logic-powershell-partition-drops-equal",
+            """
+            function Quick-Sort($items) {
+                if ($items.Count -le 1) { return $items }
+                $pivot = $items[0]
+                $rest = $items[1..($items.Count - 1)]
+                $lower = @($rest | Where-Object { $_ -lt $pivot })
+                $higher = @($rest | Where-Object { $_ -ge $pivot })
+                return @(Quick-Sort $lower) + @($pivot) + @(Quick-Sort $higher)
+            }
+            """),
+        PartitionDropsEqual("logic-dart-partition-drops-equal",
+            """
+            List<int> quickSort(List<int> items) {
+              if (items.length <= 1) return items;
+              final pivot = items[0];
+              final rest = items.sublist(1);
+              final lower = rest.where((x) => x < pivot).toList();
+              final higher = rest.where((x) => x >= pivot).toList();
+              return [...quickSort(lower), pivot, ...quickSort(higher)];
+            }
+            """),
+        PartitionDropsEqual("logic-scala-partition-drops-equal",
+            """
+            def quickSort(items: List[Int]): List[Int] = items match {
+              case Nil => Nil
+              case pivot :: rest =>
+                quickSort(rest.filter(_ < pivot)) ++ List(pivot) ++ quickSort(rest.filter(_ >= pivot))
+            }
+            """),
+        PartitionDropsEqual("logic-fortran-partition-drops-equal",
+            """
+            recursive function quick_sort(items) result(sorted)
+              integer, intent(in) :: items(:)
+              integer :: sorted(size(items))
+              integer :: pivot
+              if (size(items) <= 1) then
+                sorted = items
+                return
+              end if
+              pivot = items(1)
+              sorted = [quick_sort(pack(items(2:), items(2:) < pivot)), pivot, quick_sort(pack(items(2:), items(2:) >= pivot))]
+            end function quick_sort
+            """),
+        PartitionDropsEqual("logic-elixir-partition-drops-equal",
+            """
+            def quick_sort([]), do: []
+
+            def quick_sort([pivot | rest]) do
+              lower = for x <- rest, x < pivot, do: x
+              higher = for x <- rest, x >= pivot, do: x
+              quick_sort(lower) ++ [pivot] ++ quick_sort(higher)
+            end
+            """),
+        PartitionDropsEqual("logic-erlang-partition-drops-equal",
+            """
+            quick_sort([]) -> [];
+            quick_sort([Pivot | Rest]) ->
+                Lower = [X || X <- Rest, X < Pivot],
+                Higher = [X || X <- Rest, X >= Pivot],
+                quick_sort(Lower) ++ [Pivot] ++ quick_sort(Higher).
+            """),
+        PartitionDropsEqual("logic-fsharp-partition-drops-equal",
+            """
+            let rec quickSort items =
+                match items with
+                | [] -> []
+                | pivot :: rest ->
+                    let lower = List.filter (fun x -> x < pivot) rest
+                    let higher = List.filter (fun x -> x >= pivot) rest
+                    quickSort lower @ [pivot] @ quickSort higher
+            """),
+        PartitionDropsEqual("logic-ocaml-partition-drops-equal",
+            """
+            let rec quick_sort items =
+              match items with
+              | [] -> []
+              | pivot :: rest ->
+                let lower = List.filter (fun x -> x < pivot) rest in
+                let higher = List.filter (fun x -> x >= pivot) rest in
+                quick_sort lower @ [pivot] @ quick_sort higher
             """),
     ];
 }

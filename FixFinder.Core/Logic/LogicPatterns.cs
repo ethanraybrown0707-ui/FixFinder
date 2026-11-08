@@ -49,7 +49,7 @@ public static class LogicPatterns
         .. SwapPatterns.All,
         .. RecursionPatterns.All,
         .. VisitedPatterns.All,
-        .. HalvingPatterns.All,
+        .. SortingPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
