@@ -19,13 +19,21 @@ namespace FixFinder.Core.Logic;
 /// way back. QuixBugs' shortest_path_lengths is this mistake, in Python and in Java. The change turns the part round:
 /// dist[k][j].
 /// </para>
+/// <para>
+/// And Bellman-Ford's shorter length worked out and kept in the edge: min(dist[u] + length, dist[v]) given to edge[2] or
+/// weight_by_edge[u, v], not to dist[v], so dist never changes and no way to anywhere is found. QuixBugs' shortest_paths is
+/// this mistake, in Python and in Java. The change keeps the length as dist[v] - on the line itself, or on the line that puts
+/// the name given it somewhere.
+/// </para>
 /// </summary>
 /// <remarks>
 /// Said only when the file shows all of it: the two lengths are the same text, a table's entry or a call naming the place, and
 /// what is added to one is not a number; for a test, its block sets that entry. The change is offered when the place the edge
 /// comes from is plain - named beside the place it goes to in the edge's length, length[node, next], or the list the loop goes
 /// through, graph[node] - and so is its length: the table's entry for it, where nothing takes entries out of the table, or a
-/// name given it before.
+/// name given it before. Bellman-Ford's is said only when its two places are an edge's two ends, with no arithmetic in either,
+/// the length is kept back in that edge or what it was taken from, and nothing in the loops around sets the table at all - so
+/// a dynamic program rolling prev into cur, or the cheaper of two prices kept as an answer, is left alone.
 /// </remarks>
 public static partial class ShortestPathPatterns
 {
@@ -59,6 +67,8 @@ public static partial class ShortestPathPatterns
             (id, source, masked) => FromWrongEnd(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
         .. Dialects.Select(dialect => new CodePattern($"logic-{dialect.Language}-path-parts-dont-meet", dialect.Files, dialect.Syntax,
             (id, source, masked) => PartsNotMeeting(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+        .. Dialects.Select(dialect => new CodePattern($"logic-{dialect.Language}-path-length-not-kept", dialect.Files, dialect.Syntax,
+            (id, source, masked) => LengthsNotKept(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
     ];
 
     /// <summary>A call taking the smaller of two lengths: min(a, b), Math.min, std::min, math.min, [math]::Min, fmin.</summary>
@@ -73,8 +83,8 @@ public static partial class ShortestPathPatterns
     [GeneratedRegex(@"^(?<a>.+?)\s*(?<sign><=|>=|<(?![<=])|>(?![>=])|-(?:lt|le|gt|ge)\b|\.(?:lt|le|gt|ge)\.)\s*(?<b>.+)$", RegexOptions.IgnoreCase)]
     private static partial Regex Compared();
 
-    /// <summary>The length kept for a place: a table's entry or a call, dist[next], $dist{$next}, dist.get(next), get(heap, next).</summary>
-    [GeneratedRegex(@"^(?<table>[$@]?[A-Za-z_][\w.]*?)\s*(?:\[(?<at>[^\[\]]+)\]|\{(?<at>[^{}]+)\}|\.(?:get|at|getOrDefault|GetValueOrDefault)\s*\((?<at>[^()]+)\)|\((?<at>[^()]+)\))$")]
+    /// <summary>The length kept for a place: a table's entry or a call, dist[next], $dist{$next}, dist.get(next), get(heap, next), weight_by_node.get(edge.get(1)).</summary>
+    [GeneratedRegex(@"^(?<table>[$@]?[A-Za-z_][\w.]*?)\s*(?:\[(?<at>[^\[\]]+)\]|\{(?<at>[^{}]+)\}|\.(?:get|at|getOrDefault|GetValueOrDefault)\s*\((?<at>(?:[^()]|\([^()]*\))+)\)|\((?<at>(?:[^()]|\([^()]*\))+)\))$")]
     private static partial Regex Kept();
 
     /// <summary>A line taking something out of a table: del dist[x], dist.pop(x), dist.remove(x), delete dist[x], heappop(dist).</summary>
@@ -154,7 +164,7 @@ public static partial class ShortestPathPatterns
         }
 
         // Ruby's [a, b].min, and Rust's and Scala's a.min(b).
-        foreach (var (first, second) in MethodMins(text))
+        foreach (var (first, second, _) in MethodMins(text))
         {
             foreach (var (one, other) in new[] { (first, second), (second, first) })
             {
@@ -186,14 +196,14 @@ public static partial class ShortestPathPatterns
     [GeneratedRegex(@"(?<![\w.$])(?<receiver>[A-Za-z_]\w*(?:\[[^\[\]]*\]|\([^()]*\))*)\s*\.min\s*\(")]
     private static partial Regex MethodMin();
 
-    /// <summary>The two sides of a min written as a method: [a, b].min, a.min(b) - each with where it is on the line.</summary>
-    private static IEnumerable<((string Text, int Start) First, (string Text, int Start) Second)> MethodMins(string text)
+    /// <summary>The two sides of a min written as a method - [a, b].min, a.min(b) - each with where it is on the line, and where the whole min starts.</summary>
+    private static IEnumerable<((string Text, int Start) First, (string Text, int Start) Second, int Start)> MethodMins(string text)
     {
         foreach (Match listed in ListMin().Matches(text))
         {
             var pair = listed.Groups["pair"];
             var sides = Pieces(pair.Value);
-            if (sides.Count == 2) yield return ((sides[0].Text, pair.Index + sides[0].Start), (sides[1].Text, pair.Index + sides[1].Start));
+            if (sides.Count == 2) yield return ((sides[0].Text, pair.Index + sides[0].Start), (sides[1].Text, pair.Index + sides[1].Start), listed.Index);
         }
 
         foreach (Match method in MethodMin().Matches(text))
@@ -201,7 +211,7 @@ public static partial class ShortestPathPatterns
             var open = method.Index + method.Length - 1;
             if (Brackets.ClosingParenthesis(text, open) is not { } close) continue;
             var receiver = method.Groups["receiver"];
-            yield return ((receiver.Value, receiver.Index), (text[(open + 1)..close], open + 1));
+            yield return ((receiver.Value, receiver.Index), (text[(open + 1)..close], open + 1), receiver.Index);
         }
     }
 
@@ -567,7 +577,7 @@ public static partial class ShortestPathPatterns
         }
 
         // Ruby's [a, b].min, and Rust's and Scala's a.min(b), on one line.
-        foreach (var (firstSide, secondSide) in MethodMins(text))
+        foreach (var (firstSide, secondSide, _) in MethodMins(text))
         {
             foreach (var (one, other) in new[] { (firstSide, secondSide), (secondSide, firstSide) })
             {
@@ -702,6 +712,263 @@ public static partial class ShortestPathPatterns
             RemoveCount = lines.Count,
             NewLines = lines,
         };
+    }
+
+    // ---- Bellman-Ford: the shorter length worked out, and kept somewhere else -----------------------------------------
+
+    /// <summary>
+    /// The relaxation itself, right: the smaller of D[u] + W and D[v], both entries of one table for two places. What it is
+    /// kept in is the question.
+    /// </summary>
+    /// <param name="MinAt">Where the whole smaller-of starts on its line: min(, Math.min(, the [ of [a, b].min, the a of a.min(b).</param>
+    private sealed record Relaxed(int Line, string Table, string Through, string Kept, string Added, int MinAt);
+
+    /// <summary>A name or an entry given a value at the start of a line: dist[v] = , int shorter = , edge.weight = , weight_by_edge[u, v] = .</summary>
+    [GeneratedRegex(@"^\s*(?:(?:let|var|const|final|val|local|my|our|auto|mut|int|long|double|float|integer)\s+|[\w.<>\[\]:]+\s+(?=[$@]?[A-Za-z_]\w*\s*(?::=|=(?!=))))?(?<target>[^=;]*?[^\s=:])\s*(?::=|=(?!=))\s*$")]
+    private static partial Regex GivenTo();
+
+    private static IEnumerable<LogicFinding> LengthsNotKept(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect)
+    {
+        var options = dialect.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+        for (var line = 0; line < masked.Count; line++)
+        {
+            if (!Smaller().IsMatch(masked[line]) && !masked[line].Contains(".min", StringComparison.Ordinal)) continue;
+            if (Relaxation(masked, line) is not { } relaxed) continue;
+            if (!Reaching.InALoop(masked, 0, line)) continue;
+
+            // What the line gives the smaller length to.
+            if (GivenTo().Match(masked[line][..relaxed.MinAt]) is not { Success: true } given) continue;
+            var target = given.Groups["target"].Value.Trim();
+            if (Same(target, relaxed.Kept)) continue;
+
+            // The two places are an edge's two ends, and the table is set nowhere in the loops around the line - not an entry, and
+            // not the whole of it, as a dynamic program rolling one row into another does: prev = cur.
+            var loop = LoopLines(masked, line);
+            if (EdgeNames(masked, loop, relaxed, options) is not { } edgeNames) continue;
+            var table = Regex.Escape(relaxed.Table);
+            var writesTable = new Regex($@"(?<![\w$@.]){table}\s*(?:\[[^\]]*\]|\{{[^}}]*\}}|\([^()]*\))*\s*(?::=|=(?!=))|(?<![\w$@.]){table}\s*\.\s*(?:put|set|Add|insert|store)\s*\(|,\s*{table}\s*(?:\)|\])?\s*=(?!=)|\bswap\s*\([^)]*\b{table}\b", options);
+            if (OutermostLoopLines(masked, line).Any(each => each != line && writesTable.IsMatch(masked[each]))) continue;
+
+            // A name given the length, then put somewhere: int shorter = Math.min(...); edge[2] = shorter;.
+            var keptIn = line;
+            var keptAs = target;
+            if (Regex.IsMatch(target, @"^[$@]?[A-Za-z_]\w*$") && !Kept().IsMatch(target))
+            {
+                var name = Regex.Escape(target);
+                var uses = loop.Where(each => each > line && Regex.IsMatch(masked[each], $@"(?<![\w$@.]){name}(?!\w)", options)).ToList();
+                if (uses is not [var use]) continue;
+                var putInto = Regex.Match(masked[use], $@"^\s*(?<into>[^=;]*?[^\s=:])\s*(?::=|=(?!=))\s*{name}\s*;?\s*$|^\s*(?<receiver>[$@]?[A-Za-z_][\w.]*)\s*\.\s*put\s*\(\s*(?<key>.+?)\s*,\s*{name}\s*\)\s*;?\s*$", options);
+                if (!putInto.Success) continue;
+                if (putInto.Groups["into"].Success && Same(putInto.Groups["into"].Value, relaxed.Kept) ||
+                    putInto.Groups["receiver"].Success && SameName(putInto.Groups["receiver"].Value, relaxed.Table, options)) continue;
+                (keptIn, keptAs) = (use, putInto.Groups["into"].Success ? putInto.Groups["into"].Value.Trim() : $"{putInto.Groups["receiver"].Value}");
+            }
+
+            // Kept back in the edge it came along - edge[2], edge.weight, weight_by_edge[u, v] - not an answer of its own, as the
+            // cheaper of two prices kept in best[k] is.
+            var keptName = Regex.Match(keptAs, @"^[$@]?(?<name>[A-Za-z_]\w*)").Groups["name"].Value;
+            if (!edgeNames.Contains(keptName) || SameName(keptName, relaxed.Table, options)) continue;
+
+            var place = Kept().Match(relaxed.Kept).Groups["at"].Value;
+            var worked = keptIn == line ? "" : $" - worked out on line {line + 1} -";
+            var told = $"Line {keptIn + 1} keeps the smaller of `{relaxed.Through} + {relaxed.Added}` and `{relaxed.Kept}` - the shorter length to `{place}`{worked} " +
+                       $"in `{keptAs}`, not in `{relaxed.Kept}`. Nothing in the loop changes `{relaxed.Table}`, so its lengths stay as they started, and no " +
+                       "shorter way is ever found.";
+            yield return new LogicFinding(id, keptIn + 1, told, KeptWhereItBelongs(id, source, masked, relaxed, keptIn, line, options))
+            {
+                Severity = Severity.Error,
+                Confidence = Confidence.Likely,
+            };
+        }
+    }
+
+    /// <summary>
+    /// Whether the relaxation's two places are one edge's two ends: written beside each other where an edge is taken apart -
+    /// u, v, length = edge; (u, v), weight in weight_by_edge.items(); [$u, $v, $length] - or each read from the same edge,
+    /// int u = edge[0], v = edge[1];, edge.get(0) and edge.get(1), edge.node1 and edge.node2. Neither place has any arithmetic
+    /// in it: dp[j - 1] and dp[j] are two steps of a dynamic program, not an edge. The names are those of the edge and of what
+    /// it was taken from - every name on the lines that take it apart, and on the header of the loop over the edges - or null
+    /// when the places are not an edge's ends.
+    /// </summary>
+    private static HashSet<string>? EdgeNames(IReadOnlyList<string> masked, List<int> loop, Relaxed relaxed, RegexOptions options)
+    {
+        var from = Kept().Match(relaxed.Through).Groups["at"].Value.Trim();
+        var to = Kept().Match(relaxed.Kept).Groups["at"].Value.Trim();
+        if (Regex.IsMatch(from + " " + to, @"[-+*/%]")) return null;
+
+        var names = new HashSet<string>(options.HasFlag(RegexOptions.IgnoreCase) ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        void NamesOn(string text)
+        {
+            foreach (Match name in Regex.Matches(text, @"[A-Za-z_]\w*")) names.Add(name.Value);
+        }
+
+        var header = loop[0] - 1;
+        while (header > 0 && masked[header].Trim() is "" or "{") header--;
+        if (header >= 0) NamesOn(masked[header]);
+
+        // edge.get(0) and edge.get(1), edge.node1 and edge.node2, edge[0] and edge[1]: read from one edge.
+        string? EdgeOf(string place) => Regex.Match(place, @"^(?<edge>[$@]?[A-Za-z_]\w*(?:\[[^\[\]]*\])*)\s*(?:\.|->)?\s*(?:get\s*\(|\[|\(|node|from|to|source|target|start|end|src|dst|u\b|v\b)", options) is { Success: true } read ? read.Groups["edge"].Value : null;
+        if (!Regex.IsMatch(from, @"^[$@]?[A-Za-z_]\w*$") || !Regex.IsMatch(to, @"^[$@]?[A-Za-z_]\w*$"))
+        {
+            if (EdgeOf(from) is not { } fromEdge || EdgeOf(to) is not { } toEdge || !Same(fromEdge, toEdge)) return null;
+            NamesOn(fromEdge);
+            return names;
+        }
+
+        // Plain names: side by side where an edge is taken apart, or each given a value read from the same edge.
+        var lines = loop.Concat(loop.Count > 0 ? Enumerable.Range(Math.Max(0, loop[0] - 2), Math.Min(2, loop[0])) : []).Distinct().ToList();
+        var sideBySide = new Regex($@"(?<![\w$@]){Regex.Escape(from)}\s*,\s*{Regex.Escape(to)}(?!\w)", options);
+        var takenApart = lines.Where(each => sideBySide.IsMatch(masked[each])).ToList();
+        if (takenApart.Count > 0)
+        {
+            foreach (var each in takenApart) NamesOn(masked[each]);
+            return names;
+        }
+
+        string? ReadFrom(string name) => lines.Select(each => Regex.Match(masked[each], $@"(?<![\w$@.]){Regex.Escape(name)}\s*(?::=|=(?!=))\s*(?<edge>[$@]?[A-Za-z_]\w*(?:\[[^\[\]]*\])*?)\s*(?:\.|->)?\s*(?:get\s*\(|\[|\()", options))
+            .FirstOrDefault(read => read.Success)?.Groups["edge"].Value;
+        if (ReadFrom(from) is not { } fromRead || ReadFrom(to) is not { } toRead || !Same(fromRead, toRead)) return null;
+        NamesOn(fromRead);
+        return names;
+    }
+
+    /// <summary>The lines of the outermost loop the line is in, by indentation - every line any round of it runs.</summary>
+    private static List<int> OutermostLoopLines(IReadOnlyList<string> masked, int line)
+    {
+        var outermost = -1;
+        var indent = CodeText.Indentation(masked[line]).Length;
+        for (var above = line - 1; above >= 0 && indent > 0; above--)
+        {
+            if (masked[above].Trim().Length == 0) continue;
+            var width = CodeText.Indentation(masked[above]).Length;
+            if (width >= indent) continue;
+            indent = width;
+            var header = masked[above].Trim() == "{" && above > 0 ? masked[above - 1] : masked[above];
+            if (Regex.IsMatch(header, @"^\s*(?:\}\s*)?(?:for|foreach|while|do)\b|\.each\b|\.times\b", RegexOptions.IgnoreCase)) outermost = above;
+        }
+
+        if (outermost < 0) return [line];
+        var outer = CodeText.Indentation(masked[outermost]).Length;
+        var lines = new List<int>();
+        for (var below = outermost + 1; below < masked.Count; below++)
+        {
+            if (masked[below].Trim().Length == 0) continue;
+            if (CodeText.Indentation(masked[below]).Length <= outer && masked[below].Trim() != "{") break;
+            lines.Add(below);
+        }
+
+        return lines;
+    }
+
+    /// <summary>The lines of the loop the line is in, by indentation - the innermost loop's block.</summary>
+    private static List<int> LoopLines(IReadOnlyList<string> masked, int line)
+    {
+        var indent = CodeText.Indentation(masked[line]).Length;
+        for (var above = line - 1; above >= 0 && indent > 0; above--)
+        {
+            if (masked[above].Trim().Length == 0) continue;
+            var width = CodeText.Indentation(masked[above]).Length;
+            if (width >= indent) continue;
+            indent = width;
+            var header = masked[above].Trim() == "{" && above > 0 ? masked[above - 1] : masked[above];
+            if (!Regex.IsMatch(header, @"^\s*(?:\}\s*)?(?:for|foreach|while|do)\b|\.each\b|\.times\b", RegexOptions.IgnoreCase)) continue;
+            var lines = new List<int>();
+            for (var below = above + 1; below < masked.Count; below++)
+            {
+                if (masked[below].Trim().Length == 0) continue;
+                if (CodeText.Indentation(masked[below]).Length <= width && masked[below].Trim() != "{") break;
+                lines.Add(below);
+            }
+
+            return lines;
+        }
+
+        return [line];
+    }
+
+    /// <summary>
+    /// The line's smaller-of a place's length through another - min(D[u] + W, D[v]), in either order, its parts on one line or
+    /// over the next ones - with the table and both entries; or null.
+    /// </summary>
+    private static Relaxed? Relaxation(IReadOnlyList<string> masked, int line)
+    {
+        var text = masked[line];
+        foreach (Match smaller in Smaller().Matches(text))
+        {
+            var joined = text;
+            var open = smaller.Index + smaller.Length - 1;
+            var close = Brackets.ClosingParenthesis(joined, open);
+            for (var more = line + 1; close is null && more < masked.Count && more <= line + 5; more++)
+            {
+                joined += "\n" + masked[more];
+                close = Brackets.ClosingParenthesis(joined, open);
+            }
+
+            if (close is null) continue;
+            var sides = Pieces(joined[(open + 1)..close.Value]);
+            if (sides.Count == 2 && RelaxedSides(sides[0].Text, sides[1].Text) is { } found)
+                return new Relaxed(line, found.Table, found.Through, found.Kept, found.Added, smaller.Index);
+        }
+
+        foreach (var (first, second, start) in MethodMins(text))
+        {
+            if (RelaxedSides(first.Text, second.Text) is { } found)
+                return new Relaxed(line, found.Table, found.Through, found.Kept, found.Added, start);
+        }
+
+        return null;
+    }
+
+    /// <summary>The two sides read as D[u] + W and D[v], in either order: one table, two different places - or null.</summary>
+    private static (string Table, string Through, string Kept, string Added)? RelaxedSides(string one, string other)
+    {
+        foreach (var (sumSide, keptSide) in new[] { (one, other), (other, one) })
+        {
+            if (SumOf(sumSide, 0) is not { } sum || Kept().Match(keptSide.Trim()) is not { Success: true } kept) continue;
+            var through = Kept().Match(sum.Kept);
+            if (through.Groups["table"].Value != kept.Groups["table"].Value) continue;
+            if (Spaceless(through.Groups["at"].Value) == Spaceless(kept.Groups["at"].Value)) continue;
+            return (kept.Groups["table"].Value, sum.Kept, keptSide.Trim(), sum.Added);
+        }
+
+        return null;
+    }
+
+    private static bool Same(string first, string second) => Spaceless(first) == Spaceless(second);
+
+    /// <summary>
+    /// The change: the length kept where it belongs - the line's target made the table's entry, dist[v] = min(...); or the line
+    /// putting a name's length somewhere made to put it in the table: dist[v] = shorter;, weight_by_node.put(edge.get(1), shorter);.
+    /// Null for a table read with get whose own line gives the length to something else.
+    /// </summary>
+    private static LocalFix? KeptWhereItBelongs(string id, SourceFile source, IReadOnlyList<string> masked, Relaxed relaxed, int keptIn, int workedOut, RegexOptions options)
+    {
+        var kept = Kept().Match(relaxed.Kept);
+        var readWithGet = Regex.IsMatch(relaxed.Kept, @"\.\s*(?:get|getOrDefault|GetValueOrDefault)\s*\(");
+        var text = source.Lines[keptIn];
+        string changed;
+        if (keptIn == workedOut)
+        {
+            if (readWithGet) return null;
+            var given = GivenTo().Match(masked[keptIn][..relaxed.MinAt]);
+            var target = given.Groups["target"];
+            changed = text[..target.Index] + relaxed.Kept + text[(target.Index + target.Length)..];
+        }
+        else
+        {
+            // name = ... then into = name: the line rewritten to put the name's length into the table.
+            var line = masked[keptIn];
+            var indent = CodeText.Indentation(text);
+            var ending = line.TrimEnd().EndsWith(';') ? ";" : "";
+            var name = Regex.Match(line, @"(?<name>[$@]?[A-Za-z_]\w*)\s*\)?\s*;?\s*$").Groups["name"].Value;
+            changed = readWithGet
+                ? $"{indent}{relaxed.Table}.put({kept.Groups["at"].Value.Trim()}, {name}){ending}"
+                : $"{indent}{relaxed.Kept} = {name}{ending}";
+        }
+
+        return LocalFix.ReplaceLine(id, $"Keep the shorter length as {relaxed.Kept}",
+            $"`{relaxed.Kept}` is the length the search goes on from: kept there, the next pass weighs each edge against it, and the shorter ways are found.",
+            source.Path, keptIn + 1, changed);
     }
 
     /// <summary>The pieces of a list between its commas at the top level, each with where it starts.</summary>

@@ -226,7 +226,10 @@ internal static partial class Reaching
             var width = CodeText.Indentation(masked[above]).Length;
             if (width >= indent) continue;
             indent = width;
-            if (Loop().IsMatch(masked[above])) return true;
+
+            // A { on a line of its own belongs to the line above it, as C# writes it.
+            var header = masked[above].Trim() == "{" && above > first ? masked[above - 1] : masked[above];
+            if (Loop().IsMatch(header)) return true;
         }
 
         return false;

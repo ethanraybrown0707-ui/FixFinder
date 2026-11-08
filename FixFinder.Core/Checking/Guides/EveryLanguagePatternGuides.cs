@@ -118,6 +118,17 @@ internal static class EveryLanguagePatternGuides
             "Write the second part from k to j: dist[i][k] + dist[k][j].",
             example);
 
+    private static GuideEntry PathLengthNotKept(string id, string example) =>
+        GuideFor([id], "A shorter length worked out and kept in the edge, not as the place's own",
+            "Bellman-Ford's search weighs every edge, again and again: the way to the place an edge goes to, through the place it " +
+            "comes from, is dist[u] plus the edge's length, and when that is shorter than dist[v] it becomes dist[v]. Each pass " +
+            "starts from the lengths the last one kept. Here the smaller of the two is worked out right, and then kept in the " +
+            "edge - edge[2], weight_by_edge[u, v] - where its length was, not in dist[v].",
+            "dist never changes, so every place but the start keeps the length it started with - infinity, or the " +
+            "big number standing for it - and each pass only writes over the edges' own lengths; the search ends having found no way to anywhere.",
+            "Keep the smaller length as the place's own: dist[v] = min(dist[u] + length, dist[v]).",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -2665,6 +2676,158 @@ internal static class EveryLanguagePatternGuides
                 do j = 1, n
                   if (dist(i, k) + dist(k, j) < dist(i, j)) dist(i, j) = dist(i, k) + dist(k, j)
                 end do
+              end do
+            end do
+            """),
+        PathLengthNotKept("logic-python-path-length-not-kept",
+            """
+            for _ in range(len(dist) - 1):
+                for edge in edges:
+                    u, v, length = edge
+                    dist[v] = min(dist[u] + length, dist[v])
+            """),
+        PathLengthNotKept("logic-java-path-length-not-kept",
+            """
+            for (int round = 0; round < dist.length - 1; round++) {
+                for (int[] edge : edges) {
+                    int u = edge[0], v = edge[1], length = edge[2];
+                    int shorter = Math.min(dist[u] + length, dist[v]);
+                    dist[v] = shorter;
+                }
+            }
+            """),
+        PathLengthNotKept("logic-csharp-path-length-not-kept",
+            """
+            for (int round = 0; round < dist.Length - 1; round++)
+            {
+                for (int e = 0; e < edges.Length; e++)
+                {
+                    int u = edges[e][0], v = edges[e][1], length = edges[e][2];
+                    int shorter = Math.Min(dist[u] + length, dist[v]);
+                    dist[v] = shorter;
+                }
+            }
+            """),
+        PathLengthNotKept("logic-js-path-length-not-kept",
+            """
+            for (let round = 0; round < dist.length - 1; round++) {
+              for (const edge of edges) {
+                const [u, v, length] = edge;
+                dist[v] = Math.min(dist[u] + length, dist[v]);
+              }
+            }
+            """),
+        PathLengthNotKept("logic-c-path-length-not-kept",
+            """
+            for (int round = 0; round < 3; round++) {
+                for (int e = 0; e < 5; e++) {
+                    int u = edges[e][0], v = edges[e][1], length = edges[e][2];
+                    int shorter = MIN(dist[u] + length, dist[v]);
+                    dist[v] = shorter;
+                }
+            }
+            """),
+        PathLengthNotKept("logic-cpp-path-length-not-kept",
+            """
+            for (std::size_t round = 0; round + 1 < dist.size(); round++) {
+                for (auto& edge : edges) {
+                    int u = edge[0], v = edge[1], length = edge[2];
+                    dist[v] = std::min(dist[u] + length, dist[v]);
+                }
+            }
+            """),
+        PathLengthNotKept("logic-go-path-length-not-kept",
+            """
+            for round := 0; round < len(dist)-1; round++ {
+            	for e := range edges {
+            		u, v, length := edges[e][0], edges[e][1], edges[e][2]
+            		shorter := min(dist[u]+length, dist[v])
+            		dist[v] = shorter
+            	}
+            }
+            """),
+        PathLengthNotKept("logic-rust-path-length-not-kept",
+            """
+            for _ in 0..dist.len() - 1 {
+                for edge in edges.iter_mut() {
+                    let (u, v, length) = *edge;
+                    dist[v] = dist[v].min(dist[u] + length);
+                }
+            }
+            """),
+        PathLengthNotKept("logic-ruby-path-length-not-kept",
+            """
+            (dist.length - 1).times do
+              edges.each do |edge|
+                u, v, length = edge
+                dist[v] = [dist[u] + length, dist[v]].min
+              end
+            end
+            """),
+        PathLengthNotKept("logic-lua-path-length-not-kept",
+            """
+            for _ = 1, #dist - 1 do
+              for _, edge in ipairs(edges) do
+                local u, v, length = edge[1], edge[2], edge[3]
+                dist[v] = math.min(dist[u] + length, dist[v])
+              end
+            end
+            """),
+        PathLengthNotKept("logic-php-path-length-not-kept",
+            """
+            for ($round = 0; $round < count($dist) - 1; $round++) {
+                foreach ($edges as $e => [$u, $v, $length]) {
+                    $dist[$v] = min($dist[$u] + $length, $dist[$v]);
+                }
+            }
+            """),
+        PathLengthNotKept("logic-perl-path-length-not-kept",
+            """
+            for my $round (1 .. $#dist) {
+                for my $edge (@edges) {
+                    my ($u, $v, $length) = @$edge;
+                    my $shorter = min($dist[$u] + $length, $dist[$v]);
+                    $dist[$v] = $shorter;
+                }
+            }
+            """),
+        PathLengthNotKept("logic-powershell-path-length-not-kept",
+            """
+            foreach ($round in 1..($dist.Count - 1)) {
+                foreach ($edge in $edges) {
+                    $u, $v, $length = $edge
+                    $dist[$v] = [math]::Min($dist[$u] + $length, $dist[$v])
+                }
+            }
+            """),
+        PathLengthNotKept("logic-dart-path-length-not-kept",
+            """
+            for (var round = 0; round < dist.length - 1; round++) {
+              for (final edge in edges) {
+                final u = edge[0], v = edge[1], length = edge[2];
+                dist[v] = min(dist[u] + length, dist[v]);
+              }
+            }
+            """),
+        PathLengthNotKept("logic-scala-path-length-not-kept",
+            """
+            for (_ <- 0 until dist.length - 1) {
+              for (edge <- edges) {
+                val u = edge(0)
+                val v = edge(1)
+                val length = edge(2)
+                dist(v) = math.min(dist(u) + length, dist(v))
+              }
+            }
+            """),
+        PathLengthNotKept("logic-fortran-path-length-not-kept",
+            """
+            do round = 1, 3
+              do e = 1, 5
+                u = edges(1, e)
+                v = edges(2, e)
+                length = edges(3, e)
+                dist(v) = min(dist(u) + length, dist(v))
               end do
             end do
             """),
