@@ -141,6 +141,17 @@ internal static class EveryLanguagePatternGuides
             "Move past both items on a match: table[i - 1][j - 1] + 1, or lcs(a[1:], b[1:]).",
             example);
 
+    private static GuideEntry ExactFitLeftOut(string id, string example) =>
+        GuideFor([id], "What fits exactly is left out",
+            "Filling a table by taking what fits - a knapsack's items, change's coins - taking a weight w at a room j goes on " +
+            "from the entry for the room left: table[i - 1][j - w], best[j - w]. When w is exactly j the room left is 0, and the " +
+            "table has that entry - it is where the filling starts. Here the test asks w < j, strictly, so it leaves that case " +
+            "out: whatever fills the room exactly is never taken.",
+            "A best answer that fills some room exactly is missed, so the answer can come out wrong - too small for a knapsack; " +
+            "for the fewest coins making an amount, no way at all, since every way ends with a coin equal to what is left.",
+            "Let in what fits exactly: w <= j.",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -3034,6 +3045,136 @@ internal static class EveryLanguagePatternGuides
                 end if
               end do
             end do
+            """),
+        ExactFitLeftOut("logic-python-exact-fit-left-out",
+            """
+            for j in range(1, capacity + 1):
+                if weight <= j:
+                    table[i][j] = max(table[i - 1][j], value + table[i - 1][j - weight])
+                else:
+                    table[i][j] = table[i - 1][j]
+            """),
+        ExactFitLeftOut("logic-java-exact-fit-left-out",
+            """
+            if (i == 0 || j == 0) {
+                table[i][j] = 0;
+            } else if (weight <= j) {
+                table[i][j] = Math.max(table[i - 1][j], value + table[i - 1][j - weight]);
+            } else {
+                table[i][j] = table[i - 1][j];
+            }
+            """),
+        ExactFitLeftOut("logic-csharp-exact-fit-left-out",
+            """
+            if (j >= weight)
+            {
+                table[i, j] = Math.Max(table[i - 1, j], value + table[i - 1, j - weight]);
+            }
+            else
+            {
+                table[i, j] = table[i - 1, j];
+            }
+            """),
+        ExactFitLeftOut("logic-js-exact-fit-left-out",
+            """
+            for (let j = capacity; j > 0; j--) {
+              if (weight <= j) {
+                best[j] = Math.max(best[j], value + best[j - weight]);
+              }
+            }
+            """),
+        ExactFitLeftOut("logic-c-exact-fit-left-out",
+            """
+            if (weights[i - 1] <= j) table[i][j] = MAX(table[i - 1][j], values[i - 1] + table[i - 1][j - weights[i - 1]]);
+            else table[i][j] = table[i - 1][j];
+            """),
+        ExactFitLeftOut("logic-cpp-exact-fit-left-out",
+            """
+            if (weight <= j) {
+                table[i][j] = std::max(table[i - 1][j], value + table[i - 1][j - weight]);
+            } else {
+                table[i][j] = table[i - 1][j];
+            }
+            """),
+        ExactFitLeftOut("logic-go-exact-fit-left-out",
+            """
+            if weight <= j {
+            	table[i][j] = max(table[i-1][j], value+table[i-1][j-weight])
+            } else {
+            	table[i][j] = table[i-1][j]
+            }
+            """),
+        ExactFitLeftOut("logic-rust-exact-fit-left-out",
+            """
+            if weight <= j {
+                table[i][j] = table[i - 1][j].max(value + table[i - 1][j - weight]);
+            } else {
+                table[i][j] = table[i - 1][j];
+            }
+            """),
+        ExactFitLeftOut("logic-ruby-exact-fit-left-out",
+            """
+            if j >= weight
+              table[i][j] = [table[i - 1][j], value + table[i - 1][j - weight]].max
+            else
+              table[i][j] = table[i - 1][j]
+            end
+            """),
+        ExactFitLeftOut("logic-lua-exact-fit-left-out",
+            """
+            if weight <= j then
+              table_of[i][j] = math.max(table_of[i - 1][j], value + table_of[i - 1][j - weight])
+            else
+              table_of[i][j] = table_of[i - 1][j]
+            end
+            """),
+        ExactFitLeftOut("logic-php-exact-fit-left-out",
+            """
+            if ($weight <= $j) {
+                $table[$i][$j] = max($table[$i - 1][$j], $value + $table[$i - 1][$j - $weight]);
+            } else {
+                $table[$i][$j] = $table[$i - 1][$j];
+            }
+            """),
+        ExactFitLeftOut("logic-perl-exact-fit-left-out",
+            """
+            if ($weight <= $j) {
+                $table[$i][$j] = max($table[$i - 1][$j], $value + $table[$i - 1][$j - $weight]);
+            } else {
+                $table[$i][$j] = $table[$i - 1][$j];
+            }
+            """),
+        ExactFitLeftOut("logic-powershell-exact-fit-left-out",
+            """
+            if ($weight -le $j) {
+                $table[$i][$j] = [math]::Max($table[$i - 1][$j], $value + $table[$i - 1][$j - $weight])
+            } else {
+                $table[$i][$j] = $table[$i - 1][$j]
+            }
+            """),
+        ExactFitLeftOut("logic-dart-exact-fit-left-out",
+            """
+            if (weight <= j) {
+              table[i][j] = max(table[i - 1][j], value + table[i - 1][j - weight]);
+            } else {
+              table[i][j] = table[i - 1][j];
+            }
+            """),
+        ExactFitLeftOut("logic-scala-exact-fit-left-out",
+            """
+            if (weight <= j) {
+              table(i)(j) = math.max(table(i - 1)(j), value + table(i - 1)(j - weight))
+            } else {
+              table(i)(j) = table(i - 1)(j)
+            }
+            """),
+        ExactFitLeftOut("logic-fortran-exact-fit-left-out",
+            """
+            if (weights(i) <= j) then
+              table(i, j) = max(table(i - 1, j), values(i) + table(i - 1, j - weights(i)))
+            else
+              table(i, j) = table(i - 1, j)
+            end if
             """),
     ];
 }
