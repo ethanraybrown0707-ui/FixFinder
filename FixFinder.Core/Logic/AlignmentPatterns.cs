@@ -12,6 +12,15 @@ namespace FixFinder.Core.Logic;
 /// lcs(a[1:], b), it goes on from past one item only: the other, already matched, is still there to be matched again, and
 /// the length comes out wrong. QuixBugs' lcs_length and longest_common_subsequence are this mistake, in Python and in Java.
 /// The change moves the other on as well, written as the first is.
+/// <para>
+/// And, as a check of its own, an edit distance whose match is charged as an edit: where the items differ the distance is one
+/// more than the cheapest of the three edits around - 1 + min(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]) - and
+/// where they are equal it goes on from past both as it is; written table[i - 1][j - 1] + 1, or 1 + levenshtein(source[1:],
+/// target[1:]), a match costs as much as replacing one item with another. QuixBugs' levenshtein is this mistake, in Python and
+/// in Java. The change takes the one away. Said only when the else - or, for a call, another statement of the function -
+/// adds one to the smallest of all three, the one step on in both among them: a shortest common supersequence, whose match
+/// does add one, takes the smallest of two only.
+/// </para>
 /// </summary>
 /// <remarks>
 /// Said only when the file shows all of it. The test asks only whether two items are equal - one from each of two different
@@ -58,6 +67,8 @@ public static partial class AlignmentPatterns
     [
         .. Dialects.Select(dialect => new CodePattern($"logic-{dialect.Language}-match-moves-one", dialect.Files, dialect.Syntax,
             (id, source, masked) => MatchesMovingOne(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
+        .. Dialects.Select(dialect => new CodePattern($"logic-{dialect.Language}-match-charged", dialect.Files, dialect.Syntax,
+            (id, source, masked) => MatchesCharged(id, source, masked, dialect), Severity.Error, Confidence.Likely)),
     ];
 
     /// <summary>A test's word: if, elif, else if, elsif, elseif - not unless, whose block is what happens when the items differ.</summary>
@@ -329,37 +340,16 @@ public static partial class AlignmentPatterns
     private static LogicFinding? CallStep(string id, SourceFile source, IReadOnlyList<string> masked, StringComparer names, Compared compared, int line,
         List<(int Line, int From)> block, List<(int Header, string Name, List<string> Parameters, List<int> Body)> functions)
     {
-        var function = functions.FirstOrDefault(each => each.Body.Contains(line));
-        if (function.Name is null) return null;
-
-        // The items are of two of its parameters: the two sequences, at the same number, or the two places.
+        if (ComparedParameters(functions, line, compared, names) is not { } itsParameters) return null;
+        var (function, first, second) = itsParameters;
         var parameters = function.Parameters;
-        var (firstName, secondName) = compared.Left.Place.Length == 0
-            ? (compared.Left.Sequence, compared.Right.Sequence)
-            : (compared.Left.Place, compared.Right.Place);
-        var first = parameters.FindIndex(parameter => names.Equals(parameter, firstName));
-        var second = parameters.FindIndex(parameter => names.Equals(parameter, secondName));
-        if (first < 0 || second < 0) return null;
 
         var inBlock = block.SelectMany(each => SelfCalls(masked[each.Line], each.From, function.Name).Select(call => (each.Line, Call: call))).ToList();
         var blockLines = block.Select(each => each.Line).ToHashSet();
         var elsewhere = function.Body.Where(each => !blockLines.Contains(each))
             .SelectMany(each => SelfCalls(masked[each], 0, function.Name).Select(call => (Line: each, Call: call))).ToList();
 
-        string Shape(List<(string Text, int Start)> arguments)
-        {
-            if (arguments.Count != parameters.Count) return "";
-            for (var at = 0; at < arguments.Count; at++)
-            {
-                if (at != first && at != second && !names.Equals(arguments[at].Text.Trim(), parameters[at])) return "";
-            }
-
-            var firstMoved = MovedOn(arguments[first].Text, parameters[first], parameters[second], names);
-            var secondMoved = MovedOn(arguments[second].Text, parameters[second], parameters[first], names);
-            var firstKept = names.Equals(arguments[first].Text.Trim(), parameters[first]);
-            var secondKept = names.Equals(arguments[second].Text.Trim(), parameters[second]);
-            return firstMoved && secondMoved ? "both" : firstMoved && secondKept ? "first" : secondMoved && firstKept ? "second" : "";
-        }
+        string Shape(List<(string Text, int Start)> arguments) => CallShape(arguments, parameters, first, second, names);
 
         // On a match it never moves both on; elsewhere it moves each on alone, trying the two together - max(f(a, b[1:]),
         // f(a[1:], b)), or one after the other with nothing choosing between them - not one or the other as a test decides.
@@ -399,6 +389,42 @@ public static partial class AlignmentPatterns
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The function the test is in, and which two of its parameters the items are of: the two sequences, compared at the
+    /// same number, or the two places - or null when they are not its parameters.
+    /// </summary>
+    private static ((int Header, string Name, List<string> Parameters, List<int> Body) Function, int First, int Second)? ComparedParameters(
+        List<(int Header, string Name, List<string> Parameters, List<int> Body)> functions, int line, Compared compared, StringComparer names)
+    {
+        var function = functions.FirstOrDefault(each => each.Body.Contains(line));
+        if (function.Name is null) return null;
+        var (firstName, secondName) = compared.Left.Place.Length == 0
+            ? (compared.Left.Sequence, compared.Right.Sequence)
+            : (compared.Left.Place, compared.Right.Place);
+        var first = function.Parameters.FindIndex(parameter => names.Equals(parameter, firstName));
+        var second = function.Parameters.FindIndex(parameter => names.Equals(parameter, secondName));
+        return first < 0 || second < 0 ? null : (function, first, second);
+    }
+
+    /// <summary>
+    /// How a self-call moves the two compared parameters on: "both", "first" or "second" alone, the other given as it was - or
+    /// "" for anything else, any other argument not given as its own parameter among it.
+    /// </summary>
+    private static string CallShape(List<(string Text, int Start)> arguments, List<string> parameters, int first, int second, StringComparer names)
+    {
+        if (arguments.Count != parameters.Count) return "";
+        for (var at = 0; at < arguments.Count; at++)
+        {
+            if (at != first && at != second && !names.Equals(arguments[at].Text.Trim(), parameters[at])) return "";
+        }
+
+        var firstMoved = MovedOn(arguments[first].Text, parameters[first], parameters[second], names);
+        var secondMoved = MovedOn(arguments[second].Text, parameters[second], parameters[first], names);
+        var firstKept = names.Equals(arguments[first].Text.Trim(), parameters[first]);
+        var secondKept = names.Equals(arguments[second].Text.Trim(), parameters[second]);
+        return firstMoved && secondMoved ? "both" : firstMoved && secondKept ? "first" : secondMoved && firstKept ? "second" : "";
     }
 
     /// <summary>
@@ -462,4 +488,181 @@ public static partial class AlignmentPatterns
         if (text[from..end].Trim().Length > 0 || arguments.Count > 0) arguments.Add((text[from..end], from));
         return arguments;
     }
+
+    // ---- An edit distance whose match is charged as an edit ------------------------------------------------------------
+
+    /// <summary>The smallest of some values: min(, Math.min(, std::min({, math.min(, [math]::Min(, MIN3(, a.min(b), [a, b, c].min.</summary>
+    [GeneratedRegex(@"(?<![\w$])(?i:min\w*)\s*\(|\.min\b|::min\b|::Min\b")]
+    private static partial Regex Smallest();
+
+    /// <summary>One added: 1 + ..., ... + 1.</summary>
+    [GeneratedRegex(@"(?<![\w.])1\s*\+|\+\s*1(?![\w.])")]
+    private static partial Regex OneAdded();
+
+    private static IEnumerable<LogicFinding> MatchesCharged(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect)
+    {
+        var names = dialect.IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        List<(int Header, string Name, List<string> Parameters, List<int> Body)>? functions = null;
+        for (var line = 0; line < masked.Count; line++)
+        {
+            foreach (Match word in TestWord().Matches(masked[line]))
+            {
+                if (Reaching.Written(masked[line], word.Index + word.Length, dialect.ColonEnds) is not { } wording) continue;
+                if (ComparedItems(wording.Condition, names) is not { } compared) continue;
+
+                var block = MatchBlock(masked, line, wording);
+                var finding = ChargedEntry(id, source, masked, dialect, names, compared, block);
+                if (finding is null && block.Count > 0)
+                {
+                    functions ??= SortingPatterns.FunctionsIn(masked, Path.GetExtension(source.Path).ToLowerInvariant());
+                    finding = ChargedCall(id, source, masked, names, compared, line, block, functions);
+                }
+
+                if (finding is not null) yield return finding;
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A table: on the match's lines the entry is given the entry one step on in both places with one added, while its else
+    /// gives one more than the smallest of the three entries around - one step on in each place alone, and in both.
+    /// </summary>
+    private static LogicFinding? ChargedEntry(string id, SourceFile source, IReadOnlyList<string> masked, Dialect dialect, StringComparer names,
+        Compared compared, List<(int Line, int From)> block)
+    {
+        if (compared.Left.Place.Length == 0) return null;
+        foreach (var (line, from) in block)
+        {
+            var text = masked[line];
+            foreach (Match read in TableEntry().Matches(text, from))
+            {
+                if (read.Groups["paren"].Success && !dialect.ParenIndex) continue;
+                if (Placed(read, compared, names) is not { } places || places.Left.Step != places.Right.Step) continue;
+
+                // The whole of what is given: the entry with one added, 1 + table[i - 1][j - 1] or table[i - 1][j - 1] + 1.
+                var before = text[from..read.Index];
+                var after = text[(read.Index + read.Length)..];
+                var addedBefore = Regex.Match(before, @"(?<![\w.])1\s*\+\s*$");
+                var addedAfter = Regex.Match(after, @"^\s*\+\s*1(?![\w.])");
+                if (addedBefore.Success == addedAfter.Success) continue;
+                if (!Regex.IsMatch(addedAfter.Success ? after[addedAfter.Length..] : after, @"^\s*;?\s*$")) continue;
+                if (GivenTo().Match(addedBefore.Success ? before[..addedBefore.Index] : before) is not { Success: true } given) continue;
+
+                var table = read.Groups["table"].Value;
+                if (WrittenAt(masked, block, line, given.Groups["target"].Value.Trim(), table, compared, names) is not { } written) continue;
+                var both = places.Left.Step;
+                if (Math.Abs(both - written) != 1) continue;
+                if (!CheapestEditPlusOne(masked, dialect, ElseBlock(masked, block), table, compared, names, written, both)) continue;
+                if (!Reaching.InALoop(masked, 0, line)) continue;
+
+                var (addedAt, addedLength) = addedBefore.Success
+                    ? (from + addedBefore.Index, addedBefore.Length)
+                    : (read.Index + read.Length + addedAfter.Index, addedAfter.Length);
+                var entry = source.Lines[line].Substring(read.Index, read.Length);
+                var given1 = addedBefore.Success ? $"1 + {entry}" : $"{entry} + 1";
+                var told = $"Line {line + 1} gives `{given1}` when `{compared.Left.Text}` equals `{compared.Right.Text}`. Two equal items need no " +
+                           $"edit, but the match adds 1 as an edit does - where the items differ, one more than the cheapest of the three edits " +
+                           "is right - so a match costs as much as replacing one item with another, and the distance can come out too large.";
+                return new LogicFinding(id, line + 1, told, NothingAdded(id, source, line, addedAt, addedLength, entry))
+                {
+                    Severity = Severity.Error,
+                    Confidence = Confidence.Likely,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether the else gives one more than the smallest of the three entries around: the table read one step on in each
+    /// place alone and in both, inside a min, with one added - 1 + min(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]).
+    /// A shortest common supersequence takes the smallest of two only, and its match does add one.
+    /// </summary>
+    private static bool CheapestEditPlusOne(IReadOnlyList<string> masked, Dialect dialect, List<(int Line, int From)> otherwise, string table,
+        Compared compared, StringComparer names, int written, int both)
+    {
+        foreach (var (line, from) in otherwise)
+        {
+            var statement = Statement(masked, line)[from..];
+            if (!Smallest().IsMatch(statement) || !OneAdded().IsMatch(statement)) continue;
+            var steps = TableEntry().Matches(statement)
+                .Where(read => names.Equals(read.Groups["table"].Value, table) && (dialect.ParenIndex || !read.Groups["paren"].Success))
+                .Select(read => Placed(read, compared, names)).OfType<(Place Left, Place Right)>()
+                .Select(places => (places.Left.Step, places.Right.Step)).ToHashSet();
+            if (steps.Contains((both, both)) && steps.Contains((both, written)) && steps.Contains((written, both))) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A function calling itself: on the match's lines it calls itself with both moved on and one added, while elsewhere it
+    /// gives one more than the smallest of its three calls - each moved on alone, and both.
+    /// </summary>
+    private static LogicFinding? ChargedCall(string id, SourceFile source, IReadOnlyList<string> masked, StringComparer names, Compared compared, int line,
+        List<(int Line, int From)> block, List<(int Header, string Name, List<string> Parameters, List<int> Body)> functions)
+    {
+        if (ComparedParameters(functions, line, compared, names) is not { } itsParameters) return null;
+        var (function, first, second) = itsParameters;
+
+        // Elsewhere: one more than the smallest of the three, in one statement.
+        var blockLines = block.Select(each => each.Line).ToHashSet();
+        var cheapestPlusOne = function.Body.Where(each => !blockLines.Contains(each) && Smallest().IsMatch(masked[each])).Any(each =>
+        {
+            var statement = Statement(masked, each);
+            var shapes = SelfCalls(statement, 0, function.Name).Select(call => CallShape(call.Arguments, function.Parameters, first, second, names)).ToHashSet();
+            return OneAdded().IsMatch(statement) && shapes.Contains("first") && shapes.Contains("second") && shapes.Contains("both");
+        });
+        if (!cheapestPlusOne) return null;
+
+        foreach (var (callLine, from) in block)
+        {
+            var text = masked[callLine];
+            foreach (var call in SelfCalls(text, from, function.Name))
+            {
+                if (CallShape(call.Arguments, function.Parameters, first, second, names) != "both") continue;
+                var addedBefore = Regex.Match(text[from..call.Start], @"(?<![\w.])1\s*\+\s*$");
+                var addedAfter = Regex.Match(text[(call.End + 1)..], @"^\s*\+\s*1(?![\w.])");
+                if (addedBefore.Success == addedAfter.Success) continue;
+
+                var (addedAt, addedLength) = addedBefore.Success
+                    ? (from + addedBefore.Index, addedBefore.Length)
+                    : (call.End + 1 + addedAfter.Index, addedAfter.Length);
+                var called1 = source.Lines[callLine].Substring(call.Start, call.End - call.Start + 1);
+                var told = $"Line {callLine + 1} adds 1 to `{called1}` when `{compared.Left.Text}` equals `{compared.Right.Text}`. Two equal items " +
+                           "need no edit, but the match adds 1 as an edit does - where the items differ, one more than the cheapest of the three " +
+                           "edits is right - so a match costs as much as replacing one item with another, and the distance can come out too large.";
+                return new LogicFinding(id, callLine + 1, told, NothingAdded(id, source, callLine, addedAt, addedLength, called1))
+                {
+                    Severity = Severity.Error,
+                    Confidence = Confidence.Likely,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The change: the one added on a match taken away - table[i - 1][j - 1] + 1 to table[i - 1][j - 1].</summary>
+    private static LocalFix? NothingAdded(string id, SourceFile source, int line, int addedAt, int addedLength, string goneOnFrom)
+    {
+        var text = source.Lines[line];
+        if (addedAt + addedLength > text.Length || !OneAdded().IsMatch(text.Substring(addedAt, addedLength))) return null;
+        var changed = text[..addedAt] + text[(addedAt + addedLength)..];
+        return LocalFix.ReplaceLine(id, $"Charge nothing for a match: {goneOnFrom}",
+            $"Two equal items need no edit, so the distance goes on from `{goneOnFrom}` as it is.", source.Path, line + 1, changed);
+    }
+
+    /// <summary>The line, with the lines after it joined on while its brackets are still open - a min( over the next lines - up to six.</summary>
+    private static string Statement(IReadOnlyList<string> masked, int line)
+    {
+        var joined = masked[line];
+        for (var more = line + 1; more < masked.Count && more <= line + 6 && Unclosed(joined) > 0; more++) joined += " " + masked[more];
+        return joined;
+    }
+
+    /// <summary>How many brackets are opened and not yet closed.</summary>
+    private static int Unclosed(string text) => text.Count(c => c is '(' or '[' or '{') - text.Count(c => c is ')' or ']' or '}');
 }

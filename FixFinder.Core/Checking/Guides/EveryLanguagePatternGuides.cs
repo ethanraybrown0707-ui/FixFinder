@@ -141,6 +141,16 @@ internal static class EveryLanguagePatternGuides
             "Move past both items on a match: table[i - 1][j - 1] + 1, or lcs(a[1:], b[1:]).",
             example);
 
+    private static GuideEntry MatchCharged(string id, string example) =>
+        GuideFor([id], "A match charged as an edit",
+            "An edit distance counts the fewest edits - an item put in, taken out, or replaced - turning one sequence into the " +
+            "other. Where the two items compared differ, it is one more than the cheapest of the three edits: 1 + min(table[i - " +
+            "1][j], table[i][j - 1], table[i - 1][j - 1]). Where they are equal they need no edit, and the distance goes on from " +
+            "past both as it is: table[i - 1][j - 1]. Here the match adds 1 as well, as if equal items had to be replaced.",
+            "Every match costs as much as an edit, so the distance can come out too large: kitten to sitting gives 7 where 3 is right.",
+            "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
+            example);
+
     private static GuideEntry ExactFitLeftOut(string id, string example) =>
         GuideFor([id], "What fits exactly is left out",
             "Filling a table by taking what fits - a knapsack's items, change's coins - taking a weight w at a room j goes on " +
@@ -3174,6 +3184,136 @@ internal static class EveryLanguagePatternGuides
               table(i, j) = max(table(i - 1, j), values(i) + table(i - 1, j - weights(i)))
             else
               table(i, j) = table(i - 1, j)
+            end if
+            """),
+        MatchCharged("logic-python-match-charged",
+            """
+            if first[i - 1] == second[j - 1]:
+                table[i][j] = table[i - 1][j - 1]
+            else:
+                table[i][j] = 1 + min(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1])
+            """),
+        MatchCharged("logic-java-match-charged",
+            """
+            if (first.charAt(i - 1) == second.charAt(j - 1)) {
+                table[i][j] = table[i - 1][j - 1];
+            } else {
+                table[i][j] = 1 + Math.min(table[i - 1][j], Math.min(table[i][j - 1], table[i - 1][j - 1]));
+            }
+            """),
+        MatchCharged("logic-csharp-match-charged",
+            """
+            if (first[i - 1] == second[j - 1])
+            {
+                table[i, j] = table[i - 1, j - 1];
+            }
+            else
+            {
+                table[i, j] = 1 + Math.Min(table[i - 1, j], Math.Min(table[i, j - 1], table[i - 1, j - 1]));
+            }
+            """),
+        MatchCharged("logic-js-match-charged",
+            """
+            if (first[i - 1] === second[j - 1]) {
+              table[i][j] = table[i - 1][j - 1];
+            } else {
+              table[i][j] = 1 + Math.min(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]);
+            }
+            """),
+        MatchCharged("logic-c-match-charged",
+            """
+            if (first[i - 1] == second[j - 1]) {
+                table[i][j] = table[i - 1][j - 1];
+            } else {
+                table[i][j] = 1 + MIN3(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]);
+            }
+            """),
+        MatchCharged("logic-cpp-match-charged",
+            """
+            if (first[i - 1] == second[j - 1]) {
+                table[i][j] = table[i - 1][j - 1];
+            } else {
+                table[i][j] = 1 + std::min({table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]});
+            }
+            """),
+        MatchCharged("logic-go-match-charged",
+            """
+            if first[i-1] == second[j-1] {
+            	table[i][j] = table[i-1][j-1]
+            } else {
+            	table[i][j] = 1 + min(table[i-1][j], table[i][j-1], table[i-1][j-1])
+            }
+            """),
+        MatchCharged("logic-rust-match-charged",
+            """
+            if a[i - 1] == b[j - 1] {
+                table[i][j] = table[i - 1][j - 1];
+            } else {
+                table[i][j] = 1 + table[i - 1][j].min(table[i][j - 1]).min(table[i - 1][j - 1]);
+            }
+            """),
+        MatchCharged("logic-ruby-match-charged",
+            """
+            if first[i - 1] == second[j - 1]
+              table[i][j] = table[i - 1][j - 1]
+            else
+              table[i][j] = 1 + [table[i - 1][j], table[i][j - 1], table[i - 1][j - 1]].min
+            end
+            """),
+        MatchCharged("logic-lua-match-charged",
+            """
+            if first:sub(i, i) == second:sub(j, j) then
+              distances[i][j] = distances[i - 1][j - 1]
+            else
+              distances[i][j] = 1 + math.min(distances[i - 1][j], distances[i][j - 1], distances[i - 1][j - 1])
+            end
+            """),
+        MatchCharged("logic-php-match-charged",
+            """
+            if ($first[$i - 1] === $second[$j - 1]) {
+                $table[$i][$j] = $table[$i - 1][$j - 1];
+            } else {
+                $table[$i][$j] = 1 + min($table[$i - 1][$j], $table[$i][$j - 1], $table[$i - 1][$j - 1]);
+            }
+            """),
+        MatchCharged("logic-perl-match-charged",
+            """
+            if (substr($first, $i - 1, 1) eq substr($second, $j - 1, 1)) {
+                $table[$i][$j] = $table[$i - 1][$j - 1];
+            } else {
+                $table[$i][$j] = 1 + min($table[$i - 1][$j], $table[$i][$j - 1], $table[$i - 1][$j - 1]);
+            }
+            """),
+        MatchCharged("logic-powershell-match-charged",
+            """
+            if ($first[$i - 1] -eq $second[$j - 1]) {
+                $table[$i][$j] = $table[$i - 1][$j - 1]
+            } else {
+                $table[$i][$j] = 1 + [math]::Min($table[$i - 1][$j], [math]::Min($table[$i][$j - 1], $table[$i - 1][$j - 1]))
+            }
+            """),
+        MatchCharged("logic-dart-match-charged",
+            """
+            if (first[i - 1] == second[j - 1]) {
+              table[i][j] = table[i - 1][j - 1];
+            } else {
+              table[i][j] = 1 + min(table[i - 1][j], min(table[i][j - 1], table[i - 1][j - 1]));
+            }
+            """),
+        MatchCharged("logic-scala-match-charged",
+            """
+            if (first(i - 1) == second(j - 1)) {
+              table(i)(j) = table(i - 1)(j - 1)
+            } else {
+              table(i)(j) = 1 + math.min(table(i - 1)(j), math.min(table(i)(j - 1), table(i - 1)(j - 1)))
+            }
+            """),
+        MatchCharged("logic-fortran-match-charged",
+            """
+            if (first(i:i) == second(j:j)) then
+              table(i, j) = table(i - 1, j - 1)
+            else
+              table(i, j) = 1 + min(table(i - 1, j), table(i, j - 1), table(i - 1, j - 1))
             end if
             """),
     ];
