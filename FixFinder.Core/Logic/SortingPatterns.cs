@@ -231,6 +231,18 @@ public static partial class SortingPatterns
 
     // ---- The functions of the file ----------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The functions a file of this extension writes, read as the merge sort check reads them - each header's line, name,
+    /// parameters' names and the lines of its own body, not of any function written inside it - for another check of the same
+    /// languages; none for an extension the merge sort check does not read.
+    /// </summary>
+    internal static List<(int Header, string Name, List<string> Parameters, List<int> Body)> FunctionsIn(IReadOnlyList<string> masked, string extension)
+    {
+        if (Dialects.FirstOrDefault(dialect => dialect.Files.Contains(extension)) is not { } dialect) return [];
+        return [.. Functions(masked, dialect).Select(function => (function.Header, function.Name,
+            function.Parameters.Select(parameter => parameter.Name).ToList(), function.Body.Where(line => !function.Inner.Contains(line)).ToList()))];
+    }
+
     /// <param name="namedParameters">Whether only a function whose parameters are all names is kept - not a clause whose
     /// parameter is a pattern, quick_sort([pivot | rest]), whose parameters are then given as none.</param>
     private static List<Function> Functions(IReadOnlyList<string> masked, Dialect dialect, bool namedParameters = true)

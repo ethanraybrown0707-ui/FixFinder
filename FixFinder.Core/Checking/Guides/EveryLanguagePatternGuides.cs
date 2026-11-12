@@ -129,6 +129,18 @@ internal static class EveryLanguagePatternGuides
             "Keep the smaller length as the place's own: dist[v] = min(dist[u] + length, dist[v]).",
             example);
 
+    private static GuideEntry MatchMovesOne(string id, string example) =>
+        GuideFor([id], "A match that moves on in one sequence only",
+            "Lining two sequences up item by item - the longest common subsequence, the longest common substring - a match is the " +
+            "two items compared being equal, and it uses up an item of each: the length goes on from the entry one step back in " +
+            "both places, table[i - 1][j - 1] + 1, or from the call given both sequences past their first items, lcs(a[1:], " +
+            "b[1:]). Here it goes on from one step back in one place only - table[i - 1][j] + 1, lcs(a[1:], b) - so the other " +
+            "sequence's item, already matched, is still there to be matched again.",
+            "One item can be counted in more than one match, so the length found can be too long; for a common substring, whose " +
+            "matches must follow one another, it can come out too short.",
+            "Move past both items on a match: table[i - 1][j - 1] + 1, or lcs(a[1:], b[1:]).",
+            example);
+
     private static GuideEntry MemoNeverKept(string id, string example) =>
         GuideFor([id], "A memo that is asked and never given an answer",
             "A memo keeps each answer a function works out, so the next time the same answer is wanted it is looked up rather than " +
@@ -2828,6 +2840,198 @@ internal static class EveryLanguagePatternGuides
                 v = edges(2, e)
                 length = edges(3, e)
                 dist(v) = min(dist(u) + length, dist(v))
+              end do
+            end do
+            """),
+        MatchMovesOne("logic-python-match-moves-one",
+            """
+            for i in range(1, len(first) + 1):
+                for j in range(1, len(second) + 1):
+                    if first[i - 1] == second[j - 1]:
+                        table[i][j] = table[i - 1][j - 1] + 1
+                    else:
+                        table[i][j] = max(table[i - 1][j], table[i][j - 1])
+            """),
+        MatchMovesOne("logic-java-match-moves-one",
+            """
+            for (int i = 1; i <= first.length(); i++) {
+                for (int j = 1; j <= second.length(); j++) {
+                    if (first.charAt(i - 1) == second.charAt(j - 1)) {
+                        table[i][j] = table[i - 1][j - 1] + 1;
+                    } else {
+                        table[i][j] = Math.max(table[i - 1][j], table[i][j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-csharp-match-moves-one",
+            """
+            for (int i = 1; i <= first.Length; i++)
+            {
+                for (int j = 1; j <= second.Length; j++)
+                {
+                    if (first[i - 1] == second[j - 1])
+                    {
+                        table[i, j] = table[i - 1, j - 1] + 1;
+                    }
+                    else
+                    {
+                        table[i, j] = Math.Max(table[i - 1, j], table[i, j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-js-match-moves-one",
+            """
+            for (let i = 1; i <= first.length; i++) {
+              for (let j = 1; j <= second.length; j++) {
+                if (first[i - 1] === second[j - 1]) {
+                  table[i][j] = table[i - 1][j - 1] + 1;
+                } else {
+                  table[i][j] = Math.max(table[i - 1][j], table[i][j - 1]);
+                }
+              }
+            }
+            """),
+        MatchMovesOne("logic-c-match-moves-one",
+            """
+            for (int i = 1; i <= rows; i++) {
+                for (int j = 1; j <= cols; j++) {
+                    if (first[i - 1] == second[j - 1]) {
+                        table[i][j] = table[i - 1][j - 1] + 1;
+                    } else {
+                        table[i][j] = MAX(table[i - 1][j], table[i][j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-cpp-match-moves-one",
+            """
+            for (std::size_t i = 1; i <= first.size(); i++) {
+                for (std::size_t j = 1; j <= second.size(); j++) {
+                    if (first[i - 1] == second[j - 1]) {
+                        table[i][j] = table[i - 1][j - 1] + 1;
+                    } else {
+                        table[i][j] = std::max(table[i - 1][j], table[i][j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-go-match-moves-one",
+            """
+            for i := 1; i <= len(first); i++ {
+            	for j := 1; j <= len(second); j++ {
+            		if first[i-1] == second[j-1] {
+            			table[i][j] = table[i-1][j-1] + 1
+            		} else {
+            			table[i][j] = max(table[i-1][j], table[i][j-1])
+            		}
+            	}
+            }
+            """),
+        MatchMovesOne("logic-rust-match-moves-one",
+            """
+            for i in 1..=a.len() {
+                for j in 1..=b.len() {
+                    if a[i - 1] == b[j - 1] {
+                        table[i][j] = table[i - 1][j - 1] + 1;
+                    } else {
+                        table[i][j] = table[i - 1][j].max(table[i][j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-ruby-match-moves-one",
+            """
+            (1..first.length).each do |i|
+              (1..second.length).each do |j|
+                if first[i - 1] == second[j - 1]
+                  table[i][j] = table[i - 1][j - 1] + 1
+                else
+                  table[i][j] = [table[i - 1][j], table[i][j - 1]].max
+                end
+              end
+            end
+            """),
+        MatchMovesOne("logic-lua-match-moves-one",
+            """
+            for i = 1, #first do
+              for j = 1, #second do
+                if first:sub(i, i) == second:sub(j, j) then
+                  lengths[i][j] = lengths[i - 1][j - 1] + 1
+                else
+                  lengths[i][j] = math.max(lengths[i - 1][j], lengths[i][j - 1])
+                end
+              end
+            end
+            """),
+        MatchMovesOne("logic-php-match-moves-one",
+            """
+            for ($i = 1; $i <= strlen($first); $i++) {
+                for ($j = 1; $j <= strlen($second); $j++) {
+                    if ($first[$i - 1] === $second[$j - 1]) {
+                        $table[$i][$j] = $table[$i - 1][$j - 1] + 1;
+                    } else {
+                        $table[$i][$j] = max($table[$i - 1][$j], $table[$i][$j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-perl-match-moves-one",
+            """
+            for my $i (1 .. length($first)) {
+                for my $j (1 .. length($second)) {
+                    if (substr($first, $i - 1, 1) eq substr($second, $j - 1, 1)) {
+                        $table[$i][$j] = $table[$i - 1][$j - 1] + 1;
+                    } else {
+                        $table[$i][$j] = max($table[$i - 1][$j], $table[$i][$j - 1]);
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-powershell-match-moves-one",
+            """
+            for ($i = 1; $i -le $first.Length; $i++) {
+                for ($j = 1; $j -le $second.Length; $j++) {
+                    if ($first[$i - 1] -eq $second[$j - 1]) {
+                        $table[$i][$j] = $table[$i - 1][$j - 1] + 1
+                    } else {
+                        $table[$i][$j] = [math]::Max($table[$i - 1][$j], $table[$i][$j - 1])
+                    }
+                }
+            }
+            """),
+        MatchMovesOne("logic-dart-match-moves-one",
+            """
+            for (var i = 1; i <= first.length; i++) {
+              for (var j = 1; j <= second.length; j++) {
+                if (first[i - 1] == second[j - 1]) {
+                  table[i][j] = table[i - 1][j - 1] + 1;
+                } else {
+                  table[i][j] = max(table[i - 1][j], table[i][j - 1]);
+                }
+              }
+            }
+            """),
+        MatchMovesOne("logic-scala-match-moves-one",
+            """
+            for (i <- 1 to first.length; j <- 1 to second.length) {
+              if (first(i - 1) == second(j - 1)) {
+                table(i)(j) = table(i - 1)(j - 1) + 1
+              } else {
+                table(i)(j) = math.max(table(i - 1)(j), table(i)(j - 1))
+              }
+            }
+            """),
+        MatchMovesOne("logic-fortran-match-moves-one",
+            """
+            do i = 1, len(first)
+              do j = 1, len(second)
+                if (first(i:i) == second(j:j)) then
+                  table(i, j) = table(i - 1, j - 1) + 1
+                else
+                  table(i, j) = max(table(i - 1, j), table(i, j - 1))
+                end if
               end do
             end do
             """),
