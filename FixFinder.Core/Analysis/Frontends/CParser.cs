@@ -1243,7 +1243,16 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             var name = Declare(nameToken.Text, variable);
 
             Expr? initial = null;
-            if (Eat("=")) initial = Initialiser(variable, Span(nameToken));
+            if (Eat("="))
+            {
+                initial = Initialiser(variable, Span(nameToken));
+
+                // char name[20] = "abc" has the 20 places its brackets give, not the three letters written in it; without a
+                // size, char s[] = "abc" has four - the letters' bytes and the zero that ends them.
+                if (dimensions is [var size] && initial is Literal { Kind: LiteralKind.Text, Value: string letters })
+                    initial = new NewObject(initial.Span, IrType.Named("array"),
+                        [new Argument(null, size ?? new Literal(initial.Span, LiteralKind.Integer, (long)System.Text.Encoding.UTF8.GetByteCount(letters) + 1))]);
+            }
             else if (Is("(") && cpp)
             {
                 var arguments = Arguments();
@@ -1319,6 +1328,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
         var start = Take();
         var items = new List<Expr>();
+        var named = false;
 
         while (!Is("}") && !AtEnd && Reading())
         {
@@ -1327,6 +1337,7 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
             if (Is(".") || Is("["))
             {
                 // A field or position named in the braces: .x = 1 or [2] = 3.
+                named = true;
                 while (!Is(",") && !Is("}") && !AtEnd) _at++;
                 continue;
             }
@@ -1337,9 +1348,43 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         }
 
         Expect("}");
-        return type.Dimensions.Count > 0 || type.IsPointer
+        if (type.Dimensions.Count > 0) return ArrayOf(type, items, named, From(start));
+
+        return type.IsPointer
             ? new CollectionLiteral(From(start), CollectionKind.Array, items)
             : new NewObject(From(start), IrType.Named(type.Name), items.Select(i => new Argument(null, i)).ToList());
+    }
+
+    /// <summary>The most places an array written with fewer values than its size is filled out to, one zero at a time.</summary>
+    private const int MostZeroesFilledIn = 64;
+
+    /// <summary>
+    /// An array set up from values in braces. Its size is the one in its brackets when it has one: int done[N] = {0} has N
+    /// places, every one after those written being zero - not the one place written. Only without a size do the values
+    /// give it: int points[] = {3, 5, 8} has three. A position named in the braces - [4] = 1 - is not read, so neither the
+    /// values nor how many there are is then known from them.
+    /// </summary>
+    private static Expr ArrayOf(CType type, List<Expr> items, bool positionsNamed, SourceSpan span)
+    {
+        var sized = new NewObject(span, IrType.Named("array"), type.Dimensions[0] is { } given ? [new Argument(null, given)] : []);
+        if (type.Dimensions[0] is not { } size) return positionsNamed ? sized : new CollectionLiteral(span, CollectionKind.Array, items);
+        if (positionsNamed || size is not Literal { Kind: LiteralKind.Integer, Value: long places }) return sized;
+        if (places == items.Count) return new CollectionLiteral(span, CollectionKind.Array, items);
+
+        // The places not written hold zero. Only an array of plain numbers is filled out with them: a zero struct or
+        // pointer is not a value the reader writes, so such an array keeps its size and leaves what it holds unknown.
+        Literal? zero = type is { Pointers: 0, Dimensions.Count: 1 } && IsWholeNumber(type.Name) ? new Literal(span, LiteralKind.Integer, 0L)
+            : type is { Pointers: 0, Dimensions.Count: 1 } && IsRealNumber(type.Name) ? new Literal(span, LiteralKind.Real, 0.0)
+            : null;
+        if (places < items.Count || places > MostZeroesFilledIn || zero is null) return sized;
+
+        return new CollectionLiteral(span, CollectionKind.Array, [.. items, .. Enumerable.Repeat<Expr>(zero, (int)places - items.Count)]);
+    }
+
+    private static bool IsRealNumber(string type)
+    {
+        var words = type.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Any(word => word is "float" or "double") && words.All(word => word is "float" or "double" or "long" or "const" or "volatile");
     }
 
     private IEnumerable<Stmt> ForStatement(SourceSpan span) => InScope(() =>

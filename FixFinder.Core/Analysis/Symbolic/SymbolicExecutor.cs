@@ -155,6 +155,13 @@ public sealed partial class SymbolicExecutor
         /// </summary>
         public bool OutsideDecided;
 
+        /// <summary>
+        /// The ways the path went at tests of an item of the function's own list whose value is not followed - done[i]
+        /// once done was written to - each with whether the item was true. Nothing ties them to the rest of the path, so a
+        /// failure on it happens only if the items really are that way, which may be never.
+        /// </summary>
+        public ImmutableList<UnfollowedItem> Unfollowed = [];
+
         public int Block;
         public int Instruction;
 
@@ -162,10 +169,13 @@ public sealed partial class SymbolicExecutor
     }
 
     /// <summary>An expression whose value depends on a condition the path has not settled yet.</summary>
-    private sealed class ChoiceNeeded(Expr at, Condition condition) : Exception
+    private sealed class ChoiceNeeded(Expr at, Condition condition, Expr? test = null) : Exception
     {
         public Expr At { get; } = at;
         public Condition Condition { get; } = condition;
+
+        /// <summary>What was tested, when it is a part of <see cref="At"/>: the left side of an and or an or.</summary>
+        public Expr? Test { get; } = test;
     }
 
     /// <summary>The path certainly fails here, so nothing after it runs.</summary>
@@ -346,6 +356,8 @@ public sealed partial class SymbolicExecutor
     /// <summary>Runs the instruction again once for each way the condition can go, remembering the choice.</summary>
     private void Fork(Path path, ChoiceNeeded choice)
     {
+        var item = Unfollowed(choice.Test ?? choice.At, choice.Condition, path);
+
         foreach (var holds in new[] { false, true })
         {
             var condition = holds ? choice.Condition : choice.Condition.Not();
@@ -355,10 +367,32 @@ public sealed partial class SymbolicExecutor
             {
                 var forked = path.Copy();
                 forked.Choices = forked.Choices.SetItem(choice.At, holds);
+                if (item is { } went) forked.Unfollowed = forked.Unfollowed.Add(went.Taken(holds));
                 if (cases is null) forked.Approximated = true;
                 if (Constrain(forked, @case, decided: true)) _pending.Push(forked);
             }
         }
+    }
+
+    /// <summary>
+    /// The item a test asks about - done[i], or not done[i] - when the test is decided by nothing the path knows and the
+    /// item is one of the function's own list's, whose value is not followed once the list is written to. A parameter's
+    /// item is not one: what is passed in can be anything, so a way that depends on it is a way an input takes.
+    /// </summary>
+    private UnfollowedItem? Unfollowed(Expr test, Condition condition, Path path)
+    {
+        if (condition is not Undecided) return null;
+
+        var whenTestHolds = true;
+        while (test is Unary { Operator: UnaryOperator.Not, Operand: var inner })
+        {
+            test = inner;
+            whenTestHolds = !whenTestHolds;
+        }
+
+        return test is ElementAccess { Target: var list } && VariableOf(list) is { } name && IsOwn(name) && InputName(name, path) is null
+            ? new UnfollowedItem(test, whenTestHolds)
+            : null;
     }
 
     /// <summary>An exception anywhere in a guarded block reaches its handlers with whatever the block had assigned so far.</summary>
@@ -483,11 +517,12 @@ public sealed partial class SymbolicExecutor
         }
 
         var condition = Truth(branch.Condition, path);
-        Follow(path, block.Id, branch.WhenFalse, condition.Not());
-        Follow(path, block.Id, branch.WhenTrue, condition);
+        var item = Unfollowed(branch.Condition, condition, path);
+        Follow(path, block.Id, branch.WhenFalse, condition.Not(), item?.Taken(false));
+        Follow(path, block.Id, branch.WhenTrue, condition, item?.Taken(true));
     }
 
-    private void Follow(Path path, int from, int target, Condition condition)
+    private void Follow(Path path, int from, int target, Condition condition, UnfollowedItem? unfollowed = null)
     {
         var cases = condition.Cases(MostCases);
         var loopDecides = _graph.Blocks[from].IsLoopHead && condition is not Known;
@@ -496,6 +531,7 @@ public sealed partial class SymbolicExecutor
         {
             var next = path.Copy();
             next.Choices = NoChoices;
+            if (unfollowed is not null) next.Unfollowed = next.Unfollowed.Add(unfollowed);
             if (cases is null) next.Approximated = true;
             if (loopDecides) next.ThroughLoop = true;
             if (Constrain(next, @case, decided: true) && Enter(next, from, target)) _pending.Push(next);
@@ -598,7 +634,7 @@ public sealed partial class SymbolicExecutor
         $"{path.Block}|{string.Join(";", path.Store.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={Render(p.Value)}"))}" +
         $"|{string.Join("&", path.Constraints.Select(c => c.ToString()).Order(StringComparer.Ordinal))}" +
         $"|{string.Join(",", path.Taken.OrderBy(p => p.Key, StringComparer.Ordinal))}|{string.Join(",", path.Visits.OrderBy(p => p.Key))}" +
-        $"|{string.Join(",", path.Limits.OrderBy(p => p.Key))}|{string.Join(",", path.Facts)}|{path.Approximated}" +
+        $"|{string.Join(",", path.Limits.OrderBy(p => p.Key))}|{string.Join(",", path.Facts)}|{path.Approximated}|{path.Unfollowed.IsEmpty}" +
         $"|{string.Join(",", path.Truths.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"))}";
 
     private static string Render(SymbolicValue value) => value switch
@@ -667,7 +703,14 @@ public sealed partial class SymbolicExecutor
             outcome.Witness ??= Describe(result.Model!, path, @case);
         }
 
-        if (failed && Certainly(path) && Solve(path.Constraints.AddRange(safe)).IsUnsatisfiable) outcome.Forced = true;
+        if (failed && Settled(path) && Solve(path.Constraints.AddRange(safe)).IsUnsatisfiable) Fails(outcome, path);
+    }
+
+    /// <summary>A path that fails here whatever its inputs are: certainly, or once its items not followed are as it took them.</summary>
+    private static void Fails(Outcome outcome, Path path)
+    {
+        if (path.Unfollowed.IsEmpty) outcome.Forced = true;
+        else outcome.Unfollowed ??= path.Unfollowed;
     }
 
     /// <summary>A failure that happens on this path whatever its inputs: a null value used.</summary>
@@ -680,7 +723,7 @@ public sealed partial class SymbolicExecutor
         if (Trusted(path, path.Constraints) && Solve(path.Constraints) is { IsSatisfiable: true } result)
         {
             outcome.Witness ??= Describe(result.Model!, path, []);
-            if (Certainly(path)) outcome.Forced = true;
+            if (Settled(path)) Fails(outcome, path);
         }
 
         throw new PathEnded();
@@ -688,9 +731,10 @@ public sealed partial class SymbolicExecutor
 
     /// <summary>
     /// A path whose failure can be reported on its own: decided only by parameters, what is typed, and the function's own
-    /// values - not by loop turns or by what unseen code returned, which may be tied together in ways no path shows.
+    /// values - not by loop turns or by what unseen code returned, which may be tied together in ways no path shows. Its
+    /// failure is certain only if no way it went hangs on an item of the function's own list that is not followed.
     /// </summary>
-    private bool Certainly(Path path) => !path.ThroughLoop && !path.OutsideDecided && Trusted(path, path.Constraints);
+    private bool Settled(Path path) => !path.ThroughLoop && !path.OutsideDecided && Trusted(path, path.Constraints);
 
     private bool Trusted(Path path, IEnumerable<Constraint> constraints) =>
         !path.Approximated && constraints.SelectMany(c => c.Term.Symbols).All(id => _symbols[id].Origin != SymbolOrigin.Approximation);

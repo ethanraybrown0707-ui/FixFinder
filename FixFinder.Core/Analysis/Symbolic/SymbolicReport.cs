@@ -17,6 +17,16 @@ public enum WitnessKind { Number, WholeNumber, Items, Characters, Truth, Nothing
 /// </summary>
 public sealed record WitnessValue(string? Parameter, int? TypedAt, WitnessKind Kind, Solver.Rational Value);
 
+/// <summary>
+/// A way a path went at a test of an item whose value is not followed: the item - done[i] - and whether it was true. Before
+/// a way is taken it says instead whether the item is true when the test holds: false for not done[i].
+/// </summary>
+public sealed record UnfollowedItem(Expr Item, bool True)
+{
+    /// <summary>The item as the way the test went - holding or not - leaves it.</summary>
+    internal UnfollowedItem Taken(bool testHolds) => this with { True = testHolds == True };
+}
+
 /// <summary>What exploring every path found at one place where the program can fail.</summary>
 public sealed class Outcome
 {
@@ -34,6 +44,13 @@ public sealed class Outcome
 
     /// <summary>The solver ran out of budget on a question about this place, so no conclusion is safe.</summary>
     public bool Unsure { get; internal set; }
+
+    /// <summary>
+    /// A path fails here whatever its inputs are once the items of the function's own lists it tested are as it took them -
+    /// done[i] true every time, say - which FixFinder does not follow, so the failure may never happen. Null when no such
+    /// path fails here.
+    /// </summary>
+    public IReadOnlyList<UnfollowedItem>? Unfollowed { get; internal set; }
 
     /// <summary>The value that goes wrong: the divisor, the index, the null value, the empty collection.</summary>
     public Expr? Culprit { get; internal set; }

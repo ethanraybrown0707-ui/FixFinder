@@ -108,4 +108,80 @@ public class JavaAnalysisTests : IDisposable
 
         Assert.True(findings.Count == 0, $"{shape}: {string.Join("; ", findings.Select(f => $"{f.CheckId} line {f.Span.Line}: {f.Message}"))}");
     }
+
+    /// <summary>
+    /// A loop that fills a list, then a search whose answer starts at -1 and is set inside the loop. What the search loop
+    /// sets is carried round it: best &lt; 0 was once said to be always true, because the code after the first loop was
+    /// not looked at again once that loop could be left - the second loop was gone round only once.
+    /// </summary>
+    [Fact]
+    public async Task WhatALoopSetsIsCarriedRoundItAfterAnEarlierLoopFillsAList()
+    {
+        const string body = "    static int largest() {\n        List<Integer> seen = new ArrayList<>();\n        for (int i = 0; i < 4; i++) seen.add(i);\n        int best = -1;\n        for (int i = 0; i < 4; i++) {\n            if (best < 0 || seen.get(i) > best) best = seen.get(i);\n        }\n        return best;\n    }";
+        if (await Analyse(body) is not { } findings) return;
+
+        Assert.True(findings.Count == 0, string.Join("; ", findings.Select(f => $"{f.CheckId} line {f.Span.Line}: {f.Message}")));
+    }
+
+    private const string ShortestPaths = """
+            static final int INF = 1000000000;
+
+            static int[] shortest() {
+                List<List<int[]>> graph = new ArrayList<>();
+                for (int i = 0; i < 4; i++) graph.add(new ArrayList<>());
+                graph.get(0).add(new int[] {1, 4});
+                graph.get(0).add(new int[] {2, 1});
+                graph.get(1).add(new int[] {3, 1});
+                graph.get(2).add(new int[] {1, 2});
+                graph.get(2).add(new int[] {3, 5});
+                int[] dist = {0, INF, INF, INF};
+                boolean[] done = new boolean[4];
+                for (int round = 0; round < 4; round++) {
+                    int node = -1;
+                    for (int i = 0; i < 4; i++) {
+                        if (!done[i] && (node < 0 || dist[i] < dist[node])) node = i;
+                    }
+                    done[node] = true;
+                    for (int[] edge : graph.get(node)) {
+                        int next = edge[0];
+                        int length = edge[1];
+                        if (dist[node] + length < dist[next]) {
+                            dist[next] = dist[node] + length;
+                        }
+                    }
+                }
+                return dist;
+            }
+        """;
+
+    /// <summary>
+    /// A shortest-path search that takes the nearest place not yet done each round; it prints 0 3 1 4. node &lt; 0 is not
+    /// always true - node is set inside the loop. done[node] after the search fails only if every done[i] is true, which four
+    /// rounds over four places never make so; FixFinder does not follow what done holds by then, so that is said as
+    /// possible, never as a failure on one way through the code.
+    /// </summary>
+    [Fact]
+    public async Task ASearchThatCanFindNothingOnlyIfItsOwnListSaysSoIsSaidAsPossible()
+    {
+        if (await Analyse(ShortestPaths) is not { } findings) return;
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-always-true");
+        var finding = Assert.Single(findings, f => f.CheckId == "analysis-index-out-of-range");
+        Assert.Equal(LineOf(ShortestPaths, "done[node] = true"), finding.Span.Line);
+        Assert.Equal(Confidence.Possible, finding.Confidence);
+        Assert.Equal("`node` is outside the list when `done[i]` is true every time it is tested, so `done[node]` fails with an " +
+            "IndexOutOfBoundsException - FixFinder cannot tell what `done` holds by then, so this may never happen", finding.Message);
+    }
+
+    /// <summary>The same search over a list it is given: what is passed in can be all true, so that way stays likely.</summary>
+    [Fact]
+    public async Task ASearchThatFindsNothingInAListItIsGivenStaysLikely()
+    {
+        const string body = "    static int pick(int[] dist, boolean[] done) {\n        int node = -1;\n        for (int i = 0; i < 4; i++) {\n            if (!done[i] && (node < 0 || dist[i] < dist[node])) node = i;\n        }\n        return dist[node];\n    }";
+        if (await Analyse(body) is not { } findings) return;
+
+        var finding = Assert.Single(findings, f => f.CheckId == "analysis-index-out-of-range");
+        Assert.Equal(LineOf(body, "return dist[node]"), finding.Span.Line);
+        Assert.Equal(Confidence.Likely, finding.Confidence);
+    }
 }

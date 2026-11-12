@@ -104,6 +104,9 @@ public class AbstractInterpretationTests : IDisposable
     [InlineData("a pop the list's items guard", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    if items:\n        return items.pop()\n    return None\n")]
     [InlineData("a pop after an append on every way", "def take(flag):\n    items = []\n    if flag:\n        items.append(1)\n    else:\n        items.append(2)\n    return items.pop()\n")]
     [InlineData("a switch set once", "def f():\n    debug = False\n    if debug:\n        print('debugging')\n    return 1\n")]
+    // What the second loop sets is carried round it: best < 0 was said always true when the first loop's way out was not
+    // looked at again, so the second loop was gone round once.
+    [InlineData("a search after a loop that fills a list", "def largest():\n    seen = []\n    i = 0\n    while i < 4:\n        seen.append(i)\n        i += 1\n    best = -1\n    i = 0\n    while i < 4:\n        if best < 0 or seen[i] > best:\n            best = seen[i]\n        i += 1\n    return best\n")]
     public async Task CorrectCodeIsLeftAlone(string shape, string code)
     {
         if (await Analyse(code) is not { } findings) return;

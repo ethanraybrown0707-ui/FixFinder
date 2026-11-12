@@ -1019,4 +1019,76 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
         int[] expected = neverRun ? [18, 20] : [];
         Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
     }
+
+    /// <summary>
+    /// An array has the size its brackets give, however few values it is set up with: int done[N] = {0} has N places, the
+    /// rest zero - it was once read as one place, so done[i] in a loop up to N was said to fail. Only without a size do
+    /// the values give it, a string's with the zero that ends it. A place past the size is still found.
+    /// </summary>
+    [Theory]
+    [InlineData("main.c", "int done[N] = {0};", "done[4]", false)]
+    [InlineData("main.c", "int done[N] = {0};", "done[5]", true)]
+    [InlineData("main.c", "double weights[3] = {1.5};", "weights[2]", false)]
+    [InlineData("main.c", "double weights[3] = {1.5};", "weights[3]", true)]
+    [InlineData("main.c", "int big[1000] = {0};", "big[999]", false)]
+    [InlineData("main.c", "int big[1000] = {0};", "big[1000]", true)]
+    [InlineData("main.c", "int grid[3][3] = {{0}};", "grid[2][0]", false)]
+    [InlineData("main.c", "int marks[5] = {[4] = 1};", "marks[4]", false)]
+    [InlineData("main.c", "char name[20] = \"abc\";", "name[19]", false)]
+    [InlineData("main.c", "char name[20] = \"abc\";", "name[20]", true)]
+    [InlineData("main.c", "char word[] = \"abc\";", "word[3]", false)]
+    [InlineData("main.c", "char word[] = \"abc\";", "word[4]", true)]
+    [InlineData("main.c", "int points[] = {3, 5, 8};", "points[3]", true)]
+    [InlineData("main.cpp", "int slots[4]{};", "slots[3]", false)]
+    [InlineData("main.cpp", "int slots[4]{};", "slots[4]", true)]
+    public async Task AnArrayHasTheSizeItsBracketsGiveHoweverFewValuesItIsSetUpWith(string name, string declaration, string read, bool outside)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #define N 5
+
+            int main(void) {
+                {{declaration}}
+                return {{read}};
+            }
+            """, name);
+
+        int[] expected = outside ? [5] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-index-out-of-range").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A shortest-path search that marks each place done in an array set up as {0}: every round finds the nearest place not
+    /// yet done, and the program prints 0 3 1 4. Nothing in it can fail.
+    /// </summary>
+    [Fact]
+    public async Task AShortestPathSearchOverAnArraySetUpWithOneZeroIsLeftAlone()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <stdio.h>
+
+            #define N 4
+            #define INF 1000000000
+
+            int main(void) {
+                int graph[N][N] = {{0, 4, 1, 0}, {0, 0, 0, 1}, {0, 2, 0, 5}, {0, 0, 0, 0}};
+                int dist[N] = {0, INF, INF, INF};
+                int done[N] = {0};
+                for (int round = 0; round < N; round++) {
+                    int node = -1;
+                    for (int i = 0; i < N; i++) {
+                        if (!done[i] && (node < 0 || dist[i] < dist[node])) node = i;
+                    }
+                    done[node] = 1;
+                    for (int next = 0; next < N; next++) {
+                        if (graph[node][next] > 0 && dist[node] + graph[node][next] < dist[next]) dist[next] = dist[node] + graph[node][next];
+                    }
+                }
+                for (int i = 0; i < N; i++) printf(i > 0 ? " %d" : "%d", dist[i]);
+                printf("\n");
+                return 0;
+            }
+            """);
+
+        Assert.Empty(findings);
+    }
 }
