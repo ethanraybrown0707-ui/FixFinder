@@ -60,6 +60,25 @@ public sealed class Evaluator(SourceLanguage language)
     public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
+    /// In C++, the variables copied into another one. The reader writes int&amp; r = rows as a copy, so a change made through
+    /// r would change rows unseen, and none of these is held to be past a bound (<see cref="CopiedInCpp"/>).
+    /// </summary>
+    public IReadOnlySet<string> Copied { get; init; } = new HashSet<string>();
+
+    /// <summary>The variables a C++ function copies into another one - each of which a reference may share.</summary>
+    public static HashSet<string> CopiedInCpp(IrFunction function, SourceLanguage language) => language != SourceLanguage.Cpp
+        ? []
+        : IrWalk.Statements(function.Body)
+            .Select(statement => statement switch
+            {
+                Assign { Target: Name, Value: Name { Identifier: var copied } } => copied,
+                Declare { Initial: Name { Identifier: var copied } } => copied,
+                _ => null,
+            })
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
     /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
     /// of that name hides it, so both are followed under the one name.
     /// </summary>
@@ -83,9 +102,10 @@ public sealed class Evaluator(SourceLanguage language)
 
     /// <summary>
     /// A name given a new value: whatever object it shared before, it shares no longer - and a key written with it, or a map
-    /// reached through it, is no longer known to be anything.
+    /// reached through it, is no longer known to be anything, nor is how it stands to a bound.
     /// </summary>
-    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) => StoreOne(state.Unaliased(name).WithoutKeysNaming(name), name, value);
+    public AbstractState Rebind(AbstractState state, string name, AbstractValue value) =>
+        StoreOne(state.Unaliased(name).WithoutKeysNaming(name).WithoutPastNaming(name), name, value);
 
     private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
@@ -600,7 +620,16 @@ public sealed class Evaluator(SourceLanguage language)
     /// was known of a variable whose address one of the calls was given.
     /// </summary>
     private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
-        CallsOtherCode(expression) ? Forget(ForgetOthers(state), Addresses.ChangedByCallsIn(expression)) : state;
+        CallsOtherCode(expression) ? Forget(ForgetOthers(WithoutPastHandedOn(state, expression)), Addresses.ChangedByCallsIn(expression)) : state;
+
+    /// <summary>
+    /// In C++ a variable handed to a function that takes int&amp; is changed by it, which the call does not show: how such a
+    /// variable stood to a bound is no longer known.
+    /// </summary>
+    private AbstractState WithoutPastHandedOn(AbstractState state, Expr expression) => language != SourceLanguage.Cpp
+        ? state
+        : IrWalk.Within(expression).OfType<Call>().SelectMany(call => call.Arguments).Select(argument => argument.Value).OfType<Name>()
+            .Aggregate(state, (forgetting, handed) => forgetting.WithoutPastNaming(handed.Identifier));
 
     /// <summary>
     /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
@@ -744,7 +773,7 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState Assumed(AbstractState state, Expr condition, bool holds)
     {
         if (!state.IsReachable) return state;
-        state = Embedded(state, condition);
+        state = WithoutPastHandedOn(Embedded(state, condition), condition);
         condition = Settled(condition);
 
         switch (condition)
@@ -966,6 +995,7 @@ public sealed class Evaluator(SourceLanguage language)
             right = AsNumberWhenComparedWithOne(right, left);
         }
         if (!left.IsNumber || !right.IsNumber) return state;
+        if (state.KnowsPast && Contradicts(state, comparison.Left, op, comparison.Right)) return AbstractState.Unreachable;
 
         state = Known(state, comparison.Left, left);
         state = Known(state, comparison.Right, right);
@@ -978,8 +1008,65 @@ public sealed class Evaluator(SourceLanguage language)
 
         state = Refine(state, comparison.Left, leftAllowed, op == BinaryOperator.NotEqual ? right.Number : null, integers);
         state = Refine(state, comparison.Right, rightAllowed, op == BinaryOperator.NotEqual ? left.Number : null, integers);
-        return state;
+        return ordering && integers ? Remember(state, comparison.Left, op, comparison.Right) : state;
     }
+
+    /// <summary>
+    /// Whether what is known of a variable past a bound rules out <paramref name="left"/> <paramref name="op"/>
+    /// <paramref name="right"/>, read with either side as the variable: past it, it is neither below nor at it.
+    /// </summary>
+    private static bool Contradicts(AbstractState state, Expr left, BinaryOperator op, Expr right) =>
+        Against(state, left, op, right) || Against(state, right, Mirror(op), left);
+
+    private static bool Against(AbstractState state, Expr side, BinaryOperator op, Expr other) =>
+        side is Name { Identifier: var name } && op switch
+        {
+            BinaryOperator.Less => state.IsPast(name, IrText.Of(other), strictly: false),
+            BinaryOperator.LessOrEqual or BinaryOperator.Equal => state.IsPast(name, IrText.Of(other), strictly: true),
+            _ => false,
+        };
+
+    /// <summary>
+    /// A comparison of whole numbers that holds, kept as a variable past a bound, which ranges cannot say when neither is
+    /// known: i &lt;= first.length() came out false, so i &gt; first.length() - until either is given another value. When the
+    /// loop it ends is followed by another testing the same, with i never set back, that loop cannot start.
+    /// </summary>
+    private AbstractState Remember(AbstractState state, Expr left, BinaryOperator op, Expr right)
+    {
+        var (past, bound) = op switch
+        {
+            BinaryOperator.Greater or BinaryOperator.GreaterOrEqual => (left, right),
+            BinaryOperator.Less or BinaryOperator.LessOrEqual => (right, left),
+            _ => (null, null),
+        };
+
+        if (past is not Name { Identifier: var name } || bound is null || !Followable(name) || !state[name].IsOnly(ValueKind.Integer | ValueKind.Boolean) ||
+            BoundRead(bound, state) is not { } boundName || boundName == name)
+            return state;
+
+        return state.Passed(name, IrText.Of(bound), boundName, strictly: op is BinaryOperator.Greater or BinaryOperator.Less);
+    }
+
+    /// <summary>
+    /// The variable a bound is read from, when it can only change by being given another value: one of the function's own
+    /// variables holding a whole number, or the length of one holding a text, where texts never change - len(s),
+    /// s.length(), s.Length. A list grows when something is added to it, and a C++ string when it is appended to, though
+    /// neither is given another value; so does a C string written through.
+    /// </summary>
+    private string? BoundRead(Expr bound, AbstractState state) => bound switch
+    {
+        Name { Identifier: var name } when Followable(name) && state[name].IsOnly(ValueKind.Integer | ValueKind.Boolean) => name,
+        _ when language is not (SourceLanguage.C or SourceLanguage.Cpp) && LengthOf(bound) is { Identifier: var text } && Followable(text) &&
+               state[text].MayBe(ValueKind.Text) && state[text].IsOnly(ValueKind.Text | ValueKind.Null) => text,
+        _ => null,
+    };
+
+    /// <summary>
+    /// A variable changed only where the function gives it a value: its own, not one a function written inside it uses, not
+    /// one whose address it hands out, and in C++ not one a reference may share.
+    /// </summary>
+    private bool Followable(string name) =>
+        Locals is not null && Locals.Contains(name) && !Volatile.Contains(name) && !Addresses.Variables.Contains(name) && !Copied.Contains(name);
 
     private static bool IsNullLiteral(Expr expression) => expression is Literal { Kind: LiteralKind.Null };
 

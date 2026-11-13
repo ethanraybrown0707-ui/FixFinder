@@ -26,6 +26,13 @@ namespace FixFinder.Tests;
 /// an earlier loop had been gone round only once and the code after it never reached, so the loop that never runs was not
 /// looked at, and nothing was said about it except in Python.
 /// </para>
+/// <para>
+/// With the strings passed in, what i and first.length() each hold is not known at all, so their ranges cannot show the
+/// third loop never starts. What the first loop leaves is kept as such: i past first.length(), until either is given
+/// another value (AbstractState.IsPast). The bound must be one that changes only so - a whole number the function holds, or
+/// the length of a text where texts never change - so Python and JavaScript parameters, which could be lists, are not
+/// read as texts, and C and C++ use only numbers.
+/// </para>
 /// </remarks>
 public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
 {
@@ -61,7 +68,12 @@ public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
         return findings;
     }
 
-    /// <summary>Each prints 3, the edit distance from kitten to sitting.</summary>
+    /// <summary>
+    /// The edit distances print 3, the edit distance from kitten to sitting. The near misses print how often each later loop
+    /// goes round, never 0: the earlier loop was left by a break, or by the other half of an and, the counter was set back,
+    /// the bound was given another value, or it was changed out of sight - a list or a StringBuilder added to, a variable
+    /// changed by a closure, through a pointer, through a C# ref or a C++ reference, or a C++ string appended to.
+    /// </summary>
     public static TheoryData<string, string> CorrectPrograms => new()
     {
         {
@@ -285,6 +297,291 @@ public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
         },
         { "distance.c", CDistance },
         { "distance.cpp", CDistance },
+        {
+            "Near.java", """
+            public class Near {
+                static int afterBreak(int[] items, int n, int stop) {
+                    int i;
+                    for (i = 0; i < n; i++) if (items[i] == stop) break;
+                    int ran = 0;
+                    for (; i < n; i++) ran++;
+                    return ran;
+                }
+
+                static int mergeLeftovers(int n1, int n2) {
+                    int i = 0, j = 0, ran = 0;
+                    while (i < n1 && j < n2) { i++; j++; }
+                    while (i < n1) { i++; ran++; }
+                    while (j < n2) { j++; ran++; }
+                    return ran;
+                }
+
+                static int setBack(String first) {
+                    int i = 0, ran = 0;
+                    while (i < first.length()) i++;
+                    i = 0;
+                    while (i < first.length()) { i++; ran++; }
+                    return ran;
+                }
+
+                static int boundChanged(String first) {
+                    int i = 0, ran = 0;
+                    while (i < first.length()) i++;
+                    first = first + "ab";
+                    while (i < first.length()) { i++; ran++; }
+                    return ran;
+                }
+
+                static int numberBoundChanged(int n) {
+                    int i = 0, ran = 0;
+                    while (i < n) i++;
+                    n += 2;
+                    while (i < n) { i++; ran++; }
+                    return ran;
+                }
+
+                static int builderGrows(StringBuilder text) {
+                    int i = 0, ran = 0;
+                    while (i < text.length()) i++;
+                    text.append("ab");
+                    while (i < text.length()) { i++; ran++; }
+                    return ran;
+                }
+
+                static int spacesThenRest(String line) {
+                    int i = 0, ran = 0;
+                    while (i < line.length() && line.charAt(i) == ' ') i++;
+                    while (i < line.length()) { i++; ran++; }
+                    return ran;
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(afterBreak(new int[] {1, 2, 3, 4}, 4, 2) + " " + mergeLeftovers(2, 5) + " " + setBack("abc") + " " +
+                        boundChanged("abc") + " " + numberBoundChanged(3) + " " + builderGrows(new StringBuilder("abc")) + " " + spacesThenRest("  ab"));
+                }
+            }
+            """
+        },
+        {
+            "Near.cs", """
+            using System;
+            using System.Collections.Generic;
+
+            class Near
+            {
+                static void Grow(ref int n) { n += 2; }
+
+                static int ThroughRef(int n)
+                {
+                    int i = 0, ran = 0;
+                    while (i < n) i++;
+                    Grow(ref n);
+                    while (i < n) { i++; ran++; }
+                    return ran;
+                }
+
+                static int ListGrows(List<int> items)
+                {
+                    int i = 0, ran = 0;
+                    while (i < items.Count) i++;
+                    items.Add(9);
+                    while (i < items.Count) { i++; ran++; }
+                    return ran;
+                }
+
+                static int LambdaChangesBound()
+                {
+                    int n = 3, i = 0, ran = 0;
+                    Action grow = () => n += 2;
+                    while (i < n) i++;
+                    grow();
+                    while (i < n) { i++; ran++; }
+                    return ran;
+                }
+
+                static void Main()
+                {
+                    Console.WriteLine(ThroughRef(3) + " " + ListGrows(new List<int> { 1, 2, 3 }) + " " + LambdaChangesBound());
+                }
+            }
+            """
+        },
+        {
+            "main.go", """
+            package main
+
+            import "fmt"
+
+            func closureChangesBound() int {
+            	n := 3
+            	i, ran := 0, 0
+            	grow := func() { n += 2 }
+            	for i < n {
+            		i++
+            	}
+            	grow()
+            	for i < n {
+            		i++
+            		ran++
+            	}
+            	return ran
+            }
+
+            func sliceGrows(items []int) int {
+            	i, ran := 0, 0
+            	for i < len(items) {
+            		i++
+            	}
+            	items = append(items, 9)
+            	for i < len(items) {
+            		i++
+            		ran++
+            	}
+            	return ran
+            }
+
+            func main() {
+            	fmt.Println(closureChangesBound(), sliceGrows([]int{1, 2, 3}))
+            }
+            """
+        },
+        {
+            "near.py", """
+            def list_grows(items):
+                i = 0
+                ran = 0
+                while i < len(items):
+                    i += 1
+                items.append(9)
+                while i < len(items):
+                    i += 1
+                    ran += 1
+                return ran
+
+
+            def text_list_grows():
+                letters = list("abc")
+                i = 0
+                ran = 0
+                while i < len(letters):
+                    i += 1
+                letters.append("d")
+                while i < len(letters):
+                    i += 1
+                    ran += 1
+                return ran
+
+
+            def closure_changes_bound():
+                n = 3
+                i = 0
+                ran = 0
+
+                def grow():
+                    nonlocal n
+                    n += 2
+
+                while i < n:
+                    i += 1
+                grow()
+                while i < n:
+                    i += 1
+                    ran += 1
+                return ran
+
+
+            print(list_grows([1, 2, 3]), text_list_grows(), closure_changes_bound())
+            """
+        },
+        {
+            "near.js", """
+            function arrayGrows(items) {
+              let i = 0, ran = 0;
+              while (i < items.length) i++;
+              items.push(9);
+              while (i < items.length) { i++; ran++; }
+              return ran;
+            }
+
+            function closureChangesBound() {
+              let n = 3, i = 0, ran = 0;
+              const grow = () => { n += 2; };
+              while (i < n) i++;
+              grow();
+              while (i < n) { i++; ran++; }
+              return ran;
+            }
+
+            console.log(arrayGrows([1, 2, 3]), closureChangesBound());
+            """
+        },
+        {
+            "near.c", """
+            #include <stdio.h>
+
+            void grow(int *n) { *n = *n + 2; }
+
+            int through_pointer(int rows) {
+                int i = 0, ran = 0;
+                while (i <= rows) i++;
+                grow(&rows);
+                while (i <= rows) { i++; ran++; }
+                return ran;
+            }
+
+            int written_through_pointer(int rows) {
+                int *p = &rows;
+                int i = 0, ran = 0;
+                while (i <= rows) i++;
+                *p = rows + 2;
+                while (i <= rows) { i++; ran++; }
+                return ran;
+            }
+
+            int main(void) {
+                printf("%d %d\n", through_pointer(3), written_through_pointer(3));
+                return 0;
+            }
+            """
+        },
+        {
+            "near.cpp", """
+            #include <cstdio>
+            #include <string>
+
+            void grow(int& n) { n = n + 2; }
+
+            int through_reference(int rows) {
+                int& alias = rows;
+                int i = 0, ran = 0;
+                while (i <= rows) i++;
+                alias = rows + 2;
+                while (i <= rows) { i++; ran++; }
+                return ran;
+            }
+
+            int through_reference_parameter(int rows) {
+                int i = 0, ran = 0;
+                while (i <= rows) i++;
+                grow(rows);
+                while (i <= rows) { i++; ran++; }
+                return ran;
+            }
+
+            int string_appended(std::string text) {
+                int i = 0, ran = 0;
+                while (i < (int) text.length()) i++;
+                text.append("ab");
+                while (i < (int) text.length()) { i++; ran++; }
+                return ran;
+            }
+
+            int main() {
+                std::printf("%d %d %d\n", through_reference(3), through_reference_parameter(3), string_appended("abc"));
+                return 0;
+            }
+            """
+        },
     };
 
     private const string CDistance = """
@@ -327,8 +624,9 @@ public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
 
     /// <summary>
     /// The loop that never runs is the last one whose first line holds the marker. The edit distances print 0 rather than 3:
-    /// the counter is not set back after the first loop, so the third loop starts past the end. The others print 16 0: the
-    /// second loop over the scores starts where the first one stopped.
+    /// the counter is not set back after the first loop, so the third loop starts past the end - with the strings written in
+    /// the program, or passed in with their lengths. The others print 16 0: the second loop over the scores starts where the
+    /// first one stopped.
     /// </summary>
     public static TheoryData<string, string, string> NeverRunningLoops => new()
     {
@@ -471,6 +769,124 @@ public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
         { "no_reset.c", "for (; i <= rows; i++)", CNoReset },
         { "no_reset.cpp", "for (; i <= rows; i++)", CNoReset },
         {
+            "NoResetParam.java", "for (; i <= first.length(); i++)", """
+            public class NoResetParam {
+                static int editDistance(String first, String second) {
+                    int[][] table = new int[first.length() + 1][second.length() + 1];
+                    int i;
+                    for (i = 0; i <= first.length(); i++) table[i][0] = i;
+                    for (int j = 0; j <= second.length(); j++) table[0][j] = j;
+                    for (; i <= first.length(); i++) {
+                        for (int j = 1; j <= second.length(); j++) {
+                            if (first.charAt(i - 1) == second.charAt(j - 1)) {
+                                table[i][j] = table[i - 1][j - 1];
+                            } else {
+                                table[i][j] = 1 + Math.min(table[i - 1][j], Math.min(table[i][j - 1], table[i - 1][j - 1]));
+                            }
+                        }
+                    }
+                    return table[first.length()][second.length()];
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(editDistance("kitten", "sitting"));
+                }
+            }
+            """
+        },
+        {
+            "NoResetParam.cs", "for (; i <= first.Length; i++)", """
+            using System;
+
+            class NoResetParam
+            {
+                static int EditDistance(string first, string second)
+                {
+                    int[,] table = new int[first.Length + 1, second.Length + 1];
+                    int i;
+                    for (i = 0; i <= first.Length; i++) table[i, 0] = i;
+                    for (int j = 0; j <= second.Length; j++) table[0, j] = j;
+                    for (; i <= first.Length; i++)
+                    {
+                        for (int j = 1; j <= second.Length; j++)
+                        {
+                            if (first[i - 1] == second[j - 1])
+                                table[i, j] = table[i - 1, j - 1];
+                            else
+                                table[i, j] = 1 + Math.Min(table[i - 1, j], Math.Min(table[i, j - 1], table[i - 1, j - 1]));
+                        }
+                    }
+                    return table[first.Length, second.Length];
+                }
+
+                static void Main()
+                {
+                    Console.WriteLine(EditDistance("kitten", "sitting"));
+                }
+            }
+            """
+        },
+        {
+            "main.go", "for ; i <= len(first); i++", """
+            package main
+
+            import "fmt"
+
+            func editDistance(first string, second string) int {
+            	table := make([][]int, len(first)+1)
+            	for k := range table {
+            		table[k] = make([]int, len(second)+1)
+            	}
+            	i := 0
+            	for i = 0; i <= len(first); i++ {
+            		table[i][0] = i
+            	}
+            	for j := 0; j <= len(second); j++ {
+            		table[0][j] = j
+            	}
+            	for ; i <= len(first); i++ {
+            		for j := 1; j <= len(second); j++ {
+            			if first[i-1] == second[j-1] {
+            				table[i][j] = table[i-1][j-1]
+            			} else {
+            				table[i][j] = 1 + min(table[i-1][j], table[i][j-1], table[i-1][j-1])
+            			}
+            		}
+            	}
+            	return table[len(first)][len(second)]
+            }
+
+            func main() {
+            	fmt.Println(editDistance("kitten", "sitting"))
+            }
+            """
+        },
+        {
+            "no_reset_param.py", "while i <= len(first):", """
+            def edit_distance(first: str, second: str) -> int:
+                table = [[0] * (len(second) + 1) for _ in range(len(first) + 1)]
+                i = 0
+                while i <= len(first):
+                    table[i][0] = i
+                    i += 1
+                for j in range(len(second) + 1):
+                    table[0][j] = j
+                while i <= len(first):
+                    for j in range(1, len(second) + 1):
+                        if first[i - 1] == second[j - 1]:
+                            table[i][j] = table[i - 1][j - 1]
+                        else:
+                            table[i][j] = 1 + min(table[i - 1][j], table[i][j - 1], table[i - 1][j - 1])
+                    i += 1
+                return table[len(first)][len(second)]
+
+
+            print(edit_distance("kitten", "sitting"))
+            """
+        },
+        { "no_reset_param.c", "for (; i <= rows; i++)", CNoResetParam },
+        { "no_reset_param.cpp", "for (; i <= rows; i++)", CNoResetParam },
+        {
             "Reuse.java", "while (i < scores.length)", """
             public class Reuse {
                 public static void main(String[] args) {
@@ -609,6 +1025,34 @@ public class LoopAfterLoopTests(ITestOutputHelper output) : IDisposable
                 }
             }
             printf("%d\n", table[rows][cols]);
+            return 0;
+        }
+        """;
+
+    private const string CNoResetParam = """
+        #include <stdio.h>
+        #include <string.h>
+
+        static int table[16][16];
+
+        int edit_distance(const char *first, const char *second, int rows, int cols) {
+            int i;
+            for (i = 0; i <= rows; i++) table[i][0] = i;
+            for (int j = 0; j <= cols; j++) table[0][j] = j;
+            for (; i <= rows; i++) {
+                for (int j = 1; j <= cols; j++) {
+                    int cost = first[i - 1] == second[j - 1] ? 0 : 1;
+                    int best = table[i - 1][j - 1] + cost;
+                    if (table[i - 1][j] + 1 < best) best = table[i - 1][j] + 1;
+                    if (table[i][j - 1] + 1 < best) best = table[i][j - 1] + 1;
+                    table[i][j] = best;
+                }
+            }
+            return table[rows][cols];
+        }
+
+        int main(void) {
+            printf("%d\n", edit_distance("kitten", "sitting", (int) strlen("kitten"), (int) strlen("sitting")));
             return 0;
         }
         """;
