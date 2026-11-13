@@ -142,6 +142,105 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("main.rb", "logic-ruby-defined-twice", "class Square\n  def area\n    1\n  end\nend\n\nclass Circle\n  def area\n    2\n  end\nend\n")]
     public void CodeThatCanRunIsLeftAlone(string fileName, string check, string code) => Assert.Empty(Scan(fileName, code, check));
 
+    /// <summary>
+    /// The checks on a thread of their own, so one that never finishes fails the test at the time limit instead of holding up
+    /// the run. A thread, not a task: a task may wait for the thread pool, which a run of many tests can keep busy.
+    /// </summary>
+    private IReadOnlyList<LogicFinding> ScanWithin(TimeSpan limit, string fileName, string code, string check)
+    {
+        IReadOnlyList<LogicFinding>? found = null;
+        Exception? failed = null;
+        var scanning = new Thread(() =>
+        {
+            try { found = Scan(fileName, code, check); }
+            catch (Exception ex) { failed = ex; }
+        }) { IsBackground = true };
+
+        scanning.Start();
+        Assert.True(scanning.Join(limit), $"The checks were still reading {fileName} after {limit.TotalSeconds} s");
+        if (failed is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failed).Throw();
+        return found!;
+    }
+
+    /// <summary>prog_emit from TruthTableSolver's ttsolve.c, as it is written there.</summary>
+    private const string ProgEmit = """
+        static int prog_emit(Prog *p, int op, int a, int b, int c) {
+            if (op >= I_AND0 && op <= I_AND3 && a > b) {
+                int f = op - I_AND0;
+                op = I_AND0 + (((f & 1) << 1) | ((f >> 1) & 1));
+                int t = a; a = b; b = t;
+            } else if (op == I_XOR && a > b) { int t = a; a = b; b = t; }
+            if (p->htsize == 0 || p->ncode * 2 >= p->htsize) {
+                int ns = p->htsize ? p->htsize * 2 : 256;
+                free(p->ht);
+                p->ht = xmalloc((size_t)ns * sizeof(int));
+                for (int i = 0; i < ns; i++) p->ht[i] = -1;
+                p->htsize = ns;
+                for (int i = 0; i < p->ncode; i++) {
+                    unsigned h = ins_hash(p->code[i].op, p->code[i].a, p->code[i].b, p->code[i].c) & (unsigned)(ns - 1);
+                    while (p->ht[h] >= 0) h = (h + 1) & (unsigned)(ns - 1);
+                    p->ht[h] = i;
+                }
+            }
+            unsigned h = ins_hash(op, a, b, c) & (unsigned)(p->htsize - 1);
+            while (p->ht[h] >= 0) {
+                const Ins *x = &p->code[p->ht[h]];
+                if (x->op == op && x->a == a && x->b == b && x->c == c) return x->d;
+                h = (h + 1) & (unsigned)(p->htsize - 1);
+            }
+            if (p->ncode == p->cap) { p->cap = p->cap ? p->cap * 2 : 128; p->code = xrealloc(p->code, (size_t)p->cap * sizeof(Ins)); }
+            Ins x = {op, p->nregs++, a, b, c};
+            p->code[p->ncode] = x;
+            p->ht[h] = p->ncode++;
+            return x.d;
+        }
+        """;
+
+    /// <summary>
+    /// Chains with a branch whose block opens and closes on its own } else if line, by name: the kind of file, the check, the
+    /// code, and the line of the branch found never to run, or 0 for none. Read as the } that closes that branch, the } the
+    /// line starts with gave the same header again and again, and the check never finished. Kept out of InlineData: the
+    /// robustness tests run every check on each InlineData row's code while xunit is finding the tests, where a check that
+    /// never finishes holds up the whole run instead of failing one test at its time limit.
+    /// </summary>
+    private static readonly Dictionary<string, (string File, string Check, string Code, int Line)> ClosedOnTheirOwnLine = new()
+    {
+        // Neither condition is one comparison of a name with a number, so nothing is found.
+        ["ttsolve.c prog_emit"] = ("ttsolve.c", "logic-branch-never-reached", ProgEmit, 0),
+        // Found, and not put in order: that branch's block has no } line of its own to close the block moved into its place.
+        ["c"] = ("main.c", "logic-branch-never-reached", "int f(int n) {\n    int r = 0;\n    if (n > 10) {\n        r = 1;\n    } else if (n > 100) { r = 2; }\n    return r;\n}\n", 5),
+        // The chain goes on past it, to the next line.
+        ["java, a branch after it"] = ("Main.java", "logic-branch-never-reached",
+            "class Main {\n    int f(int n) {\n        int r = 0;\n        if (n > 100) {\n            r = 1;\n        } else if (n > 10) { r = 2; }\n        else if (n > 50) { r = 3; }\n        else { r = 4; }\n        return r;\n    }\n}\n", 7),
+        // Go's and Rust's, with another else if after it on that line: the chain ends there, the branches before it read.
+        ["go"] = ("main.go", "logic-go-branch-never-reached",
+            "package main\n\nfunc size(n int) int {\n\tif n > 1 {\n\t\treturn 1\n\t} else if n > 5 {\n\t\treturn 5\n\t} else if n > 7 { return 7 } else if n > 3 {\n\t\treturn 3\n\t}\n\treturn 0\n}\n", 6),
+        ["rust"] = ("main.rs", "logic-rust-branch-never-reached",
+            "fn size(n: i32) -> i32 {\n    if n > 1 {\n        1\n    } else if n > 5 {\n        5\n    } else if n > 7 { 7 } else if n > 3 {\n        3\n    } else {\n        0\n    }\n}\n", 4),
+    };
+
+    [Theory]
+    [InlineData("ttsolve.c prog_emit")]
+    [InlineData("c")]
+    [InlineData("java, a branch after it")]
+    [InlineData("go")]
+    [InlineData("rust")]
+    public void AChainWithABranchClosedOnItsOwnLineIsReadInTime(string name)
+    {
+        var (fileName, check, code, line) = ClosedOnTheirOwnLine[name];
+
+        var found = ScanWithin(TimeSpan.FromSeconds(10), fileName, code, check);
+
+        if (line == 0)
+        {
+            Assert.Empty(found);
+            return;
+        }
+        var finding = Assert.Single(found);
+        Assert.Equal(line, finding.Line);
+        Assert.Null(finding.Fix);
+    }
+
     [Theory]
     [InlineData("score >= 70", "score", 70, true, double.PositiveInfinity, false)]
     [InlineData("50 <= score < 70", "score", 50, true, 70, false)]

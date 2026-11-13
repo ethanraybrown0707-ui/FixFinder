@@ -90,8 +90,19 @@ public static partial class UnreachableBranchPatterns
                 if (Brackets.FirstBlockEnd(masked, braceLine) is not { } blockEnd) { headers.Clear(); break; }
                 lastClose = blockEnd;
 
-                var after = masked[blockEnd].TrimStart().StartsWith('}') && masked[blockEnd].Trim().Length > 1 ? blockEnd : NextCode(masked, blockEnd + 1);
+                // A block that opens and closes on its own header line - } else if (...) { ...; } - ends the branch on that line,
+                // and the } the line starts with closed the branch before: what follows is on the next line with code. Read as
+                // the } that closes this branch, it gave this same header again, and again, so the chain never ended.
+                var closedOnHeader = blockEnd == header;
+                // The change that puts the branches in order gives each place its own } else if ( and the moved branch's condition
+                // and the rest of its line, and leaves the } line after the chain to close the last block. A branch closed on its
+                // } else if line leaves no such } line, so the block moved into its place would be left open: that chain is left
+                // in its order, found but not changed.
+                if (closedOnHeader && masked[header].TrimStart().StartsWith('}')) reorderable = false;
+                var after = !closedOnHeader && masked[blockEnd].TrimStart().StartsWith('}') && masked[blockEnd].Trim().Length > 1 ? blockEnd : NextCode(masked, blockEnd + 1);
                 if (after >= masked.Count) break;
+                // Each header after the one before it, so the chain comes to an end however its lines are read.
+                if (after <= header) { headers.Clear(); break; }
                 if (next.Match(masked[after]) is { Success: true } continued && continued.Groups["indent"].Length == indent)
                 {
                     headers.Add((after, continued.Index + continued.Length - 1));
@@ -136,6 +147,10 @@ public static partial class UnreachableBranchPatterns
             {
                 if (Brackets.FirstBlockEnd(masked, header) is not { } end) { branches.Clear(); break; }
                 branches.Add(new Branch(header, condition.Index, condition.Index + condition.Length, header + 1, end));
+                // A block closed on its own header line - } else if n > 5 { return 2 } else if n > 3 { - ends the chain there: the
+                // else if after it on that line was read as this same header again, and again, so the chain never ended. That
+                // header's condition runs on into the block, so it is not read as values, and the chain is not put in order.
+                if (end == header) break;
                 if (next.Match(masked[end]) is not { Success: true } continued || continued.Groups["indent"].Length != opened.Groups["indent"].Length) break;
                 header = end;
                 condition = continued.Groups["condition"];
