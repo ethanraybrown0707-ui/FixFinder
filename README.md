@@ -1641,7 +1641,10 @@ caught: an index outside a C# array raises an `IndexOutOfRangeException`, and ou
 **Loops** are reasoned about with **relations between variables**, settled by the constraint solver. A counted loop's
 counter is tied to its limit - inside `for i in range(len(a))`, `i ≤ len(a) - 1` - so `a[i + 1]` is found past the end
 on the last time round whatever the list's length, as is `a[i]` under `i <= a.length`, a loop counting down from
-`a.length`, or `a[i - 1]` on a Java loop's first time round. A while loop's **candidate invariants** - its condition's
+`a.length`, or `a[i - 1]` on a Java loop's first time round. A read that waits on a test - `i > 0 ? a[i - 1] : 0`,
+`a[i + 1] if i + 1 < len(a) else a[i]`, the right of `&&`, `||`, `and` or `or` - counts only where the test lets it
+through, so a knapsack table with a row for no items is left alone; where the test lets a bad index through one time
+round in, `i > 0 ? a[i - 2] : 0`, the failure is put there, when `i` is `1`. A while loop's **candidate invariants** - its condition's
 relation, such as `lo <= hi`, and the bounds its starting values give - are kept only when the solver shows them
 **inductive**: true on entry, and kept by every way through the body. They are proven together (the Houdini method):
 each must be kept given all the others still standing, and any that is not is dropped and the rest tried again - so in

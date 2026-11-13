@@ -333,4 +333,271 @@ public class LoopReasoningTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(8, found.Span.Line);
         Says("IndexOutOfRangeException", found);
     }
+
+    // -------------------------------------------------------------------------------------------------------------
+    // Reads that wait on a test: c ? a[i - 1] : 0, a[i + 1] if c else 0, c && a[i - 1] > 0. Only the branch the test
+    // chooses is evaluated, so the read counts only where the test lets it through.
+
+    /// <summary>
+    /// A 0/1 knapsack table with a row 0 for no items: items[i - 1] is read only when i > 0, so i being 0 on the first time
+    /// round never reaches it. It prints 90, and was said to ask for position -1 on lines 5 and 6.
+    /// </summary>
+    private const string Knapsack = """
+        public class Knapsack {
+            static int knapsack(int capacity, int[][] items) {
+                int[][] table = new int[items.length + 1][capacity + 1];
+                for (int i = 0; i <= items.length; i++) {
+                    int weight = i > 0 ? items[i - 1][0] : 0;
+                    int value = i > 0 ? items[i - 1][1] : 0;
+                    for (int j = 0; j <= capacity; j++) {
+                        if (i == 0 || j == 0) {
+                            table[i][j] = 0;
+                        } else if (weight <= j) {
+                            table[i][j] = Math.max(table[i - 1][j], value + table[i - 1][j - weight]);
+                        } else {
+                            table[i][j] = table[i - 1][j];
+                        }
+                    }
+                }
+                return table[items.length][capacity];
+            }
+
+            public static void main(String[] args) {
+                System.out.println(knapsack(7, new int[][] {{5, 10}, {4, 40}, {6, 30}, {3, 50}}));
+            }
+        }
+        """;
+
+    [Theory]
+    [InlineData("i > 0 ? items[i - 1][0] : 0", "i > 0 ? items[i - 1][1] : 0")]
+    [InlineData("i == 0 ? 0 : items[i - 1][0]", "i == 0 ? 0 : items[i - 1][1]")]
+    public async Task InJavaAReadTheTestKeepsFromTheFirstTimeRoundIsLeftAlone(string weight, string value)
+    {
+        var code = Knapsack.Replace("i > 0 ? items[i - 1][0] : 0", weight, StringComparison.Ordinal).Replace("i > 0 ? items[i - 1][1] : 0", value, StringComparison.Ordinal);
+        if (await Java(code) is not { } findings) return;
+
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
+
+    /// <summary>The same table read without the test fails on the first time round - ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 4.</summary>
+    [Fact]
+    public async Task InJavaTheSameReadWithoutTheTestStillGoesBeforeTheStart()
+    {
+        var code = Knapsack.Replace("i > 0 ? items[i - 1][0] : 0", "items[i - 1][0]", StringComparison.Ordinal).Replace("i > 0 ? items[i - 1][1] : 0", "items[i - 1][1]", StringComparison.Ordinal);
+        if (await Java(code) is not { } findings) return;
+
+        Assert.Equal(new[] { 5, 6 }, findings.Where(f => f.CheckId == "analysis-index-out-of-range").Select(f => f.Span.Line).Order());
+        foreach (var found in findings)
+            Says("On the first time round the loop, `i` is `0`, so `items[i - 1]` asks for position `-1` - before the start of `items` - and fails with an ArrayIndexOutOfBoundsException", found);
+    }
+
+    /// <summary>Counts the marks higher than the one before: 3 for 3, 8, 7, 17, 18.</summary>
+    private const string Rises = """
+        public class Rises {
+            static int rises(int[] marks) {
+                int count = 0;
+                for (int i = 0; i < marks.length; i++) {
+                    boolean counted = i > 0 && marks[i] > marks[i - 1];
+                    count += counted ? 1 : 0;
+                }
+                return count;
+            }
+
+            public static void main(String[] args) {
+                System.out.println(rises(new int[] {3, 8, 7, 17, 18}));
+            }
+        }
+        """;
+
+    /// <summary>The right of && is evaluated only when the left is true, and the right of || only when the left is false.</summary>
+    [Theory]
+    [InlineData("i > 0 && marks[i] > marks[i - 1]")]
+    [InlineData("i == 0 || marks[i] < marks[i - 1]")]
+    [InlineData("i + 1 < marks.length && marks[i + 1] > marks[i]")]
+    public async Task InJavaAReadOnTheRightOfAndOrOrWaitsOnTheLeft(string test)
+    {
+        if (await Java(Rises.Replace("i > 0 && marks[i] > marks[i - 1]", test, StringComparison.Ordinal)) is not { } findings) return;
+
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
+
+    /// <summary>The left of && is read every time round - ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 5.</summary>
+    [Fact]
+    public async Task InJavaAReadOnTheLeftOfAndIsStillReadEveryTimeRound()
+    {
+        if (await Java(Rises.Replace("i > 0 && marks[i] > marks[i - 1]", "marks[i] > marks[i - 1] && i > 0", StringComparison.Ordinal)) is not { } findings) return;
+
+        var found = Assert.Single(findings);
+        Assert.Equal(5, found.Span.Line);
+        Says("On the first time round the loop, `i` is `0`, so `marks[i - 1]` asks for position `-1` - before the start of `marks`", found);
+    }
+
+    /// <summary>
+    /// The test keeps the first time round out, but not the next: when i is 1, marks[i - 2] is marks[-1] -
+    /// ArrayIndexOutOfBoundsException: Index -1 out of bounds for length 5. The failure is put on that time round, not
+    /// on i being 0, where nothing is read.
+    /// </summary>
+    [Fact]
+    public async Task InJavaATestThatStillLetsABadIndexThroughIsFoundWhereItLetsItThrough()
+    {
+        const string code = """
+            public class StepTwoBack {
+                static int total(int[] marks) {
+                    int sum = 0;
+                    for (int i = 0; i < marks.length; i++) {
+                        int other = i > 0 ? marks[i - 2] : 0;
+                        sum += other;
+                    }
+                    return sum;
+                }
+
+                public static void main(String[] args) {
+                    System.out.println(total(new int[] {3, 8, 7, 17, 18}));
+                }
+            }
+            """;
+        if (await Java(code) is not { } findings) return;
+
+        var found = Assert.Single(findings);
+        Assert.Equal(5, found.Span.Line);
+        Says("Even with `i > 0` being true, `marks[i - 2]` is read when `i` is `1`, where it asks for position `-1` - before the start of `marks`", found);
+    }
+
+    /// <summary>The C# table prints 90; without the test it stops with an IndexOutOfRangeException on line 11.</summary>
+    private const string CSharpKnapsack = """
+        using System;
+
+        public static class Program
+        {
+            static int Knapsack(int capacity, int[][] items)
+            {
+                var table = new int[items.Length + 1][];
+                for (int i = 0; i <= items.Length; i++)
+                {
+                    table[i] = new int[capacity + 1];
+                    int weight = i > 0 ? items[i - 1][0] : 0;
+                    int value = i > 0 ? items[i - 1][1] : 0;
+                    for (int j = 0; j <= capacity; j++)
+                    {
+                        if (i == 0 || j == 0)
+                        {
+                            table[i][j] = 0;
+                        }
+                        else if (weight <= j)
+                        {
+                            table[i][j] = Math.Max(table[i - 1][j], value + table[i - 1][j - weight]);
+                        }
+                        else
+                        {
+                            table[i][j] = table[i - 1][j];
+                        }
+                    }
+                }
+                return table[items.Length][capacity];
+            }
+
+            public static void Main()
+            {
+                Console.WriteLine(Knapsack(7, new[] { new[] { 5, 10 }, new[] { 4, 40 }, new[] { 6, 30 }, new[] { 3, 50 } }));
+            }
+        }
+        """;
+
+    [Fact]
+    public async Task InCSharpAReadTheTestKeepsFromTheFirstTimeRoundIsLeftAlone()
+    {
+        var findings = await CSharp(CSharpKnapsack);
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
+
+    [Fact]
+    public async Task InCSharpTheSameReadWithoutTheTestStillGoesBeforeTheStart()
+    {
+        var code = CSharpKnapsack.Replace("i > 0 ? items[i - 1][0] : 0", "items[i - 1][0]", StringComparison.Ordinal).Replace("i > 0 ? items[i - 1][1] : 0", "items[i - 1][1]", StringComparison.Ordinal);
+        var findings = await CSharp(code);
+
+        Assert.Equal(new[] { 11, 12 }, findings.Select(f => f.Span.Line).Order());
+        foreach (var found in findings)
+            Says("On the first time round the loop, `i` is `0`, so `items[i - 1]` asks for position `-1` - before the start of `items` - and fails with an IndexOutOfRangeException", found);
+    }
+
+    [Theory]
+    [InlineData("a[i + 1] if i + 1 < len(a) else a[i]")]
+    [InlineData("a[i] if i == len(a) - 1 else a[i + 1]")]
+    [InlineData("i + 1 < len(a) and a[i + 1]")]
+    [InlineData("not (i + 1 >= len(a)) and a[i + 1]")]
+    public async Task InPythonAReadTheTestKeepsFromTheLastTimeRoundIsLeftAlone(string read)
+    {
+        if (await Python(Pairs.Replace("a[i + 1]", read, StringComparison.Ordinal)) is not { } findings) return;
+
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
+
+    /// <summary>i + 1 < len(a) keeps i from the last position, but a[i + 2] is still past the end one before it - IndexError.</summary>
+    [Fact]
+    public async Task InPythonATestThatStillLetsABadIndexThroughIsFoundWhereItLetsItThrough()
+    {
+        if (await Python(Pairs.Replace("a[i + 1]", "a[i + 2] if i + 1 < len(a) else 0", StringComparison.Ordinal)) is not { } findings) return;
+
+        var found = Assert.Single(findings);
+        Assert.Equal(4, found.Span.Line);
+        Says("`a[i + 2]` is read when `i` is `len(a) - 2`, where it asks for position `len(a)` - past the end of `a` - and fails with IndexError", found);
+    }
+
+    /// <summary>
+    /// C, C++ and JavaScript write i++ and i += 1 as expressions, so their loops are not read as counted here: the guarded
+    /// table was never reported in them, and still is not.
+    /// </summary>
+    [Theory]
+    [InlineData("knapsack.c", """
+        #include <stdio.h>
+
+        static int knapsack(int capacity, int items[][2], int count) {
+            int table[5][8];
+            for (int i = 0; i <= count; i++) {
+                int weight = i > 0 ? items[i - 1][0] : 0;
+                int value = i > 0 ? items[i - 1][1] : 0;
+                for (int j = 0; j <= capacity; j++) {
+                    if (i == 0 || j == 0) {
+                        table[i][j] = 0;
+                    } else if (weight <= j) {
+                        int taken = value + table[i - 1][j - weight];
+                        table[i][j] = table[i - 1][j] > taken ? table[i - 1][j] : taken;
+                    } else {
+                        table[i][j] = table[i - 1][j];
+                    }
+                }
+            }
+            return table[count][capacity];
+        }
+        """)]
+    [InlineData("knapsack.js", """
+        function knapsack(capacity, items) {
+          const table = [];
+          for (let i = 0; i <= items.length; i++) {
+            table.push(new Array(capacity + 1).fill(0));
+            const weight = i > 0 ? items[i - 1][0] : 0;
+            const value = i > 0 ? items[i - 1][1] : 0;
+            for (let j = 0; j <= capacity; j++) {
+              if (i === 0 || j === 0) {
+                table[i][j] = 0;
+              } else if (weight <= j) {
+                table[i][j] = Math.max(table[i - 1][j], value + table[i - 1][j - weight]);
+              } else {
+                table[i][j] = table[i - 1][j];
+              }
+            }
+          }
+          return table[items.length][capacity];
+        }
+        """)]
+    public async Task InCAndJavaScriptTheGuardedTableIsLeftAlone(string file, string code)
+    {
+        var path = Path.Combine(_temp.Path, file);
+        await File.WriteAllTextAsync(path, code.ReplaceLineEndings("\n"));
+        var program = file.EndsWith(".js", StringComparison.Ordinal) ? await JavaScriptFrontend.ReadAsync([path]) : await CFrontend.ReadAsync([path]);
+
+        var findings = Loops(AbstractChecks.Run(program, new SourceText()));
+        Assert.True(findings.Count == 0, Summary(findings));
+    }
 }

@@ -270,28 +270,84 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
         }
     }
 
-    /// <summary>An index read: the collection, the index expression, and whether it is read by a method - list.get(i) - rather than a[i].</summary>
-    private sealed record Access(Expr Whole, string Collection, Expr Index, bool ByMethod);
+    /// <summary>
+    /// An index read: the collection, the index expression, whether it is read by a method - list.get(i) - rather than a[i],
+    /// and the tests it waits on: the read happens only when each of them comes out as its guard says.
+    /// </summary>
+    private sealed record Access(Expr Whole, string Collection, Expr Index, bool ByMethod, IReadOnlyList<Guard> Guards);
 
-    private IEnumerable<Access> Accesses(Expr expression)
+    /// <summary>A test an index read waits on: <c>c</c> in <c>c ? a[i] : b</c> must be true, and false for a read in the other branch.</summary>
+    private sealed record Guard(Expr Test, bool Holds);
+
+    private IEnumerable<Access> Accesses(Expr expression) => Accesses(expression, []);
+
+    private IEnumerable<Access> Accesses(Expr expression, IReadOnlyList<Guard> guards)
     {
         switch (expression)
         {
             case Opaque { What: "lambda expression" or "lambda" }:
                 yield break;
 
+            // Only the branch the test chooses is evaluated - i > 0 ? a[i - 1] : 0, a[i - 1] if i > 0 else 0 - and the right of
+            // && or || only when the left has not already settled the answer.
+            case Conditional choice:
+                foreach (var inner in Accesses(choice.Test, guards)) yield return inner;
+                foreach (var inner in Accesses(choice.WhenTrue, [.. guards, new Guard(choice.Test, Holds: true)])) yield return inner;
+                foreach (var inner in Accesses(choice.WhenFalse, [.. guards, new Guard(choice.Test, Holds: false)])) yield return inner;
+                yield break;
+
+            case Binary { Operator: BinaryOperator.And or BinaryOperator.Or } logical:
+                foreach (var inner in Accesses(logical.Left, guards)) yield return inner;
+                foreach (var inner in Accesses(logical.Right, [.. guards, new Guard(logical.Left, Holds: logical.Operator == BinaryOperator.And)])) yield return inner;
+                yield break;
+
             case ElementAccess { Target: Name { Identifier: var collection }, Key: var index } element:
-                yield return new Access(element, collection, index, ByMethod: false);
+                yield return new Access(element, collection, index, ByMethod: false, guards);
                 break;
 
             case Call { Callee: Member { Target: Name { Identifier: var collection }, MemberName: "get" or "charAt" }, Arguments: [{ Value: var index }] } read
                 when language == SourceLanguage.Java:
-                yield return new Access(read, collection, index, ByMethod: true);
+                yield return new Access(read, collection, index, ByMethod: true, guards);
                 break;
         }
 
         foreach (var child in IrWalk.Children(expression))
-            foreach (var inner in Accesses(child)) yield return inner;
+            foreach (var inner in Accesses(child, guards)) yield return inner;
+    }
+
+    /// <summary>
+    /// What a guard is known to need, as constraints: each comparison of an and that must hold, or of an or that must not;
+    /// a single comparison that must not hold, turned round. A part that is not linear arithmetic says nothing - the read is
+    /// then followed as if that part were not there.
+    /// </summary>
+    private List<Constraint> Needs(Guard guard, Func<string, LinearTerm?> values, Quantities quantities)
+    {
+        var needed = new List<Constraint>();
+
+        void Add(Expr test, bool holds)
+        {
+            switch (test)
+            {
+                case Binary { Operator: BinaryOperator.And } both when holds:
+                    Add(both.Left, true);
+                    Add(both.Right, true);
+                    return;
+
+                case Binary { Operator: BinaryOperator.Or } either when !holds:
+                    Add(either.Left, false);
+                    Add(either.Right, false);
+                    return;
+
+                case Unary { Operator: UnaryOperator.Not, Operand: var negated }:
+                    Add(negated, !holds);
+                    return;
+            }
+
+            if (Condition(test, values, quantities) is [var single]) needed.Add(holds ? single : single.Negated());
+        }
+
+        Add(guard.Test, guard.Holds);
+        return needed;
     }
 
     /// <summary>Whether anything in the loop could change how long the collection is: a new value, a method that adds or removes, or handing it to code that might.</summary>
@@ -325,6 +381,11 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
     /// time round counting up, the first counting down - for every length the collection could have, provided the loop
     /// runs at all; and, in Java and C#, whether it is below zero whenever the counter is at its lowest.
     /// </summary>
+    /// <remarks>
+    /// A read that waits on tests - i > 0 ? a[i - 1] : 0 - counts there only if the tests hold there whatever the lengths
+    /// are. Where they rule that time round out, the counter is put where they first let the read through instead - i is
+    /// 1 for i > 0 - and the index asked about there: i > 0 ? a[i - 2] : 0 still fails, one time round later.
+    /// </remarks>
     private void Settle(CountedLoop loop, Access access)
     {
         var quantities = new Quantities();
@@ -336,6 +397,7 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
 
         var counter = LinearTerm.Symbol(counterSymbol);
         var length = quantities.Of($"length of {access.Collection}", LengthShown(access));
+        var needs = access.Guards.SelectMany(guard => Needs(guard, Values, quantities)).ToList();
 
         // The counter's value on the loop's last time round: one short of the limit for < and >, the limit itself for <= and >=.
         var last = loop.Inclusive ? limit : limit - LinearTerm.Of(loop.Step);
@@ -345,12 +407,40 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
         var (highWhen, lowWhen) = loop.Step > 0 ? ("last", "first") : ("first", "last");
         var runs = first is null ? [] : loop.Step > 0 ? new[] { Constraint.AtMost(first, last) } : [Constraint.AtLeast(first, last)];
 
+        List<Constraint> At(LinearTerm value) => [.. quantities.Facts, .. runs, Constraint.Same(counter, value)];
+
+        // Outside there: the counter can be there, every test the read waits on holds there whatever else is, and no
+        // length the collection could have takes the index inside.
+        bool OutsideAt(List<Constraint> at, Constraint inside) =>
+            Solve(at).IsSatisfiable && needs.All(need => Solve([.. at, need.Negated()]).IsUnsatisfiable) && Solve([.. at, inside]).IsUnsatisfiable;
+
+        // Where the tests first let the read through, looking from the highest end or the lowest: a value the loop goes
+        // through, the counter being there only when the collection is long enough for the loop to get there.
+        LinearTerm? GuardedEdge(bool fromHighest, Constraint inside)
+        {
+            if (needs.Count == 0 || highest is null || lowest is null) return null;
+
+            foreach (var edge in Edges(needs, counterSymbol, fromHighest).Distinct())
+            {
+                List<Constraint> at = [.. At(edge), Constraint.AtLeast(counter, lowest), Constraint.AtMost(counter, highest)];
+                if (OutsideAt(at, inside)) return edge;
+            }
+
+            return null;
+        }
+
         if (highest is not null)
         {
-            var atHighest = new List<Constraint>([.. quantities.Facts, .. runs, Constraint.Same(counter, highest)]);
-            if (Solve(atHighest).IsSatisfiable && Solve([.. atHighest, Constraint.AtMost(index, length - LinearTerm.Of(1))]).IsUnsatisfiable)
+            var inside = Constraint.AtMost(index, length - LinearTerm.Of(1));
+            if (OutsideAt(At(highest), inside))
             {
                 ReportIndex(loop, access, highest, index, quantities, highWhen, pastTheEnd: true);
+                return;
+            }
+
+            if (GuardedEdge(fromHighest: true, inside) is { } edge)
+            {
+                ReportIndex(loop, access, edge, index, quantities, null, pastTheEnd: true);
                 return;
             }
         }
@@ -358,9 +448,41 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
         // A negative index counts back from the end in Python, so only Java, C and C# fail below zero.
         if (!IsPython && lowest is not null)
         {
-            var atLowest = new List<Constraint>([.. quantities.Facts, .. runs, Constraint.Same(counter, lowest)]);
-            if (Solve(atLowest).IsSatisfiable && Solve([.. atLowest, Constraint.AtLeast(index, LinearTerm.Of(0))]).IsUnsatisfiable)
+            var inside = Constraint.AtLeast(index, LinearTerm.Of(0));
+            if (OutsideAt(At(lowest), inside))
                 ReportIndex(loop, access, lowest, index, quantities, lowWhen, pastTheEnd: false);
+            else if (GuardedEdge(fromHighest: false, inside) is { } edge)
+                ReportIndex(loop, access, edge, index, quantities, null, pastTheEnd: false);
+        }
+    }
+
+    /// <summary>
+    /// The counter's values at which the given constraints stop ruling a value out, looking from the highest end or the
+    /// lowest: i ≤ n - 2 from the highest gives n - 2, i > 0 from the lowest gives 1, and i ≠ 0 gives 1 from the lowest
+    /// and -1 from the highest. Only constraints in which the counter appears once, plainly, give one.
+    /// </summary>
+    private static IEnumerable<LinearTerm> Edges(IEnumerable<Constraint> constraints, int counterSymbol, bool fromHighest)
+    {
+        foreach (var constraint in constraints.Select(Tightened))
+        {
+            if (!constraint.Term.Coefficients.TryGetValue(counterSymbol, out var coefficient) || !(coefficient == Rational.One || coefficient == -Rational.One)) continue;
+
+            // coefficient · counter + rest compared with 0, so the counter's own edge is -rest / coefficient, which is -rest · coefficient for ±1.
+            var rest = constraint.Term - LinearTerm.Symbol(counterSymbol) * coefficient;
+            var edge = -rest * coefficient;
+
+            switch (constraint.Relation)
+            {
+                // counter ≤ edge for a positive coefficient, counter ≥ edge for a negative one.
+                case SolverRelation.LessOrEqual when coefficient.Sign > 0 == fromHighest:
+                case SolverRelation.Equal:
+                    yield return edge;
+                    break;
+
+                case SolverRelation.NotEqual:
+                    yield return fromHighest ? edge - LinearTerm.Of(1) : edge + LinearTerm.Of(1);
+                    break;
+            }
         }
     }
 
@@ -372,7 +494,8 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
         _ => $"{access.Collection}.Length",
     };
 
-    private void ReportIndex(CountedLoop loop, Access access, LinearTerm counterValue, LinearTerm index, Quantities quantities, string when, bool pastTheEnd)
+    /// <param name="when">Which time round the loop it is - first or last - or null for where the read's tests first let it through.</param>
+    private void ReportIndex(CountedLoop loop, Access access, LinearTerm counterValue, LinearTerm index, Quantities quantities, string? when, bool pastTheEnd)
     {
         var counterSymbol = quantities.NumberOf(loop.Counter)!.Value;
         var position = index - LinearTerm.Symbol(counterSymbol) * index.Coefficients[counterSymbol] + counterValue * index.Coefficients[counterSymbol];
@@ -386,9 +509,22 @@ internal sealed class LoopReasoning(IrFunction function, SourceLanguage language
             _ => "undefined behaviour - reading memory outside the array",
         };
 
-        var (side, advice) = pastTheEnd
-            ? ($"past the end of `{access.Collection}`", "Stop the loop one sooner, or check the index against the length before reading")
-            : ($"before the start of `{access.Collection}`", "Start the loop one later, or check the index is not negative before reading");
+        var side = pastTheEnd ? $"past the end of `{access.Collection}`" : $"before the start of `{access.Collection}`";
+
+        if (when is null)
+        {
+            var tests = string.Join(" and ", access.Guards.Select(guard => $"`{IrText.Of(guard.Test)}` being {(guard.Holds ? "true" : "false")}"));
+            var check = pastTheEnd ? "against the length" : "is not negative";
+            report(new AnalysisFinding("analysis-index-out-of-range", access.Whole.Span,
+                $"Even with {tests}, `{IrText.Of(access.Whole)}` is read when `{loop.Counter}` is `{Shown(counterValue, quantities)}`, where it asks for position " +
+                $"`{Shown(position, quantities)}` - {side} - and fails with {failure}. Check the index itself {check} before reading",
+                Severity.Error, Confidence.Likely, FindingKind.Runtime, AbstractChecks.FoundBy));
+            return;
+        }
+
+        var advice = pastTheEnd
+            ? "Stop the loop one sooner, or check the index against the length before reading"
+            : "Start the loop one later, or check the index is not negative before reading";
 
         report(new AnalysisFinding("analysis-index-out-of-range", access.Whole.Span,
             $"On the {when} time round the loop, `{loop.Counter}` is `{Shown(counterValue, quantities)}`, so `{IrText.Of(access.Whole)}` asks for position " +
