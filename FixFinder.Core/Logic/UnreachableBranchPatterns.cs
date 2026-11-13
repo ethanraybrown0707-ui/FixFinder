@@ -18,10 +18,13 @@ namespace FixFinder.Core.Logic;
 /// </summary>
 public static partial class UnreachableBranchPatterns
 {
-    /// <summary>One branch of a chain: its header line, where its condition is on that line, and the lines of its body after it.</summary>
-    private sealed record Branch(int Header, int ConditionStart, int ConditionEnd, int BodyFirst, int BodyEnd);
+    /// <summary>
+    /// One branch of a chain: its header line, where its condition is on that line, the lines of its body after it, and - in a
+    /// chain with braces - the line and column of the } that closes its block.
+    /// </summary>
+    private sealed record Branch(int Header, int ConditionStart, int ConditionEnd, int BodyFirst, int BodyEnd, (int Line, int Column)? Close = null);
 
-    /// <summary>A chain of branches, and whether its branches are shaped alike, so they can be put in another order.</summary>
+    /// <summary>A chain of branches, and whether they can be put in another order.</summary>
     private sealed record Chain(IReadOnlyList<Branch> Branches, bool Reorderable);
 
     private delegate IEnumerable<Chain> ChainReader(IReadOnlyList<string> masked);
@@ -57,6 +60,24 @@ public static partial class UnreachableBranchPatterns
         return from;
     }
 
+    /// <summary>
+    /// Where the block that opens from <paramref name="column"/> of <paramref name="line"/> on closes: the line and column of its
+    /// }, or null when it never does. A } before the block's { closes something else, and is passed over.
+    /// </summary>
+    private static (int Line, int Column)? BlockClose(IReadOnlyList<string> masked, int line, int column)
+    {
+        var depth = 0;
+        for (var at = line; at < masked.Count; at++)
+        {
+            for (var i = at == line ? column : 0; i < masked[at].Length; i++)
+            {
+                if (masked[at][i] == '{') depth++;
+                else if (masked[at][i] == '}' && depth > 0 && --depth == 0) return (at, i);
+            }
+        }
+        return null;
+    }
+
     // ---- Reading the chains ----
 
     /// <summary>
@@ -76,6 +97,8 @@ public static partial class UnreachableBranchPatterns
             var indent = opened.Groups["indent"].Length;
 
             var headers = new List<(int Line, int Open)> { (index, opened.Index + opened.Length - 1) };
+            // Where each header's block closes, for the change that puts the branches in order.
+            var closes = new List<(int Line, int Column)>();
             var line = index;
             var elseLine = -1;
             int? lastClose = null;
@@ -89,16 +112,15 @@ public static partial class UnreachableBranchPatterns
                 if (braceLine >= masked.Count || !masked[braceLine].Contains('{')) { reorderable = false; break; }
                 if (Brackets.FirstBlockEnd(masked, braceLine) is not { } blockEnd) { headers.Clear(); break; }
                 lastClose = blockEnd;
+                // The } of the block that opens after the condition - which a { inside the condition, as a lambda's, would
+                // put somewhere else than the line read above: such a chain is not put in order.
+                if (BlockClose(masked, braceLine, braceLine == header ? close + 1 : 0) is { } closing && closing.Line == blockEnd) closes.Add(closing);
+                else reorderable = false;
 
                 // A block that opens and closes on its own header line - } else if (...) { ...; } - ends the branch on that line,
                 // and the } the line starts with closed the branch before: what follows is on the next line with code. Read as
                 // the } that closes this branch, it gave this same header again, and again, so the chain never ended.
                 var closedOnHeader = blockEnd == header;
-                // The change that puts the branches in order gives each place its own } else if ( and the moved branch's condition
-                // and the rest of its line, and leaves the } line after the chain to close the last block. A branch closed on its
-                // } else if line leaves no such } line, so the block moved into its place would be left open: that chain is left
-                // in its order, found but not changed.
-                if (closedOnHeader && masked[header].TrimStart().StartsWith('}')) reorderable = false;
                 var after = !closedOnHeader && masked[blockEnd].TrimStart().StartsWith('}') && masked[blockEnd].Trim().Length > 1 ? blockEnd : NextCode(masked, blockEnd + 1);
                 if (after >= masked.Count) break;
                 // Each header after the one before it, so the chain comes to an end however its lines are read.
@@ -122,11 +144,10 @@ public static partial class UnreachableBranchPatterns
                 var bodyEnd = number + 1 < headers.Count ? headers[number + 1].Line
                     : elseLine >= 0 ? elseLine
                     : masked[lastClose!.Value].Trim() == "}" && !masked[header][(close + 1)..].Contains('{') ? lastClose.Value + 1 : lastClose!.Value;
-                branches.Add(new Branch(header, open + 1, close, header + 1, bodyEnd));
+                branches.Add(new Branch(header, open + 1, close, header + 1, bodyEnd, reorderable ? closes[number] : null));
             }
 
-            yield return new Chain(branches, reorderable && headers.Skip(1).All(header =>
-                masked[header.Line].TrimStart().StartsWith('}') == masked[headers[1].Line].TrimStart().StartsWith('}')));
+            yield return new Chain(branches, reorderable);
             index = headers[^1].Line;
         }
     }
@@ -383,8 +404,9 @@ public static partial class UnreachableBranchPatterns
 
     /// <summary>
     /// When every branch compares one name the same way - all &gt;= and &gt;, or all &lt;= and &lt; - the chain with its branches put in
-    /// order: the highest bound first for &gt;=, the lowest first for &lt;. Each branch keeps its header's own words - if, else if,
-    /// the brace - and is given the condition, the rest of the header line and the body of the branch that belongs there.
+    /// order: the highest bound first for &gt;=, the lowest first for &lt;. Each place keeps its header's own words - if, else if,
+    /// the brace before them - and is given the condition and the rest of the branch that belongs there: in a chain with braces,
+    /// its text through the } of its block; in the others, the rest of its header line and the lines of its body.
     /// </summary>
     private static LocalFix? Reordered(string id, SourceFile source, Chain chain, IReadOnlyList<Range?> ranges)
     {
@@ -400,15 +422,30 @@ public static partial class UnreachableBranchPatterns
         if (order.SequenceEqual(Enumerable.Range(0, all.Count))) return null;
 
         var first = chain.Branches[0].Header;
-        var last = chain.Branches[^1].BodyEnd;
-        var lines = new List<string>();
-        for (var place = 0; place < chain.Branches.Count; place++)
+        int last;
+        List<string> lines;
+        if (chain.Branches.All(branch => branch.Close is not null))
         {
-            var here = chain.Branches[place];
-            var moved = chain.Branches[order[place]];
-            var header = source.Lines[here.Header][..here.ConditionStart] + source.Lines[moved.Header][moved.ConditionStart..];
-            lines.Add(header);
-            lines.AddRange(source.Lines.Skip(moved.BodyFirst).Take(moved.BodyEnd - moved.BodyFirst));
+            lines = BlocksReordered(source.Lines, chain.Branches, order);
+            last = chain.Branches[^1].Close!.Value.Line + 1;
+            // The lines at the end that stay as they were - the last block's } - are left out of the change.
+            while (lines.Count > 1 && last - 1 > first && lines[^1] == source.Lines[last - 1])
+            {
+                lines.RemoveAt(lines.Count - 1);
+                last--;
+            }
+        }
+        else
+        {
+            last = chain.Branches[^1].BodyEnd;
+            lines = [];
+            for (var place = 0; place < chain.Branches.Count; place++)
+            {
+                var here = chain.Branches[place];
+                var moved = chain.Branches[order[place]];
+                lines.Add(source.Lines[here.Header][..here.ConditionStart] + source.Lines[moved.Header][moved.ConditionStart..]);
+                lines.AddRange(source.Lines.Skip(moved.BodyFirst).Take(moved.BodyEnd - moved.BodyFirst));
+            }
         }
 
         var name = all[0].Name;
@@ -419,5 +456,38 @@ public static partial class UnreachableBranchPatterns
                           "the values meant for it.",
             File = source.Path, StartLine = first + 1, RemoveCount = last - first, NewLines = lines,
         };
+    }
+
+    /// <summary>
+    /// A chain with braces with its branches put in <paramref name="order"/>. A branch's own text runs from its condition to the }
+    /// that closes its block - over many lines, or on its header line alone - and what is between one block and the next
+    /// condition - } else if (, or a line break and else if ( - stays in its place, so blocks of every shape, mixed in one chain,
+    /// each still close where they should. Taking a header line and the lines under it instead moved a one-line block's } with
+    /// its header, and left the } line after the chain to close another branch's block.
+    /// </summary>
+    private static List<string> BlocksReordered(IReadOnlyList<string> lines, IReadOnlyList<Branch> branches, IReadOnlyList<int> order)
+    {
+        static (int Line, int Column) ConditionOf(Branch branch) => (branch.Header, branch.ConditionStart);
+        static (int Line, int Column) AfterBlock(Branch branch) => (branch.Close!.Value.Line, branch.Close.Value.Column + 1);
+
+        var text = new System.Text.StringBuilder(Between(lines, (branches[0].Header, 0), ConditionOf(branches[0])));
+        for (var place = 0; place < branches.Count; place++)
+        {
+            if (place > 0) text.Append(Between(lines, AfterBlock(branches[place - 1]), ConditionOf(branches[place])));
+            var moved = branches[order[place]];
+            text.Append(Between(lines, ConditionOf(moved), AfterBlock(moved)));
+        }
+        var (lastLine, afterLast) = AfterBlock(branches[^1]);
+        text.Append(lines[lastLine][afterLast..]);
+        return [.. text.ToString().Split('\n')];
+    }
+
+    /// <summary>The text from one place in the lines to another, the lines between joined by line breaks.</summary>
+    private static string Between(IReadOnlyList<string> lines, (int Line, int Column) from, (int Line, int Column) to)
+    {
+        if (from.Line == to.Line) return lines[from.Line][from.Column..to.Column];
+        var text = new System.Text.StringBuilder(lines[from.Line][from.Column..]);
+        for (var line = from.Line + 1; line < to.Line; line++) text.Append('\n').Append(lines[line]);
+        return text.Append('\n').Append(lines[to.Line][..to.Column]).ToString();
     }
 }

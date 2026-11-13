@@ -34,7 +34,12 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("Main.java", "logic-branch-never-reached", "class Main {\n    String size(int n) {\n        if (n > 10) {\n            return \"big\";\n        } else if (n > 100) {\n            return \"huge\";\n        }\n        return \"small\";\n    }\n}\n", 5,
         "        if (n > 100) {|            return \"huge\";|        } else if (n > 10) {|            return \"big\";")]
     [InlineData("Program.cs", "logic-branch-never-reached", "int n = 5;\nif (n >= 1)\n{\n    Console.WriteLine(\"one or more\");\n}\nelse if (n >= 3)\n{\n    Console.WriteLine(\"three or more\");\n}\n", 6,
-        "if (n >= 3)|{|    Console.WriteLine(\"three or more\");|}|else if (n >= 1)|{|    Console.WriteLine(\"one or more\");|}")]
+        "if (n >= 3)|{|    Console.WriteLine(\"three or more\");|}|else if (n >= 1)|{|    Console.WriteLine(\"one or more\");")]
+    // Blocks of other shapes, each moved whole with its }: a } on a line of its own before else if, and Allman blocks on one line.
+    [InlineData("app.js", "logic-branch-never-reached", "function grade(score) {\n    if (score >= 50) {\n        return \"C\";\n    }\n    else if (score >= 70) {\n        return \"B\";\n    }\n    return \"F\";\n}\n", 5,
+        "    if (score >= 70) {|        return \"B\";|    }|    else if (score >= 50) {|        return \"C\";")]
+    [InlineData("main.c", "logic-branch-never-reached", "int grade(int score) {\n    if (score >= 50)\n    { return 3; }\n    else if (score >= 70)\n    { return 2; }\n    return 1;\n}\n", 4,
+        "    if (score >= 70)|    { return 2; }|    else if (score >= 50)|    { return 3; }")]
     [InlineData("main.go", "logic-go-branch-never-reached", "package main\n\nfunc size(n int) string {\n\tif n > 1 {\n\t\treturn \"some\"\n\t} else if n > 5 {\n\t\treturn \"many\"\n\t}\n\treturn \"none\"\n}\n", 6,
         "\tif n > 5 {|\t\treturn \"many\"|\t} else if n > 1 {|\t\treturn \"some\"")]
     [InlineData("main.erl", "logic-erlang-branch-never-reached", "-module(main).\n-export([size/1]).\nsize(N) ->\n    if\n        N > 1 -> some;\n        N > 5 -> many;\n        true -> none\n    end.\n", 6,
@@ -198,25 +203,29 @@ public class NeverRunningCodeTests : IDisposable
 
     /// <summary>
     /// Chains with a branch whose block opens and closes on its own } else if line, by name: the kind of file, the check, the
-    /// code, and the line of the branch found never to run, or 0 for none. Read as the } that closes that branch, the } the
-    /// line starts with gave the same header again and again, and the check never finished. Kept out of InlineData: the
-    /// robustness tests run every check on each InlineData row's code while xunit is finding the tests, where a check that
-    /// never finishes holds up the whole run instead of failing one test at its time limit.
+    /// code, the line of the branch found never to run, or 0 for none, and the lines its change writes, joined by |, or null
+    /// for none. Read as the } that closes that branch, the } the line starts with gave the same header again and again, and
+    /// the check never finished. Kept out of InlineData: the robustness tests run every check on each InlineData row's code
+    /// while xunit is finding the tests, where a check that never finishes holds up the whole run instead of failing one test
+    /// at its time limit.
     /// </summary>
-    private static readonly Dictionary<string, (string File, string Check, string Code, int Line)> ClosedOnTheirOwnLine = new()
+    private static readonly Dictionary<string, (string File, string Check, string Code, int Line, string? Change)> ClosedOnTheirOwnLine = new()
     {
         // Neither condition is one comparison of a name with a number, so nothing is found.
-        ["ttsolve.c prog_emit"] = ("ttsolve.c", "logic-branch-never-reached", ProgEmit, 0),
-        // Found, and not put in order: that branch's block has no } line of its own to close the block moved into its place.
-        ["c"] = ("main.c", "logic-branch-never-reached", "int f(int n) {\n    int r = 0;\n    if (n > 10) {\n        r = 1;\n    } else if (n > 100) { r = 2; }\n    return r;\n}\n", 5),
+        ["ttsolve.c prog_emit"] = ("ttsolve.c", "logic-branch-never-reached", ProgEmit, 0, null),
+        // Found, and put in order: the one-line block moves whole, its } with it, and the } else if ( stays where it was.
+        ["c"] = ("main.c", "logic-branch-never-reached", "int f(int n) {\n    int r = 0;\n    if (n > 10) {\n        r = 1;\n    } else if (n > 100) { r = 2; }\n    return r;\n}\n", 5,
+            "    if (n > 100) { r = 2; } else if (n > 10) {|        r = 1;|    }"),
         // The chain goes on past it, to the next line.
         ["java, a branch after it"] = ("Main.java", "logic-branch-never-reached",
-            "class Main {\n    int f(int n) {\n        int r = 0;\n        if (n > 100) {\n            r = 1;\n        } else if (n > 10) { r = 2; }\n        else if (n > 50) { r = 3; }\n        else { r = 4; }\n        return r;\n    }\n}\n", 7),
-        // Go's and Rust's, with another else if after it on that line: the chain ends there, the branches before it read.
+            "class Main {\n    int f(int n) {\n        int r = 0;\n        if (n > 100) {\n            r = 1;\n        } else if (n > 10) { r = 2; }\n        else if (n > 50) { r = 3; }\n        else { r = 4; }\n        return r;\n    }\n}\n", 7,
+            "        if (n > 100) {|            r = 1;|        } else if (n > 50) { r = 3; }|        else if (n > 10) { r = 2; }"),
+        // Go's and Rust's, with another else if after it on that line: the chain ends there, the branches before it read, and
+        // that header's condition, which runs on into its block, is not read - so the chain is not put in order.
         ["go"] = ("main.go", "logic-go-branch-never-reached",
-            "package main\n\nfunc size(n int) int {\n\tif n > 1 {\n\t\treturn 1\n\t} else if n > 5 {\n\t\treturn 5\n\t} else if n > 7 { return 7 } else if n > 3 {\n\t\treturn 3\n\t}\n\treturn 0\n}\n", 6),
+            "package main\n\nfunc size(n int) int {\n\tif n > 1 {\n\t\treturn 1\n\t} else if n > 5 {\n\t\treturn 5\n\t} else if n > 7 { return 7 } else if n > 3 {\n\t\treturn 3\n\t}\n\treturn 0\n}\n", 6, null),
         ["rust"] = ("main.rs", "logic-rust-branch-never-reached",
-            "fn size(n: i32) -> i32 {\n    if n > 1 {\n        1\n    } else if n > 5 {\n        5\n    } else if n > 7 { 7 } else if n > 3 {\n        3\n    } else {\n        0\n    }\n}\n", 4),
+            "fn size(n: i32) -> i32 {\n    if n > 1 {\n        1\n    } else if n > 5 {\n        5\n    } else if n > 7 { 7 } else if n > 3 {\n        3\n    } else {\n        0\n    }\n}\n", 4, null),
     };
 
     [Theory]
@@ -227,7 +236,7 @@ public class NeverRunningCodeTests : IDisposable
     [InlineData("rust")]
     public void AChainWithABranchClosedOnItsOwnLineIsReadInTime(string name)
     {
-        var (fileName, check, code, line) = ClosedOnTheirOwnLine[name];
+        var (fileName, check, code, line, change) = ClosedOnTheirOwnLine[name];
 
         var found = ScanWithin(TimeSpan.FromSeconds(10), fileName, code, check);
 
@@ -238,7 +247,8 @@ public class NeverRunningCodeTests : IDisposable
         }
         var finding = Assert.Single(found);
         Assert.Equal(line, finding.Line);
-        Assert.Null(finding.Fix);
+        if (change is null) Assert.Null(finding.Fix);
+        else Assert.Equal(change.Split('|'), finding.Fix!.NewLines);
     }
 
     [Theory]
