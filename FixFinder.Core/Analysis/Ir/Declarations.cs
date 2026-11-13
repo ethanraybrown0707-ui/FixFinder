@@ -29,7 +29,14 @@ public sealed record IrType(string Name, IReadOnlyList<IrType> Arguments, bool N
 /// <summary>How a parameter takes its argument: in order, only by name, or all the rest (*args, **kwargs).</summary>
 public enum ParameterKind { Normal, KeywordOnly, Rest, Keywords }
 
-public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null, ParameterKind Kind = ParameterKind.Normal);
+public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null, ParameterKind Kind = ParameterKind.Normal)
+{
+    /// <summary>
+    /// A C++ reference the function can write through - int&amp; n, not const int&amp; n. It is another name for the
+    /// variable the caller gives it, so what the function writes to it, it writes to that variable.
+    /// </summary>
+    public bool ByReference { get; init; }
+}
 
 public sealed record IrField(SourceSpan Span, string Name, IrType Type, Expr? Initial, bool IsStatic)
 {

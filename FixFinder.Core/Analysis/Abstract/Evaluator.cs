@@ -60,23 +60,10 @@ public sealed class Evaluator(SourceLanguage language)
     public IReadOnlySet<string> OwnTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
-    /// In C++, the variables copied into another one. The reader writes int&amp; r = rows as a copy, so a change made through
-    /// r would change rows unseen, and none of these is held to be past a bound (<see cref="CopiedInCpp"/>).
+    /// The C++ references the function declares and takes: what is written to a name is written to every other name of
+    /// its variable, and a name that may be another code's variable is forgotten whenever other code runs.
     /// </summary>
-    public IReadOnlySet<string> Copied { get; init; } = new HashSet<string>();
-
-    /// <summary>The variables a C++ function copies into another one - each of which a reference may share.</summary>
-    public static HashSet<string> CopiedInCpp(IrFunction function, SourceLanguage language) => language != SourceLanguage.Cpp
-        ? []
-        : IrWalk.Statements(function.Body)
-            .Select(statement => statement switch
-            {
-                Assign { Target: Name, Value: Name { Identifier: var copied } } => copied,
-                Declare { Initial: Name { Identifier: var copied } } => copied,
-                _ => null,
-            })
-            .OfType<string>()
-            .ToHashSet(StringComparer.Ordinal);
+    public References References { get; init; } = References.None;
 
     /// <summary>
     /// In Java and C# a field can be written this.count or just count; both mean the same field unless a local variable
@@ -93,26 +80,37 @@ public sealed class Evaluator(SourceLanguage language)
     /// </summary>
     public AbstractState Store(AbstractState state, string name, AbstractValue value)
     {
-        var sharing = state.AliasesOf(name).ToList();
+        var sharing = state.AliasesOf(name).Concat(References.Same(name)).Distinct(StringComparer.Ordinal).Where(other => other != name).ToList();
 
         state = StoreOne(state, name, value);
         foreach (var alias in sharing) state = StoreOne(state, alias, value);
-        return state;
+        return ForgetOne(state, References.Maybe(name));
     }
 
     /// <summary>
     /// A name given a new value: whatever object it shared before, it shares no longer - and a key written with it, or a map
-    /// reached through it, is no longer known to be anything, nor is how it stands to a bound.
+    /// reached through it, is no longer known to be anything, nor is how it stands to a bound. So it is for every other
+    /// name a C++ reference gives the variable, and one that may be another name for it is no longer known at all.
     /// </summary>
     public AbstractState Rebind(AbstractState state, string name, AbstractValue value) =>
+        ForgetOne(References.Same(name).Aggregate(RebindOne(state, name, value), (writing, same) => RebindOne(writing, same, value)), References.Maybe(name));
+
+    private AbstractState RebindOne(AbstractState state, string name, AbstractValue value) =>
         StoreOne(state.Unaliased(name).WithoutKeysNaming(name).WithoutPastNaming(name), name, value);
 
     private AbstractState StoreOne(AbstractState state, string name, AbstractValue value)
     {
-        if (Volatile.Contains(name)) return state.Without(name);
+        if (IsVolatile(name)) return state.Without(name);
         if (Escaping.Contains(name) && value.MayBe(Shared)) value = value with { Length = value.Length.Join(Interval.NonNegative) };
         return state.With(name, value);
     }
+
+    /// <summary>Whether other code can change a variable at any call: one a function written inside this one uses, by any of its names.</summary>
+    private bool IsVolatile(string name) => Volatile.Contains(name) || Volatile.Count > 0 && References.Sharing(name).Any(Volatile.Contains);
+
+    /// <summary>What was known of these names is lost - only of these, which <see cref="Forget"/> leaves to its caller.</summary>
+    private static AbstractState ForgetOne(AbstractState state, IEnumerable<string> names) =>
+        names.Aggregate(state, (forgetting, name) => forgetting.Without(name));
 
     /// <summary>The kinds of collection whose length other code can change once it has been handed one.</summary>
     private ValueKind Shared => Failures.ListsKeepTheirLength(language)
@@ -557,11 +555,12 @@ public sealed class Evaluator(SourceLanguage language)
             case ReleaseInstruction:
                 return ForgetOthers(state);
 
+            // A variable made anew is not one a reference was bound to before; a reference is bound by its first value.
             case DeclareInstruction declare:
-                return Rebind(state, declare.Variable, FromType(declare.Type));
+                return RebindOne(state, declare.Variable, FromType(declare.Type));
 
             case ForgetInstruction forget:
-                return forget.Names.Aggregate(state, (s, name) => s.Without(name));
+                return Forget(state, forget.Names);
 
             default:
                 return state;
@@ -575,6 +574,10 @@ public sealed class Evaluator(SourceLanguage language)
             case Name name:
                 if (!IsPython && DeclaredTypes.TryGetValue(name.Identifier, out var declared))
                     value = value.IsUnknown ? FromType(declared) : AsDeclared(value, declared);
+
+                // int& alias = rows binds alias to rows, whose value it now has; and alias = rows after it changes nothing.
+                if (valueExpression is Name { Identifier: var itself } && References.Same(name.Identifier).Contains(itself))
+                    return StoreOne(state, name.Identifier, value);
 
                 // b = a: both names now hold the one object, so a change made through either is a change to both.
                 if (valueExpression is Name { Identifier: var source } && source != name.Identifier && Tracked(source) && Tracked(name.Identifier))
@@ -620,31 +623,23 @@ public sealed class Evaluator(SourceLanguage language)
     /// was known of a variable whose address one of the calls was given.
     /// </summary>
     private AbstractState ForgetOthersAfterCalls(AbstractState state, Expr expression) =>
-        CallsOtherCode(expression) ? Forget(ForgetOthers(WithoutPastHandedOn(state, expression)), Addresses.ChangedByCallsIn(expression)) : state;
-
-    /// <summary>
-    /// In C++ a variable handed to a function that takes int&amp; is changed by it, which the call does not show: how such a
-    /// variable stood to a bound is no longer known.
-    /// </summary>
-    private AbstractState WithoutPastHandedOn(AbstractState state, Expr expression) => language != SourceLanguage.Cpp
-        ? state
-        : IrWalk.Within(expression).OfType<Call>().SelectMany(call => call.Arguments).Select(argument => argument.Value).OfType<Name>()
-            .Aggregate(state, (forgetting, handed) => forgetting.WithoutPastNaming(handed.Identifier));
+        CallsOtherCode(expression) ? Forget(ForgetOthers(state), Addresses.ChangedByCallsIn(expression)) : state;
 
     /// <summary>
     /// Entering or leaving a with block runs the resource's own code too - and a lock is where other threads come in. The
     /// hidden copies the code itself makes - the collection a loop walks - are the function's own and no other code can
-    /// change them, unless they share their object with something that is forgotten.
+    /// change them, unless they share their object with something that is forgotten. A C++ reference that may stand for
+    /// a variable other code reaches - an int&amp; parameter is the caller's - is not the function's own either.
     /// </summary>
     private AbstractState ForgetOthers(AbstractState state)
     {
-        state = Forget(state, Addresses.Kept);
+        state = Forget(Forget(state, Addresses.Kept), References.Outside);
         if (Locals is null) return state;
 
         foreach (var name in state.Names.Where(name => !Locals.Contains(name) && !IsHidden(name)).ToList())
         {
             var hiddenCopies = state.AliasesOf(name).Where(IsHidden).ToList();
-            state = hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy));
+            state = Forget(hiddenCopies.Aggregate(state.Without(name), (s, copy) => s.Without(copy)), References.Sharing(name));
         }
 
         return state;
@@ -653,9 +648,12 @@ public sealed class Evaluator(SourceLanguage language)
     /// <summary>The control-flow graph's own temporaries - $items0, $result2 - which the program never names.</summary>
     private static bool IsHidden(string name) => name.StartsWith('$');
 
-    /// <summary>What is known of these variables is lost: code that holds their address may have changed them.</summary>
-    private static AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
-        changed.Aggregate(state, (forgetting, name) => forgetting.Without(name));
+    /// <summary>
+    /// What is known of these variables is lost: code that holds their address may have changed them - and so it is by
+    /// every other name a C++ reference gives them.
+    /// </summary>
+    private AbstractState Forget(AbstractState state, IEnumerable<string> changed) =>
+        changed.Aggregate(state, (forgetting, name) => ForgetOne(forgetting.Without(name), References.Sharing(name)));
 
     /// <summary>
     /// A write that goes through a pointer or into something a name holds - *p = 5, p->next = q, values[i] = v - which
@@ -722,15 +720,16 @@ public sealed class Evaluator(SourceLanguage language)
     /// value given, and those in the place it is written to, as in lower[lowerCount++] = item, which counts as well as stores.
     /// </summary>
     /// <remarks>
-    /// Only a place written through - the array and index of an element, the object or pointer of a member - is looked into,
-    /// not a pattern taken apart: the default in [first = 0] = values is given only when values has no first item.
+    /// Only a place written through - the array and index of an element, the object or pointer of a member, the call that
+    /// gives C++ references to write to, as std::tie(low, high) = range does - is looked into, not a pattern taken apart:
+    /// the default in [first = 0] = values is given only when values has no first item.
     /// </remarks>
     private AbstractState Embedded(AbstractState state, Expr expression)
     {
         foreach (var assigned in Assignments(expression))
         {
             var after = Embedded(state, assigned.Value);
-            if (assigned.Target is ElementAccess or Member) after = Embedded(after, assigned.Target);
+            if (assigned.Target is ElementAccess or Member or Call) after = Embedded(after, assigned.Target);
 
             state = AssignTo(after, assigned.Target, Evaluate(assigned.Value, state), assigned.Value);
             if (WritesThroughPointer(assigned.Target)) state = Forget(state, Addresses.ChangedByWriteTo(assigned.Target));
@@ -773,7 +772,7 @@ public sealed class Evaluator(SourceLanguage language)
     private AbstractState Assumed(AbstractState state, Expr condition, bool holds)
     {
         if (!state.IsReachable) return state;
-        state = WithoutPastHandedOn(Embedded(state, condition), condition);
+        state = Embedded(state, condition);
         condition = Settled(condition);
 
         switch (condition)
@@ -1062,11 +1061,12 @@ public sealed class Evaluator(SourceLanguage language)
     };
 
     /// <summary>
-    /// A variable changed only where the function gives it a value: its own, not one a function written inside it uses, not
-    /// one whose address it hands out, and in C++ not one a reference may share.
+    /// A variable changed only where the function gives it a value: its own, not one a function written inside it uses, and
+    /// not one whose address it hands out - under any name a C++ reference gives it, through which it is written as well.
     /// </summary>
     private bool Followable(string name) =>
-        Locals is not null && Locals.Contains(name) && !Volatile.Contains(name) && !Addresses.Variables.Contains(name) && !Copied.Contains(name);
+        Locals is not null && Locals.Contains(name) && !IsVolatile(name) && !Addresses.Variables.Contains(name) &&
+        !References.Sharing(name).Any(Addresses.Variables.Contains);
 
     private static bool IsNullLiteral(Expr expression) => expression is Literal { Kind: LiteralKind.Null };
 

@@ -763,10 +763,14 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
         };
     }
 
+    /// <summary>
+    /// The stars after a type, counted, and the C++ reference marks among them passed over: the &amp; of int&amp; n and the
+    /// &amp;&amp; of auto&amp;&amp; n, which <see cref="ReadSince"/> can still find.
+    /// </summary>
     private int Stars()
     {
         var stars = 0;
-        while (Is("*") || Is("&") || Current.Kind == CTokenKind.Keyword && Ignored.Contains(Current.Text))
+        while (Is("*") || Is("&") || cpp && Is("&&") && FollowsAType() || Current.Kind == CTokenKind.Keyword && Ignored.Contains(Current.Text))
         {
             if (Is("*")) stars++;
             _at++;
@@ -774,6 +778,14 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
         return stars;
     }
+
+    /// <summary>
+    /// Whether the &amp;&amp; here comes straight after what can only be a type - auto&amp;&amp; item, std::string&amp;&amp; text,
+    /// Item&amp;&amp; made - so declares a reference, rather than after a value it tests: ok &amp;&amp; run().
+    /// </summary>
+    private bool FollowsAType() => TokenAt(_at - 1) is { } before &&
+        (before.Kind == CTokenKind.Keyword && TypeWords.Contains(before.Text) || before.Text is ">" or ">>" ||
+         before.Kind == CTokenKind.Identifier && (_typedefs.Contains(before.Text) || TextAt(_at - 2) == "::"));
 
     /// <summary>Whether what follows is a name wrapped for a function pointer: (*name)(...).</summary>
     private bool FunctionPointer()
@@ -822,6 +834,10 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
             var type = TypeName(out _);
             var stars = Stars();
+
+            // int& n and auto&& n can be written through; const int& n and const std::string& s cannot, though const int*& p
+            // can, its const being the pointed-to value's.
+            var byReference = cpp && ReadSince(mark, ReferenceMark) && !(ReadSince(mark, ConstWord) && !ReadSince(mark, PointerMark));
             if (FunctionPointer()) stars++;
             string? name = null;
 
@@ -833,8 +849,8 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
 
             if (Eat("=")) Assignment();
 
-            if (name is not null) parameters.Add(new IrParameter(From(start), name, whole.Ir));
-            else if (type.Name != "void") parameters.Add(new IrParameter(From(start), $"_{parameters.Count}", whole.Ir));
+            if (name is not null) parameters.Add(new IrParameter(From(start), name, whole.Ir) { ByReference = byReference });
+            else if (type.Name != "void") parameters.Add(new IrParameter(From(start), $"_{parameters.Count}", whole.Ir) { ByReference = byReference });
 
             if (_at == mark) _at++;
             if (!Eat(",")) break;
@@ -1308,7 +1324,11 @@ internal sealed class CParser(string file, IReadOnlyList<CToken> tokens, bool cp
     /// <summary>The words that make a local's memory outlast the call: kept for the whole run, or for the thread's.</summary>
     private static readonly HashSet<string> OutlastingStorage = new(StringComparer.Ordinal) { "static", "extern", "_Thread_local", "thread_local" };
 
-    private static readonly HashSet<string> ReferenceMark = new(StringComparer.Ordinal) { "&" };
+    private static readonly HashSet<string> ReferenceMark = new(StringComparer.Ordinal) { "&", "&&" };
+
+    private static readonly HashSet<string> ConstWord = new(StringComparer.Ordinal) { "const" };
+
+    private static readonly HashSet<string> PointerMark = new(StringComparer.Ordinal) { "*" };
 
     /// <summary>Whether any token read since <paramref name="from"/> is one of <paramref name="words"/>.</summary>
     private bool ReadSince(int from, HashSet<string> words)

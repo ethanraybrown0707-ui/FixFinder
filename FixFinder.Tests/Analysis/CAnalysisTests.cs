@@ -1091,4 +1091,224 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Empty(findings);
     }
+
+    /// <summary>
+    /// A C++ reference is another name for its variable: int&amp; n takes the caller's variable, int&amp; alias = rows is rows.
+    /// The reader keeps which parameters can be written through - not a const one, but a const int*&amp; whose pointer
+    /// can - and writes each argument a call may change through one as a value the call sets, as it does C#'s ref.
+    /// </summary>
+    [Fact]
+    public async Task TheCppReaderKeepsWhatAReferenceIsAnotherNameFor()
+    {
+        var (program, _) = await CheckAsync("""
+            #include <string>
+            #include <vector>
+
+            void take(int& a, const int& b, int c, std::vector<int>& v, const std::string& s, const int*& p) {
+                a = b + c + v.size() + s.size() + *p;
+            }
+
+            int main() {
+                int x = 1, y = 2, z = 3;
+                std::vector<int> items;
+                std::string name;
+                const int* cursor = &x;
+                int& alias = x;
+                auto&& again = y;
+                take(x, y, z, items, name, cursor);
+                return alias + again;
+            }
+            """, "main.cpp");
+
+        var take = program.Functions.Single(function => function.Name == "take");
+        Assert.Equal([true, false, false, true, false, true], take.Parameters.Select(parameter => parameter.ByReference));
+
+        var main = program.Functions.Single(function => function.Name == "main");
+        var call = IrWalk.Statements(main.Body).SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within).OfType<Call>().Single(c => c.CalleeName == "take");
+        Assert.Equal([0, 3, 5], call.Arguments.Select((argument, index) => (argument, index)).Where(pair => pair.argument.Value is AssignValue).Select(pair => pair.index));
+
+        var borrowed = IrWalk.Statements(main.Body).OfType<Declare>().Where(declare => declare.Lifetime == Lifetime.Borrowed).Select(declare => declare.Variable);
+        Assert.Equal(["alias", "again"], borrowed);
+    }
+
+    /// <summary>
+    /// A variable changed through a reference: rows is 3 when the first loop ends with i at 4, then alias = 10 sets it,
+    /// and grow, which takes int&amp; n, adds 5. Built with g++ the program prints 16, so the second loop runs - it was once
+    /// said never to, the reader having written int&amp; alias = rows as a copy and grow(rows) as changing nothing.
+    /// </summary>
+    [Fact]
+    public async Task AVariableChangedThroughAReferenceIsNotTakenToHoldWhatItHeldBefore()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            void grow(int& n) { n = n + 5; }
+
+            int main() {
+                int rows = 3;
+                int& alias = rows;
+                int i = 0;
+                while (i <= rows) i++;
+                alias = 10;
+                grow(rows);
+                while (i <= rows) i++;
+                std::printf("%d\n", i);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(findings);
+    }
+
+    /// <summary>
+    /// After the first loop i is 4 and rows 3; what comes between the loops decides whether the second runs. Built with g++,
+    /// each program printed i, alias and more. The second loop runs, and is left alone, when rows is changed through
+    /// grow's int&amp; n (9 8 20), through alias (11 10 20), through a reference to alias (11 10 20), through one bound to
+    /// rows or more, whichever is smaller (11 10 20), by std::swap (21 20 3), by std::tie (11 10 30), by sscanf given
+    /// alias's address (11 10 20), by a lambda held in a variable that takes int&amp; (9 8 20), or by a grow defined
+    /// after main (9 8 20). It never runs, and is reported, when grow takes a copy (4 3 20), defined before main or after
+    /// it; when a function takes rows as const int&amp; (4 3 8); and when rows is raised and then lowered through alias
+    /// (4 2 20), which was missed while alias was taken for a copy.
+    /// </summary>
+    [Theory]
+    [InlineData("void grow(int& n) { n = n + 5; }", "grow(rows);", "", false)]
+    [InlineData("void grow(int n) { n = n + 5; }", "grow(rows);", "", true)]
+    [InlineData("int grown(const int& n) { return n + 5; }", "more = grown(rows);", "", true)]
+    [InlineData("// nothing else", "alias = 10;", "", false)]
+    [InlineData("// nothing else", "rows = 10; alias = 2;", "", true)]
+    [InlineData("// nothing else", "int& again = alias; again = 10;", "", false)]
+    [InlineData("// nothing else", "int& smaller = rows < more ? rows : more; smaller = 10;", "", false)]
+    [InlineData("// nothing else", "std::swap(rows, more);", "", false)]
+    [InlineData("// nothing else", "std::tie(rows, more) = std::make_pair(10, 30);", "", false)]
+    [InlineData("// nothing else", "std::sscanf(\"10\", \"%d\", &alias);", "", false)]
+    [InlineData("// nothing else", "auto add = [](int& n) { n += 5; }; add(rows);", "", false)]
+    [InlineData("void grow(int& n);", "grow(rows);", "void grow(int& n) { n = n + 5; }", false)]
+    [InlineData("void grow(int n);", "grow(rows);", "void grow(int n) { n = n + 5; }", true)]
+    public async Task WhatIsWrittenThroughACppReferenceIsSeenByTheLoopAfterIt(string before, string between, string after, bool neverRuns)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <cstdio>
+            #include <tuple>
+            #include <utility>
+
+            {{before}}
+
+            int main() {
+                int rows = 3;
+                int more = 20;
+                int& alias = rows;
+                int i = 0;
+                while (i <= rows) i++;
+                {{between}}
+                while (i <= rows) i++;
+                std::printf("%d %d %d\n", i, alias, more);
+                return 0;
+            }
+            {{after}}
+            """, "main.cpp");
+
+        int[] expected = neverRuns ? [14] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A const reference to a number of another type is bound to a copy made from it: wide keeps 3 when rows becomes 10, so
+    /// the second loop never runs - built with g++ the program printed 4 3 10 - and is reported as such.
+    /// </summary>
+    [Fact]
+    public async Task AConstReferenceToANumberOfAnotherTypeIsACopy()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int rows = 3;
+                const long& wide = rows;
+                int i = 0;
+                while (i <= wide) i++;
+                rows = 10;
+                while (i <= wide) i++;
+                std::printf("%d %ld %d\n", i, wide, rows);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([9], findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// x is handed unset to a function taking int&amp;, which sets it: both programs printed 5 built with g++. Handing x on is
+    /// still taken as reading it - grow does read it, init does not, and neither is looked into - but once the call has
+    /// set x, printing it is not reading a variable never given a value, as it was said to be while the call was taken to
+    /// change nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("void init(int& v) { v = 5; }", "init(x);")]
+    [InlineData("void grow(int& n) { n = n + 5; }", "grow(x);")]
+    public async Task AVariableSetThroughAnIntRefParameterIsSetOnceTheCallReturns(string function, string call)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <cstdio>
+
+            {{function}}
+
+            int main() {
+                int x;
+                {{call}}
+                std::printf("%d\n", x);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([7], findings.Where(f => f.CheckId == "analysis-uninitialised-read").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// A pointer handed to a lambda held in a variable is still handed on: freed first, it is still memory used after it
+    /// was freed (built with g++, one run printed 455704432, not the 4 it held) - though the call is now taken to be able to
+    /// give p another value.
+    /// </summary>
+    [Fact]
+    public async Task AFreedPointerHandedToALambdaInAVariableIsStillUsedAfterItIsFreed()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int* p = new int(4);
+                auto show = [](int* q) { std::printf("%d\n", *q); };
+                delete p;
+                show(p);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Equal([7], findings.Where(f => f.CheckId == "analysis-use-after-free").Select(f => f.Span.Line));
+    }
+
+    /// <summary>
+    /// p holds x's address, and bump, a lambda held in a variable, writes 10 through it: built with g++ the program prints
+    /// 10, so the second loop runs. Handing p on still makes x unknown, however the call is now written.
+    /// </summary>
+    [Fact]
+    public async Task APointerHandedToALambdaInAVariableStillLeavesWhatItPointsAtUnknown()
+    {
+        var (_, findings) = await CheckAsync("""
+            #include <cstdio>
+
+            int main() {
+                int x = 3;
+                int* p = &x;
+                auto bump = [](int* q) { *q = 10; };
+                int i = 0;
+                while (i < x) i++;
+                bump(p);
+                while (i < x) i++;
+                std::printf("%d\n", i);
+                return 0;
+            }
+            """, "main.cpp");
+
+        Assert.Empty(findings);
+    }
 }

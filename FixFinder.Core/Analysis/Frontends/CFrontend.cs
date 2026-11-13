@@ -48,6 +48,7 @@ public static class CFrontend
             classes.AddRange(types);
         }
 
-        return new IrProgram(cpp ? SourceLanguage.Cpp : SourceLanguage.C, files, classes, functions, problems);
+        var program = new IrProgram(cpp ? SourceLanguage.Cpp : SourceLanguage.C, files, classes, functions, problems);
+        return cpp ? CppReferenceArguments.Marked(program) : program;
     }
 }

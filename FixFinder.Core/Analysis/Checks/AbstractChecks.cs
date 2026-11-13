@@ -53,7 +53,7 @@ public static partial class AbstractChecks
                 Locals = locals,
                 DeclaredTypes = DeclaredTypes(function),
                 OwnTypes = ownTypes,
-                Copied = Evaluator.CopiedInCpp(function, program.Language),
+                References = References.Of(function, program.Language),
                 CallReturns = call => targets.Resolve(call, function, locals) is { Overridable: false } target && summaries.TryGetValue(target.Function, out var returned)
                     ? returned
                     : null,
@@ -173,7 +173,7 @@ public static partial class AbstractChecks
                 CallReturns = evaluator.CallReturns,
                 DeclaredTypes = evaluator.DeclaredTypes,
                 OwnTypes = evaluator.OwnTypes,
-                Copied = evaluator.Copied,
+                References = evaluator.References,
             };
 
             new FunctionChecks(graph, Fixpoint.Run(graph, following, StartOf(function, following)), following, source, [], targets, effects, contractsOf)
