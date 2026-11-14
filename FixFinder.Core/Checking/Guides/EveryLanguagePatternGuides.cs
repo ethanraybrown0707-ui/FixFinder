@@ -199,6 +199,17 @@ internal static class EveryLanguagePatternGuides
             "Ask that every one leaves a remainder: all(n % p > 0 for p in primes).",
             example);
 
+    private static GuideEntry XorInsteadOfAnd(string id, string example) =>
+        GuideFor([id], "The lowest set bit taken away with xor instead of and",
+            "A count of a number's set bits can take the lowest one away each time round until nothing is left. n - 1 is n " +
+            "with its lowest set bit cleared and every bit below it set, so n & (n - 1) is n without its lowest set bit, and " +
+            "the loop runs once for each set bit. Here it is n ^ (n - 1): xor keeps the bits that differ - that bit and every " +
+            "bit below it.",
+            "n ^ (n - 1) is never 0 once n is above 0 - 6 becomes 3, then 1, and 1 ^ 0 is 1 again - so a loop waiting for n to " +
+            "reach 0 never ends, and the count is never printed.",
+            "Clear the lowest set bit with and: n &= n - 1.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4611,6 +4622,143 @@ internal static class EveryLanguagePatternGuides
                                     false -> Primes
                                 end
                         end, [], lists:seq(2, Max)).
+            """),
+        XorInsteadOfAnd("logic-python-xor-instead-of-and",
+            """
+            while n:
+                n &= n - 1
+                count += 1
+            """),
+        XorInsteadOfAnd("logic-java-xor-instead-of-and",
+            """
+            while (n != 0) {
+                n = (n & (n - 1));
+                count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-csharp-xor-instead-of-and",
+            """
+            while (number > 0)
+            {
+                number &= number - 1;
+                count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-js-xor-instead-of-and",
+            """
+            while (n !== 0) {
+              n = n & (n - 1);
+              count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-c-xor-instead-of-and",
+            """
+            while (n) {
+                n &= n - 1;
+                count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-cpp-xor-instead-of-and",
+            """
+            for (; n != 0; count++) {
+                n &= n - 1;
+            }
+            """),
+        XorInsteadOfAnd("logic-go-xor-instead-of-and",
+            """
+            for n != 0 {
+            	n &= n - 1
+            	count++
+            }
+            """),
+        XorInsteadOfAnd("logic-rust-xor-instead-of-and",
+            """
+            while n != 0 {
+                n &= n - 1;
+                count += 1;
+            }
+            """),
+        XorInsteadOfAnd("logic-ruby-xor-instead-of-and",
+            """
+            until n.zero?
+              n &= n - 1
+              count += 1
+            end
+            """),
+        XorInsteadOfAnd("logic-lua-xor-instead-of-and",
+            """
+            while n ~= 0 do
+              n = n & (n - 1)
+              count = count + 1
+            end
+            """),
+        XorInsteadOfAnd("logic-php-xor-instead-of-and",
+            """
+            while ($n != 0) {
+                $n &= $n - 1;
+                $count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-perl-xor-instead-of-and",
+            """
+            while ($n) {
+                $n &= $n - 1;
+                $count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-powershell-xor-instead-of-and",
+            """
+            while ($n -ne 0) {
+                $n = $n -band ($n - 1)
+                $count++
+            }
+            """),
+        XorInsteadOfAnd("logic-dart-xor-instead-of-and",
+            """
+            while (n != 0) {
+              n &= n - 1;
+              count++;
+            }
+            """),
+        XorInsteadOfAnd("logic-scala-xor-instead-of-and",
+            """
+            while (n != 0) {
+              n &= n - 1
+              count += 1
+            }
+            """),
+        XorInsteadOfAnd("logic-fortran-xor-instead-of-and",
+            """
+            do while (n /= 0)
+              n = iand(n, n - 1)
+              bitcount = bitcount + 1
+            end do
+            """),
+        XorInsteadOfAnd("logic-fsharp-xor-instead-of-and",
+            """
+            let rec countBits n count =
+                if n = 0 then count else countBits (n &&& (n - 1)) (count + 1)
+            """),
+        XorInsteadOfAnd("logic-ocaml-xor-instead-of-and",
+            """
+            let rec count_bits n count =
+              if n = 0 then count else count_bits (n land (n - 1)) (count + 1)
+            """),
+        XorInsteadOfAnd("logic-elixir-xor-instead-of-and",
+            """
+            defmodule Bits do
+              import Bitwise
+
+              def count(n), do: count(n, 0)
+
+              defp count(0, count), do: count
+              defp count(n, count), do: count(band(n, n - 1), count + 1)
+            end
+            """),
+        XorInsteadOfAnd("logic-erlang-xor-instead-of-and",
+            """
+            count(0, Count) -> Count;
+            count(N, Count) -> count(N band (N - 1), Count + 1).
             """),
     ];
 }

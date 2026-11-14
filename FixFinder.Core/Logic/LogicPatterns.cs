@@ -61,6 +61,7 @@ public static class LogicPatterns
         .. SelectionPatterns.All,
         .. SubListSumPatterns.All,
         .. AnyInsteadOfAllPatterns.All,
+        .. XorInsteadOfAndPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
