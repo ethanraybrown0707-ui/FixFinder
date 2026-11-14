@@ -217,7 +217,13 @@ internal static partial class Reaching
     }
 
     /// <summary>Whether the line is in a loop of the function's - for, while, each - by the lines heading the blocks it is in.</summary>
-    internal static bool InALoop(IReadOnlyList<string> masked, int first, int line)
+    internal static bool InALoop(IReadOnlyList<string> masked, int first, int line) => InnermostLoop(masked, first, line) is not null;
+
+    /// <summary>
+    /// The innermost loop the line is in, by the lines heading the blocks it is in: the loop's heading line, and the line its
+    /// block's lines are under - the heading's own, or a { on a line of its own below it, as C# writes it - or null.
+    /// </summary>
+    internal static (int Heading, int Opening)? InnermostLoop(IReadOnlyList<string> masked, int first, int line)
     {
         var indent = CodeText.Indentation(masked[line]).Length;
         for (var above = line - 1; above >= first && indent > 0; above--)
@@ -228,11 +234,11 @@ internal static partial class Reaching
             indent = width;
 
             // A { on a line of its own belongs to the line above it, as C# writes it.
-            var header = masked[above].Trim() == "{" && above > first ? masked[above - 1] : masked[above];
-            if (Loop().IsMatch(header)) return true;
+            var heading = masked[above].Trim() == "{" && above > first ? above - 1 : above;
+            if (Loop().IsMatch(masked[heading])) return (heading, above);
         }
 
-        return false;
+        return null;
     }
 
     /// <summary>

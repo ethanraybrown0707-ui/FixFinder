@@ -177,6 +177,18 @@ internal static class EveryLanguagePatternGuides
             "Take away the items up to the pivot: kth(above, k - num_lessoreq).",
             example);
 
+    private static GuideEntry SumNeverStartedAgain(string id, string example) =>
+        GuideFor([id], "The sum of a run of items never started again",
+            "The largest sum of a run of items in a list can be worked out in one pass - Kadane's way. The pass keeps two sums: " +
+            "the best run ending at the item it is at, and the largest of those so far. A run whose sum has fallen below nothing " +
+            "only lowers whatever follows it, so when that happens the best run ending at the next item starts after it - its " +
+            "sum starts again at nothing. Here each item is added and the sum never starts again, so it is the sum of every " +
+            "item so far.",
+            "It gives the largest sum of the list's first items, not of any run of them: 4 for 4, -5, 2, 1, -1, 3, where the " +
+            "run 2, 1, -1, 3 makes 5, and 2 for -2, 1, -3, 4, -1, 2, 1, -5, 4, where 4, -1, 2, 1 makes 6.",
+            "Start the run again when its sum falls below nothing: max_ending_here = max(0, max_ending_here + x).",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4344,6 +4356,131 @@ internal static class EveryLanguagePatternGuides
             else
               found = pivot
             end if
+            """),
+        SumNeverStartedAgain("logic-python-sum-never-started-again",
+            """
+            for x in arr:
+                max_ending_here = max(0, max_ending_here + x)
+                max_so_far = max(max_so_far, max_ending_here)
+            """),
+        SumNeverStartedAgain("logic-java-sum-never-started-again",
+            """
+            for (int x : arr) {
+                max_ending_here = Math.max(0, max_ending_here + x);
+                max_so_far = Math.max(max_so_far, max_ending_here);
+            }
+            """),
+        SumNeverStartedAgain("logic-csharp-sum-never-started-again",
+            """
+            foreach (var item in items)
+            {
+                current = Math.Max(0, current + item);
+                if (current > best)
+                {
+                    best = current;
+                }
+            }
+            """),
+        SumNeverStartedAgain("logic-js-sum-never-started-again",
+            """
+            for (let i = 0; i < items.length; i++) {
+              endingHere = Math.max(0, endingHere + items[i]);
+              best = Math.max(best, endingHere);
+            }
+            """),
+        SumNeverStartedAgain("logic-c-sum-never-started-again",
+            """
+            for (int i = 0; i < count; i++) {
+                ending_here += items[i];
+                if (ending_here < 0) ending_here = 0;
+                if (ending_here > best) best = ending_here;
+            }
+            """),
+        SumNeverStartedAgain("logic-cpp-sum-never-started-again",
+            """
+            for (int item : items) {
+                current = current + item;
+                if (current < 0) current = 0;
+                best = std::max(best, current);
+            }
+            """),
+        SumNeverStartedAgain("logic-go-sum-never-started-again",
+            """
+            for _, item := range items {
+            	current += item
+            	if current < 0 {
+            		current = 0
+            	}
+            	if current > best {
+            		best = current
+            	}
+            }
+            """),
+        SumNeverStartedAgain("logic-rust-sum-never-started-again",
+            """
+            for &item in items {
+                ending_here = (ending_here + item).max(0);
+                best = best.max(ending_here);
+            }
+            """),
+        SumNeverStartedAgain("logic-ruby-sum-never-started-again",
+            """
+            items.each do |item|
+              current = [0, current + item].max
+              best = current if current > best
+            end
+            """),
+        SumNeverStartedAgain("logic-lua-sum-never-started-again",
+            """
+            for _, item in ipairs(items) do
+              ending_here = math.max(0, ending_here + item)
+              best = math.max(best, ending_here)
+            end
+            """),
+        SumNeverStartedAgain("logic-php-sum-never-started-again",
+            """
+            foreach ($items as $item) {
+                $current = max(0, $current + $item);
+                $best = max($best, $current);
+            }
+            """),
+        SumNeverStartedAgain("logic-perl-sum-never-started-again",
+            """
+            for my $item (@$items) {
+                $current += $item;
+                $current = 0 if $current < 0;
+                $best = $current if $current > $best;
+            }
+            """),
+        SumNeverStartedAgain("logic-powershell-sum-never-started-again",
+            """
+            foreach ($item in $items) {
+                $current = [Math]::Max(0, $current + $item)
+                if ($current -gt $best) { $best = $current }
+            }
+            """),
+        SumNeverStartedAgain("logic-dart-sum-never-started-again",
+            """
+            for (final item in items) {
+              endingHere += item;
+              if (endingHere < 0) endingHere = 0;
+              if (endingHere > best) best = endingHere;
+            }
+            """),
+        SumNeverStartedAgain("logic-scala-sum-never-started-again",
+            """
+            for (item <- items) {
+              current = math.max(0, current + item)
+              best = math.max(best, current)
+            }
+            """),
+        SumNeverStartedAgain("logic-fortran-sum-never-started-again",
+            """
+            do i = 1, size(items)
+              ending_here = ending_here + items(i)
+              if (ending_here < 0) ending_here = 0
+              max_subarray = max(max_subarray, ending_here)
+            end do
             """),
     ];
 }

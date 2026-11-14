@@ -59,6 +59,7 @@ public static class LogicPatterns
         .. ReversalPatterns.All,
         .. TwoStepPatterns.All,
         .. SelectionPatterns.All,
+        .. SubListSumPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
