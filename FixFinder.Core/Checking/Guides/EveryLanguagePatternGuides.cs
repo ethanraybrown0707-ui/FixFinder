@@ -151,6 +151,17 @@ internal static class EveryLanguagePatternGuides
             "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
             example);
 
+    private static GuideEntry TwoStepsOneAsked(string id, string example) =>
+        GuideFor([id], "A pointer moved two on, but asked about one",
+            "Floyd's cycle search moves a tortoise one node on and a hare two each time round: if the list loops back on itself " +
+            "they meet, and if it does not the hare reaches the end. Moving two on, the hare can land on nothing - the next node " +
+            "is there, the one after is not - so before asking for its next node the loop must ask whether the hare is there at " +
+            "all. Here it asks only about the next node: if hare.successor is None.",
+            "On a list that does not loop - one of four nodes is enough - the hare lands on nothing, and asking for its next node " +
+            "fails: Python's AttributeError, Java's NullPointerException, Go's nil pointer dereference.",
+            "Ask about the hare itself first: if hare is None or hare.successor is None.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -3974,6 +3985,177 @@ internal static class EveryLanguagePatternGuides
               previous = node
               node = following
             end do
+            """),
+        TwoStepsOneAsked("logic-python-two-steps-one-asked",
+            """
+            while True:
+                if hare is None or hare.successor is None:
+                    return False
+                tortoise = tortoise.successor
+                hare = hare.successor.successor
+                if hare is tortoise:
+                    return True
+            """),
+        TwoStepsOneAsked("logic-java-two-steps-one-asked",
+            """
+            while (true) {
+                if (hare == null || hare.getSuccessor() == null)
+                    return false;
+                tortoise = tortoise.getSuccessor();
+                hare = hare.getSuccessor().getSuccessor();
+                if (hare == tortoise)
+                    return true;
+            }
+            """),
+        TwoStepsOneAsked("logic-csharp-two-steps-one-asked",
+            """
+            while (true)
+            {
+                if (hare == null || hare!.Next == null)
+                {
+                    return false;
+                }
+
+                tortoise = tortoise!.Next;
+                hare = hare!.Next!.Next;
+                if (hare == tortoise)
+                {
+                    return true;
+                }
+            }
+            """),
+        TwoStepsOneAsked("logic-js-two-steps-one-asked",
+            """
+            while (true) {
+              if (hare === null || hare.next === null) return false;
+              tortoise = tortoise.next;
+              hare = hare.next.next;
+              if (hare === tortoise) return true;
+            }
+            """),
+        TwoStepsOneAsked("logic-c-two-steps-one-asked",
+            """
+            while (1) {
+                if (hare == NULL || hare->next == NULL) return 0;
+                tortoise = tortoise->next;
+                hare = hare->next->next;
+                if (hare == tortoise) return 1;
+            }
+            """),
+        TwoStepsOneAsked("logic-cpp-two-steps-one-asked",
+            """
+            while (true) {
+                if (hare == nullptr || hare->next == nullptr) {
+                    return false;
+                }
+                tortoise = tortoise->next;
+                hare = hare->next->next;
+                if (hare == tortoise) {
+                    return true;
+                }
+            }
+            """),
+        TwoStepsOneAsked("logic-go-two-steps-one-asked",
+            """
+            for {
+            	if hare == nil || hare.next == nil {
+            		return false
+            	}
+            	tortoise = tortoise.next
+            	hare = hare.next.next
+            	if hare == tortoise {
+            		return true
+            	}
+            }
+            """),
+        TwoStepsOneAsked("logic-rust-two-steps-one-asked",
+            """
+            loop {
+                if hare == NONE || next[hare] == NONE {
+                    return false;
+                }
+                tortoise = next[tortoise];
+                hare = next[next[hare]];
+                if hare == tortoise {
+                    return true;
+                }
+            }
+            """),
+        TwoStepsOneAsked("logic-ruby-two-steps-one-asked",
+            """
+            loop do
+              if hare.nil? || hare.successor.nil?
+                return false
+              end
+              tortoise = tortoise.successor
+              hare = hare.successor.successor
+              return true if hare.equal?(tortoise)
+            end
+            """),
+        TwoStepsOneAsked("logic-lua-two-steps-one-asked",
+            """
+            while true do
+              if hare == nil or hare.next == nil then
+                return false
+              end
+              tortoise = tortoise.next
+              hare = hare.next.next
+              if hare == tortoise then
+                return true
+              end
+            end
+            """),
+        TwoStepsOneAsked("logic-php-two-steps-one-asked",
+            """
+            while (true) {
+                if ($hare === null || $hare->next === null) {
+                    return false;
+                }
+                $tortoise = $tortoise->next;
+                $hare = $hare->next->next;
+                if ($hare === $tortoise) {
+                    return true;
+                }
+            }
+            """),
+        TwoStepsOneAsked("logic-powershell-two-steps-one-asked",
+            """
+            while ($true) {
+                if ($null -eq $hare -or $null -eq $hare.Next) {
+                    return $false
+                }
+                $tortoise = $tortoise.Next
+                $hare = $hare.Next.Next
+                if ([object]::ReferenceEquals($hare, $tortoise)) {
+                    return $true
+                }
+            }
+            """),
+        TwoStepsOneAsked("logic-dart-two-steps-one-asked",
+            """
+            while (true) {
+              if (hare == null || hare!.next == null) {
+                return false;
+              }
+              tortoise = tortoise!.next;
+              hare = hare!.next!.next;
+              if (identical(hare, tortoise)) {
+                return true;
+              }
+            }
+            """),
+        TwoStepsOneAsked("logic-scala-two-steps-one-asked",
+            """
+            while (true) {
+              if (hare == null || hare.next == null) {
+                return false
+              }
+              tortoise = tortoise.next
+              hare = hare.next.next
+              if (hare eq tortoise) {
+                return true
+              }
+            }
             """),
     ];
 }
