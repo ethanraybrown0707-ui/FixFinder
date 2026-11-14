@@ -53,6 +53,7 @@ public static class LogicPatterns
         .. ShortestPathPatterns.All,
         .. AlignmentPatterns.All,
         .. ExactFitPatterns.All,
+        .. EmptyListPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

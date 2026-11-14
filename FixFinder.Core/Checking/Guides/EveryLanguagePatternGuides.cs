@@ -151,6 +151,18 @@ internal static class EveryLanguagePatternGuides
             "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
             example);
 
+    private static GuideEntry NoStopWhenEmpty(string id, string example) =>
+        GuideFor([id], "A list taken apart with no stop for when it is empty",
+            "A function can work through a list by taking it apart: it reads the first item, then calls itself again with the " +
+            "rest - coins[1:], coins.tail, first, *rest = coins. Each call passes one item over, so the list it is given gets " +
+            "shorter until one call is given none at all. That call needs a stop of its own - asking whether the list is empty " +
+            "before its first item is read. Here no test in the function asks it.",
+            "The call given an empty list reads a first item that is not there: Python's unpacking or index fails, Java's index " +
+            "is out of bounds, Ruby's and Lua's arithmetic meets nil - and where a missing item reads as nothing, as in Perl and " +
+            "PowerShell, the calls go on and on: Perl warns of deep recursion.",
+            "Stop when no items are left, before the first item is read: if total < 0 or not coins: return 0.",
+            example);
+
     private static GuideEntry ExactFitLeftOut(string id, string example) =>
         GuideFor([id], "What fits exactly is left out",
             "Filling a table by taking what fits - a knapsack's items, change's coins - taking a weight w at a room j goes on " +
@@ -3314,6 +3326,133 @@ internal static class EveryLanguagePatternGuides
               table(i, j) = table(i - 1, j - 1)
             else
               table(i, j) = 1 + min(table(i - 1, j), table(i, j - 1), table(i - 1, j - 1))
+            end if
+            """),
+        NoStopWhenEmpty("logic-python-no-stop-when-empty",
+            """
+            if total < 0 or not coins:
+                return 0
+
+            first, *rest = coins
+            return possible_change(coins, total - first) + possible_change(rest, total)
+            """),
+        NoStopWhenEmpty("logic-java-no-stop-when-empty",
+            """
+            if (total < 0 || coins.length == 0) {
+                return 0;
+            }
+            int first = coins[0];
+            int[] rest = Arrays.copyOfRange(coins, 1, coins.length);
+            return possibleChange(coins, total - first) + possibleChange(rest, total);
+            """),
+        NoStopWhenEmpty("logic-csharp-no-stop-when-empty",
+            """
+            if (total < 0 || coins.Count == 0)
+            {
+                return 0;
+            }
+
+            var first = coins[0];
+            return PossibleChange(coins, total - first) + PossibleChange(coins.Skip(1).ToList(), total);
+            """),
+        NoStopWhenEmpty("logic-js-no-stop-when-empty",
+            """
+            if (total < 0 || coins.length === 0) return 0;
+            const [first, ...rest] = coins;
+            return possibleChange(coins, total - first) + possibleChange(rest, total);
+            """),
+        NoStopWhenEmpty("logic-c-no-stop-when-empty",
+            """
+            if (total < 0 || count == 0) return 0;
+            return possible_change(coins, count, total - coins[0]) + possible_change(coins + 1, count - 1, total);
+            """),
+        NoStopWhenEmpty("logic-cpp-no-stop-when-empty",
+            """
+            if (total < 0 || coins.empty()) {
+                return 0;
+            }
+            std::vector<int> rest(coins.begin() + 1, coins.end());
+            return possibleChange(coins, total - coins[0]) + possibleChange(rest, total);
+            """),
+        NoStopWhenEmpty("logic-go-no-stop-when-empty",
+            """
+            if total < 0 || len(coins) == 0 {
+            	return 0
+            }
+            return possibleChange(coins, total-coins[0]) + possibleChange(coins[1:], total)
+            """),
+        NoStopWhenEmpty("logic-rust-no-stop-when-empty",
+            """
+            if total < 0 || coins.is_empty() {
+                return 0;
+            }
+            possible_change(coins, total - coins[0]) + possible_change(&coins[1..], total)
+            """),
+        NoStopWhenEmpty("logic-ruby-no-stop-when-empty",
+            """
+            if total < 0 || coins.empty?
+              return 0
+            end
+
+            first, *rest = coins
+            possible_change(coins, total - first) + possible_change(rest, total)
+            """),
+        NoStopWhenEmpty("logic-lua-no-stop-when-empty",
+            """
+            if total < 0 or #coins == 0 then
+              return 0
+            end
+            local rest = { table.unpack(coins, 2) }
+            return possible_change(coins, total - coins[1]) + possible_change(rest, total)
+            """),
+        NoStopWhenEmpty("logic-php-no-stop-when-empty",
+            """
+            if ($total < 0 || count($coins) === 0) {
+                return 0;
+            }
+            return possibleChange($coins, $total - $coins[0]) + possibleChange(array_slice($coins, 1), $total);
+            """),
+        NoStopWhenEmpty("logic-perl-no-stop-when-empty",
+            """
+            if ($total < 0 || !@$coins) {
+                return 0;
+            }
+            my ($first, @rest) = @$coins;
+            return possible_change($coins, $total - $first) + possible_change(\@rest, $total);
+            """),
+        NoStopWhenEmpty("logic-powershell-no-stop-when-empty",
+            """
+            if ($total -lt 0 -or $coins.Count -eq 0) {
+                return 0
+            }
+            $rest = @($coins | Select-Object -Skip 1)
+            return (Get-PossibleChange $coins ($total - $coins[0])) + (Get-PossibleChange $rest $total)
+            """),
+        NoStopWhenEmpty("logic-dart-no-stop-when-empty",
+            """
+            if (total < 0 || coins.isEmpty) {
+              return 0;
+            }
+            return possibleChange(coins, total - coins[0]) + possibleChange(coins.sublist(1), total);
+            """),
+        NoStopWhenEmpty("logic-scala-no-stop-when-empty",
+            """
+            if (total == 0) {
+              1
+            } else if (total < 0 || coins.isEmpty) {
+              0
+            } else {
+              possibleChange(coins, total - coins.head) + possibleChange(coins.tail, total)
+            }
+            """),
+        NoStopWhenEmpty("logic-fortran-no-stop-when-empty",
+            """
+            if (total == 0) then
+              ways = 1
+            else if (total < 0 .or. size(coins) == 0) then
+              ways = 0
+            else
+              ways = possible_change(coins, total - coins(1)) + possible_change(coins(2:), total)
             end if
             """),
     ];
