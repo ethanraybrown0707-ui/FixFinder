@@ -47,10 +47,16 @@ public sealed class Nesting
         return shared;
     }
 
+    /// <summary>
+    /// The names a function uses that belong to code around it. Only Python makes a variable of the function's own by
+    /// assigning it - and there nonlocal or global say when it does not. Elsewhere a C++ lambda's rows += 7, or a
+    /// JavaScript function declared inside another assigning its variable, changes the variable outside.
+    /// </summary>
     private HashSet<string> FreeNamesOf(IrFunction function) =>
         _freeNames.TryGetValue(function, out var known)
             ? known
-            : _freeNames[function] = new HashSet<string>(IrWalk.FreeNames(function), StringComparer.Ordinal);
+            : _freeNames[function] = new HashSet<string>(
+                IrWalk.FreeNames(function, assigningDeclares: _program.Language == SourceLanguage.Python), StringComparer.Ordinal);
 
     private bool IsInside(IrFunction inner, IrFunction outer)
     {

@@ -1165,10 +1165,10 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
     /// each program printed i, alias and more. The second loop runs, and is left alone, when rows is changed through
     /// grow's int&amp; n (9 8 20), through alias (11 10 20), through a reference to alias (11 10 20), through one bound to
     /// rows or more, whichever is smaller (11 10 20), by std::swap (21 20 3), by std::tie (11 10 30), by sscanf given
-    /// alias's address (11 10 20), by a lambda held in a variable that takes int&amp; (9 8 20), or by a grow defined
-    /// after main (9 8 20). It never runs, and is reported, when grow takes a copy (4 3 20), defined before main or after
-    /// it; when a function takes rows as const int&amp; (4 3 8); and when rows is raised and then lowered through alias
-    /// (4 2 20), which was missed while alias was taken for a copy.
+    /// alias's address (11 10 20), by a lambda held in a variable that takes int&amp; (9 8 20), by one that adds to alias,
+    /// which it captures (11 10 20), or by a grow defined after main (9 8 20). It never runs, and is reported, when grow
+    /// takes a copy (4 3 20), defined before main or after it; when a function takes rows as const int&amp; (4 3 8); and
+    /// when rows is raised and then lowered through alias (4 2 20), which was missed while alias was taken for a copy.
     /// </summary>
     [Theory]
     [InlineData("void grow(int& n) { n = n + 5; }", "grow(rows);", "", false)]
@@ -1182,6 +1182,7 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
     [InlineData("// nothing else", "std::tie(rows, more) = std::make_pair(10, 30);", "", false)]
     [InlineData("// nothing else", "std::sscanf(\"10\", \"%d\", &alias);", "", false)]
     [InlineData("// nothing else", "auto add = [](int& n) { n += 5; }; add(rows);", "", false)]
+    [InlineData("// nothing else", "auto bump = [&] { alias += 7; }; bump();", "", false)]
     [InlineData("void grow(int& n);", "grow(rows);", "void grow(int& n) { n = n + 5; }", false)]
     [InlineData("void grow(int n);", "grow(rows);", "void grow(int n) { n = n + 5; }", true)]
     public async Task WhatIsWrittenThroughACppReferenceIsSeenByTheLoopAfterIt(string before, string between, string after, bool neverRuns)
@@ -1310,5 +1311,48 @@ public class CAnalysisTests(ITestOutputHelper output) : IDisposable
             """, "main.cpp");
 
         Assert.Empty(findings);
+    }
+
+    /// <summary>
+    /// A lambda that assigns a variable it captures changes the variable outside it. After the first loop i is 4 and rows 3;
+    /// what comes between the loops decides whether the second runs. Built with g++, each program printed i, rows and more.
+    /// The second loop runs, and is left alone, when rows is changed by a lambda held in a variable - rows += 7 (11 10 0),
+    /// rows = rows + 7 (11 10 0), ++rows; rows++ captured as [&amp;rows] (6 5 0) - by one run where it is written (13 12 0),
+    /// by one handed to std::for_each (9 8 0), and by a lambda inside a lambda (9 8 0). Each was said never to run while
+    /// the assignment was read as Python reads one: as the lambda declaring a rows of its own. It never runs, and is
+    /// reported, when the lambda does declare a rows of its own and changes that (4 3 17), or changes only a count of its
+    /// own (4 3 7).
+    /// </summary>
+    [Theory]
+    [InlineData("auto bump = [&] { rows += 7; }; bump();", false)]
+    [InlineData("auto grow = [&]() { rows = rows + 7; }; grow();", false)]
+    [InlineData("auto step = [&rows] { ++rows; rows++; }; step();", false)]
+    [InlineData("[&] { rows *= 4; }();", false)]
+    [InlineData("std::for_each(extra.begin(), extra.end(), [&](int x) { rows += x; });", false)]
+    [InlineData("auto outer = [&] { auto inner = [&] { rows += 5; }; inner(); }; outer();", false)]
+    [InlineData("auto bump = [&] { int rows = 10; rows += 7; return rows; }; more = bump();", true)]
+    [InlineData("auto tally = [&] { int count = 0; count += 7; return count; }; more = tally();", true)]
+    public async Task WhatALambdaAssignsToAVariableItCapturesIsSeenByTheLoopAfterIt(string between, bool neverRuns)
+    {
+        var (_, findings) = await CheckAsync($$"""
+            #include <algorithm>
+            #include <cstdio>
+            #include <vector>
+
+            int main() {
+                std::vector<int> extra{2, 3};
+                int rows = 3;
+                int more = 0;
+                int i = 0;
+                while (i <= rows) i++;
+                {{between}}
+                while (i <= rows) i++;
+                std::printf("%d %d %d\n", i, rows, more);
+                return 0;
+            }
+            """, "main.cpp");
+
+        int[] expected = neverRuns ? [12] : [];
+        Assert.Equal(expected, findings.Where(f => f.CheckId == "analysis-loop-never-runs").Select(f => f.Span.Line));
     }
 }
