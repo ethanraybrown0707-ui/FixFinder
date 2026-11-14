@@ -151,6 +151,19 @@ internal static class EveryLanguagePatternGuides
             "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
             example);
 
+    private static GuideEntry TakenFromEmpty(string id, string example) =>
+        GuideFor([id], "A queue taken from in a loop that never asks whether it is empty",
+            "A search such as breadth-first takes the next place to look at from a queue - queue.popleft(), queue.removeFirst(), " +
+            "queue.shift() - and puts the places next to it on the end. When what is looked for is there, it turns up and the " +
+            "search returns. When it is not, every place is taken in turn and the queue runs out. Here the loop is written to go " +
+            "round for ever - while True - and nothing in it asks whether the queue has anything left.",
+            "Searching for something that cannot be reached, the next take finds the queue empty and fails - Python's pop from an " +
+            "empty deque, Java's NoSuchElementException, Go's index out of range - or, where a missing item reads as nothing, the " +
+            "loop goes round for ever.",
+            "Make the loop ask: while queue:, while (!queue.isEmpty()) - and give back what the search finds when it ends with " +
+            "nothing, return false, after it.",
+            example);
+
     private static GuideEntry BestOverwritten(string id, string example) =>
         GuideFor([id], "The best so far written over without asking whether it is better",
             "A loop keeping the best found so far - the longest, the largest, the smallest - gives it a new value only when the " +
@@ -3578,6 +3591,234 @@ internal static class EveryLanguagePatternGuides
               ends(length + 1) = i
               longest = max(longest, length + 1)
             end if
+            """),
+        TakenFromEmpty("logic-python-taken-from-empty",
+            """
+            while queue:
+                node = queue.popleft()
+                if node == goal:
+                    return True
+                for successor in graph[node]:
+                    if successor not in seen:
+                        seen.add(successor)
+                        queue.append(successor)
+            """),
+        TakenFromEmpty("logic-java-taken-from-empty",
+            """
+            while (!queue.isEmpty()) {
+                int node = queue.removeFirst();
+                if (node == goal) {
+                    return true;
+                }
+                for (int successor : graph.get(node)) {
+                    if (seen.add(successor)) {
+                        queue.addLast(successor);
+                    }
+                }
+            }
+            return false;
+            """),
+        TakenFromEmpty("logic-csharp-taken-from-empty",
+            """
+            while (queue.Count > 0)
+            {
+                var node = queue.Dequeue();
+                if (node == goal)
+                {
+                    return true;
+                }
+
+                foreach (var successor in graph[node])
+                {
+                    if (seen.Add(successor))
+                    {
+                        queue.Enqueue(successor);
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-js-taken-from-empty",
+            """
+            while (queue.length > 0) {
+              const node = queue.shift();
+              if (node === goal) return true;
+              for (const successor of graph[node]) {
+                if (!seen.has(successor)) {
+                  seen.add(successor);
+                  queue.push(successor);
+                }
+              }
+            }
+            """),
+        TakenFromEmpty("logic-c-taken-from-empty",
+            """
+            while (head < tail) {
+                int node = queue[head++];
+                if (node == goal) return 1;
+                for (int successor = 0; successor < 5; successor++) {
+                    if (graph[node][successor] && !seen[successor]) {
+                        seen[successor] = 1;
+                        queue[tail++] = successor;
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-cpp-taken-from-empty",
+            """
+            while (!queue.empty()) {
+                int node = queue.front();
+                queue.pop();
+                if (node == goal) {
+                    return true;
+                }
+                for (int successor : graph[node]) {
+                    if (seen.insert(successor).second) {
+                        queue.push(successor);
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-go-taken-from-empty",
+            """
+            for len(queue) > 0 {
+            	node := queue[0]
+            	queue = queue[1:]
+            	if node == goal {
+            		return true
+            	}
+            	for _, successor := range graph[node] {
+            		if !seen[successor] {
+            			seen[successor] = true
+            			queue = append(queue, successor)
+            		}
+            	}
+            }
+            """),
+        TakenFromEmpty("logic-rust-taken-from-empty",
+            """
+            while !queue.is_empty() {
+                let node = queue.pop_front().unwrap();
+                if node == goal {
+                    return true;
+                }
+                for &successor in &graph[node] {
+                    if seen.insert(successor) {
+                        queue.push_back(successor);
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-ruby-taken-from-empty",
+            """
+            until queue.empty?
+              node = queue.shift
+              return true if node == goal
+              graph[node].each do |successor|
+                next if seen.include?(successor)
+                seen << successor
+                queue << successor
+              end
+            end
+            """),
+        TakenFromEmpty("logic-lua-taken-from-empty",
+            """
+            while #queue > 0 do
+              local node = table.remove(queue, 1)
+              if node == goal then
+                return true
+              end
+              for _, successor in ipairs(graph[node]) do
+                if not seen[successor] then
+                  seen[successor] = true
+                  table.insert(queue, successor)
+                end
+              end
+            end
+            """),
+        TakenFromEmpty("logic-php-taken-from-empty",
+            """
+            while (count($queue) > 0) {
+                $node = array_shift($queue);
+                if ($node === $goal) {
+                    return true;
+                }
+                foreach ($graph[$node] as $successor) {
+                    if (!isset($seen[$successor])) {
+                        $seen[$successor] = true;
+                        $queue[] = $successor;
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-perl-taken-from-empty",
+            """
+            while (@queue) {
+                my $node = shift @queue;
+                return 1 if $node == $goal;
+                for my $successor (@{ $graph->[$node] }) {
+                    next if $seen{$successor}++;
+                    push @queue, $successor;
+                }
+            }
+            """),
+        TakenFromEmpty("logic-powershell-taken-from-empty",
+            """
+            while ($queue.Count -gt 0) {
+                $node = $queue.Dequeue()
+                if ($node -eq $goal) {
+                    return $true
+                }
+                foreach ($successor in $graph[$node]) {
+                    if (-not $seen.ContainsKey($successor)) {
+                        $seen[$successor] = $true
+                        $queue.Enqueue($successor)
+                    }
+                }
+            }
+            """),
+        TakenFromEmpty("logic-dart-taken-from-empty",
+            """
+            while (queue.isNotEmpty) {
+              final node = queue.removeFirst();
+              if (node == goal) {
+                return true;
+              }
+              for (final successor in graph[node]) {
+                if (seen.add(successor)) {
+                  queue.add(successor);
+                }
+              }
+            }
+            """),
+        TakenFromEmpty("logic-scala-taken-from-empty",
+            """
+            while (queue.nonEmpty) {
+              val node = queue.dequeue()
+              if (node == goal) {
+                return true
+              }
+              for (successor <- graph(node) if seen.add(successor)) {
+                queue.enqueue(successor)
+              }
+            }
+            """),
+        TakenFromEmpty("logic-fortran-taken-from-empty",
+            """
+            do while (head <= tail)
+              node = queue(head)
+              head = head + 1
+              if (node == 5) then
+                found = .true.
+                exit
+              end if
+              do successor = 1, 5
+                if (graph(node, successor) .and. .not. seen(successor)) then
+                  seen(successor) = .true.
+                  tail = tail + 1
+                  queue(tail) = successor
+                end if
+              end do
+            end do
             """),
     ];
 }
