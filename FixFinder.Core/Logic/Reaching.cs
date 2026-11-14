@@ -43,7 +43,7 @@ internal static partial class Reaching
     [GeneratedRegex(@"(?<![\w$.])(?:return|raise|throw|die|exit|panic!?|abort|error)\b", RegexOptions.IgnoreCase)]
     private static partial Regex LeavesTheFunction();
 
-    [GeneratedRegex(@"^\s*(?:\}\s*)?(?:for|foreach|while|until|loop|do|repeat)\b|\.(?:each|forEach|times|map)\b|\bForEach-Object\b", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^\s*(?:\}\s*)?(?:for|foreach|while|until|loop|do|repeat)\b|\.(?:each(?:_with_index|_with_object|_index|_char|_slice|_cons)?|forEach|times|map|upto|downto)\b|\bForEach-Object\b", RegexOptions.IgnoreCase)]
     private static partial Regex Loop();
 
     /// <summary>What may come straight after a test's closing bracket when the bracket holds the whole test.</summary>

@@ -151,6 +151,18 @@ internal static class EveryLanguagePatternGuides
             "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
             example);
 
+    private static GuideEntry BestOverwritten(string id, string example) =>
+        GuideFor([id], "The best so far written over without asking whether it is better",
+            "A loop keeping the best found so far - the longest, the largest, the smallest - gives it a new value only when the " +
+            "new one is better: if length + 1 > longest, or longest = max(longest, length + 1). Here the test around the line " +
+            "does not make sure of that. QuixBugs' lis asks length == longest or val < arr[ends[length + 1]]: the first half " +
+            "makes length + 1 longer, but the second holds for another reason, and then a shorter length is written over the " +
+            "longest.",
+            "The best can go down as well as up, so the answer is whatever was written last under that test - for lis on 4, 1, 5, " +
+            "3, 7, 6, 2, 2 where 3 is right.",
+            "Keep the better of the two: longest = max(longest, length + 1).",
+            example);
+
     private static GuideEntry NoStopWhenEmpty(string id, string example) =>
         GuideFor([id], "A list taken apart with no stop for when it is empty",
             "A function can work through a list by taking it apart: it reads the first item, then calls itself again with the " +
@@ -3453,6 +3465,118 @@ internal static class EveryLanguagePatternGuides
               ways = 0
             else
               ways = possible_change(coins, total - coins(1)) + possible_change(coins(2:), total)
+            end if
+            """),
+        BestOverwritten("logic-python-best-overwritten",
+            """
+            if length == longest or val < arr[ends[length + 1]]:
+                ends[length + 1] = i
+                longest = max(longest, length + 1)
+            """),
+        BestOverwritten("logic-java-best-overwritten",
+            """
+            if (length == longest || items[i] < items[ends[length + 1]]) {
+                ends[length + 1] = i;
+                longest = Math.max(longest, length + 1);
+            }
+            """),
+        BestOverwritten("logic-csharp-best-overwritten",
+            """
+            if (length == longest || items[i] < items[ends[length + 1]])
+            {
+                ends[length + 1] = i;
+                longest = Math.Max(longest, length + 1);
+            }
+            """),
+        BestOverwritten("logic-js-best-overwritten",
+            """
+            if (length === longest || items[i] < items[ends[length + 1]]) {
+              ends[length + 1] = i;
+              longest = Math.max(longest, length + 1);
+            }
+            """),
+        BestOverwritten("logic-c-best-overwritten",
+            """
+            if (length == longest || items[i] < items[ends[length + 1]]) {
+                ends[length + 1] = i;
+                longest = length + 1 > longest ? length + 1 : longest;
+            }
+            """),
+        BestOverwritten("logic-cpp-best-overwritten",
+            """
+            if (length == longest || items[i] < items[ends[length + 1]]) {
+                ends[length + 1] = i;
+                longest = std::max(longest, length + 1);
+            }
+            """),
+        BestOverwritten("logic-go-best-overwritten",
+            """
+            if length == longest || items[i] < items[ends[length+1]] {
+            	ends[length+1] = i
+            	longest = max(longest, length + 1)
+            }
+            """),
+        BestOverwritten("logic-rust-best-overwritten",
+            """
+            if length == longest || items[i] < items[ends[length + 1]] {
+                ends[length + 1] = i;
+                longest = longest.max(length + 1);
+            }
+            """),
+        BestOverwritten("logic-ruby-best-overwritten",
+            """
+            if length == longest || value < items[ends[length + 1]]
+              ends[length + 1] = i
+              longest = [longest, length + 1].max
+            end
+            """),
+        BestOverwritten("logic-lua-best-overwritten",
+            """
+            if length == longest or items[i] < items[ends[length + 1]] then
+              ends[length + 1] = i
+              longest = math.max(longest, length + 1)
+            end
+            """),
+        BestOverwritten("logic-php-best-overwritten",
+            """
+            if ($length === $longest || $items[$i] < $items[$ends[$length + 1]]) {
+                $ends[$length + 1] = $i;
+                $longest = max($longest, $length + 1);
+            }
+            """),
+        BestOverwritten("logic-perl-best-overwritten",
+            """
+            if ($length == $longest || $items[$i] < $items[$ends[$length + 1]]) {
+                $ends[$length + 1] = $i;
+                $longest = $length + 1 > $longest ? $length + 1 : $longest;
+            }
+            """),
+        BestOverwritten("logic-powershell-best-overwritten",
+            """
+            if ($length -eq $longest -or $items[$i] -lt $items[$ends[$length + 1]]) {
+                $ends[$length + 1] = $i
+                $longest = [math]::Max($longest, $length + 1)
+            }
+            """),
+        BestOverwritten("logic-dart-best-overwritten",
+            """
+            if (length == longest || items[i] < items[ends[length + 1]]) {
+              ends[length + 1] = i;
+              longest = max(longest, length + 1);
+            }
+            """),
+        BestOverwritten("logic-scala-best-overwritten",
+            """
+            if (length == longest || items(i) < items(ends(length + 1))) {
+              ends(length + 1) = i
+              longest = math.max(longest, length + 1)
+            }
+            """),
+        BestOverwritten("logic-fortran-best-overwritten",
+            """
+            if (length == longest .or. shorter) then
+              ends(length + 1) = i
+              longest = max(longest, length + 1)
             end if
             """),
     ];

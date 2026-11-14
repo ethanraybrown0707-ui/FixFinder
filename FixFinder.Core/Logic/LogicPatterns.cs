@@ -54,6 +54,7 @@ public static class LogicPatterns
         .. AlignmentPatterns.All,
         .. ExactFitPatterns.All,
         .. EmptyListPatterns.All,
+        .. BestOverwrittenPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
