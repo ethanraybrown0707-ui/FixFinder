@@ -162,6 +162,21 @@ internal static class EveryLanguagePatternGuides
             "Ask about the hare itself first: if hare is None or hare.successor is None.",
             example);
 
+    private static GuideEntry PlaceNotTakenAway(string id, string example) =>
+        GuideFor([id], "A place in the part above the pivot asked for as if counted from the start",
+            "Quickselect finds the item that would be at place k if the list were sorted, without sorting it. It takes a pivot " +
+            "and splits the items into those below it and those above it. If k falls among the items below, it looks for place " +
+            "k in that part. If k falls past every item up to the pivot, it looks among the items above - but there k is no " +
+            "longer the place: the items below the pivot and those equal to it come first, so within the part above the place " +
+            "is k less how many they are. Here it asks the part above for place k as it is.",
+            "It looks for a later item than the one wanted - the third smallest of 1, 9, 2, 3 comes out as 9 where 3 is right - " +
+            "or for a place past the end of the part, and then each call has fewer items and the same k until a part has none: " +
+            "reading its first item fails - Python's IndexError, Java's IndexOutOfBoundsException, Rust's index out of bounds - " +
+            "or, where a missing item reads as nothing, it calls itself until the stack runs out - JavaScript's RangeError - or " +
+            "past the time it was given, as Lua's and PowerShell's did.",
+            "Take away the items up to the pivot: kth(above, k - num_lessoreq).",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4156,6 +4171,179 @@ internal static class EveryLanguagePatternGuides
                 return true
               }
             }
+            """),
+        PlaceNotTakenAway("logic-python-place-not-taken-away",
+            """
+            num_less = len(below)
+            num_lessoreq = len(arr) - len(above)
+
+            if k < num_less:
+                return kth(below, k)
+            elif k >= num_lessoreq:
+                return kth(above, k - num_lessoreq)
+            else:
+                return pivot
+            """),
+        PlaceNotTakenAway("logic-java-place-not-taken-away",
+            """
+            int numLess = below.size();
+            int numLessOrEqual = arr.size() - above.size();
+            if (k < numLess) {
+                return kth(below, k);
+            } else if (k >= numLessOrEqual) {
+                return kth(above, k - numLessOrEqual);
+            } else {
+                return pivot;
+            }
+            """),
+        PlaceNotTakenAway("logic-csharp-place-not-taken-away",
+            """
+            var lessOrEqual = items.Count - above.Count;
+            if (k < below.Count)
+            {
+                return Kth(below, k);
+            }
+
+            if (k >= lessOrEqual)
+            {
+                return Kth(above, k - lessOrEqual);
+            }
+
+            return pivot;
+            """),
+        PlaceNotTakenAway("logic-js-place-not-taken-away",
+            """
+            const lessOrEqual = items.length - above.length;
+            if (k < below.length) return kth(below, k);
+            if (k >= lessOrEqual) return kth(above, k - lessOrEqual);
+            return pivot;
+            """),
+        PlaceNotTakenAway("logic-c-place-not-taken-away",
+            """
+            int less_or_equal = count - num_above;
+            if (k < num_below) return kth(below, num_below, k);
+            if (k >= less_or_equal) return kth(above, num_above, k - less_or_equal);
+            return pivot;
+            """),
+        PlaceNotTakenAway("logic-cpp-place-not-taken-away",
+            """
+            int lessOrEqual = static_cast<int>(items.size() - above.size());
+            if (k < static_cast<int>(below.size())) {
+                return kth(below, k);
+            }
+            if (k >= lessOrEqual) {
+                return kth(above, k - lessOrEqual);
+            }
+            return pivot;
+            """),
+        PlaceNotTakenAway("logic-go-place-not-taken-away",
+            """
+            lessOrEqual := len(items) - len(above)
+            if k < len(below) {
+            	return kth(below, k)
+            }
+            if k >= lessOrEqual {
+            	return kth(above, k - lessOrEqual)
+            }
+            return pivot
+            """),
+        PlaceNotTakenAway("logic-rust-place-not-taken-away",
+            """
+            let less_or_equal = items.len() - above.len();
+            if k < below.len() {
+                return kth(&below, k);
+            }
+            if k >= less_or_equal {
+                return kth(&above, k - less_or_equal);
+            }
+            pivot
+            """),
+        PlaceNotTakenAway("logic-ruby-place-not-taken-away",
+            """
+            less_or_equal = items.length - above.length
+            if k < below.length
+              kth(below, k)
+            elsif k >= less_or_equal
+              kth(above, k - less_or_equal)
+            else
+              pivot
+            end
+            """),
+        PlaceNotTakenAway("logic-lua-place-not-taken-away",
+            """
+            local less_or_equal = #items - #above
+            if k <= #below then
+              return kth(below, k)
+            elseif k > less_or_equal then
+              return kth(above, k - less_or_equal)
+            end
+            return pivot
+            """),
+        PlaceNotTakenAway("logic-php-place-not-taken-away",
+            """
+            $lessOrEqual = count($items) - count($above);
+            if ($k < count($below)) {
+                return kth($below, $k);
+            }
+            if ($k >= $lessOrEqual) {
+                return kth($above, $k - $lessOrEqual);
+            }
+            return $pivot;
+            """),
+        PlaceNotTakenAway("logic-perl-place-not-taken-away",
+            """
+            my $less_or_equal = @$items - @above;
+            if ($k < @below) {
+                return kth(\@below, $k);
+            }
+            if ($k >= $less_or_equal) {
+                return kth(\@above, $k - $less_or_equal);
+            }
+            return $pivot;
+            """),
+        PlaceNotTakenAway("logic-powershell-place-not-taken-away",
+            """
+            $lessOrEqual = $items.Count - $above.Count
+            if ($k -lt $below.Count) {
+                return Get-Kth $below $k
+            }
+            if ($k -ge $lessOrEqual) {
+                return Get-Kth $above ($k - $lessOrEqual)
+            }
+            return $pivot
+            """),
+        PlaceNotTakenAway("logic-dart-place-not-taken-away",
+            """
+            final lessOrEqual = items.length - above.length;
+            if (k < below.length) {
+              return kth(below, k);
+            }
+            if (k >= lessOrEqual) {
+              return kth(above, k - lessOrEqual);
+            }
+            return pivot;
+            """),
+        PlaceNotTakenAway("logic-scala-place-not-taken-away",
+            """
+            val lessOrEqual = items.length - above.length
+            if (k < below.length) {
+              kth(below, k)
+            } else if (k >= lessOrEqual) {
+              kth(above, k - lessOrEqual)
+            } else {
+              pivot
+            }
+            """),
+        PlaceNotTakenAway("logic-fortran-place-not-taken-away",
+            """
+            less_or_equal = size(items) - count(items > pivot)
+            if (k <= count(items < pivot)) then
+              found = kth(pack(items, items < pivot), k)
+            else if (k > less_or_equal) then
+              found = kth(pack(items, items > pivot), k - less_or_equal)
+            else
+              found = pivot
+            end if
             """),
     ];
 }
