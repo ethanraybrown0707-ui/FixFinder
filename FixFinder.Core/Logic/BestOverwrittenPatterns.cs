@@ -144,13 +144,28 @@ public static partial class BestOverwrittenPatterns
         return best.Groups["larger"].Success ? Way.Larger : best.Groups["smaller"].Success ? Way.Smaller : Way.Either;
     }
 
-    /// <summary>Whether the file compares the name anywhere: longest &lt; x, x == longest, $longest -gt $x - the mark of a best kept.</summary>
+    /// <summary>
+    /// Whether the file compares the name itself anywhere, as a number is: longest &lt; x, x == longest, $longest -gt $x - the mark
+    /// of a best kept. Not against nothing - largest == null - nor by a measure of it - largest.area() - which say it holds
+    /// something max() would not keep.
+    /// </summary>
     private static bool Compared(IReadOnlyList<string> masked, string best, RegexOptions options)
     {
         var name = Regex.Escape(best);
         var sign = @"(?:<=|>=|==|<(?![<=])|>(?![>=])|-le\b|-ge\b|-lt\b|-gt\b|-eq\b|\.le\.|\.ge\.|\.lt\.|\.gt\.|\.eq\.)";
-        var compared = new Regex($@"(?<![\w$@.]){name}\s*{sign}|{sign}\s*{name}(?![\w(\[.])", options);
+        var compared = new Regex($@"(?<![\w$@.]){name}\s*{sign}\s*(?!{Nothing}(?!\w))|(?<!{Nothing}\s*){sign}\s*{name}(?![\w(\[.])", options);
         return masked.Any(line => compared.IsMatch(line));
+    }
+
+    /// <summary>What stands for no value yet: null, None, nil, undefined, NULL, nullptr, $null.</summary>
+    private const string Nothing = @"(?:null|None|nil|undefined|NULL|nullptr|\$null)";
+
+    /// <summary>Whether a part of a test asks that the best has no value yet - largest == null, best is None, best.nil? - so any value is better.</summary>
+    private static bool NothingYet(string part, string best, bool turnedRound, RegexOptions options)
+    {
+        if (turnedRound) return false;
+        var name = Regex.Escape(best);
+        return Regex.IsMatch(part, $@"^(?:{name}\s*(?:===?|\bis\b|-eq)\s*{Nothing}|{Nothing}\s*===?\s*{name}|{name}\s*\.\s*nil\?|{name}\s+is\s+None)$", options);
     }
 
     /// <summary>Whether a line after this one, before the loop around it ends, compares the name - the line starts this time round's search.</summary>
@@ -254,6 +269,7 @@ public static partial class BestOverwrittenPatterns
     /// <summary>Whether one comparison says the value is no worse than the best: directly, by their measures, or one step on.</summary>
     private static bool Says(string part, bool turnedRound, string value, string best, Way way, RegexOptions options)
     {
+        if (NothingYet(Unwrapped(part), best, turnedRound, options)) return true;
         if (Comparison().Match(Unwrapped(part)) is not { Success: true } compared) return false;
         var sign = Sign(compared.Groups["sign"].Value);
         if (turnedRound) sign = Opposite(sign);
