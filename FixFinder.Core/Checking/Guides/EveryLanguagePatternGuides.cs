@@ -189,6 +189,16 @@ internal static class EveryLanguagePatternGuides
             "Start the run again when its sum falls below nothing: max_ending_here = max(0, max_ending_here + x).",
             example);
 
+    private static GuideEntry AnyInsteadOfAll(string id, string example) =>
+        GuideFor([id], "A number kept as prime when any prime leaves a remainder",
+            "A prime search can keep each number that no prime found so far divides: divided by each of them, the number must " +
+            "leave a remainder. That asks it of all of them, not any - any is true when one of them leaves a remainder, " +
+            "whatever the others do. Here the test asks any: any(n % p > 0 for p in primes).",
+            "With no primes found yet, any of none is false, so the first prime, 2, is never kept, nor anything after it: the " +
+            "search finds no primes at all. Started with 2, it kept every number from 3 to 10 - 4 because 3 does not divide it.",
+            "Ask that every one leaves a remainder: all(n % p > 0 for p in primes).",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4481,6 +4491,126 @@ internal static class EveryLanguagePatternGuides
               if (ending_here < 0) ending_here = 0
               max_subarray = max(max_subarray, ending_here)
             end do
+            """),
+        AnyInsteadOfAll("logic-python-any-instead-of-all",
+            """
+            for n in range(2, max + 1):
+                if all(n % p > 0 for p in primes):
+                    primes.append(n)
+            """),
+        AnyInsteadOfAll("logic-java-any-instead-of-all",
+            """
+            for (int n = 2; n <= max; n++) {
+                final int number = n;
+                if (primes.stream().allMatch(p -> number % p != 0)) {
+                    primes.add(number);
+                }
+            }
+            """),
+        AnyInsteadOfAll("logic-csharp-any-instead-of-all",
+            """
+            for (var n = 2; n <= max; n++)
+            {
+                if (primes.All(p => n % p != 0))
+                {
+                    primes.Add(n);
+                }
+            }
+            """),
+        AnyInsteadOfAll("logic-js-any-instead-of-all",
+            """
+            for (let n = 2; n <= max; n++) {
+              if (primes.every((p) => n % p !== 0)) primes.push(n);
+            }
+            """),
+        AnyInsteadOfAll("logic-cpp-any-instead-of-all",
+            """
+            for (int n = 2; n <= max; n++) {
+                if (std::all_of(primes.begin(), primes.end(), [n](int p) { return n % p != 0; })) {
+                    primes.push_back(n);
+                }
+            }
+            """),
+        AnyInsteadOfAll("logic-rust-any-instead-of-all",
+            """
+            for n in 2..=max {
+                if primes.iter().all(|&p| n % p != 0) {
+                    primes.push(n);
+                }
+            }
+            """),
+        AnyInsteadOfAll("logic-ruby-any-instead-of-all",
+            """
+            (2..max).each do |n|
+              primes << n if primes.all? { |p| n % p != 0 }
+            end
+            """),
+        AnyInsteadOfAll("logic-php-any-instead-of-all",
+            """
+            for ($n = 2; $n <= $max; $n++) {
+                if (array_all($primes, fn($p) => $n % $p != 0)) {
+                    $primes[] = $n;
+                }
+            }
+            """),
+        AnyInsteadOfAll("logic-perl-any-instead-of-all",
+            """
+            for my $n (2 .. $max) {
+                push @primes, $n if all { $n % $_ != 0 } @primes;
+            }
+            """),
+        AnyInsteadOfAll("logic-dart-any-instead-of-all",
+            """
+            for (var n = 2; n <= max; n++) {
+              if (primes.every((p) => n % p != 0)) {
+                primes.add(n);
+              }
+            }
+            """),
+        AnyInsteadOfAll("logic-scala-any-instead-of-all",
+            """
+            for (n <- 2 to max) {
+              if (primes.forall(p => n % p != 0)) {
+                primes += n
+              }
+            }
+            """),
+        AnyInsteadOfAll("logic-fortran-any-instead-of-all",
+            """
+            do n = 2, 30
+              if (all(mod(n, primes(1:found)) /= 0)) then
+                found = found + 1
+                primes(found) = n
+              end if
+            end do
+            """),
+        AnyInsteadOfAll("logic-fsharp-any-instead-of-all",
+            """
+            let primesUpTo max =
+                [ 2 .. max ]
+                |> List.fold (fun primes n -> if List.forall (fun p -> n % p <> 0) primes then primes @ [ n ] else primes) []
+            """),
+        AnyInsteadOfAll("logic-ocaml-any-instead-of-all",
+            """
+            let rec walk n primes =
+              if n > max then List.rev primes
+              else if List.for_all (fun p -> n mod p <> 0) primes then walk (n + 1) (n :: primes)
+              else walk (n + 1) primes
+            """),
+        AnyInsteadOfAll("logic-elixir-any-instead-of-all",
+            """
+            Enum.reduce(2..max, [], fn n, primes ->
+              if Enum.all?(primes, fn p -> rem(n, p) != 0 end), do: primes ++ [n], else: primes
+            end)
+            """),
+        AnyInsteadOfAll("logic-erlang-any-instead-of-all",
+            """
+            lists:foldl(fun(N, Primes) ->
+                                case lists:all(fun(P) -> N rem P =/= 0 end, Primes) of
+                                    true -> Primes ++ [N];
+                                    false -> Primes
+                                end
+                        end, [], lists:seq(2, Max)).
             """),
     ];
 }
