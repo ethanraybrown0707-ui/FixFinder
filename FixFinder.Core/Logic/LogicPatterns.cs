@@ -56,6 +56,7 @@ public static class LogicPatterns
         .. EmptyListPatterns.All,
         .. BestOverwrittenPatterns.All,
         .. EmptyQueuePatterns.All,
+        .. ReversalPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

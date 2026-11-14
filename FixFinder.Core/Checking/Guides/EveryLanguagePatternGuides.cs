@@ -151,6 +151,17 @@ internal static class EveryLanguagePatternGuides
             "Charge nothing for a match: table[i - 1][j - 1], or levenshtein(source[1:], target[1:]).",
             example);
 
+    private static GuideEntry PreviousNeverMoved(string id, string example) =>
+        GuideFor([id], "A list reversed without moving on the node before",
+            "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
+            "before, which starts as nothing. Each time round, it keeps the next node, points this node back at the one before, " +
+            "and then moves both on: the one before becomes this node, and this node the next. Here the one before is never " +
+            "moved on, so it stays nothing.",
+            "Every node is pointed back at nothing, and the reversed list given back is empty: reversing 1, 2, 3 gives nothing at " +
+            "all.",
+            "Move the one before on, before going to the next node: prevnode = node.",
+            example);
+
     private static GuideEntry TakenFromEmpty(string id, string example) =>
         GuideFor([id], "A queue taken from in a loop that never asks whether it is empty",
             "A search such as breadth-first takes the next place to look at from a queue - queue.popleft(), queue.removeFirst(), " +
@@ -3818,6 +3829,150 @@ internal static class EveryLanguagePatternGuides
                   queue(tail) = successor
                 end if
               end do
+            end do
+            """),
+        PreviousNeverMoved("logic-python-previous-never-moved",
+            """
+            while node:
+                nextnode = node.successor
+                node.successor = prevnode
+                prevnode = node
+                node = nextnode
+            """),
+        PreviousNeverMoved("logic-java-previous-never-moved",
+            """
+            while (node != null) {
+                nextnode = node.getSuccessor();
+                node.setSuccessor(prevnode);
+                prevnode = node;
+                node = nextnode;
+            }
+            """),
+        PreviousNeverMoved("logic-csharp-previous-never-moved",
+            """
+            while (node != null)
+            {
+                var following = node.Next;
+                node.Next = previous;
+                previous = node;
+                node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-js-previous-never-moved",
+            """
+            while (node !== null) {
+              const following = node.next;
+              node.next = previous;
+              previous = node;
+              node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-c-previous-never-moved",
+            """
+            while (node != NULL) {
+                struct node *following = node->next;
+                node->next = previous;
+                previous = node;
+                node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-cpp-previous-never-moved",
+            """
+            while (node != nullptr) {
+                Node* following = node->next;
+                node->next = previous;
+                previous = node;
+                node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-go-previous-never-moved",
+            """
+            for current != nil {
+            	following := current.next
+            	current.next = previous
+            	previous = current
+            	current = following
+            }
+            """),
+        PreviousNeverMoved("logic-rust-previous-never-moved",
+            """
+            while let Some(index) = node {
+                let following = next[index];
+                next[index] = previous;
+                previous = Some(index);
+                node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-ruby-previous-never-moved",
+            """
+            while node
+              following = node.successor
+              node.successor = previous
+              previous = node
+              node = following
+            end
+            """),
+        PreviousNeverMoved("logic-lua-previous-never-moved",
+            """
+            while node do
+              local following = node.next
+              node.next = previous
+              previous = node
+              node = following
+            end
+            """),
+        PreviousNeverMoved("logic-php-previous-never-moved",
+            """
+            while ($node !== null) {
+                $following = $node->next;
+                $node->next = $previous;
+                $previous = $node;
+                $node = $following;
+            }
+            """),
+        PreviousNeverMoved("logic-perl-previous-never-moved",
+            """
+            while (defined $node) {
+                my $following = $node->{next};
+                $node->{next} = $previous;
+                $previous = $node;
+                $node = $following;
+            }
+            """),
+        PreviousNeverMoved("logic-powershell-previous-never-moved",
+            """
+            while ($null -ne $node) {
+                $following = $node.Next
+                $node.Next = $previous
+                $previous = $node
+                $node = $following
+            }
+            """),
+        PreviousNeverMoved("logic-dart-previous-never-moved",
+            """
+            while (node != null) {
+              final following = node.next;
+              node.next = previous;
+              previous = node;
+              node = following;
+            }
+            """),
+        PreviousNeverMoved("logic-scala-previous-never-moved",
+            """
+            while (node != null) {
+              val following = node.next
+              node.next = previous
+              previous = node
+              node = following
+            }
+            """),
+        PreviousNeverMoved("logic-fortran-previous-never-moved",
+            """
+            do while (node /= 0)
+              following = next(node)
+              next(node) = previous
+              previous = node
+              node = following
             end do
             """),
     ];
