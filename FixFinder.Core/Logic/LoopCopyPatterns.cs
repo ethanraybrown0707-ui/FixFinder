@@ -340,10 +340,12 @@ public static partial class LoopCopyPatterns
             // A slice - made with []T{...} or declared []T - not a map, whose range gives its keys.
             if (!Regex.IsMatch(code, $@"\b{Regex.Escape(slice)}\s*:?=\s*\[\]|\b{Regex.Escape(slice)}\s+\[\]")) continue;
 
-            var asPosition = new Regex($@"\[\s*{Regex.Escape(variable)}\s*\]");
+            // Used as a position: marks[i], a slice from or to it, marks[i:], or given to a call with the slice itself, kth(items, k).
+            var asPosition = new Regex($@"\[\s*{Regex.Escape(variable)}\s*[\]:]|:\s*{Regex.Escape(variable)}\s*\]");
             var used = new Regex($@"(?<![\w.]){Regex.Escape(variable)}\b");
             var lines = Enumerable.Range(body.First, body.End - body.First).Select(line => masked[line]).ToList();
-            if (lines.Any(asPosition.IsMatch) || !lines.Any(line => used.IsMatch(asPosition.Replace(line, "")))) continue;
+            if (lines.Any(asPosition.IsMatch) || lines.Any(line => GivenWithTheSlice(line, slice, variable)) ||
+                !lines.Any(line => used.IsMatch(asPosition.Replace(line, "")))) continue;
 
             var line = source.Lines[index];
 
@@ -355,6 +357,19 @@ public static partial class LoopCopyPatterns
                     source.Path, index + 1, $"{loop.Groups["indent"].Value}for _, {variable} := range {slice} {{"));
         }
     }
+
+    /// <summary>A call's arguments with no call inside them: kth(items, k) in fmt.Sprint(kth(items, k)).</summary>
+    [GeneratedRegex(@"\w\s*\((?<arguments>[^()]*)\)")]
+    private static partial Regex InnermostCall();
+
+    /// <summary>
+    /// Whether the loop's variable is given to a call along with the slice it ranges over - kth(items, k) - which takes it as a
+    /// position in that slice: for i := range marks with nth(marks, i) printed 70, 80 and 90, and taking the item there made it
+    /// nth(marks, 70), and Go stopped with index out of range [70] with length 3.
+    /// </summary>
+    private static bool GivenWithTheSlice(string line, string slice, string variable) =>
+        InnermostCall().Matches(line).Any(call => call.Groups["arguments"].Value.Split(',').Select(argument => argument.Trim()).ToList()
+            is var arguments && arguments.Contains(slice) && arguments.Contains(variable));
 
     /// <summary><c>for (const mark in marks) {</c>.</summary>
     [GeneratedRegex(@"^(?<indent>\s*)for\s*\(\s*(?<kind>const|let|var)\s+(?<variable>[A-Za-z_$][\w$]*)\s+in\s+(?<list>[A-Za-z_$][\w$]*)\s*\)\s*\{\s*$")]

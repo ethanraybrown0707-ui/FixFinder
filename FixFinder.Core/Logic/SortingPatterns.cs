@@ -1492,12 +1492,24 @@ public static partial class SortingPatterns
         return null;
     }
 
-    /// <summary>Whether two lines of the function are in the same blocks - each line heading one, by indentation, the same for both.</summary>
+    /// <summary>
+    /// A test written on the line it guards - if (k &lt; below.length) return kth(below, k);, } else if (...) ..., else ...,
+    /// return kth(above, k) if k &gt;= n - which makes that line a branch of its own. Not a comprehension's if, [x for x in rest
+    /// if x &lt; pivot], nor Python's quicksort(lower) if lower else [], which is worked out on every pass.
+    /// </summary>
+    [GeneratedRegex(@"^\s*(?:\}\s*)?(?:(?:else\s*)?(?:if|elif|elsif|elseif|unless)\b|else\b)|\)\s*(?:if|unless)\b(?!.*\belse\b)", RegexOptions.IgnoreCase)]
+    private static partial Regex TestOnItsLine();
+
+    /// <summary>
+    /// Whether two lines of the function are in the same blocks - each line heading one, by indentation, the same for both. A
+    /// line with its own test heads a block of its own, so two such lines are in different branches.
+    /// </summary>
     private static bool SameBranch(IReadOnlyList<string> masked, Function function, int first, int second)
     {
         List<int> Heads(int line)
         {
             var heads = new List<int>();
+            if (TestOnItsLine().IsMatch(masked[line])) heads.Add(line);
             var indent = CodeText.Indentation(masked[line]).Length;
             foreach (var above in function.Body.Where(above => above < line).Reverse())
             {

@@ -63,6 +63,10 @@ public class LoopCopyPatternTests : IDisposable
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80}\n\ttotal := 0\n\tfor i := range marks {\n\t\ttotal += marks[i]\n\t}\n\tfmt.Println(total)\n}\n")]
     // range's one variable printed beside the item at it - a position used as both.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\tfor i := range marks {\n\t\tfmt.Println(i, marks[i])\n\t}\n}\n")]
+    // range's one variable given to a call with the slice itself, which reads the item at it: prints 70, 80 and 90.
+    [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc nth(items []int, k int) int {\n\treturn items[k]\n}\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\tfor i := range marks {\n\t\tfmt.Println(nth(marks, i))\n\t}\n}\n")]
+    // range's one variable as where a slice starts: prints [80 90] and [90].
+    [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tmarks := []int{70, 80, 90}\n\tfor i := range marks {\n\t\tif i > 0 {\n\t\t\tfmt.Println(marks[i:])\n\t\t}\n\t}\n}\n")]
     // range over a map gives its keys.
     [InlineData("main.go", "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tages := map[string]int{\"Ada\": 36}\n\tfor name := range ages {\n\t\tfmt.Println(name)\n\t}\n}\n")]
     // for...in's variable used as a position, to read the item at it.
