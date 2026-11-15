@@ -64,6 +64,7 @@ public static class LogicPatterns
         .. XorInsteadOfAndPatterns.All,
         .. EuclidPatterns.All,
         .. BracketsLeftOpenPatterns.All,
+        .. DigitsBackwardsPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,

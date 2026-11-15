@@ -231,6 +231,18 @@ internal static class EveryLanguagePatternGuides
             "Ask at the end that nothing is left open: return depth == 0.",
             example);
 
+    private static GuideEntry DigitsWrittenBackwards(string id, string example) =>
+        GuideFor([id], "A number's digits written backwards",
+            "A number can be written in another base by taking its remainder by the base - its last digit - and dividing it by " +
+            "the base to drop that digit, again and again until nothing is left. The remainder gives the last digit first, then " +
+            "the one before it, so each digit found goes in front of the ones found already. Here each one is put after them: " +
+            "result = result + alphabet[i].",
+            "The digits come out backwards: 31 in base 16 as F1 where 1F is right, 41 in base 2 as 100101 where 101001 is, and " +
+            "3005 in base 16 as DBB where BBD is. A number whose digits read the same both ways comes out right - 8227 in base " +
+            "18 is 1771 either way - which can hide it.",
+            "Put each digit in front: result = alphabet[i] + result.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -5241,6 +5253,208 @@ internal static class EveryLanguagePatternGuides
             balanced([], Depth) -> Depth =:= 0;
             balanced([$( | Rest], Depth) -> balanced(Rest, Depth + 1);
             balanced([_ | Rest], Depth) -> Depth > 0 andalso balanced(Rest, Depth - 1).
+            """),
+        DigitsWrittenBackwards("logic-python-digits-written-backwards",
+            """
+            def to_base(num, b):
+                result = ''
+                alphabet = string.digits + string.ascii_uppercase
+                while num > 0:
+                    i = num % b
+                    num = num // b
+                    result = alphabet[i] + result
+                return result
+            """),
+        DigitsWrittenBackwards("logic-java-digits-written-backwards",
+            """
+            public static String to_base(int num, int b) {
+                String result = "";
+                String alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                int i;
+                while (num > 0) {
+                    i = num % b;
+                    num = num / b;
+                    result = String.valueOf(alphabet.charAt(i)) + result;
+                }
+                return result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-csharp-digits-written-backwards",
+            """
+            static string ToBase(int number, int radix)
+            {
+                var written = "";
+                while (number > 0)
+                {
+                    written = Digits[number % radix] + written;
+                    number /= radix;
+                }
+
+                return written;
+            }
+            """),
+        DigitsWrittenBackwards("logic-js-digits-written-backwards",
+            """
+            function toBase(num, base) {
+              let result = "";
+              while (num > 0) {
+                const digit = num % base;
+                result = DIGITS[digit] + result;
+                num = Math.floor(num / base);
+              }
+              return result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-cpp-digits-written-backwards",
+            """
+            std::string toBase(int num, int base) {
+                std::string result;
+                while (num > 0) {
+                    result = DIGITS[num % base] + result;
+                    num /= base;
+                }
+                return result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-go-digits-written-backwards",
+            """
+            func toBase(num, base int) string {
+            	result := ""
+            	for num > 0 {
+            		result = string(digits[num%base]) + result
+            		num /= base
+            	}
+            	return result
+            }
+            """),
+        DigitsWrittenBackwards("logic-rust-digits-written-backwards",
+            """
+            fn to_base(mut num: u32, base: u32) -> String {
+                let mut result = String::new();
+                while num > 0 {
+                    result.insert(0, DIGITS[(num % base) as usize] as char);
+                    num /= base;
+                }
+                result
+            }
+            """),
+        DigitsWrittenBackwards("logic-ruby-digits-written-backwards",
+            """
+            def to_base(num, base)
+              result = ""
+              while num > 0
+                result = DIGITS[num % base] + result
+                num /= base
+              end
+              result
+            end
+            """),
+        DigitsWrittenBackwards("logic-lua-digits-written-backwards",
+            """
+            result = DIGITS:sub(digit + 1, digit + 1) .. result
+            """),
+        DigitsWrittenBackwards("logic-php-digits-written-backwards",
+            """
+            function to_base(int $num, int $base): string {
+                $result = "";
+                while ($num > 0) {
+                    $result = DIGITS[$num % $base] . $result;
+                    $num = intdiv($num, $base);
+                }
+                return $result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-perl-digits-written-backwards",
+            """
+            sub to_base {
+                my ($num, $base) = @_;
+                my $result = "";
+                while ($num > 0) {
+                    $result = substr($digits, $num % $base, 1) . $result;
+                    $num = int($num / $base);
+                }
+                return $result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-powershell-digits-written-backwards",
+            """
+            function ConvertTo-Base([int]$num, [int]$base) {
+                $result = ""
+                while ($num -gt 0) {
+                    $result = $digits.Substring($num % $base, 1) + $result
+                    $num = [math]::Floor($num / $base)
+                }
+                return $result
+            }
+            """),
+        DigitsWrittenBackwards("logic-dart-digits-written-backwards",
+            """
+            String toBase(int num, int base) {
+              var result = '';
+              while (num > 0) {
+                result = digits[num % base] + result;
+                num ~/= base;
+              }
+              return result;
+            }
+            """),
+        DigitsWrittenBackwards("logic-scala-digits-written-backwards",
+            """
+            def toBase(start: Int, base: Int): String = {
+              var num = start
+              var result = ""
+              while (num > 0) {
+                result = Digits.substring(num % base, num % base + 1) + result
+                num /= base
+              }
+              result
+            }
+            """),
+        DigitsWrittenBackwards("logic-fortran-digits-written-backwards",
+            """
+            function to_base(start, base) result(written)
+              integer, intent(in) :: start, base
+              character(len=32) :: written
+              integer :: num, digit
+              num = start
+              written = ''
+              do while (num > 0)
+                digit = mod(num, base)
+                written = digits(digit + 1:digit + 1) // trim(written)
+                num = num / base
+              end do
+            end function to_base
+            """),
+        DigitsWrittenBackwards("logic-fsharp-digits-written-backwards",
+            """
+            let toBase start radix =
+                let mutable num = start
+                let mutable result = ""
+                while num > 0 do
+                    result <- string digits.[num % radix] + result
+                    num <- num / radix
+                result
+            """),
+        DigitsWrittenBackwards("logic-ocaml-digits-written-backwards",
+            """
+            let to_base start radix =
+              let num = ref start in
+              let result = ref "" in
+              while !num > 0 do
+                result := String.make 1 digits.[!num mod radix] ^ !result;
+                num := !num / radix
+              done;
+              !result
+            """),
+        DigitsWrittenBackwards("logic-elixir-digits-written-backwards",
+            """
+            defp digits(0, _base, written), do: written
+            defp digits(num, base, written), do: digits(div(num, base), base, String.at(@digits, rem(num, base)) <> written)
+            """),
+        DigitsWrittenBackwards("logic-erlang-digits-written-backwards",
+            """
+            digits(0, _Base, Written) -> Written;
+            digits(Num, Base, Written) -> digits(Num div Base, Base, [lists:nth(Num rem Base + 1, ?DIGITS)] ++ Written).
             """),
     ];
 }
