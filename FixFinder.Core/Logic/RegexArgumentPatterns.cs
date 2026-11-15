@@ -89,7 +89,8 @@ public static partial class RegexArgumentPatterns
     /// <summary>
     /// A Lua pattern of "." alone - in a pattern, . is any character, so gsub(".", ",") turned "3.14" into ",,,," and find(".")
     /// found the first character, whatever it was. Left alone where find is told to look for its text as it is, with true
-    /// after the starting position. The change writes %., Lua's . itself.
+    /// after the starting position; and for gmatch, where "." is Lua's way of going through every character - ("a.b"):gmatch(".")
+    /// gave a, . and b, and with %. only the . was left. The change writes %., Lua's . itself.
     /// </summary>
     private static IEnumerable<LogicFinding> LuaPatternDot(string id, SourceFile source, IReadOnlyList<string> masked)
     {
@@ -103,6 +104,7 @@ public static partial class RegexArgumentPatterns
                 if (dot + 1 >= line.Length || line[dot] != '.' || line[dot + 1] != quote) continue;
 
                 var function = call.Groups["function"].Value;
+                if (function == "gmatch") continue;
                 var rest = FormatCodePatterns.Arguments(masked[index], dot + 2, bracketed: true);
                 if (function == "find" && rest is [_, _, var plain, ..] && masked[index][plain.Start..plain.End] == "true") continue;
 

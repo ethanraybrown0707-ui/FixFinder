@@ -50,6 +50,8 @@ public class RegexArgumentPatternTests : IDisposable
     [InlineData("Main.java", "logic-java-regex-character-as-text", "class Main {\n    void read(String line) {\n        line.split(\"\\\\.\");\n        line.split(\",\");\n        line.split(\" \");\n        line.replace(\".\", \",\");\n    }\n}\n")]
     // Lua: escaped with %, find told with true to take its text as it is, and a comma, which means itself.
     [InlineData("main.lua", "logic-lua-pattern-character-as-text", "local text = \"3.14\"\nprint(text:gsub(\"%.\", \",\"))\nprint(string.find(text, \".\", 1, true))\nprint(text:gsub(\",\", \";\"))\n")]
+    // Lua: gmatch(".") going through every character, as meant - it printed a|.|b, and with %. only the . was left.
+    [InlineData("main.lua", "logic-lua-pattern-character-as-text", "local letters = {}\nfor letter in (\"a.b\"):gmatch(\".\") do\n  letters[#letters + 1] = letter\nend\nprint(table.concat(letters, \"|\"))\n")]
     // Perl: a pattern written as one, a space - split's own way of splitting at runs of space - and a comma.
     [InlineData("main.pl", "logic-perl-split-character-as-text", "my @parts = split(/\\./, $text);\nmy @words = split(\" \", $text);\nmy @fields = split(\",\", $text);\n")]
     public void TextThatMeansItselfIsLeftAlone(string fileName, string patternId, string code) =>
