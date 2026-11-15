@@ -253,6 +253,18 @@ internal static class EveryLanguagePatternGuides
             "Use the value taken first on the right: op(token, b, a) - or name it so, taking b off first and then a.",
             example);
 
+    private static GuideEntry LoopOneShort(string id, string example) =>
+        GuideFor([id], "A loop over a row's places that stops one short",
+            "Pascal's triangle builds each row from the one before: each number is the two above it added - the one up and to " +
+            "the left, and the one straight up - with 0 where there is none. Row r has r + 1 numbers, so the loop over its places " +
+            "goes from 0 up to r itself, and the guard c < r, for the place with nothing straight above it, is there for c = r. " +
+            "Here the loop stops before r: range(0, r), c < r - so the guard can never fail.",
+            "Each row comes out one number short, and the next row, built from it, reads past its end: Python's IndexError, " +
+            "Java's IndexOutOfBoundsException, C++'s out_of_range. Where a missing number reads as 0 or nothing, the rows print " +
+            "one short - 1|1|1 1|1 2 1|1 3 3 1 where 1|1 1|1 2 1|1 3 3 1|1 4 6 4 1 is right - or, in JavaScript, as NaN.",
+            "Go up to r as well: range(0, r + 1).",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -5635,6 +5647,174 @@ internal static class EveryLanguagePatternGuides
             step("-", [B, A | Rest]) -> [A - B | Rest];
             step("*", [A, B | Rest]) -> [A * B | Rest];
             step(Number, Stack) -> [list_to_integer(Number) | Stack].
+            """),
+        LoopOneShort("logic-python-loop-one-short",
+            """
+            for c in range(0, r + 1):
+                upleft = rows[r - 1][c - 1] if c > 0 else 0
+                upright = rows[r - 1][c] if c < r else 0
+                row.append(upleft + upright)
+            """),
+        LoopOneShort("logic-java-loop-one-short",
+            """
+            for (int c=0; c<r+1; c++) {
+                int upleft, upright;
+                if (c > 0) {
+                    upleft = rows.get(r-1).get(c-1);
+                } else {
+                    upleft = 0;
+                }
+                if (c < r) {
+                    upright = rows.get(r-1).get(c);
+                } else {
+                    upright = 0;
+                }
+                row.add(upleft+upright);
+            }
+            """),
+        LoopOneShort("logic-csharp-loop-one-short",
+            """
+            for (var c = 0; c < r + 1; c++)
+            {
+                var upleft = c > 0 ? rows[r - 1][c - 1] : 0;
+                var upright = c < r ? rows[r - 1][c] : 0;
+                row.Add(upleft + upright);
+            }
+            """),
+        LoopOneShort("logic-js-loop-one-short",
+            """
+            for (let c = 0; c < r + 1; c++) {
+              const upleft = c > 0 ? rows[r - 1][c - 1] : 0;
+              const upright = c < r ? rows[r - 1][c] : 0;
+              row.push(upleft + upright);
+            }
+            """),
+        LoopOneShort("logic-c-loop-one-short",
+            """
+            for (int c = 0; c < r + 1; c++) {
+                int upleft = c > 0 ? rows[r - 1][c - 1] : 0;
+                int upright = c < r ? rows[r - 1][c] : 0;
+                rows[r][c] = upleft + upright;
+                lengths[r] = c + 1;
+            }
+            """),
+        LoopOneShort("logic-cpp-loop-one-short",
+            """
+            for (int c = 0; c < r + 1; c++) {
+                int upleft = c > 0 ? rows[r - 1].at(c - 1) : 0;
+                int upright = c < r ? rows[r - 1].at(c) : 0;
+                row.push_back(upleft + upright);
+            }
+            """),
+        LoopOneShort("logic-go-loop-one-short",
+            """
+            for c := 0; c < r + 1; c++ {
+            	upleft, upright := 0, 0
+            	if c > 0 {
+            		upleft = rows[r-1][c-1]
+            	}
+            	if c < r {
+            		upright = rows[r-1][c]
+            	}
+            	row = append(row, upleft+upright)
+            }
+            """),
+        LoopOneShort("logic-rust-loop-one-short",
+            """
+            for c in 0..r + 1 {
+                let upleft = if c > 0 { rows[r - 1][c - 1] } else { 0 };
+                let upright = if c < r { rows[r - 1][c] } else { 0 };
+                row.push(upleft + upright);
+            }
+            """),
+        LoopOneShort("logic-ruby-loop-one-short",
+            """
+            (0...r + 1).each do |c|
+              upleft = c > 0 ? rows[r - 1][c - 1] : 0
+              upright = c < r ? rows[r - 1][c] : 0
+              row << upleft + upright
+            end
+            """),
+        LoopOneShort("logic-lua-loop-one-short",
+            """
+            for c = 1, r do
+              local upleft = c > 1 and rows[r - 1][c - 1] or 0
+              local upright = c < r and rows[r - 1][c] or 0
+              row[#row + 1] = upleft + upright
+            end
+            """),
+        LoopOneShort("logic-php-loop-one-short",
+            """
+            for ($c = 0; $c < $r + 1; $c++) {
+                $upleft = $c > 0 ? $rows[$r - 1][$c - 1] : 0;
+                $upright = $c < $r ? $rows[$r - 1][$c] : 0;
+                $row[] = $upleft + $upright;
+            }
+            """),
+        LoopOneShort("logic-perl-loop-one-short",
+            """
+            for my $c (0 .. $r) {
+                my $upleft = $c > 0 ? $rows[$r - 1][$c - 1] : 0;
+                my $upright = $c < $r ? $rows[$r - 1][$c] : 0;
+                push @row, $upleft + $upright;
+            }
+            """),
+        LoopOneShort("logic-powershell-loop-one-short",
+            """
+            for ($c = 0; $c -lt $r + 1; $c++) {
+                $upleft = if ($c -gt 0) { $rows[$r - 1][$c - 1] } else { 0 }
+                $upright = if ($c -lt $r) { $rows[$r - 1][$c] } else { 0 }
+                $row += $upleft + $upright
+            }
+            """),
+        LoopOneShort("logic-dart-loop-one-short",
+            """
+            for (var c = 0; c < r + 1; c++) {
+              final upleft = c > 0 ? rows[r - 1][c - 1] : 0;
+              final upright = c < r ? rows[r - 1][c] : 0;
+              row.add(upleft + upright);
+            }
+            """),
+        LoopOneShort("logic-scala-loop-one-short",
+            """
+            for (c <- 0 until r + 1) {
+              val upleft = if (c > 0) rows(r - 1)(c - 1) else 0
+              val upright = if (c < r) rows(r - 1)(c) else 0
+              row += upleft + upright
+            }
+            """),
+        LoopOneShort("logic-fortran-loop-one-short",
+            """
+            do c = 0, r
+              upleft = 0
+              upright = 0
+              if (c > 0) upleft = rows(r - 1, c - 1)
+              if (c < r) upright = rows(r - 1, c)
+              rows(r, c) = upleft + upright
+              lengths(r) = c + 1
+            end do
+            """),
+        LoopOneShort("logic-fsharp-loop-one-short",
+            """
+            let nextRow (previous: int list) r =
+                [ for c in 0 .. r -> (if c > 0 then previous.[c - 1] else 0) + (if c < r then previous.[c] else 0) ]
+            """),
+        LoopOneShort("logic-ocaml-loop-one-short",
+            """
+            let next_row previous r =
+              List.init (r + 1) (fun c -> (if c > 0 then List.nth previous (c - 1) else 0) + (if c < r then List.nth previous c else 0))
+            """),
+        LoopOneShort("logic-elixir-loop-one-short",
+            """
+            def next_row(previous, r) do
+              for c <- 0..r, do: (if c > 0, do: Enum.at(previous, c - 1), else: 0) + (if c < r, do: Enum.at(previous, c), else: 0)
+            end
+            """),
+        LoopOneShort("logic-erlang-loop-one-short",
+            """
+            next_row(Previous, R) ->
+                [(case C > 0 of true -> lists:nth(C, Previous); false -> 0 end) +
+                 (case C < R of true -> lists:nth(C + 1, Previous); false -> 0 end) || C <- lists:seq(0, R)].
             """),
     ];
 }

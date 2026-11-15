@@ -66,6 +66,7 @@ public static class LogicPatterns
         .. BracketsLeftOpenPatterns.All,
         .. DigitsBackwardsPatterns.All,
         .. OperandsBackwardsPatterns.All,
+        .. LoopOneShortPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
