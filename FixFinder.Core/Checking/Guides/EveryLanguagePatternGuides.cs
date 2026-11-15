@@ -286,6 +286,17 @@ internal static class EveryLanguagePatternGuides
             "Give back the one empty choice: return [[]].",
             example);
 
+    private static GuideEntry LeafFlattenedAgain(string id, string example) =>
+        GuideFor([id], "An item that is not a list given back to the flattening",
+            "Flattening a list of items and lists goes through its items: a list is flattened in turn, by calling the same " +
+            "function, and an item that is not a list goes into the result as it is. Here that item is given to the flattening " +
+            "function again: yield flatten(x) where yield x is meant.",
+            "Python's flatten is a generator, and calling it only makes a generator object: five came out where 1 2 3 4 5 is " +
+            "right. Where the function goes through what it is given, the item - or a list holding just it - goes back in for " +
+            "ever, until the stack runs out: Java's StackOverflowError, Ruby's stack level too deep.",
+            "Give back the item itself: yield x.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -6332,6 +6343,187 @@ internal static class EveryLanguagePatternGuides
             choices(_From, _To, 0) -> [[]];
             choices(From, To, Count) ->
                 [[First | Rest] || First <- lists:seq(From, To - Count), Rest <- choices(First + 1, To, Count - 1)].
+            """),
+        LeafFlattenedAgain("logic-python-leaf-flattened-again",
+            """
+            def flatten(arr):
+                for x in arr:
+                    if isinstance(x, list):
+                        for y in flatten(x):
+                            yield y
+                    else:
+                        yield x
+            """),
+        LeafFlattenedAgain("logic-java-leaf-flattened-again",
+            """
+            public static Object flatten(Object arr) {
+                if (arr instanceof ArrayList) {
+                    ArrayList narr = (ArrayList) arr;
+                    ArrayList result = new ArrayList(50);
+                    for (Object x : narr) {
+                        if (x instanceof ArrayList) {
+                            result.addAll((ArrayList) flatten(x));
+                        } else {
+                            result.add(x);
+                        }
+                    }
+                    return result;
+                } else {
+                    return flatten(arr);
+                }
+            }
+            """),
+        LeafFlattenedAgain("logic-csharp-leaf-flattened-again",
+            """
+            static IEnumerable<object> Flatten(List<object> items)
+            {
+                foreach (var item in items)
+                {
+                    if (item is List<object> inner)
+                    {
+                        foreach (var each in Flatten(inner))
+                        {
+                            yield return each;
+                        }
+                    }
+                    else
+                    {
+                        yield return item;
+                    }
+                }
+            }
+            """),
+        LeafFlattenedAgain("logic-js-leaf-flattened-again",
+            """
+            function* flatten(items) {
+              for (const item of items) {
+                if (Array.isArray(item)) {
+                  yield* flatten(item);
+                } else {
+                  yield item;
+                }
+              }
+            }
+            """),
+        LeafFlattenedAgain("logic-go-leaf-flattened-again",
+            """
+            func flatten(items []any) []any {
+            	var flat []any
+            	for _, item := range items {
+            		if inner, isList := item.([]any); isList {
+            			flat = append(flat, flatten(inner)...)
+            		} else {
+            			flat = append(flat, item)
+            		}
+            	}
+            	return flat
+            }
+            """),
+        LeafFlattenedAgain("logic-ruby-leaf-flattened-again",
+            """
+            def flatten(items)
+              items.flat_map do |item|
+                if item.is_a?(Array)
+                  flatten(item)
+                else
+                  [item]
+                end
+              end
+            end
+            """),
+        LeafFlattenedAgain("logic-lua-leaf-flattened-again",
+            """
+            local function flatten(items)
+              local flat = {}
+              for _, item in ipairs(items) do
+                if type(item) == "table" then
+                  for _, each in ipairs(flatten(item)) do
+                    flat[#flat + 1] = each
+                  end
+                else
+                  flat[#flat + 1] = item
+                end
+              end
+              return flat
+            end
+            """),
+        LeafFlattenedAgain("logic-php-leaf-flattened-again",
+            """
+            function flatten(array $items): array {
+                $flat = [];
+                foreach ($items as $item) {
+                    if (is_array($item)) {
+                        $flat = array_merge($flat, flatten($item));
+                    } else {
+                        $flat[] = $item;
+                    }
+                }
+                return $flat;
+            }
+            """),
+        LeafFlattenedAgain("logic-perl-leaf-flattened-again",
+            """
+            sub flatten {
+                my @flat;
+                for my $item (@_) {
+                    if (ref $item eq 'ARRAY') {
+                        push @flat, flatten(@$item);
+                    } else {
+                        push @flat, $item;
+                    }
+                }
+                return @flat;
+            }
+            """),
+        LeafFlattenedAgain("logic-powershell-leaf-flattened-again",
+            """
+            function Get-Flat($items) {
+                $flat = [System.Collections.Generic.List[object]]::new()
+                foreach ($item in $items) {
+                    if ($item -is [array]) {
+                        foreach ($each in (Get-Flat $item)) { $flat.Add($each) }
+                    } else {
+                        $flat.Add($item)
+                    }
+                }
+                return ,$flat.ToArray()
+            }
+            """),
+        LeafFlattenedAgain("logic-dart-leaf-flattened-again",
+            """
+            List<Object> flatten(List<Object> items) {
+              final flat = <Object>[];
+              for (final item in items) {
+                if (item is List<Object>) {
+                  flat.addAll(flatten(item));
+                } else {
+                  flat.add(item);
+                }
+              }
+              return flat;
+            }
+            """),
+        LeafFlattenedAgain("logic-scala-leaf-flattened-again",
+            """
+            def flatten(items: List[Any]): List[Any] = items.flatMap {
+              case inner: List[Any] @unchecked => flatten(inner)
+              case item => List(item)
+            }
+            """),
+        LeafFlattenedAgain("logic-elixir-leaf-flattened-again",
+            """
+            def flatten(items) do
+              Enum.flat_map(items, fn
+                item when is_list(item) -> flatten(item)
+                item -> [item]
+              end)
+            end
+            """),
+        LeafFlattenedAgain("logic-erlang-leaf-flattened-again",
+            """
+            flatten([]) -> [];
+            flatten([Item | Rest]) when is_list(Item) -> flatten(Item) ++ flatten(Rest);
+            flatten([Item | Rest]) -> [Item | flatten(Rest)].
             """),
     ];
 }
