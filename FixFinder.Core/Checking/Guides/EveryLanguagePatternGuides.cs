@@ -243,6 +243,16 @@ internal static class EveryLanguagePatternGuides
             "Put each digit in front: result = alphabet[i] + result.",
             example);
 
+    private static GuideEntry OperandsTakenBackwards(string id, string example) =>
+        GuideFor([id], "Two values taken off a stack used the wrong way round",
+            "A reverse Polish expression puts its numbers on a stack, and each operator takes the top two off and puts back what " +
+            "it makes. The value taken first was pushed last: it is the right-hand operand, and the one taken after it the " +
+            "left-hand one - 10 2 - is 10 - 2. Here the value taken first is used on the left.",
+            "Adding and multiplying come out right whichever way round they go; subtracting and dividing come out turned round: " +
+            "10 2 - 3 - gives 11 where 5 is right, and 2 3 4 * - gives 10 where -10 is.",
+            "Use the value taken first on the right: op(token, b, a) - or name it so, taking b off first and then a.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -5455,6 +5465,176 @@ internal static class EveryLanguagePatternGuides
             """
             digits(0, _Base, Written) -> Written;
             digits(Num, Base, Written) -> digits(Num div Base, Base, [lists:nth(Num rem Base + 1, ?DIGITS)] ++ Written).
+            """),
+        OperandsTakenBackwards("logic-python-operands-taken-backwards",
+            """
+            a = stack.pop()
+            b = stack.pop()
+            stack.append(
+                op(token, b, a)
+            """),
+        OperandsTakenBackwards("logic-java-operands-taken-backwards",
+            """
+            Integer a = stack.pop();
+            Integer b = stack.pop();
+            BinaryOperator<Integer> bin_op = op.get(token);
+            Integer c = bin_op.apply(b,a);
+            """),
+        OperandsTakenBackwards("logic-csharp-operands-taken-backwards",
+            """
+            var right = stack.Pop();
+            var left = stack.Pop();
+            stack.Push(token switch
+            {
+                "+" => left + right,
+                "-" => left - right,
+            """),
+        OperandsTakenBackwards("logic-js-operands-taken-backwards",
+            """
+            const b = stack.pop();
+            const a = stack.pop();
+            if (token === "+") stack.push(a + b);
+            else if (token === "-") stack.push(a - b);
+            """),
+        OperandsTakenBackwards("logic-c-operands-taken-backwards",
+            """
+            int b = stack[--top];
+            int a = stack[--top];
+            switch (token[0]) {
+            case '+': stack[top++] = a + b; break;
+            case '-': stack[top++] = a - b; break;
+            """),
+        OperandsTakenBackwards("logic-cpp-operands-taken-backwards",
+            """
+            int b = stack.back();
+            stack.pop_back();
+            int a = stack.back();
+            stack.pop_back();
+            if (token == "+") stack.push_back(a + b);
+            else if (token == "-") stack.push_back(a - b);
+            """),
+        OperandsTakenBackwards("logic-go-operands-taken-backwards",
+            """
+            b := stack[len(stack)-1]
+            stack = stack[:len(stack)-1]
+            a := stack[len(stack)-1]
+            stack = stack[:len(stack)-1]
+            switch token {
+            case "+":
+            	stack = append(stack, a+b)
+            case "-":
+            	stack = append(stack, a-b)
+            """),
+        OperandsTakenBackwards("logic-rust-operands-taken-backwards",
+            """
+            let b = stack.pop().unwrap();
+            let a = stack.pop().unwrap();
+            stack.push(match *token {
+                "+" => a + b,
+                "-" => a - b,
+            """),
+        OperandsTakenBackwards("logic-ruby-operands-taken-backwards",
+            """
+            b = stack.pop
+            a = stack.pop
+            stack.push(case token
+                       when "+" then a + b
+                       when "-" then a - b
+            """),
+        OperandsTakenBackwards("logic-lua-operands-taken-backwards",
+            """
+            local b = table.remove(stack)
+            local a = table.remove(stack)
+            if token == "+" then
+              stack[#stack + 1] = a + b
+            elseif token == "-" then
+              stack[#stack + 1] = a - b
+            """),
+        OperandsTakenBackwards("logic-php-operands-taken-backwards",
+            """
+            $b = array_pop($stack);
+            $a = array_pop($stack);
+            $stack[] = match ($token) {
+                '+' => $a + $b,
+                '-' => $a - $b,
+            """),
+        OperandsTakenBackwards("logic-perl-operands-taken-backwards",
+            """
+            my $y = pop @stack;
+            my $x = pop @stack;
+            if ($token eq "+") { push @stack, $x + $y }
+            elsif ($token eq "-") { push @stack, $x - $y }
+            """),
+        OperandsTakenBackwards("logic-powershell-operands-taken-backwards",
+            """
+            $b = $stack.Pop()
+            $a = $stack.Pop()
+            switch ($token) {
+                '+' { $stack.Push($a + $b) }
+                '-' { $stack.Push($a - $b) }
+            """),
+        OperandsTakenBackwards("logic-dart-operands-taken-backwards",
+            """
+            final b = stack.removeLast();
+            final a = stack.removeLast();
+            switch (token) {
+              case '+':
+                stack.add(a + b);
+              case '-':
+                stack.add(a - b);
+            """),
+        OperandsTakenBackwards("logic-scala-operands-taken-backwards",
+            """
+            val b = stack.pop()
+            val a = stack.pop()
+            stack.push(token match {
+              case "+" => a + b
+              case "-" => a - b
+            """),
+        OperandsTakenBackwards("logic-fortran-operands-taken-backwards",
+            """
+            b = stack(top)
+            top = top - 1
+            a = stack(top)
+            top = top - 1
+            top = top + 1
+            select case (trim(tokens(i)))
+            case ('+')
+              stack(top) = a + b
+            case ('-')
+              stack(top) = a - b
+            """),
+        OperandsTakenBackwards("logic-fsharp-operands-taken-backwards",
+            """
+            let step stack token =
+                match token, stack with
+                | "+", a :: b :: rest -> (a + b) :: rest
+                | "-", b :: a :: rest -> (a - b) :: rest
+                | "*", a :: b :: rest -> (a * b) :: rest
+                | number, rest -> int number :: rest
+            """),
+        OperandsTakenBackwards("logic-ocaml-operands-taken-backwards",
+            """
+            let step stack token =
+              match token, stack with
+              | "+", a :: b :: rest -> (a + b) :: rest
+              | "-", b :: a :: rest -> (a - b) :: rest
+              | "*", a :: b :: rest -> (a * b) :: rest
+              | number, rest -> int_of_string number :: rest
+            """),
+        OperandsTakenBackwards("logic-elixir-operands-taken-backwards",
+            """
+            defp step("+", [a, b | rest]), do: [a + b | rest]
+            defp step("-", [b, a | rest]), do: [a - b | rest]
+            defp step("*", [a, b | rest]), do: [a * b | rest]
+            defp step(number, stack), do: [String.to_integer(number) | stack]
+            """),
+        OperandsTakenBackwards("logic-erlang-operands-taken-backwards",
+            """
+            step("+", [A, B | Rest]) -> [A + B | Rest];
+            step("-", [B, A | Rest]) -> [A - B | Rest];
+            step("*", [A, B | Rest]) -> [A * B | Rest];
+            step(Number, Stack) -> [list_to_integer(Number) | Stack].
             """),
     ];
 }
