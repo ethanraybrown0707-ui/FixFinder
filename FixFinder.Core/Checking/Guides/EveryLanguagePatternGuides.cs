@@ -265,6 +265,16 @@ internal static class EveryLanguagePatternGuides
             "Go up to r as well: range(0, r + 1).",
             example);
 
+    private static GuideEntry LastFactorDropped(string id, string example) =>
+        GuideFor([id], "A number's prime factors losing the last one",
+            "A number's prime factors can be found by looking for the smallest number that divides it, from 2 up to its square " +
+            "root, and going on with what is left once that is divided out. A number with no factor up to its square root is " +
+            "a prime: it is its own last factor. Here, when no factor is found, nothing is given back.",
+            "Every number loses its last prime - 12 comes out as 2 2 where 2 2 3 is right, 60 as 2 2 3, 100 as 2 2 5 - and a " +
+            "prime such as 13 or 97 has no factors at all.",
+            "Give back the number itself when no factor is found: return [n].",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -5815,6 +5825,264 @@ internal static class EveryLanguagePatternGuides
             next_row(Previous, R) ->
                 [(case C > 0 of true -> lists:nth(C, Previous); false -> 0 end) +
                  (case C < R of true -> lists:nth(C + 1, Previous); false -> 0 end) || C <- lists:seq(0, R)].
+            """),
+        LastFactorDropped("logic-python-last-factor-dropped",
+            """
+            def get_factors(n):
+                if n == 1:
+                    return []
+
+                for i in range(2, int(n ** 0.5) + 1):
+                    if n % i == 0:
+                        return [i] + get_factors(n // i)
+
+                return [n]
+            """),
+        LastFactorDropped("logic-java-last-factor-dropped",
+            """
+            public static ArrayList<Integer> get_factors(int n) {
+                if (n == 1) {
+                    return new ArrayList<Integer>();
+                }
+                int max = (int)(Math.sqrt(n) + 1.0);
+                for (int i=2; i < max; i++) {
+                    if (n % i == 0) {
+                        ArrayList<Integer> prepend = new ArrayList<Integer>(0);
+                        prepend.add(i);
+                        prepend.addAll(get_factors(n / i));
+                        return prepend;
+                    }
+                }
+                return new ArrayList<Integer>(Arrays.asList(n));
+            }
+            """),
+        LastFactorDropped("logic-csharp-last-factor-dropped",
+            """
+            static List<int> Factors(int n)
+            {
+                if (n == 1)
+                {
+                    return new List<int>();
+                }
+
+                for (var i = 2; i * i <= n; i++)
+                {
+                    if (n % i == 0)
+                    {
+                        return new List<int> { i }.Concat(Factors(n / i)).ToList();
+                    }
+                }
+
+                return new List<int> { n };
+            }
+            """),
+        LastFactorDropped("logic-js-last-factor-dropped",
+            """
+            function factors(n) {
+              if (n === 1) return [];
+              for (let i = 2; i <= Math.sqrt(n); i++) {
+                if (n % i === 0) return [i, ...factors(n / i)];
+              }
+              return [n];
+            }
+            """),
+        LastFactorDropped("logic-cpp-last-factor-dropped",
+            """
+            std::vector<int> factors(int n) {
+                if (n == 1) {
+                    return {};
+                }
+                for (int i = 2; i <= static_cast<int>(std::sqrt(n)); i++) {
+                    if (n % i == 0) {
+                        std::vector<int> found = {i};
+                        std::vector<int> rest = factors(n / i);
+                        found.insert(found.end(), rest.begin(), rest.end());
+                        return found;
+                    }
+                }
+                return {n};
+            }
+            """),
+        LastFactorDropped("logic-go-last-factor-dropped",
+            """
+            func factors(n int) []int {
+            	if n == 1 {
+            		return []int{}
+            	}
+            	for i := 2; i*i <= n; i++ {
+            		if n%i == 0 {
+            			return append([]int{i}, factors(n/i)...)
+            		}
+            	}
+            	return []int{n}
+            }
+            """),
+        LastFactorDropped("logic-rust-last-factor-dropped",
+            """
+            fn factors(n: u32) -> Vec<u32> {
+                if n == 1 {
+                    return vec![];
+                }
+                let mut i = 2;
+                while i * i <= n {
+                    if n % i == 0 {
+                        let mut found = vec![i];
+                        found.extend(factors(n / i));
+                        return found;
+                    }
+                    i += 1;
+                }
+                vec![n]
+            }
+            """),
+        LastFactorDropped("logic-ruby-last-factor-dropped",
+            """
+            def factors(n)
+              return [] if n == 1
+
+              (2..Integer.sqrt(n)).each do |i|
+                return [i] + factors(n / i) if (n % i).zero?
+              end
+              [n]
+            end
+            """),
+        LastFactorDropped("logic-lua-last-factor-dropped",
+            """
+            local function factors(n)
+              if n == 1 then
+                return {}
+              end
+              for i = 2, math.floor(math.sqrt(n)) do
+                if n % i == 0 then
+                  local found = { i }
+                  for _, factor in ipairs(factors(n // i)) do
+                    found[#found + 1] = factor
+                  end
+                  return found
+                end
+              end
+              return { n }
+            end
+            """),
+        LastFactorDropped("logic-php-last-factor-dropped",
+            """
+            function factors(int $n): array {
+                if ($n == 1) {
+                    return [];
+                }
+                for ($i = 2; $i * $i <= $n; $i++) {
+                    if ($n % $i == 0) {
+                        return array_merge([$i], factors(intdiv($n, $i)));
+                    }
+                }
+                return [$n];
+            }
+            """),
+        LastFactorDropped("logic-perl-last-factor-dropped",
+            """
+            sub factors {
+                my ($n) = @_;
+                return () if $n == 1;
+                for (my $i = 2; $i * $i <= $n; $i++) {
+                    return ($i, factors($n / $i)) if $n % $i == 0;
+                }
+                return ($n);
+            }
+            """),
+        LastFactorDropped("logic-powershell-last-factor-dropped",
+            """
+            function Get-Factors([int]$n) {
+                if ($n -eq 1) {
+                    return @()
+                }
+                for ($i = 2; $i * $i -le $n; $i++) {
+                    if ($n % $i -eq 0) {
+                        return @($i) + @(Get-Factors ($n / $i))
+                    }
+                }
+                return @($n)
+            }
+            """),
+        LastFactorDropped("logic-dart-last-factor-dropped",
+            """
+            List<int> factors(int n) {
+              if (n == 1) {
+                return [];
+              }
+              for (var i = 2; i <= sqrt(n); i++) {
+                if (n % i == 0) {
+                  return [i, ...factors(n ~/ i)];
+                }
+              }
+              return [n];
+            }
+            """),
+        LastFactorDropped("logic-scala-last-factor-dropped",
+            """
+            def factors(n: Int): List[Int] = {
+              if (n == 1) return List()
+              for (i <- 2 to math.sqrt(n).toInt) {
+                if (n % i == 0) return i :: factors(n / i)
+              }
+              List(n)
+            }
+            """),
+        LastFactorDropped("logic-fortran-last-factor-dropped",
+            """
+            recursive function factors(n) result(found)
+              integer, intent(in) :: n
+              integer, allocatable :: found(:)
+              integer :: i
+              if (n == 1) then
+                found = [integer ::]
+                return
+              end if
+              do i = 2, int(sqrt(real(n)))
+                if (mod(n, i) == 0) then
+                  found = [i, factors(n / i)]
+                  return
+                end if
+              end do
+              found = [n]
+            end function factors
+            """),
+        LastFactorDropped("logic-fsharp-last-factor-dropped",
+            """
+            let rec factors n =
+                if n = 1 then []
+                else
+                    match [ 2 .. int (sqrt (float n)) ] |> List.tryFind (fun i -> n % i = 0) with
+                    | Some i -> i :: factors (n / i)
+                    | None -> [ n ]
+            """),
+        LastFactorDropped("logic-ocaml-last-factor-dropped",
+            """
+            let rec factors n =
+              if n = 1 then []
+              else
+                match List.find_opt (fun i -> n mod i = 0) (List.init (max 0 (int_of_float (sqrt (float_of_int n)) - 1)) (fun k -> k + 2)) with
+                | Some i -> i :: factors (n / i)
+                | None -> [ n ]
+            """),
+        LastFactorDropped("logic-elixir-last-factor-dropped",
+            """
+            def factors(1), do: []
+
+            def factors(n) do
+              case Enum.find(2..max(2, trunc(:math.sqrt(n)))//1, fn i -> i < n and rem(n, i) == 0 end) do
+                nil -> [n]
+                i -> [i | factors(div(n, i))]
+              end
+            end
+            """),
+        LastFactorDropped("logic-erlang-last-factor-dropped",
+            """
+            factors(1) -> [];
+            factors(N) ->
+                case [I || I <- lists:seq(2, trunc(math:sqrt(N))), N rem I =:= 0] of
+                    [] -> [N];
+                    [I | _] -> [I | factors(N div I)]
+                end.
             """),
     ];
 }
