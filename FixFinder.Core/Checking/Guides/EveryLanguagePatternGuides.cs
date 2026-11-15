@@ -210,6 +210,17 @@ internal static class EveryLanguagePatternGuides
             "Clear the lowest set bit with and: n &= n - 1.",
             example);
 
+    private static GuideEntry EuclidPairNotMoved(string id, string example) =>
+        GuideFor([id], "Euclid's pair gone on with in the wrong order",
+            "Euclid's way finds the greatest common divisor of two numbers by going on with a smaller pair that has the same " +
+            "one: the number divided by, and the remainder - gcd(a, b) is gcd(b, a % b) - until the remainder is 0. Here it " +
+            "goes on with the remainder and the number divided by: gcd(a % b, b).",
+            "The search stops when the second number is 0, and it is given back as it was, so it never is: a % b is below b, " +
+            "and taking the remainder by b again changes nothing - gcd(35, 21) goes on as gcd(14, 21) for ever. A call runs " +
+            "until the stack runs out - Python's RecursionError, Java's StackOverflowError - and a loop never ends.",
+            "Go on with the number divided by and the remainder: gcd(b, a % b).",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4759,6 +4770,167 @@ internal static class EveryLanguagePatternGuides
             """
             count(0, Count) -> Count;
             count(N, Count) -> count(N band (N - 1), Count + 1).
+            """),
+        EuclidPairNotMoved("logic-python-euclid-pair-not-moved",
+            """
+            def gcd(a, b):
+                if b == 0:
+                    return a
+                else:
+                    return gcd(b, a % b)
+            """),
+        EuclidPairNotMoved("logic-java-euclid-pair-not-moved",
+            """
+            public static int gcd(int a, int b) {
+                if (b == 0) {
+                    return a;
+                } else {
+                    return gcd(b, a % b);
+                }
+            }
+            """),
+        EuclidPairNotMoved("logic-csharp-euclid-pair-not-moved",
+            """
+            static int Gcd(int first, int second)
+            {
+                while (second != 0)
+                {
+                    (first, second) = (second, first % second);
+                }
+
+                return first;
+            }
+            """),
+        EuclidPairNotMoved("logic-js-euclid-pair-not-moved",
+            """
+            function gcd(a, b) {
+              return b === 0 ? a : gcd(b, a % b);
+            }
+            """),
+        EuclidPairNotMoved("logic-c-euclid-pair-not-moved",
+            """
+            static int gcd(int a, int b) {
+                if (b == 0) return a;
+                return gcd(b, a % b);
+            }
+            """),
+        EuclidPairNotMoved("logic-cpp-euclid-pair-not-moved",
+            """
+            int gcd(int a, int b) {
+                if (b == 0) {
+                    return a;
+                }
+                return gcd(b, a % b);
+            }
+            """),
+        EuclidPairNotMoved("logic-go-euclid-pair-not-moved",
+            """
+            func gcd(a, b int) int {
+            	for b != 0 {
+            		a, b = b, a%b
+            	}
+            	return a
+            }
+            """),
+        EuclidPairNotMoved("logic-rust-euclid-pair-not-moved",
+            """
+            fn gcd(a: u32, b: u32) -> u32 {
+                if b == 0 {
+                    a
+                } else {
+                    gcd(b, a % b)
+                }
+            }
+            """),
+        EuclidPairNotMoved("logic-ruby-euclid-pair-not-moved",
+            """
+            def gcd(a, b)
+              return a if b.zero?
+
+              gcd(b, a % b)
+            end
+            """),
+        EuclidPairNotMoved("logic-lua-euclid-pair-not-moved",
+            """
+            local function gcd(a, b)
+              if b == 0 then
+                return a
+              end
+              return gcd(b, a % b)
+            end
+            """),
+        EuclidPairNotMoved("logic-php-euclid-pair-not-moved",
+            """
+            function gcd(int $a, int $b): int {
+                if ($b == 0) {
+                    return $a;
+                }
+                return gcd($b, $a % $b);
+            }
+            """),
+        EuclidPairNotMoved("logic-perl-euclid-pair-not-moved",
+            """
+            sub gcd {
+                my ($a, $b) = @_;
+                while ($b != 0) {
+                    ($a, $b) = ($b, $a % $b);
+                }
+                return $a;
+            }
+            """),
+        EuclidPairNotMoved("logic-powershell-euclid-pair-not-moved",
+            """
+            function Get-Gcd([int]$a, [int]$b) {
+                if ($b -eq 0) {
+                    return $a
+                }
+                return Get-Gcd $b ($a % $b)
+            }
+            """),
+        EuclidPairNotMoved("logic-dart-euclid-pair-not-moved",
+            """
+            int gcd(int a, int b) {
+              if (b == 0) {
+                return a;
+              }
+              return gcd(b, a % b);
+            }
+            """),
+        EuclidPairNotMoved("logic-scala-euclid-pair-not-moved",
+            """
+            def gcd(a: Int, b: Int): Int =
+              if (b == 0) a else gcd(b, a % b)
+            """),
+        EuclidPairNotMoved("logic-fortran-euclid-pair-not-moved",
+            """
+            recursive integer function gcd(a, b) result(divisor)
+              integer, intent(in) :: a, b
+              if (b == 0) then
+                divisor = a
+              else
+                divisor = gcd(b, mod(a, b))
+              end if
+            end function gcd
+            """),
+        EuclidPairNotMoved("logic-fsharp-euclid-pair-not-moved",
+            """
+            let rec gcd a b =
+                if b = 0 then a else gcd b (a % b)
+            """),
+        EuclidPairNotMoved("logic-ocaml-euclid-pair-not-moved",
+            """
+            let rec gcd a b =
+              if b = 0 then a else gcd b (a mod b)
+            """),
+        EuclidPairNotMoved("logic-elixir-euclid-pair-not-moved",
+            """
+            def gcd(a, 0), do: a
+            def gcd(a, b), do: gcd(b, rem(a, b))
+            """),
+        EuclidPairNotMoved("logic-erlang-euclid-pair-not-moved",
+            """
+            gcd(A, 0) -> A;
+            gcd(A, B) -> gcd(B, A rem B).
             """),
     ];
 }
