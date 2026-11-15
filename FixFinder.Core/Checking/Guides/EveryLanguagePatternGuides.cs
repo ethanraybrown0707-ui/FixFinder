@@ -297,6 +297,16 @@ internal static class EveryLanguagePatternGuides
             "Give back the item itself: yield x.",
             example);
 
+    private static GuideEntry SubsetsWithoutFirstDropped(string id, string example) =>
+        GuideFor([id], "Subsets given back without the ones that leave the first item out",
+            "Every subset of a list can be made from the subsets of the rest of it, found by calling the same function: each " +
+            "subset either leaves the first item out - one of the rest's subsets as it is - or holds it - one of them with the " +
+            "item put in front. Here only the second half is given back: the rest's own subsets are left out.",
+            "Each call gives back as many subsets as the call below it, and the one at the bottom gives back one, the empty set " +
+            "- so the subsets of 1 2 3 come out as [1 2 3] alone, where there are 8.",
+            "Give back the rest's subsets too: return rest_subsets + [[first] + subset for subset in rest_subsets].",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -6524,6 +6534,223 @@ internal static class EveryLanguagePatternGuides
             flatten([]) -> [];
             flatten([Item | Rest]) when is_list(Item) -> flatten(Item) ++ flatten(Rest);
             flatten([Item | Rest]) -> [Item | flatten(Rest)].
+            """),
+        SubsetsWithoutFirstDropped("logic-python-subsets-without-first-dropped",
+            """
+            def powerset(items):
+                if not items:
+                    return [[]]
+                first, *rest = items
+                rest_subsets = powerset(rest)
+                return rest_subsets + [[first] + subset for subset in rest_subsets]
+            """),
+        SubsetsWithoutFirstDropped("logic-java-subsets-without-first-dropped",
+            """
+            static List<List<Integer>> powerset(List<Integer> items) {
+                if (items.isEmpty()) {
+                    List<List<Integer>> justTheEmptySet = new ArrayList<>();
+                    justTheEmptySet.add(new ArrayList<>());
+                    return justTheEmptySet;
+                }
+                int first = items.get(0);
+                List<List<Integer>> restSubsets = powerset(items.subList(1, items.size()));
+                List<List<Integer>> subsets = new ArrayList<>(restSubsets);
+                for (List<Integer> subset : restSubsets) {
+                    List<Integer> withFirst = new ArrayList<>();
+                    withFirst.add(first);
+                    withFirst.addAll(subset);
+                    subsets.add(withFirst);
+                }
+                return subsets;
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-csharp-subsets-without-first-dropped",
+            """
+            static List<List<int>> Powerset(List<int> items)
+            {
+                if (items.Count == 0) return new List<List<int>> { new List<int>() };
+                int first = items[0];
+                var restSubsets = Powerset(items.Skip(1).ToList());
+                return restSubsets.Concat(restSubsets.Select(subset => new List<int> { first }.Concat(subset).ToList())).ToList();
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-js-subsets-without-first-dropped",
+            """
+            function powerset(items) {
+                if (items.length === 0) {
+                    return [[]];
+                }
+                const [first, ...rest] = items;
+                const restSubsets = powerset(rest);
+                return [...restSubsets, ...restSubsets.map((subset) => [first, ...subset])];
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-go-subsets-without-first-dropped",
+            """
+            func powerset(items []int) [][]int {
+            	if len(items) == 0 {
+            		return [][]int{{}}
+            	}
+            	first := items[0]
+            	restSubsets := powerset(items[1:])
+            	subsets := append([][]int{}, restSubsets...)
+            	for _, subset := range restSubsets {
+            		subsets = append(subsets, append([]int{first}, subset...))
+            	}
+            	return subsets
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-ruby-subsets-without-first-dropped",
+            """
+            def powerset(items)
+              return [[]] if items.empty?
+              first, *rest = items
+              rest_subsets = powerset(rest)
+              rest_subsets + rest_subsets.map { |subset| [first] + subset }
+            end
+            """),
+        SubsetsWithoutFirstDropped("logic-lua-subsets-without-first-dropped",
+            """
+            local function powerset(items)
+              if #items == 0 then
+                return { {} }
+              end
+              local first = items[1]
+              local restSubsets = powerset({ table.unpack(items, 2) })
+              local subsets = { table.unpack(restSubsets) }
+              for _, subset in ipairs(restSubsets) do
+                subsets[#subsets + 1] = { first, table.unpack(subset) }
+              end
+              return subsets
+            end
+            """),
+        SubsetsWithoutFirstDropped("logic-php-subsets-without-first-dropped",
+            """
+            function powerset(array $items): array {
+                if (count($items) === 0) {
+                    return [[]];
+                }
+                $first = $items[0];
+                $restSubsets = powerset(array_slice($items, 1));
+                $subsets = $restSubsets;
+                foreach ($restSubsets as $subset) {
+                    $subsets[] = array_merge([$first], $subset);
+                }
+                return $subsets;
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-perl-subsets-without-first-dropped",
+            """
+            sub powerset {
+                my @items = @_;
+                return ([]) unless @items;
+                my ($first, @rest) = @items;
+                my @rest_subsets = powerset(@rest);
+                return (@rest_subsets, map { [$first, @$_] } @rest_subsets);
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-powershell-subsets-without-first-dropped",
+            """
+            function Get-Powerset($items) {
+                if ($items.Count -eq 0) {
+                    return ,@(,@())
+                }
+                $first = $items[0]
+                $restSubsets = Get-Powerset @($items | Select-Object -Skip 1)
+                $subsets = @($restSubsets)
+                foreach ($subset in $restSubsets) {
+                    $subsets += ,(@($first) + $subset)
+                }
+                return ,$subsets
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-dart-subsets-without-first-dropped",
+            """
+            List<List<int>> powerset(List<int> items) {
+              if (items.isEmpty) {
+                return [[]];
+              }
+              final first = items.first;
+              final restSubsets = powerset(items.sublist(1));
+              return [...restSubsets, ...restSubsets.map((subset) => [first, ...subset])];
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-scala-subsets-without-first-dropped",
+            """
+            def powerset(items: List[Int]): List[List[Int]] = {
+              if (items.isEmpty) return List(Nil)
+              val first = items.head
+              val restSubsets = powerset(items.tail)
+              restSubsets ++ restSubsets.map(subset => first :: subset)
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-elixir-subsets-without-first-dropped",
+            """
+            def powerset([]), do: [[]]
+
+            def powerset([first | rest]) do
+              rest_subsets = powerset(rest)
+              rest_subsets ++ Enum.map(rest_subsets, fn subset -> [first | subset] end)
+            end
+            """),
+        SubsetsWithoutFirstDropped("logic-erlang-subsets-without-first-dropped",
+            """
+            powerset([]) -> [[]];
+            powerset([First | Rest]) ->
+                RestSubsets = powerset(Rest),
+                RestSubsets ++ [[First | Subset] || Subset <- RestSubsets].
+            """),
+        SubsetsWithoutFirstDropped("logic-fsharp-subsets-without-first-dropped",
+            """
+            let rec powerset items =
+                match items with
+                | [] -> [ [] ]
+                | first :: rest ->
+                    let restSubsets = powerset rest
+                    restSubsets @ List.map (fun subset -> first :: subset) restSubsets
+            """),
+        SubsetsWithoutFirstDropped("logic-ocaml-subsets-without-first-dropped",
+            """
+            let rec powerset items =
+              match items with
+              | [] -> [ [] ]
+              | first :: rest ->
+                let rest_subsets = powerset rest in
+                rest_subsets @ List.map (fun subset -> first :: subset) rest_subsets
+            """),
+        SubsetsWithoutFirstDropped("logic-rust-subsets-without-first-dropped",
+            """
+            fn powerset(items: &[i32]) -> Vec<Vec<i32>> {
+                if items.is_empty() {
+                    return vec![vec![]];
+                }
+                let first = items[0];
+                let rest_subsets = powerset(&items[1..]);
+                let mut subsets = rest_subsets.clone();
+                for subset in &rest_subsets {
+                    let mut with_first = vec![first];
+                    with_first.extend(subset);
+                    subsets.push(with_first);
+                }
+                subsets
+            }
+            """),
+        SubsetsWithoutFirstDropped("logic-cpp-subsets-without-first-dropped",
+            """
+            std::vector<std::vector<int>> powerset(const std::vector<int>& items) {
+                if (items.empty()) {
+                    return {{}};
+                }
+                int first = items[0];
+                std::vector<std::vector<int>> restSubsets = powerset(std::vector<int>(items.begin() + 1, items.end()));
+                std::vector<std::vector<int>> subsets = restSubsets;
+                for (const auto& subset : restSubsets) {
+                    std::vector<int> withFirst{first};
+                    withFirst.insert(withFirst.end(), subset.begin(), subset.end());
+                    subsets.push_back(withFirst);
+                }
+                return subsets;
+            }
             """),
     ];
 }
