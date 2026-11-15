@@ -221,6 +221,16 @@ internal static class EveryLanguagePatternGuides
             "Go on with the number divided by and the remainder: gcd(b, a % b).",
             example);
 
+    private static GuideEntry BracketsLeftOpen(string id, string example) =>
+        GuideFor([id], "Brackets left open said to be valid",
+            "A check of a string's brackets can count the ones still open: one more for each opening bracket, one fewer for " +
+            "each closing one. A closing bracket with nothing open makes the count go below 0, and the check says no at once. " +
+            "At the end every bracket opened must have been closed - the count must be 0. Here the end says yes whatever the " +
+            "count is.",
+            "Brackets opened and never closed are said to be valid: ((, ((() and ( all come out valid, though )( is caught.",
+            "Ask at the end that nothing is left open: return depth == 0.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -4931,6 +4941,306 @@ internal static class EveryLanguagePatternGuides
             """
             gcd(A, 0) -> A;
             gcd(A, B) -> gcd(B, A rem B).
+            """),
+        BracketsLeftOpen("logic-python-brackets-left-open",
+            """
+            def is_valid_parenthesization(parens):
+                depth = 0
+                for paren in parens:
+                    if paren == '(':
+                        depth += 1
+                    else:
+                        depth -= 1
+                        if depth < 0:
+                            return False
+
+                return depth == 0
+            """),
+        BracketsLeftOpen("logic-java-brackets-left-open",
+            """
+            public static Boolean is_valid_parenthesization(String parens) {
+                int depth = 0;
+                for (int i = 0; i < parens.length(); i++) {
+                    Character paren = parens.charAt(i);
+                    if (paren.equals('(')) {
+                        depth++;
+                    } else {
+                        depth--;
+                        if (depth < 0) { return false; }
+                    }
+                }
+                return depth == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-csharp-brackets-left-open",
+            """
+            static bool Balanced(string text)
+            {
+                var open = 0;
+                foreach (var bracket in text)
+                {
+                    if (bracket == '(')
+                    {
+                        open++;
+                    }
+                    else
+                    {
+                        open--;
+                        if (open < 0)
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                return open == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-js-brackets-left-open",
+            """
+            function balanced(text) {
+              let depth = 0;
+              for (const bracket of text) {
+                if (bracket === "(") {
+                  depth++;
+                } else {
+                  depth--;
+                  if (depth < 0) return false;
+                }
+              }
+              return depth === 0;
+            }
+            """),
+        BracketsLeftOpen("logic-c-brackets-left-open",
+            """
+            static int balanced(const char *text) {
+                int depth = 0;
+                for (; *text; text++) {
+                    if (*text == '(') {
+                        depth++;
+                    } else {
+                        depth--;
+                        if (depth < 0) return 0;
+                    }
+                }
+                return depth == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-cpp-brackets-left-open",
+            """
+            bool balanced(const std::string& text) {
+                int depth = 0;
+                for (char bracket : text) {
+                    if (bracket == '(') {
+                        depth++;
+                    } else {
+                        depth--;
+                        if (depth < 0) {
+                            return false;
+                        }
+                    }
+                }
+                return depth == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-go-brackets-left-open",
+            """
+            func balanced(text string) bool {
+            	depth := 0
+            	for _, bracket := range text {
+            		if bracket == '(' {
+            			depth++
+            		} else {
+            			depth--
+            			if depth < 0 {
+            				return false
+            			}
+            		}
+            	}
+            	return depth == 0
+            }
+            """),
+        BracketsLeftOpen("logic-rust-brackets-left-open",
+            """
+            fn balanced(text: &str) -> bool {
+                let mut depth = 0;
+                for bracket in text.chars() {
+                    if bracket == '(' {
+                        depth += 1;
+                    } else {
+                        depth -= 1;
+                        if depth < 0 {
+                            return false;
+                        }
+                    }
+                }
+                depth == 0
+            }
+            """),
+        BracketsLeftOpen("logic-ruby-brackets-left-open",
+            """
+            def balanced?(text)
+              depth = 0
+              text.each_char do |bracket|
+                if bracket == "("
+                  depth += 1
+                else
+                  depth -= 1
+                  return false if depth < 0
+                end
+              end
+              depth == 0
+            end
+            """),
+        BracketsLeftOpen("logic-lua-brackets-left-open",
+            """
+            local function balanced(text)
+              local depth = 0
+              for bracket in text:gmatch(".") do
+                if bracket == "(" then
+                  depth = depth + 1
+                else
+                  depth = depth - 1
+                  if depth < 0 then
+                    return false
+                  end
+                end
+              end
+              return depth == 0
+            end
+            """),
+        BracketsLeftOpen("logic-php-brackets-left-open",
+            """
+            function balanced(string $text): bool {
+                $depth = 0;
+                foreach (str_split($text) as $bracket) {
+                    if ($bracket === "(") {
+                        $depth++;
+                    } else {
+                        $depth--;
+                        if ($depth < 0) {
+                            return false;
+                        }
+                    }
+                }
+                return $depth === 0;
+            }
+            """),
+        BracketsLeftOpen("logic-perl-brackets-left-open",
+            """
+            sub balanced {
+                my ($text) = @_;
+                my $depth = 0;
+                for my $bracket (split //, $text) {
+                    if ($bracket eq "(") {
+                        $depth++;
+                    } else {
+                        $depth--;
+                        return 0 if $depth < 0;
+                    }
+                }
+                return $depth == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-powershell-brackets-left-open",
+            """
+            function Test-Balanced([string]$text) {
+                $depth = 0
+                foreach ($bracket in $text.ToCharArray()) {
+                    if ($bracket -eq '(') {
+                        $depth++
+                    } else {
+                        $depth--
+                        if ($depth -lt 0) {
+                            return $false
+                        }
+                    }
+                }
+                return $depth -eq 0
+            }
+            """),
+        BracketsLeftOpen("logic-dart-brackets-left-open",
+            """
+            bool balanced(String text) {
+              var depth = 0;
+              for (final bracket in text.split('')) {
+                if (bracket == '(') {
+                  depth++;
+                } else {
+                  depth--;
+                  if (depth < 0) {
+                    return false;
+                  }
+                }
+              }
+              return depth == 0;
+            }
+            """),
+        BracketsLeftOpen("logic-scala-brackets-left-open",
+            """
+            def balanced(text: String): Boolean = {
+              var depth = 0
+              for (bracket <- text) {
+                if (bracket == '(') {
+                  depth += 1
+                } else {
+                  depth -= 1
+                  if (depth < 0) {
+                    return false
+                  }
+                }
+              }
+              depth == 0
+            }
+            """),
+        BracketsLeftOpen("logic-fortran-brackets-left-open",
+            """
+            logical function balanced(text)
+              character(len=*), intent(in) :: text
+              integer :: depth, i
+              depth = 0
+              do i = 1, len(text)
+                if (text(i:i) == '(') then
+                  depth = depth + 1
+                else
+                  depth = depth - 1
+                  if (depth < 0) then
+                    balanced = .false.
+                    return
+                  end if
+                end if
+              end do
+              balanced = depth == 0
+            end function balanced
+            """),
+        BracketsLeftOpen("logic-fsharp-brackets-left-open",
+            """
+            let rec balanced depth brackets =
+                match brackets with
+                | [] -> depth = 0
+                | '(' :: rest -> balanced (depth + 1) rest
+                | _ :: rest -> depth > 0 && balanced (depth - 1) rest
+            """),
+        BracketsLeftOpen("logic-ocaml-brackets-left-open",
+            """
+            let rec balanced depth brackets =
+              match brackets with
+              | [] -> depth = 0
+              | '(' :: rest -> balanced (depth + 1) rest
+              | _ :: rest -> depth > 0 && balanced (depth - 1) rest
+            """),
+        BracketsLeftOpen("logic-elixir-brackets-left-open",
+            """
+            def balanced?(text), do: balanced?(String.graphemes(text), 0)
+            defp balanced?([], depth), do: depth == 0
+            defp balanced?(["(" | rest], depth), do: balanced?(rest, depth + 1)
+            defp balanced?([_ | rest], depth), do: depth > 0 and balanced?(rest, depth - 1)
+            """),
+        BracketsLeftOpen("logic-erlang-brackets-left-open",
+            """
+            balanced([], Depth) -> Depth =:= 0;
+            balanced([$( | Rest], Depth) -> balanced(Rest, Depth + 1);
+            balanced([_ | Rest], Depth) -> Depth > 0 andalso balanced(Rest, Depth - 1).
             """),
     ];
 }
