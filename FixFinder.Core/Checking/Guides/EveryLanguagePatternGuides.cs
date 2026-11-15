@@ -275,6 +275,17 @@ internal static class EveryLanguagePatternGuides
             "Give back the number itself when no factor is found: return [n].",
             example);
 
+    private static GuideEntry EmptyChoiceMissing(string id, string example) =>
+        GuideFor([id], "Choices made with no empty choice at the bottom",
+            "Every choice of k items can be made by choosing a first item and then, by calling the same function, every choice " +
+            "of the rest - putting the first item in front of each one. With nothing left to choose there is still one choice: " +
+            "choosing nothing, the empty one, and putting an item in front of it gives each choice of one item. Here the base " +
+            "case gives back no choices at all.",
+            "With nothing at the bottom to put an item in front of, every call gives back nothing: the choices of 3 from 1 to 5 " +
+            "come out as none, where there are 10.",
+            "Give back the one empty choice: return [[]].",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -6083,6 +6094,244 @@ internal static class EveryLanguagePatternGuides
                     [] -> [N];
                     [I | _] -> [I | factors(N div I)]
                 end.
+            """),
+        EmptyChoiceMissing("logic-python-empty-choice-missing",
+            """
+            def subsequences(a, b, k):
+                if k == 0:
+                    return [[]]
+
+                ret = []
+                for i in range(a, b + 1 - k):
+                    ret.extend(
+                        [i] + rest for rest in subsequences(i + 1, b, k - 1)
+                    )
+
+                return ret
+            """),
+        EmptyChoiceMissing("logic-java-empty-choice-missing",
+            """
+            public static ArrayList<ArrayList> subsequences(int a, int b, int k) {
+                if (k == 0) {
+                    ArrayList<ArrayList> nothingChosen = new ArrayList();
+                    nothingChosen.add(new ArrayList<>());
+                    return nothingChosen;
+                }
+                ArrayList ret = new ArrayList(50);
+                for (int i=a; i<b+1-k; i++) {
+                    ArrayList base = new ArrayList(50);
+                    for (ArrayList rest : subsequences(i+1, b, k-1)) {
+                        rest.add(0,i);
+                        base.add(rest);
+                    }
+                    ret.addAll(base);
+                }
+                return ret;
+            }
+            """),
+        EmptyChoiceMissing("logic-csharp-empty-choice-missing",
+            """
+            static List<List<int>> Choices(int from, int to, int count)
+            {
+                if (count == 0)
+                {
+                    return new List<List<int>> { new List<int>() };
+                }
+
+                var choices = new List<List<int>>();
+                for (var first = from; first <= to - count; first++)
+                {
+                    foreach (var rest in Choices(first + 1, to, count - 1))
+                    {
+                        choices.Add(new List<int> { first }.Concat(rest).ToList());
+                    }
+                }
+
+                return choices;
+            }
+            """),
+        EmptyChoiceMissing("logic-js-empty-choice-missing",
+            """
+            function choices(from, to, count) {
+              if (count === 0) return [[]];
+              const found = [];
+              for (let first = from; first <= to - count; first++) {
+                for (const rest of choices(first + 1, to, count - 1)) {
+                  found.push([first, ...rest]);
+                }
+              }
+              return found;
+            }
+            """),
+        EmptyChoiceMissing("logic-cpp-empty-choice-missing",
+            """
+            std::vector<std::vector<int>> choices(int from, int to, int count) {
+                if (count == 0) {
+                    return {{}};
+                }
+                std::vector<std::vector<int>> found;
+                for (int first = from; first <= to - count; first++) {
+                    for (std::vector<int> rest : choices(first + 1, to, count - 1)) {
+                        rest.insert(rest.begin(), first);
+                        found.push_back(rest);
+                    }
+                }
+                return found;
+            }
+            """),
+        EmptyChoiceMissing("logic-go-empty-choice-missing",
+            """
+            func choices(from, to, count int) [][]int {
+            	if count == 0 {
+            		return [][]int{{}}
+            	}
+            	var found [][]int
+            	for first := from; first <= to-count; first++ {
+            		for _, rest := range choices(first+1, to, count-1) {
+            			found = append(found, append([]int{first}, rest...))
+            		}
+            	}
+            	return found
+            }
+            """),
+        EmptyChoiceMissing("logic-rust-empty-choice-missing",
+            """
+            fn choices(from: u32, to: u32, count: u32) -> Vec<Vec<u32>> {
+                if count == 0 {
+                    return vec![vec![]];
+                }
+                let mut found = Vec::new();
+                for first in from..=to - count {
+                    for rest in choices(first + 1, to, count - 1) {
+                        let mut choice = vec![first];
+                        choice.extend(rest);
+                        found.push(choice);
+                    }
+                }
+                found
+            }
+            """),
+        EmptyChoiceMissing("logic-ruby-empty-choice-missing",
+            """
+            def choices(from, to, count)
+              return [[]] if count.zero?
+
+              (from..(to - count)).flat_map do |first|
+                choices(first + 1, to, count - 1).map { |rest| [first] + rest }
+              end
+            end
+            """),
+        EmptyChoiceMissing("logic-lua-empty-choice-missing",
+            """
+            local function choices(from, to, count)
+              if count == 0 then
+                return { {} }
+              end
+              local found = {}
+              for first = from, to - count do
+                for _, rest in ipairs(choices(first + 1, to, count - 1)) do
+                  local choice = { first }
+                  for _, number in ipairs(rest) do
+                    choice[#choice + 1] = number
+                  end
+                  found[#found + 1] = choice
+                end
+              end
+              return found
+            end
+            """),
+        EmptyChoiceMissing("logic-php-empty-choice-missing",
+            """
+            function choices(int $from, int $to, int $count): array {
+                if ($count == 0) {
+                    return [[]];
+                }
+                $found = [];
+                for ($first = $from; $first <= $to - $count; $first++) {
+                    foreach (choices($first + 1, $to, $count - 1) as $rest) {
+                        $found[] = array_merge([$first], $rest);
+                    }
+                }
+                return $found;
+            }
+            """),
+        EmptyChoiceMissing("logic-perl-empty-choice-missing",
+            """
+            sub choices {
+                my ($from, $to, $count) = @_;
+                return ([]) if $count == 0;
+                my @found;
+                for my $first ($from .. $to - $count) {
+                    for my $rest (choices($first + 1, $to, $count - 1)) {
+                        push @found, [$first, @$rest];
+                    }
+                }
+                return @found;
+            }
+            """),
+        EmptyChoiceMissing("logic-powershell-empty-choice-missing",
+            """
+            function Get-Choices([int]$from, [int]$to, [int]$count) {
+                if ($count -eq 0) {
+                    return ,@(,@())
+                }
+                $found = [System.Collections.Generic.List[object]]::new()
+                for ($first = $from; $first -le $to - $count; $first++) {
+                    foreach ($rest in (Get-Choices ($first + 1) $to ($count - 1))) {
+                        $found.Add(@($first) + $rest)
+                    }
+                }
+                return ,$found.ToArray()
+            }
+            """),
+        EmptyChoiceMissing("logic-dart-empty-choice-missing",
+            """
+            List<List<int>> choices(int from, int to, int count) {
+              if (count == 0) {
+                return [[]];
+              }
+              final found = <List<int>>[];
+              for (var first = from; first <= to - count; first++) {
+                for (final rest in choices(first + 1, to, count - 1)) {
+                  found.add([first, ...rest]);
+                }
+              }
+              return found;
+            }
+            """),
+        EmptyChoiceMissing("logic-scala-empty-choice-missing",
+            """
+            def choices(from: Int, to: Int, count: Int): List[List[Int]] =
+              if (count == 0) List(List())
+              else (from to (to - count)).toList.flatMap(first => choices(first + 1, to, count - 1).map(rest => first :: rest))
+            """),
+        EmptyChoiceMissing("logic-fsharp-empty-choice-missing",
+            """
+            let rec choices first last count =
+                if count = 0 then [ [] ]
+                else [ for number in first .. last - count do for rest in choices (number + 1) last (count - 1) -> number :: rest ]
+            """),
+        EmptyChoiceMissing("logic-ocaml-empty-choice-missing",
+            """
+            let rec choices first last count =
+              if count = 0 then [ [] ]
+              else
+                List.concat_map (fun number -> List.map (fun rest -> number :: rest) (choices (number + 1) last (count - 1)))
+                  (List.init (max 0 (last - count - first + 1)) (fun k -> first + k))
+            """),
+        EmptyChoiceMissing("logic-elixir-empty-choice-missing",
+            """
+            def choices(_from, _to, 0), do: [[]]
+
+            def choices(from, to, count) do
+              for first <- from..(to - count)//1, rest <- choices(first + 1, to, count - 1), do: [first | rest]
+            end
+            """),
+        EmptyChoiceMissing("logic-erlang-empty-choice-missing",
+            """
+            choices(_From, _To, 0) -> [[]];
+            choices(From, To, Count) ->
+                [[First | Rest] || First <- lists:seq(From, To - Count), Rest <- choices(First + 1, To, Count - 1)].
             """),
     ];
 }

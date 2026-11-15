@@ -68,6 +68,7 @@ public static class LogicPatterns
         .. OperandsBackwardsPatterns.All,
         .. LoopOneShortPatterns.All,
         .. LastFactorPatterns.All,
+        .. EmptyChoicePatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
