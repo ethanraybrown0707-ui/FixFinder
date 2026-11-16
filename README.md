@@ -987,7 +987,7 @@ changed.
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
 | **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
-| **How it got there** | For a Python program that stopped on None, the way the None went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run recorded. |
+| **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. |
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
@@ -1032,8 +1032,8 @@ main(), line 22 - calls print_member(member), giving member None
     print_member(), line 17 - stops: it picks an item out of member with [ ]
 ```
 
-What to do is then said of the function that made the None - `find_member`, on line 8. The other languages' findings
-below say the line that gave the value and why, but do not yet show the way.
+What to do is then said of the function that made the None - `find_member`, on line 8. The languages below are
+followed through more than one function too, and show the way the same way.
 
 A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
 FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed
@@ -1140,6 +1140,14 @@ In Java, JavaScript, TypeScript and C#, a method called on an object - `shelf.lo
 when the file declares the object as one of its own classes, as `Shelf shelf = new Shelf();` does, and the method is in
 that class; a method of a list, a Map or any class the file does not have is not. The call has to be all the line gives:
 in `lettersOf("tea").get("last")` the value is get's, not lettersOf's.
+
+In each of these languages, as in Python, the missing value is followed through more than one function, from what the
+copy printed: a parameter the call gave one of the caller's own variables is followed to the last line of the caller
+that set that variable before the call - the copy prints what each line setting it gave it - and a function whose return
+gave back another of its calls' value, `return found;` after `found = findMember(wanted);` or `return lookup(table, key);`
+itself, is followed into that call, past the calls made inside it, up to 8 calls deep. The finding then shows How it got
+there, as a Python one does. Rust's panic and Perl's die name only the line they stopped on, not the call that led there,
+so a parameter in Rust or Perl is not followed back to its caller.
 
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -

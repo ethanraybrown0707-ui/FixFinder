@@ -18,8 +18,8 @@ namespace FixFinder.Core.Analysis.Dynamic;
 /// </remarks>
 public static partial class CSharpNullOrigin
 {
-    /// <summary>A name the line reads a member or an item from: member.Age, member?.Age, marks[0].</summary>
-    [GeneratedRegex(@"(?<![\w.@])(?<name>@?[A-Za-z_]\w*)\s*(?:\?\s*)?(?<use>\.\s*(?<member>[A-Za-z_]\w*)\s*(?<call>\()?|\[)")]
+    /// <summary>A name the line reads a member or an item from: member.Age, member?.Age, member!.Age, marks[0].</summary>
+    [GeneratedRegex(@"(?<![\w.@])(?<name>@?[A-Za-z_]\w*)\s*(?:[?!]\s*)?(?<use>\.\s*(?<member>[A-Za-z_]\w*)\s*(?<call>\()?|\[)")]
     private static partial Regex ReadFrom();
 
     private static readonly CSharpDialect CSharp = new();

@@ -172,6 +172,13 @@ internal static class BraceMissingValue
         foreach (var line in name is null ? [] : code.LinesSetting(name, stoppedIn))
             marks.After(line, dialect.Print(dialect.Quoted($"{Marker} set {line} ") + dialect.Joining + dialect.MissingOrValue(name!)), dialect.StatementsEndInSemicolons);
 
+        // A parameter given the caller's own variable: the lines of the caller setting that variable say what they gave it,
+        // so the line it got the missing value on can be told.
+        var passed = name is not null && stoppedIn is not null && calledFrom is { } callLine ? code.PassedFor(callLine, stoppedIn, name) : null;
+        var caller = calledFrom is { } callerLine ? code.FunctionAround(callerLine) : null;
+        foreach (var line in passed is null ? [] : code.LinesSetting(passed, caller).Where(line => line < calledFrom))
+            marks.After(line, dialect.Print(dialect.Quoted($"{Marker} outer {line} ") + dialect.Joining + dialect.MissingOrValue(passed!)), dialect.StatementsEndInSemicolons);
+
         var followed = code.Unique.Values.Where(each => !code.CallsItself(each)).ToList();
         foreach (var each in followed)
         {
@@ -205,7 +212,7 @@ internal static class BraceMissingValue
             .Select(text => text[(Marker.Length + 1)..])
             .ToList();
         var story = new Story(dialect, code, events, crashLine, value);
-        var cause = name is not null ? story.FromName(name, doing, stoppedIn, calledFrom) : story.FromCall(calledFunction!, doing, value!);
+        var cause = name is not null ? story.FromName(name, doing, stoppedIn, calledFrom, passed, caller) : story.FromCall(calledFunction!, doing, value!);
 
         return new BraceTraced(cause, Timeline(events, stoppedIn, calledFrom));
     }
@@ -409,7 +416,7 @@ internal static class BraceMissingValue
         private string CopyStopped =>
             $"A copy of the program, printing a line wherever the {value} could come from, stopped on line {crashLine} with the same {dialect.ErrorName}.";
 
-        public RootCause? FromName(string name, string doing, BraceFunction? stoppedIn, int? calledFrom)
+        public RootCause? FromName(string name, string doing, BraceFunction? stoppedIn, int? calledFrom, string? passed, BraceFunction? caller)
         {
             var lastSet = events.Select((said, index) => (Said: said.Split(' '), Index: index)).LastOrDefault(each => each.Said is ["set", _, _]);
 
@@ -423,7 +430,9 @@ internal static class BraceMissingValue
             var steps = new List<string> { $"The program stopped on line {crashLine}: it {string.Format(doing, Code(name))}, but {Code(name)} is {value} there." };
             var evidence = new List<string> { CopyStopped, $"{Code(name)} was {value} when line {crashLine} ran." };
             var involved = new List<int>();
+            var path = new List<PathStep>();
             var checkFirst = $"check {Code(name)} is not {value} before line {crashLine} uses it";
+            var stopped = $"stops: it {string.Format(doing, Code(name))}";
 
             int introduced;
             string whatToDo;
@@ -444,8 +453,39 @@ internal static class BraceMissingValue
                 var giver = code.Unique.Values.FirstOrDefault(other => other.Name != stoppedIn.Name && began > 0 &&
                                                                         Regex.IsMatch(code.Text(from), $@"(?<![\w.$]){Regex.Escape(other.Name)}\s*\(") &&
                                                                         CallBefore(began, other.Name) is not null);
+                var callerName = Named(caller);
                 if (giver is not null && CallBefore(began, giver.Name) is { } given)
-                    whatToDo = $"{SayWhyItGaveIt(giver, given, steps, evidence, involved, from)} Or {checkFirst}.";
+                {
+                    path.Add(new PathStep(0, callerName, from, $"calls {Code(code.CallText(from, giver.Name))}"));
+                    whatToDo = $"{SayWhyItGaveIt(giver, given, steps, evidence, involved, from, path, depth: 1)} Or {checkFirst}.";
+                }
+                else if (passed is not null && began > 0 && OuterSetBefore(began) is var (set, setAt) )
+                {
+                    // The caller's own variable was given: the line that gave it the missing value in the caller is where it went wrong.
+                    introduced = set;
+                    involved.Insert(0, set);
+                    var (inCaller, ofCaller) = caller is null ? ("At the file's top level", "the file's top level") : ($"In {Code(caller.Name)}", Code(caller.Name));
+                    evidence.Add($"Line {set} was the last line of {ofCaller} to set {Code(passed)} before the call on line {from}, and it set it to {value}.");
+                    var right = code.AssignedFrom(set, passed);
+
+                    if (right is not null && CalledFunction(right) is { } setBy && code.Unique.TryGetValue(setBy, out var setFunction) &&
+                        CallBefore(setAt, setFunction.Name) is { } setCall)
+                    {
+                        steps.Add($"{inCaller}, {Code(passed)} was set on line {set}, {Code(code.Text(set))}, and {Code(setFunction.Name)} gave back {value}.");
+                        path.Add(new PathStep(0, callerName, set, $"calls {Code(code.CallText(set, setFunction.Name))}"));
+                        whatToDo = $"{SayWhyItGaveIt(setFunction, setCall, steps, evidence, involved, set, path, depth: 1)} Or {checkFirst}.";
+                    }
+                    else
+                    {
+                        steps.Add($"{inCaller}, {Code(passed)} was set to {value} on line {set}: {Code(code.Text(set))}.");
+                        whatToDo = $"Give {Code(passed)} {dialect.SomethingThere} on line {set}, or {checkFirst}.";
+                    }
+
+                    path.Add(new PathStep(0, callerName, set, $"sets {Code(passed)} to {value}"));
+                }
+
+                path.Add(new PathStep(0, callerName, from, $"calls {Code(code.CallText(from, stoppedIn.Name).TrimEnd(';'))}, giving {Code(name)} {value}"));
+                path.Add(new PathStep(1, stoppedIn.Name, crashLine, stopped));
             }
             else
             {
@@ -460,6 +500,7 @@ internal static class BraceMissingValue
                 if (right == value)
                 {
                     steps.Add($"{Code(name)} was set to {value} on line {made}, {Code(code.Text(made))}, and nothing changed it after that.");
+                    path.Add(new PathStep(0, Named(stoppedIn), made, $"sets {Code(name)} to {value}"));
 
                     var neverRan = code.LinesSetting(name, stoppedIn).Where(line => line != made && !events.Any(said => said.StartsWith($"set {line} ", StringComparison.Ordinal))).ToList();
                     foreach (var line in neverRan)
@@ -481,7 +522,9 @@ internal static class BraceMissingValue
                     if (right is not null && CalledFunction(right) is { } called && code.Unique.TryGetValue(called, out var function) &&
                         CallBefore(lastSet.Index, function.Name) is { } call)
                     {
-                        whatToDo = $"{SayWhyItGaveIt(function, call, steps, evidence, involved, made)} Or {checkFirst}.";
+                        path.Add(new PathStep(0, Named(stoppedIn), made, $"calls {Code(code.CallText(made, function.Name))}"));
+                        whatToDo = $"{SayWhyItGaveIt(function, call, steps, evidence, involved, made, path, depth: 1)} Or {checkFirst}.";
+                        path.Add(new PathStep(0, Named(stoppedIn), made, $"sets {Code(name)} to {value}"));
                     }
                     else if (right is not null && dialect.Library(right, code) is { } documented)
                     {
@@ -490,6 +533,9 @@ internal static class BraceMissingValue
                     }
                 }
             }
+
+            // The line that stopped ends the path; in the parameter case it was put there with the call that gave the value.
+            if (path.Count > 0 && path[^1].Line != crashLine) path.Add(new PathStep(0, Named(stoppedIn), crashLine, stopped));
 
             return new RootCause
             {
@@ -502,7 +548,26 @@ internal static class BraceMissingValue
                 Evidence = evidence,
                 LinesInvolved = involved,
                 WhatToDo = whatToDo,
+                Path = path.Count > 1 ? path : [],
             };
+        }
+
+        /// <summary>A function's name for the path, or &lt;module&gt; for the file's own top level.</summary>
+        private static string Named(BraceFunction? function) => function?.Name ?? "<module>";
+
+        /// <summary>
+        /// The last line of the caller to set the variable it gave, before the call at <paramref name="began"/> - and where that
+        /// was printed - when it set it to the missing value; null when none did, or the last one gave something else.
+        /// </summary>
+        private (int Line, int At)? OuterSetBefore(int began)
+        {
+            for (var index = began - 1; index >= 0; index--)
+            {
+                if (events[index].Split(' ', 3) is not ["outer", var line, var held] || !int.TryParse(line, out var set)) continue;
+                return held == value ? (set, index) : null;
+            }
+
+            return null;
         }
 
         /// <summary>The value was never kept under a name: a function of the program gave it, and the line used it straight away.</summary>
@@ -517,7 +582,10 @@ internal static class BraceMissingValue
             };
             var evidence = new List<string> { CopyStopped };
             var involved = new List<int> { crashLine };
-            var whatToChange = SayWhyItGaveIt(function, call, steps, evidence, involved, crashLine);
+            var where = Named(code.FunctionAround(crashLine));
+            var path = new List<PathStep> { new(0, where, crashLine, $"calls {Code(code.CallText(crashLine, functionName))}") };
+            var whatToChange = SayWhyItGaveIt(function, call, steps, evidence, involved, crashLine, path, depth: 1);
+            path.Add(new PathStep(0, where, crashLine, $"stops: it {string.Format(doing, $"what {Code(functionName)} gave back")}"));
 
             return new RootCause
             {
@@ -530,11 +598,15 @@ internal static class BraceMissingValue
                 Evidence = evidence,
                 LinesInvolved = involved,
                 WhatToDo = $"{whatToChange} Or keep what it gives back under a name, and check that is not {value} before line {crashLine} uses it.",
+                Path = path,
             };
         }
 
-        /// <summary>The last call to the function before the event at <paramref name="before"/>, with the events of that call.</summary>
-        private (string Given, IReadOnlyList<string> During, int? Returned)? CallBefore(int before, string function)
+        /// <summary>
+        /// The last call to the function before the event at <paramref name="before"/>, with the events of that call - its own,
+        /// not those of the calls made inside it, which are passed over to its return - and where its return was printed.
+        /// </summary>
+        private (string Given, IReadOnlyList<string> During, int? Returned, int ReturnedAt)? CallBefore(int before, string function)
         {
             var start = -1;
             for (var index = Math.Min(before, events.Count) - 1; index >= 0; index--)
@@ -548,27 +620,43 @@ internal static class BraceMissingValue
 
             var during = new List<string>();
             int? returned = null;
+            var returnedAt = -1;
+            var inside = 0;
             for (var index = start + 1; index < before && index < events.Count; index++)
             {
-                if (events[index].StartsWith("call ", StringComparison.Ordinal) || events[index].StartsWith("set ", StringComparison.Ordinal)) break;
+                // A call made inside this one: its events are its own, up to its return.
+                if (events[index].StartsWith("call ", StringComparison.Ordinal))
+                {
+                    inside++;
+                    continue;
+                }
+
+                if (inside > 0)
+                {
+                    if (events[index].StartsWith("return ", StringComparison.Ordinal)) inside--;
+                    continue;
+                }
+
+                if (events[index].StartsWith("set ", StringComparison.Ordinal) || events[index].StartsWith("outer ", StringComparison.Ordinal)) break;
                 if (events[index].StartsWith($"return {function} ", StringComparison.Ordinal) && int.TryParse(events[index].Split(' ')[2], out var line))
                 {
                     returned = line;
+                    returnedAt = index;
                     break;
                 }
 
                 during.Add(events[index]);
             }
 
-            return (events[start][$"call {function}{Between}".Length..], during, returned);
+            return (events[start][$"call {function}{Between}".Length..], during, returned, returnedAt);
         }
 
         /// <summary>
         /// Says why the call gave back the missing value, from what that call printed: the return it ended on, or that it reached
         /// its end, and what never ran. Gives back what to change in the function for it to give back something.
         /// </summary>
-        private string SayWhyItGaveIt(BraceFunction function, (string Given, IReadOnlyList<string> During, int? Returned) call, List<string> steps,
-            List<string> evidence, List<int> involved, int calledFrom)
+        private string SayWhyItGaveIt(BraceFunction function, (string Given, IReadOnlyList<string> During, int? Returned, int ReturnedAt) call, List<string> steps,
+            List<string> evidence, List<int> involved, int calledFrom, List<PathStep> path, int depth)
         {
             involved.Add(function.Header);
             string whatToChange;
@@ -589,13 +677,14 @@ internal static class BraceMissingValue
             else
             {
                 steps.Add($"{Code(function.Name)} gave back {value}.");
+                path.Add(new PathStep(depth, function.Name, function.Header, $"gives back {value}"));
                 return $"Decide what {Code(function.Name)} should give back.";
             }
 
             var given = call.Given.Split(Between, StringSplitOptions.None).Where(part => part.Length > 0).Select(part => part.Length > 70 ? part[..70] + "..." : part).ToList();
             if (given.Count > 0) steps.Add($"It was called with {AndJoined(given)}.");
 
-            if (call.Returned is { } gaveBack) SayWhereTheReturnedVariableGotIt(function, gaveBack, call.During, steps, evidence, involved);
+            var setFrom = call.Returned is { } gaveBack ? SayWhereTheReturnedVariableGotIt(function, gaveBack, call.During, steps, evidence, involved) : null;
 
             foreach (var line in code.Returns(function).Where(line => line != call.Returned))
             {
@@ -603,7 +692,50 @@ internal static class BraceMissingValue
                 evidence.Add($"Line {line} did not run in that call.");
             }
 
+            // What it gave back was another of the program's calls' value - return found, where found = findMember(id) gave it,
+            // or return findMember(id) itself: that call is followed in turn, after this one's own account, and what to change
+            // is in it.
+            if (call.Returned is { } returnLine && depth <= MostCallsFollowed && GaveAnotherCallsValue(function, returnLine, call, setFrom) is var (inner, innerCall, calledOn, held))
+            {
+                steps.Add(held is null
+                    ? $"Line {returnLine} gives back what {Code(inner.Name)} gave, and it gave back {value}."
+                    : $"{Code(inner.Name)}, called on line {calledOn}, gave back {value}.");
+                evidence.Add($"{Code(inner.Name)}, called from line {calledOn}, gave back {value} in that call.");
+                path.Add(new PathStep(depth, function.Name, calledOn, $"calls {Code(code.CallText(calledOn, inner.Name))}"));
+                whatToChange = SayWhyItGaveIt(inner, innerCall, steps, evidence, involved, calledOn, path, depth + 1);
+                if (held is not null) path.Add(new PathStep(depth, function.Name, calledOn, $"sets {Code(held)} to {value}"));
+            }
+
+            path.Add(call.Returned is { } returnedOn
+                ? new PathStep(depth, function.Name, returnedOn, $"gives back {value}: {Code(code.Text(returnedOn))}")
+                : new PathStep(depth, function.Name, function.End, $"reaches its end without a return, so gives back {value}"));
+
             return whatToChange;
+        }
+
+        /// <summary>How many calls deep a missing value given back by another call's is followed: more than a program's own chain of helpers.</summary>
+        private const int MostCallsFollowed = 8;
+
+        /// <summary>
+        /// The other call of the program whose value the call gave back on its return line: return findMember(id), or return
+        /// found where the line that last set found in that call - <paramref name="setFrom"/> - was found = findMember(id). The
+        /// function, its call, the line it was called from, and the variable that held what it gave.
+        /// </summary>
+        private (BraceFunction Inner, (string Given, IReadOnlyList<string> During, int? Returned, int ReturnedAt) InnerCall, int Line, string? Held)? GaveAnotherCallsValue(
+            BraceFunction function, int returnLine, (string Given, IReadOnlyList<string> During, int? Returned, int ReturnedAt) call, int? setFrom)
+        {
+            if (call.ReturnedAt < 0) return null;
+
+            var returned = Regex.Match(code.Text(returnLine), @"^\s*return\s+(?<value>.*?)\s*;?\s*$");
+            if (returned.Success && CalledFunction(returned.Groups["value"].Value) is { } direct && direct != function.Name &&
+                code.Unique.TryGetValue(direct, out var straight) && CallBefore(call.ReturnedAt, straight.Name) is { } straightCall)
+                return (straight, straightCall, returnLine, null);
+
+            if (setFrom is not { } set || code.ReturnedName(returnLine) is not { } held || code.AssignedFrom(set, held) is not { } right) return null;
+            if (CalledFunction(right) is not { } setBy || setBy == function.Name || !code.Unique.TryGetValue(setBy, out var inner)) return null;
+
+            var printed = events.FindLastIndex(call.ReturnedAt, said => said.StartsWith($"inner {set} ", StringComparison.Ordinal));
+            return printed >= 0 && CallBefore(printed, inner.Name) is { } innerCall ? (inner, innerCall, set, held) : null;
         }
 
         /// <summary>
@@ -611,16 +743,16 @@ internal static class BraceMissingValue
         /// that call, from what the copy printed after each line setting it, and the lines setting it that never ran. Said only
         /// when the last of those lines to run gave it the missing value; the call's events reach its return, so none are missing.
         /// </summary>
-        private void SayWhereTheReturnedVariableGotIt(BraceFunction function, int gaveBack, IReadOnlyList<string> during, List<string> steps,
+        private int? SayWhereTheReturnedVariableGotIt(BraceFunction function, int gaveBack, IReadOnlyList<string> during, List<string> steps,
             List<string> evidence, List<int> involved)
         {
-            if (code.ReturnedName(gaveBack) is not { } returned || code.LinesSetting(returned, function).ToList() is not { Count: > 0 } setting) return;
+            if (code.ReturnedName(gaveBack) is not { } returned || code.LinesSetting(returned, function).ToList() is not { Count: > 0 } setting) return null;
 
             var ran = during.Select(said => said.Split(' ', 3))
                 .Where(said => said is ["inner", _, _] && int.TryParse(said[1], out var line) && setting.Contains(line))
                 .Select(said => (Line: int.Parse(said[1]), Value: said[2]))
                 .ToList();
-            if (ran.Count == 0 || ran[^1].Value != value) return;
+            if (ran.Count == 0 || ran[^1].Value != value) return null;
 
             var made = ran[^1].Line;
             if (!involved.Contains(made)) involved.Add(made);
@@ -632,6 +764,8 @@ internal static class BraceMissingValue
                 steps.Add(NeverRan(line, during, inThatCall: true));
                 evidence.Add($"Line {line} did not run in that call.");
             }
+
+            return made;
         }
 
         /// <summary>
@@ -761,6 +895,45 @@ internal sealed partial class BraceCode(BraceDialect dialect, IReadOnlyList<stri
         dialect.Sets(name).Match(masked[line - 1]) is { Success: true } set
             ? lines[line - 1].Substring(set.Groups["right"].Index, set.Groups["right"].Length)
             : dialect.SetsWithoutSaying(masked[line - 1], name);
+
+    /// <summary>
+    /// The caller's own variable given as <paramref name="parameter"/> in the call to <paramref name="function"/> on the line,
+    /// by its place among the call's arguments - or null when what was given there is not a plain variable.
+    /// </summary>
+    public string? PassedFor(int line, BraceFunction function, string parameter)
+    {
+        var place = function.Parameters.Select(each => each.Name).ToList().IndexOf(parameter);
+        var text = masked[line - 1];
+        var call = Regex.Match(text, $@"(?<![\w$]){Regex.Escape(function.Name)}\s*\(");
+        if (place < 0 || !call.Success) return null;
+
+        var open = call.Index + call.Length - 1;
+        if (Brackets.ClosingParenthesis(text, open) is not { } close || close < 0) return null;
+
+        var arguments = new List<string>();
+        var (depth, start) = (0, open + 1);
+        for (var index = open + 1; index <= close; index++)
+        {
+            if (text[index] is '(' or '[' or '{') depth++;
+            else if (text[index] is ')' or ']' or '}' && index < close) depth--;
+            if (text[index] == ',' && depth == 0 || index == close)
+            {
+                arguments.Add(lines[line - 1][start..index].Trim());
+                start = index + 1;
+            }
+        }
+
+        return place < arguments.Count && Regex.IsMatch(arguments[place], @"^[$@%]?[A-Za-z_][\w$]*$") ? arguments[place] : null;
+    }
+
+    /// <summary>The call to <paramref name="function"/> on the line, as written - <c>findMember(id)</c> - or the line itself when it is not found.</summary>
+    public string CallText(int line, string function)
+    {
+        var text = masked[line - 1];
+        var call = Regex.Match(text, $@"(?<![\w$]){Regex.Escape(function)}\s*\(");
+        if (!call.Success || Brackets.ClosingParenthesis(text, call.Index + call.Length - 1) is not { } close || close < 0) return Text(line);
+        return lines[line - 1][call.Index..(close + 1)];
+    }
 
     /// <summary>Whether the function calls itself, which would mix one call's lines up with another's.</summary>
     public bool CallsItself(BraceFunction function) =>

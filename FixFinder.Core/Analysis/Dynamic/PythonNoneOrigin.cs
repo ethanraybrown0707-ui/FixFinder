@@ -326,7 +326,7 @@ public static partial class PythonNoneOrigin
                 path.Add(new PathStep(0, caller, set, $"sets {Code(passed)} to None"));
             }
 
-            path.Add(new PathStep(0, caller, calledFrom, $"calls {Code(program.Text(calledFrom))}, giving {Code(name)} None"));
+            path.Add(new PathStep(0, caller, calledFrom, $"calls {Code(program.CallText(calledFrom, scope))}, giving {Code(name)} None"));
             path.Add(new PathStep(1, scope, crashLine, stopped));
         }
         else
