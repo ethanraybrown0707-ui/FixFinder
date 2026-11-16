@@ -307,6 +307,16 @@ internal static class EveryLanguagePatternGuides
             "Give back the rest's subsets too: return rest_subsets + [[first] + subset for subset in rest_subsets].",
             example);
 
+    private static GuideEntry RootGuessNotSquared(string id, string example) =>
+        GuideFor([id], "A square root's guess tested instead of its square",
+            "Newton's method finds a square root by guessing and improving the guess: each new guess is the average of the last " +
+            "and the number over it, (guess + x / guess) / 2, and it is done when the guess times itself is within the tolerance " +
+            "of the number. Here the guess itself is tested against the number, abs(x - guess), not its square.",
+            "The guess heads for the square root, which is not near the number unless the number is near 1 - for 2, the root " +
+            "1.414 stays 0.586 away - so the test is never passed and the loop never ends.",
+            "Test the guess's square: abs(x - guess * guess) > epsilon.",
+            example);
+
     private static GuideEntry PreviousNeverMoved(string id, string example) =>
         GuideFor([id], "A list reversed without moving on the node before",
             "Reversing a linked list in a loop keeps two things: the node it is at, and the reversed list so far - the node " +
@@ -6751,6 +6761,204 @@ internal static class EveryLanguagePatternGuides
                 }
                 return subsets;
             }
+            """),
+        RootGuessNotSquared("logic-python-root-guess-not-squared",
+            """
+            def sqrt(x, epsilon):
+                approx = x / 2
+                while abs(x - approx ** 2) > epsilon:
+                    approx = 0.5 * (approx + x / approx)
+                return approx
+            """),
+        RootGuessNotSquared("logic-java-root-guess-not-squared",
+            """
+            static double sqrt(double x, double epsilon) {
+                double approx = x / 2d;
+                while (Math.abs(x-approx*approx) > epsilon) {
+                    approx = 0.5d * (approx + x / approx);
+                }
+                return approx;
+            }
+            """),
+        RootGuessNotSquared("logic-csharp-root-guess-not-squared",
+            """
+            static double SquareRoot(double x, double epsilon)
+            {
+                double guess = x / 2;
+                while (Math.Abs(x - guess * guess) > epsilon)
+                    guess = (guess + x / guess) / 2;
+                return guess;
+            }
+            """),
+        RootGuessNotSquared("logic-c-root-guess-not-squared",
+            """
+            double square_root(double x, double epsilon) {
+                double guess = x / 2;
+                while (fabs(x - guess * guess) > epsilon) {
+                    guess = (guess + x / guess) / 2;
+                }
+                return guess;
+            }
+            """),
+        RootGuessNotSquared("logic-cpp-root-guess-not-squared",
+            """
+            double squareRoot(double x, double epsilon) {
+                double guess = x / 2;
+                while (std::abs(x - guess * guess) > epsilon) {
+                    guess = 0.5 * (guess + x / guess);
+                }
+                return guess;
+            }
+            """),
+        RootGuessNotSquared("logic-js-root-guess-not-squared",
+            """
+            function squareRoot(x, epsilon) {
+                let guess = x / 2;
+                while (Math.abs(x - guess * guess) > epsilon) {
+                    guess = (guess + x / guess) / 2;
+                }
+                return guess;
+            }
+            """),
+        RootGuessNotSquared("logic-go-root-guess-not-squared",
+            """
+            func squareRoot(x, epsilon float64) float64 {
+            	guess := x / 2
+            	for math.Abs(x-guess*guess) > epsilon {
+            		guess = (guess + x/guess) / 2
+            	}
+            	return guess
+            }
+            """),
+        RootGuessNotSquared("logic-rust-root-guess-not-squared",
+            """
+            fn square_root(x: f64, epsilon: f64) -> f64 {
+                let mut guess = x / 2.0;
+                while (x - guess * guess).abs() > epsilon {
+                    guess = (guess + x / guess) / 2.0;
+                }
+                guess
+            }
+            """),
+        RootGuessNotSquared("logic-ruby-root-guess-not-squared",
+            """
+            def square_root(x, epsilon)
+              guess = x / 2.0
+              while (x - guess * guess).abs > epsilon
+                guess = (guess + x / guess) / 2
+              end
+              guess
+            end
+            """),
+        RootGuessNotSquared("logic-php-root-guess-not-squared",
+            """
+            function squareRoot(float $x, float $epsilon): float {
+                $guess = $x / 2;
+                while (abs($x - $guess * $guess) > $epsilon) {
+                    $guess = ($guess + $x / $guess) / 2;
+                }
+                return $guess;
+            }
+            """),
+        RootGuessNotSquared("logic-lua-root-guess-not-squared",
+            """
+            local function squareRoot(x, epsilon)
+              local guess = x / 2
+              while math.abs(x - guess * guess) > epsilon do
+                guess = (guess + x / guess) / 2
+              end
+              return guess
+            end
+            """),
+        RootGuessNotSquared("logic-perl-root-guess-not-squared",
+            """
+            sub square_root {
+                my ($x, $epsilon) = @_;
+                my $guess = $x / 2;
+                while (abs($x - $guess * $guess) > $epsilon) {
+                    $guess = ($guess + $x / $guess) / 2;
+                }
+                return $guess;
+            }
+            """),
+        RootGuessNotSquared("logic-powershell-root-guess-not-squared",
+            """
+            function Get-SquareRoot($x, $epsilon) {
+                $guess = $x / 2
+                while ([Math]::Abs($x - $guess * $guess) -gt $epsilon) {
+                    $guess = ($guess + $x / $guess) / 2
+                }
+                return $guess
+            }
+            """),
+        RootGuessNotSquared("logic-dart-root-guess-not-squared",
+            """
+            double squareRoot(double x, double epsilon) {
+              var guess = x / 2;
+              while ((x - guess * guess).abs() > epsilon) {
+                guess = (guess + x / guess) / 2;
+              }
+              return guess;
+            }
+            """),
+        RootGuessNotSquared("logic-scala-root-guess-not-squared",
+            """
+            def squareRoot(x: Double, epsilon: Double): Double = {
+              var guess = x / 2
+              while (math.abs(x - guess * guess) > epsilon) {
+                guess = (guess + x / guess) / 2
+              }
+              guess
+            }
+            """),
+        RootGuessNotSquared("logic-fortran-root-guess-not-squared",
+            """
+            double precision function square_root(x, epsilon)
+              double precision, intent(in) :: x, epsilon
+              double precision :: guess
+              guess = x / 2
+              do while (abs(x - guess * guess) > epsilon)
+                guess = (guess + x / guess) / 2
+              end do
+              square_root = guess
+            end function square_root
+            """),
+        RootGuessNotSquared("logic-elixir-root-guess-not-squared",
+            """
+            def square_root(x, epsilon), do: improve(x, x / 2, epsilon)
+
+            defp improve(x, guess, epsilon) do
+              if abs(x - guess * guess) > epsilon do
+                improve(x, (guess + x / guess) / 2, epsilon)
+              else
+                guess
+              end
+            end
+            """),
+        RootGuessNotSquared("logic-erlang-root-guess-not-squared",
+            """
+            square_root(X, Epsilon) -> improve(X, X / 2, Epsilon).
+
+            improve(X, Guess, Epsilon) ->
+                case abs(X - Guess * Guess) > Epsilon of
+                    true -> improve(X, (Guess + X / Guess) / 2, Epsilon);
+                    false -> Guess
+                end.
+            """),
+        RootGuessNotSquared("logic-fsharp-root-guess-not-squared",
+            """
+            let squareRoot x epsilon =
+                let rec improve guess =
+                    if abs (x - guess * guess) > epsilon then improve ((guess + x / guess) / 2.0) else guess
+                improve (x / 2.0)
+            """),
+        RootGuessNotSquared("logic-ocaml-root-guess-not-squared",
+            """
+            let square_root x epsilon =
+              let rec improve guess =
+                if Float.abs (x -. guess *. guess) > epsilon then improve ((guess +. x /. guess) /. 2.0) else guess
+              in
+              improve (x /. 2.0)
             """),
     ];
 }

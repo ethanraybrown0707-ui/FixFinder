@@ -1859,27 +1859,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 112 | 41 |
-| Java | 67 | 99 | 51 |
-| C# | 52 | 86 | 49 |
-| C | 46 | 65 | 39 |
-| C++ | 46 | 80 | 39 |
-| JavaScript | 44 | 90 | 16 |
-| Go | 38 | 61 | 18 |
-| Scala | 6 | 58 | 28 |
-| OCaml | 6 | 22 | 26 |
-| Rust | 7 | 47 | 33 |
-| Ruby | 13 | 67 | 26 |
-| PHP | 16 | 63 | 18 |
-| Lua | 12 | 54 | 25 |
-| Perl | 14 | 60 | 26 |
-| Dart | 16 | 52 | 23 |
-| Fortran | 13 | 41 | 19 |
-| PowerShell | 11 | 64 | 16 |
-| Elixir | 15 | 35 | 29 |
-| Erlang | 13 | 26 | 23 |
-| F# | 17 | 35 | 33 |
-| TypeScript | 48 | 90 | 26 |
+| Python | 91 | 113 | 41 |
+| Java | 67 | 100 | 51 |
+| C# | 52 | 87 | 49 |
+| C | 46 | 66 | 39 |
+| C++ | 46 | 81 | 39 |
+| JavaScript | 44 | 91 | 16 |
+| Go | 38 | 62 | 18 |
+| Scala | 6 | 59 | 28 |
+| OCaml | 6 | 23 | 26 |
+| Rust | 7 | 48 | 33 |
+| Ruby | 13 | 68 | 26 |
+| PHP | 16 | 64 | 18 |
+| Lua | 12 | 55 | 25 |
+| Perl | 14 | 61 | 26 |
+| Dart | 16 | 53 | 23 |
+| Fortran | 13 | 42 | 19 |
+| PowerShell | 11 | 65 | 16 |
+| Elixir | 15 | 36 | 29 |
+| Erlang | 13 | 27 | 23 |
+| F# | 17 | 36 | 33 |
+| TypeScript | 48 | 91 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -1937,7 +1937,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,077 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,097 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 49 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.

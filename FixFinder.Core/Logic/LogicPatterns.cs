@@ -71,6 +71,7 @@ public static class LogicPatterns
         .. EmptyChoicePatterns.All,
         .. LeafFlattenedAgainPatterns.All,
         .. SubsetsWithoutFirstPatterns.All,
+        .. RootGuessPatterns.All,
         .. CaretAsPowerPatterns.All,
         .. RootPowerPatterns.All,
         .. InputPatterns.All,
