@@ -1908,6 +1908,9 @@ Some limits are part of how FixFinder works:
   same files; the program still runs whole, and Java, C# and Go are built as their own tools build them. A C or C++ file
   is built as its Makefile or CMakeLists.txt builds it; without one, it is built with the other source files beside it
   only when its folder holds no more than 200 files and exactly one of them has a `main`, and otherwise on its own.
+- **Size.** A file of more than 2 MB is still built and run, but the logic checks do not read it and no fix is worked
+  out in it, and a note says so. There is no limit on lines: how many 2 MB holds, and how long a check of up to
+  100,000 lines took, is under How big a program can be, below.
 - **Build files.** A Makefile or CMakeLists.txt is read, never run, so what it would only know by running something -
   `$(shell ...)`, `execute_process`, which CMake runs it, a package `find_package` looks for, a file a command writes while
   it builds - is not known: how the program ran names each, and a program whose files depend on one is built as if
@@ -1925,6 +1928,122 @@ async functions; C that manages its own memory; C++ templates, lambdas, RAII and
 goroutines - and correct code written to look like the mistakes the patterns look for. Each must be read whole and draw
 no error or warning, beside programs split into modules whose mistakes cross from one file to another and must be found
 where the call is made.
+
+### What one check runs
+
+A check of a program does all of this, as far as its language allows - Python, Java and C# furthest:
+
+1. **Builds and runs it** with its own compiler or interpreter - the time chosen in Settings for each run, a minute
+   unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
+2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
+   past the twelfth is listed without one.
+3. **Reads the code for logic mistakes** with 1,077 logic checks, each written for one language or several - the table
+   above counts each language's - over at most 200 of the program's files.
+4. **Follows every value through the code** with 49 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
+   read by its own language's parser.
+5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
+   should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
+   when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
+   change in the program's behaviour worked out by reading the code before and after them.
+6. **Tries what it predicted for real**, in Python: a crash the analyses predict is run with the values that should cause
+   it - up to 6 runs, 10 seconds each - and a program that asks questions is given an answer for each way through it, up
+   to 6 sets of answers, 10 seconds each.
+7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
+   most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
+8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
+   and TypeScript, and a program that checks itself with assert or console.assert - a test that fails reported on the
+   line it failed on.
+
+### How big a program can be
+
+There is no limit on lines. What is limited is the size of one file: a file of more than 2 MB (2,097,152 bytes) -
+generated, minified or data, as a rule - is still built and run, but the logic checks do not read it and no fix is worked
+out in it, and a note says so. How many lines 2 MB holds depends on how long they are: about 60,000 lines of the
+open-source programs FixFinder's checks are tried on, which average 34.6 bytes a line; 78,000 of the test programs
+written for them, at 26.7; and 40,000 of FixFinder's own C#, whose lines average 51.7.
+
+Beyond that, a check reads the code of at most 200 of a program's files. A fix is tried in a copy of the program's
+folder, or of its source files alone when the folder holds more than 300 files or 50 MB. A folder is checked as at most
+100 programs, 12 folders deep.
+
+How long a whole check took on this computer, in seconds, for one file of each size - many small functions, then one
+whose square is written with `^`, on one of the file's last few lines, which every check named. Each was the
+Release build of `fixfinder`, given no expected output, with nothing else running:
+
+| Lines | Python | Java | C# | JavaScript | C | C++ | Go |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 2.7 | 4.0 | 10.1 | 1.5 | - (1) | 7.2 | 2.9 |
+| 1,000 | 3.1 | 4.5 | 8.4 | 1.8 | 6.2 | - (1) | 2.9 |
+| 10,000 | 8.6 | 9.2 | 10.7 | 5.2 | 8.6 | 10.0 | 5.3 |
+| 50,000 | 26.7 | 23.6 | 30.4 (2) | 18.5 | 18.1 | 22.1 | 15.5 |
+| 100,000 | 47.6 | 13.2 (3) | 31.3 (2) (3) | 24.7 | 30.4 | 31.9 | 19.9 |
+
+(1) Windows' Smart App Control would not let the built program start in three tries, so no whole check was timed.
+(2) Windows would not let the built program start: the time is the build and the reading, without the run.
+(3) 2.1 MB and 2.2 MB - more than 2 MB, so the logic checks did not read them, which is why Java's took less than at
+50,000 lines, and the report said so in a note.
+
+A C# program is built with `dotnet build` before it runs, which took 6 seconds of the 100-line program's check. Telling
+FixFinder what the program should print adds a run for each change the search for a fix tries.
+
+### The tests FixFinder itself passes
+
+FixFinder's own tests are in `FixFinder.Tests`: 2,389 test methods in 409 classes, most of them run once for each
+program, mistake or language they are given - 121,293 test cases in all. Every push to `main`, and every run started by
+hand, runs them on GitHub's Windows runner in five jobs at once, from `.github/workflows/tests.yml`. On commit 2f46db7
+(run 43872860835) every one of them passed:
+
+| Job | Test cases | What it runs |
+|---|---:|---|
+| dotnet test | 121,293 | every test, with the compilers and interpreters the runner has, and the ones the workflow installs - JUnit and Lombok, pytest and plotly, TypeScript's compiler - in 42 minutes |
+| Java 25 | 1,060 | the tests that build and run Java, again with Java 25 |
+| Java 27 | 1,060 | the same with Java 27 |
+| Scala | 652 | the Scala tests and every lesson's programs, with Scala 3.8.4 and 2.13.18 |
+| OCaml | 661 | the OCaml tests and every lesson's programs, with OCaml 5 |
+
+That is 124,726 test cases a run. By folder of `FixFinder.Tests`, from the dotnet test job:
+
+| Folder | Test cases | Classes | What they test |
+|---|---:|---:|---|
+| `Robustness` | 101,921 | 6 | every program the other tests hold, tried on each check in ways it was not written for - below |
+| `Logic` | 8,259 | 162 | the logic checks - each mistake in every language it is read in, its change, and correct code left alone - and every guide's example |
+| `Parsing` | 3,938 | 11 | reading stack traces and compiler messages in every language, among them the output of real runs, captured |
+| `Teaching` | 2,339 | 7 | FixFinder Learn: its lessons, each lesson's programs run, and the explanations behind them |
+| `LocalFixes` | 1,246 | 34 | the fix rules |
+| `Execution` | 1,169 | 68 | finding compilers and interpreters, building and running programs, and running a program's own tests |
+| `Analysis` | 1,144 | 62 | following the values through the code |
+| `Engine` | 477 | 7 | the command line, comparing one check with the last, and answering what a program asks for |
+| `Checking` | 441 | 33 | whole checks of programs - coursework among them - and fixes run in copies |
+| `Sources` | 152 | 3 | searching GitHub and Stack Overflow, and reading a missing package or library out of an error |
+| `Patching` | 100 | 7 | reading the changes search results hold and where they would go |
+| `Ranking` | 30 | 2 | ranking search results |
+| `Fingerprinting` | 21 | 1 | the search made from an error |
+| `Http` | 21 | 2 | fetching and keeping what was fetched |
+| `Reporting` | 20 | 2 | the report, as a page and as lines |
+| `Security` | 9 | 1 | keeping the GitHub token |
+| `Display` | 6 | 1 | fitting a window to its screen |
+
+Most of the cases are the robustness tests, which take every program the other tests hold - the lessons, the guides'
+examples, the captured programs and the tests' own snippets - and try each check on it in ways it was not written for:
+
+| Robustness class | Test cases | What each case asks |
+|---|---:|---|
+| `HarmlessChangeTests` | 41,960 | each program read again after a change that leaves what it does as it was - Windows line endings, a byte-order mark, spaces at the ends of lines, blank lines after the end, a comment line above the first - draws the same findings on the same lines |
+| `LogicCheckRobustnessTests` | 40,964 | each logic check, on code no one would write on purpose but anyone can paste, finishes, throws nothing, and points only at lines the file has |
+| `FixRuleRobustnessTests` | 10,161 | each fix rule, given an oddly shaped report - no place, line 0 or line 99,999, an empty file, a 100,000-character line - answers and throws nothing |
+| `OwnChangeTests` | 3,678 | each change a logic check offers, made, leaves one fewer of that check's mistakes in the file, and no more of any other |
+| `MaskingTests` | 3,273 | blanking a program's strings and comments, as the checks read it, keeps every line and its length, under every language's rules |
+| `FindingShapeTests` | 1,885 | each finding names a line the file has, and its change takes away only lines the file has |
+
+133 classes, named `...LiveTests`, hold 1,934 cases that build and run real programs with their own language's tools,
+through FixFinder or the part of it being tested, and check what came of it: the mistake named on its line, a fix proved
+by a copy of the program that ran with it, a crash followed back to where its value came from, a lesson's program doing
+what the lesson says. The other cases read code, run FixFinder's parts on their own, or run a program without the whole
+check.
+
+On this computer the same tests outside the live classes - about 119,400 cases - ran in about 12 to 22 minutes. The few
+that fail here are tests whose built programs Windows' Smart App Control would not start, which a run on GitHub, with no
+Smart App Control, passes.
 
 ## Searching online
 
