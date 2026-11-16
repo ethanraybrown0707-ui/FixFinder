@@ -1883,6 +1883,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private async Task<int> CodeFindingsAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
         var found = 0;
+        NoteFilesTooLargeToRead(files);
         var sourcesRead = files.Select(SourceFile.Read).OfType<SourceFile>().ToList();
         var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
 
@@ -1896,6 +1897,30 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }, cancellationToken);
 
         return found + await analysed;
+    }
+
+    /// <summary>
+    /// Says which of the program's files are too large for their code to be read - generated, minified or data, as a rule -
+    /// so that a report with no logic mistake in them is not taken to mean they were looked through.
+    /// </summary>
+    private void NoteFilesTooLargeToRead(IReadOnlyList<string> files)
+    {
+        foreach (var file in files)
+        {
+            long size;
+            try
+            {
+                size = new FileInfo(file).Length;
+            }
+            catch (Exception reading) when (reading is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            if (size <= SourceFile.LargestRead) continue;
+            Note($"{Path.GetFileName(file)} is {size / 1048576.0:0.0} MB, more than the {SourceFile.LargestRead / 1048576} MB of code FixFinder reads in one " +
+                 "file, so the logic checks did not read it and no fix can be worked out in it.");
+        }
     }
 
     /// <summary>Follows every value through the program - abstract interpretation - for the languages it can read so far.</summary>

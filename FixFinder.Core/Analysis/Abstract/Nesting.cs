@@ -10,7 +10,9 @@ namespace FixFinder.Core.Analysis.Abstract;
 /// time reads the whole program once per function - and the walk that finds which function encloses which rebuilt its
 /// index of the program on every step, making it once per pair of functions. On a ten thousand line file that was
 /// sixty-six of the sixty-seven seconds an entire check took, while the analyses it was preparing for took thirty-five
-/// milliseconds between them. Both the index and each function's free names are worked out once here and kept.
+/// milliseconds between them. Both the index and each function's free names are worked out once here and kept - and so
+/// is which functions are written inside which, as asking it of every pair of functions made a Go file of 50,000 lines
+/// take five seconds here alone.
 /// </remarks>
 public sealed class Nesting
 {
@@ -18,12 +20,34 @@ public sealed class Nesting
     private readonly Dictionary<string, IrFunction> _byName;
     private readonly Dictionary<IrFunction, HashSet<string>> _freeNames = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>The functions written inside each function, by the name of the function they are inside.</summary>
+    private readonly Dictionary<string, List<IrFunction>> _writtenInside = new(StringComparer.Ordinal);
+
+    /// <summary>Every function but a module's own code, by the file it is in: what a module's variables can be changed by.</summary>
+    private readonly Dictionary<string, List<IrFunction>> _inFile = new(StringComparer.OrdinalIgnoreCase);
+
     public Nesting(IrProgram program)
     {
         _program = program;
         _byName = program.AllFunctions
             .GroupBy(function => function.FullName, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        foreach (var inner in program.AllFunctions)
+        {
+            if (inner.Name != IrFunction.ModuleBody)
+            {
+                var file = inner.Span.File;
+                if (!_inFile.TryGetValue(file, out var written)) _inFile[file] = written = [];
+                written.Add(inner);
+            }
+
+            foreach (var outerName in EnclosingNames(inner))
+            {
+                if (!_writtenInside.TryGetValue(outerName, out var inside)) _writtenInside[outerName] = inside = [];
+                inside.Add(inner);
+            }
+        }
     }
 
     /// <summary>
@@ -34,9 +58,12 @@ public sealed class Nesting
     {
         var shared = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var other in _program.AllFunctions)
+        var inside = function.Name == IrFunction.ModuleBody
+            ? _inFile.GetValueOrDefault(function.Span.File)
+            : _writtenInside.GetValueOrDefault(function.FullName);
+        foreach (var other in inside ?? [])
         {
-            if (ReferenceEquals(other, function) || !IsInside(other, function)) continue;
+            if (ReferenceEquals(other, function)) continue;
             shared.UnionWith(FreeNamesOf(other));
         }
 
@@ -58,24 +85,19 @@ public sealed class Nesting
             : _freeNames[function] = new HashSet<string>(
                 IrWalk.FreeNames(function, assigningDeclares: _program.Language == SourceLanguage.Python), StringComparer.Ordinal);
 
-    private bool IsInside(IrFunction inner, IrFunction outer)
+    /// <summary>The names of the functions a function is written inside, from the one around it outwards.</summary>
+    private List<string> EnclosingNames(IrFunction inner)
     {
-        if (outer.Name == IrFunction.ModuleBody) return inner.Name != IrFunction.ModuleBody && SameFile(inner, outer);
-
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var enclosing = new List<string>();
 
         for (var parent = inner.EnclosedBy; parent is not null && parent != IrFunction.ModuleBody; parent = _byName.GetValueOrDefault(parent)?.EnclosedBy)
         {
-            if (parent == outer.FullName) return true;
-
             // Two functions written on one line can each name the other as their parent, and following that is a walk
             // with no end.
-            if (!seen.Add(parent)) break;
+            if (enclosing.Contains(parent, StringComparer.Ordinal)) break;
+            enclosing.Add(parent);
         }
 
-        return false;
+        return enclosing;
     }
-
-    private static bool SameFile(IrFunction a, IrFunction b) =>
-        string.Equals(a.Span.File, b.Span.File, StringComparison.OrdinalIgnoreCase);
 }

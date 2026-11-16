@@ -87,4 +87,17 @@ public class CodeOnlyCheckTests : IDisposable
             first.Report.Findings.Select(f => (f.RuleId, f.Line, f.Explanation)),
             again.Report.Findings.Select(f => (f.RuleId, f.Line, f.Explanation)));
     }
+
+    /// <summary>
+    /// A file of more than 2 MB is not read for logic mistakes or fixes - generated, minified or data, as a rule - and a
+    /// report finding none in it would otherwise read as if it had been looked through: a note says so.
+    /// </summary>
+    [Fact]
+    public async Task AFileTooLargeToReadIsNotedRatherThanPassedOver()
+    {
+        var comment = "# " + new string('-', 72) + "\n";
+        if (await CheckCodeAsync(Average + string.Concat(Enumerable.Repeat(comment, 30_000))) is not { } result) return;
+
+        Assert.Contains(result.Report.Notes, note => note.StartsWith("average.py is 2.1 MB, more than the 2 MB of code FixFinder reads", StringComparison.Ordinal));
+    }
 }

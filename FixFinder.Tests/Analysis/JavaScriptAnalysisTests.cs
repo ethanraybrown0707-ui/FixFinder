@@ -263,4 +263,35 @@ public class JavaScriptAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Empty(findings.Where(f => f.CheckId == "analysis-loop-never-runs"));
     }
+
+    /// <summary>
+    /// Each function's variables are its own, but never the module's: two functions with a parameter named value each keep
+    /// the name value, where the reader gave the second value' - and the 1,000th function value and 999 primes, which made
+    /// a file of 50,000 lines take minutes to read - while a function's own total still gets a name apart from the
+    /// module's total, which every function can change.
+    /// </summary>
+    [Fact]
+    public async Task EachFunctionsOwnVariablesKeepTheirNamesApartFromTheModules()
+    {
+        const string code = """
+            let total = 0;
+
+            function double(value) {
+                let total = value * 2;
+                return total;
+            }
+
+            function triple(value) {
+                return value * 3;
+            }
+
+            console.log(double(1), triple(1), total);
+            """;
+
+        var read = await CheckAsync(code);
+
+        foreach (var name in new[] { "double", "triple" })
+            Assert.Equal("value", read.Program.AllFunctions.Single(each => each.Name == name).Parameters.Single().Name);
+        Assert.Contains("total'", IrWalk.LocalNames(read.Program.AllFunctions.Single(each => each.Name == "double")));
+    }
 }

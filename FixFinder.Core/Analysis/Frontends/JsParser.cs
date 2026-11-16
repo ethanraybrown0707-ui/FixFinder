@@ -124,6 +124,19 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
 
     // ---- Names ----
 
+    /// <summary>
+    /// A function written straight into the module starts with only the module's own names taken: its variables are its
+    /// own, so only a name declared again within it - or one hiding the module's - needs a name of its own. Kept from one
+    /// function to the next, the 1,000th function's value was named value and 999 primes, and a file of 50,000 lines took
+    /// minutes to read.
+    /// </summary>
+    private void StartingAFunction()
+    {
+        if (_scopes.Count != 1) return;
+        _taken.Clear();
+        _taken.UnionWith(_scopes[0].Values);
+    }
+
     /// <summary>Gives a name declared again inside a block a name of its own, so the outer one keeps its value.</summary>
     private string Declare(string name)
     {
@@ -676,6 +689,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
         isGenerator |= Eat("*");
         var given = name ?? (Current.Kind is JsTokenKind.Identifier or JsTokenKind.Keyword && !Is("(") ? Take().Text : Nested("function", start.Line));
 
+        StartingAFunction();
         _scopes.Add(new Dictionary<string, string>(StringComparer.Ordinal));
         _enclosing.Add(owner is null ? given : $"{owner}.{given}");
 
@@ -898,6 +912,7 @@ internal sealed class JsParser(string file, IReadOnlyList<JsToken> tokens)
         if (isAsync) _at++;
 
         var name = Nested("arrow", start.Line);
+        StartingAFunction();
         _scopes.Add(new Dictionary<string, string>(StringComparer.Ordinal));
         _enclosing.Add(name);
 

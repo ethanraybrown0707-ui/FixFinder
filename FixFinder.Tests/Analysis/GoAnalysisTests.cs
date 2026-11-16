@@ -389,4 +389,56 @@ public class GoAnalysisTests(ITestOutputHelper output) : IDisposable
 
         Assert.Empty(read.Findings);
     }
+
+    /// <summary>
+    /// Each function's variables are its own: three functions with a parameter named value each keep the name value, where
+    /// the reader gave the second value' and the third value'' - and the 1,000th function value and 999 primes, which made
+    /// a file of 50,000 lines take minutes to read. A function literal declaring a name of the function around it again
+    /// still gets a name of its own, so the two are never taken for one.
+    /// </summary>
+    [Fact]
+    public async Task EachFunctionsOwnVariablesKeepTheirNames()
+    {
+        const string code = """
+            package main
+
+            import "fmt"
+
+            func double(value int) int {
+            	total := value * 2
+            	return total
+            }
+
+            func triple(value int) int {
+            	total := value * 3
+            	return total
+            }
+
+            func counted(value int) int {
+            	total := value
+            	show := func() {
+            		total := 1
+            		fmt.Println(total)
+            	}
+            	show()
+            	return total
+            }
+
+            func main() {
+            	fmt.Println(double(1), triple(1), counted(1))
+            }
+            """;
+
+        if (await CheckAsync(code) is not { } read) return;
+
+        foreach (var name in new[] { "double", "triple", "counted" })
+        {
+            var function = read.Program.AllFunctions.Single(each => each.Name == name);
+            Assert.Equal("value", function.Parameters.Single().Name);
+            Assert.Contains("total", IrWalk.LocalNames(function));
+        }
+
+        var literal = read.Program.AllFunctions.Single(each => each.EnclosedBy == "counted");
+        Assert.Contains("total'", IrWalk.LocalNames(literal));
+    }
 }

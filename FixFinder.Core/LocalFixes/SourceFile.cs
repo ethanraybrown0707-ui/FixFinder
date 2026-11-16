@@ -5,7 +5,8 @@ namespace FixFinder.Core.LocalFixes;
 /// <summary>A source file read once and split into lines, keeping what is needed to write it back exactly.</summary>
 public sealed class SourceFile
 {
-    private const long MaxBytes = 2 * 1024 * 1024;
+    /// <summary>The largest file whose code is read: one larger is generated, minified or data, as a rule.</summary>
+    public const long LargestRead = 2 * 1024 * 1024;
 
     public required string Path { get; init; }
 
@@ -28,7 +29,7 @@ public sealed class SourceFile
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists || info.Length > MaxBytes) return null;
+            if (!info.Exists || info.Length > LargestRead) return null;
 
             var bytes = File.ReadAllBytes(path);
             if (bytes.AsSpan(0, Math.Min(bytes.Length, 8192)).IndexOf((byte)0) >= 0) return null;

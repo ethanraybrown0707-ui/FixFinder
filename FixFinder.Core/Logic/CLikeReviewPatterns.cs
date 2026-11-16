@@ -498,6 +498,23 @@ public static partial class CLikeReviewPatterns
         // A program that reads arguments takes as many values as it is given, by design.
         if (TypeScriptCheck.IsTypeScript(source.Path) || masked.Any(text => Regex.IsMatch(text, @"\barguments\b"))) yield break;
 
+        // Only a line holding undefined, null, ??, || or typeof can test a parameter, so only those are read for each name - and
+        // each name once: reading every line again for every function made a file of 50,000 lines take minutes.
+        var testingLines = masked.Where(text => text.Contains("undefined", StringComparison.Ordinal) || text.Contains("null", StringComparison.Ordinal) ||
+                                                text.Contains("??", StringComparison.Ordinal) || text.Contains("||", StringComparison.Ordinal) ||
+                                                text.Contains("typeof", StringComparison.Ordinal)).ToList();
+        var expectedLeftOut = new Dictionary<string, bool>(StringComparer.Ordinal);
+        bool ExpectedLeftOut(string parameter)
+        {
+            if (!expectedLeftOut.TryGetValue(parameter, out var tested))
+            {
+                var test = new Regex($@"(?<![\w$.]){Regex.Escape(parameter)}\s*(?:[!=]==?\s*(?:undefined|null)|\?\?|\|\|)|typeof\s+{Regex.Escape(parameter)}\b");
+                expectedLeftOut[parameter] = tested = testingLines.Any(test.IsMatch);
+            }
+
+            return tested;
+        }
+
         var needed = new Dictionary<string, string[]>(StringComparer.Ordinal);
         foreach (var declared in masked.SelectMany(text => FunctionDeclared().Matches(text)))
         {
@@ -505,8 +522,7 @@ public static partial class CLikeReviewPatterns
             if (parameters.Any(parameter => parameter.Contains('=') || parameter.StartsWith("...", StringComparison.Ordinal) || parameter.Contains('{'))) continue;
 
             // A parameter the code expects to be left out - checked against undefined or null, or given a fallback with ?? or ||.
-            if (parameters.Any(parameter => masked.Any(text => Regex.IsMatch(text,
-                    $@"(?<![\w$.]){Regex.Escape(parameter)}\s*(?:[!=]==?\s*(?:undefined|null)|\?\?|\|\|)|typeof\s+{Regex.Escape(parameter)}\b")))) continue;
+            if (parameters.Any(ExpectedLeftOut)) continue;
 
             needed[declared.Groups["name"].Value] = parameters;
         }
