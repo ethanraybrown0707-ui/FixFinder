@@ -1,5 +1,11 @@
 namespace FixFinder.Core.Checking;
 
+/// <summary>One step of the way a value went through a program: the function, how many calls deep, the line, and what happened there.</summary>
+/// <param name="Depth">How many calls deep, counting from the first function the path shows: 0 for it, 1 for a function it called.</param>
+/// <param name="Function">The function the line is in - <c>find_member</c> - or &lt;module&gt; for the file's own top level.</param>
+/// <param name="Happened">What the line did, in the program's own terms: "calls `find_member(wanted)`", "gives back None: `return None`".</param>
+public sealed record PathStep(int Depth, string Function, int Line, string Happened);
+
 /// <summary>
 /// Where the value a program stopped on came from: the line that gave it that value, and how - each part of it seen in a
 /// run of the program that recorded it as it happened, never worked out afterwards.
@@ -46,6 +52,12 @@ public sealed record RootCause
     /// line that stopped skip the value would only hide the mistake.
     /// </summary>
     public bool ChangeTheCause { get; init; }
+
+    /// <summary>
+    /// The way the value went, in the order the run took it - each call that made it or passed it on, the line that gave it
+    /// back, the line that set it, the line that stopped - or empty when the run did not record enough to say.
+    /// </summary>
+    public IReadOnlyList<PathStep> Path { get; init; } = [];
 
     /// <summary>Where it stopped and where it went wrong, in one line.</summary>
     public string Summary => IntroducedLine == CrashLine

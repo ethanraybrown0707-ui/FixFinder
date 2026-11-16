@@ -987,6 +987,7 @@ changed.
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
 | **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
+| **How it got there** | For a Python program that stopped on None, the way the None went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run recorded. |
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
@@ -1011,6 +1012,28 @@ alone it says which name held None, the line that gave it None - the root cause 
 end without a return, or whose `return None` ran because the `if` above the other return was never true; a name set to
 None that the only line that would have changed it never reached; a dictionary's `get` for a key it does not have; a
 parameter the call gave None. When the second run does not stop with the same error on the same line, nothing is said.
+
+A None that came through more than one of the program's functions is followed back through each of them, from that same
+run. A parameter the caller gave as one of its own names is followed to the one line of the caller that set that name and
+ran - not when two such lines ran, where which one gave the None would be a guess - and a function whose return gave back
+another of its calls' None, `return found` after `found = find_member(wanted)` or `return lookup(table, key)` itself, is
+followed into that call, until the line that made the None. The root cause is then the line where the None reached the
+name that stopped it: `member = load_member(3)` below. The finding shows How it got there - each step of the way, in the
+order the run took it, each call set further in than the one that made it:
+
+```
+main(), line 21 - calls load_member(3)
+    load_member(), line 12 - calls find_member(wanted)
+        find_member(), line 8 - gives back None: return None
+    load_member(), line 12 - sets found to None
+    load_member(), line 13 - gives back None: return found
+main(), line 21 - sets member to None
+main(), line 22 - calls print_member(member), giving member None
+    print_member(), line 17 - stops: it picks an item out of member with [ ]
+```
+
+What to do is then said of the function that made the None - `find_member`, on line 8. The other languages' findings
+below say the line that gave the value and why, but do not yet show the way.
 
 A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
 FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed

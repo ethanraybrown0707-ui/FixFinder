@@ -93,6 +93,22 @@ public class PythonRootCauseLiveTests(ITestOutputHelper output) : IDisposable
             "The program stopped on line 3: it turns `age` into a whole number with int(), but `age` is None there. `age` became None on line 2: `age = data.get(\"age\")`. A dictionary's get gives back None for a key it does not have.",
             "A second run, recording each line as it ran, stopped on line 3 with the same TypeError.|`age` held None when line 3 ran.|Line 2 was the last line to change `age` before line 3.",
             "Give get a second value, to give back when the key is not there - or check `age` is not None before line 3 uses it.", 3, "if age is not None:|    print(int(age))", "" },
+        new object[] { "chain.py", "members = [{\"id\": 1, \"name\": \"Ann\", \"age\": 30}, {\"id\": 2, \"name\": \"Bob\", \"age\": 41}]\n\n\ndef find_member(wanted):\n    for member in members:\n        if member[\"id\"] == wanted:\n            return member\n    return None\n\n\ndef load_member(wanted):\n    found = find_member(wanted)\n    return found\n\n\ndef print_member(member):\n    print(member[\"name\"], member[\"age\"])\n\n\ndef main():\n    member = load_member(3)\n    print_member(member)\n\n\nmain()\n", 17, 21, "member is None on line 17 - it was made None on line 21",
+            "The program stopped on line 17: it picks an item out of `member` with [ ], but `member` is None there. `member` is a parameter of `print_member`, and the call on line 22, `print_member(member)`, gave it None. In `main`, `member` was set on line 21, `member = load_member(3)`, and `load_member` gave back None. `load_member` gave back None on line 13: `return found`. It was called with wanted = 3. `found` was set on line 12, `found = find_member(wanted)`, and `find_member` gave back None. `find_member` gave back None on line 8: `return None`. It was called with wanted = 3. Line 7, `return member`, never ran in that call: the if on line 6, `if member[\"id\"] == wanted:`, was checked twice and was never true.",
+            "A second run, recording each line as it ran, stopped on line 17 with the same TypeError.|`member` held None when line 17 ran.|`member` already held None as `print_member` began, called from line 22.|Line 21 was the one line of `main` that set `member` and ran before line 22.|`load_member`, called from line 21, ended on line 13 and gave back None.|`find_member`, called from line 12, gave back None in that call.|`find_member`, called from line 12, ended on line 8 and gave back None.|Line 7 did not run in that call.",
+            "Decide what `find_member` should give back on line 8, and whether its callers expect None. Or check `member` is not None before line 17 uses it.", 17, "    if member is not None:|        print(member[\"name\"], member[\"age\"])", "" },
+        new object[] { "return_call.py", "def lookup(table, key):\n    for k, v in table:\n        if k == key:\n            return v\n\n\ndef describe(table, key):\n    return lookup(table, key)\n\n\nlabel = describe([(\"a\", \"x\")], \"b\")\nprint(label.upper())\n", 12, 11, "label is None on line 12 - it was made None on line 11",
+            "The program stopped on line 12: it looks up upper on `label`, but `label` is None there. `label` became None on line 11: `label = describe([(\"a\", \"x\")], \"b\")`. `describe` gave back None on line 8: `return lookup(table, key)`. It was called with table = [('a', 'x')] and key = 'b'. Line 8 gives back what `lookup` gave, and it gave back None. `lookup` reached its end without a return - the last line it ran was line 2, `for k, v in table:` - and a function that reaches its end gives back None. It was called with table = [('a', 'x')] and key = 'b'. Line 4, `return v`, never ran in that call: the if on line 3, `if k == key:`, was checked once and was never true.",
+            "A second run, recording each line as it ran, stopped on line 12 with the same AttributeError.|`label` held None when line 12 ran.|Line 11 was the last line to change `label` before line 12.|`describe`, called from line 11, ended on line 8 and gave back None.|`lookup`, called from line 8, gave back None in that call.|`lookup`, called from line 8, ended on line 2 and gave back None.|Line 4 did not run in that call.",
+            "Give `lookup` a return at its end, for when it gets there. Or check `label` is not None before line 12 uses it.", 12, "if label is not None:|    print(label.upper())", "logic-python-returns-nothing-sometimes" },
+        new object[] { "top_level_none.py", "def show(member):\n    print(member[\"age\"])\n\n\nmember = None\nshow(member)\n", 2, 5, "member is None on line 2 - it was made None on line 5",
+            "The program stopped on line 2: it picks an item out of `member` with [ ], but `member` is None there. `member` is a parameter of `show`, and the call on line 6, `show(member)`, gave it None. At the file's top level, `member` was set to None on line 5: `member = None`.",
+            "A second run, recording each line as it ran, stopped on line 2 with the same TypeError.|`member` held None when line 2 ran.|`member` already held None as `show` began, called from line 6.|Line 5 was the one line of the file's top level that set `member` and ran before line 6.",
+            "Give `member` a value on line 5, or check `member` is not None before line 2 uses it.", 2, "    if member is not None:|        print(member[\"age\"])", "" },
+        new object[] { "set_twice.py", "def show(member):\n    print(member[\"age\"])\n\n\nmember = {\"age\": 1}\nmember = None\nshow(member)\n", 2, 7, "member is None on line 2 - it was made None on line 7",
+            "The program stopped on line 2: it picks an item out of `member` with [ ], but `member` is None there. `member` is a parameter of `show`, and the call on line 7, `show(member)`, gave it None.",
+            "A second run, recording each line as it ran, stopped on line 2 with the same TypeError.|`member` held None when line 2 ran.|`member` already held None as `show` began, called from line 7.",
+            "Make the call on line 7 give `show` a value for `member`, or check `member` is not None before line 2 uses it.", 2, "    if member is not None:|        print(member[\"age\"])", "" },
     ];
 
     [Theory]
@@ -153,5 +169,46 @@ public class PythonRootCauseLiveTests(ITestOutputHelper output) : IDisposable
         }
 
         Assert.Equal(code, File.ReadAllText(program));
+    }
+
+    /// <summary>
+    /// The way each None went, step by step in the order the run took it - each as its depth, its function, its line and what
+    /// happened there, one to a line: through the caller's own name and the function that gave back another call's None, by a
+    /// name or straight, to the line that stopped. Where the caller set the name on two lines that both ran, which one gave
+    /// it None would be a guess, and the way starts at the call.
+    /// </summary>
+    public static IEnumerable<object[]> Ways =>
+    [
+        new object[] { "chain.py", "members = [{\"id\": 1, \"name\": \"Ann\", \"age\": 30}, {\"id\": 2, \"name\": \"Bob\", \"age\": 41}]\n\n\ndef find_member(wanted):\n    for member in members:\n        if member[\"id\"] == wanted:\n            return member\n    return None\n\n\ndef load_member(wanted):\n    found = find_member(wanted)\n    return found\n\n\ndef print_member(member):\n    print(member[\"name\"], member[\"age\"])\n\n\ndef main():\n    member = load_member(3)\n    print_member(member)\n\n\nmain()\n",
+            "0 main 21 calls `load_member(3)`\n1 load_member 12 calls `find_member(wanted)`\n2 find_member 8 gives back None: `return None`\n1 load_member 12 sets `found` to None\n1 load_member 13 gives back None: `return found`\n0 main 21 sets `member` to None\n0 main 22 calls `print_member(member)`, giving `member` None\n1 print_member 17 stops: it picks an item out of `member` with [ ]" },
+        new object[] { "return_call.py", "def lookup(table, key):\n    for k, v in table:\n        if k == key:\n            return v\n\n\ndef describe(table, key):\n    return lookup(table, key)\n\n\nlabel = describe([(\"a\", \"x\")], \"b\")\nprint(label.upper())\n",
+            "0 <module> 11 calls `describe([(\"a\", \"x\")], \"b\")`\n1 describe 8 calls `lookup(table, key)`\n2 lookup 2 reaches its end without a return, so gives back None\n1 describe 8 gives back None: `return lookup(table, key)`\n0 <module> 11 sets `label` to None\n0 <module> 12 stops: it looks up upper on `label`" },
+        new object[] { "top_level_none.py", "def show(member):\n    print(member[\"age\"])\n\n\nmember = None\nshow(member)\n",
+            "0 <module> 5 sets `member` to None\n0 <module> 6 calls `show(member)`, giving `member` None\n1 show 2 stops: it picks an item out of `member` with [ ]" },
+        new object[] { "set_twice.py", "def show(member):\n    print(member[\"age\"])\n\n\nmember = {\"age\": 1}\nmember = None\nshow(member)\n",
+            "0 <module> 7 calls `show(member)`, giving `member` None\n1 show 2 stops: it picks an item out of `member` with [ ]" },
+    ];
+
+    [Theory]
+    [MemberData(nameof(Ways))]
+    public async Task TheWayTheNoneWentIsShownCallByCall(string fileName, string code, string steps)
+    {
+        var program = Path.Combine(_temp.Path, fileName);
+        File.WriteAllText(program, code);
+
+        var launch = TargetFactory.FromFile(program, LiveAllowance.For(program, TimeSpan.FromMinutes(2)));
+        if (!launch.Ok)
+        {
+            output.WriteLine($"Not run on this computer: {launch.Problem}");
+            return;
+        }
+
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()).CheckAsync(launch);
+        var stopped = report.Findings.SingleOrDefault(finding => finding.RootCause is not null);
+        Assert.True(stopped is not null, $"no root cause among {string.Join(", ", report.Findings.Select(finding => finding.RuleId))}");
+
+        foreach (var step in stopped!.RootCause!.Path) output.WriteLine($"{step.Depth} {step.Function} {step.Line} {step.Happened}");
+        Assert.Equal(steps.Split('\n'), stopped.RootCause.Path.Select(step => $"{step.Depth} {step.Function} {step.Line} {step.Happened}"));
     }
 }

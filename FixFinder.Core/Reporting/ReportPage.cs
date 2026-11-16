@@ -165,6 +165,15 @@ public sealed record ReportPage
         // 2 Cause: this program first, never the language first.
         Section(page, "Cause", FindingLayout.Cause(finding));
 
+        // How it got there: the way the value went, call by call, as the run recorded it - each call further in.
+        if (FindingLayout.Path(finding) is { Count: > 0 } path)
+        {
+            page.Append("<h4>How it got there</h4>\n<ol class=\"path\">\n");
+            foreach (var step in path)
+                page.Append("<li style=\"margin-left: ").Append(step.Depth * 22).Append("px\">").Append(Prose(FindingLayout.PathLine(step))).Append("</li>\n");
+            page.Append("</ol>\n");
+        }
+
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
         if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
 
@@ -400,6 +409,9 @@ public sealed record ReportPage
         .relation, .found { font-style: italic; color: var(--secondary); }
         .summary { font-weight: 600; }
         details.timeline { margin: 4px 0; }
+        ol.path { list-style: none; padding-left: 0; margin: 4px 0 8px; }
+        ol.path li { margin: 2px 0; }
+        ol.path li::before { content: "\2192  "; color: var(--secondary); }
         details.timeline summary { cursor: pointer; }
         .label { font-size: 12.5px; color: var(--secondary); margin: 8px 0 2px; }
         h4.part { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 20px; color: var(--accent); }

@@ -178,4 +178,16 @@ public class FindingLayoutTests
         Assert.Contains("The program stopped on line 10 with TypeError: 'NoneType' object is not subscriptable.", line, StringComparison.Ordinal);
         Assert.DoesNotContain("Square brackets", line, StringComparison.Ordinal);
     }
+
+    /// <summary>A step of how it got there reads as its function, its line and what happened - the file's top level by that name.</summary>
+    [Fact]
+    public void EachStepOfTheWayNamesItsFunctionAndLine()
+    {
+        Assert.Equal("`find_member()`, line 8 - gives back None: `return None`",
+            FindingLayout.PathLine(new PathStep(2, "find_member", 8, "gives back None: `return None`")));
+        Assert.Equal("The top level, line 5 - sets `member` to None", FindingLayout.PathLine(new PathStep(0, "<module>", 5, "sets `member` to None")));
+
+        // A finding no run traced has no way to show.
+        Assert.Empty(FindingLayout.Path(Stopped()));
+    }
 }

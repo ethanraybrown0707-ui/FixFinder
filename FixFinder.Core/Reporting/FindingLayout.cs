@@ -25,6 +25,13 @@ public static class FindingLayout
     /// <summary>Where it went wrong and where it showed, in one line under the title - or null when they are not known apart.</summary>
     public static string? Summary(Finding finding) => finding.RootCause?.Summary;
 
+    /// <summary>How it got there: the way the value went, call by call, as a run recorded it - or empty when no run did.</summary>
+    public static IReadOnlyList<PathStep> Path(Finding finding) => finding.RootCause?.Path ?? [];
+
+    /// <summary>One step of the path as a line: "`find_member()`, line 8 - gives back None: `return None`", or "The top level, line 5 - ...".</summary>
+    public static string PathLine(PathStep step) =>
+        $"{(step.Function == "<module>" ? "The top level" : $"`{step.Function}()`")}, line {step.Line} - {step.Happened}";
+
     /// <summary>
     /// Why it happened in this program: what the check that found it said of this code, or what the compiler or the run said
     /// of this line - and the explanation itself only for a finding that has nothing more particular to say.

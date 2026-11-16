@@ -144,6 +144,52 @@ public class ReportPageTests
         Assert.Equal(at.OrderBy(index => index), at);
     }
 
+    /// <summary>How it got there: each step of the way on a line of its own, each call further in than the one that made it, after the cause and before the fix.</summary>
+    [Fact]
+    public void HowItGotThereShowsEachCallFurtherIn()
+    {
+        var stopped = Found("member is None on line 17", kind: FindingKind.Runtime) with
+        {
+            Found = "`member` is None on line 17.",
+            RootCause = new RootCause
+            {
+                Name = "member",
+                Value = "None",
+                CrashLine = 17,
+                IntroducedLine = 21,
+                IntroducedCode = "member = load_member(3)",
+                Steps = ["`member` is None on line 17."],
+                Evidence = ["`member` held None when line 17 ran."],
+                LinesInvolved = [21],
+                WhatToDo = "Decide what `find_member` should give back.",
+                Path =
+                [
+                    new PathStep(0, "main", 21, "calls `load_member(3)`"),
+                    new PathStep(1, "load_member", 12, "calls `find_member(wanted)`"),
+                    new PathStep(2, "find_member", 8, "gives back None: `return None`"),
+                    new PathStep(1, "load_member", 13, "gives back None: `return found`"),
+                    new PathStep(0, "main", 22, "calls `print_member(member)`, giving `member` None"),
+                    new PathStep(1, "print_member", 17, "stops: it picks an item out of `member` with [ ]"),
+                ],
+            },
+        };
+
+        var html = Page([stopped]).ToHtml();
+        var order = new[]
+        {
+            "<h4>Cause</h4>",
+            "<h4>How it got there</h4>\n<ol class=\"path\">",
+            "<li style=\"margin-left: 0px\"><code>main()</code>, line 21 - calls <code>load_member(3)</code></li>",
+            "<li style=\"margin-left: 44px\"><code>find_member()</code>, line 8 - gives back None: <code>return None</code></li>",
+            "<li style=\"margin-left: 22px\"><code>print_member()</code>, line 17 - stops: it picks an item out of <code>member</code> with [ ]</li>",
+            "<h4>Most likely fix</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
     /// <summary>One fold to a variable, each value with the line that gave it - the one the program stopped on open - and no script.</summary>
     [Fact]
     public void EachVariableOfTheTimelineOpensToItsValues()

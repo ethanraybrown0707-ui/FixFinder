@@ -119,6 +119,19 @@
                         <TextBlock Text="CAUSE" Style="{StaticResource Label}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding Cause}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingCause"/>
 
+                        <!-- How it got there: the way the value went, call by call, as the run recorded it. -->
+                        <StackPanel Visibility="{Binding HasPath, Converter={StaticResource Visible}}">
+                            <TextBlock Text="HOW IT GOT THERE" Style="{StaticResource Label}"/>
+                            <ItemsControl ItemsSource="{Binding Path}" Focusable="False" AutomationProperties.Name="How it got there"
+                                          AutomationProperties.AutomationId="FindingPath">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock desktop:InlineCode.Text="{Binding Text}" Margin="{Binding Indent}" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <!-- 3 Most likely fix, with how sure FixFinder is of the fix - not the same as how sure it is of the finding. -->
                         <TextBlock Text="MOST LIKELY FIX" Style="{StaticResource Label}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding MostLikelyFix}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingMostLikelyFix"/>

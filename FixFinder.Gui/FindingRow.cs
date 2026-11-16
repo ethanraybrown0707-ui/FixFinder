@@ -91,6 +91,13 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>Why it happened in this program - what was said of this code, before anything about the language.</summary>
     public string Cause => FindingLayout.Cause(Finding);
 
+    /// <summary>How it got there: the way the value went, call by call, each step indented by how many calls deep it was.</summary>
+    public IReadOnlyList<PathRow> Path => FindingLayout.Path(Finding)
+        .Select(step => new PathRow(FindingLayout.PathLine(step), new System.Windows.Thickness(step.Depth * 18, 1, 0, 1)))
+        .ToList();
+
+    public bool HasPath => FindingLayout.Path(Finding).Count > 0;
+
     public string MostLikelyFix => FindingLayout.MostLikelyFix(Finding);
 
     /// <summary>How sure FixFinder is of the fix, beside how sure it is of the finding: "Fix confidence: Likely - ...".</summary>
@@ -352,6 +359,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
         lines.Add("");
         lines.Add($"Cause: {Cause}");
+        if (HasPath)
+        {
+            lines.Add("How it got there:");
+            lines.AddRange(FindingLayout.Path(Finding).Select(step => "    " + new string(' ', step.Depth * 4) + FindingLayout.PathLine(step)));
+        }
         lines.Add($"Most likely fix: {MostLikelyFix}");
         if (HasFixConfidence) lines.Add(FixConfidenceText);
 
@@ -415,3 +427,6 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         return string.Join(Environment.NewLine, lines);
     }
 }
+
+/// <summary>One step of how it got there, as the card shows it: its line, and how far in it is.</summary>
+public sealed record PathRow(string Text, System.Windows.Thickness Indent);

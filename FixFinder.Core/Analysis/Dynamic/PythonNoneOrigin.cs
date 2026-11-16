@@ -22,6 +22,9 @@ public static partial class PythonNoneOrigin
     /// <summary>More names than this on one line and the line is not one a single missing value explains.</summary>
     private const int MostNamesFollowed = 8;
 
+    /// <summary>How many calls deep a None given back by another call's is followed: more than a program's own chain of helpers.</summary>
+    private const int MostCallsFollowed = 8;
+
     /// <summary>What the line that stopped did with the value, as Python's message says, and where on the line the value can be.</summary>
     /// <param name="Doing">What the line does with it, with {0} where its name goes: "picks an item out of {0} with [ ]".</param>
     /// <param name="Holders">Where a name holding the value can stand on the line, each with the name as its group "name".</param>
@@ -271,9 +274,11 @@ public static partial class PythonNoneOrigin
 
         int introduced;
         var involved = new List<int>();
+        var path = new List<PathStep>();
         var checkFirst = $"check {Code(name)} is not None before line {crashLine} uses it";
         string whatToDo;
         var changeTheCause = false;
+        var stopped = $"stops: it {string.Format(use.Doing, Code(name))}";
 
         if (last.Line is not { } made)
         {
@@ -285,12 +290,44 @@ public static partial class PythonNoneOrigin
             steps.Add($"{Code(name)} is a parameter of {Code(scope)}, and the call on line {calledFrom}, {Code(program.Text(calledFrom))}, gave it None.");
             evidence.Add($"{Code(name)} already held None as {Code(scope)} began, called from line {calledFrom}.");
             whatToDo = $"Make the call on line {calledFrom} give {Code(scope)} a value for {Code(name)}, or {checkFirst}.";
+            var caller = program.FunctionOf(calledFrom);
 
             if (program.GaveNoneOn(calledFrom, except: scope) is { } given)
             {
-                var ended = program.SayWhyItGaveNone(given, steps, evidence, involved);
+                path.Add(new PathStep(0, caller, calledFrom, $"calls {Code(program.CallText(calledFrom, given.Function))}"));
+                var ended = program.SayWhyItGaveNone(given, steps, evidence, involved, path, depth: 1);
                 whatToDo = $"{ended} Or {checkFirst}.";
             }
+            else if (program.PassedFor(calledFrom, scope, name) is { } passed && program.SetBefore(passed, caller, calledFrom) is { } set &&
+                     program.AssignedFrom(set, passed) is { } right &&
+                     (right == "None" || FunctionCalled().Match(right) is { Success: true } setBy && program.Defines(setBy.Groups["function"].Value) &&
+                      program.GaveNoneOn(set, function: setBy.Groups["function"].Value) is not null))
+            {
+                // The caller's own name was given: the line that set it to None in the caller is where the value went wrong.
+                introduced = set;
+                involved.Insert(0, set);
+                var (inCaller, ofCaller) = caller == "<module>" ? ("At the file's top level", "the file's top level") : ($"In {Code(caller)}", Code(caller));
+                evidence.Add($"Line {set} was the one line of {ofCaller} that set {Code(passed)} and ran before line {calledFrom}.");
+
+                if (right == "None")
+                {
+                    steps.Add($"{inCaller}, {Code(passed)} was set to None on line {set}: {Code(program.Text(set))}.");
+                    whatToDo = $"Give {Code(passed)} a value on line {set}, or {checkFirst}.";
+                }
+                else
+                {
+                    var setGiven = program.GaveNoneOn(set, function: FunctionCalled().Match(right).Groups["function"].Value)!;
+                    steps.Add($"{inCaller}, {Code(passed)} was set on line {set}, {Code(program.Text(set))}, and {Code(setGiven.Function)} gave back None.");
+                    path.Add(new PathStep(0, caller, set, $"calls {Code(program.CallText(set, setGiven.Function))}"));
+                    var ended = program.SayWhyItGaveNone(setGiven, steps, evidence, involved, path, depth: 1);
+                    whatToDo = $"{ended} Or {checkFirst}.";
+                }
+
+                path.Add(new PathStep(0, caller, set, $"sets {Code(passed)} to None"));
+            }
+
+            path.Add(new PathStep(0, caller, calledFrom, $"calls {Code(program.Text(calledFrom))}, giving {Code(name)} None"));
+            path.Add(new PathStep(1, scope, crashLine, stopped));
         }
         else
         {
@@ -303,6 +340,7 @@ public static partial class PythonNoneOrigin
             if (right == "None")
             {
                 steps.Add($"{Code(name)} was set to None on line {made}, {Code(program.Text(made))}, and nothing changed it after that.");
+                path.Add(new PathStep(0, scope, made, $"sets {Code(name)} to None"));
 
                 var neverRan = program.OtherLinesSetting(name, made, scope).Where(other => program.Trace.TimesRun.GetValueOrDefault(other) == 0).ToList();
                 foreach (var other in neverRan)
@@ -321,7 +359,9 @@ public static partial class PythonNoneOrigin
                 if (right is not null && FunctionCalled().Match(right) is { Success: true } call && program.Defines(call.Groups["function"].Value) &&
                     program.GaveNoneOn(made, function: call.Groups["function"].Value) is { } given)
                 {
-                    var ended = program.SayWhyItGaveNone(given, steps, evidence, involved);
+                    path.Add(new PathStep(0, scope, made, $"calls {Code(program.CallText(made, given.Function))}"));
+                    var ended = program.SayWhyItGaveNone(given, steps, evidence, involved, path, depth: 1);
+                    path.Add(new PathStep(0, scope, made, $"sets {Code(name)} to None"));
                     whatToDo = $"{ended} Or {checkFirst}.";
                 }
                 else if (right is not null && Library(right, changes) is { } known)
@@ -332,6 +372,9 @@ public static partial class PythonNoneOrigin
                 }
             }
         }
+
+        // The line that stopped ends the path; in the parameter case it was put there with the call that gave the value.
+        if (path.Count > 0 && path[^1].Line != crashLine) path.Add(new PathStep(0, scope, crashLine, stopped));
 
         return new RootCause
         {
@@ -345,6 +388,7 @@ public static partial class PythonNoneOrigin
             LinesInvolved = involved,
             WhatToDo = whatToDo,
             ChangeTheCause = changeTheCause,
+            Path = path.Count > 1 ? path : [],
         };
     }
 
@@ -371,7 +415,10 @@ public static partial class PythonNoneOrigin
         var steps = new List<string> { $"The program stopped on line {crashLine}: it {string.Format(use.Doing, Code(text))}, but {Code(text)} gave back None." };
         var evidence = new List<string> { $"A second run, recording each line as it ran, stopped on line {crashLine} with the same {type}." };
         var involved = new List<int> { crashLine };
-        var ended = program.SayWhyItGaveNone(given!, steps, evidence, involved);
+        var function = program.FunctionOf(crashLine);
+        var path = new List<PathStep> { new(0, function, crashLine, $"calls {Code(program.CallText(crashLine, given!.Function))}") };
+        var ended = program.SayWhyItGaveNone(given, steps, evidence, involved, path, depth: 1);
+        path.Add(new PathStep(0, function, crashLine, $"stops: it {string.Format(use.Doing, Code(text))}"));
 
         return new RootCause
         {
@@ -384,6 +431,7 @@ public static partial class PythonNoneOrigin
             Evidence = evidence,
             LinesInvolved = involved,
             WhatToDo = $"{ended} Or keep what it gives back under a name, and check that is not None before line {crashLine} uses it.",
+            Path = path,
         };
     }
 
@@ -467,6 +515,79 @@ public static partial class PythonNoneOrigin
                 ? lines[line - 1].Substring(assignment.Groups["right"].Index, assignment.Groups["right"].Length)
                 : null;
 
+        /// <summary>The function the line is in, or &lt;module&gt; for the file's own top level.</summary>
+        public string FunctionOf(int line)
+        {
+            var header = PythonCode.EnclosingHeader(masked, line - 1, PythonCode.FunctionKeyword());
+            return header < 0 ? "<module>" : PythonCode.FunctionHeader().Match(masked[header]).Groups["name"].Value;
+        }
+
+        /// <summary>The call to <paramref name="function"/> on the line, as written - <c>find_member(wanted)</c> - or the line itself when it is not found.</summary>
+        public string CallText(int line, string function)
+        {
+            var call = Regex.Match(masked[line - 1], $@"(?<![\w.]){Regex.Escape(function)}\s*\(");
+            if (!call.Success) return Text(line);
+            var close = Brackets.Closing(masked[line - 1], call.Index + call.Length - 1);
+            return close < 0 ? Text(line) : lines[line - 1][call.Index..(close + 1)];
+        }
+
+        /// <summary>
+        /// The caller's own name given as <paramref name="parameter"/> in the call to <paramref name="function"/> on the line -
+        /// by its place, or by name - or null when what was given there is not a plain name.
+        /// </summary>
+        public string? PassedFor(int line, string function, string parameter)
+        {
+            if (!_defined.TryGetValue(function, out var header)) return null;
+            var parameters = PythonCode.SplitParameters(PythonCode.FunctionHeader().Match(masked[header]).Groups["parameters"].Value);
+            if (parameters.FirstOrDefault() == "self") parameters.RemoveAt(0);
+            var place = parameters.IndexOf(parameter);
+
+            var call = Regex.Match(masked[line - 1], $@"(?<![\w])(?:self\.)?{Regex.Escape(function)}\s*\(");
+            if (!call.Success || place < 0) return null;
+            if (PythonCode.CallArguments(lines[line - 1], masked[line - 1], call.Index + call.Length - 1) is not { } arguments) return null;
+
+            var named = arguments.Select(argument => Regex.Match(argument.Text, $@"^{Regex.Escape(parameter)}\s*=\s*(?<value>[A-Za-z_]\w*)$")).FirstOrDefault(each => each.Success);
+            var given = named?.Groups["value"].Value ?? (place < arguments.Count && !arguments[place].Text.Contains('=') ? arguments[place].Text : null);
+            return given is not null && Regex.IsMatch(given, @"^[A-Za-z_]\w*$") && !Keywords.Contains(given) ? given : null;
+        }
+
+        /// <summary>
+        /// The one line of <paramref name="function"/> that sets <paramref name="name"/> before <paramref name="before"/> and
+        /// ran - or null when none did, or more than one, and which one gave the value would be a guess.
+        /// </summary>
+        public int? SetBefore(string name, string function, int before)
+        {
+            var ran = OtherLinesSetting(name, besides: -1, function).Where(line => line < before && trace.TimesRun.GetValueOrDefault(line) > 0).ToList();
+            return ran is [var only] ? only : null;
+        }
+
+        /// <summary>
+        /// The other call of the file's whose None the call gave back on its return line: return find_member(wanted), or
+        /// return found where the one line of the function that set found - and ran in that call - was found =
+        /// find_member(wanted). The line it was called from, the name that held it, and the call.
+        /// </summary>
+        private (int SetLine, string? Held, NoneReturned Inner)? ReturnedFromACall(NoneReturned call)
+        {
+            var returned = Regex.Match(masked[call.Line - 1], @"^\s*return\s+(?<value>.*\S)\s*$");
+            if (!returned.Success) return null;
+            var value = lines[call.Line - 1].Substring(returned.Groups["value"].Index, returned.Groups["value"].Length);
+
+            if (FunctionCalled().Match(value) is { Success: true } direct && Defines(direct.Groups["function"].Value) &&
+                GaveNoneOn(call.Line, function: direct.Groups["function"].Value) is { } straight)
+                return (call.Line, null, straight);
+
+            if (!Regex.IsMatch(value, @"^[A-Za-z_]\w*$")) return null;
+            var setting = OtherLinesSetting(value, besides: -1, call.Function)
+                .Where(line => line < call.Line && call.TimesRun.GetValueOrDefault(line) > 0)
+                .ToList();
+            if (setting is not [var set] || AssignedFrom(set, value) is not { } right) return null;
+
+            return FunctionCalled().Match(right) is { Success: true } setBy && Defines(setBy.Groups["function"].Value) &&
+                   GaveNoneOn(set, function: setBy.Groups["function"].Value) is { } inner
+                ? (set, value, inner)
+                : null;
+        }
+
         /// <summary>The last call to one of the file's functions, made from the line, that gave back None.</summary>
         public NoneReturned? GaveNoneOn(int line, string? function = null, string? except = null) =>
             trace.GaveNone.LastOrDefault(call => call.CalledFrom == line && (function is null || call.Function == function) && call.Function != except &&
@@ -491,7 +612,7 @@ public static partial class PythonNoneOrigin
         /// Says why the call gave back None, from what that call recorded: the line it ended on, and what never ran. Gives back
         /// what to change in the function for it to give back a value.
         /// </summary>
-        public string SayWhyItGaveNone(NoneReturned call, List<string> steps, List<string> evidence, List<int> involved)
+        public string SayWhyItGaveNone(NoneReturned call, List<string> steps, List<string> evidence, List<int> involved, List<PathStep> path, int depth)
         {
             var function = call.Function;
             var header = _defined[function];
@@ -531,6 +652,25 @@ public static partial class PythonNoneOrigin
                 steps.Add(NeverRan(notRun, call.TimesRun, inThatCall: true));
                 evidence.Add($"Line {notRun} did not run in that call.");
             }
+
+            // What it gave back was another of the file's calls' None - return found, where found = find_member(wanted), or
+            // return find_member(wanted) itself: that call is followed in turn, after this one's own account, and what to
+            // change is in it.
+            if (returns.Contains(call.Line) && depth <= MostCallsFollowed && ReturnedFromACall(call) is var (setLine, held, inner))
+            {
+                evidence.Add($"{Code(inner.Function)}, called from line {setLine}, gave back None in that call.");
+                steps.Add(held is null
+                    ? $"Line {call.Line} gives back what {Code(inner.Function)} gave, and it gave back None."
+                    : $"{Code(held)} was set on line {setLine}, {Code(Text(setLine))}, and {Code(inner.Function)} gave back None.");
+                if (!involved.Contains(setLine)) involved.Add(setLine);
+                path.Add(new PathStep(depth, function, setLine, $"calls {Code(CallText(setLine, inner.Function))}"));
+                whatToChange = SayWhyItGaveNone(inner, steps, evidence, involved, path, depth + 1);
+                if (held is not null) path.Add(new PathStep(depth, function, setLine, $"sets {Code(held)} to None"));
+            }
+
+            path.Add(new PathStep(depth, function, call.Line, returns.Contains(call.Line)
+                ? $"gives back None: {Code(Text(call.Line))}"
+                : "reaches its end without a return, so gives back None"));
 
             return whatToChange;
         }

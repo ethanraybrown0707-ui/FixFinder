@@ -98,7 +98,11 @@ public static class DiagnosticLines
                 whyFixFinderThinksThis = Reporting.FindingLayout.WhyItThinksThis(finding)
                     .Select(reason => new { mark = reason.Mark.ToString().ToLowerInvariant(), said = reason.Text }),
                 rootCause = finding.RootCause is { } root
-                    ? new { name = root.Name, value = root.Value, crashLine = root.CrashLine, introducedLine = root.IntroducedLine, introducedCode = root.IntroducedCode }
+                    ? new
+                    {
+                        name = root.Name, value = root.Value, crashLine = root.CrashLine, introducedLine = root.IntroducedLine, introducedCode = root.IntroducedCode,
+                        path = root.Path.Select(step => new { depth = step.Depth, function = step.Function, line = step.Line, happened = step.Happened }),
+                    }
                     : null,
                 timeline = finding.Timeline.Select(variable => new
                 {
