@@ -15,7 +15,11 @@ namespace FixFinder.Core.Analysis.Dynamic;
 /// error on the same line, nothing is said, because it would no longer be about the run that failed.
 /// </remarks>
 /// <summary>What the second run of a Python program that stopped showed: where its None came from, when it stopped on one, and what each variable held.</summary>
-public sealed record PythonTraced(RootCause? Cause, IReadOnlyList<VariableHistory> Timeline);
+public sealed record PythonTraced(RootCause? Cause, IReadOnlyList<VariableHistory> Timeline)
+{
+    /// <summary>The ifs, elifs, elses and whiles around the line it stopped on, and what their conditions read as the call that stopped reached them.</summary>
+    public IReadOnlyList<BranchTaken> Branches { get; init; } = [];
+}
 
 public static partial class PythonNoneOrigin
 {
@@ -132,10 +136,14 @@ public static partial class PythonNoneOrigin
             .ToList();
         var callsUsed = use is null ? [] : CallsUsed(stoppedMasked, stoppedOn, use);
 
-        var trace = await PythonProbe.FollowAsync(interpreter, file, input, holders.Take(MostNamesFollowed).ToList(), scope, crashLine, timeout, cancellationToken);
+        var around = PythonBranches.Of(source.Lines, masked, crashLine);
+        var trace = await PythonProbe.FollowAsync(interpreter, file, input, holders.Take(MostNamesFollowed).ToList(), scope, crashLine, timeout, cancellationToken,
+            PythonBranches.LinesToRecord(around));
 
         // Only a run that stopped the way the first one did, on the same line, says anything about that one.
         if (trace is null || trace.Error != type || trace.Message != message || trace.ErrorLine != crashLine) return null;
+
+        var branches = PythonBranches.With(around, trace.Decided, masked) ?? [];
 
         var timeline = trace.Followed
             .Where(each => each.Value.Count > 0)
@@ -143,7 +151,7 @@ public static partial class PythonNoneOrigin
                 Cut: each.Value.Count >= VariableHistory.MostKept))
             .ToList();
 
-        if (use is null || holders.Count > MostNamesFollowed || holders.Count == 0 && callsUsed.Count == 0) return new PythonTraced(null, timeline);
+        if (use is null || holders.Count > MostNamesFollowed || holders.Count == 0 && callsUsed.Count == 0) return new PythonTraced(null, timeline) { Branches = branches };
 
         var program = new ProgramRead(source.Lines, masked, trace);
         var heldNone = holders
@@ -153,7 +161,7 @@ public static partial class PythonNoneOrigin
         var cause = heldNone is [var name] ? FromName(program, use, name, trace.Followed[name], crashLine, type, scope)
             : heldNone.Count == 0 ? FromCall(program, use, callsUsed, crashLine, type)
             : null;
-        return new PythonTraced(cause, timeline);
+        return new PythonTraced(cause, timeline) { Branches = branches };
     }
 
     /// <summary>

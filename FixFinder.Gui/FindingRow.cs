@@ -98,6 +98,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool HasPath => FindingLayout.Path(Finding).Count > 0;
 
+    /// <summary>Why the line it stopped on ran: each if, elif, else and while around it, and what its condition read then.</summary>
+    public IReadOnlyList<string> WhyThisLineRan => FindingLayout.WhyThisLineRan(Finding);
+
+    public bool HasWhyThisLineRan => Finding.Branches.Count > 0;
+
     public string MostLikelyFix => FindingLayout.MostLikelyFix(Finding);
 
     /// <summary>How sure FixFinder is of the fix, beside how sure it is of the finding: "Fix confidence: Likely - ...".</summary>
@@ -363,6 +368,11 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
         {
             lines.Add("How it got there:");
             lines.AddRange(FindingLayout.Path(Finding).Select(step => "    " + new string(' ', step.Depth * 4) + FindingLayout.PathLine(step)));
+        }
+        if (HasWhyThisLineRan)
+        {
+            lines.Add("Why this line ran:");
+            lines.AddRange(WhyThisLineRan.Select(branch => "    " + branch));
         }
         lines.Add($"Most likely fix: {MostLikelyFix}");
         if (HasFixConfidence) lines.Add(FixConfidenceText);

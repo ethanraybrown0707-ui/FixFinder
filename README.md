@@ -989,6 +989,7 @@ changed.
 | **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
 | **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
 | **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. For any other crash whose trace lists more than one of the program's own lines - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F# - the calls the trace listed, outermost first: *The top level, line 17 - calls `main()`*, then each line that called the next function in, down to *`average()`, line 3 - stops on `return total // len(values)`*. |
+| **Why this line ran** | For a Python program that stopped with an error in its own code: each if, elif, else and while around the line it stopped on, outermost first, whether it was true or false the last time the call that stopped reached it, and what the names its condition reads held then - *`while index <= len(prices):` on line 4 was true - `index` was `3`, `prices` was `[3, 4, 5]`*. Every value is one the second run recorded as that call reached the condition. |
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
@@ -1035,6 +1036,18 @@ main(), line 22 - calls print_member(member), giving member None
 
 What to do is then said of the function that made the None - `find_member`, on line 8. The languages below are
 followed through more than one function too, and show the way the same way.
+
+The same second run says why the line it stopped on ran. The ifs, elifs, elses and whiles around that line, in the
+function it is in, are read from the indentation, as Python reads it; as the call that stopped reaches each of their
+lines, the run records what that call's variables held, before the condition is worked out. The line running says the
+rest: the branch it is in was true, and every condition above that branch in the same chain was false - so an else ran
+because each if and elif above it was false. Each is shown with the names its condition reads, not a function it calls
+or an attribute after a dot - *`if temperature < 0:` on line 2 was false - `temperature` was `21`* - and an object Python
+writes only as its address is left out. What is recorded is kept for each call on its own, so in a function that calls
+itself it is the call that stopped that is shown: in `depth(3, [0, 1])`, which stops on `return seen[n]` in the call
+given 2, `if n > 0:` was true with `n` as `2`, though the call given 0 reached that line after it. A header written over
+more than one line, and the else of a for, a while or a try, are left out with their chain, as what was decided there
+is not read here; and when the run does not record the call reaching one of the conditions, none is shown.
 
 A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
 FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed

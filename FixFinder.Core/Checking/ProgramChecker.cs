@@ -458,7 +458,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (error.Message is not { } message || NotebookScript.Of(chosen) is not null || TestReport.ResultsIn(run.Lines.Select(line => line.Text)).Count > 0) return;
         if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine } frame) return;
 
-        (RootCause? Cause, SourceFile Source, LocalFix? Guard, IReadOnlyList<VariableHistory> Timeline)? followed;
+        Followed? followed;
 
         try
         {
@@ -485,6 +485,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         if (followed is not var (cause, source, guard, timeline) || cause is null && timeline.Count == 0) return;
+        var branches = followed.Branches;
 
         Finding? stopped;
         lock (_gate)
@@ -499,8 +500,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (stopped is null) return;
 
-        var traced = cause is null ? stopped with { Timeline = timeline } : stopped with
+        var traced = cause is null ? stopped with { Timeline = timeline, Branches = branches } : stopped with
         {
+            Branches = branches,
             Title = $"{cause.Name} is {cause.Value} on line {cause.CrashLine}" +
                     (cause.IntroducedLine != cause.CrashLine ? $" - it was made {cause.Value} on line {cause.IntroducedLine}" : ""),
             Found = cause.Cause,
@@ -548,7 +550,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// What each variable of a Python program held where it stopped, from a second run - and, when it stopped on None, where
     /// the None came from and the change that skips it on the line it stopped on.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run,
+    private static async Task<Followed?> FollowNoneAsync(LaunchPlan launch, TargetRunResult run,
         ParsedError error, ErrorFrame frame, string chosen, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType is not { } type || LocalFixEngine.IsSyntaxPhase(error)) return null;
@@ -564,14 +566,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var guard = traced.Cause is { } cause && Analysis.Dynamic.PythonNoneOrigin.DoingWith(message, cause.Name) is { } doing
             ? Analysis.Dynamic.PythonNoneOrigin.GuardFor(cause, source, doing)
             : null;
-        return (traced.Cause, source, guard, traced.Timeline);
+        return new Followed(traced.Cause, source, guard, traced.Timeline) { Branches = traced.Branches };
     }
 
     /// <summary>
     /// Where a Java program's null came from, and the change that skips it on the line it stopped on. Java's trace names the
     /// file by its name alone, so the program's own file of that name is the one it stopped in.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+    private static async Task<Followed?> FollowNullAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
         string message, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType != "NullPointerException" || frame.File is not { } named) return null;
@@ -585,17 +587,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.JavaNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
         var doing = string.Format(Analysis.Dynamic.JavaNullOrigin.DoingIn(message), cause.Name);
-        return (cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.JavaNullOrigin.GuardFor(cause, source, doing), traced.Timeline);
     }
 
     /// <summary>
     /// Where a C# program's null came from, and the change that skips it on the line it stopped on. .NET's message names nothing,
     /// so what was null is the one variable the line reads from that the program sets, or is given.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowCSharpNullAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowCSharpNullAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType != "NullReferenceException" || frame.File is not { } named) return null;
@@ -608,16 +610,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.CSharpNullOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.CSharpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Go program's nil came from, and the change that skips it on the line it stopped on. Go's panic names nothing,
     /// so what was nil is the one variable the line reads a field through, or calls a method on, that the program sets or is given.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowGoNilAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowGoNilAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, int crashLine, CancellationToken cancellationToken)
     {
         if (error.Message != Analysis.Dynamic.GoNilOrigin.Message || frame.File is not { } named) return null;
@@ -630,16 +632,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.GoNilOrigin.TraceAsync(chosen, file, typed, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.GoNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Rust program's None came from, and the change that skips it on the line it stopped on. Rust's panic gives the
     /// column of the unwrap, so what held None is the name - or the call - just before it.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowRustNoneAsync(ErrorFrame frame,
+    private static async Task<Followed?> FollowRustNoneAsync(ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (message != Analysis.Dynamic.RustNoneOrigin.Message || frame.File is not { } named) return null;
@@ -648,16 +650,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (Analysis.Dynamic.RustNoneOrigin.Read(line, frame.Column) is not var (doing, _, _)) return null;
 
         if (await Analysis.Dynamic.RustNoneOrigin.TraceAsync(chosen, file, typed, crashLine, frame.Column, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.RustNoneOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.RustNoneOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Perl program's undef came from, and the change that skips it on the line it stopped on. Perl's message names the
     /// method called on undef, so what held it is the variable the line calls it on; its die gives no calls to follow back.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowPerlUndefAsync(ErrorFrame frame,
+    private static async Task<Followed?> FollowPerlUndefAsync(ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (frame.File is not { } named) return null;
@@ -666,16 +668,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         if (Analysis.Dynamic.PerlUndefOrigin.Read(message, CodeText.Mask(line, Syntax.Perl)) is not var (doing, _, _)) return null;
 
         if (await Analysis.Dynamic.PerlUndefOrigin.TraceAsync(chosen, file, typed, message, crashLine, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.PerlUndefOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.PerlUndefOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Ruby program's nil came from, and the change that skips it on the line it stopped on. Ruby's message names the
     /// method called on nil, so what held nil is the variable the line calls it on.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowRubyNilAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowRubyNilAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (frame.File is not { } named) return null;
@@ -689,16 +691,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.RubyNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.RubyNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.RubyNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Lua program's nil came from, and the change that skips it on the line it stopped on. Lua's message names the
     /// variable that held nil.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowLuaNilAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowLuaNilAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (frame.File is not { } named) return null;
@@ -715,16 +717,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.LuaNilOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.LuaNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.LuaNilOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a Dart program's null came from, and the change that skips it on the line it stopped on. Dart's trace gives the
     /// column of the ! that met null, so what was null is the name - or the call - just before it.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowDartNullAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowDartNullAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (message != Analysis.Dynamic.DartNullOrigin.Message || frame.File is not { } named) return null;
@@ -738,16 +740,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.DartNullOrigin.TraceAsync(chosen, file, typed, crashLine, frame.Column, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.DartNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.DartNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a PHP program's null came from, and the change that skips it on the line it stopped on. PHP's message names the
     /// method called on null, or the property set on it, so what held null is the variable the line uses it on.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowPhpNullAsync(ParsedError error, ErrorFrame frame,
+    private static async Task<Followed?> FollowPhpNullAsync(ParsedError error, ErrorFrame frame,
         string chosen, string? typed, string message, int crashLine, CancellationToken cancellationToken)
     {
         if (frame.File is not { } named) return null;
@@ -761,16 +763,16 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             : (int?)null;
 
         if (await Analysis.Dynamic.PhpNullOrigin.TraceAsync(chosen, file, typed, message, crashLine, calledFrom, cancellationToken) is not { } traced) return null;
-        if (traced.Cause is not { } cause) return (null, source, null, traced.Timeline);
+        if (traced.Cause is not { } cause) return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.PhpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.PhpNullOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
     /// Where a JavaScript program's undefined or null came from, and the change that skips it on the line it stopped on. The
     /// column Node's trace gives says which part of the line read from it.
     /// </summary>
-    private static async Task<(RootCause?, SourceFile, LocalFix?, IReadOnlyList<VariableHistory>)?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
+    private static async Task<Followed?> FollowUndefinedAsync(ParsedError error, ErrorFrame frame, string chosen, string? typed,
         string message, int crashLine, CancellationToken cancellationToken)
     {
         if (error.ShortExceptionType != "TypeError" || frame.File is not { } named) return null;
@@ -784,9 +786,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         if (await Analysis.Dynamic.JavaScriptMissingOrigin.TraceAsync(chosen, file, typed, message, crashLine, frame.Column, calledFrom, cancellationToken) is not { } traced) return null;
         if (traced.Cause is not { } cause || Analysis.Dynamic.JavaScriptMissingOrigin.Read(message, line, frame.Column) is not var (doing, _, _, _))
-            return (null, source, null, traced.Timeline);
+            return new Followed(null, source, null, traced.Timeline);
 
-        return (cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
+        return new Followed(cause, source, Analysis.Dynamic.JavaScriptMissingOrigin.GuardFor(cause, source, string.Format(doing, cause.Name)), traced.Timeline);
     }
 
     /// <summary>
@@ -2323,7 +2325,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         RootCause = better.RootCause ?? other.RootCause,
         Timeline = better.Timeline.Count > 0 ? better.Timeline : other.Timeline,
         CallPath = better.CallPath.Count > 0 ? better.CallPath : other.CallPath,
+        Branches = better.Branches.Count > 0 ? better.Branches : other.Branches,
     };
+
+    /// <summary>
+    /// What following a missing value back found: where it came from, the file it is in, the change that skips it on the line it
+    /// stopped on, what each variable held - and, where the run recorded them, the decisions around that line.
+    /// </summary>
+    private sealed record Followed(RootCause? Cause, SourceFile Source, LocalFix? Guard, IReadOnlyList<VariableHistory> Timeline)
+    {
+        public IReadOnlyList<BranchTaken> Branches { get; init; } = [];
+    }
 
     /// <summary>The program's own files, or - for a check that read none, as a single file passed straight to a run - the file the finding is in.</summary>
     private IReadOnlyList<string> OwnFiles(string findingFile) =>

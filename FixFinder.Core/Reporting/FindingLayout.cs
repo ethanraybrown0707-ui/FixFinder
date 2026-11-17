@@ -48,6 +48,24 @@ public static class FindingLayout
     }
 
     /// <summary>
+    /// Why the line it stopped on ran: each if, elif, else and while around it, outermost first, and what its condition read
+    /// as the call that stopped reached it - or empty when no run recorded that.
+    /// </summary>
+    public static IReadOnlyList<string> WhyThisLineRan(Finding finding) => finding.Branches.Select(BranchLine).ToList();
+
+    /// <summary>
+    /// One decision as a line: "`if left == 0:` on line 2 was true - `left` was `0`", or, for an else,
+    /// "`else:` on line 9 ran, as the conditions above it were false".
+    /// </summary>
+    public static string BranchLine(BranchTaken branch)
+    {
+        if (branch.Kind == BranchKind.Else) return $"`{branch.Code}` on line {branch.Line} ran, as the conditions above it were false";
+
+        var held = branch.Values.Count == 0 ? "" : " - " + string.Join(", ", branch.Values.Select(value => $"`{value.Name}` was `{value.Value}`"));
+        return $"`{branch.Code}` on line {branch.Line} was {(branch.WasTrue ? "true" : "false")}{held}";
+    }
+
+    /// <summary>
     /// Why it happened in this program: what the check that found it said of this code, or what the compiler or the run said
     /// of this line - and the explanation itself only for a finding that has nothing more particular to say.
     /// </summary>

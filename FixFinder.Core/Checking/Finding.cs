@@ -144,6 +144,13 @@ public sealed record Finding
     /// </summary>
     public IReadOnlyList<PathStep> CallPath { get; init; } = [];
 
+    /// <summary>
+    /// Why the line it stopped on ran: the ifs, elifs, elses and whiles around it, whether each was true or false the last time
+    /// the call that stopped reached it, and what its condition read then - from a second run that recorded it. Empty wherever
+    /// no run recorded it.
+    /// </summary>
+    public IReadOnlyList<BranchTaken> Branches { get; init; } = [];
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 

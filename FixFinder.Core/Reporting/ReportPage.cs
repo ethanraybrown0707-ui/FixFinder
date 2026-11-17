@@ -174,6 +174,14 @@ public sealed record ReportPage
             page.Append("</ol>\n");
         }
 
+        // Why this line ran: the decisions around it, and what their conditions read as the call that stopped reached them.
+        if (FindingLayout.WhyThisLineRan(finding) is { Count: > 0 } branches)
+        {
+            page.Append("<h4>Why this line ran</h4>\n<ul class=\"branches\">\n");
+            foreach (var branch in branches) page.Append("<li>").Append(Prose(branch)).Append("</li>\n");
+            page.Append("</ul>\n");
+        }
+
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
         if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
 
@@ -411,6 +419,8 @@ public sealed record ReportPage
         details.timeline { margin: 4px 0; }
         ol.path { list-style: none; padding-left: 0; margin: 4px 0 8px; }
         ol.path li { margin: 2px 0; }
+        ul.branches { padding-left: 18px; margin: 4px 0 8px; }
+        ul.branches li { margin: 2px 0; }
         ol.path li::before { content: "\2192  "; color: var(--secondary); }
         details.timeline summary { cursor: pointer; }
         .label { font-size: 12.5px; color: var(--secondary); margin: 8px 0 2px; }

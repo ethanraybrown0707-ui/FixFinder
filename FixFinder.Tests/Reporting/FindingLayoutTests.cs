@@ -192,6 +192,31 @@ public class FindingLayoutTests
     }
 
     [Fact]
+    public void EachDecisionSaysWhetherItWasTrueAndWhatItsConditionRead()
+    {
+        // describe(21, labels) stopped in its else: both conditions above it read temperature as 21.
+        var decided = Stopped() with
+        {
+            Branches =
+            [
+                new BranchTaken(2, "if temperature < 0:", BranchKind.If, false, [new HeldValue("temperature", "21")]),
+                new BranchTaken(4, "elif temperature < 15:", BranchKind.ElseIf, false, [new HeldValue("temperature", "21")]),
+                new BranchTaken(6, "else:", BranchKind.Else, true, []),
+            ],
+        };
+
+        Assert.Equal(
+        [
+            "`if temperature < 0:` on line 2 was false - `temperature` was `21`",
+            "`elif temperature < 15:` on line 4 was false - `temperature` was `21`",
+            "`else:` on line 6 ran, as the conditions above it were false",
+        ], FindingLayout.WhyThisLineRan(decided));
+
+        // A finding no run recorded has nothing to say.
+        Assert.Empty(FindingLayout.WhyThisLineRan(Stopped()));
+    }
+
+    [Fact]
     public void ACrashsOwnTraceIsTheWayWhenNoValueWasFollowed()
     {
         // The steps of the two-file scores program, as its run's trace gave them: main.py calls average in stats.py.

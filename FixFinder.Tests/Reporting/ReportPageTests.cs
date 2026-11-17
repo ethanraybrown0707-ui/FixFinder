@@ -190,6 +190,35 @@ public class ReportPageTests
         Assert.Equal(at.OrderBy(index => index), at);
     }
 
+    /// <summary>The decisions around the line it stopped on, after how it got there and before the fix.</summary>
+    [Fact]
+    public void WhyThisLineRanListsEachDecisionAfterTheWay()
+    {
+        // total_of([3, 4, 5]) stopped inside its while, as the run recorded it.
+        var stopped = Found("It crashed: IndexError: list index out of range", kind: FindingKind.Runtime) with
+        {
+            CallPath =
+            [
+                new PathStep(0, "<module>", 10, "calls `total_of([3, 4, 5])`"),
+                new PathStep(1, "total_of", 5, "stops on `total += prices[index]`"),
+            ],
+            Branches = [new BranchTaken(4, "while index <= len(prices):", BranchKind.While, true, [new HeldValue("index", "3"), new HeldValue("prices", "[3, 4, 5]")])],
+        };
+
+        var html = Page([stopped]).ToHtml();
+        var order = new[]
+        {
+            "<h4>How it got there</h4>",
+            "<h4>Why this line ran</h4>\n<ul class=\"branches\">",
+            "<li><code>while index &lt;= len(prices):</code> on line 4 was true - <code>index</code> was <code>3</code>, <code>prices</code> was <code>[3, 4, 5]</code></li>",
+            "<h4>Most likely fix</h4>",
+        };
+
+        var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
+        Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
+        Assert.Equal(at.OrderBy(index => index), at);
+    }
+
     /// <summary>One fold to a variable, each value with the line that gave it - the one the program stopped on open - and no script.</summary>
     [Fact]
     public void EachVariableOfTheTimelineOpensToItsValues()

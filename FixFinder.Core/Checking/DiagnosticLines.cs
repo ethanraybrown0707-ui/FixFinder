@@ -106,6 +106,11 @@ public static class DiagnosticLines
                     : null,
                 howItGotThere = Reporting.FindingLayout.Path(finding)
                     .Select(step => new { depth = step.Depth, function = step.Function, file = step.File, line = step.Line, happened = step.Happened }),
+                whyThisLineRan = finding.Branches.Select(branch => new
+                {
+                    line = branch.Line, code = branch.Code, kind = branch.Kind.ToString().ToLowerInvariant(), wasTrue = branch.WasTrue,
+                    values = branch.Values.Select(value => new { name = value.Name, value = value.Value }),
+                }),
                 timeline = finding.Timeline.Select(variable => new
                 {
                     name = variable.Name,

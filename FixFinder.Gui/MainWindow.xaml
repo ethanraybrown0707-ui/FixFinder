@@ -132,6 +132,19 @@
                             </ItemsControl>
                         </StackPanel>
 
+                        <!-- Why this line ran: the ifs, elifs, elses and whiles around it, and what their conditions read then. -->
+                        <StackPanel Visibility="{Binding HasWhyThisLineRan, Converter={StaticResource Visible}}">
+                            <TextBlock Text="WHY THIS LINE RAN" Style="{StaticResource Label}"/>
+                            <ItemsControl ItemsSource="{Binding WhyThisLineRan}" Focusable="False" AutomationProperties.Name="Why this line ran"
+                                          AutomationProperties.AutomationId="FindingWhyThisLineRan">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock desktop:InlineCode.Text="{Binding}" Margin="0,1,0,1" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
                         <!-- 3 Most likely fix, with how sure FixFinder is of the fix - not the same as how sure it is of the finding. -->
                         <TextBlock Text="MOST LIKELY FIX" Style="{StaticResource Label}"/>
                         <TextBlock desktop:InlineCode.Text="{Binding MostLikelyFix}" Style="{StaticResource Body}" AutomationProperties.AutomationId="FindingMostLikelyFix"/>

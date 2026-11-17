@@ -31,6 +31,13 @@ public sealed record Trace(IReadOnlyList<int> Lines, bool Cut, string? Error, st
 
     /// <summary>The last calls to the file's own functions that gave back None, oldest first, when names were followed.</summary>
     public IReadOnlyList<NoneReturned> GaveNone { get; init; } = [];
+
+    /// <summary>
+    /// For each line asked about - an if, elif or while around the line it stopped on - what the variables of the call that
+    /// stopped held the last time that call reached the line, as it was reached, before the line ran. A line that call did not
+    /// reach is not here.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, string>> Decided { get; init; } = new Dictionary<int, IReadOnlyDictionary<string, string>>();
 }
 
 /// <summary>One change to what a followed name held.</summary>
@@ -78,6 +85,8 @@ public static class PythonProbe
         follow = [name for name in os.environ.get("FIXFINDER_FOLLOW", "").split(",") if name]
         follow_scope = os.environ.get("FIXFINDER_FOLLOW_IN", "<module>")
         follow_line = int(os.environ.get("FIXFINDER_FOLLOW_LINE", "0"))
+        decisions = {int(line) for line in os.environ.get("FIXFINDER_DECISIONS", "").split(",") if line}
+        decided, decided_when_raised, decided_at_error = {}, {}, {}
         times_run = collections.Counter()
         held, changes, previous_line, times_run_in_call, started_with, unwinding = {}, {}, {}, {}, {}, set()
         gave_none = collections.deque(maxlen=50)
@@ -110,6 +119,13 @@ public static class PythonProbe
                         parameters = code.co_varnames[:code.co_argcount + code.co_kwonlyargcount]
                         started_with[key] = {name: repr(frame.f_locals.get(name))[:60] for name in parameters}
             if scope == follow_scope:
+                if event == "line" and frame.f_lineno in decisions:
+                    # What the call held as it reached the condition, kept for this call alone: in a function that calls
+                    # itself, the last time any call reached the line need not be the call that stopped.
+                    decided[(key, frame.f_lineno)] = {name: repr(frame.f_locals[name])[:60] for name in names_in(frame) if name in frame.f_locals}
+                if event == "exception":
+                    # Each call the error passes through is told of it; the one it stopped in is picked from the traceback below.
+                    decided_when_raised[key] = {str(line): held_then for (owner, line), held_then in decided.items() if owner == key}
                 for name in names_in(frame):
                     value = frame.f_locals.get(name, missing)
                     grew = resized(key, name, value)
@@ -122,6 +138,7 @@ public static class PythonProbe
                 if event == "exception" and frame.f_lineno == follow_line:
                     followed_at_error.clear()
                     followed_at_error.update({name: list(said) for (owner, name), said in changes.items() if owner == key})
+
             if event == "line":
                 previous_line[key] = frame.f_lineno
             elif event == "exception":
@@ -138,6 +155,8 @@ public static class PythonProbe
                 for owner, name in [each for each in held if each[0] == key]:
                     held.pop((owner, name), None)
                     sizes.pop((owner, name), None)
+                for owner, line in [each for each in decided if each[0] == key]:
+                    decided.pop((owner, line), None)
         def local(frame, event, arg):
             if event == "line":
                 note(frame.f_lineno)
@@ -197,6 +216,7 @@ public static class PythonProbe
                 if os.path.normcase(trace.tb_frame.f_code.co_filename) == wanted:
                     line = trace.tb_lineno
                     values = {k: repr(v)[:60] for k, v in list(trace.tb_frame.f_locals.items())[:30] if not k.startswith("__")}
+                    decided_at_error = decided_when_raised.get(id(trace.tb_frame), {})
                 trace = trace.tb_next
             result["error"] = {"type": type(error).__name__, "message": str(error)[:300], "line": line, "values": values}
         finally:
@@ -208,6 +228,7 @@ public static class PythonProbe
                 result["followed"] = followed_at_error
                 result["times_run"] = {str(line): times for line, times in times_run.items()}
                 result["gave_none"] = list(gave_none)
+                result["decided"] = decided_at_error
             with open(out, "w", encoding="utf-8") as saved:
                 json.dump(result, saved)
         """;
@@ -223,13 +244,15 @@ public static class PythonProbe
     /// moment it stops with an error on <paramref name="line"/>; how many times each line runs; and which calls to the file's
     /// functions give back None.
     /// </summary>
+    /// <param name="decisions">The lines whose values the call that stops is to be recorded at - the ifs, elifs and whiles around <paramref name="line"/>.</param>
     public static Task<Trace?> FollowAsync(string interpreter, string file, string input, IReadOnlyList<string> names, string scope, int line,
-        TimeSpan timeout, CancellationToken cancellationToken) =>
+        TimeSpan timeout, CancellationToken cancellationToken, IReadOnlyList<int>? decisions = null) =>
         TraceAsync(interpreter, file, ["program"], input, timeout, cancellationToken, following: new Dictionary<string, string>
         {
             ["FIXFINDER_FOLLOW"] = string.Join(",", names),
             ["FIXFINDER_FOLLOW_IN"] = scope,
             ["FIXFINDER_FOLLOW_LINE"] = line.ToString(),
+            ["FIXFINDER_DECISIONS"] = string.Join(",", decisions ?? []),
         });
 
     /// <summary>Calls one top-level function of the file with keyword arguments written as a Python dict literal.</summary>
@@ -347,6 +370,14 @@ public static class PythonProbe
                 .ToList()
             : [];
 
+        var decided = root.TryGetProperty("decided", out var conditions) && conditions.ValueKind == JsonValueKind.Object
+            ? conditions.EnumerateObject()
+                .Where(condition => int.TryParse(condition.Name, out _))
+                .ToDictionary(
+                    condition => int.Parse(condition.Name),
+                    condition => (IReadOnlyDictionary<string, string>)condition.Value.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "", StringComparer.Ordinal))
+            : new Dictionary<int, IReadOnlyDictionary<string, string>>();
+
         if (root.GetProperty("error") is not { ValueKind: JsonValueKind.Object } error)
         {
             return new Trace(lines, cut, null, null, null, new Dictionary<string, string>())
@@ -356,6 +387,7 @@ public static class PythonProbe
                 Followed = followed,
                 TimesRun = timesRun,
                 GaveNone = gaveNone,
+                Decided = decided,
             };
         }
 
@@ -368,6 +400,7 @@ public static class PythonProbe
             Followed = followed,
             TimesRun = timesRun,
             GaveNone = gaveNone,
+            Decided = decided,
         };
     }
 
