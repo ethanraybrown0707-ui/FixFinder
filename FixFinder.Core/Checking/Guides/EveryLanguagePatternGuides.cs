@@ -353,6 +353,17 @@ internal static class EveryLanguagePatternGuides
             "Keep the better of the two: longest = max(longest, length + 1).",
             example);
 
+    private static GuideEntry Overwritten(string id, string example) =>
+        GuideFor([id], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
+            "a value, and the very next line gives it another without reading it, so the first value is never used. Most often " +
+            "the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to " +
+            "happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out " +
+            "the line whose value is never used.",
+            example);
+
     private static GuideEntry NoStopWhenEmpty(string id, string example) =>
         GuideFor([id], "A list taken apart with no stop for when it is empty",
             "A function can work through a list by taking it apart: it reads the first item, then calls itself again with the " +
@@ -3768,6 +3779,71 @@ internal static class EveryLanguagePatternGuides
               ends(length + 1) = i
               longest = max(longest, length + 1)
             end if
+            """),
+        Overwritten("logic-typescript-overwritten-before-read",
+            """
+            function area(width: number, height: number): number {
+              const result = width * height;
+              return result;
+            }
+            """),
+        Overwritten("logic-ruby-overwritten-before-read",
+            """
+            def area(width, height)
+              result = width * height
+              result
+            end
+            """),
+        Overwritten("logic-php-overwritten-before-read",
+            """
+            function area(int $width, int $height): int
+            {
+                $result = $width * $height;
+                return $result;
+            }
+            """),
+        Overwritten("logic-lua-overwritten-before-read",
+            """
+            local function area(width, height)
+              local result = width * height
+              return result
+            end
+            """),
+        Overwritten("logic-perl-overwritten-before-read",
+            """
+            sub area {
+                my ($width, $height) = @_;
+                my $result = $width * $height;
+                return $result;
+            }
+            """),
+        Overwritten("logic-dart-overwritten-before-read",
+            """
+            int area(int width, int height) {
+              var result = width * height;
+              return result;
+            }
+            """),
+        Overwritten("logic-powershell-overwritten-before-read",
+            """
+            function Get-Area($width, $height) {
+                $result = $width * $height
+                return $result
+            }
+            """),
+        Overwritten("logic-scala-overwritten-before-read",
+            """
+            def area(width: Int, height: Int): Int = {
+              val result = width * height
+              result
+            }
+            """),
+        Overwritten("logic-fortran-overwritten-before-read",
+            """
+            integer function area(width, height)
+              integer, intent(in) :: width, height
+              area = width * height
+            end function area
             """),
         TakenFromEmpty("logic-python-taken-from-empty",
             """

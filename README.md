@@ -1653,6 +1653,17 @@ function or a lambda uses, one whose address is taken, a C++ reference and a var
 programs FixFinder's checks are tried on - 144 Python, 182 Java, 16 C#, 24 JavaScript and 14 C files - it found
 nothing.
 
+In TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala and Fortran, whose values are not followed through the code,
+a logic check finds the plainest case of it: two lines one after the other, at the same indentation, each the whole of a
+statement giving the same plain variable a value - `$result = $width * $height;`, then `$result = $width * $width;` - the
+second neither declaring it again, nor reading it, even inside its text, nor given only under a modifier such as `if
+ready`. A starting value given first is left alone, and so is a second value that names a function or method the file
+defines, which may read the variable from where it is, and two lines inside a block whose rescue, catch or except reads
+the variable, as an error on the second line takes the first value there. A TypeScript file is read with JavaScript's
+checks, as every TypeScript file is, and this one says it only of TypeScript: a JavaScript file's values are followed
+through the code. Rust's compiler says it itself - value assigned is never read - as Elixir's, OCaml's and F#'s say a
+variable is unused, and Erlang does not let a variable be given a second value.
+
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
 24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
@@ -1962,20 +1973,20 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 46 | 81 | 39 |
 | JavaScript | 44 | 91 | 16 |
 | Go | 38 | 62 | 18 |
-| Scala | 6 | 59 | 28 |
+| Scala | 6 | 60 | 28 |
 | OCaml | 6 | 23 | 26 |
 | Rust | 7 | 48 | 33 |
-| Ruby | 13 | 68 | 26 |
-| PHP | 16 | 64 | 18 |
-| Lua | 12 | 55 | 25 |
-| Perl | 14 | 61 | 26 |
-| Dart | 16 | 53 | 23 |
-| Fortran | 13 | 42 | 19 |
-| PowerShell | 11 | 65 | 16 |
+| Ruby | 13 | 69 | 26 |
+| PHP | 16 | 65 | 18 |
+| Lua | 12 | 56 | 25 |
+| Perl | 14 | 62 | 26 |
+| Dart | 16 | 54 | 23 |
+| Fortran | 13 | 43 | 19 |
+| PowerShell | 11 | 66 | 16 |
 | Elixir | 15 | 36 | 29 |
 | Erlang | 13 | 27 | 23 |
 | F# | 17 | 36 | 33 |
-| TypeScript | 48 | 91 | 26 |
+| TypeScript | 48 | 92 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2033,7 +2044,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,097 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,106 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.

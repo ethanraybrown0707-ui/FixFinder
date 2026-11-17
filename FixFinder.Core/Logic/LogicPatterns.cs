@@ -55,6 +55,7 @@ public static class LogicPatterns
         .. ExactFitPatterns.All,
         .. EmptyListPatterns.All,
         .. BestOverwrittenPatterns.All,
+        .. OverwrittenPatterns.All,
         .. EmptyQueuePatterns.All,
         .. ReversalPatterns.All,
         .. TwoStepPatterns.All,
