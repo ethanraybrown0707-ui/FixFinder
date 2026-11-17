@@ -60,6 +60,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private int _reusedFunctions;
     private int _analysedFunctions;
     private LaunchPlan? _launch;
+
+    /// <summary>The program's own files, in full: the lines of a crash's trace in them are the ones its path shows.</summary>
+    private IReadOnlyList<string> _programFiles = [];
     private CancellationToken _cancellation;
 
     /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
@@ -94,6 +97,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
+        _programFiles = files;
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _launch = launch;
         _cancellation = cancellationToken;
@@ -2116,6 +2120,10 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             finding = finding with { InNotebook = place };
         }
 
+        // How the run got to the line it stopped on, from its own trace - said of a script's lines, so not of a notebook's cells.
+        if (finding is { Kind: FindingKind.Runtime, Error: { } stoppedWith, InNotebook: null, CallPath.Count: 0 })
+            finding = finding with { CallPath = CallPath.From(stoppedWith, OwnFiles(finding.File)) };
+
         IReadOnlyList<Finding> snapshot;
 
         lock (_gate)
@@ -2314,7 +2322,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         State = better.State ?? other.State,
         RootCause = better.RootCause ?? other.RootCause,
         Timeline = better.Timeline.Count > 0 ? better.Timeline : other.Timeline,
+        CallPath = better.CallPath.Count > 0 ? better.CallPath : other.CallPath,
     };
+
+    /// <summary>The program's own files, or - for a check that read none, as a single file passed straight to a run - the file the finding is in.</summary>
+    private IReadOnlyList<string> OwnFiles(string findingFile) =>
+        _programFiles.Count > 0 ? _programFiles : [Path.GetFullPath(findingFile)];
 
     /// <summary>
     /// Whether a finding is the better of two of one mistake: ranked higher - or, ranked the same, made by a logic check when

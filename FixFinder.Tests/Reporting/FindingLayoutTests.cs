@@ -190,4 +190,29 @@ public class FindingLayoutTests
         // A finding no run traced has no way to show.
         Assert.Empty(FindingLayout.Path(Stopped()));
     }
+
+    [Fact]
+    public void ACrashsOwnTraceIsTheWayWhenNoValueWasFollowed()
+    {
+        // The steps of the two-file scores program, as its run's trace gave them: main.py calls average in stats.py.
+        var traced = Stopped() with
+        {
+            CallPath =
+            [
+                new PathStep(0, "<module>", 10, "calls `load_average(\"week one\")`") { File = "main.py" },
+                new PathStep(1, "load_average", 7, "calls `average(scores)`") { File = "main.py" },
+                new PathStep(2, "average", 3, "stops on `return total // len(values)`") { File = "stats.py" },
+            ],
+        };
+
+        Assert.Equal(
+        [
+            "The top level in main.py, line 10 - calls `load_average(\"week one\")`",
+            "`load_average()` in main.py, line 7 - calls `average(scores)`",
+            "`average()` in stats.py, line 3 - stops on `return total // len(values)`",
+        ], FindingLayout.Path(traced).Select(FindingLayout.PathLine));
+
+        // A lambda or closure has no name to give.
+        Assert.Equal("A function with no name, line 4 - stops on `x.Length`", FindingLayout.PathLine(new PathStep(1, "", 4, "stops on `x.Length`")));
+    }
 }

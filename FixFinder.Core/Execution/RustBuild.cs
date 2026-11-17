@@ -44,10 +44,17 @@ public static class RustBuild
             Arguments = "",
             WorkingDirectory = layout.Folder,
             Timeout = timeout,
+            ExtraEnvironment = new Dictionary<string, string> { ["RUST_BACKTRACE"] = Backtraces(Environment.GetEnvironmentVariable("RUST_BACKTRACE")) },
         };
 
         return (new BuildAndRun(compile, run, Explained(rustc, layout, edition)), null);
     }
+
+    /// <summary>
+    /// RUST_BACKTRACE for the run: 1, which makes a panic list the calls that led to it - the way the report shows the run got
+    /// to the line it stopped on - or what it was already set to, which is left as it is.
+    /// </summary>
+    public static string Backtraces(string? existing) => existing is { Length: > 0 } ? existing : "1";
 
     /// <summary>The edition a program is built as: its Cargo.toml's - 2015 when it gives none, as cargo takes it - or the newest.</summary>
     public static string EditionFor(RustProgram.Layout layout, RustToolchains.Rustc rustc) =>

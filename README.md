@@ -348,7 +348,8 @@ folder, as `cargo run` runs it; anywhere else it is the chosen file, built as th
 files its `mod` lines bring in come with it, as rustc finds them. FixFinder builds with rustc and never runs cargo,
 which would download the crates `Cargo.toml` names, so those crates are named in how it ran, and code that uses them
 does not build here. rustc writes the program into FixFinder's build folder, built as cargo builds a debug build - with
-the checks that stop a program when a whole number overflows - and gives its messages as JSON, so each error and warning
+the checks that stop a program when a whole number overflows - and run with `RUST_BACKTRACE` set to 1, unless it is
+already set, so a panic lists the calls that led to it. rustc gives its messages as JSON, so each error and warning
 comes with the changes rustc itself suggests and how sure it is of each. One it marks as right as it stands becomes a
 fix - `let mut`, a missing `;`, `.clone()`, `.to_owned()` - and so does one it is not sure of only when it is the name
 it thinks was meant, the `use` line for the one item it found, or the `"{}"` a `println!` is missing; a change with a
@@ -987,7 +988,7 @@ changed.
 | **Line** | The file and line it is on - for a notebook, the cell and the line in it. |
 | **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
 | **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
-| **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. |
+| **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. For any other crash whose trace lists more than one of the program's own lines - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F# - the calls the trace listed, outermost first: *The top level, line 17 - calls `main()`*, then each line that called the next function in, down to *`average()`, line 3 - stops on `return total // len(values)`*. |
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
@@ -1127,8 +1128,8 @@ when its type has Debug, an `Option` of a type without it as `None` or `Some(..)
 read as the start of text. The finding then says the line that gave the variable None and why: a function whose
 `return None;` ran because the `if` above its other return was never true, with what it was called with;
 `let mut best = None;` that the only line setting it never reached; and `find`, `position`, `get`, `first`, `last`,
-`pop`, `max` and `min`, which give back None when there is nothing to give. Without a backtrace a panic names no call,
-so a parameter the call gave None is not followed.
+`pop`, `max` and `min`, which give back None when there is nothing to give. The copy does not read the calls a panic's
+backtrace names, so a parameter the call gave None is not followed.
 
 When the function that gave the missing value gives back a variable - `return best;` - the copy also prints what each
 line of the function setting that variable gave it, so the finding goes on to say which line gave it the missing value
@@ -1146,8 +1147,26 @@ copy printed: a parameter the call gave one of the caller's own variables is fol
 that set that variable before the call - the copy prints what each line setting it gave it - and a function whose return
 gave back another of its calls' value, `return found;` after `found = findMember(wanted);` or `return lookup(table, key);`
 itself, is followed into that call, past the calls made inside it, up to 8 calls deep. The finding then shows How it got
-there, as a Python one does. Rust's panic and Perl's die name only the line they stopped on, not the call that led there,
-so a parameter in Rust or Perl is not followed back to its caller.
+there, as a Python one does. Perl's die names only the line it stopped on, not the call that led there, and the copy
+that follows Rust's None does not read the calls a panic's backtrace names, so a parameter in Perl or Rust is not followed
+back to its caller.
+
+A crash with no missing value to follow shows How it got there too, read from the calls its own trace lists: the
+program's outermost call first, then each line that called the next function in, down to the line it stopped on -
+*The top level, line 17 - calls `main()`*, *`main()`, line 13 - calls `load_average("week one")`*,
+*`load_average()`, line 9 - calls `average(scores)`*, *`average()`, line 3 - stops on `return total // len(values)`*.
+Only the program's own lines are shown, each one the trace named; lines of the language's own code or a library's are
+passed over. A call the trace leaves out is never filled in: Lua, Elixir and Erlang drop a function that ended by calling
+another, so the step before it says what its line ran and which function the trace went to next - *runs
+`local result = loadAverage("week one")`, which leads to `average()`*. A function calling itself from one line is one
+step that says how many of those calls the trace lists - or, where Python lists three and says the line was repeated
+more times, how many there were. A path through more than one of the program's files names the file of each step, and
+the 12 steps nearest the line it stopped on are shown at most. PHP names, at each line of its trace, the function called
+there rather than the one the line is in, so a line's function is read from the line the trace lists next. In C and C++
+the calls are the ones AddressSanitizer lists, when a crash that said nothing is run again in its build. This is shown in
+Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F#. Perl's die and
+PowerShell's error name one line only, and the backtrace gfortran prints here gives addresses and no lines, so a Perl,
+PowerShell or Fortran crash shows none.
 
 A crash traced this way follows from the logic check that names the same function or line, and is shown under it.
 Where the line it stopped on is a statement of its own, the change that runs it only when the value is there is offered -

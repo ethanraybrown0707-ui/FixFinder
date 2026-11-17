@@ -138,6 +138,12 @@ public sealed record Finding
     /// </summary>
     public IReadOnlyList<VariableHistory> Timeline { get; init; } = [];
 
+    /// <summary>
+    /// How the run got to the line it stopped on: the program's own calls its stack trace listed, outermost first, each line
+    /// that called the next function in. Empty for a finding no run stopped on, or whose trace listed one of its lines alone.
+    /// </summary>
+    public IReadOnlyList<PathStep> CallPath { get; init; } = [];
+
     /// <summary>What the proposed fix changes in what the program does, found by comparing it with the original path by path.</summary>
     public IReadOnlyList<string>? FixChanges { get; init; }
 

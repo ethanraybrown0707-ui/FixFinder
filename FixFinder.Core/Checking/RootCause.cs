@@ -4,7 +4,11 @@ namespace FixFinder.Core.Checking;
 /// <param name="Depth">How many calls deep, counting from the first function the path shows: 0 for it, 1 for a function it called.</param>
 /// <param name="Function">The function the line is in - <c>find_member</c> - or &lt;module&gt; for the file's own top level.</param>
 /// <param name="Happened">What the line did, in the program's own terms: "calls `find_member(wanted)`", "gives back None: `return None`".</param>
-public sealed record PathStep(int Depth, string Function, int Line, string Happened);
+public sealed record PathStep(int Depth, string Function, int Line, string Happened)
+{
+    /// <summary>The name of the file the line is in, for a path that goes through more than one of the program's files; null for one that stays in one.</summary>
+    public string? File { get; init; }
+}
 
 /// <summary>
 /// Where the value a program stopped on came from: the line that gave it that value, and how - each part of it seen in a

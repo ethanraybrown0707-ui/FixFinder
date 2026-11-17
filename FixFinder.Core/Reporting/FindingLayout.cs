@@ -25,12 +25,27 @@ public static class FindingLayout
     /// <summary>Where it went wrong and where it showed, in one line under the title - or null when they are not known apart.</summary>
     public static string? Summary(Finding finding) => finding.RootCause?.Summary;
 
-    /// <summary>How it got there: the way the value went, call by call, as a run recorded it - or empty when no run did.</summary>
-    public static IReadOnlyList<PathStep> Path(Finding finding) => finding.RootCause?.Path ?? [];
+    /// <summary>
+    /// How it got there: the way the missing value went, call by call, as a run recorded it - or else the calls the run's own
+    /// stack trace listed on the way to the line it stopped on - or empty when no run showed either.
+    /// </summary>
+    public static IReadOnlyList<PathStep> Path(Finding finding) => finding.RootCause?.Path is { Count: > 0 } followed ? followed : finding.CallPath;
 
-    /// <summary>One step of the path as a line: "`find_member()`, line 8 - gives back None: `return None`", or "The top level, line 5 - ...".</summary>
-    public static string PathLine(PathStep step) =>
-        $"{(step.Function == "<module>" ? "The top level" : $"`{step.Function}()`")}, line {step.Line} - {step.Happened}";
+    /// <summary>
+    /// One step of the path as a line: "`find_member()`, line 8 - gives back None: `return None`", "The top level, line 5 - ...",
+    /// or, for a path through more than one file, "`average()` in stats.py, line 3 - ...".
+    /// </summary>
+    public static string PathLine(PathStep step)
+    {
+        var function = step.Function switch
+        {
+            "<module>" => "The top level",
+            "" => "A function with no name",
+            var name => $"`{name}()`",
+        };
+
+        return $"{function}{(step.File is { } file ? $" in {file}" : "")}, line {step.Line} - {step.Happened}";
+    }
 
     /// <summary>
     /// Why it happened in this program: what the check that found it said of this code, or what the compiler or the run said

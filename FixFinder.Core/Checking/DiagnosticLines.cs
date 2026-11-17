@@ -104,6 +104,8 @@ public static class DiagnosticLines
                         path = root.Path.Select(step => new { depth = step.Depth, function = step.Function, line = step.Line, happened = step.Happened }),
                     }
                     : null,
+                howItGotThere = Reporting.FindingLayout.Path(finding)
+                    .Select(step => new { depth = step.Depth, function = step.Function, file = step.File, line = step.Line, happened = step.Happened }),
                 timeline = finding.Timeline.Select(variable => new
                 {
                     name = variable.Name,
