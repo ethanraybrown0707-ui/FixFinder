@@ -128,6 +128,7 @@ public partial class MainWindow : Window
 
         FillPastedLanguageBox();
         UpdateFilterCounts();
+        ShowMode();
         _saveSettling.Tick += SaveSettled_Tick;
 
         var stored = TokenStore.Load();
@@ -879,9 +880,11 @@ public partial class MainWindow : Window
         // A finding can come back with more in it - what its fix changes - so it is known by where it is and what it says.
         static string Key(Finding f) => $"{f.File}|{f.Line}|{f.RuleId}|{f.Title}";
 
-        // What the reader opened stays open when the findings come back - More detail, and the corrected code.
+        // What the reader opened stays open when the findings come back - More detail, and the corrected code - and a finding
+        // not shown before starts as the mode says: its corrected code hidden to learn from, shown to fix.
         var expanded = _findings.Where(r => r.IsExpanded).Select(r => Key(r.Finding)).ToHashSet();
         var corrected = _findings.Where(r => r.CorrectionShown).Select(r => Key(r.Finding)).ToHashSet();
+        var shownBefore = _findings.Select(r => Key(r.Finding)).ToHashSet();
 
         // Which findings follow from which is worked out in Core, across the whole report, as a saved report works it out.
         var links = FindingLinks.Of(findings);
@@ -889,7 +892,7 @@ public partial class MainWindow : Window
         _findings = findings.Select(f => new FindingRow(f)
         {
             IsExpanded = expanded.Contains(Key(f)),
-            CorrectionShown = corrected.Contains(Key(f)),
+            CorrectionShown = shownBefore.Contains(Key(f)) ? corrected.Contains(Key(f)) : _preferences.Mode == WorkingMode.Fix,
             FollowsFrom = links.FollowsFrom(f),
             LeadsTo = links.LeadsTo(f),
             Status = _comparison?.StatusOf(f),
@@ -1205,6 +1208,31 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Visible;
         EmptyTitleText.Text = title;
         EmptyBodyText.Text = text;
+    }
+
+    /// <summary>Whether the mode is being shown rather than chosen, so showing it saves nothing.</summary>
+    private bool _showingMode;
+
+    /// <summary>Checks the pill of the mode the preferences hold.</summary>
+    private void ShowMode()
+    {
+        _showingMode = true;
+        (_preferences.Mode == WorkingMode.Fix ? FixMode : LearnMode).IsChecked = true;
+        _showingMode = false;
+    }
+
+    /// <summary>
+    /// Learn or Fix chosen: kept for next time, and every finding shown now has its corrected code hidden, to learn from,
+    /// or shown, to fix with.
+    /// </summary>
+    private void Mode_Checked(object sender, RoutedEventArgs e)
+    {
+        var mode = ReferenceEquals(sender, FixMode) ? WorkingMode.Fix : WorkingMode.Learn;
+        if (_showingMode || _preferences.Mode == mode) return;
+
+        _preferences.Mode = mode;
+        _preferences.Save();
+        foreach (var row in _findings) row.CorrectionShown = mode == WorkingMode.Fix;
     }
 
     private void ToggleCorrection_Click(object sender, RoutedEventArgs e)

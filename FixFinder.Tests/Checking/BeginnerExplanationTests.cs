@@ -75,6 +75,25 @@ public class BeginnerExplanationTests
     }
 
     /// <summary>
+    /// Learn - the corrected code waiting to be asked for - is the mode for anybody who has not chosen, and for a file written
+    /// before there were modes; Fix, once chosen, is kept.
+    /// </summary>
+    [Fact]
+    public void LearnIsTheModeUntilFixIsChosen()
+    {
+        using var temp = new TempFolder();
+        var file = Path.Combine(temp.Path, "preferences.json");
+
+        Assert.Equal(WorkingMode.Learn, new Preferences().Mode);
+
+        File.WriteAllText(file, """{ "Appearance": 2, "RunSeconds": 120 }""");
+        Assert.Equal(WorkingMode.Learn, Preferences.Load(file).Mode);
+
+        Assert.True(new Preferences { Mode = WorkingMode.Fix }.Save(file));
+        Assert.Equal(WorkingMode.Fix, Preferences.Load(file).Mode);
+    }
+
+    /// <summary>
     /// A preferences file written before there was one way of explaining still names a depth. It is read as it always
     /// was, with the depth passed over, so nobody's other choices are lost by the change.
     /// </summary>

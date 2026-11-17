@@ -17,6 +17,19 @@ public enum AppearanceChoice
 }
 
 /// <summary>
+/// What a finding shows first: the way to the fix for someone learning, or the fix itself for someone who wants it fixed.
+/// The explanations are the same in both - only whether the corrected code waits to be asked for.
+/// </summary>
+public enum WorkingMode
+{
+    /// <summary>The corrected code waits behind a button, so the fix can be worked out from what is wrong and tried first.</summary>
+    Learn,
+
+    /// <summary>The corrected code is shown with each finding straight away.</summary>
+    Fix,
+}
+
+/// <summary>
 /// The few choices that belong to the person rather than to any one run, kept between sessions.
 /// </summary>
 /// <remarks>
@@ -33,6 +46,9 @@ public sealed class Preferences
 
     /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;
+
+    /// <summary>Whether a finding's corrected code waits to be asked for, or is shown straight away - Learn unless chosen.</summary>
+    public WorkingMode Mode { get; set; } = WorkingMode.Learn;
 
     /// <summary>How many seconds a run is given, as chosen in Settings.</summary>
     public int RunSeconds { get; set; } = (int)TargetFactory.DefaultTimeout.TotalSeconds;

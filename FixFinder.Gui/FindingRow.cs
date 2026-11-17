@@ -211,8 +211,8 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     private bool _correctionShown;
 
     /// <summary>
-    /// Whether the corrected code is showing. It starts hidden: working the fix out from what is wrong and how to fix it is
-    /// how the idea goes in, and the answer is one press away for whoever wants it.
+    /// Whether the corrected code is showing. In Learn mode it starts hidden: working the fix out from what is wrong and how
+    /// to fix it is how the idea goes in, and the answer is one press away for whoever wants it. In Fix mode it starts shown.
     /// </summary>
     public bool CorrectionShown
     {

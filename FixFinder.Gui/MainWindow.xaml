@@ -873,6 +873,16 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Learn or Fix: whether a finding's corrected code waits to be asked for, or is shown straight away. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0"
+                                    AutomationProperties.Name="Learn or fix">
+                            <RadioButton x:Name="LearnMode" AutomationProperties.AutomationId="LearnMode" GroupName="Mode" Content="Learn"
+                                         Style="{StaticResource FilterPill}" Checked="Mode_Checked" Margin="0,0,4,0"
+                                         ToolTip="The corrected code waits behind Show the corrected code, so the fix can be worked out from what is wrong and tried first."/>
+                            <RadioButton x:Name="FixMode" AutomationProperties.AutomationId="FixMode" GroupName="Mode" Content="Fix"
+                                         Style="{StaticResource FilterPill}" Checked="Mode_Checked"
+                                         ToolTip="The corrected code is shown with each finding straight away."/>
+                        </StackPanel>
                         <Border x:Name="ActivityPill" Style="{StaticResource Pill}" Margin="0,0,10,0"
                                 Background="{DynamicResource SubtleBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
                                 AutomationProperties.AutomationId="ActivityPill"

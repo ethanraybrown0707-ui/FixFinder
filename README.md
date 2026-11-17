@@ -42,8 +42,10 @@ until the program prints what it should. FixFinder never changes your files.
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
    stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
    the fix can be tried first and compared after - the lines it changes side by side, as they are now beside as the fix
-   leaves them - with **Copy corrected code** beside it. Under it, the idea behind the
-   mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
+   leaves them - with **Copy corrected code** beside it. That is **Learn**, beside the report's title; **Fix**, beside
+   it, shows the corrected code with each finding straight away, for when the fix is what is wanted. The explanations are
+   the same in both, a finding's own Show and Hide still work, and the choice is kept for next time. Under it, the idea
+   behind the mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
    [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
    was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
    **Show in folder** opens the program's folder. **Copy report** copies every finding as plain text,
