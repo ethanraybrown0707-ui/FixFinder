@@ -365,6 +365,14 @@ internal static class EveryLanguagePatternGuides
             "answer != 1 and answer != 2 - and take out a half that adds nothing.",
             example);
 
+    private static GuideEntry StopsAfterTheFirstItem(string id, string example) =>
+        GuideFor([id], "A loop that stops after the first item",
+            "return ends the whole function straight away. Here every way through the loop's first pass reaches a return, so " +
+            "the loop never gets to its second item - anything further along is never looked at.",
+            "Only the first item is ever looked at, so a match further along is never found.",
+            "Return the 'not found' answer after the loop, once every item has been checked.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -3960,6 +3968,97 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        StopsAfterTheFirstItem("logic-go-return-in-loop",
+            """
+            for _, item := range items {
+                if item == wanted {
+                    return true
+                }
+            }
+            return false
+            """),
+        StopsAfterTheFirstItem("logic-rust-return-in-loop",
+            """
+            for item in items {
+                if *item == wanted {
+                    return true;
+                }
+            }
+            false
+            """),
+        StopsAfterTheFirstItem("logic-dart-return-in-loop",
+            """
+            for (var item in items) {
+              if (item == wanted) {
+                return true;
+              }
+            }
+            return false;
+            """),
+        StopsAfterTheFirstItem("logic-php-return-in-loop",
+            """
+            foreach ($items as $item) {
+                if ($item === $wanted) {
+                    return true;
+                }
+            }
+            return false;
+            """),
+        StopsAfterTheFirstItem("logic-perl-return-in-loop",
+            """
+            foreach my $item (@items) {
+                if ($item == $wanted) {
+                    return 1;
+                }
+            }
+            return 0;
+            """),
+        StopsAfterTheFirstItem("logic-scala-return-in-loop",
+            """
+            for (item <- items) {
+              if (item == wanted) {
+                return true
+              }
+            }
+            false
+            """),
+        StopsAfterTheFirstItem("logic-powershell-return-in-loop",
+            """
+            foreach ($item in $items) {
+                if ($item -eq $wanted) {
+                    return $true
+                }
+            }
+            return $false
+            """),
+        StopsAfterTheFirstItem("logic-ruby-return-in-loop",
+            """
+            items.each do |item|
+              if item == wanted
+                return true
+              end
+            end
+            false
+            """),
+        StopsAfterTheFirstItem("logic-lua-return-in-loop",
+            """
+            for _, item in ipairs(items) do
+              if item == wanted then
+                return true
+              end
+            end
+            return false
+            """),
+        StopsAfterTheFirstItem("logic-fortran-return-in-loop",
+            """
+            do index = 1, size(items)
+              if (items(index) == wanted) then
+                has_item = .true.
+                return
+              end if
+            end do
+            has_item = .false.
             """),
         TakenFromEmpty("logic-python-taken-from-empty",
             """

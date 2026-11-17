@@ -1675,6 +1675,18 @@ language's own words - `-gt` and `-and` in PowerShell, `.and.` and `/=` in Fortr
 whose half an and on either side would take first is passed over, and so is a half after a not. What a pair decides is
 worked out for every number, whole or not, so `x > 5 && x < 6` is not said to be never true.
 
+**A loop that stops after its first item** - an if in the loop that returns when the item matches, and an else that
+returns when it does not - is found in Python, Java, C#, JavaScript, TypeScript, C and C++, and by a logic check of its
+own in Go, Rust, Dart, PHP, Perl, Scala, PowerShell, Ruby, Lua and Fortran: `if item == wanted { return true } else {
+return false }` looks only at the first item, and `contains([3, 5, 7], 7)` said no in all ten here. The if must start
+its chain and end with a return, the else hold nothing but a return - in Fortran, after the value it gives the
+function's result - and the loop end where the else does. Left alone: an else giving back the loop's own variable, the
+first item itself; an if whose return is inside a further if; an else-if chain that skips some items before deciding;
+and PowerShell's `ForEach-Object`, whose `return` goes on to the next item. The change takes the else out where the line
+after the loop already gives back the same, and puts its return after the loop where the loop ends its function or an
+if; where other code follows the loop, or the loop is inside another, none is offered, as moving the return would change
+what runs. Elixir, Erlang, F# and OCaml have no return to leave a loop early.
+
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
 24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
@@ -1983,17 +1995,17 @@ Python, Java and C# are checked most thoroughly.
 | C | 46 | 66 | 39 |
 | C++ | 46 | 81 | 39 |
 | JavaScript | 44 | 91 | 16 |
-| Go | 38 | 62 | 18 |
-| Scala | 6 | 61 | 28 |
+| Go | 38 | 63 | 18 |
+| Scala | 6 | 62 | 28 |
 | OCaml | 6 | 24 | 26 |
-| Rust | 7 | 49 | 33 |
-| Ruby | 13 | 70 | 26 |
-| PHP | 16 | 66 | 18 |
-| Lua | 12 | 57 | 25 |
-| Perl | 14 | 63 | 26 |
-| Dart | 16 | 55 | 23 |
-| Fortran | 13 | 44 | 19 |
-| PowerShell | 11 | 67 | 16 |
+| Rust | 7 | 50 | 33 |
+| Ruby | 13 | 71 | 26 |
+| PHP | 16 | 67 | 18 |
+| Lua | 12 | 58 | 25 |
+| Perl | 14 | 64 | 26 |
+| Dart | 16 | 56 | 23 |
+| Fortran | 13 | 45 | 19 |
+| PowerShell | 11 | 68 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
 | F# | 17 | 37 | 33 |
@@ -2055,7 +2067,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,120 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,130 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
