@@ -147,6 +147,52 @@ public class CodeChangeTests
     }
 
     [Fact]
+    public void SideBySideEachLineTakenOutIsBesideTheLinePutInItsPlace()
+    {
+        var source = FileOf(
+            "int total = 0;",
+            "for (int i = 0; i <= readings.Length; i++)",
+            "{",
+            "    total += readings[i];");
+
+        var rows = CodeChange.From(Replacing(2, "for (int i = 0; i < readings.Length; i++)"), source)!.SideBySide;
+
+        Assert.Equal(
+        [
+            "1 int total = 0; | 1 int total = 0;",
+            "2 for (int i = 0; i <= readings.Length; i++) | 2 for (int i = 0; i < readings.Length; i++)",
+            "3 { | 3 {",
+            "4     total += readings[i]; | 4     total += readings[i];",
+        ], rows.Select(Shown));
+        Assert.Equal([ChangeKind.Removed, ChangeKind.Added], [rows[1].Now!.Kind, rows[1].AfterTheFix!.Kind]);
+    }
+
+    [Fact]
+    public void SideBySideALineWithNoPartnerHasAnEmptySideAndTheLinesBelowMove()
+    {
+        var source = FileOf("member = find_member(3)", "print(member[\"age\"])", "print(\"done\")");
+        var fix = new LocalFix
+        {
+            RuleId = "rule", Title = "Title", Explanation = "Explanation", File = @"C:\work\Readings.cs",
+            StartLine = 2, RemoveCount = 1, NewLines = ["if member is not None:", "    print(member[\"age\"])"],
+        };
+
+        // The second line put in has nothing beside it, and the line after the change is line 4 once the fix is in.
+        Assert.Equal(
+        [
+            "1 member = find_member(3) | 1 member = find_member(3)",
+            "2 print(member[\"age\"]) | 2 if member is not None:",
+            "| 3     print(member[\"age\"])",
+            "3 print(\"done\") | 4 print(\"done\")",
+        ], CodeChange.From(fix, source)!.SideBySide.Select(Shown));
+    }
+
+    private static string Shown(SideBySideRow row) =>
+        $"{Side(row.Now)} | {Side(row.AfterTheFix)}".Trim();
+
+    private static string Side(ChangeLine? line) => line is null ? "" : $"{line.Number} {line.Text}";
+
+    [Fact]
     public void ALineReplacedBySomethingEntirelyDifferentIsNotMarkedInside()
     {
         var source = FileOf("counts[word] += 1");

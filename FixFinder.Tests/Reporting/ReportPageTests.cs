@@ -1,5 +1,6 @@
 using FixFinder.Core.Checking;
 using FixFinder.Core.Engine;
+using FixFinder.Core.LocalFixes;
 using FixFinder.Core.Reporting;
 
 namespace FixFinder.Tests;
@@ -188,6 +189,31 @@ public class ReportPageTests
         var at = order.Select(part => html.IndexOf(part, StringComparison.Ordinal)).ToList();
         Assert.All(at.Zip(order), each => Assert.True(each.First >= 0, $"not on the page: {each.Second}"));
         Assert.Equal(at.OrderBy(index => index), at);
+    }
+
+    /// <summary>The exact code to change as two columns: each line as it is beside the line as the fix leaves it, marked as well as coloured.</summary>
+    [Fact]
+    public void TheExactChangeIsTheCodeNowBesideTheCodeAfterTheFix()
+    {
+        var source = new SourceFile { Path = @"C:\work\scores.py", Lines = ["def average(values):", "    return sum(values) // len(values)"] };
+        var fix = new LocalFix
+        {
+            RuleId = "rule", Title = "Give an answer for an empty list", Explanation = "Explanation", File = @"C:\work\scores.py",
+            StartLine = 2, RemoveCount = 1, NewLines = ["    if len(values) == 0:", "        return 0", "    return sum(values) // len(values)"],
+        };
+        var stopped = Found("It crashed: ZeroDivisionError: integer division or modulo by zero", kind: FindingKind.Runtime) with
+        {
+            Fix = fix,
+            Change = CodeChange.From(fix, source),
+        };
+
+        var html = Page([stopped]).ToHtml();
+
+        Assert.Contains("<table class=\"change\">\n<tr><th>Current</th><th>Suggested</th></tr>\n" +
+                        "<tr><td class=\"context\"><span class=\"number\">   1  </span>def average(values):</td><td class=\"context\"><span class=\"number\">   1  </span>def average(values):</td></tr>\n" +
+                        "<tr><td class=\"removed\"><span class=\"number\">   2 -</span>    return sum(values) // len(values)</td><td class=\"added\"><span class=\"number\">   2 +</span>    if len(values) == 0:</td></tr>\n" +
+                        "<tr><td class=\"empty\"></td><td class=\"added\"><span class=\"number\">   3 +</span>        return 0</td></tr>\n",
+            html, StringComparison.Ordinal);
     }
 
     /// <summary>The decisions around the line it stopped on, after how it got there and before the fix.</summary>

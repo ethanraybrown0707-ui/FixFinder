@@ -162,42 +162,70 @@
                             <StackPanel Visibility="{Binding CorrectionShown, Converter={StaticResource Visible}}">
                                 <Border Background="{DynamicResource CodeBrush}" CornerRadius="6" Padding="8,6" Margin="0,8,0,0"
                                         Visibility="{Binding HasChange, Converter={StaticResource Visible}}">
-                                    <ItemsControl ItemsSource="{Binding ChangeLines}" Focusable="False"
-                                                  AutomationProperties.Name="What changes"
-                                                  AutomationProperties.AutomationId="FindingChange">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border x:Name="Row" Padding="4,1" CornerRadius="3">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock x:Name="Sign" Text=" " Width="12"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
-                                                        <TextBlock Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource DiffGutterBrush}"/>
-                                                        <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
-                                                                   FontFamily="{StaticResource CodeFont}" FontSize="12.5"
-                                                                   Foreground="{DynamicResource CodeTextBrush}"
-                                                                   TextWrapping="NoWrap"/>
-                                                    </StackPanel>
-                                                </Border>
-                                                <DataTemplate.Triggers>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="Removed">
-                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffRemovedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
-                                                        <Setter TargetName="Sign" Property="Text" Value="-"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="Added">
-                                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffAddedBrush}"/>
-                                                        <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
-                                                        <Setter TargetName="Sign" Property="Text" Value="+"/>
-                                                        <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
-                                                    </DataTrigger>
-                                                </DataTemplate.Triggers>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                    <!-- Side by side: the code as it is now beside the code as the fix leaves it, each line taken out beside the one put in its place. -->
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="NOW" FontSize="11" FontWeight="SemiBold" Margin="4,0,0,0"
+                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                            <TextBlock Grid.Column="1" Text="AFTER THE FIX" FontSize="11" FontWeight="SemiBold" Margin="12,0,0,0"
+                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding ChangeRows}" Focusable="False"
+                                                      AutomationProperties.Name="What changes"
+                                                      AutomationProperties.AutomationId="FindingChange">
+                                            <ItemsControl.Resources>
+                                                <!-- One side of a row: its number and its code, coloured and marked by whether it is taken out or put in. -->
+                                                <DataTemplate x:Key="ChangeSide">
+                                                    <Border x:Name="Row" Padding="4,1" CornerRadius="3">
+                                                        <DockPanel>
+                                                            <TextBlock x:Name="Sign" DockPanel.Dock="Left" Text=" " Width="12"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Number}" Width="34" TextAlignment="Right" Margin="0,0,10,0"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource DiffGutterBrush}"/>
+                                                            <TextBlock x:Name="Code" local:ChangedCode.Line="{Binding}"
+                                                                       FontFamily="{StaticResource CodeFont}" FontSize="12.5"
+                                                                       Foreground="{DynamicResource CodeTextBrush}"
+                                                                       TextWrapping="Wrap"/>
+                                                        </DockPanel>
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffRemovedBrush}"/>
+                                                            <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
+                                                            <Setter TargetName="Sign" Property="Text" Value="-"/>
+                                                            <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffRemovedTextBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Kind}" Value="Added">
+                                                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource DiffAddedBrush}"/>
+                                                            <Setter TargetName="Code" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
+                                                            <Setter TargetName="Sign" Property="Text" Value="+"/>
+                                                            <Setter TargetName="Sign" Property="Foreground" Value="{DynamicResource DiffAddedTextBrush}"/>
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.Resources>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ContentControl Content="{Binding Now}" ContentTemplate="{StaticResource ChangeSide}"
+                                                                        Focusable="False" IsTabStop="False"/>
+                                                        <ContentControl Grid.Column="1" Content="{Binding AfterTheFix}" ContentTemplate="{StaticResource ChangeSide}"
+                                                                        Focusable="False" IsTabStop="False" Margin="8,0,0,0"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Border>
 
                                 <StackPanel Visibility="{Binding HasExample, Converter={StaticResource Visible}}">

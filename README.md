@@ -41,7 +41,8 @@ until the program prints what it should. FixFinder never changes your files.
    **what it said** is shown as it said it, with how to read a message of that kind, part by part; the programming words
    the finding uses - index, exception, divisor - are each explained in a sentence; and **Next time** gives a habit that
    stops this kind of mistake happening again. The corrected code waits behind **Show the corrected code**, so
-   the fix can be tried first and compared after, with **Copy corrected code** beside it. Under it, the idea behind the
+   the fix can be tried first and compared after - the lines it changes side by side, as they are now beside as the fix
+   leaves them - with **Copy corrected code** beside it. Under it, the idea behind the
    mistake is named and spelled out, with the finding's **problem code** - **Learn about this** opens it in
    [FixFinder Learn](#fixfinder-learn). **More detail** holds how it was found, the lines that decide it, how the fix
    was checked and where it came from. **Search online** looks the error up on GitHub and Stack Overflow, and
@@ -997,6 +998,7 @@ changed.
 | **What this kind of mistake is** | Under **Learn more**: the explanation for someone new to programming, with the idea behind it spelled out in plain words - after what happened in this program, never before it. |
 | **Why it matters** | What goes wrong because of it. |
 | **To see it happen** | How to make it happen yourself, said only from what FixFinder ran or worked out: the call a run confirmed it with - call `take(flag=False)`; what the program's own run was given - run share.py typing `12` then `0`; the values worked out from the code that make it fail; or the language refusing the code before it starts. A finding nothing ran - a way of writing code that is usually a mistake - has none, rather than a guess. |
+| **Exact code to change** | When FixFinder worked the fix out, the lines it changes side by side: as they are now on the left, as the fix leaves them on the right, each line taken out beside the line put in its place, marked - and + as well as coloured, with the two lines either side to place it. A line put in with nothing to replace has an empty side beside it, and a line below the change has, on the right, the number it will have once the fix is in. The window shows it behind **Show the corrected code**, and a saved report as a table. |
 | **Example of corrected code** | Your own lines as they should be, when FixFinder worked the fix out and a compiler agreed with it - otherwise a small example of this kind of fix, labelled as not your code. Shown when **Show the corrected code** is pressed. |
 | **The idea** | The idea behind the mistake - dividing by zero, using a value that is not there, going one step too far - in plain words that hold in every language. |
 | **Problem code** | A code such as `FF-PY-DIVZERO-9PMEEB1` that opens the finding in FixFinder Learn. |

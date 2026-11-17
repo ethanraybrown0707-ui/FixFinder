@@ -197,23 +197,10 @@ public sealed record ReportPage
             page.Append("<h4>").Append(Text($"Exact code to change  ·  {change.Summary}")).Append("</h4>\n");
             if (finding.Fix is { } fix && fix.Title.Length > 0) page.Append("<p>").Append(Prose(fix.Title)).Append("</p>\n");
 
-            foreach (var (label, shown) in new[] { ("Current", ChangeKind.Removed), ("Suggested", ChangeKind.Added) })
-            {
-                page.Append("<p class=\"label\">").Append(label).Append("</p>\n<pre class=\"change\">");
-                foreach (var line in change.Lines.Where(line => line.Kind == ChangeKind.Context || line.Kind == shown))
-                {
-                    var (kind, mark) = line.Kind switch
-                    {
-                        ChangeKind.Removed => ("removed", "-"),
-                        ChangeKind.Added => ("added", "+"),
-                        _ => ("context", " "),
-                    };
-
-                    page.Append("<span class=\"").Append(kind).Append("\">").Append(Text($"{line.Number,5} {mark} {line.Text}")).Append("</span>\n");
-                }
-
-                page.Append("</pre>\n");
-            }
+            // Side by side: the code as it is now beside the code as the fix leaves it, each line taken out beside the one put in its place.
+            page.Append("<table class=\"change\">\n<tr><th>Current</th><th>Suggested</th></tr>\n");
+            foreach (var row in change.SideBySide) page.Append("<tr>").Append(ChangeCell(row.Now)).Append(ChangeCell(row.AfterTheFix)).Append("</tr>\n");
+            page.Append("</table>\n");
         }
 
         if (finding.CorrectedExample.Trim().Length > 0)
@@ -346,6 +333,24 @@ public sealed record ReportPage
         .ToString();
 
     /// <summary>
+    /// One side of a row of a change: the line's number and the line, marked - or + as well as coloured, so taken out and put in
+    /// read apart without the colour - or an empty cell where the other side has a line with no partner.
+    /// </summary>
+    private static string ChangeCell(ChangeLine? line)
+    {
+        if (line is null) return "<td class=\"empty\"></td>";
+
+        var (kind, mark) = line.Kind switch
+        {
+            ChangeKind.Removed => ("removed", "-"),
+            ChangeKind.Added => ("added", "+"),
+            _ => ("context", " "),
+        };
+
+        return $"<td class=\"{kind}\"><span class=\"number\">{line.Number,4} {mark}</span>{Text(line.Text)}</td>";
+    }
+
+    /// <summary>
     /// Text written as the findings write it, escaped, with what is between backticks shown as code - when the backticks
     /// pair up, as the window shows them.
     /// </summary>
@@ -429,9 +434,12 @@ public sealed record ReportPage
         code, pre { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
         code { background: var(--subtle); border-radius: 4px; padding: 0 4px; }
         pre { background: var(--subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
-        pre.change .removed { color: var(--error); }
-        pre.change .added { color: var(--success); }
-        pre.change .context { color: var(--secondary); }
+        table.change { width: 100%; table-layout: fixed; font-family: "Cascadia Mono", Consolas, monospace; }
+        table.change td { white-space: pre-wrap; word-break: break-word; vertical-align: top; }
+        table.change td.removed { background: var(--error-soft); }
+        table.change td.added { background: var(--success-soft); }
+        table.change td.context { color: var(--secondary); }
+        table.change .number { display: inline-block; min-width: 4.5em; color: var(--secondary); user-select: none; }
         table { border-collapse: collapse; font-size: 13px; margin: 4px 0; }
         th, td { border: 1px solid var(--border); padding: 3px 10px; text-align: left; }
         tr.failed td { background: var(--error-soft); }

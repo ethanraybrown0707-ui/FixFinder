@@ -188,6 +188,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     /// <summary>The reader's own lines beside the corrected ones. Empty whenever FixFinder has no fix to show.</summary>
     public IReadOnlyList<ChangeLine> ChangeLines => Finding.Change?.Lines ?? [];
 
+    /// <summary>The change as two columns: each line as it is now beside the line as the fix leaves it.</summary>
+    public IReadOnlyList<SideBySideRow> ChangeRows => Finding.Change?.SideBySide ?? [];
+
     public bool HasChange => ChangeLines.Count > 0;
 
     public string CorrectedExample => Finding.CorrectedExample;
