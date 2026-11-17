@@ -67,6 +67,18 @@ internal abstract partial class BraceDialect
     /// <summary>A line that starts an else if: <c>} else if (x)</c>, or Go's <c>} else if x {</c>.</summary>
     public virtual Regex ElseIfLine => ElseIfInBrackets();
 
+    /// <summary>A line that starts a loop that runs while its condition holds: <c>while (x)</c>, or Go's <c>for x {</c>.</summary>
+    public virtual Regex WhileLine => WhileInBrackets();
+
+    /// <summary>Whether a block ends with a word - Ruby's and Lua's end - rather than with a brace.</summary>
+    public virtual bool BlocksEndWithAWord => false;
+
+    /// <summary>The line, 0-based, the block opened on line <paramref name="start"/> closes on, counted as the language counts its blocks - or null.</summary>
+    public virtual int? BlockEnd(IReadOnlyList<string> masked, int start) => Brackets.BlockEnd(masked, start);
+
+    /// <summary>For a language whose blocks end with a word: how many blocks a line opens, less how many it ends.</summary>
+    public virtual int BlocksOpened(string masked) => 0;
+
     /// <summary>Whether a line of code, trimmed, ends a statement, so a line put after it runs after it.</summary>
     public virtual bool EndsAStatement(string code) => code.EndsWith(';') || code.EndsWith('{') || code.EndsWith('}');
 
@@ -129,6 +141,9 @@ internal abstract partial class BraceDialect
 
     [GeneratedRegex(@"^\s*\}?\s*else\s+if\s*\(")]
     private static partial Regex ElseIfInBrackets();
+
+    [GeneratedRegex(@"^\s*while\s*\(")]
+    private static partial Regex WhileInBrackets();
 }
 
 /// <summary>
@@ -143,7 +158,7 @@ public sealed record BraceTraced(RootCause? Cause, IReadOnlyList<VariableHistory
 internal static class BraceMissingValue
 {
     /// <summary>What every line the copy prints for FixFinder starts with, so the program's own output is never read as one.</summary>
-    private const string Marker = "@@FixFinder@@";
+    internal const string Marker = "@@FixFinder@@";
 
     /// <summary>Between one parameter's value and the next on a line the copy prints.</summary>
     public const string Between = " @@ ";
@@ -335,7 +350,7 @@ internal static class BraceMissingValue
     /// at the end of a line, where it would not run.
     /// </summary>
     /// <param name="masked">The lines with their text and comments blanked, which say where each line's code ends.</param>
-    private sealed class Marks(BraceDialect dialect, IReadOnlyList<string> original, IReadOnlyList<string> masked)
+    internal sealed class Marks(BraceDialect dialect, IReadOnlyList<string> original, IReadOnlyList<string> masked)
     {
         private readonly string[] _lines = [.. original];
 

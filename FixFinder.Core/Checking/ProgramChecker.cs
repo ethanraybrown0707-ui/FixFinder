@@ -51,6 +51,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private readonly Dictionary<string, Task> _comparing = [];
     private readonly Dictionary<string, IReadOnlyList<string>> _fixChanges = [];
     private readonly Dictionary<string, Task> _verifying = [];
+
+    /// <summary>
+    /// The copies saying why the line a run stopped on ran, each of which builds and runs the program again: run beside the
+    /// copies that try the fixes, rather than after them, and waited for before the report is finished.
+    /// </summary>
+    private readonly List<Task> _explainingWhyTheLineRan = [];
     private readonly Dictionary<string, Verification> _verified = [];
 
     /// <summary>Set for a check of the code alone, which compiles and runs nothing.</summary>
@@ -122,7 +128,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         // Both of these run in the background while the report fills in; the report waits for them so that what it
         // finally says about a fix is what was actually established, not what had been established so far.
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan];
         await Task.WhenAll(finishing);
 
         // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
@@ -294,6 +300,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             await RepairTestsAsync(outcome, launch, cancellationToken);
             await RepairAssertAsync(outcome, launch, cancellationToken);
             await TraceMissingValueAsync(outcome, launch, cancellationToken);
+            lock (_gate) _explainingWhyTheLineRan.Add(Task.Run(() => ExplainWhyTheLineRanAsync(outcome, launch, cancellationToken), CancellationToken.None));
             return outcome;
         }
         finally
@@ -545,6 +552,57 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
         FindingsChanged?.Invoke(snapshot);
     }
+
+    /// <summary>
+    /// Why the line a Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby or Perl program stopped on ran: the ifs,
+    /// else ifs, elses and whiles around it and what their conditions read, from a copy of the program that prints them, put on
+    /// the finding for where it stopped. A Python program's come from the run that records its variables.
+    /// </summary>
+    private async Task ExplainWhyTheLineRanAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is null || outcome.Error is not { } error || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec) return;
+        if (NotebookScript.Of(chosen) is not null || LocalFixEngine.IsCompileError(error) || LocalFixEngine.IsSyntaxPhase(error)) return;
+        if (LocalFixContext.OwnFrame(error) is not { Line: { } crashLine, File: { } named }) return;
+        if (ProgramFiles.Of(chosen).Where(file => string.Equals(Path.GetFileName(file), Path.GetFileName(named), StringComparison.OrdinalIgnoreCase)).ToList() is not [var file]) return;
+        if (Analysis.Dynamic.BraceBranches.DialectFor(file) is not { } dialect || SourceFile.Read(file) is not { } source) return;
+
+        Finding? stopped;
+        lock (_gate) stopped = StoppedAt(crashLine, file);
+        if (stopped is null || stopped.Branches.Count > 0) return;
+
+        IReadOnlyList<BranchTaken>? branches;
+        try
+        {
+            branches = await Analysis.Dynamic.BraceBranches.TraceAsync(dialect, chosen, source, spec.StandardInput, crashLine,
+                copy => copy.LanguageId == error.LanguageId && copy.ShortExceptionType == error.ShortExceptionType && copy.Message == error.Message, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Finding out why the line it stopped on ran stopped early: {ex.Message}");
+            return;
+        }
+
+        if (branches is not { Count: > 0 }) return;
+
+        IReadOnlyList<Finding> snapshot;
+        lock (_gate)
+        {
+            // Found again: the finding may have been traced, or joined with another, while the copy ran.
+            if (StoppedAt(crashLine, file) is not { Branches.Count: 0 } now) return;
+            _findings[_findings.IndexOf(now)] = now with { Branches = branches };
+            snapshot = Sorted(_findings);
+        }
+
+        FindingsChanged?.Invoke(snapshot);
+    }
+
+    /// <summary>The finding the run that stopped on that line of that file made, before another the run confirmed on the same line.</summary>
+    private Finding? StoppedAt(int crashLine, string file) =>
+        _findings
+            .Where(finding => finding.Kind == FindingKind.Runtime && finding.Line == crashLine &&
+                              string.Equals(Path.GetFileName(finding.File), Path.GetFileName(file), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(finding => finding.Error is null)
+            .FirstOrDefault();
 
     /// <summary>
     /// What each variable of a Python program held where it stopped, from a second run - and, when it stopped on None, where
@@ -1871,7 +1929,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan];
         await Task.WhenAll(finishing);
 
         lock (_gate)

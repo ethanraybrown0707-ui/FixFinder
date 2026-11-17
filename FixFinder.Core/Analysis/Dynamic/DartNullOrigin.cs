@@ -22,6 +22,9 @@ public static partial class DartNullOrigin
 
     private static readonly DartDialect Dart = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Dart;
+
     /// <summary>
     /// Runs a copy of the program with the places the null could have come from marked, and says where it came from - or null
     /// when the column does not point at a ! after a name or a call, or the copy does not stop the same way.

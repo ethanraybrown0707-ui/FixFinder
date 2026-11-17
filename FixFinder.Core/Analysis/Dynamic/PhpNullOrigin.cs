@@ -26,6 +26,9 @@ public static partial class PhpNullOrigin
 
     private static readonly PhpDialect Php = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Php;
+
     /// <summary>
     /// Runs a copy of the program with the places the null could have come from marked, and says where it came from - or null
     /// when the line does not show what held it, or the copy does not stop the same way.

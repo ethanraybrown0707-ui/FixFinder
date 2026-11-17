@@ -27,6 +27,9 @@ public static partial class GoNilOrigin
 
     private static readonly GoDialect Go = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Go;
+
     /// <summary>
     /// Runs a copy of the program with the places the nil could have come from marked, and says where it came from - or null
     /// when what was nil is not one variable, or the copy does not stop the same way.
@@ -119,6 +122,12 @@ public static partial class GoNilOrigin
         public override Regex IfLine => IfWithoutBrackets();
 
         public override Regex ElseIfLine => ElseIfWithoutBrackets();
+
+        /// <summary>Go's while: a for with a condition alone - for index < len(prices) { - not a three-part for, a range or a for with nothing.</summary>
+        public override Regex WhileLine => ForWithACondition();
+
+        [GeneratedRegex(@"^\s*for\s+(?![^{]*(?:;|:=|\brange\b))[^{\s][^{]*\{\s*$")]
+        private static partial Regex ForWithACondition();
 
         public override bool EndsAStatement(string code) => StatementEnd().IsMatch(code);
 

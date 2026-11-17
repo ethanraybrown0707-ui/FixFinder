@@ -23,6 +23,9 @@ public static partial class RustNoneOrigin
 
     private static readonly RustDialect Rust = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Rust;
+
     /// <summary>
     /// Runs a copy of the program with the places the None could have come from marked, and says where it came from - or null
     /// when the column does not point at an unwrap after a name or a call, or the copy does not stop the same way.
@@ -122,6 +125,12 @@ public static partial class RustNoneOrigin
         public override Regex IfLine => IfWithoutLet();
 
         public override Regex ElseIfLine => ElseIfWithoutLet();
+
+        /// <summary>A while with a condition, not a while let, whose pattern decides rather than a condition.</summary>
+        public override Regex WhileLine => WhileWithoutLet();
+
+        [GeneratedRegex(@"^\s*while\s+(?!let\b)")]
+        private static partial Regex WhileWithoutLet();
 
         public override string GuardOpening(string name) => $"if {name}.is_some() {{";
 

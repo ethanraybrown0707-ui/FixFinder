@@ -24,6 +24,9 @@ public static partial class CSharpNullOrigin
 
     private static readonly CSharpDialect CSharp = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => CSharp;
+
     /// <summary>
     /// Runs a copy of the program with the places the null could have come from marked, and says where it came from - or null
     /// when what was null is not one variable, or the copy does not stop the same way.

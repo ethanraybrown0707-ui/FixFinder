@@ -24,6 +24,9 @@ public static partial class RubyNilOrigin
 
     private static readonly RubyDialect Ruby = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Ruby;
+
     /// <summary>
     /// Runs a copy of the program with the places the nil could have come from marked, and says where it came from - or null
     /// when the line does not show what held it, or the copy does not stop the same way.
@@ -145,6 +148,23 @@ public static partial class RubyNilOrigin
 
         public override Regex ElseIfLine => ElseIfWord();
 
+        public override Regex WhileLine => WhileWord();
+
+        public override bool BlocksEndWithAWord => true;
+
+        public override int? BlockEnd(IReadOnlyList<string> masked, int start) => BlockEndCounted(masked, start);
+
+        /// <summary>How many blocks the line opens, less how many it ends, counted as <see cref="BlockEndCounted"/> counts them.</summary>
+        public override int BlocksOpened(string masked)
+        {
+            var opening = OpeningWord().Match(masked);
+            var opened = (opening.Success ? 1 : 0) + (opening.Success && opening.Groups["word"].Value is "while" or "until" or "for" ? 0 : Do().Matches(masked).Count);
+            return opened - End().Matches(masked).Count;
+        }
+
+        [GeneratedRegex(@"^\s*while\b")]
+        private static partial Regex WhileWord();
+
         public override bool EndsAStatement(string code) => StatementEnd().IsMatch(code) || End().IsMatch(code);
 
         /// <summary>An if line opens its block unless it closes it too: if ready then go end.</summary>
@@ -175,7 +195,7 @@ public static partial class RubyNilOrigin
             for (var index = 0; index < masked.Count; index++)
             {
                 if (MethodHeader().Match(masked[index]) is not { Success: true } header) continue;
-                if (BlockEnd(masked, index) is not { } end) continue;
+                if (BlockEndCounted(masked, index) is not { } end) continue;
                 yield return new BraceFunction(header.Groups["name"].Value, index + 1, end + 1, Parameters(header.Groups["parameters"].Value));
             }
         }
@@ -185,7 +205,7 @@ public static partial class RubyNilOrigin
         /// def, class, module or for opens one - an if after a statement only decides it - and so does a do, but not the do
         /// of a while, until or for; each end closes one. Counted on the blanked lines.
         /// </summary>
-        private static int? BlockEnd(IReadOnlyList<string> masked, int start)
+        private static int? BlockEndCounted(IReadOnlyList<string> masked, int start)
         {
             var depth = 0;
             for (var index = start; index < masked.Count; index++)

@@ -989,7 +989,7 @@ changed.
 | **Summary** | For a crash traced back to where it began, the line it stopped on and the line the root cause was introduced on: *Crash on line 10. Root cause introduced on line 9.* |
 | **Cause** | Why it happened in this program, before anything about the language: what the check that found it said of this code, or what the compiler or the run said of this line - *The program stopped on line 10 with TypeError: ...* |
 | **How it got there** | For a program that stopped on a missing value - None in Python; null, undefined, nil or undef in Java, JavaScript, TypeScript, C#, Go, PHP, Dart, Lua, Ruby, Perl and Rust - the way it went, in the order the run took it: each call that made it or passed it on, the line that gave it back, the line that set it and the line that stopped, each call set further in than the one that made it - *`main()`, line 21 - calls `load_member(3)`*, then *`find_member()`, line 8 - gives back None: `return None`*. Every step is one the run, or the copy that followed the value, recorded. For any other crash whose trace lists more than one of the program's own lines - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, C, C++, PHP, Dart, Lua, Ruby, Elixir, Erlang and F# - the calls the trace listed, outermost first: *The top level, line 17 - calls `main()`*, then each line that called the next function in, down to *`average()`, line 3 - stops on `return total // len(values)`*. |
-| **Why this line ran** | For a Python program that stopped with an error in its own code: each if, elif, else and while around the line it stopped on, outermost first, whether it was true or false the last time the call that stopped reached it, and what the names its condition reads held then - *`while index <= len(prices):` on line 4 was true - `index` was `3`, `prices` was `[3, 4, 5]`*. Every value is one the second run recorded as that call reached the condition. |
+| **Why this line ran** | For a program that stopped with an error in its own code - in Python, Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby and Perl: each if, else if, else and while around the line it stopped on, outermost first, whether it was true or false the last time the call that stopped reached it, and what the names its condition reads held then - *`while index <= len(prices):` on line 4 was true - `index` was `3`, `prices` was `[3, 4, 5]`*. Every value is one a run recorded: Python's second run as that call reached the condition, the other languages' copy as described below. |
 | **Most likely fix** | What to change. Where a run traced the value a program stopped on, and the only change worked out makes the line skip that value, this is what the trace says to decide instead. |
 | **Fix confidence** | How sure FixFinder is of the fix, read off how far the change was taken: **Certain** - a copy with it printed what you said it should; **Likely** - a copy with it ran without the error, or to the end; **Possible** - it builds but was not run, it was not tried, or it only stops the failure, which leaves what should happen instead to you. |
 | **Why FixFinder thinks this** | What it saw, a line each, marked ✓ or ✕: what the run that traced the value recorded, or what stands behind the finding, then how each stage of trying the fix went. |
@@ -1048,6 +1048,21 @@ itself it is the call that stopped that is shown: in `depth(3, [0, 1])`, which s
 given 2, `if n > 0:` was true with `n` as `2`, though the call given 0 reached that line after it. A header written over
 more than one line, and the else of a for, a while or a try, are left out with their chain, as what was decided there
 is not read here; and when the run does not record the call reaching one of the conditions, none is shown.
+
+Java, JavaScript, TypeScript, C#, Go, Rust, PHP, Dart, Lua, Ruby and Perl say it too, whatever the error, from a copy of
+the program that prints what each condition read. Their ifs, else ifs, elses and whiles are read from the blocks: a
+brace on the header's line or alone on the next, or, in Ruby and Lua, the block to its end, split where an elsif or else
+of its own starts - one inside a block of the branch is that block's. Go's while is a for with a condition alone,
+`for index <= len(prices) {`. An if chain's names are printed just before its if, which runs each time the chain is
+worked out, so what they held is what every condition of the chain read; a while's are printed at the start of its body,
+which runs each time its condition was true. A print can only name what the program has there, so only the function's
+parameters and the variables a line of it above gave a value are printed - in Perl, a parameter copied out of `@_` into
+an array is not one - and a while whose condition changes what it reads, `while (index++ < count)`, is left out, as its
+body sees its names after the change. The copy has to stop with the same error on the same line, in the call the
+function began last; as what a function that calls itself printed cannot be told apart from call to call, nothing is
+said of one in these languages. For `describe(21, readings)`, which passes over an if and an else if into the else,
+where a while reads one item past the end, each language said the if and the else if were false with `temperature` as
+21, that the else ran, and that the while was true with the index as 3 - 4 in Lua, which counts from 1.
 
 A Java program that stops with a NullPointerException is followed the same way. Java's own message names what was null -
 FixFinder builds Java with `-g`, so it gives the variable's name - and a copy of the program is run with a line printed
@@ -2016,6 +2031,12 @@ A check of a program does all of this, as far as its language allows - Python, J
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
    and TypeScript, and a program that checks itself with assert or console.assert - a test that fails reported on the
    line it failed on.
+9. **Follows a crash back**, when the program stopped with an error in its own code: a Python program is run a second
+   time recording what each variable held and what the conditions around the line read; a Java, JavaScript, TypeScript,
+   C#, Go, Rust, PHP, Dart, Lua, Ruby or Perl program that stopped on a missing value is copied and run again with a line
+   printed wherever the value could have come from; and one of those languages that stopped inside an if, an else or a
+   while is copied and run once more, printing what each of those conditions read - beside the copies that prove the
+   fixes, not after them.
 
 ### How big a program can be
 

@@ -23,6 +23,9 @@ public static partial class LuaNilOrigin
 
     private static readonly LuaDialect Lua = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Lua;
+
     /// <summary>
     /// Runs a copy of the program with the places the nil could have come from marked, and says where it came from - or null
     /// when the message names no variable, or the copy does not stop the same way.
@@ -130,6 +133,19 @@ public static partial class LuaNilOrigin
 
         public override bool OpensABlock(string code) => Then().IsMatch(code);
 
+        public override Regex WhileLine => WhileWord();
+
+        public override bool BlocksEndWithAWord => true;
+
+        public override int? BlockEnd(IReadOnlyList<string> masked, int start) => BlockEndCounted(masked, start);
+
+        /// <summary>How many blocks the line opens, less how many it ends, counted as <see cref="BlockEndCounted"/> counts them.</summary>
+        public override int BlocksOpened(string masked) =>
+            BlockWord().Matches(masked).Sum(word => word.Groups["word"].Value is "end" or "until" ? -1 : 1);
+
+        [GeneratedRegex(@"^\s*while\b")]
+        private static partial Regex WhileWord();
+
         /// <summary>Straight after the ) that closes the header's parameters - Lua's body has no brace.</summary>
         public override int? BodyStartsAfter(string masked) =>
             FunctionHeader().Match(masked) is { Success: true } header ? header.Index + header.Length : null;
@@ -167,7 +183,7 @@ public static partial class LuaNilOrigin
             for (var index = 0; index < masked.Count; index++)
             {
                 if (FunctionHeader().Match(masked[index]) is not { Success: true } header) continue;
-                if (BlockEnd(masked, index) is not { } end) continue;
+                if (BlockEndCounted(masked, index) is not { } end) continue;
                 yield return new BraceFunction(header.Groups["name"].Value, index + 1, end + 1, Parameters(header.Groups["parameters"].Value));
             }
         }
@@ -176,7 +192,7 @@ public static partial class LuaNilOrigin
         /// The line the block opened on the given line closes on: each if, function, do and repeat opens one, each end and until
         /// closes one - a while's or a for's do is the one that opens it - counted on the blanked lines.
         /// </summary>
-        private static int? BlockEnd(IReadOnlyList<string> masked, int start)
+        private static int? BlockEndCounted(IReadOnlyList<string> masked, int start)
         {
             var depth = 0;
             for (var index = start; index < masked.Count; index++)

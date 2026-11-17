@@ -26,6 +26,9 @@ public static partial class PerlUndefOrigin
 
     private static readonly PerlDialect Perl = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => Perl;
+
     /// <summary>
     /// Runs a copy of the program with the places the undef could have come from marked, and says where it came from - or null
     /// when the line does not show what held it, or the copy does not stop the same way.

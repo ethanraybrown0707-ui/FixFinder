@@ -31,6 +31,9 @@ public static partial class JavaScriptMissingOrigin
 
     private static readonly JavaScriptDialect JavaScript = new();
 
+    /// <summary>How this language is written, for a copy of a program in it that prints what each condition around a line read.</summary>
+    internal static BraceDialect Dialect => JavaScript;
+
     /// <summary>
     /// Runs a copy of the program with the places the value could have come from marked, and says where it came from - or
     /// null when the copy does not stop the same way, or does not show it.
