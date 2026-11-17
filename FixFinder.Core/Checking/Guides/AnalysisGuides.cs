@@ -386,6 +386,16 @@ internal static class AnalysisGuides
                 print(n)
                 return countdown(n - 1)
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            def area(width, height):
+                result = width * height
+                return result
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -474,6 +484,17 @@ internal static class AnalysisGuides
                 fmt.Println(millis)
             }
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            func area(width int, height int) int {
+            	result := width * height
+            	return result
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
@@ -513,6 +534,17 @@ internal static class AnalysisGuides
               }
               console.log(n);
               return countdown(n - 1);
+            }
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            function area(width, height) {
+              const result = width * height;
+              return result;
             }
             """),
     ];
@@ -611,6 +643,17 @@ internal static class AnalysisGuides
             int days = 365;
             long long millis = (long long) days * 24 * 60 * 60 * 1000;
             printf("%lld\n", millis);
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            int area(int width, int height) {
+                int result = width * height;
+                return result;
+            }
             """),
     ];
 
@@ -1044,6 +1087,19 @@ internal static class AnalysisGuides
                 }
             }
             """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            public class Area {
+                static int area(int width, int height) {
+                    int result = width * height;
+                    return result;
+                }
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1411,6 +1467,21 @@ internal static class AnalysisGuides
             int days = 365;
             long millis = (long)days * 24 * 60 * 60 * 1000;
             Console.WriteLine(millis);
+            """),
+
+        GuideFor(["analysis-overwritten-before-read"], "A value worked out and then lost",
+            "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given a value, and then - before any line reads it - given another, so the first value is never used. Most often the second line was meant for another variable, or the first value was meant to be used before it was replaced.",
+            "Nothing stops: the program runs, but the work done for the first value is thrown away, and whatever was meant to happen with it does not.",
+            "Use the first value before giving the variable another, give the second line a variable of its own, or take out the line whose value is never used.",
+            """
+            public static class Area
+            {
+                static int Measure(int width, int height)
+                {
+                    var result = width * height;
+                    return result;
+                }
+            }
             """),
     ];
 }

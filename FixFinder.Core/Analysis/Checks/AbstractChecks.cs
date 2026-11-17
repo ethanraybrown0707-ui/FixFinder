@@ -114,6 +114,10 @@ public static partial class AbstractChecks
             functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())), targets, program.Language, source,
             "following every way through each function, and the calls it makes"));
 
+        findings.AddRange(OverwrittenBeforeRead.Find(program,
+            functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())),
+            source, "following each value a variable is given to where it is read"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));

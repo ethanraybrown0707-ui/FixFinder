@@ -1622,6 +1622,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A function that never stops calling itself | `return countdown(n - 1)` with no way out, or `is_even` and `is_odd` calling each other - in Python, Java, C#, JavaScript and Go |
 | A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java, C#, C, C++, and Go for an `int32` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
+| A value worked out and then lost | `result = width * height`, then `result = width * width` before anything reads `result` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1638,6 +1639,19 @@ the whole program with `Stack overflow.` - a `try` and `catch` around the call d
 `RangeError: Maximum call stack size exceeded`, and Go with `fatal error: stack overflow`. A ring is said once, at its
 first function, and a run that crashed in it is the same finding. C and C++ are left to `gcc -Wall`, which warns
 `infinite recursion detected`.
+
+**A value worked out and then lost** is a function's own variable given a value and then, on every way on from there,
+given another before anything reads it: the work done for the first value is thrown away, and most often the second line
+was meant for another variable, or the first value was meant to be used before it. Every way through the function is
+followed from the line, the ways an exception can go among them - a handler that reads the variable keeps the value in
+use - and a way that reaches the function's end without giving the variable another value makes it a value nothing
+reads, which is not said here. A starting value - a literal, None or null, an empty list, a new object made with
+nothing - is left alone, as code often gives a variable one first; so is each item a for loop gives its variable, a name
+starting with an underscore, the top level of a file, whose names a function it calls can read, a variable a nested
+function or a lambda uses, one whose address is taken, a C++ reference and a variable one is bound to - after
+`int& alias = rows;`, `alias = 10;` gives `rows` the value - and Python's global and nonlocal names. On the open-source
+programs FixFinder's checks are tried on - 144 Python, 182 Java, 16 C#, 24 JavaScript and 14 C files - it found
+nothing.
 
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
@@ -2021,7 +2035,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    past the twelfth is listed without one.
 3. **Reads the code for logic mistakes** with 1,097 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 49 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
+4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
