@@ -353,6 +353,18 @@ internal static class EveryLanguagePatternGuides
             "Keep the better of the two: longest = max(longest, length + 1).",
             example);
 
+    private static GuideEntry ComparisonsOfOneNumber(string id, string example) =>
+        GuideFor([id], "Two comparisons of one number that decide less than they seem to",
+            "Two comparisons of the same number joined by and must both hold; joined by or, one is enough. Some pairs say less " +
+            "than they seem to: mark > 100 and mark < 0 can never both hold, so what they decide never happens; answer != 1 or " +
+            "answer != 2 holds for every number, as no number is both 1 and 2; and in score >= 50 and score > 40 the second half " +
+            "adds nothing, as every score of 50 or more is over 40 - often a range with one side facing the wrong way.",
+            "The test does not decide what it looks as if it decides: code meant to run sometimes runs never or always, and a " +
+            "range meant to be checked is not.",
+            "Write a range with each side facing in - mark >= 0 and mark <= 100 - ask for neither of two values with and - " +
+            "answer != 1 and answer != 2 - and take out a half that adds nothing.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -3844,6 +3856,110 @@ internal static class EveryLanguagePatternGuides
               integer, intent(in) :: width, height
               area = width * height
             end function area
+            """),
+        ComparisonsOfOneNumber("logic-typescript-comparisons-of-one-number",
+            """
+            if (mark >= 0 && mark <= 100) {
+              console.log("a mark out of 100");
+            }
+            if (answer !== 1 && answer !== 2) {
+              console.log("neither 1 nor 2");
+            }
+            """),
+        ComparisonsOfOneNumber("logic-ruby-comparisons-of-one-number",
+            """
+            puts "a mark out of 100" if mark >= 0 && mark <= 100
+            puts "neither 1 nor 2" if answer != 1 && answer != 2
+            """),
+        ComparisonsOfOneNumber("logic-php-comparisons-of-one-number",
+            """
+            if ($mark >= 0 && $mark <= 100) {
+                echo "a mark out of 100", PHP_EOL;
+            }
+            if ($answer != 1 && $answer != 2) {
+                echo "neither 1 nor 2", PHP_EOL;
+            }
+            """),
+        ComparisonsOfOneNumber("logic-lua-comparisons-of-one-number",
+            """
+            if mark >= 0 and mark <= 100 then
+              print("a mark out of 100")
+            end
+            if answer ~= 1 and answer ~= 2 then
+              print("neither 1 nor 2")
+            end
+            """),
+        ComparisonsOfOneNumber("logic-perl-comparisons-of-one-number",
+            """
+            print "a mark out of 100\n" if $mark >= 0 && $mark <= 100;
+            print "neither 1 nor 2\n" if $answer != 1 && $answer != 2;
+            """),
+        ComparisonsOfOneNumber("logic-dart-comparisons-of-one-number",
+            """
+            if (mark >= 0 && mark <= 100) {
+              print('a mark out of 100');
+            }
+            if (answer != 1 && answer != 2) {
+              print('neither 1 nor 2');
+            }
+            """),
+        ComparisonsOfOneNumber("logic-powershell-comparisons-of-one-number",
+            """
+            if ($mark -ge 0 -and $mark -le 100) {
+                Write-Output "a mark out of 100"
+            }
+            if ($answer -ne 1 -and $answer -ne 2) {
+                Write-Output "neither 1 nor 2"
+            }
+            """),
+        ComparisonsOfOneNumber("logic-scala-comparisons-of-one-number",
+            """
+            if (mark >= 0 && mark <= 100) {
+              println("a mark out of 100")
+            }
+            if (answer != 1 && answer != 2) {
+              println("neither 1 nor 2")
+            }
+            """),
+        ComparisonsOfOneNumber("logic-fortran-comparisons-of-one-number",
+            """
+            if (mark >= 0 .and. mark <= 100) print *, 'a mark out of 100'
+            if (answer /= 1 .and. answer /= 2) print *, 'neither 1 nor 2'
+            """),
+        ComparisonsOfOneNumber("logic-rust-comparisons-of-one-number",
+            """
+            if mark >= 0 && mark <= 100 {
+                println!("a mark out of 100");
+            }
+            if answer != 1 && answer != 2 {
+                println!("neither 1 nor 2");
+            }
+            """),
+        ComparisonsOfOneNumber("logic-elixir-comparisons-of-one-number",
+            """
+            cond do
+              mark >= 0 and mark <= 100 -> IO.puts("a mark out of 100")
+              answer != 1 and answer != 2 -> IO.puts("neither 1 nor 2")
+              true -> :ok
+            end
+            """),
+        ComparisonsOfOneNumber("logic-erlang-comparisons-of-one-number",
+            """
+            if
+                Mark >= 0 andalso Mark =< 100 -> io:format("a mark out of 100~n");
+                Answer =/= 1 andalso Answer =/= 2 -> io:format("neither 1 nor 2~n");
+                true -> ok
+            end
+            """),
+        ComparisonsOfOneNumber("logic-fsharp-comparisons-of-one-number",
+            """
+            if mark >= 0 && mark <= 100 then printfn "a mark out of 100"
+            if answer <> 1 && answer <> 2 then printfn "neither 1 nor 2"
+            """),
+        ComparisonsOfOneNumber("logic-ocaml-comparisons-of-one-number",
+            """
+            if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
+            if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
             """),
         TakenFromEmpty("logic-python-taken-from-empty",
             """

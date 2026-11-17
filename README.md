@@ -1664,6 +1664,17 @@ checks, as every TypeScript file is, and this one says it only of TypeScript: a 
 through the code. Rust's compiler says it itself - value assigned is never read - as Elixir's, OCaml's and F#'s say a
 variable is unused, and Erlang does not let a variable be given a second value.
 
+The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
+Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
+than they seem to, which the analyses find in the other seven as a condition that can never be true or is always true:
+`mark > 100 && mark < 0`, which no number makes true, so what it decides never happens; `answer != 1 || answer != 2`,
+which every number makes true; and `score >= 50 && score > 40`, whose second half adds nothing - often a range with one
+side facing the wrong way. Each comparison is of the same name with a number, written either way round, in the
+language's own words - `-gt` and `-and` in PowerShell, `.and.` and `/=` in Fortran, `=<`, `=/=` and `andalso` in Erlang,
+`<>` in F# and OCaml, `~=` in Lua - and the two are joined by one and or one or with nothing else between them. An or
+whose half an and on either side would take first is passed over, and so is a half after a not. What a pair decides is
+worked out for every number, whole or not, so `x > 5 && x < 6` is not said to be never true.
+
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
 24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
@@ -1973,20 +1984,20 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 46 | 81 | 39 |
 | JavaScript | 44 | 91 | 16 |
 | Go | 38 | 62 | 18 |
-| Scala | 6 | 60 | 28 |
-| OCaml | 6 | 23 | 26 |
-| Rust | 7 | 48 | 33 |
-| Ruby | 13 | 69 | 26 |
-| PHP | 16 | 65 | 18 |
-| Lua | 12 | 56 | 25 |
-| Perl | 14 | 62 | 26 |
-| Dart | 16 | 54 | 23 |
-| Fortran | 13 | 43 | 19 |
-| PowerShell | 11 | 66 | 16 |
-| Elixir | 15 | 36 | 29 |
-| Erlang | 13 | 27 | 23 |
-| F# | 17 | 36 | 33 |
-| TypeScript | 48 | 92 | 26 |
+| Scala | 6 | 61 | 28 |
+| OCaml | 6 | 24 | 26 |
+| Rust | 7 | 49 | 33 |
+| Ruby | 13 | 70 | 26 |
+| PHP | 16 | 66 | 18 |
+| Lua | 12 | 57 | 25 |
+| Perl | 14 | 63 | 26 |
+| Dart | 16 | 55 | 23 |
+| Fortran | 13 | 44 | 19 |
+| PowerShell | 11 | 67 | 16 |
+| Elixir | 15 | 37 | 29 |
+| Erlang | 13 | 28 | 23 |
+| F# | 17 | 37 | 33 |
+| TypeScript | 48 | 93 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2044,7 +2055,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,106 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,120 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.

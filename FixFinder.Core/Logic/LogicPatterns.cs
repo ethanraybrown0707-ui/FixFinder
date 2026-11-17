@@ -56,6 +56,7 @@ public static class LogicPatterns
         .. EmptyListPatterns.All,
         .. BestOverwrittenPatterns.All,
         .. OverwrittenPatterns.All,
+        .. OneNumberComparisonPatterns.All,
         .. EmptyQueuePatterns.All,
         .. ReversalPatterns.All,
         .. TwoStepPatterns.All,
