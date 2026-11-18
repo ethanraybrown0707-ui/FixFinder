@@ -1623,6 +1623,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A sum too big for an int | `days * 24 * 60 * 60 * 1000` with `days` 365, which wraps round to 1471228928 - Java, C#, C, C++, and Go for an `int32` |
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 | A value worked out and then lost | `result = width * height`, then `result = width * width` before anything reads `result` |
+| A value passed in and never used | `quantity = 1` at the start of `total_price(price, quantity)`, before anything reads `quantity` |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1663,6 +1664,21 @@ the variable, as an error on the second line takes the first value there. A Type
 checks, as every TypeScript file is, and this one says it only of TypeScript: a JavaScript file's values are followed
 through the code. Rust's compiler says it itself - value assigned is never read - as Elixir's, OCaml's and F#'s say a
 variable is unused, and Erlang does not let a variable be given a second value.
+
+**A value passed in and never used** is a parameter given a new value, on every way through the function, before
+anything reads the one the caller passed - `quantity = 1` at the start of `total_price(price, quantity)` - so the function
+works the same whatever it is given: `total_price(4, 3)` gave 4 where 12 was meant in fifteen of its sixteen languages
+here, OCaml not being run. Python, Java, C#, JavaScript, Go, C and C++ have it followed through the code, with the ways an
+exception can go; a way that reaches the end without a new value leaves the parameter unread rather than replaced, which
+is not said. A C++ reference and a C# `ref` or `out` parameter are left alone, as giving one a value gives the caller's
+variable it, and so is a parameter a nested function or a lambda uses. TypeScript, Ruby, PHP, Lua, Perl, Dart and
+PowerShell have a logic check for the plainest case: the first line of the function to name the parameter is at the
+function's own depth, not inside an if or a loop, and gives it a value that does not read it, even inside its text.
+PHP's `&$counts`, PowerShell's `[ref]`, Dart's `this.width` and Ruby's `&block` are left alone. F# and OCaml do not give
+a variable a new value, so their check finds a `let` of the parameter's name that hides it before anything reads it.
+Rust's compiler warns that the value passed is never read, and Elixir's that the parameter is unused; Scala's parameters
+cannot be given a value, Erlang's variables cannot be given a second one, and Fortran's arguments are the caller's own
+variables unless declared `value`.
 
 The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
 Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
@@ -2009,19 +2025,19 @@ Python, Java and C# are checked most thoroughly.
 | JavaScript | 44 | 92 | 16 |
 | Go | 38 | 64 | 18 |
 | Scala | 6 | 63 | 28 |
-| OCaml | 6 | 24 | 26 |
+| OCaml | 6 | 25 | 26 |
 | Rust | 7 | 51 | 33 |
-| Ruby | 13 | 72 | 26 |
-| PHP | 16 | 68 | 18 |
-| Lua | 12 | 59 | 25 |
-| Perl | 14 | 65 | 26 |
-| Dart | 16 | 57 | 23 |
+| Ruby | 13 | 73 | 26 |
+| PHP | 16 | 69 | 18 |
+| Lua | 12 | 60 | 25 |
+| Perl | 14 | 66 | 26 |
+| Dart | 16 | 58 | 23 |
 | Fortran | 13 | 45 | 19 |
-| PowerShell | 11 | 69 | 16 |
+| PowerShell | 11 | 70 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
-| F# | 17 | 38 | 33 |
-| TypeScript | 48 | 94 | 26 |
+| F# | 17 | 39 | 33 |
+| TypeScript | 48 | 95 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2079,9 +2095,9 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,145 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,154 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
+4. **Follows every value through the code** with 51 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only

@@ -384,6 +384,15 @@ internal static class EveryLanguagePatternGuides
             "Return the 'not found' answer after the loop, once every item has been checked.",
             example);
 
+    private static GuideEntry ParameterIgnored(string id, string example, bool hiddenByLet = false) =>
+        GuideFor([id], "A value passed in and never used",
+            hiddenByLet
+                ? "A parameter holds the value the caller passes. Here a let of the same name hides the parameter before any line reads it, so whatever the caller passes is thrown away - the function works the same whatever it is given."
+                : "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -3980,6 +3989,79 @@ internal static class EveryLanguagePatternGuides
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
             """),
+        ParameterIgnored("logic-typescript-parameter-ignored",
+            """
+            function totalPrice(price: number, quantity: number): number {
+              if (quantity < 1) {
+                quantity = 1;
+              }
+              return price * quantity;
+            }
+            """),
+        ParameterIgnored("logic-ruby-parameter-ignored",
+            """
+            def total_price(price, quantity)
+              quantity = 1 if quantity < 1
+              price * quantity
+            end
+            """),
+        ParameterIgnored("logic-php-parameter-ignored",
+            """
+            function totalPrice(int $price, int $quantity): int
+            {
+                if ($quantity < 1) {
+                    $quantity = 1;
+                }
+                return $price * $quantity;
+            }
+            """),
+        ParameterIgnored("logic-lua-parameter-ignored",
+            """
+            local function total_price(price, quantity)
+              if quantity < 1 then
+                quantity = 1
+              end
+              return price * quantity
+            end
+            """),
+        ParameterIgnored("logic-perl-parameter-ignored",
+            """
+            sub total_price {
+                my ($price, $quantity) = @_;
+                $quantity = 1 if $quantity < 1;
+                return $price * $quantity;
+            }
+            """),
+        ParameterIgnored("logic-dart-parameter-ignored",
+            """
+            int totalPrice(int price, int quantity) {
+              if (quantity < 1) {
+                quantity = 1;
+              }
+              return price * quantity;
+            }
+            """),
+        ParameterIgnored("logic-powershell-parameter-ignored",
+            """
+            function Get-TotalPrice($price, $quantity) {
+                if ($quantity -lt 1) {
+                    $quantity = 1
+                }
+                return $price * $quantity
+            }
+            """),
+        ParameterIgnored("logic-fsharp-parameter-ignored",
+            """
+            let totalPrice price quantity =
+                let quantity = if quantity < 1 then 1 else quantity
+                price * quantity
+            """, hiddenByLet: true),
+        ParameterIgnored("logic-ocaml-parameter-ignored",
+            """
+            let total_price price quantity =
+              let quantity = if quantity < 1 then 1 else quantity in
+              price * quantity
+            """, hiddenByLet: true),
         FilledNeverRead("logic-python-built-never-read",
             """
             result = []

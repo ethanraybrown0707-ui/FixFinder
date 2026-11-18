@@ -396,6 +396,17 @@ internal static class AnalysisGuides
                 result = width * height
                 return result
             """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            def total_price(price, quantity):
+                if quantity < 1:
+                    quantity = 1
+                return price * quantity
+            """),
     ];
 
     /// <summary>What Go does when a program goes wrong, in Go's own words and code.</summary>
@@ -495,6 +506,19 @@ internal static class AnalysisGuides
             	return result
             }
             """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            func totalPrice(price int, quantity int) int {
+                if quantity < 1 {
+                    quantity = 1
+                }
+                return price * quantity
+            }
+            """),
     ];
 
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
@@ -545,6 +569,19 @@ internal static class AnalysisGuides
             function area(width, height) {
               const result = width * height;
               return result;
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            function totalPrice(price, quantity) {
+              if (quantity < 1) {
+                quantity = 1;
+              }
+              return price * quantity;
             }
             """),
     ];
@@ -653,6 +690,19 @@ internal static class AnalysisGuides
             int area(int width, int height) {
                 int result = width * height;
                 return result;
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            int total_price(int price, int quantity) {
+                if (quantity < 1) {
+                    quantity = 1;
+                }
+                return price * quantity;
             }
             """),
     ];
@@ -1100,6 +1150,19 @@ internal static class AnalysisGuides
                 }
             }
             """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            static int totalPrice(int price, int quantity) {
+                if (quantity < 1) {
+                    quantity = 1;
+                }
+                return price * quantity;
+            }
+            """),
     ];
 
     public static IReadOnlyList<GuideEntry> CSharp { get; } =
@@ -1481,6 +1544,21 @@ internal static class AnalysisGuides
                     var result = width * height;
                     return result;
                 }
+            }
+            """),
+
+        GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
+            "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
+            "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
+            "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
+            """
+            static int TotalPrice(int price, int quantity)
+            {
+                if (quantity < 1)
+                {
+                    quantity = 1;
+                }
+                return price * quantity;
             }
             """),
     ];

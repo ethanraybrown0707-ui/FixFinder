@@ -178,7 +178,10 @@ internal sealed class CSharpSyntaxReader(string file)
     }
 
     private List<IrParameter> Parameters(IEnumerable<ParameterSyntax> parameters) =>
-        parameters.Select(p => new IrParameter(Span(p), p.Identifier.ValueText, TypeOf(p.Type), p.Default is { } value ? Expression(value.Value) : null)).ToList();
+        parameters.Select(p => new IrParameter(Span(p), p.Identifier.ValueText, TypeOf(p.Type), p.Default is { } value ? Expression(value.Value) : null)
+        {
+            ByReference = p.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.RefKeyword) || modifier.IsKind(SyntaxKind.OutKeyword)),
+        }).ToList();
 
     private IrFunction Function(
         SyntaxNode node, string name, string? owner, IReadOnlyList<IrParameter> parameters, IrType returnType, SyntaxNode? body, IReadOnlyList<Stmt> prefix, bool nested)

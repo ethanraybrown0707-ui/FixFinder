@@ -31,6 +31,14 @@ internal static partial class OverwrittenBeforeRead
 {
     public const string CheckId = "analysis-overwritten-before-read";
 
+    /// <summary>
+    /// A parameter given a value before anything reads the one the caller passed - <c>def area(width, height):</c> and then
+    /// <c>width = 5</c> - so the caller's value is never used. A C++ reference and a C# ref or out parameter are left alone,
+    /// as giving one a value gives it to the caller's variable, and so is a parameter some way through the function never
+    /// gives another value, which is unread rather than replaced.
+    /// </summary>
+    public const string ParameterCheckId = "analysis-parameter-ignored";
+
     public static IEnumerable<AnalysisFinding> Find(IrProgram program, IEnumerable<(IrFunction Function, ControlFlowGraph Graph, IReadOnlySet<string> Locals)> functions,
         SourceText source, string foundBy)
     {
@@ -40,12 +48,29 @@ internal static partial class OverwrittenBeforeRead
 
             var seenElsewhere = SeenByOtherCode(program, function, source);
             var references = References.Of(function, program.Language);
-            var watched = locals.Where(name => OwnName().IsMatch(name) && !name.StartsWith('_') && !function.OuterNames.Contains(name) &&
-                                               !function.AddressTaken.Contains(name) && !seenElsewhere.Contains(name) && !SharedByAReference(references, name))
-                .ToHashSet(StringComparer.Ordinal);
-            if (watched.Count == 0) continue;
+            bool Followed(string name) => OwnName().IsMatch(name) && !name.StartsWith('_') && !function.OuterNames.Contains(name) &&
+                                          !function.AddressTaken.Contains(name) && !seenElsewhere.Contains(name) && !SharedByAReference(references, name);
+            var watched = locals.Where(Followed).ToHashSet(StringComparer.Ordinal);
+            var parameters = function.Parameters.Where(parameter => !parameter.ByReference && Followed(parameter.Name)).ToList();
+            if (watched.Count == 0 && parameters.Count == 0) continue;
 
             var liveIn = LiveIn(graph);
+
+            // A parameter is given its value by the caller; when every way through the function gives it another before
+            // anything reads it, whatever the caller passes is never used.
+            foreach (var parameter in parameters)
+            {
+                if (liveIn[graph.Entry].Contains(parameter.Name) || FirstGivenOnEveryWay(graph, parameter.Name) is not { } replaced) continue;
+
+                var replacedWith = GivenBy(replaced) is var (_, value) ? $"`{IrText.Of(value)}`" : "a new value";
+                yield return new AnalysisFinding(ParameterCheckId, replaced.Span,
+                    $"`{parameter.Name}` is given {replacedWith} on line {replaced.Span.Line} before anything reads it, so the value the caller " +
+                    $"passes for `{parameter.Name}` is never used",
+                    Severity.Warning, Confidence.Likely, FindingKind.Logic, foundBy)
+                {
+                    Function = function.FullName,
+                };
+            }
 
             foreach (var block in graph.Blocks)
             {
@@ -162,6 +187,20 @@ internal static partial class OverwrittenBeforeRead
         }
 
         return lines.Count > 0 ? [.. lines] : null;
+    }
+
+    /// <summary>
+    /// The first instruction giving the name a value, when every way from the function's start gives it one before the
+    /// function ends; null when a way reaches the end without one, which leaves the parameter unread rather than replaced.
+    /// </summary>
+    private static Instruction? FirstGivenOnEveryWay(ControlFlowGraph graph, string name)
+    {
+        if (GivenAgainOnEveryWay(graph, graph.Blocks[graph.Entry], -1, name) is not { Count: > 0 } lines) return null;
+
+        return graph.Blocks.SelectMany(block => block.Instructions)
+            .Where(instruction => lines.Contains(instruction.Span.Line) && Effect(instruction, name).Gives)
+            .OrderBy(instruction => instruction.Span.Line).ThenBy(instruction => instruction.Span.Column)
+            .FirstOrDefault();
     }
 
     private static IEnumerable<int> NormalWaysOn(ControlFlowGraph graph, BasicBlock block) => block.Terminator switch

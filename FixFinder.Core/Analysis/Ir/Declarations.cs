@@ -32,8 +32,8 @@ public enum ParameterKind { Normal, KeywordOnly, Rest, Keywords }
 public sealed record IrParameter(SourceSpan Span, string Name, IrType Type, Expr? Default = null, ParameterKind Kind = ParameterKind.Normal)
 {
     /// <summary>
-    /// A C++ reference the function can write through - int&amp; n, not const int&amp; n. It is another name for the
-    /// variable the caller gives it, so what the function writes to it, it writes to that variable.
+    /// A C++ reference the function can write through - int&amp; n, not const int&amp; n - or a C# ref or out parameter. It
+    /// is another name for the variable the caller gives it, so what the function writes to it, it writes to that variable.
     /// </summary>
     public bool ByReference { get; init; }
 }
