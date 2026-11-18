@@ -1708,6 +1708,17 @@ of the class's methods, which may keep the rule for it, a method giving either f
 len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir and
 Erlang have no check of it.
 
+**A binary search given a list out of order** is a search that looks at the middle item and throws away half - the
+program's own, or the library's `bisect`, `Arrays.binarySearch`, `Array.BinarySearch`, `std::binary_search`,
+`sort.SearchInts`, `binary_search`, `bsearch`, Scala's `search` or PowerShell's `[Array]::BinarySearch` - given a list
+of numbers written out of order: asked for 5 in `5, 1, 4, 9`, every one answered no in eighteen of its nineteen
+languages here, OCaml not being run. The contract, a list in order, is read from the search itself: a function working
+out a middle by halving two bounds, testing its list's item there, moving a bound to the middle or searching again
+beside it, and never writing into the list - so quicksort's middle pivot, merge sort and binary insertion sort, given
+lists out of order on purpose, are left alone. The list is checked where the call writes it, or in the nearest line
+before that gives the name it passes, with no line between naming it, so a list sorted before the search, added to or
+read in is left alone. The change writes the list in order. Elixir and Erlang have no check of it.
+
 The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
 Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
 than they seem to, which the analyses find in the other seven as a condition that can never be true or is always true:
@@ -2045,27 +2056,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 114 | 41 |
-| Java | 67 | 101 | 51 |
-| C# | 52 | 88 | 49 |
-| C | 46 | 66 | 39 |
-| C++ | 46 | 82 | 39 |
-| JavaScript | 44 | 92 | 16 |
-| Go | 38 | 64 | 18 |
-| Scala | 6 | 65 | 28 |
-| OCaml | 6 | 26 | 26 |
-| Rust | 7 | 53 | 33 |
-| Ruby | 13 | 75 | 26 |
-| PHP | 16 | 71 | 18 |
-| Lua | 12 | 62 | 25 |
-| Perl | 14 | 68 | 26 |
-| Dart | 16 | 60 | 23 |
-| Fortran | 13 | 46 | 19 |
-| PowerShell | 11 | 72 | 16 |
+| Python | 91 | 115 | 41 |
+| Java | 67 | 102 | 51 |
+| C# | 52 | 89 | 49 |
+| C | 46 | 67 | 39 |
+| C++ | 46 | 83 | 39 |
+| JavaScript | 44 | 93 | 16 |
+| Go | 38 | 65 | 18 |
+| Scala | 6 | 66 | 28 |
+| OCaml | 6 | 27 | 26 |
+| Rust | 7 | 54 | 33 |
+| Ruby | 13 | 76 | 26 |
+| PHP | 16 | 72 | 18 |
+| Lua | 12 | 63 | 25 |
+| Perl | 14 | 69 | 26 |
+| Dart | 16 | 61 | 23 |
+| Fortran | 13 | 47 | 19 |
+| PowerShell | 11 | 73 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
-| F# | 17 | 40 | 33 |
-| TypeScript | 48 | 97 | 26 |
+| F# | 17 | 41 | 33 |
+| TypeScript | 48 | 98 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2123,7 +2134,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,175 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,193 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.

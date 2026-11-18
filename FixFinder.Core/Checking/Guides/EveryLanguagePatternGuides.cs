@@ -407,6 +407,13 @@ internal static class EveryLanguagePatternGuides
             "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
             example);
 
+    private static GuideEntry SearchUnsorted(string id, string example) =>
+        GuideFor([id], "A binary search given a list out of order",
+            "A binary search looks at the middle item and throws away the half the wanted item cannot be in - which is right only when the list is in order. Here the list it is given is written out of order, so the search can throw away the half the item is in.",
+            "The search says an item is missing when it is there: given 5, 1, 4, 9 and asked for 5, it answered no.",
+            "Give the search a list in order: sort it before searching, or write it in order.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -4002,6 +4009,110 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        SearchUnsorted("logic-python-search-unsorted",
+            """
+            marks = [5, 1, 4, 9]
+            marks.sort()
+            print(contains(marks, 5))
+            """),
+        SearchUnsorted("logic-java-search-unsorted",
+            """
+            int[] marks = {5, 1, 4, 9};
+            Arrays.sort(marks);
+            System.out.println(Arrays.binarySearch(marks, 5) >= 0);
+            """),
+        SearchUnsorted("logic-csharp-search-unsorted",
+            """
+            int[] marks = { 5, 1, 4, 9 };
+            Array.Sort(marks);
+            Console.WriteLine(Array.BinarySearch(marks, 5) >= 0);
+            """),
+        SearchUnsorted("logic-js-search-unsorted",
+            """
+            const marks = [5, 1, 4, 9];
+            marks.sort((first, second) => first - second);
+            console.log(contains(marks, 5));
+            """),
+        SearchUnsorted("logic-go-search-unsorted",
+            """
+            marks := []int{5, 1, 4, 9}
+            sort.Ints(marks)
+            place := sort.SearchInts(marks, 5)
+            fmt.Println(place < len(marks) && marks[place] == 5)
+            """),
+        SearchUnsorted("logic-c-search-unsorted",
+            """
+            int marks[] = {5, 1, 4, 9};
+            qsort(marks, 4, sizeof marks[0], by_value);
+            printf("%d\n", contains(marks, 4, 5));
+            """),
+        SearchUnsorted("logic-cpp-search-unsorted",
+            """
+            std::vector<int> marks = {5, 1, 4, 9};
+            std::sort(marks.begin(), marks.end());
+            std::cout << std::binary_search(marks.begin(), marks.end(), 5) << "\n";
+            """),
+        SearchUnsorted("logic-rust-search-unsorted",
+            """
+            let mut marks = vec![5, 1, 4, 9];
+            marks.sort();
+            println!("{}", marks.binary_search(&5).is_ok());
+            """),
+        SearchUnsorted("logic-ruby-search-unsorted",
+            """
+            marks = [5, 1, 4, 9].sort
+            puts contains(marks, 5)
+            """),
+        SearchUnsorted("logic-php-search-unsorted",
+            """
+            $marks = [5, 1, 4, 9];
+            sort($marks);
+            var_dump(contains($marks, 5));
+            """),
+        SearchUnsorted("logic-lua-search-unsorted",
+            """
+            local marks = {5, 1, 4, 9}
+            table.sort(marks)
+            print(contains(marks, 5))
+            """),
+        SearchUnsorted("logic-perl-search-unsorted",
+            """
+            my @marks = sort { $a <=> $b } (5, 1, 4, 9);
+            print contains(\@marks, 5), "\n";
+            """),
+        SearchUnsorted("logic-dart-search-unsorted",
+            """
+            final marks = [5, 1, 4, 9];
+            marks.sort();
+            print(contains(marks, 5));
+            """),
+        SearchUnsorted("logic-powershell-search-unsorted",
+            """
+            $marks = @(5, 1, 4, 9) | Sort-Object
+            Test-Contains $marks 5
+            """),
+        SearchUnsorted("logic-scala-search-unsorted",
+            """
+            val marks = Array(5, 1, 4, 9)
+            scala.util.Sorting.quickSort(marks)
+            println(contains(marks, 5))
+            """),
+        SearchUnsorted("logic-fortran-search-unsorted",
+            """
+            integer :: marks(4) = [1, 4, 5, 9]
+            print *, contains(marks, 5)
+            """),
+        SearchUnsorted("logic-fsharp-search-unsorted",
+            """
+            let marks = [| 5; 1; 4; 9 |] |> Array.sort
+            printfn "%b" (contains marks 5)
+            """),
+        SearchUnsorted("logic-ocaml-search-unsorted",
+            """
+            let marks = [| 5; 1; 4; 9 |]
+            let () = Array.sort compare marks
+            let () = Printf.printf "%b\n" (contains marks 5)
             """),
         CountOutOfStep("logic-typescript-count-out-of-step",
             """
