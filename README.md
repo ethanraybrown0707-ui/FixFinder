@@ -1687,6 +1687,18 @@ after the loop already gives back the same, and puts its return after the loop w
 if; where other code follows the loop, or the loop is inside another, none is offered, as moving the return would change
 what runs. Elixir, Erlang, F# and OCaml have no return to leave a loop early.
 
+**A list filled and never read** - every line naming it after it is made only adds to it, and nothing gives it back,
+prints it or passes it on - has a logic check in Python, Java, C#, JavaScript, TypeScript, Go, C++, Rust, Ruby, PHP, Lua,
+Perl, Dart, PowerShell, Scala and F#. Most often the function gives back what it was given: `result.append(mark * 2)` in
+the loop and then `return marks`, which gave back 1, 2, 3 where 2, 4, 6 was meant in all sixteen here. The list must be
+made empty inside a block, in the language's own words - `[]`, `new ArrayList<>()`, `Vec::new()`, `my @result`, `@()` -
+and every later line naming it must be a whole statement that only adds to it, with what is added never naming it. Left
+alone: a set read through a membership test or through what its add says - `if (!seen.add(mark))` - a map whose every
+update reads it, and any list another line names. The change gives back the filled list in place of a parameter the
+function gives back, when the parameter is of the list's type, or as Scala's `toList` and F#'s `List.ofSeq` make it; where
+the function gives back another local, or a parameter of another type, none is offered. C and Fortran fill arrays by
+position rather than adding to them, and Elixir's, Erlang's and OCaml's lists are not changed in place.
+
 **A sum too big for an int** is int arithmetic whose values the code shows and whose result passes what an int holds -
 2,147,483,647, or -2,147,483,648 below. Java and C# work it out as an int, and it wraps round: `long millis = days *
 24 * 60 * 60 * 1000`, with `days` 365, printed 1471228928 in Java 21 and in .NET 10, not 31536000000, as it is made a
@@ -1989,27 +2001,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 113 | 41 |
-| Java | 67 | 100 | 51 |
-| C# | 52 | 87 | 49 |
+| Python | 91 | 114 | 41 |
+| Java | 67 | 101 | 51 |
+| C# | 52 | 88 | 49 |
 | C | 46 | 66 | 39 |
-| C++ | 46 | 81 | 39 |
-| JavaScript | 44 | 91 | 16 |
-| Go | 38 | 63 | 18 |
-| Scala | 6 | 62 | 28 |
+| C++ | 46 | 82 | 39 |
+| JavaScript | 44 | 92 | 16 |
+| Go | 38 | 64 | 18 |
+| Scala | 6 | 63 | 28 |
 | OCaml | 6 | 24 | 26 |
-| Rust | 7 | 50 | 33 |
-| Ruby | 13 | 71 | 26 |
-| PHP | 16 | 67 | 18 |
-| Lua | 12 | 58 | 25 |
-| Perl | 14 | 64 | 26 |
-| Dart | 16 | 56 | 23 |
+| Rust | 7 | 51 | 33 |
+| Ruby | 13 | 72 | 26 |
+| PHP | 16 | 68 | 18 |
+| Lua | 12 | 59 | 25 |
+| Perl | 14 | 65 | 26 |
+| Dart | 16 | 57 | 23 |
 | Fortran | 13 | 45 | 19 |
-| PowerShell | 11 | 68 | 16 |
+| PowerShell | 11 | 69 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
-| F# | 17 | 37 | 33 |
-| TypeScript | 48 | 93 | 26 |
+| F# | 17 | 38 | 33 |
+| TypeScript | 48 | 94 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2067,7 +2079,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,130 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,145 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 50 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.

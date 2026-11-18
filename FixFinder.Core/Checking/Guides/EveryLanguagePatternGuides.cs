@@ -365,6 +365,17 @@ internal static class EveryLanguagePatternGuides
             "answer != 1 and answer != 2 - and take out a half that adds nothing.",
             example);
 
+    private static GuideEntry FilledNeverRead(string id, string example) =>
+        GuideFor([id], "A list filled and never read",
+            "A list, set, map or text builder is filled - every line that names it adds to it - but nothing ever reads it: " +
+            "nothing gives it back, prints it or passes it on. Often the function gives back something else, such as the list " +
+            "it was given, where the one it built was meant.",
+            "All the work of filling it is thrown away, and whoever called the function gets something else - often what it " +
+            "passed in, unchanged.",
+            "Give back or use the one that was filled - return result where return marks was written - or, if it is not " +
+            "needed, take it out.",
+            example);
+
     private static GuideEntry StopsAfterTheFirstItem(string id, string example) =>
         GuideFor([id], "A loop that stops after the first item",
             "return ends the whole function straight away. Here every way through the loop's first pass reaches a return, so " +
@@ -3968,6 +3979,125 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        FilledNeverRead("logic-python-built-never-read",
+            """
+            result = []
+            for mark in marks:
+                result.append(mark * 2)
+            return result
+            """),
+        FilledNeverRead("logic-java-built-never-read",
+            """
+            List<Integer> result = new ArrayList<>();
+            for (int mark : marks) {
+                result.add(mark * 2);
+            }
+            return result;
+            """),
+        FilledNeverRead("logic-csharp-built-never-read",
+            """
+            List<int> result = new List<int>();
+            foreach (var mark in marks)
+            {
+                result.Add(mark * 2);
+            }
+            return result;
+            """),
+        FilledNeverRead("logic-js-built-never-read",
+            """
+            const result = [];
+            for (const mark of marks) {
+              result.push(mark * 2);
+            }
+            return result;
+            """),
+        FilledNeverRead("logic-go-built-never-read",
+            """
+            result := []int{}
+            for _, mark := range marks {
+                result = append(result, mark*2)
+            }
+            return result
+            """),
+        FilledNeverRead("logic-cpp-built-never-read",
+            """
+            std::vector<int> result;
+            for (int mark : marks) {
+                result.push_back(mark * 2);
+            }
+            return result;
+            """),
+        FilledNeverRead("logic-rust-built-never-read",
+            """
+            let mut result: Vec<i32> = Vec::new();
+            for mark in &marks {
+                result.push(mark * 2);
+            }
+            result
+            """),
+        FilledNeverRead("logic-ruby-built-never-read",
+            """
+            result = []
+            marks.each do |mark|
+              result << mark * 2
+            end
+            result
+            """),
+        FilledNeverRead("logic-php-built-never-read",
+            """
+            $result = [];
+            foreach ($marks as $mark) {
+                $result[] = $mark * 2;
+            }
+            return $result;
+            """),
+        FilledNeverRead("logic-lua-built-never-read",
+            """
+            local result = {}
+            for _, mark in ipairs(marks) do
+              table.insert(result, mark * 2)
+            end
+            return result
+            """),
+        FilledNeverRead("logic-perl-built-never-read",
+            """
+            my @result;
+            foreach my $mark (@marks) {
+                push @result, $mark * 2;
+            }
+            return @result;
+            """),
+        FilledNeverRead("logic-dart-built-never-read",
+            """
+            final List<int> result = [];
+            for (var mark in marks) {
+              result.add(mark * 2);
+            }
+            return result;
+            """),
+        FilledNeverRead("logic-powershell-built-never-read",
+            """
+            $result = @()
+            foreach ($mark in $marks) {
+                $result += $mark * 2
+            }
+            return $result
+            """),
+        FilledNeverRead("logic-scala-built-never-read",
+            """
+            val result = ListBuffer[Int]()
+            for (mark <- marks) {
+              result += mark * 2
+            }
+            result.toList
+            """),
+        FilledNeverRead("logic-fsharp-built-never-read",
+            """
+            let result = ResizeArray<int>()
+            for mark in marks do
+                result.Add(mark * 2)
+            List.ofSeq result
             """),
         StopsAfterTheFirstItem("logic-go-return-in-loop",
             """
