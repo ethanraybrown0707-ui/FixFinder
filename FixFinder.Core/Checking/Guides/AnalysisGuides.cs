@@ -397,6 +397,17 @@ internal static class AnalysisGuides
                 return result
             """),
 
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            def pop(self):
+                top = self.items.pop()
+                self.size -= 1
+                return top
+            """),
+
         GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
             "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
             "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
@@ -520,6 +531,19 @@ internal static class AnalysisGuides
             }
             """),
 
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            func (stack *Stack) Pop() int {
+                top := stack.items[len(stack.items)-1]
+                stack.items = stack.items[:len(stack.items)-1]
+                stack.size--
+                return top
+            }
+            """),
+
         GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
             "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
             "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
@@ -598,6 +622,19 @@ internal static class AnalysisGuides
             function area(width, height) {
               const result = width * height;
               return result;
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            pop() {
+              if (this.items.length > 0) {
+                this.size -= 1;
+              }
+              return this.items.pop();
             }
             """),
 
@@ -735,6 +772,19 @@ internal static class AnalysisGuides
             int area(int width, int height) {
                 int result = width * height;
                 return result;
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            int pop() {
+                int top = items.back();
+                items.pop_back();
+                size--;
+                return top;
             }
             """),
 
@@ -1212,6 +1262,18 @@ internal static class AnalysisGuides
             }
             """),
 
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            int pop() {
+                int top = items.remove(items.size() - 1);
+                size--;
+                return top;
+            }
+            """),
+
         GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
             "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
             "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
@@ -1621,6 +1683,20 @@ internal static class AnalysisGuides
                     var result = width * height;
                     return result;
                 }
+            }
+            """),
+
+        GuideFor(["analysis-count-out-of-step"], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            """
+            public int Pop()
+            {
+                var top = items[items.Count - 1];
+                items.RemoveAt(items.Count - 1);
+                size--;
+                return top;
             }
             """),
 

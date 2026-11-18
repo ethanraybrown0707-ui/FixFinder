@@ -400,6 +400,13 @@ internal static class EveryLanguagePatternGuides
             "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
             example);
 
+    private static GuideEntry CountOutOfStep(string id, string example) =>
+        GuideFor([id], "A count left out of step",
+            "A class keeps a list and a number saying how many it holds. One method changes both - push puts an item in and adds 1 - but this one changes only one of them, so afterwards the number no longer says how many items there are.",
+            "Whatever trusts the number - a size, a test for empty, a loop over that many items - is wrong after this method runs: three pushes and a pop say 3 items where there are 2.",
+            "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -3995,6 +4002,84 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        CountOutOfStep("logic-typescript-count-out-of-step",
+            """
+            pop(): number | undefined {
+              if (this.items.length > 0) {
+                this.size -= 1;
+              }
+              return this.items.pop();
+            }
+            """),
+        CountOutOfStep("logic-ruby-count-out-of-step",
+            """
+            def pop
+              @size -= 1 unless @items.empty?
+              @items.pop
+            end
+            """),
+        CountOutOfStep("logic-php-count-out-of-step",
+            """
+            public function pop(): ?int
+            {
+                if ($this->items !== []) {
+                    $this->size--;
+                }
+                return array_pop($this->items);
+            }
+            """),
+        CountOutOfStep("logic-lua-count-out-of-step",
+            """
+            function Stack:pop()
+              if #self.items > 0 then
+                self.size = self.size - 1
+              end
+              return table.remove(self.items)
+            end
+            """),
+        CountOutOfStep("logic-perl-count-out-of-step",
+            """
+            sub pop_item {
+                my ($self) = @_;
+                $self->{size}-- if @{ $self->{items} };
+                return pop @{ $self->{items} };
+            }
+            """),
+        CountOutOfStep("logic-dart-count-out-of-step",
+            """
+            int pop() {
+              final top = items.removeLast();
+              size--;
+              return top;
+            }
+            """),
+        CountOutOfStep("logic-powershell-count-out-of-step",
+            """
+            [int] Pop() {
+                $top = $this.items[$this.items.Count - 1]
+                $this.items.RemoveAt($this.items.Count - 1)
+                $this.size--
+                return $top
+            }
+            """),
+        CountOutOfStep("logic-scala-count-out-of-step",
+            """
+            def pop(): Int = {
+              val top = items.remove(items.length - 1)
+              size -= 1
+              top
+            }
+            """),
+        CountOutOfStep("logic-rust-count-out-of-step",
+            """
+            fn pop(&mut self) -> Option<i32> {
+                let top = self.items.pop();
+                if top.is_some() {
+                    self.size -= 1;
+                }
+                top
+            }
             """),
         FlagNeverSet("logic-typescript-flag-never-set",
             """

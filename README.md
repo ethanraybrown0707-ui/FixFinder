@@ -1625,6 +1625,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A value worked out and then lost | `result = width * height`, then `result = width * width` before anything reads `result` |
 | A value passed in and never used | `quantity = 1` at the start of `total_price(price, quantity)`, before anything reads `quantity` |
 | A flag a loop never sets | `found = False` before a search loop that never sets it, then `if found:` after the loop |
+| A count left out of step | `push` appends to `items` and adds 1 to `size`, `pop` takes an item out and leaves `size` as it was |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1693,6 +1694,19 @@ before the loop's header, no line naming it but conditions that read it, and the
 it an if of the flag or of not the flag - `unless found`, `if (-not $found)`, `if (.not. found) then`, OCaml's `if
 !found`. A line handing the flag to a call - as PHP's references, Perl's `\$found`, PowerShell's `[ref]` and Fortran's
 arguments let a call set it - leaves it alone. Elixir and Erlang do not let a loop change a variable outside it.
+
+**A count left out of step** is a class keeping a list and a number saying how many it holds, where one method changes
+both - `push` puts an item in and adds 1 - and another changes only one: `pop` takes an item out and leaves the number as
+it was, so three pushes and a pop said 3 where 2 were left, in all fifteen of its languages here. Python, Java, C#,
+JavaScript, Go and C++ have it found by comparing what each method does to the object's fields - `append`, `push_back`,
+`Add`, `pop`, `RemoveAt`, Go's `append` and slicing - and TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala and
+Rust by a logic check reading each method's lines in the language's own words: `@items << item`,
+`$this->items[] = $item`, `table.insert(self.items, item)`, `push @{ $self->{items} }, $item`, `$this.size++`. The two
+are kept together when one method adds an item and 1, or takes one out and 1, and the number's name has to say it counts
+- size, count, length, len, num, top or n - so a running total of pushes is not taken for one. A method calling another
+of the class's methods, which may keep the rule for it, a method giving either field a value of another kind - `size =
+len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir and
+Erlang have no check of it.
 
 The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
 Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
@@ -2038,20 +2052,20 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 46 | 82 | 39 |
 | JavaScript | 44 | 92 | 16 |
 | Go | 38 | 64 | 18 |
-| Scala | 6 | 64 | 28 |
+| Scala | 6 | 65 | 28 |
 | OCaml | 6 | 26 | 26 |
-| Rust | 7 | 52 | 33 |
-| Ruby | 13 | 74 | 26 |
-| PHP | 16 | 70 | 18 |
-| Lua | 12 | 61 | 25 |
-| Perl | 14 | 67 | 26 |
-| Dart | 16 | 59 | 23 |
+| Rust | 7 | 53 | 33 |
+| Ruby | 13 | 75 | 26 |
+| PHP | 16 | 71 | 18 |
+| Lua | 12 | 62 | 25 |
+| Perl | 14 | 68 | 26 |
+| Dart | 16 | 60 | 23 |
 | Fortran | 13 | 46 | 19 |
-| PowerShell | 11 | 71 | 16 |
+| PowerShell | 11 | 72 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
 | F# | 17 | 40 | 33 |
-| TypeScript | 48 | 96 | 26 |
+| TypeScript | 48 | 97 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2109,9 +2123,9 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,166 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,175 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 52 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
+4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only

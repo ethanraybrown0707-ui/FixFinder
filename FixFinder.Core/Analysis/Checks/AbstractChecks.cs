@@ -121,6 +121,8 @@ public static partial class AbstractChecks
         findings.AddRange(FlagNeverSet.Find(program, functions.Select(f => f.Function), source,
             "following each flag from where it is set to where it is tested"));
 
+        findings.AddRange(CountOutOfStep.Find(program, "comparing what each of a class's methods does to its fields"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));
