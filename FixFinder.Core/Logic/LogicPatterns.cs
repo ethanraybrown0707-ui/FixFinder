@@ -63,6 +63,7 @@ public static class LogicPatterns
         .. FlagNeverSetPatterns.All,
         .. CountOutOfStepPatterns.All,
         .. SortedSearchPatterns.All,
+        .. NotFoundAsPositionPatterns.All,
         .. EmptyQueuePatterns.All,
         .. ReversalPatterns.All,
         .. TwoStepPatterns.All,

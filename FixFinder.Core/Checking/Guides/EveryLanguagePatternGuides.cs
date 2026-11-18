@@ -414,6 +414,13 @@ internal static class EveryLanguagePatternGuides
             "Give the search a list in order: sort it before searching, or write it in order.",
             example);
 
+    private static GuideEntry NotFoundAsPosition(string id, string example) =>
+        GuideFor([id], "A not-found answer used as a position",
+            "The function answers -1 when it finds nothing, a promise every caller has to keep in mind. Here a caller reads a list at its answer with nothing checking for -1 first.",
+            "When the item is not there, -1 is used as a position: depending on the language it reads the last item as if it had been found, gives nothing, or stops the program.",
+            "Check the answer before using it - if place >= 0 - or have the function answer with nothing, such as None or null, that a caller cannot use as a position by mistake.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -4009,6 +4016,105 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        NotFoundAsPosition("logic-python-not-found-as-position",
+            """
+            place = find(names, "dan")
+            if place >= 0:
+                print(names[place])
+            else:
+                print("not found")
+            """),
+        NotFoundAsPosition("logic-java-not-found-as-position",
+            """
+            int place = find(names, "dan");
+            System.out.println(place >= 0 ? names[place] : "not found");
+            """),
+        NotFoundAsPosition("logic-csharp-not-found-as-position",
+            """
+            int place = Find(names, "dan");
+            Console.WriteLine(place >= 0 ? names[place] : "not found");
+            """),
+        NotFoundAsPosition("logic-js-not-found-as-position",
+            """
+            const place = find(names, "dan");
+            console.log(place >= 0 ? names[place] : "not found");
+            """),
+        NotFoundAsPosition("logic-go-not-found-as-position",
+            """
+            place := find(names, "dan")
+            if place >= 0 {
+                fmt.Println(names[place])
+            } else {
+                fmt.Println("not found")
+            }
+            """),
+        NotFoundAsPosition("logic-c-not-found-as-position",
+            """
+            int place = find(names, 3, "dan");
+            printf("%s\n", place >= 0 ? names[place] : "not found");
+            """),
+        NotFoundAsPosition("logic-cpp-not-found-as-position",
+            """
+            int place = find(names, "dan");
+            std::cout << (place >= 0 ? names.at(place) : "not found") << "\n";
+            """),
+        NotFoundAsPosition("logic-rust-not-found-as-position",
+            """
+            let place = find(&names, "dan");
+            if place >= 0 {
+                println!("{}", names[place as usize]);
+            } else {
+                println!("not found");
+            }
+            """),
+        NotFoundAsPosition("logic-ruby-not-found-as-position",
+            """
+            place = find(names, "dan")
+            puts place >= 0 ? names[place] : "not found"
+            """),
+        NotFoundAsPosition("logic-php-not-found-as-position",
+            """
+            $place = find($names, "dan");
+            echo $place >= 0 ? $names[$place] : "not found", PHP_EOL;
+            """),
+        NotFoundAsPosition("logic-lua-not-found-as-position",
+            """
+            local place = find(names, "dan")
+            if place >= 1 then
+              print(names[place])
+            else
+              print("not found")
+            end
+            """),
+        NotFoundAsPosition("logic-perl-not-found-as-position",
+            """
+            my $place = find(\@names, "dan");
+            print $place >= 0 ? $names[$place] : "not found", "\n";
+            """),
+        NotFoundAsPosition("logic-dart-not-found-as-position",
+            """
+            final place = find(names, 'dan');
+            print(place >= 0 ? names[place] : 'not found');
+            """),
+        NotFoundAsPosition("logic-powershell-not-found-as-position",
+            """
+            $place = Find-Name $names "dan"
+            if ($place -ge 0) { $names[$place] } else { "not found" }
+            """),
+        NotFoundAsPosition("logic-scala-not-found-as-position",
+            """
+            val place = find(names, "dan")
+            println(if (place >= 0) names(place) else "not found")
+            """),
+        NotFoundAsPosition("logic-fortran-not-found-as-position",
+            """
+            place = find(names, "dan")
+            if (place >= 1) then
+              print *, names(place)
+            else
+              print *, "not found"
+            end if
             """),
         SearchUnsorted("logic-python-search-unsorted",
             """

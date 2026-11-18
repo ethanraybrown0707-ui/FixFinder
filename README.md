@@ -1719,6 +1719,19 @@ lists out of order on purpose, are left alone. The list is checked where the cal
 before that gives the name it passes, with no line between naming it, so a list sorted before the search, added to or
 read in is left alone. The change writes the list in order. Elixir and Erlang have no check of it.
 
+**A not-found answer used as a position** is a function of the program answering -1 when it finds nothing - `return -1`
+after a loop returning the place it finds - and a caller reading a list at its answer with nothing checking for -1
+first: `place = find(names, "dan")`, then `names[place]`. What -1 does there was run in each language: Python, Ruby,
+Perl and PowerShell printed `cat`, the last name, as if it had been found; JavaScript and TypeScript printed
+`undefined`, Lua `nil`, and PHP warned `Undefined array key -1`; Java and Scala stopped with
+`ArrayIndexOutOfBoundsException`, C# with `IndexOutOfRangeException`, Dart with a `RangeError`, Go with `index out of
+range [-1]`, Rust with a panic, and C++'s `at` with `std::out_of_range`; C printed stray bytes from before the list, and
+Fortran a blank line, but for a build with bounds checked, which stopped. The answer is read straight from the call -
+`names[find(names, "dan")]` - or through a variable given it whose first use after is the read; a line comparing it, or
+a condition naming it, checks it, and the read is left alone. Scala's and Fortran's reads look like calls, so only a list
+the file declares is taken as one. F#, OCaml, Elixir and Erlang answer not found with an option or an atom a caller
+has to match, and have no check of it.
+
 The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
 Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
 than they seem to, which the analyses find in the other seven as a condition that can never be true or is always true:
@@ -2056,27 +2069,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 115 | 41 |
-| Java | 67 | 102 | 51 |
-| C# | 52 | 89 | 49 |
-| C | 46 | 67 | 39 |
-| C++ | 46 | 83 | 39 |
-| JavaScript | 44 | 93 | 16 |
-| Go | 38 | 65 | 18 |
-| Scala | 6 | 66 | 28 |
+| Python | 91 | 116 | 41 |
+| Java | 67 | 103 | 51 |
+| C# | 52 | 90 | 49 |
+| C | 46 | 68 | 39 |
+| C++ | 46 | 84 | 39 |
+| JavaScript | 44 | 94 | 16 |
+| Go | 38 | 66 | 18 |
+| Scala | 6 | 67 | 28 |
 | OCaml | 6 | 27 | 26 |
-| Rust | 7 | 54 | 33 |
-| Ruby | 13 | 76 | 26 |
-| PHP | 16 | 72 | 18 |
-| Lua | 12 | 63 | 25 |
-| Perl | 14 | 69 | 26 |
-| Dart | 16 | 61 | 23 |
-| Fortran | 13 | 47 | 19 |
-| PowerShell | 11 | 73 | 16 |
+| Rust | 7 | 55 | 33 |
+| Ruby | 13 | 77 | 26 |
+| PHP | 16 | 73 | 18 |
+| Lua | 12 | 64 | 25 |
+| Perl | 14 | 70 | 26 |
+| Dart | 16 | 62 | 23 |
+| Fortran | 13 | 48 | 19 |
+| PowerShell | 11 | 74 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
 | F# | 17 | 41 | 33 |
-| TypeScript | 48 | 98 | 26 |
+| TypeScript | 48 | 99 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2134,7 +2147,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,193 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
