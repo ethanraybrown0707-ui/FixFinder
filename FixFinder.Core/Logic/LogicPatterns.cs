@@ -60,6 +60,7 @@ public static class LogicPatterns
         .. ReturnInLoopPatterns.All,
         .. BuiltNeverReadPatterns.All,
         .. ParameterIgnoredPatterns.All,
+        .. FlagNeverSetPatterns.All,
         .. EmptyQueuePatterns.All,
         .. ReversalPatterns.All,
         .. TwoStepPatterns.All,

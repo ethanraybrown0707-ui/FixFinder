@@ -118,6 +118,9 @@ public static partial class AbstractChecks
             functions.Select(f => (f.Function, f.Graph, f.Evaluator.Locals ?? (IReadOnlySet<string>)new HashSet<string>())),
             source, "following each value a variable is given to where it is read"));
 
+        findings.AddRange(FlagNeverSet.Find(program, functions.Select(f => f.Function), source,
+            "following each flag from where it is set to where it is tested"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));

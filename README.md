@@ -1624,6 +1624,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A lock that is not always released | `lock.lock()`, then a `return` before `unlock()` |
 | A value worked out and then lost | `result = width * height`, then `result = width * width` before anything reads `result` |
 | A value passed in and never used | `quantity = 1` at the start of `total_price(price, quantity)`, before anything reads `quantity` |
+| A flag a loop never sets | `found = False` before a search loop that never sets it, then `if found:` after the loop |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1679,6 +1680,19 @@ a variable a new value, so their check finds a `let` of the parameter's name tha
 Rust's compiler warns that the value passed is never read, and Elixir's that the parameter is unused; Scala's parameters
 cannot be given a value, Erlang's variables cannot be given a second one, and Fortran's arguments are the caller's own
 variables unless declared `value`.
+
+**A flag a loop never sets** is a flag set to false - or 0 - just before a loop with an if in it, and tested by an if after
+the loop, when nothing in the function ever gives it another value: `if found` after the loop is never true and `if not
+found` always is, so a search for 2 in 1, 2, 3 printed `found it` and then `missing` in eighteen of its nineteen
+languages here, OCaml not being run. Python, Java, C#, JavaScript, Go, C and C++ have it followed through the code: no
+assignment, increment, loop variable, handler or call it is passed to as C#'s `out` or `ref` may give it a value, and a
+parameter, a name a nested function or a lambda shares, and one whose address is taken are left alone. A switch such as
+`debug = False` is not one: nothing is said unless the flag is set just before a loop that searches. TypeScript, Ruby,
+PHP, Lua, Perl, Dart, PowerShell, Scala, Fortran, Rust, F# and OCaml have a logic check: the flag set off on the line
+before the loop's header, no line naming it but conditions that read it, and the first line from the loop's end to name
+it an if of the flag or of not the flag - `unless found`, `if (-not $found)`, `if (.not. found) then`, OCaml's `if
+!found`. A line handing the flag to a call - as PHP's references, Perl's `\$found`, PowerShell's `[ref]` and Fortran's
+arguments let a call set it - leaves it alone. Elixir and Erlang do not let a loop change a variable outside it.
 
 The fourteen languages whose values are not followed through the code - TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala,
 Fortran, Rust, Elixir, Erlang, F# and OCaml - have a logic check for **two comparisons of one number** that decide less
@@ -2024,20 +2038,20 @@ Python, Java and C# are checked most thoroughly.
 | C++ | 46 | 82 | 39 |
 | JavaScript | 44 | 92 | 16 |
 | Go | 38 | 64 | 18 |
-| Scala | 6 | 63 | 28 |
-| OCaml | 6 | 25 | 26 |
-| Rust | 7 | 51 | 33 |
-| Ruby | 13 | 73 | 26 |
-| PHP | 16 | 69 | 18 |
-| Lua | 12 | 60 | 25 |
-| Perl | 14 | 66 | 26 |
-| Dart | 16 | 58 | 23 |
-| Fortran | 13 | 45 | 19 |
-| PowerShell | 11 | 70 | 16 |
+| Scala | 6 | 64 | 28 |
+| OCaml | 6 | 26 | 26 |
+| Rust | 7 | 52 | 33 |
+| Ruby | 13 | 74 | 26 |
+| PHP | 16 | 70 | 18 |
+| Lua | 12 | 61 | 25 |
+| Perl | 14 | 67 | 26 |
+| Dart | 16 | 59 | 23 |
+| Fortran | 13 | 46 | 19 |
+| PowerShell | 11 | 71 | 16 |
 | Elixir | 15 | 37 | 29 |
 | Erlang | 13 | 28 | 23 |
-| F# | 17 | 39 | 33 |
-| TypeScript | 48 | 95 | 26 |
+| F# | 17 | 40 | 33 |
+| TypeScript | 48 | 96 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2095,9 +2109,9 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,154 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,166 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 51 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
+4. **Follows every value through the code** with 52 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
    read by its own language's parser.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only

@@ -393,6 +393,13 @@ internal static class EveryLanguagePatternGuides
             "Take the line out, so the value passed is used - or, if a stand-in is wanted only sometimes, give it inside an if that reads the parameter first.",
             example);
 
+    private static GuideEntry FlagNeverSet(string id, string example) =>
+        GuideFor([id], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            example);
+
     private static GuideEntry Overwritten(string id, string example) =>
         GuideFor([id], "A value worked out and then lost",
             "A variable holds one value at a time, so giving it a new value throws the old one away. Here the variable is given " +
@@ -3988,6 +3995,136 @@ internal static class EveryLanguagePatternGuides
             """
             if mark >= 0 && mark <= 100 then print_endline "a mark out of 100";
             if answer <> 1 && answer <> 2 then print_endline "neither 1 nor 2"
+            """),
+        FlagNeverSet("logic-typescript-flag-never-set",
+            """
+            let found = false;
+            for (const mark of marks) {
+              if (mark === wanted) {
+                found = true;
+              }
+            }
+            if (found) {
+              console.log("present");
+            }
+            """),
+        FlagNeverSet("logic-ruby-flag-never-set",
+            """
+            found = false
+            marks.each do |mark|
+              if mark == wanted
+                found = true
+              end
+            end
+            puts "present" if found
+            """),
+        FlagNeverSet("logic-php-flag-never-set",
+            """
+            $found = false;
+            foreach ($marks as $mark) {
+                if ($mark === $wanted) {
+                    $found = true;
+                }
+            }
+            if ($found) {
+                echo "present", PHP_EOL;
+            }
+            """),
+        FlagNeverSet("logic-lua-flag-never-set",
+            """
+            local found = false
+            for _, mark in ipairs(marks) do
+              if mark == wanted then
+                found = true
+              end
+            end
+            if found then
+              print("present")
+            end
+            """),
+        FlagNeverSet("logic-perl-flag-never-set",
+            """
+            my $found = 0;
+            foreach my $mark (@marks) {
+                if ($mark == $wanted) {
+                    $found = 1;
+                }
+            }
+            print "present\n" if $found;
+            """),
+        FlagNeverSet("logic-dart-flag-never-set",
+            """
+            var found = false;
+            for (var mark in marks) {
+              if (mark == wanted) {
+                found = true;
+              }
+            }
+            if (found) {
+              print('present');
+            }
+            """),
+        FlagNeverSet("logic-powershell-flag-never-set",
+            """
+            $found = $false
+            foreach ($mark in $marks) {
+                if ($mark -eq $wanted) {
+                    $found = $true
+                }
+            }
+            if ($found) {
+                "present"
+            }
+            """),
+        FlagNeverSet("logic-scala-flag-never-set",
+            """
+            var found = false
+            for (mark <- marks) {
+              if (mark == wanted) {
+                found = true
+              }
+            }
+            if (found) {
+              println("present")
+            }
+            """),
+        FlagNeverSet("logic-fortran-flag-never-set",
+            """
+            found = .false.
+            do index = 1, size(marks)
+              if (marks(index) == wanted) then
+                found = .true.
+              end if
+            end do
+            if (found) then
+              print *, "present"
+            end if
+            """),
+        FlagNeverSet("logic-rust-flag-never-set",
+            """
+            let mut found = false;
+            for mark in &marks {
+                if *mark == wanted {
+                    found = true;
+                }
+            }
+            if found {
+                println!("present");
+            }
+            """),
+        FlagNeverSet("logic-fsharp-flag-never-set",
+            """
+            let mutable found = false
+            for mark in marks do
+                if mark = wanted then
+                    found <- true
+            if found then printfn "present"
+            """),
+        FlagNeverSet("logic-ocaml-flag-never-set",
+            """
+            let found = ref false in
+            List.iter (fun mark -> if mark = wanted then found := true) marks;
+            if !found then print_endline "present"
             """),
         ParameterIgnored("logic-typescript-parameter-ignored",
             """

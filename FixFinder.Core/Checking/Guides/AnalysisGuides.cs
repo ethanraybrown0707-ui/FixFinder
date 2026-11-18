@@ -397,6 +397,19 @@ internal static class AnalysisGuides
                 return result
             """),
 
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            found = False
+            for mark in marks:
+                if mark == wanted:
+                    found = True
+            if found:
+                print("present")
+            """),
+
         GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
             "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
             "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
@@ -507,6 +520,22 @@ internal static class AnalysisGuides
             }
             """),
 
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            found := false
+            for _, mark := range marks {
+                if mark == wanted {
+                    found = true
+                }
+            }
+            if found {
+                fmt.Println("present")
+            }
+            """),
+
         GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
             "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
             "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
@@ -569,6 +598,22 @@ internal static class AnalysisGuides
             function area(width, height) {
               const result = width * height;
               return result;
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            let found = false;
+            for (const mark of marks) {
+              if (mark === wanted) {
+                found = true;
+              }
+            }
+            if (found) {
+              console.log("present");
             }
             """),
 
@@ -690,6 +735,22 @@ internal static class AnalysisGuides
             int area(int width, int height) {
                 int result = width * height;
                 return result;
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            int found = 0;
+            for (int index = 0; index < count; index++) {
+                if (marks[index] == wanted) {
+                    found = 1;
+                }
+            }
+            if (found) {
+                printf("present\n");
             }
             """),
 
@@ -1151,6 +1212,22 @@ internal static class AnalysisGuides
             }
             """),
 
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            boolean found = false;
+            for (int mark : marks) {
+                if (mark == wanted) {
+                    found = true;
+                }
+            }
+            if (found) {
+                System.out.println("present");
+            }
+            """),
+
         GuideFor(["analysis-parameter-ignored"], "A value passed in and never used",
             "A parameter holds the value the caller passes. Here the function gives the parameter a new value before any line reads the one it was passed, so whatever the caller passes is thrown away - the function works the same whatever it is given.",
             "Every caller gets the same answer whatever it passes: total_price(4, 3) gives 4, not 12. Often the line is a value for testing left in, or was meant for another variable.",
@@ -1544,6 +1621,25 @@ internal static class AnalysisGuides
                     var result = width * height;
                     return result;
                 }
+            }
+            """),
+
+        GuideFor(["analysis-flag-never-set"], "A flag a loop never sets",
+            "A flag such as found starts false, and a loop is meant to set it when it finds what it looks for. Here nothing in the loop - or anywhere after it - sets it, so it is still false when the if after the loop tests it.",
+            "The test after the loop decides nothing: if found never runs its branch, and if not found always does, so the program says it did not find what is there.",
+            "Set the flag where the loop finds what it looks for - found = True inside the loop's if - or test what the loop worked out instead.",
+            """
+            bool found = false;
+            foreach (var mark in marks)
+            {
+                if (mark == wanted)
+                {
+                    found = true;
+                }
+            }
+            if (found)
+            {
+                Console.WriteLine("present");
             }
             """),
 
