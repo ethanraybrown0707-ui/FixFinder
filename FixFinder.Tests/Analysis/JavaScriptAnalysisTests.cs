@@ -121,6 +121,29 @@ public class JavaScriptAnalysisTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
     }
 
+    /// <summary>
+    /// Following each way through the code reached prize.total / winners with winners 0 - the if only prints - and said it
+    /// fails with an ArithmeticException, which is Java's; Node.js printed Infinity for share({ total: 120 }, 0).
+    /// </summary>
+    [Fact]
+    public async Task ADivisorTheCodeLetsBeZeroIsStillNotAMistakeInJavaScript()
+    {
+        const string code = """
+            function share(prize, winners) {
+              if (winners === 0) {
+                console.log("none");
+              }
+              return prize.total / winners;
+            }
+
+            console.log(share({ total: 120 }, 0));
+            """;
+
+        var (_, findings) = await CheckAsync(code);
+
+        Assert.DoesNotContain(findings, f => f.CheckId == "analysis-division-by-zero");
+    }
+
     [Fact]
     public async Task APositionPastTheEndIsNotAMistakeInJavaScript()
     {

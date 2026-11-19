@@ -516,6 +516,9 @@ public sealed partial class SymbolicExecutor
 
     private void CheckDivision(Binary binary, SymNumber dividend, SymNumber divisor, Path path)
     {
+        // JavaScript divides by zero into Infinity, or NaN, and goes on: nothing fails there, as the abstract checks hold too.
+        if (_language == SourceLanguage.JavaScript) return;
+
         if (!IsPython && !(dividend.Whole && divisor.Whole))
         {
             OutcomeAt("analysis-division-by-zero", binary.Span, binary.Right).Unsure = true;
