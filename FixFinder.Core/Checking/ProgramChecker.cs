@@ -2059,6 +2059,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 findings = await Analysis.Dynamic.GoConfirmation.ConfirmAsync(findings, program, go, cancellationToken);
             }
 
+            // A JavaScript function is called from the end of a copy of its file that keeps only the file's definitions.
+            if (!_codeOnly && program.Language == SourceLanguage.JavaScript && findings.Any(f => f.WitnessValues is { Count: > 0 }) && NodeOf(launch) is { } node)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.JavaScriptConfirmation.ConfirmAsync(findings, program, node, cancellationToken);
+            }
+
             foreach (var finding in findings)
             {
                 // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.
@@ -2083,6 +2090,12 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     }
 
     /// <summary>The Python the program runs with, or any Python on this computer.</summary>
+    /// <summary>The Node the program runs with, or the one on the PATH.</summary>
+    private static string? NodeOf(LaunchPlan launch) =>
+        launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).Equals("node", StringComparison.OrdinalIgnoreCase)
+            ? spec.ExecutablePath
+            : TargetFactory.FindOnPath("node");
+
     private static string? PythonInterpreter(LaunchPlan launch) =>
         launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
             ? spec.ExecutablePath

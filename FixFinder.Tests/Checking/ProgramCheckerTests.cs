@@ -377,4 +377,30 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
             report.Findings.Where(finding => finding.RuleId == "stopped-before-expected-output"),
             finding => Assert.Contains("stopped with an error", finding.Explanation, StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task JavaScriptValuesAreFollowedAndTheirTypeErrorTriedForReal()
+    {
+        if (!LocalFixLiveTests.Available("node")) return;
+
+        var file = Write(Path.Combine("js", "greet.js"), """
+            function greet(person) {
+                if (person === null) {
+                    console.log("nobody there");
+                }
+                return "hello " + person.name;
+            }
+
+            console.log(greet({ name: "sam" }));
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.JavaScript);
+
+        // Worked out from the code, then tried for real: greet is called with null, and stops as predicted.
+        var nothing = Assert.Single(report.Findings, f => f.RuleId == "analysis-null-used");
+        Assert.Equal(5, nothing.Line);
+        Assert.Equal(Confidence.Certain, nothing.Confidence);
+        Assert.Equal("`person` is null", nothing.Witness);
+        Assert.Equal("Running `greet(null)` stopped with TypeError: Cannot read properties of null (reading 'name') on line 5.", nothing.Confirmation);
+    }
 }

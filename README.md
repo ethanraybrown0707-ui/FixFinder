@@ -1995,6 +1995,14 @@ takes the same way through the function whatever it holds, is given Go's zero va
 read from the stack, and only the predicted panic on the predicted line makes the finding Certain: *Running
 `share(0, 0, "")` stopped with a panic - runtime error: integer divide by zero - on line 9.* Go builds it without
 downloading anything, so a file that needs a module or the other files of its package leaves the finding as it was.
+A JavaScript function declared at the top of its file is tried from the end of a copy of the file that keeps only what
+the file defines - its functions, classes, constants and requires - and leaves every other top-level line empty, so the
+program's own code never runs and every line keeps its number. Node compiles the copy as the program's own file, so its
+requires find the program's other files, and a parameter the inputs leave free is given `undefined`, as a call that
+leaves it out gives it. JavaScript divides by zero into Infinity and reads past the end of a list as `undefined`, so
+only a value read from null or undefined is tried, and only a TypeError on the predicted line makes the finding Certain:
+*Running `greet(null)` stopped with TypeError: Cannot read properties of null (reading 'name') on line 5.* An ES module,
+a method and a function kept in a constant leave the finding as it was.
 When the program's own run crashes at a
 line the analysis shows can fail, the two are one mistake, so they are **one finding**: what the language said, with the
 input that fails, the lines that decide it and the run that confirmed it - `take(False)` stopping with `IndexError: pop
@@ -2168,9 +2176,10 @@ A check of a program does all of this, as far as its language allows - Python, J
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
    change in the program's behaviour worked out by reading the code before and after them.
-6. **Tries what it predicted for real**, in Python, Java and Go: a crash the analyses predict is run with the values
-   that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a Python
-   program that asks questions is given an answer for each way through it, up to 6 sets of answers, 10 seconds each.
+6. **Tries what it predicted for real**, in Python, Java, Go and JavaScript: a crash the analyses predict is run with
+   the values that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a
+   Python program that asks questions is given an answer for each way through it, up to 6 sets of answers, 10 seconds
+   each.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
