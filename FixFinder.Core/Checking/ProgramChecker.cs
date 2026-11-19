@@ -74,6 +74,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
     private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
 
+    /// <summary>Whether the program built, once the syntax lane knows: true when it did, false when it did not or was not built.</summary>
+    private Task<bool> _built = Task.FromResult(false);
+
     public CodeLanguage Language { get; init; } = CodeLanguage.Any;
 
     public ExpectedBehaviour? Expected { get; init; }
@@ -105,6 +108,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var files = found?.Files ?? [];
         _programFiles = files;
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _built = builds.Task;
         _launch = launch;
         _cancellation = cancellationToken;
         foreach (var note in NotesFirst) Note(note);
@@ -2028,9 +2032,11 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
             // One input for each way through the program that what is typed decides, run to show what each way does - for a
             // program run on its own, not one with a window or a server, which a run that waits for nobody would not show.
-            if (!_codeOnly && program.Language == SourceLanguage.Python && launch.ChosenFile is { } chosen && launch.Spec is { } spec &&
+            // A Java or C# program is tried once it has built - the syntax lane builds it while this one reads it.
+            if (!_codeOnly && program.Language is SourceLanguage.Python or SourceLanguage.Java or SourceLanguage.CSharp && launch.ChosenFile is { } chosen && launch.Spec is { } spec &&
                 NotebookScript.Of(chosen) is null && RunsUntilStoppedOf(chosen) is null &&
-                Analysis.Dynamic.InputsToTry.AnswersFor(program, chosen) is { Count: > 0 } answerSets)
+                Analysis.Dynamic.InputsToTry.AnswersFor(program, chosen) is { Count: > 0 } answerSets &&
+                (program.Language == SourceLanguage.Python || await _built))
             {
                 Progress?.Invoke(CheckLane.Logic, "Trying an input for each way through the program...");
                 _tried = await Analysis.Dynamic.InputsToTry.TryAsync(spec, answerSets, cancellationToken);

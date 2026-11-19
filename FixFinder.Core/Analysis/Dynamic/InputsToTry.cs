@@ -1,5 +1,6 @@
 using System.Globalization;
 using FixFinder.Core.Analysis.Abstract;
+using FixFinder.Core.Analysis.Checks;
 using FixFinder.Core.Analysis.Flow;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Solver;
@@ -19,16 +20,18 @@ public sealed record InputTried(IReadOnlyList<string> Typed, IReadOnlyList<strin
 }
 
 /// <summary>
-/// Inputs to try, to see what each way through a program does: for a Python program whose top-level code goes different
-/// ways on what is typed, one set of answers for each way - worked out from the code, by following each way and solving
-/// for what takes it - and the program run with each. For score = int(input()) and if score &gt;= 70 ... elif score &gt;= 50,
-/// the answers are 70, 50 and 0, and the three runs print what each grade does.
+/// Inputs to try, to see what each way through a program does: for a program whose first code goes different ways on what
+/// is typed, one set of answers for each way - worked out from the code, by following each way and solving for what takes
+/// it - and the program run with each. For score = int(input()) and if score &gt;= 70 ... elif score &gt;= 50, the answers
+/// are 70, 50 and 0, and the three runs print what each grade does. The first code is a Python file's or a C# file's
+/// top-level code, else a C# Main or a Java main; what is typed is what input(), Console.ReadLine() and a Scanner's or a
+/// reader's next, nextInt, nextDouble, nextLine or readLine give.
 /// </summary>
 /// <remarks>
-/// Only for a program that asks all its questions in straight-line top-level code - not in a loop, a branch or a function -
-/// so every way asks the same questions in the same order, and each answer goes to the question it was worked out for.
-/// A way that the answers alone do not decide, one that goes through code FixFinder cannot see, and a run that asks for
-/// more than it was given are left out.
+/// Only for a program that asks all its questions in straight-line first code - not in a loop, a branch or another
+/// function - so every way asks the same questions in the same order, and each answer goes to the question it was worked
+/// out for. A way that the answers alone do not decide, one that goes through code FixFinder cannot see, and a run that
+/// asks for more than it was given are left out.
 /// </remarks>
 public static class InputsToTry
 {
@@ -39,17 +42,14 @@ public static class InputsToTry
 
     private static readonly ConstraintSolver Solver = new() { MostBranches = 60, MostPivots = 300 };
 
-    /// <summary>The answers to type for each way through the file's top-level code that what is typed decides.</summary>
+    /// <summary>The answers to type for each way through the file's first code that what is typed decides.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> AnswersFor(IrProgram program, string file)
     {
-        if (program.Language != SourceLanguage.Python) return [];
+        if (FirstCode(program, file) is not { } body || !AsksOnlyInStraightLine(program, body)) return [];
 
-        var body = program.Functions.FirstOrDefault(function => function.Name == IrFunction.ModuleBody &&
-                                                                string.Equals(Path.GetFullPath(function.Span.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase));
-        if (body is null || !AsksOnlyInStraightLine(program, body)) return [];
-
-        var report = new SymbolicExecutor(CfgBuilder.Build(body), program.Language, IrWalk.LocalNames(body, true), Scopes.Volatile(program, body),
-            new Dictionary<string, IrType>())
+        var isPython = program.Language == SourceLanguage.Python;
+        var report = new SymbolicExecutor(CfgBuilder.Build(body), program.Language, IrWalk.LocalNames(body, isPython), Scopes.Volatile(program, body),
+            isPython ? new Dictionary<string, IrType>() : AbstractChecks.DeclaredTypes(body))
         {
             KeepEnds = true,
             // The executor's steps and paths are what bound the work; the time is only a guard, and a long one, so how busy
@@ -78,8 +78,9 @@ public static class InputsToTry
     }
 
     /// <summary>
-    /// Runs the program once with each set of answers, as the check ran it - its own Python, folder and environment - and
-    /// keeps what each printed. A try that ran out of answers, or out of time, is left out: it shows nothing about its way.
+    /// Runs the program once with each set of answers, as the check ran it - its own Python, Java or .NET, folder and
+    /// environment - and keeps what each printed. A try that ran out of answers, or out of time, is left out: it shows
+    /// nothing about its way.
     /// </summary>
     public static async Task<IReadOnlyList<InputTried>> TryAsync(TargetSpec spec, IReadOnlyList<IReadOnlyList<string>> answerSets, CancellationToken cancellation)
     {
@@ -94,7 +95,14 @@ public static class InputsToTry
             // one - which shows nothing of the way it takes: it is run again, once, with three times as long. One that still
             // does not finish is left out.
             if (run.Outcome == RunOutcome.TimedOut) run = await new TargetRunner().RunAsync(typed.WithTimeout(TryTimeLimit * 3), cancellation);
-            if (run.Outcome == RunOutcome.TimedOut || run.Error?.ShortExceptionType == "EOFError") continue;
+            if (run.Outcome == RunOutcome.TimedOut) continue;
+
+            // A run that never started the program shows nothing of what it does: Windows refusing what was built, or a launcher
+            // that could not find it. Nor does one that asked for more than it was given - an EOFError, a Scanner's
+            // NoSuchElementException, a ReadLine that gave null.
+            if (run.Outcome == RunOutcome.LaunchFailed || Engine.FixFinderSession.WindowsRefused(run) is not null ||
+                run.Error?.ShortExceptionType == Parsing.Parsers.JavaStackTraceParser.LauncherError ||
+                run.Error is { } failure && Engine.FixFinderSession.AskedForInput(failure, run.Lines, typed.WorkingDirectory, nothingTyped: false)) continue;
 
             var printed = run.Lines.Where(line => line.Stream == StreamKind.StdOut).Select(line => line.Text).ToList();
             var stopped = run.Error is { } error ? (error.Message is { Length: > 0 } message ? $"{error.ShortExceptionType ?? error.ExceptionType}: {message}" : error.Summary) : null;
@@ -106,13 +114,41 @@ public static class InputsToTry
     }
 
     /// <summary>
-    /// Whether every question the program asks - every input() - is asked in its top-level code, in a statement that runs
-    /// once: not in a loop, a branch's body, or a function, where how many are asked, and in what order, depends on the way.
+    /// The code a run of the file starts with: a Python file's top-level code; a C# file's top-level statements, or else
+    /// its static Main; a Java file's static main. Null for any other language, or a file without it.
+    /// </summary>
+    private static IrFunction? FirstCode(IrProgram program, string file)
+    {
+        var fullPath = Path.GetFullPath(file);
+        var inFile = program.AllFunctions.Where(function => string.Equals(Path.GetFullPath(function.Span.File), fullPath, StringComparison.OrdinalIgnoreCase)).ToList();
+        IrFunction? StaticNamed(string name) => inFile.FirstOrDefault(function => function.Name == name && function.IsStatic && function.Owner is not null);
+
+        return program.Language switch
+        {
+            SourceLanguage.Python => inFile.FirstOrDefault(function => function.Name == IrFunction.ModuleBody),
+            SourceLanguage.CSharp => inFile.FirstOrDefault(function => function.Name == IrFunction.ModuleBody) ?? StaticNamed("Main"),
+            SourceLanguage.Java => StaticNamed("main"),
+            _ => null,
+        };
+    }
+
+    /// <summary>Whether an expression asks for what is typed, in the program's own language: the reads the executor follows.</summary>
+    private static bool Asks(Expr expression, SourceLanguage language) => (language, expression) switch
+    {
+        (SourceLanguage.Python, Call { Callee: Name { Identifier: "input" } }) => true,
+        (SourceLanguage.CSharp, Call { Callee: Member { Target: Name { Identifier: "Console" }, MemberName: "ReadLine" } }) => true,
+        (SourceLanguage.Java, Call { Callee: Member { MemberName: var read } }) =>
+            read is "next" or "nextInt" or "nextLong" or "nextShort" or "nextByte" or "nextDouble" or "nextFloat" or "nextLine" or "readLine",
+        _ => false,
+    };
+
+    /// <summary>
+    /// Whether every question the program asks is asked in its first code, in a statement that runs once: not in a loop, a
+    /// branch's body, or another function, where how many are asked, and in what order, depends on the way.
     /// </summary>
     private static bool AsksOnlyInStraightLine(IrProgram program, IrFunction body)
     {
-        static int Asked(IEnumerable<Expr> expressions) =>
-            expressions.SelectMany(IrWalk.Within).Count(expression => expression is Call { Callee: Name { Identifier: "input" } });
+        int Asked(IEnumerable<Expr> expressions) => expressions.SelectMany(IrWalk.Within).Count(expression => Asks(expression, program.Language));
 
         var everywhere = Asked(IrWalk.Statements(body.Body).SelectMany(IrWalk.Expressions));
         var straight = Asked(body.Body.Where(statement => statement is Evaluate or Assign or Declare or If).SelectMany(IrWalk.Expressions));

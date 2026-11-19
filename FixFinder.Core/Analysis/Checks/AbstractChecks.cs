@@ -365,7 +365,8 @@ public static partial class AbstractChecks
     }
 
     /// <summary>Each variable's declared type, where it is declared once with one type.</summary>
-    private static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
+    /// <summary>The type each name of a function is declared with, when it is declared with only one.</summary>
+    internal static Dictionary<string, IrType> DeclaredTypes(IrFunction function) =>
         function.Parameters.Select(p => (p.Name, p.Type))
             .Concat(IrWalk.Statements(function.Body).OfType<Declare>().Select(d => (Name: d.Variable, d.Type)))
             .Where(d => !d.Type.IsUnknown)
