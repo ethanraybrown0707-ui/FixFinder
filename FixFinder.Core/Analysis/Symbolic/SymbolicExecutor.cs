@@ -253,7 +253,8 @@ public sealed partial class SymbolicExecutor
         return starts;
     }
 
-    private string NullWord => IsPython ? "None" : "null";
+    /// <summary>What the program's own language calls nothing - None, nil, NULL, nullptr or null - in the inputs a witness names.</summary>
+    private string NullWord => Failures.Nothing(_language);
 
     private string TrueWord => IsPython ? "True" : "true";
 

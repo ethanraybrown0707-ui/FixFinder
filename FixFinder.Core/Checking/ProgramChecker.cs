@@ -2051,6 +2051,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 findings = await Analysis.Dynamic.JavaConfirmation.ConfirmAsync(findings, program, javaTools.Javac, javaTools.Java, cancellationToken);
             }
 
+            // A Go function is called from a small file built beside a copy of its own, its panic recovered.
+            if (!_codeOnly && program.Language == SourceLanguage.Go && findings.Any(f => f.WitnessValues is { Count: > 0 }) &&
+                launch.ChosenFile is { } goFile && Analysis.Frontends.GoFrontend.FindGo(goFile) is { } go)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.GoConfirmation.ConfirmAsync(findings, program, go, cancellationToken);
+            }
+
             foreach (var finding in findings)
             {
                 // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.

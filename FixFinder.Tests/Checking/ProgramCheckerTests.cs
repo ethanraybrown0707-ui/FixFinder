@@ -232,6 +232,39 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public async Task GoValuesAreFollowedAndTheirPanicTriedForReal()
+    {
+        if (!LocalFixLiveTests.Available("go")) return;
+
+        var file = Write(Path.Combine("go", "main.go"), """
+            package main
+
+            import "fmt"
+
+            func average(marks []int) int {
+            	total := 0
+            	for _, mark := range marks {
+            		total += mark
+            	}
+            	return total / len(marks)
+            }
+
+            func main() {
+            	fmt.Println(average([]int{40, 60}))
+            }
+            """);
+
+        var report = await CheckAsync(file, CodeLanguage.Go);
+
+        // Worked out from the code, then tried for real: average is called with an empty slice, and panics as predicted.
+        var division = Assert.Single(report.Findings, f => f.RuleId == "analysis-division-by-zero");
+        Assert.Equal(10, division.Line);
+        Assert.Equal(Confidence.Certain, division.Confidence);
+        Assert.Equal("`marks` is empty", division.Witness);
+        Assert.Equal("Running `average([]int{})` stopped with a panic - runtime error: integer divide by zero - on line 10.", division.Confirmation);
+    }
+
+    [Fact]
     public async Task CSharpWarningsAndCrashAreReported()
     {
         if (!LocalFixLiveTests.Available("dotnet")) return;
