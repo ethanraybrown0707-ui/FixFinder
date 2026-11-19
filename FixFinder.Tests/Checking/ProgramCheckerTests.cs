@@ -221,11 +221,13 @@ public class ProgramCheckerTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(file, CodeLanguage.Java);
 
+        // Worked out from the code, then tried for real: average is called with an empty array, and stops as predicted.
         var division = Assert.Single(report.Findings, f => f.RuleId == "analysis-division-by-zero");
         Assert.Equal(9, division.Line);
-        Assert.Equal(Confidence.Possible, division.Confidence);
+        Assert.Equal(Confidence.Certain, division.Confidence);
         Assert.NotNull(division.FoundBy);
         Assert.Equal("`values` is empty", division.Witness);
+        Assert.Equal("Running `average(new int[0])` stopped with ArithmeticException: / by zero on line 9.", division.Confirmation);
         Assert.Equal("1 possible mistake in the code", report.LogicSummary);
     }
 

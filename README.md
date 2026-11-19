@@ -1982,7 +1982,13 @@ inputs - or, for top-level code, the program is run with them typed in - under a
 predicted error on the predicted line does the finding become Certain, and it says what happened: *Running
 `average(values=[])` stopped with ZeroDivisionError on line 8, where `count` was 0. Lines it ran: 1-5, 8.* The lines it
 ran are compressed, so a loop that went round three times shows as `(5-7)×3`; in a notebook they are given cell by cell,
-`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. When the program's own run crashes at a
+`cell 2: 1-4; cell 3: 2`. A method, which needs its object, is left as it was. A static Java method - a private one too -
+is tried the same way: a small class compiled beside a copy of its file calls it through reflection with the inputs
+written as Java writes them - `new int[0]`, `""`, `null`, a list of zeros - so the program's own `main` never runs, and
+only the predicted exception on the predicted line makes the finding Certain: *Running `average(new int[0])` stopped
+with ArithmeticException: / by zero on line 7.* It is compiled with its variables' names kept, so a NullPointerException
+names the one that was null - *because "chosen" is null*. A method of an instance, a file that does not compile on its
+own and an input Java cannot write down leave the finding as it was. When the program's own run crashes at a
 line the analysis shows can fail, the two are one mistake, so they are **one finding**: what the language said, with the
 input that fails, the lines that decide it and the run that confirmed it - `take(False)` stopping with `IndexError: pop
 from empty list` is one finding that says *On one way through the code `items` is always empty here - for example when
@@ -2155,9 +2161,9 @@ A check of a program does all of this, as far as its language allows - Python, J
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
    change in the program's behaviour worked out by reading the code before and after them.
-6. **Tries what it predicted for real**, in Python: a crash the analyses predict is run with the values that should cause
-   it - up to 6 runs, 10 seconds each - and a program that asks questions is given an answer for each way through it, up
-   to 6 sets of answers, 10 seconds each.
+6. **Tries what it predicted for real**, in Python and Java: a crash the analyses predict is run with the values that
+   should cause it - up to 6 runs, 10 seconds each - and a Python program that asks questions is given an answer for each
+   way through it, up to 6 sets of answers, 10 seconds each.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript

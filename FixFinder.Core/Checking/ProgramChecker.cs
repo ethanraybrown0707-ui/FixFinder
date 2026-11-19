@@ -2043,6 +2043,14 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 findings = await Confirmation.ConfirmAsync(findings, python, cancellationToken);
             }
 
+            // A Java method is called the same way, from a small class compiled beside a copy of its file.
+            if (!_codeOnly && program.Language == SourceLanguage.Java && findings.Any(f => f.WitnessValues is { Count: > 0 }) &&
+                Analysis.Frontends.JavaFrontend.FindTools(launch.ChosenFile) is { } javaTools)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Running the code with the inputs that should break it...");
+                findings = await Analysis.Dynamic.JavaConfirmation.ConfirmAsync(findings, program, javaTools.Javac, javaTools.Java, cancellationToken);
+            }
+
             foreach (var finding in findings)
             {
                 // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.
