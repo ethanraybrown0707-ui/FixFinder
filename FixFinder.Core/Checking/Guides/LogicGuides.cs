@@ -13,6 +13,28 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        GuideFor(["algorithm-sort-wrong"], "A sort that does not sort every list",
+            "The function is written the way a sort is written, so FixFinder called it with lists of its own - empty, of one "
+            + "item, in order, in reverse order, with repeats - and looked at what came back. For one of them it was not the "
+            + "same items in order, or the call stopped with an error. The list shown is the shortest that went wrong, which "
+            + "is the easiest to follow through the code by hand.",
+            "A sort that works on the lists it was tried with by hand can still miss the last pair, the first item, or a "
+            + "list of two - and everything that relies on the order goes wrong with it.",
+            "Follow the list shown through the loops by hand, writing down the list after each pass: the pass where it stops "
+            + "changing too early, or changes the wrong items, is where the loop's start, end or comparison is out by one.",
+            ""),
+
+        GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
+            "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
+            + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "
+            + "it was, there when it was not, or the position of another item - or the call stopped with an error.",
+            "A search that misses the first item, the last item or the only item of a list gives a wrong answer without "
+            + "any error, and the program goes on as if the value were missing.",
+            "Follow the list and the value shown through the loop by hand: check the loop's condition lets it look at every "
+            + "item it should - for a binary search, low <= high, with low = mid + 1 and high = mid - 1 - and that it gives up "
+            + "only after the loop has looked everywhere.",
+            ""),
+
         GuideFor(["analysis-repeated-search"], "Searching from the start on every pass",
             "Looking for something in a list, or in a piece of text, means going through it from the start until it "
             + "turns up. Doing that inside a loop means doing it again on every pass, so when the loop and the list both "

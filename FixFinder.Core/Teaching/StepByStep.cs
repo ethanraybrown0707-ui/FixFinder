@@ -68,6 +68,8 @@ public static class StepByStep
             "The program ran to the end, but what it printed is not what you said it should print.",
         ("stopped-before-expected-output", _) =>
             "The program stopped before it had printed everything you said it should print.",
+        ("algorithm-sort-wrong" or "algorithm-search-wrong", _) =>
+            "The program can run without an error, but when FixFinder called this function with a list of its own, the answer came back wrong - the list is in what is wrong.",
         (_, FindingKind.Syntax) when finding.Severity == Severity.Error =>
             $"{Capitalised(language)} could not make sense of this, so the program did not run - none of it, or, for a file another one " +
             "uses, none of this file.",
@@ -95,6 +97,8 @@ public static class StepByStep
             "Check it again: once its loops can end - or the input it waits for is given - the program finishes inside its time.",
         ("wrong-output" or "stopped-before-expected-output", _) =>
             "Check it again, with the same expected output: this finding goes when the program prints exactly that.",
+        ("algorithm-sort-wrong" or "algorithm-search-wrong", _) =>
+            "Check it again: this finding goes when the function gives the right answer for every list FixFinder calls it with.",
         (_, FindingKind.Syntax) when finding.Severity == Severity.Error =>
             $"Check it again. Once this is right, {language} reads on past it, and the next mistake, if there is one, is the one reported.",
         (_, FindingKind.Runtime) when finding.Severity == Severity.Error =>

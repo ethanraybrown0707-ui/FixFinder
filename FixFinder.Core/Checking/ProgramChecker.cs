@@ -171,9 +171,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
     }
 
-    /// <summary>How many of the findings reported came from reading the code - its patterns and its analyses.</summary>
+    /// <summary>
+    /// How many of the findings reported are mistakes in the code: found by its patterns and its analyses, or by calling a
+    /// sort or a search it was recognised to be.
+    /// </summary>
     private int FoundInTheCode() =>
-        _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal));
+        _findings.Count(f => f.RuleId.StartsWith("logic-", StringComparison.Ordinal) || f.RuleId.StartsWith("analysis-", StringComparison.Ordinal) ||
+                             f.RuleId.StartsWith("algorithm-", StringComparison.Ordinal));
 
     /// <summary>
     /// A line the program printed, as it is shown: for a notebook's code, with each place in the script its cells were run
@@ -2079,6 +2083,17 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 findings = await Analysis.Dynamic.JavaScriptConfirmation.ConfirmAsync(findings, program, node, cancellationToken);
             }
 
+            // A sort or a search recognised in a Python program is called on lists of FixFinder's own, to see it do what it should.
+            var triedWrong = 0;
+            if (!_codeOnly && program.Language == SourceLanguage.Python && _recognised.Count > 0 && PythonInterpreter(launch) is { } trialPython)
+            {
+                Progress?.Invoke(CheckLane.Logic, "Calling the sorts and searches it recognised...");
+                var tried = await Analysis.Recognition.AlgorithmTrial.TryAsync(_recognised, program, trialPython, cancellationToken);
+                _recognised = tried.Seen;
+                foreach (var wrong in tried.Findings) Add(wrong);
+                triedWrong = tried.Findings.Count;
+            }
+
             foreach (var finding in findings)
             {
                 // A change an analysis worked out is checked the way a pattern's is: a copy of the file with it has to compile.
@@ -2093,7 +2108,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 }
             }
 
-            return findings.Count;
+            return findings.Count + triedWrong;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

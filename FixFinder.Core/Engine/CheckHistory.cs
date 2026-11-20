@@ -58,11 +58,13 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
     public const string CodePrefix = "code:";
 
     /// <summary>
-    /// Whether only a run finds it: a crash, or what the program printed set beside what it should have. Everything else
-    /// is found in the code itself - by the compiler, the patterns and the analyses - whether or not the program runs.
+    /// Whether only a run finds it: a crash, what the program printed set beside what it should have, or a sort or a search
+    /// called on lists of FixFinder's own. Everything else is found in the code itself - by the compiler, the patterns and
+    /// the analyses - whether or not the program runs.
     /// </summary>
     public static bool OnlyARunFinds(Finding finding) =>
-        finding.Kind == FindingKind.Runtime || finding.RuleId is "wrong-output" or "stopped-before-expected-output";
+        finding.Kind == FindingKind.Runtime ||
+        finding.RuleId is "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong";
 
     /// <summary>The code of the finding's line, trimmed, or nothing for a finding about the whole file.</summary>
     private static string LineOf(Finding finding)

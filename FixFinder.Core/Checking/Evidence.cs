@@ -43,6 +43,10 @@ public static class Evidence
         {
             parts.Add("the program was run with what you gave it, and stopped before it printed what you said it should");
         }
+        else if (finding.RuleId is "algorithm-sort-wrong" or "algorithm-search-wrong")
+        {
+            parts.Add("the function was called on lists of FixFinder's own, and one came back wrong");
+        }
         else if (finding.FoundBy is { Length: > 0 } technique)
         {
             parts.Add($"following the values through the code - {technique} - showed it");
@@ -77,7 +81,7 @@ public static class Evidence
     {
         { Confirmation.Length: > 0 } => "run reproduced it",
         { Error: not null, Kind: FindingKind.Syntax } => "compiler said so",
-        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" } => "seen when it ran",
+        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" } => "seen when it ran",
         { Witness.Length: > 0 } => "failing input worked out",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",

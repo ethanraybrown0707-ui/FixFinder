@@ -1084,6 +1084,8 @@
                                                Foreground="{DynamicResource TextBrush}"/>
                                     <TextBlock Text="{Binding WhatToKnow}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
                                                Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <TextBlock desktop:InlineCode.Text="{Binding Tried}" FontSize="12.5" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}" Visibility="{Binding HasTried, Converter={StaticResource Visible}}"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

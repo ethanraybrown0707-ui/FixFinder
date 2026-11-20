@@ -162,9 +162,11 @@ public class AlgorithmRecognitionTests : IDisposable
         var seen = Assert.Single(report.Recognised);
         Assert.Equal(("bubble", 3, "a bubble sort"), (seen.Function, seen.Line, seen.Algorithm));
 
-        // Read again without being run, as the window reads it each time the file is saved, it says the same.
+        // Read again without being run, as the window reads it each time the file is saved, it says the same - all but
+        // what calling it showed, as nothing is called when nothing is run.
         var read = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckCodeAsync(TargetFactory.FromFile(path));
-        Assert.Equal(report.Recognised, read.Recognised);
+        Assert.Equal(report.Recognised.Select(seen => seen with { Tried = null }), read.Recognised);
+        Assert.Null(Assert.Single(read.Recognised).Tried);
 
         var page = new ReportPage
         {

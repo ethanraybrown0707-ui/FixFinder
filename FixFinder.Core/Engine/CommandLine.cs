@@ -117,7 +117,7 @@ public static class CommandLine
             await errors.WriteLineAsync($"try: typing {tried.TypedSaid} printed \"{string.Join(" / ", tried.Printed)}\"" +
                                         (tried.StoppedWith is { } stopped ? $" and stopped with {stopped}" : ""));
         foreach (var seen in report.Recognised)
-            await errors.WriteLineAsync($"algorithm: {Path.GetFileName(seen.File)}:{seen.Line}: {seen.Said}");
+            await errors.WriteLineAsync($"algorithm: {Path.GetFileName(seen.File)}:{seen.Line}: {seen.Said}" + (seen.Tried is { } tried ? $" {tried}" : ""));
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
 

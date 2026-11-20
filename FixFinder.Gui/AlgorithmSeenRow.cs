@@ -11,4 +11,9 @@ public sealed class AlgorithmSeenRow(AlgorithmSeen seen)
     public string HowItWorks => char.ToUpperInvariant(seen.HowItWorks[0]) + seen.HowItWorks[1..] + ".";
 
     public string WhatToKnow => seen.WhatToKnow;
+
+    /// <summary>What calling it on lists of FixFinder's own showed, when it was called.</summary>
+    public string Tried => seen.Tried ?? "";
+
+    public bool HasTried => seen.Tried is not null;
 }

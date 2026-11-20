@@ -10,8 +10,44 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// <param name="Algorithm">What it looks like: "a binary search".</param>
 /// <param name="HowItWorks">What in the code makes it look so, in the code's own names.</param>
 /// <param name="WhatToKnow">What that algorithm needs, or costs, whoever writes it.</param>
+/// <summary>What a search gives back when it finds what it looks for.</summary>
+public enum SearchGives
+{
+    /// <summary>Where it is: return mid, return index.</summary>
+    Position,
+
+    /// <summary>The item itself: return item.</summary>
+    Item,
+
+    /// <summary>That it is there: return True.</summary>
+    Truth,
+}
+
 public sealed record AlgorithmSeen(string File, int Line, string Function, string Algorithm, string HowItWorks, string WhatToKnow)
 {
+    /// <summary>The name the code gives the list the algorithm works on - items - when it is a plain name.</summary>
+    public string? List { get; init; }
+
+    /// <summary>
+    /// The name the code gives what a search looks for - target - when it is a plain name; null for a sort.
+    /// </summary>
+    public string? Sought { get; init; }
+
+    /// <summary>
+    /// What a search gives back when it finds the value, read from the code; null for a sort, or when it cannot be
+    /// told.
+    /// </summary>
+    public SearchGives? Gives { get; init; }
+
+    /// <summary>
+    /// What calling the function on lists of its own showed, when it was called: every one right, or the first that was
+    /// not.
+    /// </summary>
+    public string? Tried { get; init; }
+
+    /// <summary>Whether it is a sort, whose result is the same items in order, rather than a search.</summary>
+    public bool IsSort => Algorithm.EndsWith(" sort", StringComparison.Ordinal);
+
     /// <summary>The whole of it as one sentence: "`find` looks like a binary search: it keeps ...".</summary>
     public string Said =>
         $"{(Function == AlgorithmRecognition.TopLevelCode ? "The top-level code" : $"`{Function}`")} looks like {Algorithm}: {HowItWorks}. {WhatToKnow}";
@@ -47,14 +83,38 @@ public static class AlgorithmRecognition
             foreach (var recognise in Recognisers)
             {
                 if (recognise(function, statements) is not { } found) continue;
-                seen.Add(new AlgorithmSeen(function.Span.File, found.Line > 0 ? found.Line : function.Span.Line, name, found.Algorithm, found.HowItWorks, found.WhatToKnow));
+                seen.Add(new AlgorithmSeen(function.Span.File, found.Line > 0 ? found.Line : function.Span.Line, name, found.Algorithm, found.HowItWorks, found.WhatToKnow)
+                {
+                    List = found.List,
+                    Sought = found.Sought,
+                    Gives = found.Gives,
+                });
             }
         }
 
         return seen;
     }
 
-    private sealed record Found(int Line, string Algorithm, string HowItWorks, string WhatToKnow);
+    private sealed record Found(int Line, string Algorithm, string HowItWorks, string WhatToKnow, string? List = null, string? Sought = null)
+    {
+        public SearchGives? Gives { get; init; }
+    }
+
+    /// <summary>
+    /// What a branch that found the value gives back: the position it was found at, the item, or true - null when it
+    /// returns anything else, or leaves without returning.
+    /// </summary>
+    private static SearchGives? GivenBack(IReadOnlyList<Stmt> found, string? position, string item) =>
+        found.OfType<Return>().FirstOrDefault()?.Value switch
+        {
+            Name { Identifier: var name } when name == position => SearchGives.Position,
+            Name { Identifier: var name } when name == item => SearchGives.Item,
+            { } value when IrText.Of(value) == item => SearchGives.Item,
+            Literal { Kind: LiteralKind.Boolean, Value: true } => SearchGives.Truth,
+            _ => null,
+        };
+
+    private static string? NameOf(Expr expression) => expression is Name { Identifier: var name } ? name : null;
 
     private static readonly Func<IrFunction, IReadOnlyList<Stmt>, Found?>[] Recognisers =
     [
@@ -94,7 +154,13 @@ public static class AlgorithmRecognition
                 return new Found(loop.Span.Line, "a binary search",
                     $"it keeps a range from `{low}` to `{high}`, looks at its middle, `{mid}`, compares `{IrText.Of(probed)}` with what it looks for, " +
                     $"and moves `{low}` or `{high}` past the middle, halving the range each time round",
-                    "A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.");
+                    "A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.",
+                    NameOf(probed.Target), SoughtBeside(inside, probed))
+                {
+                    Gives = inside.OfType<If>().Where(branch => branch.Condition is Binary { Operator: BinaryOperator.Equal } equal &&
+                                                                (IrText.Of(equal.Left) == IrText.Of(probed) || IrText.Of(equal.Right) == IrText.Of(probed)))
+                        .Select(branch => GivenBack(branch.Then, mid, IrText.Of(probed))).FirstOrDefault(given => given is not null),
+                };
             }
         }
 
@@ -129,7 +195,11 @@ public static class AlgorithmRecognition
                     var over = looked is ElementAccess { Target: var list } ? $"`{IrText.Of(list)}`" : loop is ForEach { Items: var items } ? $"`{IrText.Of(items)}`" : "the list";
                     return new Found(loop.Span.Line, "a linear search",
                         $"it goes through {over} one item at a time and stops at the first, `{IrText.Of(looked)}`, that equals `{IrText.Of(sought)}`",
-                        "A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.");
+                        "A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.",
+                        looked is ElementAccess { Target: var indexed } ? NameOf(indexed) : loop is ForEach { Items: var walked } ? NameOf(walked) : null, NameOf(sought))
+                    {
+                        Gives = GivenBack(check.Then, looked is ElementAccess { Key: Name position } ? position.Identifier : null, IrText.Of(looked)),
+                    };
                 }
             }
         }
@@ -157,7 +227,8 @@ public static class AlgorithmRecognition
                     return new Found(outer.Span.Line, "a bubble sort",
                         $"it goes over `{IrText.Of(first.Target)}` again and again, and wherever two neighbours, `{IrText.Of(first)}` and `{IrText.Of(second)}`, " +
                         "are out of order, swaps them",
-                        "A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.");
+                        "A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.",
+                        NameOf(first.Target));
                 }
             }
         }
@@ -198,7 +269,8 @@ public static class AlgorithmRecognition
                     return new Found(outer.Span.Line, "a selection sort",
                         $"for each position `{at}` it looks through the rest for the item that should come first, keeping its position in `{chosen}`, " +
                         $"then swaps `{IrText.Of(swap.First)}` and `{IrText.Of(swap.Second)}`",
-                        "A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.");
+                        "A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.",
+                        swap.First is ElementAccess { Target: var swapped } ? NameOf(swapped) : null);
                 }
             }
         }
@@ -235,7 +307,8 @@ public static class AlgorithmRecognition
                     return new Found(outer.Span.Line, "an insertion sort",
                         $"it takes each item out into `{key}`, moves the items before it that should come after it one place along, " +
                         $"`{IrText.Of(shift.Target)} = {IrText.Of(shift.Value)}`, and puts `{key}` back in the gap",
-                        "An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.");
+                        "An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.",
+                        NameOf(((ElementAccess)taken.Value).Target));
                 }
             }
         }
@@ -308,6 +381,15 @@ public static class AlgorithmRecognition
     private static bool Halves(Expr expression) => IrWalk.Within(expression).Any(part => part is
         Binary { Operator: BinaryOperator.Divide or BinaryOperator.FloorDivide, Right: Literal { Kind: LiteralKind.Integer, Value: 2L } } or
         Binary { Operator: BinaryOperator.ShiftRight, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } });
+
+    /// <summary>
+    /// What the item at the middle is tested equal to - target in items[mid] == target - when it is a plain name.
+    /// </summary>
+    private static string? SoughtBeside(IEnumerable<Stmt> statements, ElementAccess probed) =>
+        statements.SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within).OfType<Binary>()
+            .Where(compare => compare.Operator == BinaryOperator.Equal)
+            .Select(compare => IrText.Of(compare.Left) == IrText.Of(probed) ? NameOf(compare.Right) : IrText.Of(compare.Right) == IrText.Of(probed) ? NameOf(compare.Left) : null)
+            .FirstOrDefault(name => name is not null);
 
     /// <summary>The item at a position that some comparison in the statements reads: items[mid] == target.</summary>
     private static ElementAccess? ComparedItemAt(IEnumerable<Stmt> statements, string position) =>

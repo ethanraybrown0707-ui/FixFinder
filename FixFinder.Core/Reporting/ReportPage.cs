@@ -107,7 +107,9 @@ public sealed record ReportPage
                 var who = seen.Function == Analysis.Recognition.AlgorithmRecognition.TopLevelCode ? "The top-level code" : $"`{seen.Function}`";
                 page.Append("<li><strong>").Append(Prose($"{who}, line {seen.Line}: {seen.Algorithm}")).Append("</strong>")
                     .Append("<p>").Append(Prose(char.ToUpperInvariant(seen.HowItWorks[0]) + seen.HowItWorks[1..] + ".")).Append("</p>")
-                    .Append("<p>").Append(Prose(seen.WhatToKnow)).Append("</p></li>\n");
+                    .Append("<p>").Append(Prose(seen.WhatToKnow)).Append("</p>");
+                if (seen.Tried is { } tried) page.Append("<p>").Append(Prose(tried)).Append("</p>");
+                page.Append("</li>\n");
             }
 
             page.Append("</ul>\n</section>\n");
