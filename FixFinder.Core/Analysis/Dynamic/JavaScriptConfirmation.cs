@@ -78,18 +78,7 @@ public static partial class JavaScriptConfirmation
             arguments.Add(value);
         }
 
-        string source;
-        try
-        {
-            source = await File.ReadAllTextAsync(file, cancellationToken);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-
-        var lines = source.Replace("\r\n", "\n").Split('\n');
-        if (lines.Any(line => ModuleSyntax().IsMatch(line)) || DefinitionsOnly(lines, moduleBody.Body) is not { } kept) return null;
+        if (await DefinitionsOfAsync(file, program, cancellationToken) is not { } kept) return null;
 
         var called = $"{function.Name}({string.Join(", ", arguments)})";
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-confirm", Guid.NewGuid().ToString("N")[..12]);
@@ -124,6 +113,31 @@ public static partial class JavaScriptConfirmation
         {
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// A JavaScript file with only its definitions kept - each top-level statement that runs anything left as empty lines -
+    /// for code put at its end to call its functions; null for an ES module, a file that cannot be read, or one whose kept
+    /// and left statements share a line.
+    /// </summary>
+    internal static async Task<string[]?> DefinitionsOfAsync(string file, IrProgram program, CancellationToken cancellationToken)
+    {
+        var moduleBody = program.AllFunctions.FirstOrDefault(each => each.Name == IrFunction.ModuleBody &&
+                                                                     string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase));
+        if (moduleBody is null) return null;
+
+        string source;
+        try
+        {
+            source = await File.ReadAllTextAsync(file, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        var lines = source.Replace("\r\n", "\n").Split('\n');
+        return lines.Any(line => ModuleSyntax().IsMatch(line)) ? null : DefinitionsOnly(lines, moduleBody.Body);
     }
 
     /// <summary>
@@ -188,7 +202,7 @@ public static partial class JavaScriptConfirmation
         """;
 
     /// <summary>Compiles the copy as the program's own file - its name, its folder's modules - so its requires resolve as the program's do.</summary>
-    private const string Loader = """
+    internal const string Loader = """
         const Module = require("module");
         const path = require("path");
         const fs = require("fs");

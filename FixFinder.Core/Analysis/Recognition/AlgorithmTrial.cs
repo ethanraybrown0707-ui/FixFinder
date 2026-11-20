@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using FixFinder.Core.Analysis.Dynamic;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Checking;
 using FixFinder.Core.Checking.Guides;
@@ -16,21 +18,25 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// recognition, and the first list it got wrong becomes a finding, with what it was called with and what it gave.
 /// </summary>
 /// <remarks>
-/// For a Python function at the top of its file whose parameters are the list, what a search looks for, and a length
-/// - n, count, size, length - or have defaults; it is called from a copy of the file's definitions alone, as the
-/// confirmations call one, so the program's own top-level code never runs. A sort that gives back nothing is read from
+/// For a Python function at the top of its file, or a JavaScript one at the top of a CommonJS file, whose parameters are
+/// the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
+/// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs. A sort that gives back nothing is read from
 /// the list it was given, which it sorted in place. A sort that gives back every list largest first is a sort too. A
 /// binary search that misses on lists in order is tried on the same lists in reverse order, which it may be written for.
-/// A call still going after 2 seconds ends the trial, and nothing is said of it.
+/// A call still going after 2 seconds ends a Python trial, and a JavaScript one still going when its run's 10 seconds are
+/// up ends there; nothing is said of either.
 /// </remarks>
-public static class AlgorithmTrial
+public static partial class AlgorithmTrial
 {
     private const string TrialFile = "fixfinder_trial.py";
     private const string PlanFile = "fixfinder_trial.json";
+    private const string LoaderFile = "fixfinder_trial_loader.js";
+    private const string CopyFile = "program_copy.js";
     private const string Said = "FIXFINDER-TRIAL ";
     private const int MostTried = 6;
 
     private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan JavaScriptTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Lists to sort, shortest first, so the first one a sort gets wrong is the shortest it gets wrong: empty, of one, of
@@ -53,7 +59,8 @@ public static class AlgorithmTrial
 
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
-    public static async Task<Outcome> TryAsync(IReadOnlyList<AlgorithmSeen> recognised, IrProgram program, string python, CancellationToken cancellationToken)
+    /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one.</param>
+    public static async Task<Outcome> TryAsync(IReadOnlyList<AlgorithmSeen> recognised, IrProgram program, string runtime, CancellationToken cancellationToken)
     {
         var seen = recognised.ToList();
         var findings = new List<Finding>();
@@ -65,9 +72,9 @@ public static class AlgorithmTrial
             if (Roles(recognition, program) is not { } roles) continue;
             tried++;
 
-            var (said, broken) = await JudgedAsync(recognition, roles, python, ascending: true, cancellationToken);
+            var (said, broken) = await JudgedAsync(recognition, roles, program, runtime, ascending: true, cancellationToken);
             if (broken is not null && recognition.Algorithm == "a binary search" &&
-                await JudgedAsync(recognition, roles, python, ascending: false, cancellationToken) is { Broken: null, Said: { } reversed })
+                await JudgedAsync(recognition, roles, program, runtime, ascending: false, cancellationToken) is { Broken: null, Said: { } reversed })
                 (said, broken) = (reversed, null);
 
             if (said is null) continue;
@@ -79,31 +86,40 @@ public static class AlgorithmTrial
     }
 
     /// <summary>
-    /// The part each of the function's parameters plays - the list, what a search looks for, the list's length - or null
-    /// when the function cannot be called that way: not a Python function at the top of its file, or a parameter that
-    /// is none of those and has no default.
+    /// The part each of the function's parameters plays, in their order - the list, what a search looks for, the list's
+    /// length, or none for one left to its default - or null when the function cannot be called that way: not a Python
+    /// function at the top of its file nor a JavaScript one at the top of a CommonJS file, or a parameter that is none of
+    /// those and has no default.
     /// </summary>
-    private static Dictionary<string, string>? Roles(AlgorithmSeen recognition, IrProgram program)
+    private static List<(string Name, string? Role)>? Roles(AlgorithmSeen recognition, IrProgram program)
     {
-        if (!recognition.File.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || recognition.Function == AlgorithmRecognition.TopLevelCode ||
-            recognition.Function.Contains('.') || recognition.List is null || !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
+        var language = Path.GetExtension(recognition.File).ToLowerInvariant() switch
+        {
+            ".py" => SourceLanguage.Python,
+            ".js" or ".cjs" => SourceLanguage.JavaScript,
+            _ => (SourceLanguage?)null,
+        };
+        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
+            !Identifier().IsMatch(recognition.Function) || recognition.List is null || !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
         var function = program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each.Owner is null &&
+                                                                   each.EnclosedBy is null or IrFunction.ModuleBody &&
                                                                    string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
         if (function is null || function.IsAsync || function.IsGenerator) return null;
 
-        var roles = new Dictionary<string, string>(StringComparer.Ordinal);
+        var roles = new List<(string Name, string? Role)>();
         foreach (var parameter in function.Parameters)
         {
-            if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords) return null;
-            if (parameter.Name == recognition.List) roles[parameter.Name] = "list";
-            else if (parameter.Name == recognition.Sought) roles[parameter.Name] = "sought";
-            else if (LengthNames.Contains(parameter.Name)) roles[parameter.Name] = "length";
-            else if (parameter.Default is null) return null;
+            if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
+            if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
+            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, "sought"));
+            else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
+            else if (parameter.Default is not null) roles.Add((parameter.Name, null));
+            else return null;
         }
 
-        return roles.ContainsValue("list") && (recognition.IsSort || roles.ContainsValue("sought")) ? roles : null;
+        return roles.Any(role => role.Role == "list") && (recognition.IsSort || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
     /// <summary>
@@ -111,11 +127,14 @@ public static class AlgorithmTrial
     /// first that was not - and that one again, to be a finding. Both null when a call did not finish, or gave back
     /// something it cannot be judged by.
     /// </summary>
-    private static async Task<(string? Said, string? Broken)> JudgedAsync(AlgorithmSeen recognition, Dictionary<string, string> roles, string python,
-        bool ascending, CancellationToken cancellationToken)
+    private static async Task<(string? Said, string? Broken)> JudgedAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IrProgram program,
+        string runtime, bool ascending, CancellationToken cancellationToken)
     {
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList() : SearchTrials(recognition, ascending);
-        if (await RunAsync(recognition, roles, trials, python, cancellationToken) is not { } results) return (null, null);
+        var results = program.Language == SourceLanguage.Python
+            ? await RunPythonAsync(recognition, roles, trials, runtime, cancellationToken)
+            : await RunJavaScriptAsync(recognition, roles, trials, program, runtime, cancellationToken);
+        if (results is null) return (null, null);
 
         return recognition.IsSort ? JudgeSort(recognition, results) : JudgeSearch(recognition, results, trials, ascending);
     }
@@ -221,8 +240,9 @@ public static class AlgorithmTrial
                     return (null, null);
             }
 
-            if (found && present < 0) return Broken($"{called} gave {PythonText(returned)} - but {sought} is not in the list");
-            if (!found && present >= 0) return Broken($"{called} gave {PythonText(returned)} - but {sought} is there, at position {present}");
+            var gave = AsWritten(returned, recognition.File);
+            if (found && present < 0) return Broken($"{called} gave {gave} - but {sought} is not in the list");
+            if (!found && present >= 0) return Broken($"{called} gave {gave} - but {sought} is there, at position {present}");
         }
 
         var lists = trials.Select(trial => trial.List).Distinct().Count();
@@ -260,14 +280,14 @@ public static class AlgorithmTrial
     /// the call, or what stopped it. Null when the run gave no answer for every trial - one still going, or Python not
     /// reading the file.
     /// </summary>
-    private static async Task<IReadOnlyList<Result>?> RunAsync(AlgorithmSeen recognition, Dictionary<string, string> roles, IReadOnlyList<Trial> trials,
+    private static async Task<IReadOnlyList<Result>?> RunPythonAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
         string python, CancellationToken cancellationToken)
     {
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
         try
         {
             Directory.CreateDirectory(folder);
-            var plan = JsonSerializer.Serialize(new { roles, trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought }) });
+            var plan = Plan(roles, trials);
             await File.WriteAllTextAsync(Path.Combine(folder, PlanFile), plan, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(folder, TrialFile), Script, new UTF8Encoding(false), cancellationToken);
 
@@ -280,20 +300,7 @@ public static class AlgorithmTrial
                 StandardInput = "",
             }, cancellationToken);
 
-            var results = new List<Result>();
-            foreach (var line in ran.Lines.Where(line => line.Stream == StreamKind.StdOut && line.Text.StartsWith(Said, StringComparison.Ordinal)))
-            {
-                using var answer = JsonDocument.Parse(line.Text[Said.Length..]);
-                var root = answer.RootElement;
-                if (root.TryGetProperty("unfinished", out _)) return null;
-                var trial = trials[root.GetProperty("trial").GetInt32()];
-                results.Add(new Result(trial,
-                    root.TryGetProperty("returned", out var returned) ? returned.Clone() : null,
-                    root.TryGetProperty("after", out var after) ? after.Clone() : null,
-                    root.TryGetProperty("error", out var error) ? error.GetString() : null));
-            }
-
-            return results.Count == trials.Count ? results : null;
+            return Results(ran, trials);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -303,6 +310,73 @@ public static class AlgorithmTrial
         {
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// The function called once on each trial, from the end of a copy of its file that keeps only the file's definitions,
+    /// compiled by Node under the program's own name: what it gave back, the list after the call, or what it threw. Null
+    /// when the file cannot be copied so - an ES module - or the run gave no answer for every trial.
+    /// </summary>
+    private static async Task<IReadOnlyList<Result>?> RunJavaScriptAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
+        IrProgram program, string node, CancellationToken cancellationToken)
+    {
+        var file = Path.GetFullPath(recognition.File);
+        if (await JavaScriptConfirmation.DefinitionsOfAsync(file, program, cancellationToken) is not { } kept) return null;
+
+        var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
+        try
+        {
+            Directory.CreateDirectory(folder);
+            var copy = Path.Combine(folder, CopyFile);
+            await File.WriteAllTextAsync(copy, string.Join("\n", kept) + "\n" + JavaScriptTrials(recognition.Function, Plan(roles, trials)), new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(folder, LoaderFile), JavaScriptConfirmation.Loader, new UTF8Encoding(false), cancellationToken);
+
+            var ran = await new TargetRunner().RunAsync(new TargetSpec
+            {
+                ExecutablePath = node,
+                Arguments = $"\"{Path.Combine(folder, LoaderFile)}\" \"{file}\" \"{copy}\"",
+                WorkingDirectory = Path.GetDirectoryName(file)!,
+                Timeout = JavaScriptTimeout,
+                StandardInput = "",
+            }, cancellationToken);
+
+            return Results(ran, trials);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>What to call the function with: each parameter's part, by name and in order, and each trial's list and value.</summary>
+    private static string Plan(List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials) => JsonSerializer.Serialize(new
+    {
+        roles = roles.Where(role => role.Role is not null).ToDictionary(role => role.Name, role => role.Role),
+        parameters = roles.Select(role => role.Role),
+        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought }),
+    });
+
+    /// <summary>Each trial's answer, read from the lines the run printed; null unless every trial answered.</summary>
+    private static IReadOnlyList<Result>? Results(TargetRunResult ran, IReadOnlyList<Trial> trials)
+    {
+        var results = new List<Result>();
+        foreach (var line in ran.Lines.Where(line => line.Stream == StreamKind.StdOut && line.Text.StartsWith(Said, StringComparison.Ordinal)))
+        {
+            using var answer = JsonDocument.Parse(line.Text[Said.Length..]);
+            var root = answer.RootElement;
+            if (root.TryGetProperty("unfinished", out _)) return null;
+            var trial = trials[root.GetProperty("trial").GetInt32()];
+            results.Add(new Result(trial,
+                root.TryGetProperty("returned", out var returned) ? returned.Clone() : null,
+                root.TryGetProperty("after", out var after) ? after.Clone() : null,
+                root.TryGetProperty("error", out var error) ? error.GetString() : null));
+        }
+
+        return results.Count == trials.Count ? results : null;
     }
 
     private static List<long>? Numbers(JsonElement? value)
@@ -322,17 +396,54 @@ public static class AlgorithmTrial
 
     private static string Show(IEnumerable<long> list) => "[" + string.Join(", ", list) + "]";
 
-    /// <summary>A value as Python writes it: None, True, -1.</summary>
-    private static string PythonText(JsonElement value) => value.ValueKind switch
+    /// <summary>A value as the program's language writes it: None, True and 'text' in Python, null, true and "text" in JavaScript.</summary>
+    private static string AsWritten(JsonElement value, string file)
     {
-        JsonValueKind.Null => "None",
-        JsonValueKind.True => "True",
-        JsonValueKind.False => "False",
-        JsonValueKind.Number => value.GetRawText(),
-        JsonValueKind.String => "'" + value.GetString() + "'",
-        JsonValueKind.Array => "[" + string.Join(", ", value.EnumerateArray().Select(PythonText)) + "]",
-        _ => value.TryGetProperty("repr", out var shown) ? shown.GetString() ?? "" : value.GetRawText(),
-    };
+        var python = file.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
+        return value.ValueKind switch
+        {
+            JsonValueKind.Null => python ? "None" : "null",
+            JsonValueKind.True => python ? "True" : "true",
+            JsonValueKind.False => python ? "False" : "false",
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.String => python ? "'" + value.GetString() + "'" : JsonSerializer.Serialize(value.GetString()),
+            JsonValueKind.Array => "[" + string.Join(", ", value.EnumerateArray().Select(item => AsWritten(item, file))) + "]",
+            _ => value.TryGetProperty("repr", out var shown) ? shown.GetString() ?? "" : value.GetRawText(),
+        };
+    }
+
+    /// <summary>
+    /// The calls put at the end of a JavaScript copy, inside the file's own scope: each trial's list and value given to
+    /// the function by its parameters' parts, and what it gave back, the list after it, or what it threw, written out one
+    /// line each; then Node is ended.
+    /// </summary>
+    private static string JavaScriptTrials(string function, string plan) => $$"""
+        ;(function () {
+            const fixfinderPlan = {{plan}};
+            const fixfinderPlain = (value, depth) =>
+                value === undefined || value === null || (typeof value === "number" && !Number.isFinite(value)) ? null
+                : typeof value === "number" || typeof value === "boolean" || typeof value === "string" ? value
+                : Array.isArray(value) && depth < 3 ? value.map(item => fixfinderPlain(item, depth + 1))
+                : { repr: String(value).slice(0, 80) };
+            fixfinderPlan.trials.forEach((trial, index) => {
+                const list = trial.list.slice();
+                const given = fixfinderPlan.parameters.map(role =>
+                    role === "list" ? list : role === "sought" ? trial.sought : role === "length" ? trial.list.length : undefined);
+                const outcome = { trial: index };
+                try {
+                    outcome.returned = fixfinderPlain({{function}}(...given), 0);
+                } catch (failure) {
+                    outcome.error = ((failure && failure.name) || "Error") + (failure && failure.message ? ": " + String(failure.message).slice(0, 200) : "");
+                }
+                outcome.after = fixfinderPlain(list, 0);
+                require("fs").writeSync(1, "{{Said}}" + JSON.stringify(outcome) + "\n");
+            });
+            process.exit(0);
+        })();
+        """;
+
+    [GeneratedRegex(@"^[A-Za-z_$][\w$]*$")]
+    private static partial Regex Identifier();
 
     /// <summary>
     /// Calls the function once for each trial, from the file's definitions alone - its functions, classes, imports and
