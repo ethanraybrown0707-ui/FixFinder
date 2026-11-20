@@ -2083,18 +2083,20 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
                 findings = await Analysis.Dynamic.JavaScriptConfirmation.ConfirmAsync(findings, program, node, cancellationToken);
             }
 
-            // A sort or a search recognised in a Python or JavaScript program is called on lists of FixFinder's own, to see it do what it should.
+            // A sort or a search recognised in a Python, JavaScript or Java program is called on lists of FixFinder's own, to see it do what it should.
             var triedWrong = 0;
+            var trialJdk = program.Language == SourceLanguage.Java ? Analysis.Frontends.JavaFrontend.FindTools(launch.ChosenFile) : null;
             var trialRuntime = program.Language switch
             {
                 SourceLanguage.Python => PythonInterpreter(launch),
                 SourceLanguage.JavaScript => NodeOf(launch),
+                SourceLanguage.Java => trialJdk?.Javac,
                 _ => null,
             };
             if (!_codeOnly && _recognised.Count > 0 && trialRuntime is { } runtime)
             {
                 Progress?.Invoke(CheckLane.Logic, "Calling the sorts and searches it recognised...");
-                var tried = await Analysis.Recognition.AlgorithmTrial.TryAsync(_recognised, program, runtime, cancellationToken);
+                var tried = await Analysis.Recognition.AlgorithmTrial.TryAsync(_recognised, program, runtime, cancellationToken, trialJdk?.Java);
                 _recognised = tried.Seen;
                 foreach (var wrong in tried.Findings) Add(wrong);
                 triedWrong = tried.Findings.Count;

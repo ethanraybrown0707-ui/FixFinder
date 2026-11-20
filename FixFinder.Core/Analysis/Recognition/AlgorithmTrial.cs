@@ -11,20 +11,23 @@ using FixFinder.Core.Execution;
 namespace FixFinder.Core.Analysis.Recognition;
 
 /// <summary>
-/// What an algorithm recognised in the code must do, tried on lists of FixFinder's own: a function that looks like a sort
-/// is called with lists empty, of one item, in order, in reverse order, with repeats and below zero, and must give back
-/// the same items in order each time; one that looks like a search is called with lists in order and each value in them,
-/// and values not in them, and must find every one that is there and none that is not. What it does is said beside the
-/// recognition, and the first list it got wrong becomes a finding, with what it was called with and what it gave.
+/// What an algorithm recognised in the code must do, tried on lists of FixFinder's own: a function that looks like a
+/// sort is called with lists empty, of one item, in order, in reverse order, with repeats and below zero, and must give
+/// back the same items in order each time; one that looks like a search is called with lists in order and each value in
+/// them, and values not in them, and must find every one that is there and none that is not. What it does is said
+/// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
+/// gave.
 /// </summary>
 /// <remarks>
-/// For a Python function at the top of its file, or a JavaScript one at the top of a CommonJS file, whose parameters are
-/// the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
-/// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs. A sort that gives back nothing is read from
-/// the list it was given, which it sorted in place. A sort that gives back every list largest first is a sort too. A
-/// binary search that misses on lists in order is tried on the same lists in reverse order, which it may be written for.
-/// A call still going after 2 seconds ends a Python trial, and a JavaScript one still going when its run's 10 seconds are
-/// up ends there; nothing is said of either.
+/// For a Python function at the top of its file, or a JavaScript one at the top of a CommonJS file, whose parameters
+/// are the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
+/// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs.
+/// For a static Java method whose list is an int[], what a search looks for an int, and a length an int, called by
+/// reflection from a small class compiled beside a copy of its file, so the program's own main never runs. A sort that
+/// gives back nothing is read from the list it was given, which it sorted in place. A sort that gives back every list
+/// largest first is a sort too. A binary search that misses on lists in order is tried on the same lists in reverse
+/// order, which it may be written for. A call still going after 2 seconds ends a Python or Java trial, and a JavaScript
+/// one still going when its run's 10 seconds are up ends there; nothing is said of any of them.
 /// </remarks>
 public static partial class AlgorithmTrial
 {
@@ -32,19 +35,23 @@ public static partial class AlgorithmTrial
     private const string PlanFile = "fixfinder_trial.json";
     private const string LoaderFile = "fixfinder_trial_loader.js";
     private const string CopyFile = "program_copy.js";
+    private const string JavaTrialClass = "FixFinderTrial";
     private const string Said = "FIXFINDER-TRIAL ";
     private const int MostTried = 6;
 
     private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan JavaScriptTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CompileTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// Lists to sort, shortest first, so the first one a sort gets wrong is the shortest it gets wrong: empty, of one, of
-    /// two either way, mixed, in reverse order, with repeats, in order, below zero.
+    /// Lists to sort, shortest first, so the first one a sort gets wrong is the shortest it gets wrong: empty, of one,
+    /// of two either way, mixed, in reverse order, with repeats, in order, below zero.
     /// </summary>
     private static readonly int[][] ToSort = [[], [1], [2, 1], [1, 2], [3, 1, 2], [4, 3, 2, 1], [2, 2, 1, 1], [1, 2, 3, 4, 5], [7, -3, 0, 12, -3], [5, 2, 9, 1, 5, 6]];
 
-    /// <summary>Lists to search, in order: empty, of one, of two, of four and six spread out, and one with a repeat.</summary>
+    /// <summary>
+    /// Lists to search, in order: empty, of one, of two, of four and six spread out, and one with a repeat.
+    /// </summary>
     private static readonly int[][] ToSearch = [[], [5], [1, 3], [1, 3, 5, 7], [1, 3, 5, 7, 9, 11], [2, 4, 4, 8]];
 
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
@@ -59,8 +66,11 @@ public static partial class AlgorithmTrial
 
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
-    /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one.</param>
-    public static async Task<Outcome> TryAsync(IReadOnlyList<AlgorithmSeen> recognised, IrProgram program, string runtime, CancellationToken cancellationToken)
+    /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one, the
+    /// javac of a Java one.</param>
+    /// <param name="java">The java of a Java program, beside its javac; nothing for any other.</param>
+    public static async Task<Outcome> TryAsync(IReadOnlyList<AlgorithmSeen> recognised, IrProgram program, string runtime, CancellationToken cancellationToken,
+        string? java = null)
     {
         var seen = recognised.ToList();
         var findings = new List<Finding>();
@@ -72,9 +82,9 @@ public static partial class AlgorithmTrial
             if (Roles(recognition, program) is not { } roles) continue;
             tried++;
 
-            var (said, broken) = await JudgedAsync(recognition, roles, program, runtime, ascending: true, cancellationToken);
+            var (said, broken) = await JudgedAsync(recognition, roles, program, runtime, java, ascending: true, cancellationToken);
             if (broken is not null && recognition.Algorithm == "a binary search" &&
-                await JudgedAsync(recognition, roles, program, runtime, ascending: false, cancellationToken) is { Broken: null, Said: { } reversed })
+                await JudgedAsync(recognition, roles, program, runtime, java, ascending: false, cancellationToken) is { Broken: null, Said: { } reversed })
                 (said, broken) = (reversed, null);
 
             if (said is null) continue;
@@ -88,8 +98,8 @@ public static partial class AlgorithmTrial
     /// <summary>
     /// The part each of the function's parameters plays, in their order - the list, what a search looks for, the list's
     /// length, or none for one left to its default - or null when the function cannot be called that way: not a Python
-    /// function at the top of its file nor a JavaScript one at the top of a CommonJS file, or a parameter that is none of
-    /// those and has no default.
+    /// function at the top of its file, a JavaScript one at the top of a CommonJS file nor a static Java method over an
+    /// int[], or a parameter that is none of those and has no default.
     /// </summary>
     private static List<(string Name, string? Role)>? Roles(AlgorithmSeen recognition, IrProgram program)
     {
@@ -97,15 +107,14 @@ public static partial class AlgorithmTrial
         {
             ".py" => SourceLanguage.Python,
             ".js" or ".cjs" => SourceLanguage.JavaScript,
+            ".java" => SourceLanguage.Java,
             _ => (SourceLanguage?)null,
         };
-        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
-            !Identifier().IsMatch(recognition.Function) || recognition.List is null || !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
+        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode || recognition.List is null ||
+            !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
-        var function = program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each.Owner is null &&
-                                                                   each.EnclosedBy is null or IrFunction.ModuleBody &&
-                                                                   string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
+        var function = language == SourceLanguage.Java ? JavaMethod(recognition, program) : TopLevelFunction(recognition, program);
         if (function is null || function.IsAsync || function.IsGenerator) return null;
 
         var roles = new List<(string Name, string? Role)>();
@@ -117,6 +126,10 @@ public static partial class AlgorithmTrial
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
+
+            // A Java method is found by its parameters' classes: an int[] for the list, an int for the rest.
+            var role = roles[^1].Role;
+            if (language == SourceLanguage.Java && JavaClassOf(parameter.Type, role) is null) return null;
         }
 
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || roles.Any(role => role.Role == "sought")) ? roles : null;
@@ -128,12 +141,17 @@ public static partial class AlgorithmTrial
     /// something it cannot be judged by.
     /// </summary>
     private static async Task<(string? Said, string? Broken)> JudgedAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IrProgram program,
-        string runtime, bool ascending, CancellationToken cancellationToken)
+        string runtime, string? java, bool ascending, CancellationToken cancellationToken)
     {
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList() : SearchTrials(recognition, ascending);
-        var results = program.Language == SourceLanguage.Python
-            ? await RunPythonAsync(recognition, roles, trials, runtime, cancellationToken)
-            : await RunJavaScriptAsync(recognition, roles, trials, program, runtime, cancellationToken);
+        var results = program.Language switch
+        {
+            SourceLanguage.Python => await RunPythonAsync(recognition, roles, trials, runtime, cancellationToken),
+            SourceLanguage.JavaScript => await RunJavaScriptAsync(recognition, roles, trials, program, runtime, cancellationToken),
+            SourceLanguage.Java when java is not null && JavaMethod(recognition, program) is { } method =>
+                await RunJavaAsync(recognition, method, roles, trials, runtime, java, cancellationToken),
+            _ => null,
+        };
         if (results is null) return (null, null);
 
         return recognition.IsSort ? JudgeSort(recognition, results) : JudgeSearch(recognition, results, trials, ascending);
@@ -313,9 +331,9 @@ public static partial class AlgorithmTrial
     }
 
     /// <summary>
-    /// The function called once on each trial, from the end of a copy of its file that keeps only the file's definitions,
-    /// compiled by Node under the program's own name: what it gave back, the list after the call, or what it threw. Null
-    /// when the file cannot be copied so - an ES module - or the run gave no answer for every trial.
+    /// The function called once on each trial, from the end of a copy of its file that keeps only the file's
+    /// definitions, compiled by Node under the program's own name: what it gave back, the list after the call, or what
+    /// it threw. Null when the file cannot be copied so - an ES module - or the run gave no answer for every trial.
     /// </summary>
     private static async Task<IReadOnlyList<Result>?> RunJavaScriptAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
         IrProgram program, string node, CancellationToken cancellationToken)
@@ -352,7 +370,161 @@ public static partial class AlgorithmTrial
         }
     }
 
-    /// <summary>What to call the function with: each parameter's part, by name and in order, and each trial's list and value.</summary>
+    /// <summary>A Python or JavaScript function declared at the top of its file, by the name it is called.</summary>
+    private static IrFunction? TopLevelFunction(AlgorithmSeen recognition, IrProgram program) =>
+        Identifier().IsMatch(recognition.Function)
+            ? program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each.Owner is null && each.EnclosedBy is null or IrFunction.ModuleBody &&
+                                                          string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    /// <summary>A static method of a Java class, by its class and name: Search.find.</summary>
+    private static IrFunction? JavaMethod(AlgorithmSeen recognition, IrProgram program) =>
+        program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each is { IsStatic: true, Owner: not null } &&
+                                                    string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The class a Java parameter is found by, for its part: int[] for the list, int or Integer for what is looked for
+    /// or a length.
+    /// </summary>
+    private static string? JavaClassOf(IrType type, string? role) => (role, type.Name) switch
+    {
+        ("list", "array") when type.Arguments is [{ Name: "int" }] => "int[].class",
+        ("sought" or "length", "int") => "int.class",
+        ("sought", "Integer") => "Integer.class",
+        _ => null,
+    };
+
+    /// <summary>
+    /// The method called once on each trial, by reflection, from a small class compiled beside a copy of its file: what
+    /// it gave back, the array after the call, or what it threw. Null when the copy does not compile on its own, or the
+    /// run gave no answer for every trial.
+    /// </summary>
+    private static async Task<IReadOnlyList<Result>?> RunJavaAsync(AlgorithmSeen recognition, IrFunction method, List<(string Name, string? Role)> roles,
+        IReadOnlyList<Trial> trials, string javac, string java, CancellationToken cancellationToken)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
+        try
+        {
+            Directory.CreateDirectory(folder);
+            var copy = Path.Combine(folder, Path.GetFileName(recognition.File));
+            File.Copy(recognition.File, copy);
+            var source = await File.ReadAllTextAsync(copy, cancellationToken);
+            var owner = (JavaPackage().Match(source) is { Success: true } package ? package.Groups["name"].Value + "." : "") + method.Owner!.Replace('.', '$');
+            var trialClass = Path.Combine(folder, JavaTrialClass + ".java");
+            await File.WriteAllTextAsync(trialClass, JavaTrials(owner, method, roles, trials), new UTF8Encoding(false), cancellationToken);
+
+            var classes = Path.Combine(folder, "classes");
+            await new TargetRunner().RunAsync(new TargetSpec
+            {
+                ExecutablePath = javac,
+                Arguments = $"-encoding UTF-8 -nowarn -d \"{classes}\" \"{copy}\" \"{trialClass}\"",
+                WorkingDirectory = folder,
+                Timeout = CompileTimeout,
+            }, cancellationToken);
+            if (!File.Exists(Path.Combine(classes, JavaTrialClass + ".class"))) return null;
+
+            var ran = await new TargetRunner().RunAsync(new TargetSpec
+            {
+                ExecutablePath = java,
+                Arguments = $"-cp \"{classes}\" {JavaTrialClass}",
+                WorkingDirectory = Path.GetDirectoryName(recognition.File) ?? folder,
+                Timeout = RunTimeout,
+                StandardInput = "",
+            }, cancellationToken);
+
+            return Results(ran, trials);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
+    /// The small class that calls a Java method on each trial: found by reflection by its parameters' classes and made
+    /// callable when private; each call made in a thread given 2 seconds; what it gave back, the array after it, or
+    /// what it threw written out a line each, as the Python and JavaScript runs write them.
+    /// </summary>
+    private static string JavaTrials(string owner, IrFunction method, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials)
+    {
+        var classes = string.Join("", method.Parameters.Zip(roles, (parameter, role) => ", " + JavaClassOf(parameter.Type, role.Role)));
+        var lists = string.Join(", ", trials.Select(trial => "{" + string.Join(", ", trial.List) + "}"));
+        var sought = string.Join(", ", trials.Select(trial => trial.Sought ?? 0));
+        var given = string.Join(", ", roles.Select(role => role.Role switch
+        {
+            "list" => "list",
+            "sought" => "sought[index]",
+            _ => "lists[index].length",
+        }));
+        return $$"""
+            public class {{JavaTrialClass}} {
+                static String quote(String text) {
+                    StringBuilder written = new StringBuilder("\"");
+                    for (char each : text.toCharArray()) {
+                        if (each == '"' || each == '\\') written.append('\\');
+                        if (each >= ' ') written.append(each);
+                    }
+                    return written.append('"').toString();
+                }
+
+                static String plain(Object value) {
+                    if (value == null) return "null";
+                    if (value instanceof Boolean || value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) return value.toString();
+                    if (value instanceof int[]) {
+                        StringBuilder written = new StringBuilder("[");
+                        int[] items = (int[]) value;
+                        for (int index = 0; index < items.length; index++) written.append(index == 0 ? "" : ",").append(items[index]);
+                        return written.append("]").toString();
+                    }
+                    if (value instanceof String) return quote((String) value);
+                    return "{\"repr\":" + quote(String.valueOf(value)) + "}";
+                }
+
+                public static void main(String[] args) throws Exception {
+                    Class<?> owner = Class.forName("{{owner}}");
+                    final java.lang.reflect.Method method = owner.getDeclaredMethod("{{method.Name}}"{{classes}});
+                    method.setAccessible(true);
+                    int[][] lists = { {{lists}} };
+                    int[] sought = { {{sought}} };
+                    for (int index = 0; index < lists.length; index++) {
+                        final int[] list = lists[index].clone();
+                        final Object[] given = new Object[] { {{given}} };
+                        final String[] outcome = { null };
+                        Thread call = new Thread(() -> {
+                            try {
+                                outcome[0] = "\"returned\":" + plain(method.invoke(null, given));
+                            } catch (java.lang.reflect.InvocationTargetException thrown) {
+                                Throwable cause = thrown.getCause();
+                                String message = cause.getMessage();
+                                outcome[0] = "\"error\":" + quote(cause.getClass().getSimpleName() + (message != null ? ": " + message : ""));
+                            } catch (Throwable other) {
+                                outcome[0] = "\"error\":" + quote(other.toString());
+                            }
+                        });
+                        call.setDaemon(true);
+                        call.start();
+                        call.join(2000);
+                        if (call.isAlive()) {
+                            System.out.println("{{Said}}{\"trial\":" + index + ",\"unfinished\":true}");
+                            System.out.flush();
+                            System.exit(0);
+                        }
+                        System.out.println("{{Said}}{\"trial\":" + index + "," + outcome[0] + ",\"after\":" + plain(list) + "}");
+                    }
+                    System.out.flush();
+                    System.exit(0);
+                }
+            }
+            """;
+    }
+
+    /// <summary>
+    /// What to call the function with: each parameter's part, by name and in order, and each trial's list and value.
+    /// </summary>
     private static string Plan(List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials) => JsonSerializer.Serialize(new
     {
         roles = roles.Where(role => role.Role is not null).ToDictionary(role => role.Name, role => role.Role),
@@ -396,7 +568,10 @@ public static partial class AlgorithmTrial
 
     private static string Show(IEnumerable<long> list) => "[" + string.Join(", ", list) + "]";
 
-    /// <summary>A value as the program's language writes it: None, True and 'text' in Python, null, true and "text" in JavaScript.</summary>
+    /// <summary>
+    /// A value as the program's language writes it: None, True and 'text' in Python, null, true and "text" in
+    /// JavaScript and Java.
+    /// </summary>
     private static string AsWritten(JsonElement value, string file)
     {
         var python = file.EndsWith(".py", StringComparison.OrdinalIgnoreCase);
@@ -414,8 +589,8 @@ public static partial class AlgorithmTrial
 
     /// <summary>
     /// The calls put at the end of a JavaScript copy, inside the file's own scope: each trial's list and value given to
-    /// the function by its parameters' parts, and what it gave back, the list after it, or what it threw, written out one
-    /// line each; then Node is ended.
+    /// the function by its parameters' parts, and what it gave back, the list after it, or what it threw, written out
+    /// one line each; then Node is ended.
     /// </summary>
     private static string JavaScriptTrials(string function, string plan) => $$"""
         ;(function () {
@@ -444,6 +619,9 @@ public static partial class AlgorithmTrial
 
     [GeneratedRegex(@"^[A-Za-z_$][\w$]*$")]
     private static partial Regex Identifier();
+
+    [GeneratedRegex(@"^\s*package\s+(?<name>[\w.]+)\s*;", RegexOptions.Multiline)]
+    private static partial Regex JavaPackage();
 
     /// <summary>
     /// Calls the function once for each trial, from the file's definitions alone - its functions, classes, imports and

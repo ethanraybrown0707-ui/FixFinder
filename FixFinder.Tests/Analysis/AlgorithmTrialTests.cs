@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort or a search recognised in a Python or JavaScript program, called on lists of FixFinder's own: one that works is said to have
+/// A sort or a search recognised in a Python, JavaScript or Java program, called on lists of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -25,8 +25,8 @@ public class AlgorithmTrialTests : IDisposable
     }
 
     /// <summary>
-    /// The program's recognised algorithms, each called on its lists by its own language - Python, or Node for
-    /// JavaScript; null when this computer has not got it.
+    /// The program's recognised algorithms, each called on its lists by its own language - Python, Node for JavaScript,
+    /// the JDK for Java; null when this computer has not got it.
     /// </summary>
     private async Task<AlgorithmTrial.Outcome?> TriedAsync(string fileName, string code)
     {
@@ -40,30 +40,47 @@ public class AlgorithmTrialTests : IDisposable
             return await AlgorithmTrial.TryAsync(AlgorithmRecognition.Of(read), read, python, CancellationToken.None);
         }
 
+        if (fileName.EndsWith(".java", StringComparison.Ordinal))
+        {
+            if (JavaFrontend.FindTools() is not { } jdk) return null;
+            var compiled = await JavaFrontend.ReadAsync([path], jdk.Javac, jdk.Java);
+            return await AlgorithmTrial.TryAsync(AlgorithmRecognition.Of(compiled), compiled, jdk.Javac, CancellationToken.None, jdk.Java);
+        }
+
         if (TargetFactory.FindOnPath("node") is not { } node) return null;
         var program = await JavaScriptFrontend.ReadAsync([path]);
         return await AlgorithmTrial.TryAsync(AlgorithmRecognition.Of(program), program, node, CancellationToken.None);
     }
 
     [Theory]
+    [InlineData("Search.java", "public class Search {\n    static int find(int[] items, int target) {\n        int low = 0;\n        int high = items.length - 1;\n        while (low <= high) {\n            int mid = low + (high - low) / 2;\n            if (items[mid] == target) {\n                return mid;\n            } else if (items[mid] < target) {\n                low = mid + 1;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(find(new int[] {1, 3, 5, 7}, 5));\n    }\n}\n",
+        "Search.find: Called with 6 lists of FixFinder's own and 31 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.js", "function find(items, target) {\n    let low = 0;\n    let high = items.length - 1;\n    while (low <= high) {\n        const mid = Math.floor((low + high) / 2);\n        if (items[mid] === target) {\n            return mid;\n        } else if (items[mid] < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return -1;\n}\n\nconsole.log(find([1, 3, 5, 7], 5));\n",
         "find: Called with 6 lists of FixFinder's own and 31 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def find(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] == target:\n            return mid\n        elif items[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\n\nprint(find([1, 3, 5, 7], 5))\n",
         "find: Called with 6 lists of FixFinder's own and 31 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def find_largest_first(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] == target:\n            return mid\n        elif items[mid] > target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\n\nprint(find_largest_first([9, 7, 5, 3], 7))\n",
         "find_largest_first: Called with 6 lists in reverse order of FixFinder's own and 31 values, each in them or not, it found every one that was there and none that was not.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void bubble(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            for (int j = 0; j < items.length - 1 - i; j++) {\n                if (items[j] > items[j + 1]) {\n                    int held = items[j];\n                    items[j] = items[j + 1];\n                    items[j + 1] = held;\n                }\n            }\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        bubble(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "Sort.bubble: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.js", "function bubble(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        for (let j = 0; j < items.length - 1 - i; j++) {\n            if (items[j] > items[j + 1]) {\n                [items[j], items[j + 1]] = [items[j + 1], items[j]];\n            }\n        }\n    }\n    return items;\n}\n\nconsole.log(bubble([5, 2, 9, 1]));\n",
         "bubble: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.py", "def bubble(items):\n    n = len(items)\n    for i in range(n - 1):\n        for j in range(n - 1 - i):\n            if items[j] > items[j + 1]:\n                items[j], items[j + 1] = items[j + 1], items[j]\n    return items\n\n\nprint(bubble([5, 2, 9, 1]))\n",
         "bubble: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void insertion(int[] items) {\n        for (int i = 1; i < items.length; i++) {\n            int key = items[i];\n            int j = i - 1;\n            while (j >= 0 && items[j] > key) {\n                items[j + 1] = items[j];\n                j--;\n            }\n            items[j + 1] = key;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        insertion(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "Sort.insertion: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.js", "function insertion(items) {\n    for (let i = 1; i < items.length; i++) {\n        const key = items[i];\n        let j = i - 1;\n        while (j >= 0 && items[j] > key) {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n    return items;\n}\n\nconsole.log(insertion([5, 2, 9, 1]));\n",
         "insertion: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.py", "def insertion(items):\n    for i in range(1, len(items)):\n        key = items[i]\n        j = i - 1\n        while j >= 0 and items[j] > key:\n            items[j + 1] = items[j]\n            j -= 1\n        items[j + 1] = key\n    return items\n\n\nprint(insertion([5, 2, 9, 1]))\n",
         "insertion: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
+    [InlineData("Search.java", "public class Search {\n    static int position(int[] marks, int wanted) {\n        for (int index = 0; index < marks.length; index++) {\n            if (marks[index] == wanted) {\n                return index;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(position(new int[] {4, 8, 15}, 8));\n    }\n}\n",
+        "Search.position: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.js", "function contains(names, wanted) {\n    for (const name of names) {\n        if (name === wanted) {\n            return true;\n        }\n    }\n    return false;\n}\n\nconsole.log(contains([\"ann\", \"bob\"], \"bob\"));\n",
         "contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def position(names, wanted):\n    for index in range(len(names)):\n        if names[index] == wanted:\n            return index\n    return -1\n\n\ndef contains(names, wanted):\n    for name in names:\n        if name == wanted:\n            return True\n    return False\n\n\nprint(position([\"ann\", \"bob\"], \"bob\"), contains([\"ann\"], \"cy\"))\n",
         "position: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.|contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void selection(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            int smallest = i;\n            for (int j = i + 1; j < items.length; j++) {\n                if (items[j] < items[smallest]) {\n                    smallest = j;\n                }\n            }\n            int held = items[i];\n            items[i] = items[smallest];\n            items[smallest] = held;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        selection(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "Sort.selection: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.js", "function selection(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        let smallest = i;\n        for (let j = i + 1; j < items.length; j++) {\n            if (items[j] < items[smallest]) {\n                smallest = j;\n            }\n        }\n        [items[i], items[smallest]] = [items[smallest], items[i]];\n    }\n    return items;\n}\n\nconsole.log(selection([5, 2, 9, 1]));\n",
         "selection: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.py", "def selection(items):\n    for i in range(len(items)):\n        smallest = i\n        for j in range(i + 1, len(items)):\n            if items[j] < items[smallest]:\n                smallest = j\n        items[i], items[smallest] = items[smallest], items[i]\n    return items\n\n\nprint(selection([5, 2, 9, 1]))\n",
@@ -151,6 +168,43 @@ public class AlgorithmTrialTests : IDisposable
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
 
+    /// <summary>The same two sorts written in Java, over an int[], each shown [2, 1] - read from the array it sorted in place.</summary>
+    [Fact]
+    public async Task AJavaSortThatMissesALastPairOrAFirstItemIsShownTheShortestArrayItGetsWrong()
+    {
+        const string code = "public class Sorts {\n    static void bubbleOneShort(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            for (int j = 0; j < items.length - 2 - i; j++) {\n                if (items[j] > items[j + 1]) {\n                    int held = items[j];\n                    items[j] = items[j + 1];\n                    items[j + 1] = held;\n                }\n            }\n        }\n    }\n\n    static void insertionStopsEarly(int[] items) {\n        for (int i = 1; i < items.length; i++) {\n            int key = items[i];\n            int j = i - 1;\n            while (j > 0 && items[j] > key) {\n                items[j + 1] = items[j];\n                j--;\n            }\n            items[j + 1] = key;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {3, 1, 2};\n        bubbleOneShort(items);\n        insertionStopsEarly(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n";
+        if (await TriedAsync("Sorts.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "Sorts.bubbleOneShort: Called with [2, 1], `Sorts.bubbleOneShort` gave back [2, 1], which is not in order - in order it is [1, 2].",
+            "Sorts.insertionStopsEarly: Called with [2, 1], `Sorts.insertionStopsEarly` gave back [2, 1], which is not in order - in order it is [1, 2].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-sort-wrong: `Sorts.bubbleOneShort` does not sort every list | Called with [2, 1], `Sorts.bubbleOneShort` gave back [2, 1], which is not in order - in order it is [1, 2].",
+            "15 algorithm-sort-wrong: `Sorts.insertionStopsEarly` does not sort every list | Called with [2, 1], `Sorts.insertionStopsEarly` gave back [2, 1], which is not in order - in order it is [1, 2].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The same three searches written in Java: the one that never ends is left when its call's 2 seconds are up.</summary>
+    [Fact]
+    public async Task AJavaSearchThatMissesAValueIsShownItAndOneThatNeverEndsIsLeftUntried()
+    {
+        const string code = "public class Searches {\n    static int findOneShort(int[] items, int target) {\n        int low = 0;\n        int high = items.length - 1;\n        while (low < high) {\n            int mid = (low + high) / 2;\n            if (items[mid] == target) {\n                return mid;\n            } else if (items[mid] < target) {\n                low = mid + 1;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return -1;\n    }\n\n    static int findForever(int[] items, int target) {\n        int low = 0;\n        int high = items.length - 1;\n        while (low <= high) {\n            int mid = (low + high) / 2;\n            if (items[mid] == target) {\n                return mid;\n            } else if (items[mid] < target) {\n                low = mid;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return -1;\n    }\n\n    static int givesUpEarly(int[] marks, int wanted) {\n        for (int index = 0; index < marks.length; index++) {\n            if (marks[index] == wanted) {\n                return index;\n            } else {\n                return -1;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(findOneShort(new int[] {1, 3, 5}, 3) + \" \" + givesUpEarly(new int[] {1, 2}, 2));\n    }\n}\n";
+        if (await TriedAsync("Searches.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "Searches.findOneShort: Called with [5] and 5, `Searches.findOneShort` gave -1 - but 5 is there, at position 0.",
+            "Searches.findForever: not tried",
+            "Searches.givesUpEarly: Called with [1, 3] and 3, `Searches.givesUpEarly` gave -1 - but 3 is there, at position 1.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-search-wrong: `Searches.findOneShort` does not find every value | Called with [5] and 5, `Searches.findOneShort` gave -1 - but 5 is there, at position 0.",
+            "35 algorithm-search-wrong: `Searches.givesUpEarly` does not find every value | Called with [1, 3] and 3, `Searches.givesUpEarly` gave -1 - but 3 is there, at position 1.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
     /// <summary>A check of a Python program carries the trial on its recognition, and the sort that went wrong as a finding seen when it ran.</summary>
     [Fact]
     public async Task ACheckSaysWhatTheTrialShowedAndFindsTheSortThatWentWrong()
@@ -215,5 +269,45 @@ public class AlgorithmTrialTests : IDisposable
 
         var wrong = Assert.Single(report.Findings, finding => finding.RuleId == "algorithm-sort-wrong");
         Assert.Equal((2, Confidence.Certain, "seen when it ran"), (wrong.Line, wrong.Confidence, Evidence.Source(wrong)));
+    }
+
+    /// <summary>A check of a Java program does the same, with the JDK it is built with.</summary>
+    [Fact]
+    public async Task ACheckOfAJavaProgramSaysWhatTheTrialShowedToo()
+    {
+        if (JavaFrontend.FindTools() is null) return;
+
+        var path = Path.Combine(_temp.Path, "Sorts.java");
+        await File.WriteAllTextAsync(path, """
+            public class Sorts {
+                static void bubble(int[] items) {
+                    for (int i = 0; i < items.length - 1; i++) {
+                        for (int j = 0; j < items.length - 2 - i; j++) {
+                            if (items[j] > items[j + 1]) {
+                                int held = items[j];
+                                items[j] = items[j + 1];
+                                items[j + 1] = held;
+                            }
+                        }
+                    }
+                }
+
+                public static void main(String[] args) {
+                    int[] items = {3, 1, 2};
+                    bubble(items);
+                    System.out.println(java.util.Arrays.toString(items));
+                }
+            }
+
+            """);
+
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Java }.CheckAsync(TargetFactory.FromFile(path));
+
+        var seen = Assert.Single(report.Recognised);
+        Assert.Equal("Called with [2, 1], `Sorts.bubble` gave back [2, 1], which is not in order - in order it is [1, 2].", seen.Tried);
+
+        var wrong = Assert.Single(report.Findings, finding => finding.RuleId == "algorithm-sort-wrong");
+        Assert.Equal((3, Confidence.Certain, "seen when it ran"), (wrong.Line, wrong.Confidence, Evidence.Source(wrong)));
     }
 }

@@ -109,16 +109,17 @@ like a binary search: it keeps a range from `low` to `high`, looks at its middle
 it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no
 more than about log2(n) items of n, but finds what it looks for only in a list that is in order.* It is closed until
 opened, and in a saved report and on the command line, as `algorithm:` lines, too. In a Python or JavaScript program
-each one is tried as well, from a copy of its file's definitions alone: a sort is called with 10 lists of FixFinder's
-own - empty, of one item, in order, in reverse order, with repeats and below zero - and has to give each back as the
-same items in order, smallest or largest first; a search is called with 6 lists in order - a linear search with one out
-of order too - and every value in them and some that are not, and has to find each that is there and none that is not, a
+each one is tried as well, from a copy of its file's definitions alone, and in a Java program a static method over an
+`int[]`, from a small class compiled beside a copy of its file: a sort is called with 10 lists of FixFinder's own -
+empty, of one item, in order, in reverse order, with repeats and below zero - and has to give each back as the same
+items in order, smallest or largest first; a search is called with 6 lists in order - a linear search with one out of
+order too - and every value in them and some that are not, and has to find each that is there and none that is not, a
 binary search that misses being tried again on the lists in reverse order, which it may be written for. What happened is
 said under it, and a list it gets wrong is a finding, certain as it was seen, with the shortest such list and what came
-back - *Called with [2, 1], `bubble` gave back [2, 1], which is not in order - in order it is [1, 2].* A Python call
-still going after 2 seconds ends the trial, as does a JavaScript run still going after 10, and nothing is said of it; a
-JavaScript ES module is not tried. Recognising is not checking: code that looks like a binary search can still be a
-wrong one, which is what the logic checks look for. Code of a similar shape that is none of them - the largest item, a
+back - *Called with [2, 1], `bubble` gave back [2, 1], which is not in order - in order it is [1, 2].* A Python or Java
+call still going after 2 seconds ends the trial, as does a JavaScript run still going after 10, and nothing is said of
+it; a JavaScript ES module is not tried. Recognising is not checking: code that looks like a binary search can still be
+a wrong one, which is what the logic checks look for. Code of a similar shape that is none of them - the largest item, a
 check that a list is in order, a times table, a count, a reversal, a square root found by halving - is recognised as
 nothing.
 
@@ -2204,8 +2205,8 @@ A check of a program does all of this, as far as its language allows - Python, J
 6. **Tries what it predicted for real**, in Python, Java, Go and JavaScript: a crash the analyses predict is run with
    the values that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a
    Python, Java or C# program that asks questions is given an answer for each way through it, up to 6 sets of answers,
-   10 seconds each - a Java or C# one once it has built, and a sort or a search recognised in a Python or JavaScript
-   program is called on lists of FixFinder's own.
+   10 seconds each - a Java or C# one once it has built, and a sort or a search recognised in a Python, JavaScript or
+   Java program is called on lists of FixFinder's own.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
