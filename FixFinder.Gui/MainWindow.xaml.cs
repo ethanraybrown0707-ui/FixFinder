@@ -91,6 +91,9 @@ public partial class MainWindow : Window
     /// <summary>The inputs the last check tried, for the saved report.</summary>
     private IReadOnlyList<Core.Analysis.Dynamic.InputTried> _tried = [];
 
+    /// <summary>The algorithms the last check recognised in the code, for the saved report.</summary>
+    private IReadOnlyList<Core.Analysis.Recognition.AlgorithmSeen> _recognised = [];
+
     /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
     private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
@@ -652,6 +655,8 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Visibility.Collapsed;
         TriedExpander.Visibility = Visibility.Collapsed;
         _tried = [];
+        RecognisedExpander.Visibility = Visibility.Collapsed;
+        _recognised = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         SinceLastPanel.Visibility = Visibility.Collapsed;
@@ -664,6 +669,14 @@ public partial class MainWindow : Window
         SetLane(LogicStatusText, LogicIcon, LogicProgress, "Reading the code for logic mistakes…", LaneState.Running);
 
         SetBusy(true);
+    }
+
+    /// <summary>Lists the algorithms a check recognised, under the notes, closed until opened; hidden when there are none.</summary>
+    private void ShowRecognised(IReadOnlyList<Core.Analysis.Recognition.AlgorithmSeen> recognised)
+    {
+        RecognisedList.ItemsSource = recognised.Select(seen => new AlgorithmSeenRow(seen)).ToList();
+        RecognisedExpander.Visibility = recognised.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _recognised = recognised;
     }
 
     private void FinishReport(CheckReport report)
@@ -680,6 +693,7 @@ public partial class MainWindow : Window
         TriedList.ItemsSource = report.Tried.Select(tried => new TriedInputRow(tried)).ToList();
         TriedExpander.Visibility = report.Tried.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _tried = report.Tried;
+        ShowRecognised(report.Recognised);
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -794,6 +808,7 @@ public partial class MainWindow : Window
             LogicSummary = report.LogicSummary,
             Notes = [.. _notes],
             Tried = _tried,
+            Recognised = _recognised,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
             Output = [.. _output.Select(row => row.DisplayLine)],
@@ -1065,9 +1080,10 @@ public partial class MainWindow : Window
         _notes.Clear();
         foreach (var note in report.Notes) _notes.Add(note);
 
-        // Read again, not run: no input was tried.
+        // Read again, not run: no input was tried, but what the code looks like is read from the code.
         TriedExpander.Visibility = Visibility.Collapsed;
         _tried = [];
+        ShowRecognised(report.Recognised);
 
         // Only read, so it is not set beside a check that compiled and ran the program.
         _comparison = null;

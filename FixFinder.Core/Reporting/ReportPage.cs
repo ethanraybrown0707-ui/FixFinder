@@ -35,6 +35,9 @@ public sealed record ReportPage
     /// <summary>Inputs that take the program each of its ways, and what it printed with each.</summary>
     public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
 
+    /// <summary>The algorithms the program's functions have the shape of, with what makes them look so.</summary>
+    public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
+
     public required IReadOnlyList<Finding> Findings { get; init; }
 
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
@@ -90,6 +93,21 @@ public sealed record ReportPage
                 page.Append("<li><strong>Typing ").Append(Text(tried.TypedSaid)).Append("</strong><pre>").Append(Text(string.Join("\n", tried.Printed))).Append("</pre>");
                 if (tried.StoppedWith is { } stopped) page.Append("<p>It stopped: ").Append(Text(stopped)).Append("</p>");
                 page.Append("</li>\n");
+            }
+
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (Recognised.Count > 0)
+        {
+            page.Append("<section class=\"recognised\">\n<h2>What the code looks like</h2>\n")
+                .Append("<p class=\"intro\">The algorithms the code has the shape of, recognised from the code itself - what each needs, and what it costs.</p>\n<ul>\n");
+            foreach (var seen in Recognised)
+            {
+                var who = seen.Function == Analysis.Recognition.AlgorithmRecognition.TopLevelCode ? "The top-level code" : $"`{seen.Function}`";
+                page.Append("<li><strong>").Append(Prose($"{who}, line {seen.Line}: {seen.Algorithm}")).Append("</strong>")
+                    .Append("<p>").Append(Prose(char.ToUpperInvariant(seen.HowItWorks[0]) + seen.HowItWorks[1..] + ".")).Append("</p>")
+                    .Append("<p>").Append(Prose(seen.WhatToKnow)).Append("</p></li>\n");
             }
 
             page.Append("</ul>\n</section>\n");

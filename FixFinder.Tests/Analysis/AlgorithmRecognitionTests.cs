@@ -1,0 +1,182 @@
+using FixFinder.Core;
+using FixFinder.Core.Analysis.Frontends;
+using FixFinder.Core.Analysis.Ir;
+using FixFinder.Core.Analysis.Recognition;
+using FixFinder.Core.Checking;
+using FixFinder.Core.Engine;
+using FixFinder.Core.Execution;
+using FixFinder.Core.Http;
+using FixFinder.Core.Reporting;
+using FixFinder.Core.Sources;
+
+namespace FixFinder.Tests;
+
+/// <summary>
+/// Recognising the algorithm a function is written as, from its shape: a binary search, a linear search, a bubble sort, a
+/// selection sort and an insertion sort, each written as it is usually written in Python, Java, JavaScript, C#, C, C++ and
+/// Go, and each said in the code's own names - the sentences are those the recognition gave for these programs. Code with a
+/// similar shape that is none of them - the largest item, a check that a list is in order, a times table, a count, a
+/// reversal, a count of digits, a square root found by halving - is recognised as nothing.
+/// </summary>
+public class AlgorithmRecognitionTests : IDisposable
+{
+    private readonly TempFolder _temp = new();
+
+    public void Dispose()
+    {
+        _temp.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>The program read by its own language's reader; null when this computer has no Python, JDK or Go to read it with.</summary>
+    private async Task<IrProgram?> ReadAsync(string fileName, string code)
+    {
+        var path = Path.Combine(_temp.Path, fileName);
+        await File.WriteAllTextAsync(path, code);
+
+        return Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".py" => PythonFrontend.FindInterpreter() is { } python ? await PythonFrontend.ReadAsync([path], python) : null,
+            ".java" => JavaFrontend.FindTools() is { } tools ? await JavaFrontend.ReadAsync([path], tools.Javac, tools.Java) : null,
+            ".go" => GoFrontend.FindGo(path) is { } go ? await GoFrontend.ReadAsync([path], go) : null,
+            ".js" => await JavaScriptFrontend.ReadAsync([path]),
+            ".cs" => await CSharpFrontend.ReadAsync([path]),
+            _ => await CFrontend.ReadAsync([path]),
+        };
+    }
+
+    [Theory]
+    [InlineData("Search.cs", "Console.WriteLine(Find(new[] { 1, 3, 5, 7 }, 5));\n\nstatic int Find(int[] items, int target)\n{\n    int low = 0, high = items.Length - 1;\n    while (low <= high)\n    {\n        int mid = (low + high) / 2;\n        if (items[mid] == target) return mid;\n        if (items[mid] < target) low = mid + 1;\n        else high = mid - 1;\n    }\n    return -1;\n}\n",
+        "6: `Find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("Search.java", "public class Search {\n    static int find(int[] items, int target) {\n        int low = 0;\n        int high = items.length - 1;\n        while (low <= high) {\n            int mid = low + (high - low) / 2;\n            if (items[mid] == target) {\n                return mid;\n            } else if (items[mid] < target) {\n                low = mid + 1;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(find(new int[] {1, 3, 5, 7}, 5));\n    }\n}\n",
+        "5: `Search.find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.c", "#include <stdio.h>\n\nint find(const int *items, int count, int target) {\n    int low = 0;\n    int high = count - 1;\n    while (low <= high) {\n        int mid = (low + high) / 2;\n        if (items[mid] == target) {\n            return mid;\n        }\n        if (items[mid] < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return -1;\n}\n\nint main(void) {\n    int items[] = {1, 3, 5, 7};\n    printf(\"%d\\n\", find(items, 4, 5));\n    return 0;\n}\n",
+        "6: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.cpp", "#include <iostream>\n#include <vector>\n\nint find(const std::vector<int> &items, int target) {\n    int low = 0;\n    int high = static_cast<int>(items.size()) - 1;\n    while (low <= high) {\n        int mid = low + (high - low) / 2;\n        if (items[mid] == target) {\n            return mid;\n        }\n        if (items[mid] < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return -1;\n}\n\nint main() {\n    std::cout << find({1, 3, 5, 7}, 5) << '\\n';\n}\n",
+        "7: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.go", "package main\n\nimport \"fmt\"\n\nfunc find(items []int, target int) int {\n\tlow, high := 0, len(items)-1\n\tfor low <= high {\n\t\tmid := (low + high) / 2\n\t\tif items[mid] == target {\n\t\t\treturn mid\n\t\t} else if items[mid] < target {\n\t\t\tlow = mid + 1\n\t\t} else {\n\t\t\thigh = mid - 1\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tfmt.Println(find([]int{1, 3, 5, 7}, 5))\n}\n",
+        "7: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.js", "function find(items, target) {\n    let low = 0;\n    let high = items.length - 1;\n    while (low <= high) {\n        const mid = Math.floor((low + high) / 2);\n        if (items[mid] === target) {\n            return mid;\n        } else if (items[mid] < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return -1;\n}\n\nconsole.log(find([1, 3, 5, 7], 5));\n",
+        "4: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.py", "def find(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] == target:\n            return mid\n        elif items[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\n\nprint(find([1, 3, 5, 7], 5))\n",
+        "4: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("Sort.cs", "int[] items = { 5, 2, 9, 1 };\nBubble(items);\nConsole.WriteLine(string.Join(\", \", items));\n\nstatic void Bubble(int[] items)\n{\n    for (int i = 0; i < items.Length - 1; i++)\n        for (int j = 0; j < items.Length - 1 - i; j++)\n            if (items[j] > items[j + 1])\n                (items[j], items[j + 1]) = (items[j + 1], items[j]);\n}\n",
+        "7: `Bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void bubble(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            for (int j = 0; j < items.length - 1 - i; j++) {\n                if (items[j] > items[j + 1]) {\n                    int held = items[j];\n                    items[j] = items[j + 1];\n                    items[j + 1] = held;\n                }\n            }\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        bubble(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "3: `Sort.bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("sort.c", "#include <stdio.h>\n\nvoid bubble(int *items, int count) {\n    for (int i = 0; i < count - 1; i++) {\n        for (int j = 0; j < count - 1 - i; j++) {\n            if (items[j] > items[j + 1]) {\n                int held = items[j];\n                items[j] = items[j + 1];\n                items[j + 1] = held;\n            }\n        }\n    }\n}\n\nint main(void) {\n    int items[] = {5, 2, 9, 1};\n    bubble(items, 4);\n    printf(\"%d %d %d %d\\n\", items[0], items[1], items[2], items[3]);\n    return 0;\n}\n",
+        "4: `bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("sort.cpp", "#include <iostream>\n#include <utility>\n#include <vector>\n\nvoid bubble(std::vector<int> &items) {\n    for (std::size_t i = 0; i + 1 < items.size(); i++) {\n        for (std::size_t j = 0; j + 1 < items.size() - i; j++) {\n            if (items[j] > items[j + 1]) {\n                std::swap(items[j], items[j + 1]);\n            }\n        }\n    }\n}\n\nint main() {\n    std::vector<int> items{5, 2, 9, 1};\n    bubble(items);\n    for (int item : items) std::cout << item << ' ';\n    std::cout << '\\n';\n}\n",
+        "6: `bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("sort.go", "package main\n\nimport \"fmt\"\n\nfunc bubble(items []int) {\n\tfor i := 0; i < len(items)-1; i++ {\n\t\tfor j := 0; j < len(items)-1-i; j++ {\n\t\t\tif items[j] > items[j+1] {\n\t\t\t\titems[j], items[j+1] = items[j+1], items[j]\n\t\t\t}\n\t\t}\n\t}\n}\n\nfunc main() {\n\titems := []int{5, 2, 9, 1}\n\tbubble(items)\n\tfmt.Println(items)\n}\n",
+        "6: `bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("sort.js", "function bubble(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        for (let j = 0; j < items.length - 1 - i; j++) {\n            if (items[j] > items[j + 1]) {\n                [items[j], items[j + 1]] = [items[j + 1], items[j]];\n            }\n        }\n    }\n    return items;\n}\n\nconsole.log(bubble([5, 2, 9, 1]));\n",
+        "2: `bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("sort.py", "def bubble(items):\n    n = len(items)\n    for i in range(n - 1):\n        for j in range(n - 1 - i):\n            if items[j] > items[j + 1]:\n                items[j], items[j + 1] = items[j + 1], items[j]\n    return items\n\n\nprint(bubble([5, 2, 9, 1]))\n",
+        "3: `bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
+    [InlineData("Sort.cs", "int[] items = { 5, 2, 9, 1 };\nInsertion(items);\nConsole.WriteLine(string.Join(\", \", items));\n\nstatic void Insertion(int[] items)\n{\n    for (int i = 1; i < items.Length; i++)\n    {\n        int key = items[i];\n        int j = i - 1;\n        while (j >= 0 && items[j] > key)\n        {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n}\n",
+        "7: `Insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void insertion(int[] items) {\n        for (int i = 1; i < items.length; i++) {\n            int key = items[i];\n            int j = i - 1;\n            while (j >= 0 && items[j] > key) {\n                items[j + 1] = items[j];\n                j--;\n            }\n            items[j + 1] = key;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        insertion(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "3: `Sort.insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("sort.c", "#include <stdio.h>\n\nvoid insertion(int *items, int count) {\n    for (int i = 1; i < count; i++) {\n        int key = items[i];\n        int j = i - 1;\n        while (j >= 0 && items[j] > key) {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n}\n\nint main(void) {\n    int items[] = {5, 2, 9, 1};\n    insertion(items, 4);\n    printf(\"%d %d %d %d\\n\", items[0], items[1], items[2], items[3]);\n    return 0;\n}\n",
+        "4: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("sort.cpp", "#include <iostream>\n#include <vector>\n\nvoid insertion(std::vector<int> &items) {\n    for (std::size_t i = 1; i < items.size(); i++) {\n        int key = items[i];\n        int j = static_cast<int>(i) - 1;\n        while (j >= 0 && items[j] > key) {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n}\n\nint main() {\n    std::vector<int> items{5, 2, 9, 1};\n    insertion(items);\n    for (int item : items) std::cout << item << ' ';\n    std::cout << '\\n';\n}\n",
+        "5: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("sort.go", "package main\n\nimport \"fmt\"\n\nfunc insertion(items []int) {\n\tfor i := 1; i < len(items); i++ {\n\t\tkey := items[i]\n\t\tj := i - 1\n\t\tfor j >= 0 && items[j] > key {\n\t\t\titems[j+1] = items[j]\n\t\t\tj--\n\t\t}\n\t\titems[j+1] = key\n\t}\n}\n\nfunc main() {\n\titems := []int{5, 2, 9, 1}\n\tinsertion(items)\n\tfmt.Println(items)\n}\n",
+        "6: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("sort.js", "function insertion(items) {\n    for (let i = 1; i < items.length; i++) {\n        const key = items[i];\n        let j = i - 1;\n        while (j >= 0 && items[j] > key) {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n    return items;\n}\n\nconsole.log(insertion([5, 2, 9, 1]));\n",
+        "2: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("sort.py", "def insertion(items):\n    for i in range(1, len(items)):\n        key = items[i]\n        j = i - 1\n        while j >= 0 and items[j] > key:\n            items[j + 1] = items[j]\n            j -= 1\n        items[j + 1] = key\n    return items\n\n\nprint(insertion([5, 2, 9, 1]))\n",
+        "2: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("Search.cs", "Console.WriteLine(Position(new[] { 4, 8, 15 }, 8));\n\nstatic int Position(int[] marks, int wanted)\n{\n    var index = 0;\n    while (index < marks.Length)\n    {\n        if (marks[index] == wanted) return index;\n        index++;\n    }\n    return -1;\n}\n",
+        "6: `Position` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `marks[index]`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("Search.java", "public class Search {\n    static int position(int[] marks, int wanted) {\n        for (int index = 0; index < marks.length; index++) {\n            if (marks[index] == wanted) {\n                return index;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(position(new int[] {4, 8, 15}, 8));\n    }\n}\n",
+        "3: `Search.position` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `marks[index]`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("search.c", "#include <stdio.h>\n\nint position(const int *marks, int count, int wanted) {\n    for (int index = 0; index < count; index++) {\n        if (marks[index] == wanted) {\n            return index;\n        }\n    }\n    return -1;\n}\n\nint main(void) {\n    int marks[] = {4, 8, 15};\n    printf(\"%d\\n\", position(marks, 3, 8));\n    return 0;\n}\n",
+        "4: `position` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `marks[index]`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("search.cpp", "#include <iostream>\n#include <string>\n#include <vector>\n\nbool contains(const std::vector<std::string> &names, const std::string &wanted) {\n    for (const auto &name : names) {\n        if (name == wanted) {\n            return true;\n        }\n    }\n    return false;\n}\n\nint main() {\n    std::cout << contains({\"ann\", \"bob\"}, \"bob\") << '\\n';\n}\n",
+        "6: `contains` looks like a linear search: it goes through `names` one item at a time and stops at the first, `name`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("search.go", "package main\n\nimport \"fmt\"\n\nfunc position(marks []int, wanted int) int {\n\tfor index, mark := range marks {\n\t\tif mark == wanted {\n\t\t\treturn index\n\t\t}\n\t}\n\treturn -1\n}\n\nfunc main() {\n\tfmt.Println(position([]int{4, 8, 15}, 8))\n}\n",
+        "6: `position` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `mark`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("search.js", "function contains(names, wanted) {\n    for (const name of names) {\n        if (name === wanted) {\n            return true;\n        }\n    }\n    return false;\n}\n\nconsole.log(contains([\"ann\", \"bob\"], \"bob\"));\n",
+        "2: `contains` looks like a linear search: it goes through `names` one item at a time and stops at the first, `name`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("search.py", "def position(names, wanted):\n    for index in range(len(names)):\n        if names[index] == wanted:\n            return index\n    return -1\n\n\ndef contains(names, wanted):\n    for name in names:\n        if name == wanted:\n            return True\n    return False\n\n\nprint(position([\"ann\", \"bob\"], \"bob\"), contains([\"ann\"], \"cy\"))\n",
+        "2: `position` looks like a linear search: it goes through `names` one item at a time and stops at the first, `names[index]`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.|9: `contains` looks like a linear search: it goes through `names` one item at a time and stops at the first, `name`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
+    [InlineData("Sort.cs", "int[] items = { 5, 2, 9, 1 };\nSelection(items);\nConsole.WriteLine(string.Join(\", \", items));\n\nstatic void Selection(int[] items)\n{\n    for (int i = 0; i < items.Length - 1; i++)\n    {\n        int smallest = i;\n        for (int j = i + 1; j < items.Length; j++)\n            if (items[j] < items[smallest]) smallest = j;\n        (items[i], items[smallest]) = (items[smallest], items[i]);\n    }\n}\n",
+        "7: `Selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("Sort.java", "public class Sort {\n    static void selection(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            int smallest = i;\n            for (int j = i + 1; j < items.length; j++) {\n                if (items[j] < items[smallest]) {\n                    smallest = j;\n                }\n            }\n            int held = items[i];\n            items[i] = items[smallest];\n            items[smallest] = held;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        selection(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "3: `Sort.selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("sort.c", "#include <stdio.h>\n\nvoid selection(int *items, int count) {\n    for (int i = 0; i < count - 1; i++) {\n        int smallest = i;\n        for (int j = i + 1; j < count; j++) {\n            if (items[j] < items[smallest]) {\n                smallest = j;\n            }\n        }\n        int held = items[i];\n        items[i] = items[smallest];\n        items[smallest] = held;\n    }\n}\n\nint main(void) {\n    int items[] = {5, 2, 9, 1};\n    selection(items, 4);\n    printf(\"%d %d %d %d\\n\", items[0], items[1], items[2], items[3]);\n    return 0;\n}\n",
+        "4: `selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("sort.cpp", "#include <iostream>\n#include <utility>\n#include <vector>\n\nvoid selection(std::vector<int> &items) {\n    for (std::size_t i = 0; i + 1 < items.size(); i++) {\n        std::size_t smallest = i;\n        for (std::size_t j = i + 1; j < items.size(); j++) {\n            if (items[j] < items[smallest]) {\n                smallest = j;\n            }\n        }\n        std::swap(items[i], items[smallest]);\n    }\n}\n\nint main() {\n    std::vector<int> items{5, 2, 9, 1};\n    selection(items);\n    for (int item : items) std::cout << item << ' ';\n    std::cout << '\\n';\n}\n",
+        "6: `selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("sort.go", "package main\n\nimport \"fmt\"\n\nfunc selection(items []int) {\n\tfor i := 0; i < len(items)-1; i++ {\n\t\tsmallest := i\n\t\tfor j := i + 1; j < len(items); j++ {\n\t\t\tif items[j] < items[smallest] {\n\t\t\t\tsmallest = j\n\t\t\t}\n\t\t}\n\t\titems[i], items[smallest] = items[smallest], items[i]\n\t}\n}\n\nfunc main() {\n\titems := []int{5, 2, 9, 1}\n\tselection(items)\n\tfmt.Println(items)\n}\n",
+        "6: `selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("sort.js", "function selection(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        let smallest = i;\n        for (let j = i + 1; j < items.length; j++) {\n            if (items[j] < items[smallest]) {\n                smallest = j;\n            }\n        }\n        [items[i], items[smallest]] = [items[smallest], items[i]];\n    }\n    return items;\n}\n\nconsole.log(selection([5, 2, 9, 1]));\n",
+        "2: `selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    [InlineData("sort.py", "def selection(items):\n    for i in range(len(items)):\n        smallest = i\n        for j in range(i + 1, len(items)):\n            if items[j] < items[smallest]:\n                smallest = j\n        items[i], items[smallest] = items[smallest], items[i]\n    return items\n\n\nprint(selection([5, 2, 9, 1]))\n",
+        "2: `selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items[i]` and `items[smallest]`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.")]
+    public async Task EachAlgorithmIsRecognisedInEachLanguageInTheCodesOwnNames(string fileName, string code, string expected)
+    {
+        if (await ReadAsync(fileName, code) is not { } program) return;
+
+        Assert.Empty(program.Problems);
+        Assert.Equal(expected.Split('|'), AlgorithmRecognition.Of(program).Select(seen => $"{seen.Line}: {seen.Said}"));
+    }
+
+    [Theory]
+    [InlineData("Others.java", "public class Others {\n    static boolean inOrder(int[] items) {\n        for (int i = 0; i + 1 < items.length; i++) {\n            if (items[i] > items[i + 1]) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    static void reverse(int[] items) {\n        for (int left = 0, right = items.length - 1; left < right; left++, right--) {\n            int held = items[left];\n            items[left] = items[right];\n            items[right] = held;\n        }\n    }\n\n    static int squareRoot(int number) {\n        int low = 0;\n        int high = number;\n        while (low <= high) {\n            int mid = (low + high) / 2;\n            if (mid * mid <= number) {\n                low = mid + 1;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return high;\n    }\n\n    public static void main(String[] args) {\n        int[] items = {1, 2, 3};\n        reverse(items);\n        System.out.println(inOrder(items) + \" \" + squareRoot(17));\n    }\n}\n")]
+    [InlineData("others.py", "def largest(items):\n    best = items[0]\n    for item in items:\n        if item > best:\n            best = item\n    return best\n\n\ndef in_order(items):\n    for i in range(len(items) - 1):\n        if items[i] > items[i + 1]:\n            return False\n    return True\n\n\ndef table(size):\n    for row in range(1, size + 1):\n        for column in range(1, size + 1):\n            print(row * column, end=\" \")\n        print()\n\n\ndef count(items, wanted):\n    seen = 0\n    for item in items:\n        if item == wanted:\n            seen += 1\n    return seen\n\n\ndef reverse(items):\n    left = 0\n    right = len(items) - 1\n    while left < right:\n        items[left], items[right] = items[right], items[left]\n        left += 1\n        right -= 1\n    return items\n\n\ndef digits(number):\n    found = 0\n    while number > 0:\n        number = number // 10\n        found += 1\n    return found\n\n\nprint(largest([3, 9, 2]), in_order([1, 2]), count([1, 1], 1), reverse([1, 2, 3]), digits(120))\ntable(3)\n")]
+    public async Task CodeShapedLikeAnAlgorithmButDoingSomethingElseIsRecognisedAsNothing(string fileName, string code)
+    {
+        if (await ReadAsync(fileName, code) is not { } program) return;
+
+        Assert.Empty(program.Problems);
+        Assert.Empty(AlgorithmRecognition.Of(program));
+    }
+
+    /// <summary>A check carries what it recognised in the program it checked, and a saved report shows it, line and all.</summary>
+    [Fact]
+    public async Task ACheckCarriesWhatItRecognisedAndASavedReportShowsIt()
+    {
+        if (PythonFrontend.FindInterpreter() is null) return;
+
+        var path = Path.Combine(_temp.Path, "sort.py");
+        await File.WriteAllTextAsync(path, """
+            def bubble(items):
+                n = len(items)
+                for i in range(n - 1):
+                    for j in range(n - 1 - i):
+                        if items[j] > items[j + 1]:
+                            items[j], items[j + 1] = items[j + 1], items[j]
+                return items
+
+
+            print(bubble([5, 2, 9, 1]))
+
+            """);
+
+        using var http = new FixFinderHttpClient();
+        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckAsync(TargetFactory.FromFile(path));
+
+        var seen = Assert.Single(report.Recognised);
+        Assert.Equal(("bubble", 3, "a bubble sort"), (seen.Function, seen.Line, seen.Algorithm));
+
+        // Read again without being run, as the window reads it each time the file is saved, it says the same.
+        var read = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckCodeAsync(TargetFactory.FromFile(path));
+        Assert.Equal(report.Recognised, read.Recognised);
+
+        var page = new ReportPage
+        {
+            Program = "sort.py", Language = "Python", CheckedAt = DateTimeOffset.Now, SyntaxSummary = report.SyntaxSummary, LogicSummary = report.LogicSummary,
+            Recognised = report.Recognised, Findings = report.Findings,
+        }.ToHtml();
+        Assert.Contains("<h2>What the code looks like</h2>", page);
+        Assert.Contains("<strong><code>bubble</code>, line 3: a bubble sort</strong>", page);
+
+        // The command line says it too, beside its notes.
+        var errors = new StringWriter();
+        await CommandLine.RunAsync([path], new StringWriter(), errors);
+        Assert.Contains("algorithm: sort.py:3: `bubble` looks like a bubble sort: it goes over `items` again and again", errors.ToString(), StringComparison.Ordinal);
+    }
+}

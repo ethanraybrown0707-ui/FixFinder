@@ -102,6 +102,17 @@ questions in straight-line first code - asked in a loop, a branch or another fun
 question - and it is left out when nothing typed decides the way, or every input printed the same. A run Windows would
 not start, or one that asked for more than it was given, is left out as well.
 
+**What the code looks like**, under the notes too, says which algorithm a function is written as, read from the shape of
+its code in Python, Java, JavaScript, C#, C, C++ and Go: a binary search, a linear search, a bubble sort, a selection
+sort or an insertion sort, each said in the code's own names, with what that kind of code needs or costs - *`find` looks
+like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what
+it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no
+more than about log2(n) items of n, but finds what it looks for only in a list that is in order.* It is closed until
+opened, and in a saved report and on the command line, as `algorithm:` lines, too. Recognising is not checking: code
+that looks like a binary search can still be a wrong one, which is what the logic checks look for. Code of a similar
+shape that is none of them - the largest item, a check that a list is in order, a times table, a count, a reversal, a
+square root found by halving - is recognised as nothing.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
@@ -2175,8 +2186,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    past the twelfth is listed without one.
 3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each
-   read by its own language's parser.
+4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
+   by its own language's parser, and recognises from the same reading which of 5 algorithms a function is written as.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they

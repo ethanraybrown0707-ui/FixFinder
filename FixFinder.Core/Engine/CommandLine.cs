@@ -116,6 +116,8 @@ public static class CommandLine
         foreach (var tried in report.Tried)
             await errors.WriteLineAsync($"try: typing {tried.TypedSaid} printed \"{string.Join(" / ", tried.Printed)}\"" +
                                         (tried.StoppedWith is { } stopped ? $" and stopped with {stopped}" : ""));
+        foreach (var seen in report.Recognised)
+            await errors.WriteLineAsync($"algorithm: {Path.GetFileName(seen.File)}:{seen.Line}: {seen.Said}");
         await errors.WriteLineAsync($"syntax: {report.SyntaxSummary}");
         await errors.WriteLineAsync($"logic:  {report.LogicSummary}");
 
@@ -149,6 +151,7 @@ public static class CommandLine
             LogicSummary = report.LogicSummary,
             Notes = report.Notes,
             Tried = report.Tried,
+            Recognised = report.Recognised,
             Findings = report.Findings,
             Output = report.Run?.Run is { } run ? [.. run.Lines.Select(line => line.DisplayLine)] : [],
         };

@@ -32,6 +32,9 @@ public sealed record CheckReport(
 {
     /// <summary>Inputs that take the program each of its ways, and what it printed with each - for a program that reads what is typed.</summary>
     public IReadOnlyList<Analysis.Dynamic.InputTried> Tried { get; init; } = [];
+
+    /// <summary>The algorithms the program's functions have the shape of - a binary search, a bubble sort - with what makes them look so.</summary>
+    public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
 }
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
@@ -73,6 +76,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
 
     /// <summary>The inputs tried, one for each way through the program that what is typed decides, and what each printed.</summary>
     private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
+    private IReadOnlyList<Analysis.Recognition.AlgorithmSeen> _recognised = [];
 
     /// <summary>Whether the program built, once the syntax lane knows: true when it did, false when it did not or was not built.</summary>
     private Task<bool> _built = Task.FromResult(false);
@@ -163,7 +167,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried };
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised };
         }
     }
 
@@ -1943,7 +1947,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null);
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised };
         }
     }
 
@@ -2022,6 +2026,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             }
 
             var findings = AbstractChecks.Run(program, new SourceText(), Cache);
+
+            // What the code looks like it is meant to do, read from the same code: a binary search, a bubble sort.
+            _recognised = Analysis.Recognition.AlgorithmRecognition.Of(program);
             if (Cache is { LastRun: { Reused: > 0 } run })
             {
                 Log?.Invoke($"{Count(run.Reused, "function")} had not changed since the last check, so what was found in them then was used again; " +
@@ -2095,13 +2102,13 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
     }
 
-    /// <summary>The Python the program runs with, or any Python on this computer.</summary>
     /// <summary>The Node the program runs with, or the one on the PATH.</summary>
     private static string? NodeOf(LaunchPlan launch) =>
         launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).Equals("node", StringComparison.OrdinalIgnoreCase)
             ? spec.ExecutablePath
             : TargetFactory.FindOnPath("node");
 
+    /// <summary>The Python the program runs with, or any Python on this computer.</summary>
     private static string? PythonInterpreter(LaunchPlan launch) =>
         launch.Spec is { } spec && Path.GetFileNameWithoutExtension(spec.ExecutablePath).StartsWith("py", StringComparison.OrdinalIgnoreCase)
             ? spec.ExecutablePath

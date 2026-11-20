@@ -1069,6 +1069,26 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </Expander>
+
+                <!-- The algorithms the code has the shape of, and what makes it look so: closed until opened. -->
+                <Expander x:Name="RecognisedExpander" AutomationProperties.AutomationId="RecognisedExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="What the code looks like - the algorithms recognised in it">
+                    <ItemsControl x:Name="RecognisedList" AutomationProperties.AutomationId="RecognisedList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock desktop:InlineCode.Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <TextBlock desktop:InlineCode.Text="{Binding HowItWorks}" FontSize="12.5" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextBrush}"/>
+                                    <TextBlock Text="{Binding WhatToKnow}" FontSize="12" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
                 </StackPanel>
 
                 <Grid Grid.Row="4">
