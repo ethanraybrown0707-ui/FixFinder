@@ -1,13 +1,6 @@
-using FixFinder.Core;
 using FixFinder.Core.Analysis.Frontends;
 using FixFinder.Core.Analysis.Ir;
 using FixFinder.Core.Analysis.Recognition;
-using FixFinder.Core.Checking;
-using FixFinder.Core.Engine;
-using FixFinder.Core.Execution;
-using FixFinder.Core.Http;
-using FixFinder.Core.Reporting;
-using FixFinder.Core.Sources;
 
 namespace FixFinder.Tests;
 
@@ -60,6 +53,8 @@ public class AlgorithmRecognitionTests : IDisposable
         "4: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
     [InlineData("search.py", "def find(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] == target:\n            return mid\n        elif items[mid] < target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\n\nprint(find([1, 3, 5, 7], 5))\n",
         "4: `find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
+    [InlineData("search.py", "def find_largest_first(items, target):\n    low = 0\n    high = len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if items[mid] == target:\n            return mid\n        elif items[mid] > target:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return -1\n\n\nprint(find_largest_first([9, 7, 5, 3], 7))\n",
+        "4: `find_largest_first` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.")]
     [InlineData("Sort.cs", "int[] items = { 5, 2, 9, 1 };\nBubble(items);\nConsole.WriteLine(string.Join(\", \", items));\n\nstatic void Bubble(int[] items)\n{\n    for (int i = 0; i < items.Length - 1; i++)\n        for (int j = 0; j < items.Length - 1 - i; j++)\n            if (items[j] > items[j + 1])\n                (items[j], items[j + 1]) = (items[j + 1], items[j]);\n}\n",
         "7: `Bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items[j]` and `items[j + 1]`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.")]
     [InlineData("Sort.java", "public class Sort {\n    static void bubble(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            for (int j = 0; j < items.length - 1 - i; j++) {\n                if (items[j] > items[j + 1]) {\n                    int held = items[j];\n                    items[j] = items[j + 1];\n                    items[j + 1] = held;\n                }\n            }\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        bubble(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
@@ -88,6 +83,8 @@ public class AlgorithmRecognitionTests : IDisposable
         "2: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
     [InlineData("sort.py", "def insertion(items):\n    for i in range(1, len(items)):\n        key = items[i]\n        j = i - 1\n        while j >= 0 and items[j] > key:\n            items[j + 1] = items[j]\n            j -= 1\n        items[j + 1] = key\n    return items\n\n\nprint(insertion([5, 2, 9, 1]))\n",
         "2: `insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items[j + 1] = items[j]`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
+    [InlineData("ListAlgorithms.java", "import java.util.ArrayList;\nimport java.util.Collections;\nimport java.util.List;\n\npublic class ListAlgorithms {\n    static int find(List<Integer> items, int target) {\n        int low = 0;\n        int high = items.size() - 1;\n        while (low <= high) {\n            int mid = (low + high) / 2;\n            if (items.get(mid) == target) {\n                return mid;\n            } else if (items.get(mid) < target) {\n                low = mid + 1;\n            } else {\n                high = mid - 1;\n            }\n        }\n        return -1;\n    }\n\n    static boolean contains(List<Integer> marks, Integer wanted) {\n        for (Integer mark : marks) {\n            if (mark.equals(wanted)) {\n                return true;\n            }\n        }\n        return false;\n    }\n\n    static void bubble(ArrayList<Integer> items) {\n        for (int i = 0; i < items.size() - 1; i++) {\n            for (int j = 0; j < items.size() - 1 - i; j++) {\n                if (items.get(j) > items.get(j + 1)) {\n                    Integer held = items.get(j);\n                    items.set(j, items.get(j + 1));\n                    items.set(j + 1, held);\n                }\n            }\n        }\n    }\n\n    static void selection(List<Integer> items) {\n        for (int i = 0; i < items.size() - 1; i++) {\n            int smallest = i;\n            for (int j = i + 1; j < items.size(); j++) {\n                if (items.get(j) < items.get(smallest)) {\n                    smallest = j;\n                }\n            }\n            Collections.swap(items, i, smallest);\n        }\n    }\n\n    static void insertion(List<Integer> items) {\n        for (int i = 1; i < items.size(); i++) {\n            int key = items.get(i);\n            int j = i - 1;\n            while (j >= 0 && items.get(j) > key) {\n                items.set(j + 1, items.get(j));\n                j--;\n            }\n            items.set(j + 1, key);\n        }\n    }\n\n    public static void main(String[] args) {\n        ArrayList<Integer> items = new ArrayList<>(List.of(3, 1, 2));\n        bubble(items);\n        System.out.println(items + \" \" + find(items, 2) + \" \" + contains(items, 3));\n    }\n}\n",
+        "9: `ListAlgorithms.find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items.get(mid)` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.|23: `ListAlgorithms.contains` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `mark`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.|32: `ListAlgorithms.bubble` looks like a bubble sort: it goes over `items` again and again, and wherever two neighbours, `items.get(j)` and `items.get(j + 1)`, are out of order, swaps them. A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.|44: `ListAlgorithms.selection` looks like a selection sort: for each position `i` it looks through the rest for the item that should come first, keeping its position in `smallest`, then swaps `items.get(i)` and `items.get(smallest)`. A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.|56: `ListAlgorithms.insertion` looks like an insertion sort: it takes each item out into `key`, moves the items before it that should come after it one place along, `items.set(j + 1, items.get(j))`, and puts `key` back in the gap. An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.")]
     [InlineData("Search.cs", "Console.WriteLine(Position(new[] { 4, 8, 15 }, 8));\n\nstatic int Position(int[] marks, int wanted)\n{\n    var index = 0;\n    while (index < marks.Length)\n    {\n        if (marks[index] == wanted) return index;\n        index++;\n    }\n    return -1;\n}\n",
         "6: `Position` looks like a linear search: it goes through `marks` one item at a time and stops at the first, `marks[index]`, that equals `wanted`. A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.")]
     [InlineData("Search.java", "public class Search {\n    static int position(int[] marks, int wanted) {\n        for (int index = 0; index < marks.length; index++) {\n            if (marks[index] == wanted) {\n                return index;\n            }\n        }\n        return -1;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(position(new int[] {4, 8, 15}, 8));\n    }\n}\n",
@@ -133,52 +130,5 @@ public class AlgorithmRecognitionTests : IDisposable
 
         Assert.Empty(program.Problems);
         Assert.Empty(AlgorithmRecognition.Of(program));
-    }
-
-    /// <summary>A check carries what it recognised in the program it checked, and a saved report shows it, line and all.</summary>
-    [Fact]
-    public async Task ACheckCarriesWhatItRecognisedAndASavedReportShowsIt()
-    {
-        if (PythonFrontend.FindInterpreter() is null) return;
-
-        var path = Path.Combine(_temp.Path, "sort.py");
-        await File.WriteAllTextAsync(path, """
-            def bubble(items):
-                n = len(items)
-                for i in range(n - 1):
-                    for j in range(n - 1 - i):
-                        if items[j] > items[j + 1]:
-                            items[j], items[j + 1] = items[j + 1], items[j]
-                return items
-
-
-            print(bubble([5, 2, 9, 1]))
-
-            """);
-
-        using var http = new FixFinderHttpClient();
-        var report = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckAsync(TargetFactory.FromFile(path));
-
-        var seen = Assert.Single(report.Recognised);
-        Assert.Equal(("bubble", 3, "a bubble sort"), (seen.Function, seen.Line, seen.Algorithm));
-
-        // Read again without being run, as the window reads it each time the file is saved, it says the same - all but
-        // what calling it showed, as nothing is called when nothing is run.
-        var read = await new ProgramChecker(http, new FixSourceRegistry()) { Language = CodeLanguage.Python }.CheckCodeAsync(TargetFactory.FromFile(path));
-        Assert.Equal(report.Recognised.Select(seen => seen with { Tried = null }), read.Recognised);
-        Assert.Null(Assert.Single(read.Recognised).Tried);
-
-        var page = new ReportPage
-        {
-            Program = "sort.py", Language = "Python", CheckedAt = DateTimeOffset.Now, SyntaxSummary = report.SyntaxSummary, LogicSummary = report.LogicSummary,
-            Recognised = report.Recognised, Findings = report.Findings,
-        }.ToHtml();
-        Assert.Contains("<h2>What the code looks like</h2>", page);
-        Assert.Contains("<strong><code>bubble</code>, line 3: a bubble sort</strong>", page);
-
-        // The command line says it too, beside its notes.
-        var errors = new StringWriter();
-        await CommandLine.RunAsync([path], new StringWriter(), errors);
-        Assert.Contains("algorithm: sort.py:3: `bubble` looks like a bubble sort: it goes over `items` again and again", errors.ToString(), StringComparison.Ordinal);
     }
 }

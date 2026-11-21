@@ -69,11 +69,32 @@ public static class AlgorithmRecognition
 {
     public const string TopLevelCode = "the top-level code";
 
+    /// <summary>
+    /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
+    /// is being recognised; what is said of the code says it as it is written.
+    /// </summary>
+    [ThreadStatic]
+    private static Dictionary<Expr, string>? _writtenAs;
+
     public static IReadOnlyList<AlgorithmSeen> Of(IrProgram program)
     {
-        var seen = new List<AlgorithmSeen>();
-        foreach (var function in program.AllFunctions)
+        _writtenAs = new Dictionary<Expr, string>(ReferenceEqualityComparer.Instance);
+        try
         {
+            return Recognised(program);
+        }
+        finally
+        {
+            _writtenAs = null;
+        }
+    }
+
+    private static IReadOnlyList<AlgorithmSeen> Recognised(IrProgram program)
+    {
+        var seen = new List<AlgorithmSeen>();
+        foreach (var written in program.AllFunctions)
+        {
+            var function = program.Language == SourceLanguage.Java ? JavaListsReadAsIndexed(written) : written;
             // A function declared inside the top-level code - C#'s local functions - is named as the program names it.
             var name = function.Name == IrFunction.ModuleBody ? TopLevelCode
                 : function.FullName.StartsWith(IrFunction.ModuleBody + ".", StringComparison.Ordinal) ? function.FullName[(IrFunction.ModuleBody.Length + 1)..]
@@ -116,6 +137,39 @@ public static class AlgorithmRecognition
 
     private static string? NameOf(Expr expression) => expression is Name { Identifier: var name } ? name : null;
 
+    /// <summary>An expression as the code writes it: items.get(j), where it was read as items[j].</summary>
+    private static string Shown(Expr expression) => _writtenAs?.GetValueOrDefault(expression) ?? IrText.Of(expression);
+
+    /// <summary>
+    /// A Java method with its lists read as an array is: items.get(j) as items[j], items.set(j, v) as items[j] = v,
+    /// a.equals(b) and Objects.equals(a, b) as a == b - each remembered as it is written, to be said so.
+    /// </summary>
+    private static IrFunction JavaListsReadAsIndexed(IrFunction function) => new IrRewrite(expression =>
+    {
+        Expr? read = expression switch
+        {
+            Call { Callee: Member { Target: var list, MemberName: "get" }, Arguments: [var at] } => new ElementAccess(expression.Span, list, at.Value),
+            Call { Callee: Member { Target: var list, MemberName: "set" }, Arguments: [var at, var value] } =>
+                new AssignValue(expression.Span, new ElementAccess(expression.Span, list, at.Value), value.Value),
+            Call { Callee: Member { Target: var one, MemberName: "equals" }, Arguments: [var other] } => new Binary(expression.Span, BinaryOperator.Equal, one, other.Value),
+            Call { Callee: Member { Target: Name { Identifier: "Objects" }, MemberName: "equals" }, Arguments: [var one, var other] } =>
+                new Binary(expression.Span, BinaryOperator.Equal, one.Value, other.Value),
+            _ => null,
+        };
+        if (read is null) return expression;
+
+        // Said from its parts as they are written, as a part read already - the get inside a set - is read as an array's.
+        var written = expression switch
+        {
+            Call { Callee: Member { Target: Name { Identifier: "Objects" } }, Arguments: [var one, var other] } => $"Objects.equals({Shown(one.Value)}, {Shown(other.Value)})",
+            Call { Callee: Member { Target: var owner, MemberName: var method }, Arguments: var given } =>
+                $"{Shown(owner)}.{method}({string.Join(", ", given.Select(argument => Shown(argument.Value)))})",
+            _ => IrText.Of(expression),
+        };
+        _writtenAs?.TryAdd(read, written);
+        return read;
+    }).Function(function);
+
     private static readonly Func<IrFunction, IReadOnlyList<Stmt>, Found?>[] Recognisers =
     [
         BinarySearch,
@@ -152,7 +206,7 @@ public static class AlgorithmRecognition
                 if (!writes.Any(write => write.Name == low && Mentions(write.Value, mid)) || !writes.Any(write => write.Name == high && Mentions(write.Value, mid))) continue;
 
                 return new Found(loop.Span.Line, "a binary search",
-                    $"it keeps a range from `{low}` to `{high}`, looks at its middle, `{mid}`, compares `{IrText.Of(probed)}` with what it looks for, " +
+                    $"it keeps a range from `{low}` to `{high}`, looks at its middle, `{mid}`, compares `{Shown(probed)}` with what it looks for, " +
                     $"and moves `{low}` or `{high}` past the middle, halving the range each time round",
                     "A binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in order.",
                     NameOf(probed.Target), SoughtBeside(inside, probed))
@@ -194,7 +248,7 @@ public static class AlgorithmRecognition
                     // Read by position, the list is the one the position is taken into, not the range of positions gone through.
                     var over = looked is ElementAccess { Target: var list } ? $"`{IrText.Of(list)}`" : loop is ForEach { Items: var items } ? $"`{IrText.Of(items)}`" : "the list";
                     return new Found(loop.Span.Line, "a linear search",
-                        $"it goes through {over} one item at a time and stops at the first, `{IrText.Of(looked)}`, that equals `{IrText.Of(sought)}`",
+                        $"it goes through {over} one item at a time and stops at the first, `{Shown(looked)}`, that equals `{Shown(sought)}`",
                         "A linear search needs no order, and looks at every item when what it looks for is not there - n looks for n items.",
                         looked is ElementAccess { Target: var indexed } ? NameOf(indexed) : loop is ForEach { Items: var walked } ? NameOf(walked) : null, NameOf(sought))
                     {
@@ -225,7 +279,7 @@ public static class AlgorithmRecognition
                     if (!Swaps(IrWalk.Statements(check.Then).ToList()).Any(swap => SamePair(swap, first, second))) continue;
 
                     return new Found(outer.Span.Line, "a bubble sort",
-                        $"it goes over `{IrText.Of(first.Target)}` again and again, and wherever two neighbours, `{IrText.Of(first)}` and `{IrText.Of(second)}`, " +
+                        $"it goes over `{IrText.Of(first.Target)}` again and again, and wherever two neighbours, `{Shown(first)}` and `{Shown(second)}`, " +
                         "are out of order, swaps them",
                         "A bubble sort compares about half of n squared pairs of n items, so it slows down fast as the list grows.",
                         NameOf(first.Target));
@@ -268,7 +322,7 @@ public static class AlgorithmRecognition
 
                     return new Found(outer.Span.Line, "a selection sort",
                         $"for each position `{at}` it looks through the rest for the item that should come first, keeping its position in `{chosen}`, " +
-                        $"then swaps `{IrText.Of(swap.First)}` and `{IrText.Of(swap.Second)}`",
+                        $"then swaps `{Shown(swap.First)}` and `{Shown(swap.Second)}`",
                         "A selection sort compares about half of n squared pairs of n items, however ordered they already are, but swaps at most n - 1 times.",
                         swap.First is ElementAccess { Target: var swapped } ? NameOf(swapped) : null);
                 }
@@ -306,7 +360,7 @@ public static class AlgorithmRecognition
 
                     return new Found(outer.Span.Line, "an insertion sort",
                         $"it takes each item out into `{key}`, moves the items before it that should come after it one place along, " +
-                        $"`{IrText.Of(shift.Target)} = {IrText.Of(shift.Value)}`, and puts `{key}` back in the gap",
+                        $"`{(shift.Assigned is { } assigned && _writtenAs?.GetValueOrDefault(assigned) is { } call ? call : $"{Shown(shift.Target)} = {Shown(shift.Value)}")}`, and puts `{key}` back in the gap",
                         "An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.",
                         NameOf(((ElementAccess)taken.Value).Target));
                 }
@@ -327,7 +381,7 @@ public static class AlgorithmRecognition
         var stepped = new HashSet<string>(StringComparer.Ordinal);
         if (loop is ForEach { Target: Name each }) stepped.Add(each.Identifier);
 
-        foreach (var (_, name, value) in Writes(IrWalk.Statements(loop is For forLoop ? forLoop.Step.Concat(forLoop.Body) : Body(loop))))
+        foreach (var (_, name, value, _) in Writes(IrWalk.Statements(loop is For forLoop ? forLoop.Step.Concat(forLoop.Body) : Body(loop))))
         {
             if (name is not null && value is Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } } &&
                 from == name)
@@ -356,20 +410,20 @@ public static class AlgorithmRecognition
     /// Every value given to something, whichever way the language writes it: x = v, var x = v, x += v, and an
     /// assignment inside an expression.
     /// </summary>
-    private static IEnumerable<(Expr Target, string? Name, Expr Value)> Writes(IEnumerable<Stmt> statements)
+    private static IEnumerable<(Expr Target, string? Name, Expr Value, Expr? Assigned)> Writes(IEnumerable<Stmt> statements)
     {
         foreach (var statement in statements)
         {
             switch (statement)
             {
                 case Assign { Target: var target, Value: var value, Compound: var compound }:
-                    yield return (target, (target as Name)?.Identifier, compound is { } op ? new Binary(statement.Span, op, target, value) : value);
+                    yield return (target, (target as Name)?.Identifier, compound is { } op ? new Binary(statement.Span, op, target, value) : value, null);
                     break;
                 case Declare { Initial: { } initial } declared:
-                    yield return (new Name(declared.Span, declared.Variable), declared.Variable, initial);
+                    yield return (new Name(declared.Span, declared.Variable), declared.Variable, initial, null);
                     break;
-                case Evaluate { Value: AssignValue { Target: var target, Value: var value } }:
-                    yield return (target, (target as Name)?.Identifier, value);
+                case Evaluate { Value: AssignValue { Target: var target, Value: var value } assigned }:
+                    yield return (target, (target as Name)?.Identifier, value, assigned);
                     break;
             }
         }
@@ -439,6 +493,16 @@ public static class AlgorithmRecognition
 
             if (statement is Evaluate { Value: Call { Callee: Name { Identifier: "swap" } or Member { MemberName: "swap" }, Arguments: [var x, var y] } })
                 yield return (Exchanged(x.Value), Exchanged(y.Value));
+
+            // Java's Collections.swap(items, i, j): the items at i and at j, said as the call writes them.
+            if (statement is Evaluate { Value: Call { Callee: Member { Target: Name { Identifier: "Collections" }, MemberName: "swap" }, Arguments: [var list, var one, var other] } swapCall })
+            {
+                var atOne = new ElementAccess(swapCall.Span, list.Value, one.Value);
+                var atOther = new ElementAccess(swapCall.Span, list.Value, other.Value);
+                _writtenAs?.TryAdd(atOne, $"{IrText.Of(list.Value)}.get({IrText.Of(one.Value)})");
+                _writtenAs?.TryAdd(atOther, $"{IrText.Of(list.Value)}.get({IrText.Of(other.Value)})");
+                yield return (atOne, atOther);
+            }
 
             if (index + 2 < statements.Count && Writes([statement]).ToList() is [{ Name: { } held, Value: var first }] &&
                 Writes([statements[index + 1]]).ToList() is [{ Target: var overwritten, Value: var second }] &&

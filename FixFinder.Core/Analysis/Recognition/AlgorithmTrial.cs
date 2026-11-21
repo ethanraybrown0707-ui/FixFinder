@@ -22,8 +22,9 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// For a Python function at the top of its file, or a JavaScript one at the top of a CommonJS file, whose parameters
 /// are the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
 /// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs.
-/// For a static Java method whose list is an int[], what a search looks for an int, and a length an int, called by
-/// reflection from a small class compiled beside a copy of its file, so the program's own main never runs. A sort that
+/// For a static Java method whose list is an int[], a List&lt;Integer&gt; or an ArrayList&lt;Integer&gt;, what a search looks
+/// for an int or an Integer, and a length an int, called by reflection from a small class compiled beside a copy of its
+/// file, so the program's own main never runs. A sort that
 /// gives back nothing is read from the list it was given, which it sorted in place. A sort that gives back every list
 /// largest first is a sort too. A binary search that misses on lists in order is tried on the same lists in reverse
 /// order, which it may be written for. A call still going after 2 seconds ends a Python or Java trial, and a JavaScript
@@ -383,12 +384,13 @@ public static partial class AlgorithmTrial
                                                     string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// The class a Java parameter is found by, for its part: int[] for the list, int or Integer for what is looked for
-    /// or a length.
+    /// The class a Java parameter is found by, for its part: int[], List&lt;Integer&gt; or ArrayList&lt;Integer&gt; for the
+    /// list, int or Integer for what is looked for, int for a length.
     /// </summary>
     private static string? JavaClassOf(IrType type, string? role) => (role, type.Name) switch
     {
         ("list", "array") when type.Arguments is [{ Name: "int" }] => "int[].class",
+        ("list", "List" or "ArrayList") when type.Arguments is [{ Name: "Integer" }] => $"java.util.{type.Name}.class",
         ("sought" or "length", "int") => "int.class",
         ("sought", "Integer") => "Integer.class",
         _ => null,
@@ -460,6 +462,10 @@ public static partial class AlgorithmTrial
             "sought" => "sought[index]",
             _ => "lists[index].length",
         }));
+
+        // An array is given a copy of the trial's; a list, a fresh ArrayList of the same numbers.
+        var listType = method.Parameters.Zip(roles).First(pair => pair.Second.Role == "list").First.Type;
+        var madeList = listType.Name == "array" ? "lists[index].clone()" : "boxed(lists[index])";
         return $$"""
             public class {{JavaTrialClass}} {
                 static String quote(String text) {
@@ -471,8 +477,23 @@ public static partial class AlgorithmTrial
                     return written.append('"').toString();
                 }
 
+                static java.util.ArrayList<Integer> boxed(int[] items) {
+                    java.util.ArrayList<Integer> list = new java.util.ArrayList<Integer>();
+                    for (int item : items) list.add(item);
+                    return list;
+                }
+
                 static String plain(Object value) {
                     if (value == null) return "null";
+                    if (value instanceof java.util.Collection) {
+                        StringBuilder written = new StringBuilder("[");
+                        boolean first = true;
+                        for (Object item : (java.util.Collection<?>) value) {
+                            written.append(first ? "" : ",").append(plain(item));
+                            first = false;
+                        }
+                        return written.append("]").toString();
+                    }
                     if (value instanceof Boolean || value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) return value.toString();
                     if (value instanceof int[]) {
                         StringBuilder written = new StringBuilder("[");
@@ -491,7 +512,7 @@ public static partial class AlgorithmTrial
                     int[][] lists = { {{lists}} };
                     int[] sought = { {{sought}} };
                     for (int index = 0; index < lists.length; index++) {
-                        final int[] list = lists[index].clone();
+                        final Object list = {{madeList}};
                         final Object[] given = new Object[] { {{given}} };
                         final String[] outcome = { null };
                         Thread call = new Thread(() -> {
