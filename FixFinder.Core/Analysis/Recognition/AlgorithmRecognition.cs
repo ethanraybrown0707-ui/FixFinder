@@ -48,6 +48,12 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a sort, whose result is the same items in order, rather than a search.</summary>
     public bool IsSort => Algorithm.EndsWith(" sort", StringComparison.Ordinal);
 
+    /// <summary>Whether it is a search for the largest or the smallest item, whose result is that item.</summary>
+    public bool IsExtreme => Algorithm.StartsWith("a search for the ", StringComparison.Ordinal);
+
+    /// <summary>For a search for the largest or smallest item: whether it is the largest.</summary>
+    public bool IsLargest => Algorithm == AlgorithmRecognition.LargestSearch;
+
     /// <summary>The whole of it as one sentence: "`find` looks like a binary search: it keeps ...".</summary>
     public string Said =>
         $"{(Function == AlgorithmRecognition.TopLevelCode ? "The top-level code" : $"`{Function}`")} looks like {Algorithm}: {HowItWorks}. {WhatToKnow}";
@@ -68,6 +74,10 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
 public static class AlgorithmRecognition
 {
     public const string TopLevelCode = "the top-level code";
+
+    public const string LargestSearch = "a search for the largest item";
+
+    public const string SmallestSearch = "a search for the smallest item";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -177,6 +187,7 @@ public static class AlgorithmRecognition
         BubbleSort,
         SelectionSort,
         InsertionSort,
+        LargestOrSmallest,
     ];
 
     /// <summary>
@@ -363,6 +374,48 @@ public static class AlgorithmRecognition
                         $"`{(shift.Assigned is { } assigned && _writtenAs?.GetValueOrDefault(assigned) is { } call ? call : $"{Shown(shift.Target)} = {Shown(shift.Value)}")}`, and puts `{key}` back in the gap",
                         "An insertion sort is quick on a list that is nearly in order, and compares about half of n squared pairs of n items on one in reverse order.",
                         NameOf(((ElementAccess)taken.Value).Target));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A loop over a list - by item, or by a position it steps one at a time - in which the item is compared with a
+    /// name the loop keeps, and put there when it is larger, or smaller: if item > best: best = item. When the function
+    /// gives back that name, the recognition says so, for it to be called and checked.
+    /// </summary>
+    private static Found? LargestOrSmallest(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            var stepped = SteppedByOne(loop);
+            foreach (var check in IrWalk.Statements(Body(loop)).OfType<If>())
+            {
+                if (check.Condition is not Binary { Operator: BinaryOperator.Less or BinaryOperator.LessOrEqual or BinaryOperator.Greater or BinaryOperator.GreaterOrEqual } compare)
+                    continue;
+
+                foreach (var (item, kept, itemFirst) in new[] { (compare.Left, compare.Right, true), (compare.Right, compare.Left, false) })
+                {
+                    var isTheItem = loop is ForEach { Target: Name each } && item is Name { Identifier: var named } && named == each.Identifier ||
+                                    item is ElementAccess { Key: Name key } && stepped.Contains(key.Identifier);
+                    if (!isTheItem || kept is not Name { Identifier: var best } || stepped.Contains(best)) continue;
+                    if (!Writes(IrWalk.Statements(check.Then)).Any(write => write.Name == best && IrText.Of(write.Value) == IrText.Of(item))) continue;
+
+                    var largest = (compare.Operator is BinaryOperator.Greater or BinaryOperator.GreaterOrEqual) == itemFirst;
+                    var list = item is ElementAccess { Target: var indexed } ? indexed : loop is ForEach { Items: var walked } ? walked : null;
+                    if (list is null) continue;
+
+                    return new Found(loop.Span.Line, largest ? LargestSearch : SmallestSearch,
+                        $"it goes through `{Shown(list)}` and keeps the {(largest ? "largest" : "smallest")} item it has seen in `{best}`, putting each " +
+                        $"{(largest ? "larger" : "smaller")} one, `{Shown(item)}`, there",
+                        $"It looks at each item once, n looks for n items. What `{best}` starts at has to be an item of the list - a start of 0 " +
+                        $"stays the {(largest ? "largest of a list all below zero" : "smallest of a list all above zero")}.",
+                        NameOf(list))
+                    {
+                        Gives = statements.OfType<Return>().Any(leave => leave.Value is Name { Identifier: var returned } && returned == best) ? SearchGives.Item : null,
+                    };
                 }
             }
         }

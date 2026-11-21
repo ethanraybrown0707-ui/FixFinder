@@ -24,6 +24,17 @@ internal static class LogicGuides
             + "changing too early, or changes the wrong items, is where the loop's start, end or comparison is out by one.",
             ""),
 
+        GuideFor(["algorithm-extreme-wrong"], "A search for the largest or smallest that misses it",
+            "The function is written the way a search for the largest, or smallest, item is written - it keeps the best it "
+            + "has seen and replaces it with any better item - so FixFinder called it with lists of its own, never empty, and "
+            + "looked at what came back. For one of them it was not the list's largest, or smallest, item, or the call stopped "
+            + "with an error.",
+            "A start that is not an item of the list - 0, or a very large or small number - is never replaced when every item "
+            + "is on the wrong side of it, so the answer is a number that is not in the list at all.",
+            "Start with the list's first item, and compare the rest with it - or use the language's own largest and smallest, "
+            + "such as max and min, which start from the list itself.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

@@ -22,13 +22,13 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// For a Python function at the top of its file, or a JavaScript one at the top of a CommonJS file, whose parameters
 /// are the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
 /// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs.
-/// For a static Java method whose list is an int[], a List&lt;Integer&gt; or an ArrayList&lt;Integer&gt;, what a search looks
-/// for an int or an Integer, and a length an int, called by reflection from a small class compiled beside a copy of its
-/// file, so the program's own main never runs. A sort that
-/// gives back nothing is read from the list it was given, which it sorted in place. A sort that gives back every list
-/// largest first is a sort too. A binary search that misses on lists in order is tried on the same lists in reverse
-/// order, which it may be written for. A call still going after 2 seconds ends a Python or Java trial, and a JavaScript
-/// one still going when its run's 10 seconds are up ends there; nothing is said of any of them.
+/// For a static Java method whose list is an int[], a List&lt;Integer&gt; or an ArrayList&lt;Integer&gt;, what a search
+/// looks for an int or an Integer, and a length an int, called by reflection from a small class compiled beside a copy
+/// of its file, so the program's own main never runs. A sort that gives back nothing is read from the list it was
+/// given, which it sorted in place. A sort that gives back every list largest first is a sort too. A binary search that
+/// misses on lists in order is tried on the same lists in reverse order, which it may be written for. A call still
+/// going after 2 seconds ends a Python or Java trial, and a JavaScript one still going when its run's 10 seconds are up
+/// ends there; nothing is said of any of them.
 /// </remarks>
 public static partial class AlgorithmTrial
 {
@@ -54,6 +54,12 @@ public static partial class AlgorithmTrial
     /// Lists to search, in order: empty, of one, of two, of four and six spread out, and one with a repeat.
     /// </summary>
     private static readonly int[][] ToSearch = [[], [5], [1, 3], [1, 3, 5, 7], [1, 3, 5, 7, 9, 11], [2, 4, 4, 8]];
+
+    /// <summary>
+    /// Lists to find the largest or smallest of - never empty, which has neither: of one, of two either way, mixed, all
+    /// below zero, all above zero, with repeats, and largest and smallest at either end.
+    /// </summary>
+    private static readonly int[][] ToFindTheExtremeOf = [[5], [1, 2], [2, 1], [3, 1, 2], [-3, -7, -1], [4, 9, 6], [4, 4], [7, -3, 0, 12, -3], [12, 0, 7, -3]];
 
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
     private static readonly int[] OutOfOrder = [5, 2, 9, 1];
@@ -111,8 +117,12 @@ public static partial class AlgorithmTrial
             ".java" => SourceLanguage.Java,
             _ => (SourceLanguage?)null,
         };
-        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode || recognition.List is null ||
-            !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
+        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode || recognition.List is null)
+            return null;
+
+        // A sort is judged by its list; a search for the largest or smallest by the item it gives back; any other search by
+        // what it looks for and what it gives back when it finds it.
+        if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
         var function = language == SourceLanguage.Java ? JavaMethod(recognition, program) : TopLevelFunction(recognition, program);
@@ -133,7 +143,7 @@ public static partial class AlgorithmTrial
             if (language == SourceLanguage.Java && JavaClassOf(parameter.Type, role) is null) return null;
         }
 
-        return roles.Any(role => role.Role == "list") && (recognition.IsSort || roles.Any(role => role.Role == "sought")) ? roles : null;
+        return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
     /// <summary>
@@ -144,7 +154,9 @@ public static partial class AlgorithmTrial
     private static async Task<(string? Said, string? Broken)> JudgedAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IrProgram program,
         string runtime, string? java, bool ascending, CancellationToken cancellationToken)
     {
-        var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList() : SearchTrials(recognition, ascending);
+        var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
+            : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
+            : SearchTrials(recognition, ascending);
         var results = program.Language switch
         {
             SourceLanguage.Python => await RunPythonAsync(recognition, roles, trials, runtime, cancellationToken),
@@ -155,7 +167,9 @@ public static partial class AlgorithmTrial
         };
         if (results is null) return (null, null);
 
-        return recognition.IsSort ? JudgeSort(recognition, results) : JudgeSearch(recognition, results, trials, ascending);
+        return recognition.IsSort ? JudgeSort(recognition, results)
+            : recognition.IsExtreme ? JudgeExtreme(recognition, results)
+            : JudgeSearch(recognition, results, trials, ascending);
     }
 
     private static List<Trial> SearchTrials(AlgorithmSeen recognition, bool ascending)
@@ -225,6 +239,28 @@ public static partial class AlgorithmTrial
 
     private static List<long> Longs(IEnumerable<int> items) => items.Select(item => (long)item).ToList();
 
+    /// <summary>
+    /// Whether each list's largest, or smallest, item came back - and the first list that did not, with what did.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeExtreme(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        var which = recognition.IsLargest ? "largest" : "smallest";
+        foreach (var result in results)
+        {
+            var list = Show(result.Trial.List);
+            var wanted = recognition.IsLargest ? result.Trial.List.Max() : result.Trial.List.Min();
+            if (result.Error is { } error) return Broken($"Called with {list}, {name} stopped with {error}");
+            if (result.Returned is not { ValueKind: JsonValueKind.Number } returned || !returned.TryGetInt64(out var given)) return (null, null);
+            if (given != wanted) return Broken($"Called with {list}, {name} gave {given} - but the {which} item is {wanted}");
+        }
+
+        return ($"Called with {results.Count} lists of FixFinder's own - of one item, in order, in reverse order, all below zero, all above zero " +
+                $"and with repeats - it gave the {which} item of each.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -274,7 +310,7 @@ public static partial class AlgorithmTrial
     /// <summary>A recognition's first wrong call as a finding: certain, as it was seen.</summary>
     private static Finding FindingFor(AlgorithmSeen recognition, string broken)
     {
-        var rule = recognition.IsSort ? "algorithm-sort-wrong" : "algorithm-search-wrong";
+        var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -283,7 +319,9 @@ public static partial class AlgorithmTrial
             Confidence = Confidence.Certain,
             File = recognition.File,
             Line = recognition.Line,
-            Title = recognition.IsSort ? $"`{recognition.Function}` does not sort every list" : $"`{recognition.Function}` does not find every value",
+            Title = recognition.IsSort ? $"`{recognition.Function}` does not sort every list"
+                : recognition.IsExtreme ? $"`{recognition.Function}` does not give back the {(recognition.IsLargest ? "largest" : "smallest")} item of every list"
+                : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
             WhyItMatters = guide.WhyItMatters,
@@ -384,8 +422,8 @@ public static partial class AlgorithmTrial
                                                     string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// The class a Java parameter is found by, for its part: int[], List&lt;Integer&gt; or ArrayList&lt;Integer&gt; for the
-    /// list, int or Integer for what is looked for, int for a length.
+    /// The class a Java parameter is found by, for its part: int[], List&lt;Integer&gt; or ArrayList&lt;Integer&gt; for
+    /// the list, int or Integer for what is looked for, int for a length.
     /// </summary>
     private static string? JavaClassOf(IrType type, string? role) => (role, type.Name) switch
     {

@@ -67,6 +67,12 @@ public class AlgorithmTrialTests : IDisposable
         "bubble: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.py", "def bubble(items):\n    n = len(items)\n    for i in range(n - 1):\n        for j in range(n - 1 - i):\n            if items[j] > items[j + 1]:\n                items[j], items[j + 1] = items[j + 1], items[j]\n    return items\n\n\nprint(bubble([5, 2, 9, 1]))\n",
         "bubble: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
+    [InlineData("Largest.java", "public class Largest {\n    static int largest(int[] items) {\n        int best = items[0];\n        for (int item : items) {\n            if (item > best) {\n                best = item;\n            }\n        }\n        return best;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(largest(new int[] {3, 9, 2}));\n    }\n}\n",
+        "Largest.largest: Called with 9 lists of FixFinder's own - of one item, in order, in reverse order, all below zero, all above zero and with repeats - it gave the largest item of each.")]
+    [InlineData("largest.js", "function smallest(items) {\n    let least = items[0];\n    for (let index = 1; index < items.length; index++) {\n        if (items[index] < least) {\n            least = items[index];\n        }\n    }\n    return least;\n}\n\nconsole.log(smallest([3, 9, 2]));\n",
+        "smallest: Called with 9 lists of FixFinder's own - of one item, in order, in reverse order, all below zero, all above zero and with repeats - it gave the smallest item of each.")]
+    [InlineData("largest.py", "def largest(items):\n    best = items[0]\n    for item in items:\n        if item > best:\n            best = item\n    return best\n\n\ndef smallest(items):\n    least = items[0]\n    for index in range(1, len(items)):\n        if items[index] < least:\n            least = items[index]\n    return least\n\n\nprint(largest([3, 9, 2]), smallest([3, 9, 2]))\n",
+        "largest: Called with 9 lists of FixFinder's own - of one item, in order, in reverse order, all below zero, all above zero and with repeats - it gave the largest item of each.|smallest: Called with 9 lists of FixFinder's own - of one item, in order, in reverse order, all below zero, all above zero and with repeats - it gave the smallest item of each.")]
     [InlineData("Sort.java", "public class Sort {\n    static void insertion(int[] items) {\n        for (int i = 1; i < items.length; i++) {\n            int key = items[i];\n            int j = i - 1;\n            while (j >= 0 && items[j] > key) {\n                items[j + 1] = items[j];\n                j--;\n            }\n            items[j + 1] = key;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        insertion(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
         "Sort.insertion: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.js", "function insertion(items) {\n    for (let i = 1; i < items.length; i++) {\n        const key = items[i];\n        let j = i - 1;\n        while (j >= 0 && items[j] > key) {\n            items[j + 1] = items[j];\n            j--;\n        }\n        items[j + 1] = key;\n    }\n    return items;\n}\n\nconsole.log(insertion([5, 2, 9, 1]));\n",
@@ -219,6 +225,56 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "6 algorithm-sort-wrong: `ListSorts.bubbleOneShort` does not sort every list | Called with [2, 1], `ListSorts.bubbleOneShort` gave back [2, 1], which is not in order - in order it is [1, 2].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A largest started at 0, wrong for a list all below zero, and a smallest started at 0, wrong for [5].</summary>
+    [Fact]
+    public async Task ASearchForTheLargestOrSmallestThatStartsAtZeroIsShownTheListItGetsWrong()
+    {
+        const string code = "def largest_from_zero(items):\n    best = 0\n    for item in items:\n        if item > best:\n            best = item\n    return best\n\n\ndef smallest_from_zero(items):\n    least = 0\n    for item in items:\n        if item < least:\n            least = item\n    return least\n\n\nprint(largest_from_zero([3, 9, 2]), smallest_from_zero([3, -9, 2]))\n";
+        if (await TriedAsync("extremes.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "largest_from_zero: Called with [-3, -7, -1], `largest_from_zero` gave 0 - but the largest item is -1.",
+            "smallest_from_zero: Called with [5], `smallest_from_zero` gave 0 - but the smallest item is 5.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-extreme-wrong: `largest_from_zero` does not give back the largest item of every list | Called with [-3, -7, -1], `largest_from_zero` gave 0 - but the largest item is -1.",
+            "11 algorithm-extreme-wrong: `smallest_from_zero` does not give back the smallest item of every list | Called with [5], `smallest_from_zero` gave 0 - but the smallest item is 5.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The largest started at 0, written in JavaScript.</summary>
+    [Fact]
+    public async Task AJavaScriptSearchForTheLargestThatStartsAtZeroIsShownTheListItGetsWrong()
+    {
+        const string code = "function largestFromZero(items) {\n    let best = 0;\n    for (const item of items) {\n        if (item > best) {\n            best = item;\n        }\n    }\n    return best;\n}\n\nconsole.log(largestFromZero([3, 9, 2]));\n";
+        if (await TriedAsync("extremes.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "largestFromZero: Called with [-3, -7, -1], `largestFromZero` gave 0 - but the largest item is -1.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-extreme-wrong: `largestFromZero` does not give back the largest item of every list | Called with [-3, -7, -1], `largestFromZero` gave 0 - but the largest item is -1.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The largest started at 0, written in Java.</summary>
+    [Fact]
+    public async Task AJavaSearchForTheLargestThatStartsAtZeroIsShownTheListItGetsWrong()
+    {
+        const string code = "public class Extremes {\n    static int largestFromZero(int[] items) {\n        int best = 0;\n        for (int item : items) {\n            if (item > best) {\n                best = item;\n            }\n        }\n        return best;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(largestFromZero(new int[] {3, 9, 2}));\n    }\n}\n";
+        if (await TriedAsync("Extremes.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "Extremes.largestFromZero: Called with [-3, -7, -1], `Extremes.largestFromZero` gave 0 - but the largest item is -1.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "4 algorithm-extreme-wrong: `Extremes.largestFromZero` does not give back the largest item of every list | Called with [-3, -7, -1], `Extremes.largestFromZero` gave 0 - but the largest item is -1.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
