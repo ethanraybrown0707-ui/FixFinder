@@ -16,6 +16,12 @@ public enum RelationKind
     /// finding is about - so the other is the mistake, and this is where it showed.
     /// </summary>
     ValueMadeThere,
+
+    /// <summary>
+    /// The file was read again by the same checks with the other finding's fix made, in a copy, and they no longer found
+    /// this one: making that fix removes it.
+    /// </summary>
+    RemovedByItsFix,
 }
 
 /// <param name="RootId">The finding this one follows from.</param>
@@ -26,6 +32,7 @@ public sealed record Relation(string RootId, RelationKind Kind, Confidence Confi
     {
         RelationKind.SameMissingName => "the same name has no definition here",
         RelationKind.ValueMadeThere => "a run showed the value it stopped on was made there",
+        RelationKind.RemovedByItsFix => "the file was read again with that fix made, in a copy, and this was no longer found",
         _ => "it follows from the same problem",
     };
 }

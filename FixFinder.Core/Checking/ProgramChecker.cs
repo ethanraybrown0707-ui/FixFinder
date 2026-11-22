@@ -60,6 +60,18 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// copies that try the fixes, rather than after them, and waited for before the report is finished.
     /// </summary>
     private readonly List<Task> _explainingWhyTheLineRan = [];
+
+    /// <summary>How many fixes have their file read again with them made, to see which other findings each removes.</summary>
+    private const int MostFixesFollowed = 3;
+
+    /// <summary>Each fix's file read again with the fix made, by the fix it is.</summary>
+    private readonly Dictionary<string, Task> _following = [];
+
+    /// <summary>Each file read on its own as it is, once, for every fix in it to be compared with.</summary>
+    private readonly Dictionary<string, Task<CodeReading?>> _readAsItIs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The mistakes each fix was found to remove, by the fix it is.</summary>
+    private readonly Dictionary<string, IReadOnlyList<CodeFindingPlace>> _removedByFix = [];
     private readonly Dictionary<string, Verification> _verified = [];
 
     /// <summary>Set for a check of the code alone, which compiles and runs nothing.</summary>
@@ -136,8 +148,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         // Both of these run in the background while the report fills in; the report waits for them so that what it
         // finally says about a fix is what was actually established, not what had been established so far.
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan, .. _following.Values];
         await Task.WhenAll(finishing);
+        LinkWhatFixesRemove();
 
         // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
         bool hadErrors;
@@ -1986,8 +1999,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         }
 
         Task[] finishing;
-        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan];
+        lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan, .. _following.Values];
         await Task.WhenAll(finishing);
+        LinkWhatFixesRemove();
 
         lock (_gate)
         {
@@ -2324,6 +2338,90 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         FindingsChanged?.Invoke(snapshot);
         CompareFix(finding);
         VerifyFix(finding);
+        FollowFix(finding);
+    }
+
+    /// <summary>
+    /// Starts reading the fix's file again with the fix made, beside the file as it is, to find which of the other mistakes
+    /// in it the fix removes as well - for the first few fixes, since each reading runs the language's parser again.
+    /// </summary>
+    private void FollowFix(Finding finding)
+    {
+        if (finding.Fix is not { } fix || _launch is not { } launch || NotebookScript.Of(fix.File) is not null) return;
+        if (SourceFile.Read(fix.File) is not { } source || fix.ApplyTo(source) is not { } withTheFix) return;
+
+        var key = FixKey(fix);
+        Task<IrProgram>? ReadWithItsParser(IReadOnlyList<string> files) => ReadProgramAsync(launch, files, _cancellation);
+
+        lock (_gate)
+        {
+            if (_following.ContainsKey(key) || _following.Count >= MostFixesFollowed) return;
+
+            if (!_readAsItIs.TryGetValue(source.Path, out var asItIs))
+            {
+                asItIs = Task.Run(() => FixEffects.ReadAsync(source, source.Lines, ReadWithItsParser, _cancellation), CancellationToken.None);
+                _readAsItIs[source.Path] = asItIs;
+            }
+
+            _following[key] = Task.Run(() => FollowFixAsync(fix, source, withTheFix, asItIs, ReadWithItsParser, key), CancellationToken.None);
+        }
+    }
+
+    private async Task FollowFixAsync(
+        LocalFix fix, SourceFile source, IReadOnlyList<string> withTheFix, Task<CodeReading?> asItIs, Func<IReadOnlyList<string>, Task<IrProgram>?> readWithItsParser, string key)
+    {
+        try
+        {
+            // Nothing found in the file as it is leaves nothing for the fix to remove, and no reason to read it again.
+            if (await asItIs is not { Found.Count: > 0 } before) return;
+            if (await FixEffects.ReadAsync(source, withTheFix, readWithItsParser, _cancellation) is not { } after) return;
+
+            var removed = FixEffects.RemovedBy(fix, source, before, after);
+            lock (_gate) _removedByFix[key] = removed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Reading the code again with a fix made stopped early: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Each finding a fix was found to remove - no longer found when its file was read again with the fix made - is said to
+    /// follow from the finding whose fix it is. Only a finding that follows from nothing yet, and that nothing yet follows
+    /// from, so every link is one step from a root; another finding with the same fix is the same mistake, not one it removes.
+    /// A fix that a copy showed does not work - it did not build, or the copy still failed - is not a fix to follow. A link
+    /// RootCauses makes of its own - one name missing in several places, a value a run showed was made on another finding's
+    /// line - says more than this one, so a finding it links, either way, is left for it.
+    /// </summary>
+    private void LinkWhatFixesRemove()
+    {
+        lock (_gate)
+        {
+            var linkedByRootCauses = RootCauses.Link([.. _findings]).Where(finding => finding.CausedBy is not null).ToList();
+            var placedByRootCauses = linkedByRootCauses.Select(finding => finding.Id)
+                .Concat(linkedByRootCauses.Select(finding => finding.CausedBy!.RootId)).ToHashSet(StringComparer.Ordinal);
+
+            foreach (var (key, removed) in _removedByFix)
+            {
+                if (removed.Count == 0) continue;
+
+                var rootIndex = _findings.FindIndex(finding => finding.Fix is { } fix && FixKey(fix) == key && finding.CausedBy is null);
+                if (rootIndex < 0 || _findings[rootIndex].Verified.SomethingFailed || placedByRootCauses.Contains(_findings[rootIndex].Id)) continue;
+                var root = _findings[rootIndex];
+
+                for (var index = 0; index < _findings.Count; index++)
+                {
+                    var other = _findings[index];
+                    if (index == rootIndex || other.CausedBy is not null || other.Line is not { } line) continue;
+                    if (!string.Equals(Path.GetFullPath(other.File), Path.GetFullPath(root.Fix!.File), StringComparison.OrdinalIgnoreCase)) continue;
+                    if (other.Fix is { } ownFix && FixKey(ownFix) == key) continue;
+                    if (!removed.Contains(new CodeFindingPlace(other.RuleId, line))) continue;
+                    if (_findings.Any(finding => finding.CausedBy?.RootId == other.Id) || placedByRootCauses.Contains(other.Id)) continue;
+
+                    _findings[index] = other with { CausedBy = new Relation(root.Id, RelationKind.RemovedByItsFix, Confidence.Certain) };
+                }
+            }
+        }
     }
 
     /// <summary>

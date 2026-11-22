@@ -1053,6 +1053,21 @@ changed.
 When two checks find the same mistake - a compiler warning and a logic pattern, or a crash and the pattern that explains
 it - the report shows it once, at the surer of the two confidences.
 
+When a finding has a fix, its file is **read again with the fix made**, to see what else the fix removes: the same logic
+checks and analyses read a copy of the file with the fix in it and a copy as it is, each on its own, and every other
+finding they find in the copy as it is and no longer find with the fix is shown under the finding whose fix it is - *Its
+fix removes the problem on line 5 too* - and itself says *Fixing the problem on line 4 removes this one too*. In a Java
+`total` whose loop ran while `index <= marks.length`, the loop's fix, `index < marks.length`, removed the position asked
+for on line 5 that does not exist, and left the division by zero on line 11, which it does not change; in C# and in Go,
+the same loop's fix removed the position it asked for in the same way. A Python binary search, and a Java one, that set
+`low = mid` were found to have a loop that can come round with nothing changed, on the `while` line above it, and the
+search's fix, `low = mid + 1`, removed it too. Among 397 open-source programs checked without being run, whose reports
+held a fix 222 times, one fix removed another finding: in QuixBugs' `PASCAL.java`, whose loop over a row stops at `c <
+r`, the benchmark's own correction, `c < r+1`, removes the `if (c < r)` on line 29 that is always true. Up to 3 fixes a
+check are followed this way, and nothing is run to do it. A finding on a line the fix changes is never said to be
+removed, nor one found only through another of the program's files, and a fix a copy showed does not work, or after
+which the file cannot be read as well as before, removes nothing.
+
 ### Where a missing value came from
 
 A program stops on the line that uses a missing value, which is seldom the line that is wrong. When a Python program
@@ -2220,7 +2235,8 @@ A check of a program does all of this, as far as its language allows - Python, J
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
-   change in the program's behaviour worked out by reading the code before and after them.
+   change in the program's behaviour worked out by reading the code before and after them, and up to 3 have their file
+   read again with them made, to find which of the other findings each removes.
 6. **Tries what it predicted for real**, in Python, Java, Go and JavaScript: a crash the analyses predict is run with
    the values that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a
    Python, Java or C# program that asks questions is given an answer for each way through it, up to 6 sets of answers,

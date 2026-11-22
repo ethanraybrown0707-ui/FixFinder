@@ -251,7 +251,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool Follows => FollowsFrom is not null;
 
-    public string FollowsText => FollowsFrom is { } cause ? FindingText.Follows(cause) : "";
+    public string FollowsText => FollowsFrom is { } cause ? FindingText.Follows(cause, Finding) : "";
 
     public bool Explains => LeadsTo.Count > 0;
 

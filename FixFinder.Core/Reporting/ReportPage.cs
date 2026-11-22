@@ -203,7 +203,7 @@ public sealed record ReportPage
         }
 
         if (links.LeadsTo(finding) is { Count: > 0 } consequences) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Explains(consequences))).Append("</p>\n");
-        if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause))).Append("</p>\n");
+        if (links.FollowsFrom(finding) is { } cause) page.Append("<p class=\"relation\">").Append(Prose(FindingText.Follows(cause, finding))).Append("</p>\n");
 
         // 3 Most likely fix, and how sure FixFinder is of it - which is not how sure it is of the finding.
         Section(page, "Most likely fix", FindingLayout.MostLikelyFix(finding));
