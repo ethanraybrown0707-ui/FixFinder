@@ -956,6 +956,28 @@ module's names are then used at the top of another before it has them - Attribut
 from each of the 152 files at the top of Python 3.13's own library, whose 1,093 modules hold 12 circles of imports, all
 of which work, it found nothing.
 
+A CommonJS JavaScript program's **requires that go round in a circle** are played out the same way, as Node runs them,
+over the top level of each of its own files as FixFinder's own reader reads it - each `require` and what is kept of it,
+each `module.exports = ...` and `exports.name = ...`. Node never starts the file that is run again, and does not stop: a
+module part way through hands over its exports object as it stands, so a `const { TAX_RATE } = require("./shop")` taken
+before `shop.js` exports `TAX_RATE` holds undefined for as long as the program runs, and a `const shop =
+require("./shop")` holds an object that `shop.js`'s later `module.exports = { ... }` leaves behind. When the file goes
+on to read the name, the finding says so, with each require on the way and the line that reads it - *TAX_RATE is
+undefined in prices.js for as long as the program runs, and its line 4 reads it*. Run, the program printed NaN and Node
+said only, as a warning, *Accessing non-existent property 'TAX_RATE' of module exports inside circular dependency*; that
+warning confirms the finding, certain. A module that exports a class - `module.exports = Library` - after it has
+required another that keeps its exports, as `const Library = require("./library")` does, leaves that other holding the
+exports object from before: *Library in book.js is the exports object library.js had before its line 14 replaces it*,
+and Node stopped on its `instanceof Library` with TypeError. Nothing is said when the names arrive in time -
+`exports.TAX_RATE = ...` puts the name in the object kept, and that program printed 12 - nor of a `require` inside the
+function that needs it, which runs once both modules have finished and printed 36, nor of a name taken and never used.
+ES modules, which bind their imports differently, and a `require` or an export inside a block or a function, are not
+played out. Played out from each of the 1,115 `.js` files of the npm that comes with Node 24, which hold 2 circles of
+requires among 8 files, it found one gap: were pacote's `lib/file.js` the file run, its `dir.js` would keep
+`FileFetcher` as the exports object from before `file.js` exports the class, and Node, run that way, said `Cannot read
+properties of undefined (reading 'packument')` where `dir.js` uses it. npm starts pacote from its `index.js`, from which
+the playing out found nothing, and loaded that way, the same call got past `FileFetcher.prototype`.
+
 When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
@@ -2251,8 +2273,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
    by its own language's parser, and recognises from the same reading which of 8 algorithms a function is written as;
-   for Python, it also plays out the program's imports from the file that is run, to find any that go round in a circle
-   and stop it.
+   for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
+   that go round in a circle and stop it, or leave a name undefined.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they

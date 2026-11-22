@@ -592,6 +592,21 @@ internal static class AnalysisGuides
     /// <summary>What JavaScript does when a program goes wrong, in JavaScript's own words and code.</summary>
     public static IReadOnlyList<GuideEntry> JavaScript { get; } =
     [
+        GuideFor(["analysis-circular-import"], "Requires that go round in a circle",
+            "Node runs a module's top level the first time it is required, and while it is part way through, the module is already there for others to require - handing over its exports object as it stands, holding only what its lines so far have put in it. When two modules require each other, one of them gets the other's exports before the other has exported what it needs. A const that takes a name out of them - const { TAX_RATE } = require(\"./shop\") - holds undefined from then on; a const that keeps the whole object sees what is put in it later, unless the module replaces it with module.exports = ..., which leaves the object it kept behind. The file that is run is never started again. Node says only Accessing non-existent property, as a warning, and the program goes on - printing NaN, or failing later with is not a function.",
+            "Nothing stops the program, so it gives a wrong answer - NaN, undefined - or fails somewhere far from the require that caused it.",
+            "Put what both modules need in a module of its own that requires neither of them, and require it from there in each - or move it into the module that uses it, or require the other module inside the function that needs it, which runs once both have finished.",
+            """
+            // settings.js - requires nothing of the program's
+            module.exports = { TAX_RATE: 0.2 };
+
+            // prices.js
+            const { TAX_RATE } = require("./settings");
+
+            // shop.js - the file that is run
+            const { priceWithTax } = require("./prices");
+            """),
+
         GuideFor(["analysis-null-used"], "Using something that is null or undefined",
             "null and undefined both mean 'no value'. On one route through the code this value is still null or undefined when the line asks it for one of its parts - and a no-value has no parts. It happens with a variable declared without a value, a search that found nothing, or a field that is only sometimes set.",
             "Reading a property of null or undefined stops the program with a TypeError.",

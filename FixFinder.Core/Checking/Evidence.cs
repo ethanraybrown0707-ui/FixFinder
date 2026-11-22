@@ -53,7 +53,8 @@ public static class Evidence
         }
         else if (finding.RuleId == "analysis-circular-import")
         {
-            parts.Add("the program's imports were played out from the file that is run, in the order Python runs them");
+            parts.Add("the program's imports were played out from the file that is run, in the order " +
+                      (Path.GetExtension(finding.File).ToLowerInvariant() is ".py" or ".pyw" ? "Python" : "Node") + " runs them");
         }
         else if (finding.FoundBy is { Length: > 0 } technique)
         {

@@ -151,6 +151,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         lock (_gate) finishing = [.. _comparing.Values, .. _verifying.Values, .. _explainingWhyTheLineRan, .. _following.Values];
         await Task.WhenAll(finishing);
         LinkWhatFixesRemove();
+        ConfirmCircularRequires(run);
 
         // Code that needs a later version of its language than the one it ran with: said once, so its errors are not read as mistakes.
         bool hadErrors;
@@ -2041,14 +2042,23 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     /// </summary>
     private async Task<int> ImportsInACircleAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
     {
-        // A file of tests is imported by its runner rather than run, and a notebook's cells are run as one script of FixFinder's.
-        if (launch.ChosenFile is not { } runFile || !runFile.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || NotebookScript.Of(runFile) is not null) return 0;
-        if (PythonTests.FrameworkOf(runFile) != PythonTests.Framework.None || PythonInterpreter(launch) is not { } python) return 0;
+        if (launch.ChosenFile is not { } runFile || NotebookScript.Of(runFile) is not null) return 0;
 
         try
         {
-            if (await PythonImportOrder.CheckAsync(runFile, files, python, cancellationToken) is not { } stopped) return 0;
-            Add(FindingFactory.FromAnalysis(stopped));
+            AnalysisFinding? inACircle = null;
+
+            // A file of tests is imported by its runner rather than run, and a notebook's cells are run as one script of FixFinder's.
+            if (runFile.EndsWith(".py", StringComparison.OrdinalIgnoreCase) && PythonTests.FrameworkOf(runFile) == PythonTests.Framework.None &&
+                PythonInterpreter(launch) is { } python)
+                inACircle = await PythonImportOrder.CheckAsync(runFile, files, python, cancellationToken);
+
+            // A CommonJS program's requires, which Node runs in the same way but never starts the file that is run again.
+            if (Path.GetExtension(runFile).ToLowerInvariant() is ".js" or ".cjs" && !NodeTests.AreItsTests(runFile))
+                inACircle = await JavaScriptRequireOrder.CheckAsync(runFile, files, cancellationToken);
+
+            if (inACircle is null) return 0;
+            Add(FindingFactory.FromAnalysis(inACircle));
             return 1;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -2057,6 +2067,37 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             return 0;
         }
     }
+
+    /// <summary>
+    /// When the run printed Node's own warning about a name a circle of requires left out - Accessing non-existent property
+    /// 'TAX_RATE' of module exports inside circular dependency - the finding that worked out that name is confirmed by it.
+    /// </summary>
+    private void ConfirmCircularRequires(SessionOutcome? outcome)
+    {
+        if (outcome?.Run is not { } run) return;
+        var warned = run.Lines.Select(line => NodeCircularWarning().Match(line.Text)).Where(match => match.Success)
+            .Select(match => match.Groups["name"].Value).ToHashSet(StringComparer.Ordinal);
+        if (warned.Count == 0) return;
+
+        lock (_gate)
+        {
+            for (var index = 0; index < _findings.Count; index++)
+            {
+                if (_findings[index] is not { RuleId: PythonImportOrder.CheckId, Confirmation: null, Found: { } found } circle ||
+                    Path.GetExtension(circle.File).ToLowerInvariant() is not (".js" or ".cjs")) continue;
+                if (warned.FirstOrDefault(name => found.Contains($" {name} ", StringComparison.Ordinal) || found.Contains($".{name} ", StringComparison.Ordinal)) is not { } name) continue;
+
+                _findings[index] = circle with
+                {
+                    Confidence = Confidence.Certain,
+                    Confirmation = $"run as it is, Node warned: Accessing non-existent property '{name}' of module exports inside circular dependency",
+                };
+            }
+        }
+    }
+
+    [GeneratedRegex(@"Warning: Accessing non-existent property '(?<name>[^']+)' of module exports inside circular dependency")]
+    private static partial Regex NodeCircularWarning();
 
     /// <summary>
     /// Says which of the program's files are too large for their code to be read - generated, minified or data, as a rule -
