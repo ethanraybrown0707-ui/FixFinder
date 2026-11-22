@@ -69,7 +69,14 @@ public static partial class AlgorithmTrial
 
     public sealed record Outcome(IReadOnlyList<AlgorithmSeen> Seen, IReadOnlyList<Finding> Findings);
 
-    private sealed record Trial(int[] List, int? Sought);
+    /// <param name="Number">What a prime test is given: a number on its own, with no list.</param>
+    private sealed record Trial(int[] List, int? Sought, int? Number = null);
+
+    /// <summary>
+    /// The numbers a prime test is called with: every one from 0 to 30, so 0, 1, 2, squares and primes are all among
+    /// them.
+    /// </summary>
+    private const int HighestNumberTried = 30;
 
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
@@ -117,12 +124,15 @@ public static partial class AlgorithmTrial
             ".java" => SourceLanguage.Java,
             _ => (SourceLanguage?)null,
         };
-        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode || recognition.List is null)
+        if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
+            recognition.List is null && !recognition.IsPrimeTest)
             return null;
 
         // A sort is judged by its list; a search for the largest or smallest by the item it gives back; any other search by
         // what it looks for and what it gives back when it finds it.
-        if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
+        if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item
+            : recognition.IsPrimeTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
+            : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
         var function = language == SourceLanguage.Java ? JavaMethod(recognition, program) : TopLevelFunction(recognition, program);
@@ -133,7 +143,7 @@ public static partial class AlgorithmTrial
         {
             if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
             if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
-            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, "sought"));
+            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsPrimeTest ? "number" : "sought"));
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
@@ -143,6 +153,7 @@ public static partial class AlgorithmTrial
             if (language == SourceLanguage.Java && JavaClassOf(parameter.Type, role) is null) return null;
         }
 
+        if (recognition.IsPrimeTest) return roles.Any(role => role.Role == "number") ? roles : null;
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
@@ -156,6 +167,7 @@ public static partial class AlgorithmTrial
     {
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
+            : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : SearchTrials(recognition, ascending);
         var results = program.Language switch
         {
@@ -169,6 +181,7 @@ public static partial class AlgorithmTrial
 
         return recognition.IsSort ? JudgeSort(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
+            : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : JudgeSearch(recognition, results, trials, ascending);
     }
 
@@ -261,6 +274,34 @@ public static partial class AlgorithmTrial
         static (string?, string?) Broken(string what) => (what + ".", what);
     }
 
+    /// <summary>
+    /// Whether each number's answer was whether it is prime - and the first that was not, with why: 1 is not prime, 9
+    /// is 3 times 3, 7 is prime.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgePrimeTest(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var number = result.Trial.Number!.Value;
+            if (result.Error is { } error) return Broken($"Called with {number}, {name} stopped with {error}");
+            if (result.Returned is not { ValueKind: JsonValueKind.True or JsonValueKind.False } returned) return (null, null);
+
+            var smallestFactor = Enumerable.Range(2, Math.Max(0, number - 2)).FirstOrDefault(divisor => number % divisor == 0);
+            var prime = number >= 2 && smallestFactor == 0;
+            var saidPrime = returned.ValueKind == JsonValueKind.True;
+            if (saidPrime == prime) continue;
+
+            var gave = AsWritten(returned, recognition.File);
+            var why = prime ? $"{number} is prime" : number < 2 ? $"{number} is not prime" : $"{number} is {smallestFactor} times {number / smallestFactor}";
+            return Broken($"Called with {number}, {name} gave {gave} - but {why}");
+        }
+
+        return ($"Called with every number from 0 to {HighestNumberTried}, it said which were prime and which were not, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -310,7 +351,8 @@ public static partial class AlgorithmTrial
     /// <summary>A recognition's first wrong call as a finding: certain, as it was seen.</summary>
     private static Finding FindingFor(AlgorithmSeen recognition, string broken)
     {
-        var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong" : "algorithm-search-wrong";
+        var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
+            : recognition.IsPrimeTest ? "algorithm-prime-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -321,6 +363,7 @@ public static partial class AlgorithmTrial
             Line = recognition.Line,
             Title = recognition.IsSort ? $"`{recognition.Function}` does not sort every list"
                 : recognition.IsExtreme ? $"`{recognition.Function}` does not give back the {(recognition.IsLargest ? "largest" : "smallest")} item of every list"
+                : recognition.IsPrimeTest ? $"`{recognition.Function}` does not say rightly which numbers are prime"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
@@ -429,7 +472,7 @@ public static partial class AlgorithmTrial
     {
         ("list", "array") when type.Arguments is [{ Name: "int" }] => "int[].class",
         ("list", "List" or "ArrayList") when type.Arguments is [{ Name: "Integer" }] => $"java.util.{type.Name}.class",
-        ("sought" or "length", "int") => "int.class",
+        ("sought" or "length" or "number", "int") => "int.class",
         ("sought", "Integer") => "Integer.class",
         _ => null,
     };
@@ -498,12 +541,14 @@ public static partial class AlgorithmTrial
         {
             "list" => "list",
             "sought" => "sought[index]",
+            "number" => "numbers[index]",
             _ => "lists[index].length",
         }));
+        var numbers = string.Join(", ", trials.Select(trial => trial.Number ?? 0));
 
-        // An array is given a copy of the trial's; a list, a fresh ArrayList of the same numbers.
-        var listType = method.Parameters.Zip(roles).First(pair => pair.Second.Role == "list").First.Type;
-        var madeList = listType.Name == "array" ? "lists[index].clone()" : "boxed(lists[index])";
+        // An array is given a copy of the trial's; a list, a fresh ArrayList of the same numbers; a prime test, no list.
+        var listType = method.Parameters.Zip(roles).FirstOrDefault(pair => pair.Second.Role == "list").First?.Type;
+        var madeList = listType is null ? "null" : listType.Name == "array" ? "lists[index].clone()" : "boxed(lists[index])";
         return $$"""
             public class {{JavaTrialClass}} {
                 static String quote(String text) {
@@ -549,6 +594,7 @@ public static partial class AlgorithmTrial
                     method.setAccessible(true);
                     int[][] lists = { {{lists}} };
                     int[] sought = { {{sought}} };
+                    int[] numbers = { {{numbers}} };
                     for (int index = 0; index < lists.length; index++) {
                         final Object list = {{madeList}};
                         final Object[] given = new Object[] { {{given}} };
@@ -588,7 +634,7 @@ public static partial class AlgorithmTrial
     {
         roles = roles.Where(role => role.Role is not null).ToDictionary(role => role.Name, role => role.Role),
         parameters = roles.Select(role => role.Role),
-        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought }),
+        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought, number = trial.Number }),
     });
 
     /// <summary>Each trial's answer, read from the lines the run printed; null unless every trial answered.</summary>
@@ -662,7 +708,8 @@ public static partial class AlgorithmTrial
             fixfinderPlan.trials.forEach((trial, index) => {
                 const list = trial.list.slice();
                 const given = fixfinderPlan.parameters.map(role =>
-                    role === "list" ? list : role === "sought" ? trial.sought : role === "length" ? trial.list.length : undefined);
+                    role === "list" ? list : role === "sought" ? trial.sought : role === "number" ? trial.number
+                    : role === "length" ? trial.list.length : undefined);
                 const outcome = { trial: index };
                 try {
                     outcome.returned = fixfinderPlain({{function}}(...given), 0);
@@ -723,12 +770,13 @@ public static partial class AlgorithmTrial
         space = {"__name__": "fixfinder_trial", "__file__": target}
         exec(compile(tree, target, "exec"), space)
         function = space[name]
-        list_parameter = next(parameter for parameter, role in plan["roles"].items() if role == "list")
+        list_parameter = next((parameter for parameter, role in plan["roles"].items() if role == "list"), None)
 
         for index, trial in enumerate(plan["trials"]):
             arguments = {}
             for parameter, role in plan["roles"].items():
-                arguments[parameter] = list(trial["list"]) if role == "list" else trial["sought"] if role == "sought" else len(trial["list"])
+                arguments[parameter] = (list(trial["list"]) if role == "list" else trial["sought"] if role == "sought"
+                                        else trial["number"] if role == "number" else len(trial["list"]))
             outcome = {"trial": index}
 
             def call():
@@ -744,7 +792,7 @@ public static partial class AlgorithmTrial
             if worker.is_alive():
                 say({"trial": index, "unfinished": True})
                 os._exit(0)
-            outcome["after"] = plain(arguments[list_parameter])
+            outcome["after"] = plain(arguments[list_parameter]) if list_parameter else None
             say(outcome)
 
         os._exit(0)

@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort or a search recognised in a Python, JavaScript or Java program, called on lists of FixFinder's own: one that works is said to have
+/// A sort, a search or a prime test recognised in a Python, JavaScript or Java program, called on lists or numbers of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -87,6 +87,12 @@ public class AlgorithmTrialTests : IDisposable
         "contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def position(names, wanted):\n    for index in range(len(names)):\n        if names[index] == wanted:\n            return index\n    return -1\n\n\ndef contains(names, wanted):\n    for name in names:\n        if name == wanted:\n            return True\n    return False\n\n\nprint(position([\"ann\", \"bob\"], \"bob\"), contains([\"ann\"], \"cy\"))\n",
         "position: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.|contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
+    [InlineData("Prime.java", "public class Prime {\n    static boolean isPrime(int n) {\n        if (n < 2) {\n            return false;\n        }\n        for (int i = 2; i * i <= n; i++) {\n            if (n % i == 0) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isPrime(17));\n    }\n}\n",
+        "Prime.isPrime: Called with every number from 0 to 30, it said which were prime and which were not, every one right.")]
+    [InlineData("prime.js", "function isPrime(n) {\n    if (n < 2) {\n        return false;\n    }\n    for (let i = 2; i * i <= n; i++) {\n        if (n % i === 0) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(isPrime(17));\n",
+        "isPrime: Called with every number from 0 to 30, it said which were prime and which were not, every one right.")]
+    [InlineData("prime.py", "def is_prime(n):\n    if n < 2:\n        return False\n    for i in range(2, int(n ** 0.5) + 1):\n        if n % i == 0:\n            return False\n    return True\n\n\nprint([number for number in range(20) if is_prime(number)])\n",
+        "is_prime: Called with every number from 0 to 30, it said which were prime and which were not, every one right.")]
     [InlineData("Sort.java", "public class Sort {\n    static void selection(int[] items) {\n        for (int i = 0; i < items.length - 1; i++) {\n            int smallest = i;\n            for (int j = i + 1; j < items.length; j++) {\n                if (items[j] < items[smallest]) {\n                    smallest = j;\n                }\n            }\n            int held = items[i];\n            items[i] = items[smallest];\n            items[smallest] = held;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {5, 2, 9, 1};\n        selection(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
         "Sort.selection: Called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - it gave each back in order, with the same items.")]
     [InlineData("sort.js", "function selection(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        let smallest = i;\n        for (let j = i + 1; j < items.length; j++) {\n            if (items[j] < items[smallest]) {\n                smallest = j;\n            }\n        }\n        [items[i], items[smallest]] = [items[smallest], items[i]];\n    }\n    return items;\n}\n\nconsole.log(selection([5, 2, 9, 1]));\n",
@@ -275,6 +281,58 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "4 algorithm-extreme-wrong: `Extremes.largestFromZero` does not give back the largest item of every list | Called with [-3, -7, -1], `Extremes.largestFromZero` gave 0 - but the largest item is -1.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A prime test with no answer of its own for 0 and 1, one whose divisors stop too soon, and one whose run up to the number itself.</summary>
+    [Fact]
+    public async Task APrimeTestIsShownTheSmallestNumberItGetsWrong()
+    {
+        const string code = "def prime_without_small(n):\n    for i in range(2, n):\n        if n % i == 0:\n            return False\n    return True\n\n\ndef prime_stops_early(n):\n    if n < 2:\n        return False\n    for i in range(2, n // 2):\n        if n % i == 0:\n            return False\n    return True\n\n\ndef prime_up_to_itself(n):\n    if n < 2:\n        return False\n    for i in range(2, n + 1):\n        if n % i == 0:\n            return False\n    return True\n\n\nprint(prime_without_small(7), prime_stops_early(7), prime_up_to_itself(7))\n";
+        if (await TriedAsync("primes.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "prime_without_small: Called with 0, `prime_without_small` gave True - but 0 is not prime.",
+            "prime_stops_early: Called with 4, `prime_stops_early` gave True - but 4 is 2 times 2.",
+            "prime_up_to_itself: Called with 2, `prime_up_to_itself` gave False - but 2 is prime.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-prime-wrong: `prime_without_small` does not say rightly which numbers are prime | Called with 0, `prime_without_small` gave True - but 0 is not prime.",
+            "11 algorithm-prime-wrong: `prime_stops_early` does not say rightly which numbers are prime | Called with 4, `prime_stops_early` gave True - but 4 is 2 times 2.",
+            "20 algorithm-prime-wrong: `prime_up_to_itself` does not say rightly which numbers are prime | Called with 2, `prime_up_to_itself` gave False - but 2 is prime.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The prime test with no answer of its own for 0 and 1, written in JavaScript.</summary>
+    [Fact]
+    public async Task AJavaScriptPrimeTestIsShownTheSmallestNumberItGetsWrong()
+    {
+        const string code = "function primeWithoutSmall(n) {\n    for (let i = 2; i < n; i++) {\n        if (n % i === 0) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(primeWithoutSmall(7));\n";
+        if (await TriedAsync("primes.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "primeWithoutSmall: Called with 0, `primeWithoutSmall` gave true - but 0 is not prime.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-prime-wrong: `primeWithoutSmall` does not say rightly which numbers are prime | Called with 0, `primeWithoutSmall` gave true - but 0 is not prime.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The prime test whose divisors stop too soon, written in Java: 4 is 2 times 2.</summary>
+    [Fact]
+    public async Task AJavaPrimeTestIsShownTheSmallestNumberItGetsWrong()
+    {
+        const string code = "public class Primes {\n    static boolean primeStopsEarly(int n) {\n        if (n < 2) {\n            return false;\n        }\n        for (int i = 2; i < n / 2; i++) {\n            if (n % i == 0) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(primeStopsEarly(7));\n    }\n}\n";
+        if (await TriedAsync("Primes.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "Primes.primeStopsEarly: Called with 4, `Primes.primeStopsEarly` gave true - but 4 is 2 times 2.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "6 algorithm-prime-wrong: `Primes.primeStopsEarly` does not say rightly which numbers are prime | Called with 4, `Primes.primeStopsEarly` gave true - but 4 is 2 times 2.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }

@@ -35,6 +35,17 @@ internal static class LogicGuides
             + "such as max and min, which start from the list itself.",
             ""),
 
+        GuideFor(["algorithm-prime-wrong"], "A prime test that gives a wrong answer",
+            "The function is written the way a prime test is written - it tries numbers as divisors, and says not prime at the "
+            + "first that divides exactly - so FixFinder called it with every number from 0 to 30 and set each answer beside "
+            + "whether the number is prime. The number shown is the smallest it got wrong.",
+            "A prime test usually goes wrong at the edges: 0 and 1, which are not prime and have no divisor to find; 4, 9 and "
+            + "the other squares, when the divisors stop too soon; or every number, when the divisors run up to the number "
+            + "itself, which always divides it.",
+            "Say first that a number below 2 is not prime, then try each divisor from 2 while divisor times divisor is no more "
+            + "than the number - not the number itself.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

@@ -64,7 +64,7 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
     /// </summary>
     public static bool OnlyARunFinds(Finding finding) =>
         finding.Kind == FindingKind.Runtime ||
-        finding.RuleId is "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong";
+        finding.RuleId is "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong";
 
     /// <summary>The code of the finding's line, trimmed, or nothing for a finding about the whole file.</summary>
     private static string LineOf(Finding finding)

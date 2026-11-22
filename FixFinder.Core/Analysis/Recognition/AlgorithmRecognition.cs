@@ -51,6 +51,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a search for the largest or the smallest item, whose result is that item.</summary>
     public bool IsExtreme => Algorithm.StartsWith("a search for the ", StringComparison.Ordinal);
 
+    /// <summary>Whether it is a prime test, whose answer for each number is whether that number is prime.</summary>
+    public bool IsPrimeTest => Algorithm == AlgorithmRecognition.PrimeTest;
+
     /// <summary>For a search for the largest or smallest item: whether it is the largest.</summary>
     public bool IsLargest => Algorithm == AlgorithmRecognition.LargestSearch;
 
@@ -78,6 +81,8 @@ public static class AlgorithmRecognition
     public const string LargestSearch = "a search for the largest item";
 
     public const string SmallestSearch = "a search for the smallest item";
+
+    public const string PrimeTest = "a prime test";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -188,6 +193,7 @@ public static class AlgorithmRecognition
         SelectionSort,
         InsertionSort,
         LargestOrSmallest,
+        PrimeTestOf,
     ];
 
     /// <summary>
@@ -417,6 +423,45 @@ public static class AlgorithmRecognition
                         Gives = statements.OfType<Return>().Any(leave => leave.Value is Name { Identifier: var returned } && returned == best) ? SearchGives.Item : null,
                     };
                 }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A loop that steps a name one at a time and, when the function's parameter divides by it exactly - n % i == 0 -
+    /// gives back false: the parameter is not prime. When the function gives back true otherwise, the recognition says
+    /// so, for it to be called on numbers and checked.
+    /// </summary>
+    private static Found? PrimeTestOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        var parameters = function.Parameters.Select(parameter => parameter.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            var stepped = SteppedByOne(loop);
+            foreach (var check in IrWalk.Statements(Body(loop)).OfType<If>())
+            {
+                if (check.Condition is not Binary { Operator: BinaryOperator.Equal } equal) continue;
+                var remainder = (equal.Left, equal.Right) switch
+                {
+                    (Binary { Operator: BinaryOperator.Modulo } left, Literal { Kind: LiteralKind.Integer, Value: 0L }) => left,
+                    (Literal { Kind: LiteralKind.Integer, Value: 0L }, Binary { Operator: BinaryOperator.Modulo } right) => right,
+                    _ => null,
+                };
+                if (remainder is not { Left: Name { Identifier: var number }, Right: Name { Identifier: var divisor } } ||
+                    !parameters.Contains(number) || !stepped.Contains(divisor)) continue;
+                if (!check.Then.Any(statement => statement is Return { Value: Literal { Kind: LiteralKind.Boolean, Value: false } })) continue;
+
+                return new Found(loop.Span.Line, PrimeTest,
+                    $"it tries each `{divisor}` as a divisor of `{number}`, and says `{number}` is not prime at the first that divides it exactly, " +
+                    $"`{Shown(remainder)} == 0`",
+                    "Trying divisors up to the square root of n is enough - a number with a factor above that has one below it too - and " +
+                    "0 and 1 are not prime, which a prime test has to say for itself.",
+                    Sought: number)
+                {
+                    Gives = statements.OfType<Return>().Any(leave => leave.Value is Literal { Kind: LiteralKind.Boolean, Value: true }) ? SearchGives.Truth : null,
+                };
             }
         }
 
