@@ -91,6 +91,10 @@ public static partial class FindingFactory
             // asyncio.run inside an async def: the crash, and the check that finds the call, are one mistake.
             ("RuntimeError", "asyncio.run() cannot be called from a running event loop", ".py" or ".pyw") => "logic-python-asyncio-run-in-async",
 
+            // Imports that go round in a circle: the crash, and the check that plays the imports out to where they stop, are one
+            // mistake. Python 3.13 was seen to say it as cannot import name 'price_with_tax' from 'prices', with a word about renaming.
+            ("ImportError", var said, ".py" or ".pyw") when said.StartsWith("cannot import name", StringComparison.Ordinal) => "analysis-circular-import",
+
             // A function that called itself until there was no room left for the calls.
             ("RecursionError", _, ".py" or ".pyw") => "analysis-recursion-never-ends",
             ("StackOverflowError", _, ".java") => "analysis-recursion-never-ends",

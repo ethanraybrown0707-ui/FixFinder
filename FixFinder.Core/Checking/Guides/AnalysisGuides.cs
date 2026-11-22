@@ -7,6 +7,21 @@ internal static class AnalysisGuides
 {
     public static IReadOnlyList<GuideEntry> All { get; } =
     [
+        GuideFor(["analysis-circular-import"], "Imports that go round in a circle",
+            "Python runs a module's lines from its top the first time it is imported, and while it is part way through, the module is already there for other modules to import - holding only what its lines so far have defined. When two modules import each other, one of them asks the other for a name before the other has reached the line that defines it, and Python stops with ImportError. The file that is run is a module named __main__, so a module that imports it by its own name starts it again from its top. Python's message says it cannot import the name, and may add that the module is partially initialized, or that the file should be renamed if it has the name of a library; renaming it does not stop the imports going round.",
+            "The program stops on its first lines, before it does anything it is for, every time it is run that way.",
+            "Put what both modules need in a module of its own that imports neither of them, and import it from there in each - or move it into the module that uses it. Then no module imports the one that imported it, and the file that is run is imported by none of them.",
+            """
+            # settings.py - imports nothing of the program's
+            TAX_RATE = 0.2
+
+            # prices.py
+            from settings import TAX_RATE
+
+            # shop.py - the file that is run
+            from prices import price_with_tax
+            """),
+
         GuideFor(["analysis-division-by-zero"], "Dividing by something that can be zero",
             "Dividing splits something into equal parts, and there is no way to split something into zero parts - so Python gives up rather than answer. FixFinder followed the values along one route through the code and found the number on the bottom of the division can be 0 by the time this line runs.",
             "Dividing by zero stops the program with an error, often only for the inputs nobody tried, like an empty list.",

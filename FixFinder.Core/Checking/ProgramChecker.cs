@@ -2023,6 +2023,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         var patterns = sourcesRead.SelectMany(source => LogicPatterns.Scan(source, Log).Select(finding => (Source: source, Finding: finding))).ToList();
 
         var analysed = AnalyseAsync(launch, files, cancellationToken);
+        var importsInACircle = ImportsInACircleAsync(launch, files, cancellationToken);
 
         await ForEachAsync(patterns, async item =>
         {
@@ -2031,7 +2032,30 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             Interlocked.Increment(ref found);
         }, cancellationToken);
 
-        return found + await analysed;
+        return found + await analysed + await importsInACircle;
+    }
+
+    /// <summary>
+    /// For a Python program run as a script, its imports played out from the file that is run, as Python runs them: the
+    /// import where they go round in a circle and stop the program, said with each import on the way to it.
+    /// </summary>
+    private async Task<int> ImportsInACircleAsync(LaunchPlan launch, IReadOnlyList<string> files, CancellationToken cancellationToken)
+    {
+        // A file of tests is imported by its runner rather than run, and a notebook's cells are run as one script of FixFinder's.
+        if (launch.ChosenFile is not { } runFile || !runFile.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || NotebookScript.Of(runFile) is not null) return 0;
+        if (PythonTests.FrameworkOf(runFile) != PythonTests.Framework.None || PythonInterpreter(launch) is not { } python) return 0;
+
+        try
+        {
+            if (await PythonImportOrder.CheckAsync(runFile, files, python, cancellationToken) is not { } stopped) return 0;
+            Add(FindingFactory.FromAnalysis(stopped));
+            return 1;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Playing out the program's imports stopped early: {ex.Message}");
+            return 0;
+        }
     }
 
     /// <summary>

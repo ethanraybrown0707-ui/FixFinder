@@ -937,6 +937,25 @@ where it is, and says how to have Python find it: moving it, running a program a
 started in the folder above), or, for pytest's tests, a `pythonpath` setting in `pytest.ini`. It never says to install a
 package of that name, which would be somebody else's code.
 
+A Python program's **imports that go round in a circle** are played out from the file that is run, as Python runs them,
+before the program is: Python's own parser lists what each of the program's files does at its top - each import, and
+each name a line there defines - and FixFinder follows those in order, starting each module the first time it is
+imported and the file that is run again, as a module of its own, when a module imports it by its own name. Where a `from
+... import` asks a module that is still part way through for a name it defines further down, the program stops with
+ImportError, and the finding says where and why, with each import on the way: *shop.py line 1 imports prices; prices.py
+line 1 imports shop, which starts shop.py again from its top as a module of its own, since shop.py is the file being
+run; and shop.py line 1 asks prices for price_with_tax, which prices.py has not reached yet*. It says how to break the
+circle - what both modules need, in a module of its own that imports neither. Python 3.13 says only that it cannot
+import the name, and suggested renaming `prices.py` as though it had the name of a library; in a package it said the
+module was partially initialized, most likely due to a circular import, and both crashes are the same finding as the one
+worked out, certain once the run stops there. Nothing is said of a circle that works - a name defined before the import
+that starts it, an `import` whose names are only used inside functions, or a run guarded by `if __name__ == "__main__":`
+- nor of a name no line defines, which is a mistake of another kind. A block whose running depends on values, such as an
+`if`, is not followed into, and every name it could define counts as defined. A circle of plain `import`s, whose
+module's names are then used at the top of another before it has them - AttributeError - is not looked for. Played out
+from each of the 152 files at the top of Python 3.13's own library, whose 1,093 modules hold 12 circles of imports, all
+of which work, it found nothing.
+
 When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
@@ -2231,7 +2250,9 @@ A check of a program does all of this, as far as its language allows - Python, J
 3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
-   by its own language's parser, and recognises from the same reading which of 8 algorithms a function is written as.
+   by its own language's parser, and recognises from the same reading which of 8 algorithms a function is written as;
+   for Python, it also plays out the program's imports from the file that is run, to find any that go round in a circle
+   and stop it.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
