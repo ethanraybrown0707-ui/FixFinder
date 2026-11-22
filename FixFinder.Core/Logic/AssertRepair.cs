@@ -171,6 +171,7 @@ public sealed partial class AssertRepair
             if (!copy.StartsWith(Path.GetFullPath(workspace.Folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 return (AssertVerdict.StopsWithAnError, false);
             await File.WriteAllBytesAsync(copy, source.Render(lines), cancellationToken);
+            workspace.ForgetSavedBytecode();
 
             var plan = TargetFactory.FromFile(copy, perRun);
             if (!plan.Ok || plan.Spec is null) return (AssertVerdict.StopsWithAnError, false);

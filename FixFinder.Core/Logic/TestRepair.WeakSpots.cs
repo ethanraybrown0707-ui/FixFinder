@@ -93,6 +93,14 @@ public sealed partial class TestRepair
 
                 for (var index = 0; index < slice.Count; index++)
                 {
+                    var measuredWith = slice[index].Mutation;
+                    Log?.Invoke($"Line {measuredWith.Line} with `{measuredWith.From}` changed to `{measuredWith.To}`: {verdicts[index] switch
+                    {
+                        ChangeVerdict.Caught => "a test failed, so the tests caught it",
+                        ChangeVerdict.Missed => "every test passed, so the tests missed it",
+                        _ => "it did not build, did not finish, or fewer tests ran, so it shows nothing either way",
+                    }}.");
+
                     switch (verdicts[index])
                     {
                         case ChangeVerdict.Caught:
@@ -165,6 +173,7 @@ public sealed partial class TestRepair
                 else File.Copy(target.Path, copy, overwrite: true);
             }
 
+            workspace.ForgetSavedBytecode();
             var plan = TargetFactory.FromFile(workspace.File, perRun);
             if (!plan.Ok || plan.Spec is null) return ChangeVerdict.NotJudged;
 

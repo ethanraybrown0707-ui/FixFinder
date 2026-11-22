@@ -360,6 +360,7 @@ public sealed partial class TestRepair
                 else File.Copy(target.Path, copy, overwrite: true);
             }
 
+            workspace.ForgetSavedBytecode();
             var plan = TargetFactory.FromFile(workspace.File, perRun);
             if (!plan.Ok || plan.Spec is null) return notBetter;
 

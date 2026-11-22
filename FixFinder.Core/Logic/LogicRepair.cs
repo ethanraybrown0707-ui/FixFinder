@@ -346,6 +346,7 @@ public sealed class LogicRepair
         try
         {
             await File.WriteAllBytesAsync(workspace.File, source.Render(lines), cancellationToken);
+            workspace.ForgetSavedBytecode();
 
             var evaluation = await EvaluateAsync(workspace.File, expected, perRun, buildTimeout, stopAtFirstWrong: true, cancellationToken, wrongFirst);
 
@@ -392,6 +393,23 @@ public sealed class LogicRepair
         public string File => ProgramCopy.InCopy(root, chosen, Folder);
 
         public bool Create() => ProgramCopy.TryCopyWhole(root, Folder);
+
+        /// <summary>
+        /// Takes away the bytecode Python saved in the copy when it last ran there, before a run with another change. Python
+        /// takes a saved .pyc as the file's own while the file is the size, and has the time to the second, it was saved
+        /// from - so a change the same length as the last one, written in the same second, would run the last one's code.
+        /// </summary>
+        public void ForgetSavedBytecode()
+        {
+            try
+            {
+                foreach (var saved in Directory.EnumerateDirectories(Folder, "__pycache__", SearchOption.AllDirectories).ToList())
+                    Directory.Delete(saved, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
 
         public void Dispose()
         {
