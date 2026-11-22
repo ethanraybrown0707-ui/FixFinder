@@ -310,6 +310,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             await RecordWarningsPrintedAsync(outcome, launch, cancellationToken);
             RecordDoctestFailuresPrinted(outcome, launch);
             await RepairTestsAsync(outcome, launch, cancellationToken);
+            await MeasureTestsAsync(outcome, launch, cancellationToken);
             await RepairAssertAsync(outcome, launch, cancellationToken);
             await TraceMissingValueAsync(outcome, launch, cancellationToken);
             lock (_gate) _explainingWhyTheLineRan.Add(Task.Run(() => ExplainWhyTheLineRanAsync(outcome, launch, cancellationToken), CancellationToken.None));
@@ -321,6 +322,50 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             session.LineCaptured -= Forward;
             session.Progress -= Status;
         }
+    }
+
+    /// <summary>How many of the changes a program's tests missed are each a finding of their own; the rest are counted in the note.</summary>
+    private const int MostMissedChangesReported = 5;
+
+    /// <summary>
+    /// When a file of tests ran and every test passed: how well they check the code they call, measured by small changes
+    /// made to it one at a time in a copy. A note says how many they caught, and each change they missed is a suggestion on
+    /// the line it was made to.
+    /// </summary>
+    private async Task MeasureTestsAsync(SessionOutcome outcome, LaunchPlan launch, CancellationToken cancellationToken)
+    {
+        if (outcome.Run is not { } run || launch.ChosenFile is not { } chosen || launch.Spec is not { } spec || run.Outcome == RunOutcome.TimedOut) return;
+
+        var lines = run.Lines.Select(line => line.Text).ToList();
+        var results = TestReport.ResultsIn(lines);
+        if (results.Count == 0 || results.Any(result => result.Status is not ("SUCCESSFUL" or "SKIPPED"))) return;
+
+        var measuring = new TestRepair();
+        measuring.Log += message => Log?.Invoke(message);
+        measuring.Progress += message => Progress?.Invoke(CheckLane.Syntax, message);
+
+        TestStrengthResult? measured;
+        try
+        {
+            measured = await measuring.WeakSpotsAsync(chosen, results, TestReport.TestsFound(lines), run.Duration, spec.Timeout, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log?.Invoke($"Measuring the tests stopped early: {ex.Message}");
+            return;
+        }
+
+        if (measured is not { Tried: > 0 }) return;
+        foreach (var note in measured.Notes) Note(note);
+
+        var names = string.Join(" and ", measured.CodeUnderTest.Select(Path.GetFileName));
+        var judged = measured.Caught + measured.Missed.Count;
+        Note($"The tests were measured with {Count(measured.Tried, "small change")} to {names}, each made on its own in a copy, of the kinds a mistake " +
+             $"makes: they caught {measured.Caught} of the {judged} that ran" +
+             (measured.NotJudged > 0 ? $", and {Count(measured.NotJudged, "change")} did not build or did not finish, which shows nothing either way" : "") +
+             (measured.Missed.Count > MostMissedChangesReported ? $". The first {MostMissedChangesReported} they missed are listed." : "."));
+
+        foreach (var missed in measured.Missed.Take(MostMissedChangesReported)) Add(FindingFactory.FromMissedChange(missed, measured.Tests));
     }
 
     /// <summary>

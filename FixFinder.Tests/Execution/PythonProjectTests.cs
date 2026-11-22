@@ -828,6 +828,10 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
             "being imported, so its tests could not be run", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The tests all pass, and so are measured: what they miss in bank.py - the owner never checked, the bound of a
+    /// withdrawal, a share that is not a whole number - are suggestions about the tests, and no mistake in the code.
+    /// </summary>
     [Fact]
     public async Task AUnittestFileWhoseTestsAllPassSaysSo()
     {
@@ -856,8 +860,15 @@ public class PythonProjectTests(ITestOutputHelper output) : IDisposable
 
         var report = await CheckAsync(tests);
 
-        Assert.Empty(report.Findings);
         Assert.Equal("No syntax errors, and all 2 of its tests pass", report.SyntaxSummary);
+        Assert.Equal("No logic mistakes found in the code", report.LogicSummary);
+        Assert.Contains("The tests were measured with 5 small changes to bank.py, each made on its own in a copy, of the kinds a mistake makes: " +
+                        "they caught 2 of the 5 that ran.", report.Notes);
+        Assert.Equal(
+            ["The tests do not notice `owner` changed to `balance` on line 7", "The tests do not notice `>` changed to `>=` on line 11",
+             "The tests do not notice `/` changed to `//` on line 16"],
+            report.Findings.Select(finding => finding.Title));
+        Assert.All(report.Findings, finding => Assert.Equal(("tests-miss-change", Severity.Suggestion), (finding.RuleId, finding.Severity)));
     }
 
     /// <summary>

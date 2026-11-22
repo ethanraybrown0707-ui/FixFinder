@@ -13,6 +13,18 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        GuideFor(["tests-miss-change"], "A change the tests do not catch",
+            "Every test passes, so FixFinder measured what they check: it made small changes to the code they call, one at a "
+            + "time in a copy - the kinds of change a mistake makes, a bound off by one or the wrong operator - and ran the tests "
+            + "with each. With this one every test still passed, so if the code went wrong this way, the tests would not say so. "
+            + "Now and then a change makes no difference to what the code does at all; then no test could notice it, and there "
+            + "is nothing to add.",
+            "Tests that pass whatever a line does check less than they seem to, and the mistakes they miss are the ones that "
+            + "reach whoever uses the program.",
+            "Add a test whose answer depends on that line, and check the answer exactly: for a bound or a comparison, one with a "
+            + "value right on the boundary; for arithmetic, one whose answer would change with the other operator.",
+            ""),
+
         GuideFor(["algorithm-sort-wrong"], "A sort that does not sort every list",
             "The function is written the way a sort is written, so FixFinder called it with lists of its own - empty, of one "
             + "item, in order, in reverse order, with repeats - and looked at what came back. For one of them it was not the "

@@ -230,6 +230,32 @@ public static partial class FindingFactory
         };
     }
 
+    /// <summary>A change to the code the tests call that every test still passed with: a suggestion on the line it was made to.</summary>
+    public static Finding FromMissedChange(MissedChange missed, int tests)
+    {
+        const string rule = "tests-miss-change";
+        var guide = Guidebook.For(missed.File, FindingKind.Logic, rule);
+        var found = $"Every one of the {tests} tests still passed with line {missed.Line} changed from `{missed.Was.Trim()}` to `{missed.Became.Trim()}` - " +
+                    $"{missed.Kind} - in a copy of the program, so that mistake there would go unnoticed.";
+
+        return new Finding
+        {
+            Kind = FindingKind.Logic,
+            Severity = Severity.Suggestion,
+            Confidence = Confidence.Certain,
+            File = missed.File,
+            Line = missed.Line,
+            Title = $"The tests do not notice `{missed.From}` changed to `{missed.To}` on line {missed.Line}",
+            Explanation = $"{found} {guide.Explanation}",
+            Found = found,
+            WhyItMatters = guide.WhyItMatters,
+            SuggestedFix = guide.SuggestedFix,
+            CorrectedExample = guide.Example,
+            RuleId = rule,
+            Family = rule,
+        };
+    }
+
     public static Finding FromWrongOutput(LogicRepairResult result, int runs, string file, SourceFile? source)
     {
         var stopped = result.Mismatch.Ending != RunEnding.Finished;

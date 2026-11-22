@@ -64,6 +64,8 @@ public static class StepByStep
     {
         ("timed-out", _) =>
             "The program was still running when its time ran out, so FixFinder stopped it: nothing went wrong that it printed, but it did not finish.",
+        ("tests-miss-change", _) =>
+            "The program and its tests pass as they are; this is about what the tests check - with this line changed, every test still passed.",
         ("wrong-output", _) =>
             "The program ran to the end, but what it printed is not what you said it should print.",
         ("stopped-before-expected-output", _) =>
@@ -95,6 +97,8 @@ public static class StepByStep
     {
         ("timed-out", _) =>
             "Check it again: once its loops can end - or the input it waits for is given - the program finishes inside its time.",
+        ("tests-miss-change", _) =>
+            "Check it again: this suggestion goes when a test fails with the line changed - when some test checks what the line does.",
         ("wrong-output" or "stopped-before-expected-output", _) =>
             "Check it again, with the same expected output: this finding goes when the program prints exactly that.",
         ("algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong", _) =>

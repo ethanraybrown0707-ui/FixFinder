@@ -971,6 +971,21 @@ and each of the 29 also gives the corrected version's answer on every one of the
 program the same as the benchmark's corrected one; the other 4 do the same in another way. `sqrt` was not fixed, and
 `lis` passes all five of its tests.
 
+When every test in a file of JUnit, unittest, pytest or node:test tests passes, FixFinder **measures how much they
+check**: it makes small changes of the kinds a mistake makes to the code the tests call - for each line one can be made
+to, the likeliest kind of mistake there, such as a comparison off by one or the wrong operator - each on its own in a
+private copy, and runs the whole file of tests with each. A change some test fails with is one the tests catch; a change
+every test still passes with is a mistake there they would not notice, and is a suggestion on its line, saying what was
+changed. A note says how many changes were made and how many the tests caught; the first 5 they missed are listed. A
+change that does not build, or whose run is stopped for time, or after which fewer tests are found, shows nothing either
+way and is counted as neither. At most 24 changes are made, spread evenly over the lines, and no more are started once a
+minute has gone. A `grades.py` tested only with a mark of 85, one of 30 and the average of 2 and 4 was measured with 6
+changes, and its tests caught 3: they still passed with `score >= 70` made `score > 70`, the same with 50, and `/` made
+`//`. Tests of 70, 69, 50 and 49 and of an average of 1.5 caught all 6. Some changes make no difference to what the code
+does, and then no test could catch them, which the suggestion says. Doctests, and asserts in a program, are not
+measured, since they are written in the code a change is made to; nor are tests that fail, where the change that makes
+them pass comes first. The program's own files are never written to while the tests are measured.
+
 A program that **stops at an assert of its own** - a Java program's `assert`, run with `-ea`; a Node.js program's
 `assert.strictEqual` from `node:assert`; a C or C++ program's `assert` from `assert.h`; a Python program's `assert` in one
 that also reads what is typed in, so is not run as one that only checks itself - has the assert as the test of the code it
@@ -2216,7 +2231,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
    and TypeScript, and a program that checks itself with assert or console.assert - a test that fails reported on the
-   line it failed on.
+   line it failed on, and tests in a file of their own that all pass measured with up to 24 small changes to the code
+   they call, each made in a copy, none started once a minute has gone.
 9. **Follows a crash back**, when the program stopped with an error in its own code: a Python program is run a second
    time recording what each variable held and what the conditions around the line read; a Java, JavaScript, TypeScript,
    C#, Go, Rust, PHP, Dart, Lua, Ruby or Perl program that stopped on a missing value is copied and run again with a line
