@@ -116,6 +116,26 @@ public class RecurringMistakesTests : IDisposable
                           RecurringMistakes.Said(recurring));
     }
 
+    /// <summary>
+    /// What FixFinder Learn puts first: the kinds of mistake found lately in programs of the language its lessons are in, each
+    /// mistake once however many checks found it, the general idea and checks over 30 days old left out.
+    /// </summary>
+    [Fact]
+    public void TheKindsOfMistakeOfOneLanguageLatelyAreCountedForLearn()
+    {
+        var history = new[]
+        {
+            Check(@"C:\uni\marks.py", Now.AddDays(-3), LoopOneShort),
+            Check(@"C:\uni\marks.py", Now.AddDays(-2), LoopOneShort),
+            Check(@"C:\uni\scores.py", Now.AddDays(-1), LoopOneShort, DividingByZero, "some-rule-of-no-idea"),
+            Check(@"C:\uni\Grades.java", Now.AddDays(-1), DividingByZero),
+            Check(@"C:\uni\old.py", Now.AddDays(-40), DividingByZero),
+        };
+
+        Assert.Equal(new Dictionary<string, int> { ["OFFBYONE"] = 2, ["DIVZERO"] = 1 }, RecurringMistakes.TimesLately(history, "Python", Now));
+        Assert.Equal(new Dictionary<string, int> { ["DIVZERO"] = 1 }, RecurringMistakes.TimesLately(history, "Java", Now));
+    }
+
     [Fact]
     public void TheSavedReportSaysWhatKeepsTurningUp()
     {

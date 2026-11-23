@@ -182,13 +182,16 @@
                             <ComboBox x:Name="LanguageBox" AutomationProperties.AutomationId="LanguageBox"
                                       AutomationProperties.Name="Language of the lessons" Margin="0,8,0,8"
                                       SelectionChanged="LanguageBox_SelectionChanged"/>
+                            <TextBlock x:Name="LatelyText" AutomationProperties.AutomationId="LatelyText" Visibility="Collapsed"
+                                       Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,0,0,6"
+                                       Text="First, the kinds of mistake FixFinder found in your programs in the last 30 days."/>
                             <ItemsControl x:Name="LessonsList" AutomationProperties.AutomationId="LessonsList" Margin="-8,0" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:LessonChoice}">
                                         <Button Style="{StaticResource ListChoice}" Tag="{Binding}" Click="OpenLesson_Click"
                                                 AutomationProperties.Name="{Binding Title}">
                                             <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Progress}" Style="{StaticResource Hint}"
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Beside}" Style="{StaticResource Hint}"
                                                            VerticalAlignment="Center" Margin="8,0,0,0"/>
                                                 <TextBlock Text="{Binding Title}" TextWrapping="Wrap"/>
                                             </DockPanel>

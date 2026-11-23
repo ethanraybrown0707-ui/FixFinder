@@ -51,6 +51,22 @@ public static class RecurringMistakes
             .ThenBy(mistake => Concepts.All.ToList().IndexOf(mistake.Concept)).Take(MostSaid)];
     }
 
+    /// <summary>
+    /// How many separate mistakes of each kind - by its idea's code - the checks of the last 30 days found in programs of one
+    /// language: what FixFinder Learn puts first. A mistake counts once however many checks found it; one taught only as
+    /// reading what went wrong is left out.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> TimesLately(IEnumerable<CheckRecord> history, string languageName, DateTimeOffset now)
+    {
+        var lately = history.Where(check => check.When >= now - Lately && check.When <= now && CodeLanguage.Of(check.File)?.Name == languageName).ToList();
+
+        return Concepts.All.Where(concept => concept != Concepts.ReadingErrors)
+            .Select(concept => (concept.Code, Times: lately.SelectMany(check => MistakesOf(check, concept.Code))
+                .Select(mistake => $"{mistake.Program.ToUpperInvariant()}|{mistake.Fingerprint}").Distinct(StringComparer.Ordinal).Count()))
+            .Where(counted => counted.Times > 0)
+            .ToDictionary(counted => counted.Code, counted => counted.Times, StringComparer.Ordinal);
+    }
+
     /// <summary>The check's mistakes of one kind, each as the program it is in and its fingerprint.</summary>
     private static IEnumerable<(string Program, string Fingerprint)> MistakesOf(CheckRecord check, string conceptCode)
     {
