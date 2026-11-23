@@ -125,6 +125,17 @@ internal static class LogicGuides
             + "0, and otherwise the greatest common divisor of b and a % b.",
             ""),
 
+        GuideFor(["algorithm-fibonacci-wrong"], "Fibonacci numbers that are not the two before added",
+            "The function is written the way the Fibonacci numbers are written - it keeps two numbers and works out the next "
+            + "as their sum, or calls itself with one less and two less - so FixFinder called it with every number from 1 to "
+            + "10 and checked what every Fibonacci function gives, wherever it starts: each answer is the two before it added.",
+            "The two numbers have to be moved on together. Written one after the other - a = b, then b = a + b - the second line "
+            + "reads the a just changed, so b is added to itself and the numbers double: 1, 2, 4, 8. Starting from the wrong pair, "
+            + "or adding the wrong two, gives numbers that grow, but are not these.",
+            "Move both on at once, a, b = b, a + b - or keep the sum first: next = a + b, then a = b, then b = next. Calling "
+            + "itself, give back fib(n - 1) + fib(n - 2), with the first two numbers given back as they are.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search, a reversal, a prime test, a leap-year test, a factorial or Euclid's greatest common divisor recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
+/// A sort, a search, a reversal, a prime test, a leap-year test, a factorial, Euclid's greatest common divisor or the Fibonacci numbers recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -121,6 +121,24 @@ public class AlgorithmTrialTests : IDisposable
         "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
     [InlineData("gcd_held.py", "def gcd(first, second):\n    while second > 0:\n        remainder = first % second\n        first = second\n        second = remainder\n    return first\n\n\nprint(gcd(12, 18))\n",
         "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
+    [InlineData("Fib.java", "public class Fib {\n    static long fib(int n) {\n        long a = 0;\n        long b = 1;\n        for (int i = 0; i < n; i++) {\n            long next = a + b;\n            a = b;\n            b = next;\n        }\n        return a;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(fib(10));\n    }\n}\n",
+        "Fib.fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib.js", "function fib(n) {\n    let a = 0;\n    let b = 1;\n    for (let i = 0; i < n; i++) {\n        [a, b] = [b, a + b];\n    }\n    return a;\n}\n\nconsole.log(fib(10));\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib.py", "def fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\n\nprint([fib(n) for n in range(10)])\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_calls.py", "def fib(n):\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\n\nprint(fib(10))\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_from_one.py", "def fib(n):\n    if n == 1 or n == 2:\n        return 1\n    return fib(n - 1) + fib(n - 2)\n\n\nprint(fib(10))\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_from_zero.py", "def fib(n):\n    a, b = 0, 1\n    for _ in range(n - 1):\n        a, b = b, a + b\n    return a\n\n\nprint(fib(10))\n",
+        "fib: Called with every number from 1 to 10, it gave back 0 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_held.py", "def fib(n):\n    previous = 1\n    current = 1\n    for _ in range(n - 1):\n        following = previous + current\n        previous = current\n        current = following\n    return previous\n\n\nprint(fib(10))\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_list.py", "def fib(n):\n    numbers = [0, 1]\n    for i in range(2, n + 1):\n        numbers.append(numbers[i - 1] + numbers[i - 2])\n    return numbers[n]\n\n\nprint(fib(10))\n",
+        "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
+    [InlineData("fib_stairs.py", "def ways_up_stairs(n):\n    a, b = 1, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\n\nprint(ways_up_stairs(10))\n",
+        "ways_up_stairs: Called with every number from 1 to 10, it gave back 1 and 2 to start, and each after them as the two before it added.")]
     [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
         "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
@@ -597,6 +615,56 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "3 algorithm-gcd-wrong: `GcdGivesB.gcd` does not give back the greatest common divisor of every pair | Called with 12 and 18, `GcdGivesB.gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A pair moved on one after the other, which doubles, and a pair started at 2 and 3.</summary>
+    [Fact]
+    public async Task FibonacciNumbersThatAreNotTheTwoBeforeAddedAreShownWhereTheyGoWrong()
+    {
+        const string code = "def doubling_fib(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a = b\n        b = a + b\n    return a\n\n\ndef fib_from_two_and_three(n):\n    a, b = 2, 3\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\n\nprint(doubling_fib(10), fib_from_two_and_three(10))\n";
+        if (await TriedAsync("fibs.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "doubling_fib: Called with 3, `doubling_fib` gave 4 - but it gave 1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.",
+            "fib_from_two_and_three: Called with 1 and with 2, `fib_from_two_and_three` gave 3 and 5 - but the Fibonacci numbers start 0 and 1, 1 and 1, or 1 and 2.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-fibonacci-wrong: `doubling_fib` does not give back the Fibonacci numbers | Called with 3, `doubling_fib` gave 4 - but it gave 1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.",
+            "11 algorithm-fibonacci-wrong: `fib_from_two_and_three` does not give back the Fibonacci numbers | Called with 1 and with 2, `fib_from_two_and_three` gave 3 and 5 - but the Fibonacci numbers start 0 and 1, 1 and 1, or 1 and 2.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A pair moved on one after the other, written in JavaScript: a = b, then b = a + b.</summary>
+    [Fact]
+    public async Task JavaScriptFibonacciNumbersThatDoubleAreShownWhereTheyGoWrong()
+    {
+        const string code = "function fib(n) {\n    let a = 0;\n    let b = 1;\n    for (let i = 0; i < n; i++) {\n        a = b;\n        b = a + b;\n    }\n    return a;\n}\n\nconsole.log(fib(10));\n";
+        if (await TriedAsync("fib.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "fib: Called with 3, `fib` gave 4 - but it gave 1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "4 algorithm-fibonacci-wrong: `fib` does not give back the Fibonacci numbers | Called with 3, `fib` gave 4 - but it gave 1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>Fibonacci numbers in Java calling themselves that stop only at 1: given 2, fib(0) calls itself until the stack is full.</summary>
+    [Fact]
+    public async Task JavaFibonacciNumbersThatNeverStopAreShownWhereTheyGoWrong()
+    {
+        const string code = "public class FibCalls {\n    static int fib(int n) {\n        if (n == 1) {\n            return 1;\n        }\n        return fib(n - 1) + fib(n - 2);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(fib(10));\n    }\n}\n";
+        if (await TriedAsync("FibCalls.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "FibCalls.fib: Called with 2, `FibCalls.fib` stopped with StackOverflowError.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "6 algorithm-fibonacci-wrong: `FibCalls.fib` does not give back the Fibonacci numbers | Called with 2, `FibCalls.fib` stopped with StackOverflowError.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }

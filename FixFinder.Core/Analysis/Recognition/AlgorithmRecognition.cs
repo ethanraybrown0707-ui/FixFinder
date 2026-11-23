@@ -66,8 +66,11 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a factorial, whose answer for each number n is 1 times 2 times each number up to n.</summary>
     public bool IsFactorial => Algorithm == AlgorithmRecognition.Factorial;
 
-    /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test or a factorial.</summary>
-    public bool IsGivenANumber => IsNumberTest || IsFactorial;
+    /// <summary>Whether it is the Fibonacci numbers, whose answer for each number is the two before it added.</summary>
+    public bool IsFibonacci => Algorithm == AlgorithmRecognition.Fibonacci;
+
+    /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test, a factorial or the Fibonacci numbers.</summary>
+    public bool IsGivenANumber => IsNumberTest || IsFactorial || IsFibonacci;
 
     /// <summary>Whether it is a reversal, whose result is the same items in the opposite order.</summary>
     public bool IsReversal => Algorithm == AlgorithmRecognition.Reversal;
@@ -112,6 +115,8 @@ public static class AlgorithmRecognition
     public const string Reversal = "a reversal";
 
     public const string GreatestCommonDivisor = "Euclid's greatest common divisor";
+
+    public const string Fibonacci = "the Fibonacci numbers";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -261,6 +266,7 @@ public static class AlgorithmRecognition
         FactorialOf,
         ReversalOf,
         GreatestCommonDivisorOf,
+        FibonacciOf,
     ];
 
     /// <summary>
@@ -794,6 +800,84 @@ public static class AlgorithmRecognition
         return null;
     }
 
+    /// <summary>
+    /// The Fibonacci numbers, worked out for a function's one number: one that gives back itself called with one less and
+    /// with two less, added - fib(n - 1) + fib(n - 2); one with a loop, run as far as the number, that keeps two names
+    /// and works out their sum each time round - a, b = b, a + b, or by way of a third name - giving back one of the two;
+    /// or one adding to a list the sum of its two items before - fib[i - 1] + fib[i - 2] - and giving back an item of it.
+    /// </summary>
+    private static Found? FibonacciOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        if (function.Parameters is not [{ Name: var number }]) return null;
+
+        foreach (var leave in statements.OfType<Return>())
+        {
+            if (leave.Value is Binary { Operator: BinaryOperator.Add, Left: Call first, Right: Call second } sum &&
+                CallsItselfWithLess(first) is { } one && CallsItselfWithLess(second) is { } other && one + other == 3)
+            {
+                return new Found(leave.Span.Line, Fibonacci,
+                    $"it gives back itself called with one less and with two less, added: `{Shown(sum)}`", FibonacciAdvice, Sought: number);
+            }
+        }
+
+        var returned = statements.OfType<Return>().Select(leave => leave.Value).OfType<Expr>().ToList();
+        var returnedNames = returned.Select(value => value is Name { Identifier: var kept } ? kept : null).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            if (!RunsUpTo(loop, number) && (Condition(loop) is not { } test || !Mentions(test, number))) continue;
+            var body = IrWalk.Statements(Body(loop)).ToList();
+            var writes = WritesEachToItsOwn(body).ToList();
+            var written = writes.Select(write => write.Name).OfType<string>().ToHashSet(StringComparer.Ordinal);
+            var stepped = SteppedByOne(loop);
+
+            // One of the pair moved on to the other - a = b - as a running total and its counter never are.
+            bool MovedOn(string one, string other) => writes.Any(write =>
+                write.Name == one && write.Value is Name { Identifier: var from } && from == other ||
+                write.Name == other && write.Value is Name { Identifier: var back } && back == one);
+
+            // a, b = b, a + b - or the sum kept in a third name - both of the two names written, one of them given back.
+            foreach (var (_, _, value, _) in writes)
+            {
+                if (value is Binary { Operator: BinaryOperator.Add, Left: Name { Identifier: var left }, Right: Name { Identifier: var right } } pair &&
+                    left != right && left != number && right != number && written.Contains(left) && written.Contains(right) &&
+                    !stepped.Contains(left) && !stepped.Contains(right) && MovedOn(left, right) &&
+                    (returnedNames.Contains(left) || returnedNames.Contains(right)))
+                {
+                    return new Found(loop.Span.Line, Fibonacci,
+                        $"it keeps two numbers, `{left}` and `{right}`, and works out the next as their sum, `{Shown(pair)}`, each time round, " +
+                        $"giving back `{string.Join("` or `", new[] { left, right }.Where(returnedNames.Contains))}`",
+                        FibonacciAdvice, Sought: number);
+                }
+            }
+
+            // fib.append(fib[i - 1] + fib[i - 2]), with an item of fib given back.
+            foreach (var statement in body)
+            {
+                if (statement is Evaluate { Value: Call { Callee: Member { Target: Name { Identifier: var kept }, MemberName: "append" or "push" or "add" or "Add" or "push_back" }, Arguments: [{ Value: Binary { Operator: BinaryOperator.Add, Left: ElementAccess { Target: Name { Identifier: var one } }, Right: ElementAccess { Target: Name { Identifier: var other } } } pair }] } } &&
+                    one == kept && other == kept && returned.Any(value => value is ElementAccess { Target: Name { Identifier: var given } } && given == kept))
+                {
+                    return new Found(loop.Span.Line, Fibonacci,
+                        $"it adds to `{kept}` the sum of its two items before, `{Shown(pair)}`, each time round, and gives back an item of `{kept}`",
+                        FibonacciAdvice, Sought: number);
+                }
+            }
+        }
+
+        return null;
+
+        // How much less than its own number a call of itself is given - fib(n - 1) is 1, fib(n - 2) is 2 - or null for any other call.
+        long? CallsItselfWithLess(Call call) =>
+            call is { Callee: Name { Identifier: var called }, Arguments: [{ Value: Binary { Operator: BinaryOperator.Subtract, Left: Name { Identifier: var lessened }, Right: Literal { Kind: LiteralKind.Integer, Value: long less } } }] } &&
+            called == function.Name && lessened == number && less is 1 or 2
+                ? less
+                : null;
+    }
+
+    private const string FibonacciAdvice =
+        "Each Fibonacci number is the two before it added - 0, 1, 1, 2, 3, 5, 8 - so both have to be kept until the next is " +
+        "worked out: a = b and then b = a + b adds the new b to itself. A function calling itself twice for each number takes " +
+        "time growing as fast as the numbers do; a loop takes one step for each.";
+
     private const string GreatestCommonDivisorAdvice =
         "Euclid's algorithm: the greatest number dividing both a and b is the greatest dividing both b and a % b, so the " +
         "pair can be replaced by that one until the second is 0 - every number divides 0 - when the first is the answer.";
@@ -895,7 +979,14 @@ public static class AlgorithmRecognition
         {
             foreach (var write in Writes([statement])) yield return write;
 
-            if (statement is Assign { Target: CollectionLiteral { Items: var targets }, Value: CollectionLiteral { Items: var values }, Compound: null } && targets.Count == values.Count)
+            // left, right = ... as a statement, or JavaScript's [a, b] = [b, a + b] as an assignment made in an expression.
+            var (targets, values) = statement switch
+            {
+                Assign { Target: CollectionLiteral { Items: var named }, Value: CollectionLiteral { Items: var given }, Compound: null } => (named, given),
+                Evaluate { Value: AssignValue { Target: CollectionLiteral { Items: var named }, Value: CollectionLiteral { Items: var given } } } => (named, given),
+                _ => ((IReadOnlyList<Expr>?)null, (IReadOnlyList<Expr>?)null),
+            };
+            if (targets is not null && values is not null && targets.Count == values.Count)
             {
                 for (var index = 0; index < targets.Count; index++)
                     yield return (targets[index], (targets[index] as Name)?.Identifier, values[index], null);

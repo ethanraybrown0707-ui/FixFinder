@@ -19,7 +19,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// prime, or which years are leap years; and a factorial is called with every number from 1 to 10, and 0, and must give
 /// back each one's factorial; a reversal is called with lists of odd and even lengths, and must give each back in the
 /// opposite order; and Euclid's greatest common divisor is called with pairs of numbers, 0 among them, and must give
-/// back the greatest number dividing both of each. What it does is said
+/// back the greatest number dividing both of each; and the Fibonacci numbers are called with every number from 1 to 10,
+/// and must start as they do and give back each as the two before it added. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -102,6 +103,13 @@ public static partial class AlgorithmTrial
     private static readonly int[] FactorialsTried = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0];
 
     /// <summary>
+    /// The Fibonacci numbers are called with every number from 1 up to this. Courses start them in different places -
+    /// fib(1) is 0 in some, 1 in others - so no list of answers is held for them, only what every start shares: each is
+    /// the two before it added.
+    /// </summary>
+    private const int HighestFibonacciTried = 10;
+
+    /// <summary>
     /// The pairs a greatest common divisor is called with: each way round, sharing a divisor or none, the same number
     /// twice, one dividing the other - then a 0 in each place last, as every number divides 0, so the answer is the other.
     /// </summary>
@@ -161,7 +169,7 @@ public static partial class AlgorithmTrial
         // what it looks for and what it gives back when it finds it.
         if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item
             : recognition.IsNumberTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
-            : recognition.IsFactorial ? recognition.Sought is null
+            : recognition.IsFactorial || recognition.IsFibonacci ? recognition.Sought is null
             : recognition.IsReversal ? false
             : recognition.IsGreatestCommonDivisor ? recognition.Sought is null || recognition.FirstNumber is null
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
@@ -205,6 +213,7 @@ public static partial class AlgorithmTrial
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
             : recognition.IsFactorial ? FactorialsTried.Select(number => new Trial([], null, number)).ToList()
+            : recognition.IsFibonacci ? Enumerable.Range(1, HighestFibonacciTried).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsGreatestCommonDivisor ? PairsTried.Select(pair => new Trial([], pair.Second, pair.First)).ToList()
             : SearchTrials(recognition, ascending);
         var results = program.Language switch
@@ -223,6 +232,7 @@ public static partial class AlgorithmTrial
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
             : recognition.IsFactorial ? JudgeFactorial(recognition, results)
+            : recognition.IsFibonacci ? JudgeFibonacci(recognition, results)
             : recognition.IsGreatestCommonDivisor ? JudgeGreatestCommonDivisor(recognition, results)
             : JudgeSearch(recognition, results, trials, ascending);
     }
@@ -464,6 +474,41 @@ public static partial class AlgorithmTrial
         }
     }
 
+    /// <summary>
+    /// Whether the answers for 1 to 10 are Fibonacci numbers, whichever place they are started in: the first two one of
+    /// the usual starts - 0 and 1, 1 and 1, or 1 and 2 - and each after them the two before it added. The first answer
+    /// that is not is shown beside the two before it, as the function itself gave them.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeFibonacci(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        var answers = new List<long>();
+        foreach (var result in results)
+        {
+            if (result.Error is { } error) return Broken($"Called with {result.Trial.Number}, {name} stopped with {error}");
+            if (result.Returned is not { ValueKind: JsonValueKind.Number } returned || !returned.TryGetInt64(out var answer)) return (null, null);
+            answers.Add(answer);
+        }
+
+        var (first, second) = (answers[0], answers[1]);
+        if ((first, second) is not ((0, 1) or (1, 1) or (1, 2)))
+            return Broken($"Called with 1 and with 2, {name} gave {first} and {second} - but the Fibonacci numbers start 0 and 1, 1 and 1, or 1 and 2");
+
+        for (var index = 2; index < answers.Count; index++)
+        {
+            var (twoBefore, oneBefore) = (answers[index - 2], answers[index - 1]);
+            if (answers[index] == twoBefore + oneBefore) continue;
+
+            var number = results[index].Trial.Number!.Value;
+            return Broken($"Called with {number}, {name} gave {answers[index]} - but it gave {twoBefore} for {number - 2} and {oneBefore} for {number - 1}, " +
+                          $"and each Fibonacci number is the two before it added, so it should be {twoBefore + oneBefore}");
+        }
+
+        return ($"Called with every number from 1 to {HighestFibonacciTried}, it gave back {first} and {second} to start, and each after them as the two before it added.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -516,7 +561,8 @@ public static partial class AlgorithmTrial
         var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsReversal ? "algorithm-reversal-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
             : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong"
             : recognition.IsFactorial ? "algorithm-factorial-wrong"
-            : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong" : "algorithm-search-wrong";
+            : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong"
+            : recognition.IsFibonacci ? "algorithm-fibonacci-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -532,6 +578,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsLeapYearTest ? $"`{recognition.Function}` does not say rightly which years are leap years"
                 : recognition.IsFactorial ? $"`{recognition.Function}` does not work out every factorial rightly"
                 : recognition.IsGreatestCommonDivisor ? $"`{recognition.Function}` does not give back the greatest common divisor of every pair"
+                : recognition.IsFibonacci ? $"`{recognition.Function}` does not give back the Fibonacci numbers"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
