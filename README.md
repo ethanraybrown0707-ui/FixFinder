@@ -1668,7 +1668,15 @@ Lua, Perl, PowerShell, Fortran, F#, OCaml, Elixir's `cond` and Erlang's `if`: ru
 not B, with nothing said by any compiler or warning flag. A condition read is one comparison of a name with a number,
 two joined by `and`, or Python's `50 <= score < 70`, and the values each lets through are worked out; when every branch
 compares the same name the same way, the change puts the branches in order, the strictest first, and each language's
-changed program printed B. A count down written the way that counts up runs no times at all - `range(10, 0)` in Python,
+changed program printed B. A ladder whose rungs each take in their own number - `mark >= 70`, `mark >= 60`, `mark >= 50` -
+but for one that leaves its number to the rung after, `mark > 40`, or the other way round, is a warning that it may be a
+mistake, in the same languages, with the change that writes that rung like the others: run with a mark of 40, the
+programs in Python, Java, C, C++, C#, JavaScript, TypeScript, Dart, PHP, Go, Rust, Ruby, Lua, Perl, PowerShell,
+Fortran, F#, Elixir and Erlang each printed F, where 50 is given C, and with the change, `mark >= 40`, D; Scala's and
+OCaml's are found by the tests, and were not run here. It is said only of three rungs or more comparing one name the
+same way round, in order, one alone different, and only when that rung's number is on the others' step - 40 among 70,
+60 and 50 - as `mark > 39` among them is `mark >= 40` for whole marks, written another way. Python 3.13's own library,
+the npm that comes with Node and the open-source corpus held none. A count down written the way that counts up runs no times at all - `range(10, 0)` in Python,
 `(10..1).each` in Ruby, `10..0` in Rust, `10 to 1` in Scala, `for i = 10, 1` in Lua, `10 .. 1` and `for i = 10 to 1` in
 F#, `(10..1)` in Perl, `do i = 10, 1` in Fortran, and `for i = 10 to 1` in OCaml - and each counted 0; the change counts
 down, `range(10, 0, -1)`, `10.downto(1)`, `(1..=10).rev()`, `by -1`, `, -1`, `downto` or `reverse(1..10)`. `gfortran
@@ -2264,27 +2272,27 @@ Python, Java and C# are checked most thoroughly.
 
 | Language | Fix rules | Logic checks | Guides |
 |---|---:|---:|---:|
-| Python | 91 | 116 | 41 |
-| Java | 67 | 103 | 51 |
-| C# | 52 | 90 | 49 |
-| C | 46 | 68 | 39 |
-| C++ | 46 | 84 | 39 |
-| JavaScript | 44 | 94 | 16 |
-| Go | 38 | 66 | 18 |
-| Scala | 6 | 67 | 28 |
-| OCaml | 6 | 27 | 26 |
-| Rust | 7 | 55 | 33 |
-| Ruby | 13 | 77 | 26 |
-| PHP | 16 | 73 | 18 |
-| Lua | 12 | 64 | 25 |
-| Perl | 14 | 70 | 26 |
-| Dart | 16 | 62 | 23 |
-| Fortran | 13 | 48 | 19 |
-| PowerShell | 11 | 74 | 16 |
-| Elixir | 15 | 37 | 29 |
-| Erlang | 13 | 28 | 23 |
-| F# | 17 | 41 | 33 |
-| TypeScript | 48 | 99 | 26 |
+| Python | 91 | 117 | 41 |
+| Java | 67 | 104 | 51 |
+| C# | 52 | 91 | 49 |
+| C | 46 | 69 | 39 |
+| C++ | 46 | 85 | 39 |
+| JavaScript | 44 | 95 | 16 |
+| Go | 38 | 67 | 18 |
+| Scala | 6 | 68 | 28 |
+| OCaml | 6 | 28 | 26 |
+| Rust | 7 | 56 | 33 |
+| Ruby | 13 | 78 | 26 |
+| PHP | 16 | 74 | 18 |
+| Lua | 12 | 65 | 25 |
+| Perl | 14 | 71 | 26 |
+| Dart | 16 | 63 | 23 |
+| Fortran | 13 | 49 | 19 |
+| PowerShell | 11 | 75 | 16 |
+| Elixir | 15 | 38 | 29 |
+| Erlang | 13 | 29 | 23 |
+| F# | 17 | 42 | 33 |
+| TypeScript | 48 | 100 | 26 |
 
 A guide is the explanation, the reason it matters and the example shown for one kind of mistake. Every logic check has
 one. Every compiler warning is reported too, rated as an error, warning or suggestion; a warning FixFinder has no guide
@@ -2342,7 +2350,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    unless chosen - and reads everything they say: every error and warning, and a crash's stack trace.
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
-3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
+3. **Reads the code for logic mistakes** with 1,223 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
    by its own language's parser, and recognises from the same reading which of 13 algorithms a function is written as;

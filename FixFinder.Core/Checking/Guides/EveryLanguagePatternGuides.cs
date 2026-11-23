@@ -407,6 +407,13 @@ internal static class EveryLanguagePatternGuides
             "Change both in every method that changes either - take 1 off the count where an item is taken out - or work the count out from the list whenever it is asked for.",
             example);
 
+    private static GuideEntry BoundaryOddOneOut(string id, string example) =>
+        GuideFor([id], "One branch of a ladder whose own number goes the other way",
+            "A chain of branches comparing one value with numbers in turn - mark >= 70, then >= 60, then >= 50 - is a ladder, and each rung's number belongs somewhere: in every other branch here it goes with that branch, but in this one it goes with the next, or the other way round. A mark of exactly 40 is treated unlike a mark of exactly 50.",
+            "The value on that one boundary gets the next branch's answer - a mark of 40 is given F, where 50 is given C and not D - and every other value is right, so tests with values away from the boundaries all pass.",
+            "Write the comparison the way the other branches write theirs - >= like the rest, or > like the rest - unless that one boundary is meant to go the other way, and say so in a comment if it is.",
+            example);
+
     private static GuideEntry SearchUnsorted(string id, string example) =>
         GuideFor([id], "A binary search given a list out of order",
             "A binary search looks at the middle item and throws away the half the wanted item cannot be in - which is right only when the list is in order. Here the list it is given is written out of order, so the search can throw away the half the item is in.",
@@ -4297,6 +4304,168 @@ internal static class EveryLanguagePatternGuides
                 }
                 top
             }
+            """),
+        BoundaryOddOneOut("logic-boundary-odd-one-out",
+            """
+            if (mark >= 70) {
+                grade = "A";
+            } else if (mark >= 60) {
+                grade = "B";
+            } else if (mark >= 50) {
+                grade = "C";
+            } else if (mark >= 40) {
+                grade = "D";
+            }
+            """),
+        BoundaryOddOneOut("logic-go-boundary-odd-one-out",
+            """
+            if mark >= 70 {
+            	grade = "A"
+            } else if mark >= 60 {
+            	grade = "B"
+            } else if mark >= 50 {
+            	grade = "C"
+            } else if mark >= 40 {
+            	grade = "D"
+            }
+            """),
+        BoundaryOddOneOut("logic-rust-boundary-odd-one-out",
+            """
+            let grade = if mark >= 70 {
+                "A"
+            } else if mark >= 60 {
+                "B"
+            } else if mark >= 50 {
+                "C"
+            } else if mark >= 40 {
+                "D"
+            } else {
+                "F"
+            };
+            """),
+        BoundaryOddOneOut("logic-scala-boundary-odd-one-out",
+            """
+            val grade = if (mark >= 70) {
+              "A"
+            } else if (mark >= 60) {
+              "B"
+            } else if (mark >= 50) {
+              "C"
+            } else if (mark >= 40) {
+              "D"
+            } else {
+              "F"
+            }
+            """),
+        BoundaryOddOneOut("logic-python-boundary-odd-one-out",
+            """
+            if mark >= 70:
+                grade = "A"
+            elif mark >= 60:
+                grade = "B"
+            elif mark >= 50:
+                grade = "C"
+            elif mark >= 40:
+                grade = "D"
+            """),
+        BoundaryOddOneOut("logic-ruby-boundary-odd-one-out",
+            """
+            if mark >= 70
+              grade = "A"
+            elsif mark >= 60
+              grade = "B"
+            elsif mark >= 50
+              grade = "C"
+            elsif mark >= 40
+              grade = "D"
+            end
+            """),
+        BoundaryOddOneOut("logic-lua-boundary-odd-one-out",
+            """
+            if mark >= 70 then
+              grade = "A"
+            elseif mark >= 60 then
+              grade = "B"
+            elseif mark >= 50 then
+              grade = "C"
+            elseif mark >= 40 then
+              grade = "D"
+            end
+            """),
+        BoundaryOddOneOut("logic-perl-boundary-odd-one-out",
+            """
+            if ($mark >= 70) {
+                $grade = "A";
+            } elsif ($mark >= 60) {
+                $grade = "B";
+            } elsif ($mark >= 50) {
+                $grade = "C";
+            } elsif ($mark >= 40) {
+                $grade = "D";
+            }
+            """),
+        BoundaryOddOneOut("logic-powershell-boundary-odd-one-out",
+            """
+            if ($mark -ge 70) {
+                $grade = "A"
+            } elseif ($mark -ge 60) {
+                $grade = "B"
+            } elseif ($mark -ge 50) {
+                $grade = "C"
+            } elseif ($mark -ge 40) {
+                $grade = "D"
+            }
+            """),
+        BoundaryOddOneOut("logic-fortran-boundary-odd-one-out",
+            """
+            if (mark >= 70) then
+              grade = 'A'
+            else if (mark >= 60) then
+              grade = 'B'
+            else if (mark >= 50) then
+              grade = 'C'
+            else if (mark >= 40) then
+              grade = 'D'
+            end if
+            """),
+        BoundaryOddOneOut("logic-fsharp-boundary-odd-one-out",
+            """
+            let grade =
+                if mark >= 70 then "A"
+                elif mark >= 60 then "B"
+                elif mark >= 50 then "C"
+                elif mark >= 40 then "D"
+                else "F"
+            """),
+        BoundaryOddOneOut("logic-ocaml-boundary-odd-one-out",
+            """
+            let grade =
+              if mark >= 70 then "A"
+              else if mark >= 60 then "B"
+              else if mark >= 50 then "C"
+              else if mark >= 40 then "D"
+              else "F"
+            """),
+        BoundaryOddOneOut("logic-elixir-boundary-odd-one-out",
+            """
+            grade =
+              cond do
+                mark >= 70 -> "A"
+                mark >= 60 -> "B"
+                mark >= 50 -> "C"
+                mark >= 40 -> "D"
+                true -> "F"
+              end
+            """),
+        BoundaryOddOneOut("logic-erlang-boundary-odd-one-out",
+            """
+            Grade = if
+                Mark >= 70 -> "A";
+                Mark >= 60 -> "B";
+                Mark >= 50 -> "C";
+                Mark >= 40 -> "D";
+                true -> "F"
+            end,
             """),
         FlagNeverSet("logic-typescript-flag-never-set",
             """

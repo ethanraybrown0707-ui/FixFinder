@@ -29,27 +29,42 @@ public static partial class UnreachableBranchPatterns
 
     private delegate IEnumerable<Chain> ChainReader(IReadOnlyList<string> masked);
 
+    /// <summary>
+    /// How one language writes a chain of branches: the word its checks' names carry - none for the languages with braces read
+    /// alike - its files, how its code is read, and how its chains are found.
+    /// </summary>
+    private sealed record Dialect(string Named, IReadOnlySet<string> Files, Syntax Syntax, ChainReader Reader);
+
+    private static readonly Dialect[] Dialects =
+    [
+        new("", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++", ".java", ".cs", ".js", ".mjs", ".cjs", ".dart", ".php"), Syntax.CLike, BraceChains),
+        new("go-", CodePattern.Files(".go"), Syntax.CLike, BareBraceChains),
+        new("rust-", CodePattern.Files(".rs"), Syntax.CLike, BareBraceChains),
+        new("scala-", CodePattern.Files(".scala", ".sc"), Syntax.Scala, ScalaChains),
+        new("python-", CodePattern.Files(".py", ".pyw"), Syntax.Python, PythonChains),
+        new("ruby-", CodePattern.Files(".rb"), Syntax.Python, KeywordChains(@"if\b", @"elsif\b", @"^\s*(?:else|end)\b", @"(?:\s+then\b.*)?$")),
+        new("lua-", CodePattern.Files(".lua"), Syntax.Lua, KeywordChains(@"if\b", @"elseif\b", @"^\s*(?:else|end)\b", @"\s+then\b.*$")),
+        new("perl-", CodePattern.Files(".pl", ".pm"), Syntax.Perl, BraceChains),
+        new("powershell-", CodePattern.Files(".ps1"), Syntax.Python, BraceChains),
+        new("fortran-", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran,
+            KeywordChains(@"if\s*\(", @"else\s*if\s*\(", @"^\s*(?:else\s*$|else\s*!|end\s*if\b|endif\b)", @"\)\s*then\s*$", RegexOptions.IgnoreCase)),
+        new("fsharp-", CodePattern.Files(".fsx"), Syntax.FSharp, KeywordChains(@"if\b", @"elif\b", @"^\s*else\b", @"\s+then\b.*$")),
+        new("ocaml-", CodePattern.Files(".ml"), Syntax.OCaml, KeywordChains(@"if\b", @"else\s+if\b", @"^\s*else\b", @"\s+then\b.*$")),
+        new("elixir-", CodePattern.Files(".exs", ".ex"), Syntax.Python, ClauseChains(@"\bcond\s+do\s*$", @"^\s*end\b")),
+        new("erlang-", CodePattern.Files(".erl"), Syntax.Erlang, ClauseChains(@"^\s*if\s*$", @"^\s*end\b")),
+    ];
+
     public static IReadOnlyList<ILogicPattern> All { get; } =
     [
-        Unreachable("logic-branch-never-reached", CodePattern.Files(".c", ".cpp", ".cc", ".cxx", ".c++", ".java", ".cs", ".js", ".mjs", ".cjs", ".dart", ".php"), Syntax.CLike, BraceChains),
-        Unreachable("logic-go-branch-never-reached", CodePattern.Files(".go"), Syntax.CLike, BareBraceChains),
-        Unreachable("logic-rust-branch-never-reached", CodePattern.Files(".rs"), Syntax.CLike, BareBraceChains),
-        Unreachable("logic-scala-branch-never-reached", CodePattern.Files(".scala", ".sc"), Syntax.Scala, ScalaChains),
-        Unreachable("logic-python-branch-never-reached", CodePattern.Files(".py", ".pyw"), Syntax.Python, PythonChains),
-        Unreachable("logic-ruby-branch-never-reached", CodePattern.Files(".rb"), Syntax.Python, KeywordChains(@"if\b", @"elsif\b", @"^\s*(?:else|end)\b", @"(?:\s+then\b.*)?$")),
-        Unreachable("logic-lua-branch-never-reached", CodePattern.Files(".lua"), Syntax.Lua, KeywordChains(@"if\b", @"elseif\b", @"^\s*(?:else|end)\b", @"\s+then\b.*$")),
-        Unreachable("logic-perl-branch-never-reached", CodePattern.Files(".pl", ".pm"), Syntax.Perl, BraceChains),
-        Unreachable("logic-powershell-branch-never-reached", CodePattern.Files(".ps1"), Syntax.Python, BraceChains),
-        Unreachable("logic-fortran-branch-never-reached", CodePattern.Files(".f90", ".f95", ".f03", ".f08"), Syntax.Fortran,
-            KeywordChains(@"if\s*\(", @"else\s*if\s*\(", @"^\s*(?:else\s*$|else\s*!|end\s*if\b|endif\b)", @"\)\s*then\s*$", RegexOptions.IgnoreCase)),
-        Unreachable("logic-fsharp-branch-never-reached", CodePattern.Files(".fsx"), Syntax.FSharp, KeywordChains(@"if\b", @"elif\b", @"^\s*else\b", @"\s+then\b.*$")),
-        Unreachable("logic-ocaml-branch-never-reached", CodePattern.Files(".ml"), Syntax.OCaml, KeywordChains(@"if\b", @"else\s+if\b", @"^\s*else\b", @"\s+then\b.*$")),
-        Unreachable("logic-elixir-branch-never-reached", CodePattern.Files(".exs", ".ex"), Syntax.Python, ClauseChains(@"\bcond\s+do\s*$", @"^\s*end\b")),
-        Unreachable("logic-erlang-branch-never-reached", CodePattern.Files(".erl"), Syntax.Erlang, ClauseChains(@"^\s*if\s*$", @"^\s*end\b")),
+        .. Dialects.Select(dialect => Unreachable($"logic-{dialect.Named}branch-never-reached", dialect.Files, dialect.Syntax, dialect.Reader)),
+        .. Dialects.Select(dialect => OddBoundary($"logic-{dialect.Named}boundary-odd-one-out", dialect.Files, dialect.Syntax, dialect.Reader)),
     ];
 
     private static CodePattern Unreachable(string id, IReadOnlySet<string> extensions, Syntax syntax, ChainReader reader) =>
         new(id, extensions, syntax, (patternId, source, masked) => NeverReached(patternId, source, masked, reader), Severity.Error, Confidence.Certain);
+
+    private static CodePattern OddBoundary(string id, IReadOnlySet<string> extensions, Syntax syntax, ChainReader reader) =>
+        new(id, extensions, syntax, (patternId, source, masked) => BoundaryOddOneOut(patternId, source, masked, reader), Severity.Warning, Confidence.Possible);
 
     private static int IndentOf(string line) => line.Length - line.TrimStart().Length;
 
@@ -401,6 +416,119 @@ public static partial class UnreachableBranchPatterns
             }
         }
     }
+
+    /// <summary>
+    /// A ladder of three branches or more comparing one name with a number each, the same way round and in order - mark &gt;= 70,
+    /// mark &gt;= 60, mark &gt;= 50, mark &gt; 40 - where one branch alone differs from the others in whether its own number is let
+    /// through: every other one takes in the number it names, and this one leaves it to the branch after. A mark of exactly 40
+    /// is not given this branch's answer, as 70, 60 and 50 are given theirs.
+    /// </summary>
+    /// <remarks>
+    /// It may be meant, so it is a warning that it may be a mistake, with the change that makes the branch like the others.
+    /// The numbers have to step alike: the odd one is said only when it is a whole number that the others' common step - their
+    /// greatest common divisor, above 1 - divides, as 40 is for 70, 60 and 50. mark &gt; 39 among them is mark &gt;= 40 for whole
+    /// marks, written another way, and is left alone.
+    /// </remarks>
+    private static IEnumerable<LogicFinding> BoundaryOddOneOut(string id, SourceFile source, IReadOnlyList<string> masked, ChainReader reader)
+    {
+        foreach (var whole in reader(masked))
+        {
+            // A last clause of true - Elixir's cond and Erlang's if end so - is the chain's else, and is no rung of the ladder.
+            var branches = whole.Branches.ToList();
+            if (branches.Count > 0 && masked[branches[^1].Header][branches[^1].ConditionStart..branches[^1].ConditionEnd].Trim() == "true") branches.RemoveAt(branches.Count - 1);
+            var chain = whole with { Branches = branches };
+
+            if (chain.Branches.Count < 3) continue;
+            var ranges = chain.Branches.Select(branch => ValuesLetThrough(masked[branch.Header][branch.ConditionStart..branch.ConditionEnd])).ToList();
+            if (ranges.Any(range => range is null) || ranges.Select(range => range!.Name).Distinct().Count() != 1) continue;
+            var all = ranges.Select(range => range!).ToList();
+
+            // A ladder from the top - >= 70, >= 60 - each with a lowest value, or from the bottom - < 40, < 50 - each with a highest.
+            var fromTheTop = all.All(range => double.IsPositiveInfinity(range.High) && !double.IsNegativeInfinity(range.Low));
+            var fromTheBottom = all.All(range => double.IsNegativeInfinity(range.Low) && !double.IsPositiveInfinity(range.High));
+            if (!fromTheTop && !fromTheBottom) continue;
+            var bounds = all.Select(range => fromTheTop ? range.Low : range.High).ToList();
+            var takesItsOwn = all.Select(range => fromTheTop ? range.LowIn : range.HighIn).ToList();
+            if (!bounds.Zip(bounds.Skip(1)).All(pair => fromTheTop ? pair.First > pair.Second : pair.First < pair.Second)) continue;
+
+            var taking = takesItsOwn.Count(takes => takes);
+            var odd = taking == 1 && takesItsOwn.Count >= 3 ? takesItsOwn.IndexOf(true)
+                : taking == takesItsOwn.Count - 1 && takesItsOwn.Count >= 3 ? takesItsOwn.IndexOf(false)
+                : -1;
+            if (odd < 0) continue;
+
+            // The numbers step alike - 70, 60, 50 by 10 - and the odd one is on that step: 40, not 39.
+            if (bounds.Any(bound => bound != Math.Floor(bound))) continue;
+            var step = bounds.Where((_, index) => index != odd).Select(bound => (long)Math.Abs(bound)).Aggregate(0L, GreatestCommonDivisor);
+            if (step <= 1 || (long)Math.Abs(bounds[odd]) % step != 0) continue;
+
+            var branch = chain.Branches[odd];
+            var written = source.Lines[branch.Header][branch.ConditionStart..branch.ConditionEnd].Trim();
+            var others = chain.Branches.Where((_, index) => index != odd)
+                .Select(other => source.Lines[other.Header][other.ConditionStart..other.ConditionEnd].Trim()).ToList();
+            var number = bounds[odd].ToString(CultureInfo.InvariantCulture);
+            var name = all[odd].Name;
+            var where = odd + 1 < chain.Branches.Count ? $"the branch on line {chain.Branches[odd + 1].Header + 1}" : "what comes after the last branch";
+            var change = OperatorTurned(id, source, branch, takesItsOwn[odd]);
+            // The condition as the change writes it: the same place on the changed line, longer or shorter by the operator.
+            var rewritten = change is null ? null
+                : change.NewLines[0].Substring(branch.ConditionStart, branch.ConditionEnd - branch.ConditionStart + change.NewLines[0].Length - source.Lines[branch.Header].Length).Trim();
+
+            var otherNumbers = bounds.Where((_, index) => index != odd).Select(bound => bound.ToString(CultureInfo.InvariantCulture)).ToList();
+            var theirNumbers = $"{string.Join(", ", otherNumbers.SkipLast(1))} and {otherNumbers[^1]}";
+            var what = takesItsOwn[odd]
+                ? $"Every other branch of this chain leaves its own number to the branch after it - {string.Join(", ", others)} - but {written} takes " +
+                  $"{number} in: {name} = {number} is given this branch's answer, where {theirNumbers} are each given the next branch's"
+                : $"Every other branch of this chain takes in its own number - {string.Join(", ", others)} - but {written} does not: " +
+                  $"{name} = {number} is not given this branch's answer, as {theirNumbers} are given theirs, and goes on to {where}";
+            yield return new LogicFinding(id, branch.Header + 1,
+                what + (rewritten is null ? "" : $". If {number} belongs as the others' numbers do, write {rewritten}"), change);
+        }
+
+        static long GreatestCommonDivisor(long one, long other)
+        {
+            while (other != 0) (one, other) = (other, one % other);
+            return one;
+        }
+    }
+
+    /// <summary>
+    /// The branch's comparison made like the others: one that leaves its number out made to take it in - &gt; to &gt;=, &lt; to &lt;=,
+    /// -gt to -ge, .gt. to .ge. - or one that takes it in made to leave it out, the other way. Null when its line does not
+    /// hold just one comparison to change.
+    /// </summary>
+    private static LocalFix? OperatorTurned(string id, SourceFile source, Branch branch, bool takesItsOwn)
+    {
+        var line = source.Lines[branch.Header];
+        var condition = line[branch.ConditionStart..branch.ConditionEnd];
+        var operators = OddOperator().Matches(condition);
+        if (operators.Count != 1) return null;
+
+        var found = operators[0].Value;
+        var turned = (found.ToLowerInvariant(), takesItsOwn) switch
+        {
+            (">", false) => ">=", ("<", false) => found == "<" && IsErlang(source) ? "=<" : "<=",
+            ("-gt", false) => "-ge", ("-lt", false) => "-le", (".gt.", false) => ".ge.", (".lt.", false) => ".le.",
+            (">=", true) => ">", ("<=" or "=<", true) => "<", ("-ge", true) => "-gt", ("-le", true) => "-lt", (".ge.", true) => ".gt.", (".le.", true) => ".lt.",
+            _ => null,
+        };
+        if (turned is null) return null;
+
+        var at = branch.ConditionStart + operators[0].Index;
+        return new LocalFix
+        {
+            RuleId = id, Title = takesItsOwn ? $"Leave the number out, as the other branches do: {turned}" : $"Take the number in, as the other branches do: {turned}",
+            Explanation = "With the same comparison in every branch, each number of the ladder is given the same branch as the others are - its own, or the next.",
+            File = source.Path, StartLine = branch.Header + 1, RemoveCount = 1,
+            NewLines = [line[..at] + turned + line[(at + found.Length)..]],
+        };
+
+        static bool IsErlang(SourceFile file) => Path.GetExtension(file.Path).Equals(".erl", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A comparison's operator, of those a ladder is written with: &gt;=, &gt;, &lt;=, =&lt;, &lt;, and the words for them.</summary>
+    [GeneratedRegex(@"(?<![<>=!])(?:>=|<=|=<|>(?!=)|<(?!=)|-ge\b|-gt\b|-le\b|-lt\b|\.ge\.|\.gt\.|\.le\.|\.lt\.)", RegexOptions.IgnoreCase)]
+    private static partial Regex OddOperator();
 
     /// <summary>
     /// When every branch compares one name the same way - all &gt;= and &gt;, or all &lt;= and &lt; - the chain with its branches put in
