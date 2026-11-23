@@ -1379,6 +1379,11 @@ Learn deletes them all; a code still opens its lesson afterwards, without your o
 opens the lesson and says that the problem itself is not kept here. The questions answered right are kept in
 `%LOCALAPPDATA%\FixFinder\learn\progress.json`. Nothing is sent anywhere.
 
+Everything FixFinder keeps on this computer - the history of checks, the preferences, these problems and this progress,
+its builds, its cache and a saved sign-in - is in `%LOCALAPPDATA%\FixFinder`, or in the folder the
+`FIXFINDER_DATA_FOLDER` environment variable names when it is set: a way to try FixFinder and FixFinder Learn without
+the checks made going into your own history and list of problems.
+
 ## How the two checks work
 
 The **syntax check** asks the language's own tools for every error and warning, then runs the program to catch the error

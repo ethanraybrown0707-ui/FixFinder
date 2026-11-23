@@ -53,8 +53,7 @@ public sealed class ProblemStore(string? folder = null, int mostKept = ProblemSt
     /// <summary>The most problems kept, usually; the oldest go first.</summary>
     public const int UsualMostKept = 500;
 
-    public static string DefaultFolder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FixFinder", "learn", "problems");
+    public static string DefaultFolder { get; } = Path.Combine(Engine.DataFolder.Root, "learn", "problems");
 
     public string Folder { get; } = folder ?? DefaultFolder;
 

@@ -40,9 +40,7 @@ public enum WorkingMode
 /// </remarks>
 public sealed class Preferences
 {
-    public static readonly string FilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "FixFinder", "preferences.json");
+    public static readonly string FilePath = Path.Combine(DataFolder.Root, "preferences.json");
 
     /// <summary>Light, dark, or whatever Windows is set to - which is the one chosen for anybody who has not.</summary>
     public AppearanceChoice Appearance { get; set; } = AppearanceChoice.System;

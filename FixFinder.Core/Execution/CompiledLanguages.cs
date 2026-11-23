@@ -23,9 +23,7 @@ public sealed record BuildAndRun(TargetSpec Compile, TargetSpec Run, string Expl
 /// <summary>Builds C, C++, Java, Scala, OCaml, Rust, Fortran and Erlang source before running it.</summary>
 public static partial class CompiledLanguages
 {
-    public static string BuildRoot { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "FixFinder", "build");
+    public static string BuildRoot { get; } = Path.Combine(Engine.DataFolder.Root, "build");
 
     [GeneratedRegex(@"^\s*package\s+([A-Za-z_][\w.]*)\s*;", RegexOptions.Multiline)]
     private static partial Regex JavaPackagePattern();

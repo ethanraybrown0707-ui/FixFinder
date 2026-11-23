@@ -268,9 +268,7 @@ public sealed class CheckHistory
     /// <summary>How many checks are remembered. Enough to see a direction of travel, not a diary.</summary>
     public const int MostKept = 200;
 
-    public static readonly string FilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "FixFinder", "history.json");
+    public static readonly string FilePath = Path.Combine(DataFolder.Root, "history.json");
 
     public List<CheckRecord> Checks { get; set; } = [];
 

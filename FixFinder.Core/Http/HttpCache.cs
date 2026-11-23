@@ -26,9 +26,7 @@ public sealed class HttpCache
 
     public HttpCache(string? directory = null)
     {
-        Directory = directory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "FixFinder", "cache");
+        Directory = directory ?? Path.Combine(Engine.DataFolder.Root, "cache");
 
         System.IO.Directory.CreateDirectory(Directory);
     }

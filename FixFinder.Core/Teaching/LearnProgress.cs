@@ -9,8 +9,7 @@ namespace FixFinder.Core.Teaching;
 /// </summary>
 public sealed class LearnProgress
 {
-    public static string DefaultFile { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FixFinder", "learn", "progress.json");
+    public static string DefaultFile { get; } = Path.Combine(Engine.DataFolder.Root, "learn", "progress.json");
 
     /// <summary>For each lesson - "DIVZERO|Python" - the questions answered right, each by its question's words.</summary>
     public Dictionary<string, HashSet<string>> AnsweredRight { get; set; } = [];
