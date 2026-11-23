@@ -78,6 +78,17 @@ internal static class LogicGuides
             + "than the number - not the number itself.",
             ""),
 
+        GuideFor(["algorithm-leap-year-wrong"], "A leap-year test that gives a wrong answer",
+            "The function is written the way a leap-year test is written - it asks whether 4, 100 or 400 divide the year - so "
+            + "FixFinder called it with years whose answers are known, and set each answer beside whether the year is a leap "
+            + "year. The year shown is the first it got wrong.",
+            "A leap-year test usually goes wrong at the centuries: 1900 and 2100, which 4 divides but are not leap years because "
+            + "100 divides them too; or 2000 and 2400, which are leap years after all because 400 divides them. A test that "
+            + "asks only of 4 gets the first wrong, and one that leaves out 400 the second.",
+            "Ask of 400 first, then of 100, then of 4: a year 400 divides is a leap year; otherwise one 100 divides is not; "
+            + "otherwise one 4 divides is. As one condition: 4 divides it, and either 100 does not or 400 does.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

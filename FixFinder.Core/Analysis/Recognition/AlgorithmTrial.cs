@@ -14,7 +14,9 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// What an algorithm recognised in the code must do, tried on lists of FixFinder's own: a function that looks like a
 /// sort is called with lists empty, of one item, in order, in reverse order, with repeats and below zero, and must give
 /// back the same items in order each time; one that looks like a search is called with lists in order and each value in
-/// them, and values not in them, and must find every one that is there and none that is not. What it does is said
+/// them, and values not in them, and must find every one that is there and none that is not; a prime test is called
+/// with every number from 0 to 30, and a leap-year test with ten years, and each must say rightly which numbers are
+/// prime, or which years are leap years. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -78,6 +80,12 @@ public static partial class AlgorithmTrial
     /// </summary>
     private const int HighestNumberTried = 30;
 
+    /// <summary>
+    /// The years a leap-year test is called with, those most often got wrong soonest: one 4 divides and one it does not,
+    /// 2000 that 400 divides, 1900 and 2100 that 100 divides and 400 does not, then more of each kind.
+    /// </summary>
+    private static readonly int[] YearsTried = [2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600, 1800];
+
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
     /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one, the
@@ -125,13 +133,13 @@ public static partial class AlgorithmTrial
             _ => (SourceLanguage?)null,
         };
         if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
-            recognition.List is null && !recognition.IsPrimeTest)
+            recognition.List is null && !recognition.IsNumberTest)
             return null;
 
         // A sort is judged by its list; a search for the largest or smallest by the item it gives back; any other search by
         // what it looks for and what it gives back when it finds it.
         if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item
-            : recognition.IsPrimeTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
+            : recognition.IsNumberTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -143,7 +151,7 @@ public static partial class AlgorithmTrial
         {
             if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
             if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
-            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsPrimeTest ? "number" : "sought"));
+            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsNumberTest ? "number" : "sought"));
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
@@ -153,7 +161,7 @@ public static partial class AlgorithmTrial
             if (language == SourceLanguage.Java && JavaClassOf(parameter.Type, role) is null) return null;
         }
 
-        if (recognition.IsPrimeTest) return roles.Any(role => role.Role == "number") ? roles : null;
+        if (recognition.IsNumberTest) return roles.Any(role => role.Role == "number") ? roles : null;
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
@@ -168,6 +176,7 @@ public static partial class AlgorithmTrial
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
+            : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
             : SearchTrials(recognition, ascending);
         var results = program.Language switch
         {
@@ -182,6 +191,7 @@ public static partial class AlgorithmTrial
         return recognition.IsSort ? JudgeSort(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
+            : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
             : JudgeSearch(recognition, results, trials, ascending);
     }
 
@@ -302,6 +312,37 @@ public static partial class AlgorithmTrial
         static (string?, string?) Broken(string what) => (what + ".", what);
     }
 
+    /// <summary>
+    /// Whether each year's answer was whether it is a leap year - and the first that was not, with why: 4 divides 2024
+    /// and 100 does not, 100 divides 1900 and 400 does not.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeLeapYearTest(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var year = result.Trial.Number!.Value;
+            if (result.Error is { } error) return Broken($"Called with {year}, {name} stopped with {error}");
+            if (result.Returned is not { ValueKind: JsonValueKind.True or JsonValueKind.False } returned) return (null, null);
+
+            var leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+            var saidLeap = returned.ValueKind == JsonValueKind.True;
+            if (saidLeap == leap) continue;
+
+            var gave = AsWritten(returned, recognition.File);
+            var why = year % 400 == 0 ? $"400 divides {year}, so it is a leap year"
+                : year % 100 == 0 ? $"100 divides {year} and 400 does not, so it is not a leap year"
+                : year % 4 == 0 ? $"4 divides {year} and 100 does not, so it is a leap year"
+                : $"4 does not divide {year}, so it is not a leap year";
+            return Broken($"Called with {year}, {name} gave {gave} - but {why}");
+        }
+
+        var years = $"{string.Join(", ", YearsTried.SkipLast(1))} and {YearsTried[^1]}";
+        return ($"Called with the years {years}, it said which were leap years and which were not, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -352,7 +393,7 @@ public static partial class AlgorithmTrial
     private static Finding FindingFor(AlgorithmSeen recognition, string broken)
     {
         var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
-            : recognition.IsPrimeTest ? "algorithm-prime-wrong" : "algorithm-search-wrong";
+            : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -364,6 +405,7 @@ public static partial class AlgorithmTrial
             Title = recognition.IsSort ? $"`{recognition.Function}` does not sort every list"
                 : recognition.IsExtreme ? $"`{recognition.Function}` does not give back the {(recognition.IsLargest ? "largest" : "smallest")} item of every list"
                 : recognition.IsPrimeTest ? $"`{recognition.Function}` does not say rightly which numbers are prime"
+                : recognition.IsLeapYearTest ? $"`{recognition.Function}` does not say rightly which years are leap years"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",

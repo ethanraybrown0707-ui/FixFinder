@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search or a prime test recognised in a Python, JavaScript or Java program, called on lists or numbers of FixFinder's own: one that works is said to have
+/// A sort, a search, a prime test or a leap-year test recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -87,6 +87,14 @@ public class AlgorithmTrialTests : IDisposable
         "contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def position(names, wanted):\n    for index in range(len(names)):\n        if names[index] == wanted:\n            return index\n    return -1\n\n\ndef contains(names, wanted):\n    for name in names:\n        if name == wanted:\n            return True\n    return False\n\n\nprint(position([\"ann\", \"bob\"], \"bob\"), contains([\"ann\"], \"cy\"))\n",
         "position: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.|contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
+    [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
+        "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
+    [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
+        "isLeapYear: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
+    [InlineData("leap.py", "def is_leap(year):\n    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)\n\n\nprint(is_leap(2024))\n",
+        "is_leap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
+    [InlineData("leap_steps.py", "def is_leap(year):\n    if year % 400 == 0:\n        return True\n    if year % 100 == 0:\n        return False\n    return year % 4 == 0\n\n\nprint(is_leap(1900))\n",
+        "is_leap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("Prime.java", "public class Prime {\n    static boolean isPrime(int n) {\n        if (n < 2) {\n            return false;\n        }\n        for (int i = 2; i * i <= n; i++) {\n            if (n % i == 0) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isPrime(17));\n    }\n}\n",
         "Prime.isPrime: Called with every number from 0 to 30, it said which were prime and which were not, every one right.")]
     [InlineData("prime.js", "function isPrime(n) {\n    if (n < 2) {\n        return false;\n    }\n    for (let i = 2; i * i <= n; i++) {\n        if (n % i === 0) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(isPrime(17));\n",
@@ -333,6 +341,58 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "6 algorithm-prime-wrong: `Primes.primeStopsEarly` does not say rightly which numbers are prime | Called with 4, `Primes.primeStopsEarly` gave true - but 4 is 2 times 2.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A leap-year test that asks of 4 alone, one that leaves out 400, and one that asks of 4 before 100 and 400.</summary>
+    [Fact]
+    public async Task ALeapYearTestIsShownTheFirstYearItGetsWrong()
+    {
+        const string code = "def is_leap_four(year):\n    return year % 4 == 0\n\n\ndef is_leap_no_400(year):\n    return year % 4 == 0 and year % 100 != 0\n\n\ndef is_leap_order(year):\n    if year % 4 == 0:\n        return True\n    elif year % 100 == 0:\n        return False\n    elif year % 400 == 0:\n        return True\n    return False\n\n\nprint(is_leap_four(2024), is_leap_no_400(2024), is_leap_order(2024))\n";
+        if (await TriedAsync("leap_years.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "is_leap_four: Called with 1900, `is_leap_four` gave True - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+            "is_leap_no_400: Called with 2000, `is_leap_no_400` gave False - but 400 divides 2000, so it is a leap year.",
+            "is_leap_order: Called with 1900, `is_leap_order` gave True - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-leap-year-wrong: `is_leap_four` does not say rightly which years are leap years | Called with 1900, `is_leap_four` gave True - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+            "6 algorithm-leap-year-wrong: `is_leap_no_400` does not say rightly which years are leap years | Called with 2000, `is_leap_no_400` gave False - but 400 divides 2000, so it is a leap year.",
+            "10 algorithm-leap-year-wrong: `is_leap_order` does not say rightly which years are leap years | Called with 1900, `is_leap_order` gave True - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>The leap-year test that leaves out 400, written in JavaScript: 2000 was a leap year.</summary>
+    [Fact]
+    public async Task AJavaScriptLeapYearTestIsShownTheFirstYearItGetsWrong()
+    {
+        const string code = "function isLeapYear(year) {\n    return year % 4 === 0 && year % 100 !== 0;\n}\n\nconsole.log(isLeapYear(2000));\n";
+        if (await TriedAsync("leapNo400.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "isLeapYear: Called with 2000, `isLeapYear` gave false - but 400 divides 2000, so it is a leap year.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-leap-year-wrong: `isLeapYear` does not say rightly which years are leap years | Called with 2000, `isLeapYear` gave false - but 400 divides 2000, so it is a leap year.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A leap-year test in Java whose or comes before its and: 1900 is taken for a leap year.</summary>
+    [Fact]
+    public async Task AJavaLeapYearTestIsShownTheFirstYearItGetsWrong()
+    {
+        const string code = "public class LeapOr {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 || year % 400 == 0 && year % 100 != 0;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(1900));\n    }\n}\n";
+        if (await TriedAsync("LeapOr.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "LeapOr.isLeap: Called with 1900, `LeapOr.isLeap` gave true - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-leap-year-wrong: `LeapOr.isLeap` does not say rightly which years are leap years | Called with 1900, `LeapOr.isLeap` gave true - but 100 divides 1900 and 400 does not, so it is not a leap year.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }

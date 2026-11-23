@@ -54,6 +54,12 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a prime test, whose answer for each number is whether that number is prime.</summary>
     public bool IsPrimeTest => Algorithm == AlgorithmRecognition.PrimeTest;
 
+    /// <summary>Whether it is a leap-year test, whose answer for each year is whether that year is a leap year.</summary>
+    public bool IsLeapYearTest => Algorithm == AlgorithmRecognition.LeapYearTest;
+
+    /// <summary>Whether it is given a number on its own, with no list, and answers yes or no of it: a prime or a leap-year test.</summary>
+    public bool IsNumberTest => IsPrimeTest || IsLeapYearTest;
+
     /// <summary>For a search for the largest or smallest item: whether it is the largest.</summary>
     public bool IsLargest => Algorithm == AlgorithmRecognition.LargestSearch;
 
@@ -83,6 +89,8 @@ public static class AlgorithmRecognition
     public const string SmallestSearch = "a search for the smallest item";
 
     public const string PrimeTest = "a prime test";
+
+    public const string LeapYearTest = "a leap-year test";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -194,6 +202,7 @@ public static class AlgorithmRecognition
         InsertionSort,
         LargestOrSmallest,
         PrimeTestOf,
+        LeapYearTestOf,
     ];
 
     /// <summary>
@@ -467,6 +476,59 @@ public static class AlgorithmRecognition
 
         return null;
     }
+
+    /// <summary>The divisors a leap-year test asks about, in the order the rule takes them.</summary>
+    private static readonly long[] LeapYearDivisors = [4, 100, 400];
+
+    /// <summary>
+    /// A function that asks whether 4 divides one of its parameters - year % 4 - and whether 100 or 400 does too, every
+    /// answer it gives back a yes or a no; or one named for leap years that asks of 4 at least, whatever it does with the
+    /// answer. A function asking the same of a year for some other end - the days in February - gives back a number, and
+    /// is not one. When every answer is a yes or a no, the recognition says so, for it to be called on years and checked.
+    /// </summary>
+    private static Found? LeapYearTestOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        var returns = statements.OfType<Return>().ToList();
+        var answersYesOrNo = returns.Count > 0 && returns.All(leave => leave.Value is { } value && IsYesOrNo(value));
+        var namedForLeapYears = function.Name.Contains("leap", StringComparison.OrdinalIgnoreCase);
+        if (!answersYesOrNo && !namedForLeapYears) return null;
+
+        var remainders = statements.SelectMany(IrWalk.Expressions).SelectMany(IrWalk.Within).OfType<Binary>()
+            .Where(remainder => remainder is { Operator: BinaryOperator.Modulo, Left: Name, Right: Literal { Kind: LiteralKind.Integer, Value: long } })
+            .ToList();
+        foreach (var parameter in function.Parameters)
+        {
+            var asked = remainders.Where(remainder => ((Name)remainder.Left).Identifier == parameter.Name).ToList();
+            var firstOf = LeapYearDivisors.ToDictionary(divisor => divisor, divisor => asked.FirstOrDefault(remainder => (long)((Literal)remainder.Right).Value! == divisor));
+            if (firstOf[4] is not { } byFour || firstOf[100] is null && firstOf[400] is null && !namedForLeapYears) continue;
+
+            var divisors = LeapYearDivisors.Where(divisor => firstOf[divisor] is not null).ToList();
+            var whichDivide = divisors.Count == 1 ? "4 divides" : $"{string.Join(", ", divisors.SkipLast(1))} and {divisors[^1]} divide";
+            var written = divisors.Select(divisor => $"`{Shown(firstOf[divisor]!)}`").ToList();
+            var asWritten = written.Count == 1 ? written[0] : $"{string.Join(", ", written.SkipLast(1))} and {written[^1]}";
+
+            return new Found(byFour.Span.Line, LeapYearTest,
+                $"it asks whether {whichDivide} `{parameter.Name}` - {asWritten}",
+                "A year is a leap year when 4 divides it - but not when 100 does as well, unless 400 does too: 2024 and 2000 were " +
+                "leap years, 2023 and 1900 were not.",
+                Sought: parameter.Name)
+            {
+                Gives = answersYesOrNo ? SearchGives.Truth : null,
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether an expression gives a yes or a no: true or false written out, a comparison, and, or, or not of them.</summary>
+    private static bool IsYesOrNo(Expr value) => value switch
+    {
+        Literal { Kind: LiteralKind.Boolean } => true,
+        Binary { Operator: BinaryOperator.Equal or BinaryOperator.NotEqual or BinaryOperator.Less or BinaryOperator.LessOrEqual or BinaryOperator.Greater or BinaryOperator.GreaterOrEqual } => true,
+        Binary { Operator: BinaryOperator.And or BinaryOperator.Or } both => IsYesOrNo(both.Left) && IsYesOrNo(both.Right),
+        Unary { Operator: UnaryOperator.Not, Operand: var operand } => IsYesOrNo(operand),
+        _ => false,
+    };
 
     private static bool IsLoop(Stmt statement) => statement is While or For or ForEach;
 
