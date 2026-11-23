@@ -42,6 +42,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>The name the code gives the first of two numbers - a in gcd(a, b) - whose second is Sought.</summary>
     public string? FirstNumber { get; init; }
 
+    /// <summary>The name the code gives the second of a merge's two lists, whose first is List.</summary>
+    public string? SecondList { get; init; }
+
     /// <summary>
     /// What calling the function on lists of its own showed, when it was called: every one right, or the first that was
     /// not.
@@ -68,6 +71,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
 
     /// <summary>Whether it is the Fibonacci numbers, whose answer for each number is the two before it added.</summary>
     public bool IsFibonacci => Algorithm == AlgorithmRecognition.Fibonacci;
+
+    /// <summary>Whether it is a merge of two lists in order, whose result is every item of both, in order.</summary>
+    public bool IsMerge => Algorithm == AlgorithmRecognition.Merge;
 
     /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test, a factorial or the Fibonacci numbers.</summary>
     public bool IsGivenANumber => IsNumberTest || IsFactorial || IsFibonacci;
@@ -118,6 +124,8 @@ public static class AlgorithmRecognition
 
     public const string Fibonacci = "the Fibonacci numbers";
 
+    public const string Merge = "a merge of two lists in order";
+
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
     /// is being recognised; what is said of the code says it as it is written.
@@ -159,6 +167,7 @@ public static class AlgorithmRecognition
                     Sought = found.Sought,
                     Gives = found.Gives,
                     FirstNumber = found.FirstNumber,
+                    SecondList = found.SecondList,
                 });
             }
         }
@@ -172,6 +181,9 @@ public static class AlgorithmRecognition
 
         /// <summary>The first of a function's two numbers - a in gcd(a, b) - whose second is Sought.</summary>
         public string? FirstNumber { get; init; }
+
+        /// <summary>The second of a merge's two lists, whose first is List.</summary>
+        public string? SecondList { get; init; }
     }
 
     /// <summary>
@@ -267,6 +279,7 @@ public static class AlgorithmRecognition
         ReversalOf,
         GreatestCommonDivisorOf,
         FibonacciOf,
+        MergeOf,
     ];
 
     /// <summary>
@@ -871,6 +884,94 @@ public static class AlgorithmRecognition
             called == function.Name && lessened == number && less is 1 or 2
                 ? less
                 : null;
+    }
+
+    /// <summary>
+    /// Two lists merged into one: a loop run while both have items left - i &lt; len(first) and j &lt; len(second) - that
+    /// compares the item it is at in each, first[i] with second[j], and puts one of them in a result each way the comparison
+    /// goes - result.append(first[i]), or result[k] = second[j] - with the result given back. Whether what is left of either
+    /// list is taken in after the loop is what the trial tries, not what the recognition asks.
+    /// </summary>
+    private static Found? MergeOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        var parameters = function.Parameters.Select(parameter => parameter.Name).ToHashSet(StringComparer.Ordinal);
+        // What each return gives back, by the list it is made from: result, result.concat(rest), result + first[i:].
+        var givenBack = statements.OfType<Return>().Where(leave => MadeFrom(leave.Value) is not null)
+            .GroupBy(leave => MadeFrom(leave.Value)!, StringComparer.Ordinal).ToDictionary(made => made.Key, made => made.First().Value!, StringComparer.Ordinal);
+
+        foreach (var loop in statements.Where(statement => statement is While or For))
+        {
+            if (Condition(loop) is not Binary { Operator: BinaryOperator.And } both) continue;
+
+            foreach (var choice in Body(loop).OfType<If>())
+            {
+                // first[i] compared with second[j], each a list of the function's own, and the two not the same list.
+                var compared = choice.Condition is Binary { Operator: BinaryOperator.Less or BinaryOperator.LessOrEqual or BinaryOperator.Greater or BinaryOperator.GreaterOrEqual,
+                    Left: ElementAccess { Target: Name { Identifier: var one } } oneItem, Right: ElementAccess { Target: Name { Identifier: var other } } otherItem }
+                    ? (one, other, oneItem, otherItem) : default;
+                // The loop runs while both positions are inside their lists: i < len(first), or C's i < first_count.
+                if (compared.one is null || compared.one == compared.other || !parameters.Contains(compared.one) || !parameters.Contains(compared.other) ||
+                    !IrWalk.Names(compared.oneItem.Key).Any(position => Mentions(both, position)) ||
+                    !IrWalk.Names(compared.otherItem.Key).Any(position => Mentions(both, position)))
+                    continue;
+
+                var intoWhenTrue = PutInto(choice.Then, compared.oneItem, compared.otherItem);
+                var intoWhenFalse = PutInto(choice.Else, compared.oneItem, compared.otherItem);
+                // The merged list is given back, or is one the function was given to fill: C's void merge(..., int result[]).
+                if (intoWhenTrue is null || intoWhenTrue != intoWhenFalse) continue;
+                var filled = parameters.Contains(intoWhenTrue) && intoWhenTrue != compared.one && intoWhenTrue != compared.other;
+                if (!givenBack.TryGetValue(intoWhenTrue, out var given) && !filled) continue;
+                var ending = given is not null ? $"gives back `{Shown(given)}`" : $"leaves them in `{intoWhenTrue}`, which it was given";
+
+                var (first, second) = function.Parameters.Select(parameter => parameter.Name).ToList().IndexOf(compared.one) <
+                                      function.Parameters.Select(parameter => parameter.Name).ToList().IndexOf(compared.other)
+                    ? (compared.one, compared.other) : (compared.other, compared.one);
+                return new Found(loop.Span.Line, Merge,
+                    $"while both have items left, it compares `{Shown(compared.oneItem)}` with `{Shown(compared.otherItem)}` and puts one of them in " +
+                    $"`{intoWhenTrue}` each time round, and {ending}",
+                    "Merging two lists in order takes the smaller front item each time, until one list runs out - and then the rest of " +
+                    "the other, which the loop stopped before: without it, those items are lost.",
+                    List: first)
+                {
+                    SecondList = second,
+                };
+            }
+        }
+
+        return null;
+
+        // The list a value is made from: result itself, result.concat(...), or result + first[i:] - or null.
+        static string? MadeFrom(Expr? value) => value switch
+        {
+            Name { Identifier: var kept } => kept,
+            Call { Callee: Member { Target: var on } } => MadeFrom(on),
+            Binary { Operator: BinaryOperator.Add, Left: var left } => MadeFrom(left),
+            _ => null,
+        };
+
+        // The list a branch puts the item it is at in - result.append(first[i]), result.push(...), result[k] = first[i] - or null.
+        static string? PutInto(IReadOnlyList<Stmt> branch, ElementAccess oneItem, ElementAccess otherItem)
+        {
+            // An item of either list, at whatever its position is written as there - first[i], or Java's first[i++].
+            bool IsAnItem(Expr value) => value is ElementAccess { Target: Name { Identifier: var from } } &&
+                                         (from == IrText.Of(oneItem.Target) || from == IrText.Of(otherItem.Target));
+            foreach (var statement in IrWalk.Statements(branch))
+            {
+                if (statement is Evaluate { Value: Call { Callee: Member { Target: Name { Identifier: var into }, MemberName: "append" or "push" or "add" or "Add" or "push_back" }, Arguments: [{ Value: var added }] } } &&
+                    IsAnItem(added))
+                    return into;
+                foreach (var (target, name, value, _) in Writes([statement]))
+                {
+                    if (target is ElementAccess { Target: Name { Identifier: var placedIn } } && IsAnItem(value)) return placedIn;
+                    // Go's result = append(result, first[i]), read as result = result + [first[i]].
+                    if (name is not null && value is Binary { Operator: BinaryOperator.Add, Left: Name { Identifier: var grown }, Right: CollectionLiteral { Items: [var appended] } } &&
+                        grown == name && IsAnItem(appended))
+                        return name;
+                }
+            }
+
+            return null;
+        }
     }
 
     private const string FibonacciAdvice =

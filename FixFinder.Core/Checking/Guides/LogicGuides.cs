@@ -136,6 +136,17 @@ internal static class LogicGuides
             + "itself, give back fib(n - 1) + fib(n - 2), with the first two numbers given back as they are.",
             ""),
 
+        GuideFor(["algorithm-merge-wrong"], "A merge that loses or misplaces items",
+            "The function is written the way two lists in order are merged - it compares the item it is at in each and takes the "
+            + "smaller - so FixFinder called it with pairs of lists of its own, and set what came back beside every item of both, "
+            + "in order. The pair shown is the shortest it got wrong.",
+            "The loop runs while both lists have items left, so it stops as soon as one runs out - and whatever is left of the "
+            + "other has not been taken. Without a step after the loop to take it, those items are lost: [1, 3] and [2] give "
+            + "[1, 2], with no error to say so. Taking the larger item, or moving on in the wrong list, puts items out of order.",
+            "After the loop, add what is left of each list - in Python, result.extend(first[i:]) and result.extend(second[j:]) - "
+            + "and in the loop take the smaller item and move on in the list it came from.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

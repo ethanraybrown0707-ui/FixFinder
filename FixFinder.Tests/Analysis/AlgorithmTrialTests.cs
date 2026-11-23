@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search, a reversal, a prime test, a leap-year test, a factorial, Euclid's greatest common divisor or the Fibonacci numbers recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
+/// A sort, a search, a reversal, a merge, a prime test, a leap-year test, a factorial, Euclid's greatest common divisor or the Fibonacci numbers recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -139,6 +139,12 @@ public class AlgorithmTrialTests : IDisposable
         "fib: Called with every number from 1 to 10, it gave back 1 and 1 to start, and each after them as the two before it added.")]
     [InlineData("fib_stairs.py", "def ways_up_stairs(n):\n    a, b = 1, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n\n\nprint(ways_up_stairs(10))\n",
         "ways_up_stairs: Called with every number from 1 to 10, it gave back 1 and 2 to start, and each after them as the two before it added.")]
+    [InlineData("Merge.java", "public class Merge {\n    static int[] merge(int[] first, int[] second) {\n        int[] result = new int[first.length + second.length];\n        int i = 0, j = 0, k = 0;\n        while (i < first.length && j < second.length) {\n            if (first[i] <= second[j]) {\n                result[k++] = first[i++];\n            } else {\n                result[k++] = second[j++];\n            }\n        }\n        while (i < first.length) {\n            result[k++] = first[i++];\n        }\n        while (j < second.length) {\n            result[k++] = second[j++];\n        }\n        return result;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(java.util.Arrays.toString(merge(new int[] {1, 3}, new int[] {2})));\n    }\n}\n",
+        "Merge.merge: Called with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same item in both and below zero - it gave back every item of both, in order.")]
+    [InlineData("merge.js", "function merge(first, second) {\n    const result = [];\n    let i = 0;\n    let j = 0;\n    while (i < first.length && j < second.length) {\n        if (first[i] <= second[j]) {\n            result.push(first[i]);\n            i++;\n        } else {\n            result.push(second[j]);\n            j++;\n        }\n    }\n    return result.concat(first.slice(i), second.slice(j));\n}\n\nconsole.log(merge([1, 3], [2]));\n",
+        "merge: Called with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same item in both and below zero - it gave back every item of both, in order.")]
+    [InlineData("merge.py", "def merge(first, second):\n    result = []\n    i = 0\n    j = 0\n    while i < len(first) and j < len(second):\n        if first[i] <= second[j]:\n            result.append(first[i])\n            i += 1\n        else:\n            result.append(second[j])\n            j += 1\n    result.extend(first[i:])\n    result.extend(second[j:])\n    return result\n\n\nprint(merge([1, 3], [2]))\n",
+        "merge: Called with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same item in both and below zero - it gave back every item of both, in order.")]
     [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
         "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
@@ -665,6 +671,58 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "6 algorithm-fibonacci-wrong: `FibCalls.fib` does not give back the Fibonacci numbers | Called with 2, `FibCalls.fib` stopped with StackOverflowError.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A merge that takes in neither list's rest, one that takes in only the first's, and one that takes the larger item.</summary>
+    [Fact]
+    public async Task AMergeIsShownTheShortestPairItGetsWrong()
+    {
+        const string code = "def merge_without_the_rest(first, second):\n    result = []\n    i = 0\n    j = 0\n    while i < len(first) and j < len(second):\n        if first[i] <= second[j]:\n            result.append(first[i])\n            i += 1\n        else:\n            result.append(second[j])\n            j += 1\n    return result\n\n\ndef merge_with_the_first_rest_only(first, second):\n    result = []\n    i = 0\n    j = 0\n    while i < len(first) and j < len(second):\n        if first[i] < second[j]:\n            result.append(first[i])\n            i += 1\n        else:\n            result.append(second[j])\n            j += 1\n    result.extend(first[i:])\n    return result\n\n\ndef merge_taking_the_larger(first, second):\n    result = []\n    i = 0\n    j = 0\n    while i < len(first) and j < len(second):\n        if first[i] > second[j]:\n            result.append(first[i])\n            i += 1\n        else:\n            result.append(second[j])\n            j += 1\n    result.extend(first[i:])\n    result.extend(second[j:])\n    return result\n\n\nprint(merge_without_the_rest([1, 3], [2]))\n";
+        if (await TriedAsync("merges.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "merge_without_the_rest: Called with [1] and [], `merge_without_the_rest` gave back [] - [1] is left out; merged in order, it is [1].",
+            "merge_with_the_first_rest_only: Called with [] and [2], `merge_with_the_first_rest_only` gave back [] - [2] is left out; merged in order, it is [2].",
+            "merge_taking_the_larger: Called with [1] and [2], `merge_taking_the_larger` gave back [2, 1]; merged in order, it is [1, 2].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-merge-wrong: `merge_without_the_rest` does not merge every pair of lists | Called with [1] and [], `merge_without_the_rest` gave back [] - [1] is left out; merged in order, it is [1].",
+            "19 algorithm-merge-wrong: `merge_with_the_first_rest_only` does not merge every pair of lists | Called with [] and [2], `merge_with_the_first_rest_only` gave back [] - [2] is left out; merged in order, it is [2].",
+            "34 algorithm-merge-wrong: `merge_taking_the_larger` does not merge every pair of lists | Called with [1] and [2], `merge_taking_the_larger` gave back [2, 1]; merged in order, it is [1, 2].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A merge written in JavaScript that takes in neither list's rest.</summary>
+    [Fact]
+    public async Task AJavaScriptMergeThatLeavesOutTheRestIsShownTheShortestPairItGetsWrong()
+    {
+        const string code = "function merge(first, second) {\n    const result = [];\n    let i = 0;\n    let j = 0;\n    while (i < first.length && j < second.length) {\n        if (first[i] <= second[j]) {\n            result.push(first[i]);\n            i++;\n        } else {\n            result.push(second[j]);\n            j++;\n        }\n    }\n    return result;\n}\n\nconsole.log(merge([1, 3], [2]));\n";
+        if (await TriedAsync("merge.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "merge: Called with [1] and [], `merge` gave back [] - [1] is left out; merged in order, it is [1].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-merge-wrong: `merge` does not merge every pair of lists | Called with [1] and [], `merge` gave back [] - [1] is left out; merged in order, it is [1].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A merge written in Java into an array as long as both lists, whose places for the rest are left at 0.</summary>
+    [Fact]
+    public async Task AJavaMergeThatLeavesOutTheRestIsShownTheShortestPairItGetsWrong()
+    {
+        const string code = "public class MergeNoRest {\n    static int[] merge(int[] first, int[] second) {\n        int[] result = new int[first.length + second.length];\n        int i = 0, j = 0, k = 0;\n        while (i < first.length && j < second.length) {\n            if (first[i] <= second[j]) {\n                result[k++] = first[i++];\n            } else {\n                result[k++] = second[j++];\n            }\n        }\n        return result;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(java.util.Arrays.toString(merge(new int[] {1, 3}, new int[] {2})));\n    }\n}\n";
+        if (await TriedAsync("MergeNoRest.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "MergeNoRest.merge: Called with [1] and [], `MergeNoRest.merge` gave back [0] - [1] is left out; merged in order, it is [1].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-merge-wrong: `MergeNoRest.merge` does not merge every pair of lists | Called with [1] and [], `MergeNoRest.merge` gave back [0] - [1] is left out; merged in order, it is [1].",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }

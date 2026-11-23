@@ -20,7 +20,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// back each one's factorial; a reversal is called with lists of odd and even lengths, and must give each back in the
 /// opposite order; and Euclid's greatest common divisor is called with pairs of numbers, 0 among them, and must give
 /// back the greatest number dividing both of each; and the Fibonacci numbers are called with every number from 1 to 10,
-/// and must start as they do and give back each as the two before it added. What it does is said
+/// and must start as they do and give back each as the two before it added; and a merge is called with pairs of lists in
+/// order, and must give back every item of both, in order. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -73,6 +74,16 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static readonly int[][] ToReverse = [[], [1], [1, 2], [2, 1], [1, 2, 3], [3, 1, 2], [1, 2, 3, 4], [5, 2, 9, 1, 7], [4, 4, 1, 1], [7, -3, 0, 12]];
 
+    /// <summary>
+    /// Pairs of lists in order to merge, shortest first: both empty, one empty either way round, one item each either way,
+    /// one running out before the other either way, the same item in both, and below zero.
+    /// </summary>
+    private static readonly (int[] First, int[] Second)[] ToMerge =
+    [
+        ([], []), ([1], []), ([], [2]), ([1], [2]), ([2], [1]), ([1, 3], [2]), ([2], [1, 3]), ([1, 2, 3], [4, 5]), ([4, 5], [1, 2, 3]),
+        ([1, 4, 4], [2, 4, 6]), ([-3, 0], [-5, 7]),
+    ];
+
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
     private static readonly int[] OutOfOrder = [5, 2, 9, 1];
 
@@ -82,7 +93,8 @@ public static partial class AlgorithmTrial
     public sealed record Outcome(IReadOnlyList<AlgorithmSeen> Seen, IReadOnlyList<Finding> Findings);
 
     /// <param name="Number">What a prime test is given: a number on its own, with no list.</param>
-    private sealed record Trial(int[] List, int? Sought, int? Number = null);
+    /// <param name="Other">What a merge is given beside the list: a second list, to merge with the first.</param>
+    private sealed record Trial(int[] List, int? Sought, int? Number = null, int[]? Other = null);
 
     /// <summary>
     /// The numbers a prime test is called with: every one from 0 to 30, so 0, 1, 2, squares and primes are all among
@@ -172,6 +184,7 @@ public static partial class AlgorithmTrial
             : recognition.IsFactorial || recognition.IsFibonacci ? recognition.Sought is null
             : recognition.IsReversal ? false
             : recognition.IsGreatestCommonDivisor ? recognition.Sought is null || recognition.FirstNumber is null
+            : recognition.IsMerge ? recognition.SecondList is null
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -185,6 +198,7 @@ public static partial class AlgorithmTrial
             if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
             else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsGivenANumber ? "number" : "sought"));
             else if (parameter.Name == recognition.FirstNumber) roles.Add((parameter.Name, "number"));
+            else if (parameter.Name == recognition.SecondList) roles.Add((parameter.Name, "other"));
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
@@ -196,6 +210,7 @@ public static partial class AlgorithmTrial
 
         if (recognition.IsGivenANumber) return roles.Any(role => role.Role == "number") ? roles : null;
         if (recognition.IsGreatestCommonDivisor) return roles.Any(role => role.Role == "number") && roles.Any(role => role.Role == "sought") ? roles : null;
+        if (recognition.IsMerge) return roles.Any(role => role.Role == "list") && roles.Any(role => role.Role == "other") ? roles : null;
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
@@ -209,6 +224,7 @@ public static partial class AlgorithmTrial
     {
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
             : recognition.IsReversal ? ToReverse.Select(list => new Trial(list, null)).ToList()
+            : recognition.IsMerge ? ToMerge.Select(pair => new Trial(pair.First, null, Other: pair.Second)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
@@ -228,6 +244,7 @@ public static partial class AlgorithmTrial
 
         return recognition.IsSort ? JudgeSort(recognition, results)
             : recognition.IsReversal ? JudgeReversal(recognition, results)
+            : recognition.IsMerge ? JudgeMerge(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
@@ -303,6 +320,36 @@ public static partial class AlgorithmTrial
     }
 
     private static List<long> Longs(IEnumerable<int> items) => items.Select(item => (long)item).ToList();
+
+    /// <summary>
+    /// Whether each pair came back as one list holding every item of both, in order - and the first that did not, with
+    /// what came back, what of the two lists was left out of it, and what it should be.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeMerge(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var (first, second) = (result.Trial.List, result.Trial.Other!);
+            var pair = $"{Show(first)} and {Show(second)}";
+            if (result.Error is { } error) return Broken($"Called with {pair}, {name} stopped with {error}");
+            if (Numbers(result.Returned) is not { } merged) return (null, null);
+
+            var expected = Longs(first.Concat(second)).Order().ToList();
+            if (merged.SequenceEqual(expected)) continue;
+
+            // What of the two lists is not in what came back, counting each item as often as it is there.
+            var missing = new List<long>(expected);
+            foreach (var item in merged) missing.Remove(item);
+            var why = missing.Count > 0 ? $" - {Show(missing)} {(missing.Count == 1 ? "is" : "are")} left out" : "";
+            return Broken($"Called with {pair}, {name} gave back {Show(merged)}{why}; merged in order, it is {Show(expected)}");
+        }
+
+        return ($"Called with {results.Count} pairs of lists in order - empty, of one item, one running out before the other either way round, " +
+                "with the same item in both and below zero - it gave back every item of both, in order.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
 
     /// <summary>
     /// Whether each list came back in the opposite order - given back, or the list itself, reversed in place - and the
@@ -562,7 +609,8 @@ public static partial class AlgorithmTrial
             : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong"
             : recognition.IsFactorial ? "algorithm-factorial-wrong"
             : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong"
-            : recognition.IsFibonacci ? "algorithm-fibonacci-wrong" : "algorithm-search-wrong";
+            : recognition.IsFibonacci ? "algorithm-fibonacci-wrong"
+            : recognition.IsMerge ? "algorithm-merge-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -579,6 +627,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsFactorial ? $"`{recognition.Function}` does not work out every factorial rightly"
                 : recognition.IsGreatestCommonDivisor ? $"`{recognition.Function}` does not give back the greatest common divisor of every pair"
                 : recognition.IsFibonacci ? $"`{recognition.Function}` does not give back the Fibonacci numbers"
+                : recognition.IsMerge ? $"`{recognition.Function}` does not merge every pair of lists"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
@@ -685,8 +734,8 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static string? JavaClassOf(IrType type, string? role) => (role, type.Name) switch
     {
-        ("list", "array") when type.Arguments is [{ Name: "int" }] => "int[].class",
-        ("list", "List" or "ArrayList") when type.Arguments is [{ Name: "Integer" }] => $"java.util.{type.Name}.class",
+        ("list" or "other", "array") when type.Arguments is [{ Name: "int" }] => "int[].class",
+        ("list" or "other", "List" or "ArrayList") when type.Arguments is [{ Name: "Integer" }] => $"java.util.{type.Name}.class",
         ("sought" or "length" or "number", "int") => "int.class",
         ("sought", "Integer") => "Integer.class",
         _ => null,
@@ -757,6 +806,7 @@ public static partial class AlgorithmTrial
             "list" => "list",
             "sought" => "sought[index]",
             "number" => "numbers[index]",
+            "other" => "secondList",
             _ => "lists[index].length",
         }));
         var numbers = string.Join(", ", trials.Select(trial => trial.Number ?? 0));
@@ -764,6 +814,9 @@ public static partial class AlgorithmTrial
         // An array is given a copy of the trial's; a list, a fresh ArrayList of the same numbers; a prime test, no list.
         var listType = method.Parameters.Zip(roles).FirstOrDefault(pair => pair.Second.Role == "list").First?.Type;
         var madeList = listType is null ? "null" : listType.Name == "array" ? "lists[index].clone()" : "boxed(lists[index])";
+        var otherType = method.Parameters.Zip(roles).FirstOrDefault(pair => pair.Second.Role == "other").First?.Type;
+        var madeOther = otherType is null ? "null" : otherType.Name == "array" ? "others[index].clone()" : "boxed(others[index])";
+        var others = string.Join(", ", trials.Select(trial => "{" + string.Join(", ", trial.Other ?? []) + "}"));
         return $$"""
             public class {{JavaTrialClass}} {
                 static String quote(String text) {
@@ -808,10 +861,12 @@ public static partial class AlgorithmTrial
                     final java.lang.reflect.Method method = owner.getDeclaredMethod("{{method.Name}}"{{classes}});
                     method.setAccessible(true);
                     int[][] lists = { {{lists}} };
+                    int[][] others = { {{others}} };
                     int[] sought = { {{sought}} };
                     int[] numbers = { {{numbers}} };
                     for (int index = 0; index < lists.length; index++) {
                         final Object list = {{madeList}};
+                        final Object secondList = {{madeOther}};
                         final Object[] given = new Object[] { {{given}} };
                         final String[] outcome = { null };
                         Thread call = new Thread(() -> {
@@ -849,7 +904,7 @@ public static partial class AlgorithmTrial
     {
         roles = roles.Where(role => role.Role is not null).ToDictionary(role => role.Name, role => role.Role),
         parameters = roles.Select(role => role.Role),
-        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought, number = trial.Number }),
+        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought, number = trial.Number, other = trial.Other }),
     });
 
     /// <summary>Each trial's answer, read from the lines the run printed; null unless every trial answered.</summary>
@@ -924,7 +979,7 @@ public static partial class AlgorithmTrial
                 const list = trial.list.slice();
                 const given = fixfinderPlan.parameters.map(role =>
                     role === "list" ? list : role === "sought" ? trial.sought : role === "number" ? trial.number
-                    : role === "length" ? trial.list.length : undefined);
+                    : role === "other" ? trial.other.slice() : role === "length" ? trial.list.length : undefined);
                 const outcome = { trial: index };
                 try {
                     outcome.returned = fixfinderPlain({{function}}(...given), 0);
@@ -991,7 +1046,8 @@ public static partial class AlgorithmTrial
             arguments = {}
             for parameter, role in plan["roles"].items():
                 arguments[parameter] = (list(trial["list"]) if role == "list" else trial["sought"] if role == "sought"
-                                        else trial["number"] if role == "number" else len(trial["list"]))
+                                        else trial["number"] if role == "number" else list(trial["other"]) if role == "other"
+                                        else len(trial["list"]))
             outcome = {"trial": index}
 
             def call():
