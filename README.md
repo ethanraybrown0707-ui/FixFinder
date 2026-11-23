@@ -119,32 +119,40 @@ not start, or one that asked for more than it was given, is left out as well.
 
 **What the code looks like**, under the notes too, says which algorithm a function is written as, read from the shape of
 its code in Python, Java, JavaScript, C#, C, C++ and Go: a binary search, a linear search, a bubble sort, a selection
-sort, an insertion sort, a search for the largest or the smallest item, a prime test or a leap-year test, each said in
-the code's own names - a Java list's `get`, `set` and `equals` read as an array's indexing and `==`, and
-`Collections.swap` as a swap, and said as they are written - with what that kind of code needs or costs - *`find` looks
-like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares `items[mid]` with what
-it looks for, and moves `low` or `high` past the middle, halving the range each time round. A binary search looks at no
-more than about log2(n) items of n, but finds what it looks for only in a list that is in order.* It is closed until
-opened, and in a saved report and on the command line, as `algorithm:` lines, too. In a Python or JavaScript program
-each one is tried as well, from a copy of its file's definitions alone, and in a Java program a static method over an
-`int[]`, a `List<Integer>` or an `ArrayList<Integer>`, from a small class compiled beside a copy of its file: a sort is
-called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero -
-and has to give each back as the same items in order, smallest or largest first; a search is called with 6 lists in
-order - a linear search with one out of order too - and every value in them and some that are not, and has to find each
-that is there and none that is not, a binary search that misses being tried again on the lists in reverse order, which
-it may be written for; a search for the largest or smallest is called with 9 lists, never empty - all below zero, all
-above zero, with repeats - and has to give back each one's largest, or smallest, item; and a prime test is called with
-every number from 0 to 30, and has to say rightly which are prime - its first wrong answer shown with why, *4 is 2 times
-2* - and a leap-year test, one asking whether 4 divides a year and whether 100 or 400 does, or one named for leap years
-asking whether 4 does, is called, when every answer it gives back is a yes or a no, with 10 years - 2024, 2023, 2000,
-1900, 2100, 2400, 1996, 2019, 1600 and 1800 - and has to say rightly which are leap years: *100 divides 1900 and 400
-does not, so it is not a leap year*. What happened is said under it, and a list it gets wrong is a finding, certain as
-it was seen, with the shortest such list and what came back - *Called with [2, 1], `bubble` gave back [2, 1], which is
-not in order - in order it is [1, 2].* A Python or Java call still going after 2 seconds ends the trial, as does a
-JavaScript run still going after 10, and nothing is said of it; a JavaScript ES module is not tried. Recognising is not
-checking: code that looks like a binary search can still be a wrong one, which is what the logic checks look for. Code
-of a similar shape that is none of them - a check that a list is in order, a times table, a count, a reversal, a square
-root found by halving, the days in February worked out by the leap-year rule - is recognised as nothing.
+sort, an insertion sort, a search for the largest or the smallest item, a reversal, a prime test, a leap-year test or a
+factorial, each said in the code's own names - a Java list's `get`, `set` and `equals` read as an array's indexing and
+`==`, and `Collections.swap` as a swap, and said as they are written - with what that kind of code needs or costs -
+*`find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares
+`items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A
+binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in
+order.* It is closed until opened, and in a saved report and on the command line, as `algorithm:` lines, too. In a
+Python or JavaScript program each one is tried as well, from a copy of its file's definitions alone, and in a Java
+program a static method over an `int[]`, a `List<Integer>` or an `ArrayList<Integer>`, from a small class compiled
+beside a copy of its file: a sort is called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse
+order, with repeats and below zero - and has to give each back as the same items in order, smallest or largest first; a
+search is called with 6 lists in order - a linear search with one out of order too - and every value in them and some
+that are not, and has to find each that is there and none that is not, a binary search that misses being tried again on
+the lists in reverse order, which it may be written for; a search for the largest or smallest is called with 9 lists,
+never empty - all below zero, all above zero, with repeats - and has to give back each one's largest, or smallest, item;
+and a prime test is called with every number from 0 to 30, and has to say rightly which are prime - its first wrong
+answer shown with why, *4 is 2 times 2* - and a leap-year test, one asking whether 4 divides a year and whether 100 or
+400 does, or one named for leap years asking whether 4 does, is called, when every answer it gives back is a yes or a
+no, with 10 years - 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800 - and has to say rightly which are
+leap years: *100 divides 1900 and 400 does not, so it is not a leap year* - and a factorial, a function of one number
+that multiplies a product by each number up to it, or gives back the number times itself called with one less, is called
+with every number from 1 to 10, and then 0, and has to give back each one's factorial: *Called with 0, `factorial`
+stopped with RecursionError: maximum recursion depth exceeded - but 0 factorial is 1, the product of no numbers at all.*
+- and a reversal, in place by swapping the items at the two ends of a list and moving in, or into a new list given back,
+is called with 10 lists - empty, of one item, of odd and even lengths, with repeats and below zero - and has to give
+each back in the opposite order: *Called with [1, 2], `reverse` gave back [1, 2] - reversed, it is [2, 1].* What
+happened is said under it, and a list it gets wrong is a finding, certain as it was seen, with the shortest such list
+and what came back - *Called with [2, 1], `bubble` gave back [2, 1], which is not in order - in order it is [1, 2].* A
+Python or Java call still going after 2 seconds ends the trial, as does a JavaScript run still going after 10, and
+nothing is said of it; a JavaScript ES module is not tried. Recognising is not checking: code that looks like a binary
+search can still be a wrong one, which is what the logic checks look for. Code of a similar shape that is none of them -
+a check that a list is in order, a times table, a count, a square root found by halving, the days in February worked out
+by the leap-year rule, a product of a list's items, a power, a product of every second number, a partition swapping from
+both ends, a rotation, a copy shifted by one - is recognised as nothing.
 
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
@@ -2328,7 +2336,7 @@ A check of a program does all of this, as far as its language allows - Python, J
 3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
 4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
-   by its own language's parser, and recognises from the same reading which of 9 algorithms a function is written as;
+   by its own language's parser, and recognises from the same reading which of 11 algorithms a function is written as;
    for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
    that go round in a circle and stop it, or leave a name undefined; and it finds functions written twice.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
@@ -2339,9 +2347,9 @@ A check of a program does all of this, as far as its language allows - Python, J
 6. **Tries what it predicted for real**, in Python, Java, Go and JavaScript: a crash the analyses predict is run with
    the values that should cause it - up to 6 runs, 10 seconds each, or 60 for Go, which builds each run first - and a
    Python, Java or C# program that asks questions is given an answer for each way through it, up to 6 sets of answers,
-   10 seconds each - a Java or C# one once it has built, and a sort, a search - for a value, or for the largest or
-   smallest item - a prime test or a leap-year test recognised in a Python, JavaScript or Java program is called on
-   lists, numbers or years of FixFinder's own.
+   10 seconds each - a Java or C# one once it has built, and a sort, a reversal, a search - for a value, or for the
+   largest or smallest item - a prime test, a leap-year test or a factorial recognised in a Python, JavaScript or Java
+   program is called on lists, numbers or years of FixFinder's own.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript

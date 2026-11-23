@@ -89,6 +89,31 @@ internal static class LogicGuides
             + "otherwise one 4 divides is. As one condition: 4 divides it, and either 100 does not or 400 does.",
             ""),
 
+        GuideFor(["algorithm-factorial-wrong"], "A factorial that gives a wrong answer",
+            "The function is written the way a factorial is written - it multiplies a product by each number up to the one it is "
+            + "given, or gives back that number times itself called with one less - so FixFinder called it with every number "
+            + "from 1 to 10, and then 0, and set each answer beside that number's factorial. The number shown is the first it "
+            + "got wrong.",
+            "A factorial usually goes wrong at its ends: a loop that stops one short leaves out the number itself, so 5 gives "
+            + "24; a product that starts at 0 stays 0 whatever it is multiplied by; and a call of itself that stops only at 1 "
+            + "never stops when given 0, whose factorial is 1.",
+            "Start the product at 1 and multiply it by every number from 1 up to and including n - in Python, range(1, n + 1). "
+            + "Written as a function calling itself, give back 1 when n is 0 or 1, and n times the factorial of n - 1 otherwise.",
+            ""),
+
+        GuideFor(["algorithm-reversal-wrong"], "A reversal that does not reverse every list",
+            "The function is written the way a reversal is written - it swaps the items at the two ends of the list and moves "
+            + "in, or builds a new list from the last item back - so FixFinder called it with lists of its own, of odd and even "
+            + "lengths, and set what came back beside each list in the opposite order. The list shown is the shortest it got "
+            + "wrong.",
+            "A reversal in place goes wrong at its middle: a loop that runs all the way along swaps each pair twice, and puts "
+            + "the list back as it was; one that stops a step too soon leaves the middle pair of an even-length list as it was. "
+            + "One that builds a new list from the end goes wrong at position 0, when its loop stops before it.",
+            "Swap while the left position is before the right one - or for i in the first half only, len(items) // 2 times - "
+            + "and move both in after each swap. Going back from the end, run down to position 0 itself: in Python, "
+            + "range(len(items) - 1, -1, -1).",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

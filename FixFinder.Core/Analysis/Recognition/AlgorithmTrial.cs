@@ -16,7 +16,9 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// back the same items in order each time; one that looks like a search is called with lists in order and each value in
 /// them, and values not in them, and must find every one that is there and none that is not; a prime test is called
 /// with every number from 0 to 30, and a leap-year test with ten years, and each must say rightly which numbers are
-/// prime, or which years are leap years. What it does is said
+/// prime, or which years are leap years; and a factorial is called with every number from 1 to 10, and 0, and must give
+/// back each one's factorial; a reversal is called with lists of odd and even lengths, and must give each back in the
+/// opposite order. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -63,6 +65,12 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static readonly int[][] ToFindTheExtremeOf = [[5], [1, 2], [2, 1], [3, 1, 2], [-3, -7, -1], [4, 9, 6], [4, 4], [7, -3, 0, 12, -3], [12, 0, 7, -3]];
 
+    /// <summary>
+    /// Lists to reverse, shortest first: empty, of one, of two either way, of three, of four, of five, with repeats and
+    /// below zero - odd and even lengths, as a reversal in place stops at the middle of one and between two of the other.
+    /// </summary>
+    private static readonly int[][] ToReverse = [[], [1], [1, 2], [2, 1], [1, 2, 3], [3, 1, 2], [1, 2, 3, 4], [5, 2, 9, 1, 7], [4, 4, 1, 1], [7, -3, 0, 12]];
+
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
     private static readonly int[] OutOfOrder = [5, 2, 9, 1];
 
@@ -85,6 +93,12 @@ public static partial class AlgorithmTrial
     /// 2000 that 400 divides, 1900 and 2100 that 100 divides and 400 does not, then more of each kind.
     /// </summary>
     private static readonly int[] YearsTried = [2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600, 1800];
+
+    /// <summary>
+    /// The numbers a factorial is called with: 1 to 10, whose factorials all fit in a 32-bit int, then 0, whose factorial
+    /// is 1 - last, so a factorial written only for numbers from 1 is shown first going wrong on one of those, if it does.
+    /// </summary>
+    private static readonly int[] FactorialsTried = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0];
 
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
@@ -133,13 +147,15 @@ public static partial class AlgorithmTrial
             _ => (SourceLanguage?)null,
         };
         if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
-            recognition.List is null && !recognition.IsNumberTest)
+            recognition.List is null && !recognition.IsGivenANumber)
             return null;
 
         // A sort is judged by its list; a search for the largest or smallest by the item it gives back; any other search by
         // what it looks for and what it gives back when it finds it.
         if (recognition.IsExtreme ? recognition.Gives != SearchGives.Item
             : recognition.IsNumberTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
+            : recognition.IsFactorial ? recognition.Sought is null
+            : recognition.IsReversal ? false
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -151,7 +167,7 @@ public static partial class AlgorithmTrial
         {
             if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
             if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
-            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsNumberTest ? "number" : "sought"));
+            else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsGivenANumber ? "number" : "sought"));
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
@@ -161,8 +177,8 @@ public static partial class AlgorithmTrial
             if (language == SourceLanguage.Java && JavaClassOf(parameter.Type, role) is null) return null;
         }
 
-        if (recognition.IsNumberTest) return roles.Any(role => role.Role == "number") ? roles : null;
-        return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || roles.Any(role => role.Role == "sought")) ? roles : null;
+        if (recognition.IsGivenANumber) return roles.Any(role => role.Role == "number") ? roles : null;
+        return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
     /// <summary>
@@ -174,9 +190,11 @@ public static partial class AlgorithmTrial
         string runtime, string? java, bool ascending, CancellationToken cancellationToken)
     {
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
+            : recognition.IsReversal ? ToReverse.Select(list => new Trial(list, null)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
+            : recognition.IsFactorial ? FactorialsTried.Select(number => new Trial([], null, number)).ToList()
             : SearchTrials(recognition, ascending);
         var results = program.Language switch
         {
@@ -189,9 +207,11 @@ public static partial class AlgorithmTrial
         if (results is null) return (null, null);
 
         return recognition.IsSort ? JudgeSort(recognition, results)
+            : recognition.IsReversal ? JudgeReversal(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
+            : recognition.IsFactorial ? JudgeFactorial(recognition, results)
             : JudgeSearch(recognition, results, trials, ascending);
     }
 
@@ -261,6 +281,33 @@ public static partial class AlgorithmTrial
     }
 
     private static List<long> Longs(IEnumerable<int> items) => items.Select(item => (long)item).ToList();
+
+    /// <summary>
+    /// Whether each list came back in the opposite order - given back, or the list itself, reversed in place - and the
+    /// first that did not, with what came back and what it should be.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeReversal(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var list = Show(result.Trial.List);
+            if (result.Error is { } error) return Broken($"Called with {list}, {name} stopped with {error}");
+
+            var givenBack = Numbers(result.Returned);
+            if ((givenBack ?? Numbers(result.After)) is not { } came) return (null, null);
+            var reversed = Longs(result.Trial.List.Reverse());
+            if (came.SequenceEqual(reversed)) continue;
+
+            var what = givenBack is not null ? $"gave back {Show(came)}" : $"left the list it was given as {Show(came)}";
+            return Broken($"Called with {list}, {name} {what} - reversed, it is {Show(reversed)}");
+        }
+
+        return ($"Called with {results.Count} lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - " +
+                "it gave each back in the opposite order.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
 
     /// <summary>
     /// Whether each list's largest, or smallest, item came back - and the first list that did not, with what did.
@@ -343,6 +390,35 @@ public static partial class AlgorithmTrial
         static (string?, string?) Broken(string what) => (what + ".", what);
     }
 
+    /// <summary>
+    /// Whether each number's answer was its factorial - and the first that was not, with what it should be: 5 factorial
+    /// is 1 * 2 * 3 * 4 * 5, which is 120; 0 factorial is 1. A call that stopped is as wrong as a wrong answer.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeFactorial(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var number = result.Trial.Number!.Value;
+            var factorial = Enumerable.Range(1, number).Aggregate(1L, (product, factor) => product * factor);
+            var why = number switch
+            {
+                0 => "0 factorial is 1, the product of no numbers at all",
+                1 => "1 factorial is 1",
+                _ => $"{number} factorial is {string.Join(" * ", Enumerable.Range(1, number))}, which is {factorial}",
+            };
+            if (result.Error is { } error) return Broken($"Called with {number}, {name} stopped with {error} - but {why}");
+            if (result.Returned is not { ValueKind: JsonValueKind.Number } returned || !returned.TryGetInt64(out var given)) return (null, null);
+            if (given == factorial) continue;
+
+            return Broken($"Called with {number}, {name} gave {given} - but {why}");
+        }
+
+        return ("Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -392,8 +468,9 @@ public static partial class AlgorithmTrial
     /// <summary>A recognition's first wrong call as a finding: certain, as it was seen.</summary>
     private static Finding FindingFor(AlgorithmSeen recognition, string broken)
     {
-        var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
-            : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong" : "algorithm-search-wrong";
+        var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsReversal ? "algorithm-reversal-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
+            : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong"
+            : recognition.IsFactorial ? "algorithm-factorial-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -403,9 +480,11 @@ public static partial class AlgorithmTrial
             File = recognition.File,
             Line = recognition.Line,
             Title = recognition.IsSort ? $"`{recognition.Function}` does not sort every list"
+                : recognition.IsReversal ? $"`{recognition.Function}` does not reverse every list"
                 : recognition.IsExtreme ? $"`{recognition.Function}` does not give back the {(recognition.IsLargest ? "largest" : "smallest")} item of every list"
                 : recognition.IsPrimeTest ? $"`{recognition.Function}` does not say rightly which numbers are prime"
                 : recognition.IsLeapYearTest ? $"`{recognition.Function}` does not say rightly which years are leap years"
+                : recognition.IsFactorial ? $"`{recognition.Function}` does not work out every factorial rightly"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",

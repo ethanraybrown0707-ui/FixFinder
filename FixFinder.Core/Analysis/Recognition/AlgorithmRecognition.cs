@@ -60,6 +60,15 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is given a number on its own, with no list, and answers yes or no of it: a prime or a leap-year test.</summary>
     public bool IsNumberTest => IsPrimeTest || IsLeapYearTest;
 
+    /// <summary>Whether it is a factorial, whose answer for each number n is 1 times 2 times each number up to n.</summary>
+    public bool IsFactorial => Algorithm == AlgorithmRecognition.Factorial;
+
+    /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test or a factorial.</summary>
+    public bool IsGivenANumber => IsNumberTest || IsFactorial;
+
+    /// <summary>Whether it is a reversal, whose result is the same items in the opposite order.</summary>
+    public bool IsReversal => Algorithm == AlgorithmRecognition.Reversal;
+
     /// <summary>For a search for the largest or smallest item: whether it is the largest.</summary>
     public bool IsLargest => Algorithm == AlgorithmRecognition.LargestSearch;
 
@@ -91,6 +100,10 @@ public static class AlgorithmRecognition
     public const string PrimeTest = "a prime test";
 
     public const string LeapYearTest = "a leap-year test";
+
+    public const string Factorial = "a factorial";
+
+    public const string Reversal = "a reversal";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -161,7 +174,19 @@ public static class AlgorithmRecognition
     private static string? NameOf(Expr expression) => expression is Name { Identifier: var name } ? name : null;
 
     /// <summary>An expression as the code writes it: items.get(j), where it was read as items[j].</summary>
-    private static string Shown(Expr expression) => _writtenAs?.GetValueOrDefault(expression) ?? IrText.Of(expression);
+    private static string Shown(Expr expression) => _writtenAs?.GetValueOrDefault(expression) ?? Unbracketed(expression);
+
+    /// <summary>
+    /// An expression as it is usually written: a sum or difference taken further left to right with no brackets round
+    /// its first part - len(items) - 1 - i, not (len(items) - 1) - i - inside an item's position too.
+    /// </summary>
+    private static string Unbracketed(Expr expression) => expression switch
+    {
+        Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract, Left: Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract } first, Right: var then } chain =>
+            $"{Unbracketed(first)} {(chain.Operator == BinaryOperator.Add ? "+" : "-")} {(then is Binary ? $"({IrText.Of(then)})" : IrText.Of(then))}",
+        ElementAccess { Target: var list, Key: var position } => $"{IrText.Of(list)}[{Unbracketed(position)}]",
+        _ => IrText.Of(expression),
+    };
 
     /// <summary>
     /// A Java method with its lists read as an array is: items.get(j) as items[j], items.set(j, v) as items[j] = v,
@@ -203,6 +228,8 @@ public static class AlgorithmRecognition
         LargestOrSmallest,
         PrimeTestOf,
         LeapYearTestOf,
+        FactorialOf,
+        ReversalOf,
     ];
 
     /// <summary>
@@ -520,6 +547,194 @@ public static class AlgorithmRecognition
         return null;
     }
 
+    /// <summary>
+    /// A function of one number that multiplies a product by each number up to it in turn - a loop stepping a name one at
+    /// a time to the parameter, with result *= i in it, and result given back - or that gives back the number times
+    /// itself called with one less: n * factorial(n - 1). A product of a list's items, a power multiplying by the same
+    /// number each time, and a loop stepping by 2 are none of them.
+    /// </summary>
+    private static Found? FactorialOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        if (function.Parameters is not [{ Name: var number }]) return null;
+
+        foreach (var leave in statements.OfType<Return>())
+        {
+            if (leave.Value is not Binary { Operator: BinaryOperator.Multiply } product) continue;
+            var (factor, call) = (product.Left, product.Right) switch
+            {
+                (Name left, Call right) => (left, right),
+                (Call left, Name right) => (right, left),
+                _ => ((Name?)null, (Call?)null),
+            };
+            if (factor?.Identifier != number || call is not { Callee: Name { Identifier: var called }, Arguments: [{ Value: var given }] } || called != function.Name ||
+                given is not Binary { Operator: BinaryOperator.Subtract, Left: Name { Identifier: var lessened }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } } ||
+                lessened != number)
+                continue;
+
+            return new Found(leave.Span.Line, Factorial,
+                $"it gives back `{number}` times itself called with one less, `{Shown(product)}`",
+                FactorialAdvice, Sought: number);
+        }
+
+        var returned = statements.OfType<Return>().Select(leave => leave.Value is Name { Identifier: var kept } ? kept : null)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            if (!RunsUpTo(loop, number)) continue;
+            var stepped = SteppedByOne(loop);
+            foreach (var (_, name, value, _) in Writes(IrWalk.Statements(Body(loop))))
+            {
+                if (name is null || !returned.Contains(name) || value is not Binary { Operator: BinaryOperator.Multiply } product) continue;
+                var multiplier = (product.Left, product.Right) switch
+                {
+                    (Name { Identifier: var kept }, Name { Identifier: var other }) when kept == name => other,
+                    (Name { Identifier: var other }, Name { Identifier: var kept }) when kept == name => other,
+                    _ => null,
+                };
+                if (multiplier is null || !stepped.Contains(multiplier)) continue;
+                if (multiplier == number && !CountedDown(loop, number)) continue;
+
+                // while n > 1: product *= n; n -= 1 - the number itself is counted down to the end.
+                var howItRuns = multiplier == number
+                    ? $"it multiplies `{name}` by `{number}` each time round as `{number}` is counted down one at a time"
+                    : $"it multiplies `{name}` by each `{multiplier}` in turn as `{multiplier}` runs to `{number}`";
+                return new Found(loop.Span.Line, Factorial, $"{howItRuns}, and gives back `{name}`", FactorialAdvice, Sought: number);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A list put in the opposite order. In place, by a loop that swaps the item at one end with the item at the other and
+    /// moves both ends in - items[left] with items[right], or items[i] with items[n - 1 - i] - in a loop holding no if, no
+    /// loop and no return, as a sort's or a partition's swap has. Or into a new list that is given back: by a loop going
+    /// back from the last position adding the
+    /// item at each, by one going forward putting each item first, or by one copying items[n - 1 - i] into result[i].
+    /// </summary>
+    private static Found? ReversalOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        var returned = statements.OfType<Return>().Select(leave => leave.Value is Name { Identifier: var kept } ? kept : null)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            var stepped = SteppedByOne(loop);
+            var body = Body(loop);
+
+            // A partition swaps from both ends too, but its loop holds loops, ifs and a return; a reversal's holds none.
+            var plainLoop = !IrWalk.Statements(body).Any(statement => statement is If or While or For or ForEach or Return);
+            foreach (var (first, second) in plainLoop ? Swaps(body) : [])
+            {
+                if (first is not ElementAccess { Target: Name { Identifier: var list }, Key: var one } ||
+                    second is not ElementAccess { Target: Name { Identifier: var other }, Key: var two } || list != other ||
+                    !FromBothEnds(loop, stepped, one, two) && !FromBothEnds(loop, stepped, two, one))
+                    continue;
+
+                return new Found(loop.Span.Line, Reversal,
+                    $"it swaps `{Shown(first)}` and `{Shown(second)}`, from the two ends of `{list}` in towards its middle",
+                    ReversalAdvice, List: list);
+            }
+
+            foreach (var statement in body)
+            {
+                // result.append(items[i]) as i goes back from the last position.
+                if (statement is Evaluate { Value: Call { Callee: Member { Target: Name { Identifier: var built }, MemberName: "append" or "push" or "add" or "Add" or "push_back" }, Arguments: [{ Value: ElementAccess { Target: Name { Identifier: var list }, Key: Name { Identifier: var position } } taken }] } } &&
+                    built != list && returned.Contains(built) && GoesBack(loop, position))
+                {
+                    return new Found(loop.Span.Line, Reversal,
+                        $"it goes back through the positions of `{list}` from the last, adding each `{Shown(taken)}` to `{built}`, and gives back `{built}`",
+                        ReversalAdvice, List: list);
+                }
+
+                // result.insert(0, item) - or unshift(item) - for each item of the list.
+                if (loop is ForEach { Target: Name { Identifier: var item }, Items: Name { Identifier: var walked } } &&
+                    statement is Evaluate { Value: Call { Callee: Member { Target: Name { Identifier: var front }, MemberName: var method }, Arguments: var given } } &&
+                    front != walked && returned.Contains(front) &&
+                    (method is "insert" or "Insert" or "add" && given is [{ Value: Literal { Kind: LiteralKind.Integer, Value: 0L } }, { Value: Name { Identifier: var first } }] && first == item ||
+                     method == "unshift" && given is [{ Value: Name { Identifier: var only } }] && only == item))
+                {
+                    return new Found(loop.Span.Line, Reversal,
+                        $"it puts each `{item}` of `{walked}` first in `{front}`, and gives back `{front}`",
+                        ReversalAdvice, List: walked);
+                }
+            }
+
+            // result[i] = items[n - 1 - i] for each i.
+            foreach (var (target, _, value, _) in Writes(body))
+            {
+                if (target is ElementAccess { Target: Name { Identifier: var built }, Key: Name { Identifier: var position } } placed &&
+                    value is ElementAccess { Target: Name { Identifier: var list }, Key: var mirrored } copied &&
+                    built != list && returned.Contains(built) && stepped.Contains(position) && !CountedDown(loop, position) && Mirrors(mirrored, position))
+                {
+                    return new Found(loop.Span.Line, Reversal,
+                        $"it copies `{Shown(copied)}` into `{Shown(placed)}` for each `{position}`, and gives back `{built}`",
+                        ReversalAdvice, List: list);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private const string ReversalAdvice =
+        "Reversing a list in place takes a swap for each pair, half as many as there are items: swapping all the way along " +
+        "swaps each pair twice and leaves the list as it was. A new list built from the end has to take in the item at " +
+        "position 0 too.";
+
+    /// <summary>
+    /// Whether one position moves up from the start while the other comes down from the end: left and right, one counted
+    /// up a step at a time and the other down; or i and n - 1 - i, i counted up.
+    /// </summary>
+    private static bool FromBothEnds(Stmt loop, HashSet<string> stepped, Expr rising, Expr falling) => (rising, falling) switch
+    {
+        (Name { Identifier: var up }, Name { Identifier: var down }) => up != down && stepped.Contains(up) && stepped.Contains(down) &&
+            !CountedDown(loop, up) && CountedDown(loop, down),
+        (Name { Identifier: var up }, _) => stepped.Contains(up) && !CountedDown(loop, up) && Mirrors(falling, up),
+        _ => false,
+    };
+
+    /// <summary>Whether a position is counted from the end by another: n - 1 - i, len(items) - i - 1, items.length - 1 - i.</summary>
+    private static bool Mirrors(Expr position, string counted) =>
+        position is Binary { Operator: BinaryOperator.Subtract } &&
+        IrWalk.Within(position).OfType<Binary>().Any(part => part is { Operator: BinaryOperator.Subtract, Right: Name { Identifier: var taken } } && taken == counted);
+
+    /// <summary>
+    /// Whether a loop goes back one position at a time: range(len(items) - 1, -1, -1), or i counted down - i--, i -= 1.
+    /// </summary>
+    private static bool GoesBack(Stmt loop, string position) => loop switch
+    {
+        ForEach { Target: Name { Identifier: var each }, Items: Call { Callee: Name { Identifier: "range" }, Arguments: [_, _, { Value: Unary { Operator: UnaryOperator.Negate, Operand: Literal { Kind: LiteralKind.Integer, Value: 1L } } or Literal { Kind: LiteralKind.Integer, Value: -1L } }] } } =>
+            each == position,
+        ForEach => false,
+        _ => CountedDown(loop, position),
+    };
+
+    /// <summary>Whether a loop takes 1 from a name each time round: n -= 1, n = n - 1, n--.</summary>
+    private static bool CountedDown(Stmt loop, string name) =>
+        WritesEachToItsOwn(IrWalk.Statements(loop is For forLoop ? forLoop.Step.Concat(forLoop.Body) : Body(loop)))
+            .Any(write => write.Name == name &&
+                          write.Value is Binary { Operator: BinaryOperator.Subtract, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } } &&
+                          from == name);
+
+    private const string FactorialAdvice =
+        "n factorial is 1 times 2 times each number up to n, so the product has to start at 1 and take in n itself; 0 factorial " +
+        "is 1, the product of no numbers at all. It grows so fast that 13 factorial is already too big for a 32-bit int.";
+
+    /// <summary>
+    /// Whether a loop runs as far as a number: a for or while loop whose test reads it - i &lt;= n, n &gt; 1 - or a for-each
+    /// over a range of numbers that reads it, stepping by one: range(1, n + 1), but not range(n, 0, -2).
+    /// </summary>
+    private static bool RunsUpTo(Stmt loop, string number) => loop switch
+    {
+        ForEach { Items: Call { Callee: Name { Identifier: "range" } or Member { MemberName: "Range" }, Arguments: var bounds } } =>
+            bounds.Any(bound => Mentions(bound.Value, number)) &&
+            (bounds.Count is 1 or 2 ||
+             bounds is [_, _, { Value: Literal { Kind: LiteralKind.Integer, Value: 1L } or Unary { Operator: UnaryOperator.Negate, Operand: Literal { Kind: LiteralKind.Integer, Value: 1L } } }]),
+        ForEach => false,
+        _ => Condition(loop) is { } test && Mentions(test, number),
+    };
+
     /// <summary>Whether an expression gives a yes or a no: true or false written out, a comparison, and, or, or not of them.</summary>
     private static bool IsYesOrNo(Expr value) => value switch
     {
@@ -541,7 +756,7 @@ public static class AlgorithmRecognition
         var stepped = new HashSet<string>(StringComparer.Ordinal);
         if (loop is ForEach { Target: Name each }) stepped.Add(each.Identifier);
 
-        foreach (var (_, name, value, _) in Writes(IrWalk.Statements(loop is For forLoop ? forLoop.Step.Concat(forLoop.Body) : Body(loop))))
+        foreach (var (_, name, value, _) in WritesEachToItsOwn(IrWalk.Statements(loop is For forLoop ? forLoop.Step.Concat(forLoop.Body) : Body(loop))))
         {
             if (name is not null && value is Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } } &&
                 from == name)
@@ -585,6 +800,24 @@ public static class AlgorithmRecognition
                 case Evaluate { Value: AssignValue { Target: var target, Value: var value } assigned }:
                     yield return (target, (target as Name)?.Identifier, value, assigned);
                     break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Every value given to something, as Writes reads them, and each part of one given to several at once on its own:
+    /// left, right = left + 1, right - 1 is left = left + 1 and right = right - 1.
+    /// </summary>
+    private static IEnumerable<(Expr Target, string? Name, Expr Value, Expr? Assigned)> WritesEachToItsOwn(IEnumerable<Stmt> statements)
+    {
+        foreach (var statement in statements)
+        {
+            foreach (var write in Writes([statement])) yield return write;
+
+            if (statement is Assign { Target: CollectionLiteral { Items: var targets }, Value: CollectionLiteral { Items: var values }, Compound: null } && targets.Count == values.Count)
+            {
+                for (var index = 0; index < targets.Count; index++)
+                    yield return (targets[index], (targets[index] as Name)?.Identifier, values[index], null);
             }
         }
     }

@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search, a prime test or a leap-year test recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
+/// A sort, a search, a reversal, a prime test, a leap-year test or a factorial recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -87,6 +87,30 @@ public class AlgorithmTrialTests : IDisposable
         "contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
     [InlineData("search.py", "def position(names, wanted):\n    for index in range(len(names)):\n        if names[index] == wanted:\n            return index\n    return -1\n\n\ndef contains(names, wanted):\n    for name in names:\n        if name == wanted:\n            return True\n    return False\n\n\nprint(position([\"ann\", \"bob\"], \"bob\"), contains([\"ann\"], \"cy\"))\n",
         "position: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.|contains: Called with 7 lists of FixFinder's own and 38 values, each in them or not, it found every one that was there and none that was not.")]
+    [InlineData("Fact.java", "public class Fact {\n    static long factorial(int n) {\n        long result = 1;\n        for (int i = 1; i <= n; i++) {\n            result *= i;\n        }\n        return result;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(factorial(5));\n    }\n}\n",
+        "Fact.factorial: Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.")]
+    [InlineData("fact.js", "function factorial(n) {\n    let result = 1;\n    for (let i = 2; i <= n; i++) {\n        result *= i;\n    }\n    return result;\n}\n\nconsole.log(factorial(5));\n",
+        "factorial: Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.")]
+    [InlineData("fact.py", "def factorial(n):\n    result = 1\n    for i in range(1, n + 1):\n        result *= i\n    return result\n\n\nprint(factorial(5))\n",
+        "factorial: Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.")]
+    [InlineData("fact_down.py", "def factorial(n):\n    product = 1\n    while n > 1:\n        product *= n\n        n -= 1\n    return product\n\n\nprint(factorial(5))\n",
+        "factorial: Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.")]
+    [InlineData("fact_recursive.py", "def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n\n\nprint(factorial(5))\n",
+        "factorial: Called with every number from 1 to 10, and 0, it gave back each one's factorial, every one right.")]
+    [InlineData("Rev.java", "public class Rev {\n    static void reverse(int[] items) {\n        for (int left = 0, right = items.length - 1; left < right; left++, right--) {\n            int held = items[left];\n            items[left] = items[right];\n            items[right] = held;\n        }\n    }\n\n    public static void main(String[] args) {\n        int[] items = {1, 2, 3};\n        reverse(items);\n        System.out.println(java.util.Arrays.toString(items));\n    }\n}\n",
+        "Rev.reverse: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev.js", "function reverse(items) {\n    let left = 0;\n    let right = items.length - 1;\n    while (left < right) {\n        [items[left], items[right]] = [items[right], items[left]];\n        left++;\n        right--;\n    }\n    return items;\n}\n\nconsole.log(reverse([1, 2, 3]));\n",
+        "reverse: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev_front.js", "function reversedCopy(items) {\n    const result = [];\n    for (const item of items) {\n        result.unshift(item);\n    }\n    return result;\n}\n\nconsole.log(reversedCopy([1, 2, 3]));\n",
+        "reversedCopy: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev.py", "def reverse(items):\n    left = 0\n    right = len(items) - 1\n    while left < right:\n        items[left], items[right] = items[right], items[left]\n        left += 1\n        right -= 1\n    return items\n\n\nprint(reverse([1, 2, 3]))\n",
+        "reverse: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev_back.py", "def reversed_copy(items):\n    result = []\n    for i in range(len(items) - 1, -1, -1):\n        result.append(items[i])\n    return result\n\n\nprint(reversed_copy([1, 2, 3]))\n",
+        "reversed_copy: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev_front.py", "def reversed_copy(items):\n    result = []\n    for item in items:\n        result.insert(0, item)\n    return result\n\n\nprint(reversed_copy([1, 2, 3]))\n",
+        "reversed_copy: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("rev_half.py", "def reverse(items):\n    for i in range(len(items) // 2):\n        items[i], items[len(items) - 1 - i] = items[len(items) - 1 - i], items[i]\n\n\nmarks = [1, 2, 3]\nreverse(marks)\nprint(marks)\n",
+        "reverse: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
     [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
         "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
@@ -393,6 +417,126 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "3 algorithm-leap-year-wrong: `LeapOr.isLeap` does not say rightly which years are leap years | Called with 1900, `LeapOr.isLeap` gave true - but 100 divides 1900 and 400 does not, so it is not a leap year.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A factorial whose loop stops one short, and one whose product starts at 0.</summary>
+    [Fact]
+    public async Task AFactorialIsShownTheFirstNumberItGetsWrong()
+    {
+        const string code = "def factorial_short(n):\n    result = 1\n    for i in range(1, n):\n        result *= i\n    return result\n\n\ndef factorial_from_zero(n):\n    result = 0\n    for i in range(1, n + 1):\n        result = result * i\n    return result\n\n\nprint(factorial_short(5), factorial_from_zero(5))\n";
+        if (await TriedAsync("factorials.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "factorial_short: Called with 2, `factorial_short` gave 1 - but 2 factorial is 1 * 2, which is 2.",
+            "factorial_from_zero: Called with 1, `factorial_from_zero` gave 0 - but 1 factorial is 1.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-factorial-wrong: `factorial_short` does not work out every factorial rightly | Called with 2, `factorial_short` gave 1 - but 2 factorial is 1 * 2, which is 2.",
+            "10 algorithm-factorial-wrong: `factorial_from_zero` does not work out every factorial rightly | Called with 1, `factorial_from_zero` gave 0 - but 1 factorial is 1.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>
+    /// A factorial calling itself that stops only at 1, called with 0: it never stops, until Python's limit on calls
+    /// within calls ends it - whose words differ between versions of Python, so only where they start and end are held.
+    /// </summary>
+    [Fact]
+    public async Task AFactorialThatStopsOnlyAtOneIsShownGoingWrongOnZero()
+    {
+        const string code = "def factorial_from_one(n):\n    if n == 1:\n        return 1\n    return n * factorial_from_one(n - 1)\n\n\nprint(factorial_from_one(5))\n";
+        if (await TriedAsync("factorial_from_one.py", code) is not { } outcome) return;
+
+        var tried = Assert.Single(outcome.Seen).Tried!;
+        Assert.StartsWith("Called with 0, `factorial_from_one` stopped with RecursionError: maximum recursion depth exceeded", tried);
+        Assert.EndsWith(" - but 0 factorial is 1, the product of no numbers at all.", tried);
+        var finding = Assert.Single(outcome.Findings);
+        Assert.Equal((4, "algorithm-factorial-wrong", Confidence.Certain), (finding.Line, finding.RuleId, finding.Confidence));
+        Assert.Equal(tried, finding.Found);
+    }
+
+    /// <summary>A factorial calling itself that stops only at 1, written in JavaScript: given 0, it calls itself until the stack is full.</summary>
+    [Fact]
+    public async Task AJavaScriptFactorialThatStopsOnlyAtOneIsShownGoingWrongOnZero()
+    {
+        const string code = "function factorial(n) {\n    if (n === 1) {\n        return 1;\n    }\n    return n * factorial(n - 1);\n}\n\nconsole.log(factorial(5));\n";
+        if (await TriedAsync("factorial.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "factorial: Called with 0, `factorial` stopped with RangeError: Maximum call stack size exceeded - but 0 factorial is 1, the product of no numbers at all.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-factorial-wrong: `factorial` does not work out every factorial rightly | Called with 0, `factorial` stopped with RangeError: Maximum call stack size exceeded - but 0 factorial is 1, the product of no numbers at all.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A factorial in Java whose loop stops one short: 2 factorial is 2.</summary>
+    [Fact]
+    public async Task AJavaFactorialIsShownTheFirstNumberItGetsWrong()
+    {
+        const string code = "public class FactShort {\n    static int factorial(int n) {\n        int result = 1;\n        for (int i = 1; i < n; i++) {\n            result = result * i;\n        }\n        return result;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(factorial(5));\n    }\n}\n";
+        if (await TriedAsync("FactShort.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "FactShort.factorial: Called with 2, `FactShort.factorial` gave 1 - but 2 factorial is 1 * 2, which is 2.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "4 algorithm-factorial-wrong: `FactShort.factorial` does not work out every factorial rightly | Called with 2, `FactShort.factorial` gave 1 - but 2 factorial is 1 * 2, which is 2.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A reversal swapping all the way along, given back and in place, and one going back from the end that stops before position 0.</summary>
+    [Fact]
+    public async Task AReversalIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "def reverse_all(items):\n    for i in range(len(items)):\n        items[i], items[len(items) - 1 - i] = items[len(items) - 1 - i], items[i]\n    return items\n\n\ndef reversed_short(items):\n    result = []\n    for i in range(len(items) - 1, 0, -1):\n        result.append(items[i])\n    return result\n\n\ndef reverse_in_place_all(items):\n    for i in range(len(items)):\n        items[i], items[len(items) - 1 - i] = items[len(items) - 1 - i], items[i]\n\n\nprint(reverse_all([1, 2, 3]), reversed_short([1, 2, 3]))\n";
+        if (await TriedAsync("reversals.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "reverse_all: Called with [1, 2], `reverse_all` gave back [1, 2] - reversed, it is [2, 1].",
+            "reversed_short: Called with [1], `reversed_short` gave back [] - reversed, it is [1].",
+            "reverse_in_place_all: Called with [1, 2], `reverse_in_place_all` left the list it was given as [1, 2] - reversed, it is [2, 1].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-reversal-wrong: `reverse_all` does not reverse every list | Called with [1, 2], `reverse_all` gave back [1, 2] - reversed, it is [2, 1].",
+            "9 algorithm-reversal-wrong: `reversed_short` does not reverse every list | Called with [1], `reversed_short` gave back [] - reversed, it is [1].",
+            "15 algorithm-reversal-wrong: `reverse_in_place_all` does not reverse every list | Called with [1, 2], `reverse_in_place_all` left the list it was given as [1, 2] - reversed, it is [2, 1].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A reversal swapping all the way along, written in JavaScript: each pair is swapped twice.</summary>
+    [Fact]
+    public async Task AJavaScriptReversalIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "function reverse(items) {\n    for (let i = 0; i < items.length; i++) {\n        const held = items[i];\n        items[i] = items[items.length - 1 - i];\n        items[items.length - 1 - i] = held;\n    }\n    return items;\n}\n\nconsole.log(reverse([1, 2, 3]));\n";
+        if (await TriedAsync("reverse.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "reverse: Called with [1, 2], `reverse` gave back [1, 2] - reversed, it is [2, 1].",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-reversal-wrong: `reverse` does not reverse every list | Called with [1, 2], `reverse` gave back [1, 2] - reversed, it is [2, 1].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A reversal in Java copying from one position too far along: items[items.length - i] is past the end when i is 0.</summary>
+    [Fact]
+    public async Task AJavaReversalIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "public class RevCopy {\n    static int[] reversed(int[] items) {\n        int[] result = new int[items.length];\n        for (int i = 0; i < items.length; i++) {\n            result[i] = items[items.length - i];\n        }\n        return result;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(java.util.Arrays.toString(reversed(new int[] {1, 2, 3})));\n    }\n}\n";
+        if (await TriedAsync("RevCopy.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "RevCopy.reversed: Called with [1], `RevCopy.reversed` stopped with ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "4 algorithm-reversal-wrong: `RevCopy.reversed` does not reverse every list | Called with [1], `RevCopy.reversed` stopped with ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
