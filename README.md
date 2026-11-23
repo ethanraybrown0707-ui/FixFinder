@@ -1766,6 +1766,7 @@ numbers, its range of lengths and whether it can be null, through every branch a
 | A value passed in and never used | `quantity = 1` at the start of `total_price(price, quantity)`, before anything reads `quantity` |
 | A flag a loop never sets | `found = False` before a search loop that never sets it, then `if found:` after the loop |
 | A count left out of step | `push` appends to `items` and adds 1 to `size`, `pop` takes an item out and leaves `size` as it was |
+| A yes-or-no function that always gives the same answer | `is_prime` returning `True` when it finds a divisor, as it does at its end |
 
 A loop whose test holds the first time it is made - `i = 0` against `i < 4`, or `range(4)` - goes round at least once, so
 what its body certainly does is certain after it: a list it adds to is not empty, and dividing by its length is safe.
@@ -1847,6 +1848,18 @@ are kept together when one method adds an item and 1, or takes one out and 1, an
 of the class's methods, which may keep the rule for it, a method giving either field a value of another kind - `size =
 len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir and
 Erlang have no check of it.
+
+**A yes-or-no function that always gives the same answer** is one named as a question - `is_prime`, `hasDuplicates`,
+`IsValidMark`, a name starting is, has, can, should, contains, was, are, does, needs, allows or matches - whose every
+return gives back the same true, or the same false, written out: an `is_prime` that returns True when it finds a
+divisor, as it does at its end, says every number is prime, and every `if` that asks it goes the same way. It is a
+warning on the function, naming the lines of its returns - *`is_prime` always says True, whatever it is asked about:
+each of its 3 returns gives back True - on lines 3, 6 and 7 - so asking it tells the caller nothing* - in Python, Java,
+C#, JavaScript, Go, C and C++; C's are `stdbool.h`'s true and false, so one returning 1 and 0 is not read as yes or no.
+It takes two returns or more, so a placeholder with one - `is_admin` returning True until it is written, or a base
+class's `readable()` returning False for a subclass to change - is left alone; and a function that can reach its end
+without a return gives back None, or undefined, there, so its last line has to be a return or a throw. Python 3.13's own
+library, in 1,094 files, the npm that comes with Node, in 1,174, and the 397 programs of the open-source corpus had none.
 
 **A binary search given a list out of order** is a search that looks at the middle item and throws away half - the
 program's own, or the library's `bisect`, `Arrays.binarySearch`, `Array.BinarySearch`, `std::binary_search`,
@@ -2310,7 +2323,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    past the twelfth is listed without one.
 3. **Reads the code for logic mistakes** with 1,209 logic checks, each written for one language or several - the table
    above counts each language's - over at most 200 of the program's files.
-4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
+4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
    by its own language's parser, and recognises from the same reading which of 8 algorithms a function is written as;
    for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
    that go round in a circle and stop it, or leave a name undefined; and it finds functions written twice.

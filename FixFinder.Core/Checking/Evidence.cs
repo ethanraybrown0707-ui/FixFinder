@@ -51,6 +51,10 @@ public static class Evidence
         {
             parts.Add("the function was called on lists, or numbers, of FixFinder's own, and one came back wrong");
         }
+        else if (finding.RuleId == "analysis-same-answer-always")
+        {
+            parts.Add("every return of the function was read, and each gives back the same answer");
+        }
         else if (finding.RuleId == "analysis-duplicate-function")
         {
             parts.Add("the functions' lines were compared one by one, with their own names set aside, and are the same");
@@ -99,6 +103,7 @@ public static class Evidence
         { Witness.Length: > 0 } => "failing input worked out",
         { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
         { RuleId: "analysis-duplicate-function" } => "functions compared line by line",
+        { RuleId: "analysis-same-answer-always" } => "every return read",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",
     };

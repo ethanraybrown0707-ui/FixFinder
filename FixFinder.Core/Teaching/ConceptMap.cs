@@ -100,6 +100,7 @@ public static class ConceptMap
         new(Concepts.UnclosedPair) { ExceptionTypes = ["ParseError"], Message = Words(@"^Unclosed '|unexpected end of file") },
         new(Concepts.AssignOrCompare) { CheckIds = ["logic-php-assignment-in-condition"] },
         new(Concepts.ReturnValues) { CheckIds = ["logic-php-sort-result-kept"] },
+        new(Concepts.ReturnValues) { CheckIds = ["analysis-same-answer-always"] },
 
         // Lua: its errors have no types, so they are told apart by their words alone.
         new(Concepts.UndefinedName) { ExceptionTypes = ["runtime error"], Message = Words(@"^attempt to (?:call|perform arithmetic on|concatenate) a nil value \(global '") },

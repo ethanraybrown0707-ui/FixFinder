@@ -13,6 +13,17 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        GuideFor(["analysis-same-answer-always"], "A yes-or-no function that always gives the same answer",
+            "A function named as a question - is it prime, has it a space, is it valid - is there to answer it, yes for some "
+            + "values and no for others. Every return of this one gives back the same answer, so whatever it is asked about, "
+            + "it says the same: the code that calls it cannot tell anything apart by it. Most often one of the returns was "
+            + "meant to give the other answer - the one where it finds what it looks for, as a divisor in a prime test.",
+            "Each if or loop that asks it goes the same way every time, so the program treats every value alike - every number "
+            + "prime, every name valid - however wrong that is for some of them.",
+            "Work out by hand one value it should say yes to and one it should say no to, follow each through the function, "
+            + "and change the return that gives the wrong answer for one of them.",
+            ""),
+
         GuideFor(["analysis-duplicate-function"], "A function written twice",
             "Two functions here are the same lines, but for the names of their own parameters and variables: one was made by "
             + "copying the other. Code written twice has to be put right twice - a mistake fixed in one copy stays in the other.",

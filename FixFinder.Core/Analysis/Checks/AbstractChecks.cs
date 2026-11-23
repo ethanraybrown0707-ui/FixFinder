@@ -123,6 +123,8 @@ public static partial class AbstractChecks
 
         findings.AddRange(CountOutOfStep.Find(program, "comparing what each of a class's methods does to its fields"));
 
+        findings.AddRange(SameAnswerAlways.Find(program, functions.Select(f => f.Function), "reading every answer a yes-or-no function gives back"));
+
         findings.AddRange(new Concurrency(program, source).Check());
         findings.AddRange(new Taint(program, targets).Check());
         findings.AddRange(PerformanceChecks.Run(program, source));
