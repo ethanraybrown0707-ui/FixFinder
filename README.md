@@ -65,6 +65,16 @@ until the program prints what it should. FixFinder never changes your files.
    neither counting for a crash nor ending its row; and once a program has been checked three times, the report gives
    its problems over its last checks, up to eight, oldest first - *Problems in the last 5 checks of this program,
    oldest first: 7, 5, 5, 3, 2.* The saved report says both.
+   A kind of mistake this check found that you keep making is said too - one made three times or more in the last 30
+   days, or in another program as well as this one - at most three, those made most often first, with the habit that
+   stops it and its lesson in FixFinder Learn: *Where a statement ends has turned up 4 times in this program in the
+   last 30 days. What stops it: End each statement with its semicolon as you finish typing it...* A mistake counts
+   once however many checks found it - the same unfixed `;` seen by five checks is one - while a `;` missed on another
+   line, or missed again after it was put right, is another. Small slips are each given their kind: an unclosed
+   bracket or quote, a missing `;`, `:` or `}`, a name in the wrong case or misspelt, `=` where `==` was meant. For
+   this the history keeps the idea behind each finding, as FixFinder Learn names it, never the finding or its code; a
+   mistake taught only as reading what went wrong is not said, and the saved report says it under *What keeps turning
+   up*.
 5. **Keep working on it.** Once a program chosen as a file has been checked, FixFinder reads its code again every time it
    is saved - the logic patterns and every analysis - and updates the report. It does not compile or run the program
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is

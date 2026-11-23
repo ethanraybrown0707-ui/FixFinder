@@ -774,13 +774,22 @@ public partial class MainWindow : Window
         if (said is not null && _comparison?.Trend is { } trend) said += " " + trend;
 
         SinceLastText.Text = said ?? "";
+        SinceLastText.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
         FixedSinceLastList.ItemsSource = _comparison?.Fixed.Select(finding => new FixedRow(finding.Title, FindingText.Location(finding))).ToList();
-        SinceLastPanel.Visibility = said is null ? Visibility.Collapsed : Visibility.Visible;
+
+        // The kinds of mistake that turned up in other programs lately, read before this check is added to the history.
+        _recurring = [.. RecurringMistakes.Of(_history.Checks, now).Select(RecurringMistakes.Said)];
+        RecurringText.Text = string.Join("\n\n", _recurring);
+        RecurringText.Visibility = _recurring.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SinceLastPanel.Visibility = said is null && _recurring.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // Recorded after the comparison, so this check is not compared with itself.
         _history.Record(now);
         _checkedThisSession[file] = (now, report.Findings);
     }
+
+    /// <summary>What this check said of the kinds of mistake that turned up in the person's other programs lately.</summary>
+    private IReadOnlyList<string> _recurring = [];
 
     /// <summary>A finding the last check of this program found and this one did not, as the report names it.</summary>
     private sealed record FixedRow(string Title, string Where);
@@ -815,6 +824,7 @@ public partial class MainWindow : Window
             Recognised = _recognised,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
+            Recurring = _recurring,
             Output = [.. _output.Select(row => row.DisplayLine)],
         };
 

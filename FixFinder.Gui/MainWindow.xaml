@@ -998,6 +998,9 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- The kinds of mistake this check found that turned up in other programs lately, with the habit that stops each. -->
+                            <TextBlock x:Name="RecurringText" AutomationProperties.AutomationId="RecurringText" Visibility="Collapsed"
+                                       TextWrapping="Wrap" FontSize="12.5" Margin="0,6,0,0" Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>
                     </Border>
 

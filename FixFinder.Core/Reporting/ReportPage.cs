@@ -43,6 +43,9 @@ public sealed record ReportPage
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
     public CheckComparison? SinceLastCheck { get; init; }
 
+    /// <summary>What the check said of the kinds of mistake that turned up in the person's other programs lately.</summary>
+    public IReadOnlyList<string> Recurring { get; init; } = [];
+
     /// <summary>What the program printed, line by line, as the window showed it.</summary>
     public IReadOnlyList<string> Output { get; init; } = [];
 
@@ -76,6 +79,13 @@ public sealed record ReportPage
         page.Append("<dt>Found</dt><dd>").Append(Text(Counted(problems, efficiency.Count))).Append("</dd>\n</dl>\n</section>\n");
 
         if (SinceLastCheck is { } comparison) AppendComparison(page, comparison);
+
+        if (Recurring.Count > 0)
+        {
+            page.Append("<section class=\"recurring\">\n<h2>What keeps turning up</h2>\n");
+            foreach (var said in Recurring) page.Append("<p>").Append(Text(said)).Append("</p>\n");
+            page.Append("</section>\n");
+        }
 
         if (Notes.Count > 0)
         {

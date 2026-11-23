@@ -22,6 +22,12 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
     /// <summary>Whether the program ran, so a finding only a run can find is not taken for fixed by a check where it did not.</summary>
     public bool Ran { get; init; }
 
+    /// <summary>
+    /// The idea behind each finding, as FixFinder Learn names it - OFFBYONE, DIVZERO - so the kinds of mistake a person makes
+    /// in more than one program can be told; never the finding or its code. Empty in a record from before they were kept.
+    /// </summary>
+    public IReadOnlyList<string> Concepts { get; init; } = [];
+
     public static CheckRecord Of(string file, IEnumerable<Finding> findings, DateTimeOffset? when = null, bool ran = false)
     {
         var counted = findings.ToList();
@@ -35,6 +41,7 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
         {
             Fingerprints = [.. counted.Select(Fingerprint)],
             Ran = ran,
+            Concepts = [.. counted.Select(finding => Teaching.ConceptMap.Of(finding).Code)],
         };
     }
 
