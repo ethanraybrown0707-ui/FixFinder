@@ -761,13 +761,17 @@ public partial class MainWindow : Window
         var ran = report.Run is not null;
         var now = CheckRecord.Of(file, report.Findings, ran: ran);
         var last = _history.LastTime(file);
+        var before = _history.ChecksOf(file);
 
         // The last check's findings themselves are to hand only when it was made in this session, and only then is a fixed
         // one named; the history on disk keeps no more than a fingerprint of each.
         var lastFindings = last is not null && _checkedThisSession.TryGetValue(file, out var held) && held.Record.When == last.When ? held.Findings : null;
 
-        _comparison = CheckComparison.Of(last, report.Findings, ran, lastFindings);
+        _comparison = CheckComparison.Of(last, report.Findings, ran, lastFindings, [.. before.Skip(1)]) is { } compared
+            ? compared with { Trend = CheckHistory.Trend(before, now) }
+            : null;
         var said = _comparison?.Summary(now.When) ?? CheckHistory.Since(last, now);
+        if (said is not null && _comparison?.Trend is { } trend) said += " " + trend;
 
         SinceLastText.Text = said ?? "";
         FixedSinceLastList.ItemsSource = _comparison?.Fixed.Select(finding => new FixedRow(finding.Title, FindingText.Location(finding))).ToList();
@@ -911,6 +915,7 @@ public partial class MainWindow : Window
             FollowsFrom = links.FollowsFrom(f),
             LeadsTo = links.LeadsTo(f),
             Status = _comparison?.StatusOf(f),
+            Streak = _comparison?.StreakOf(f),
         }).ToList();
 
         FilterPanel.Visibility = _findings.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

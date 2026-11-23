@@ -60,6 +60,11 @@ until the program prints what it should. FixFinder never changes your files.
    by running the program, so when it did not run this time, those found last time are said not to have been looked
    for, rather than fixed. FixFinder's history keeps a fingerprint of each finding - a hash, never the code - so the fixed
    ones are named only for a check made since FixFinder was opened; after that, they are counted.
+   A finding still there says, when its mark is pointed at, how many checks in a row have found it, from the history -
+   *Found by each of the last 4 checks of this program, since 2 days ago* - a check in which the program did not run
+   neither counting for a crash nor ending its row; and once a program has been checked three times, the report gives
+   its problems over its last checks, up to eight, oldest first - *Problems in the last 5 checks of this program,
+   oldest first: 7, 5, 5, 3, 2.* The saved report says both.
 5. **Keep working on it.** Once a program chosen as a file has been checked, FixFinder reads its code again every time it
    is saved - the logic patterns and every analysis - and updates the report. It does not compile or run the program
    then, and the report says so; press **Check again** to do that. Code that does not read as its language at all is

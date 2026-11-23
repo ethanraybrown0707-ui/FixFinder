@@ -82,6 +82,16 @@ public sealed record CheckRecord(DateTimeOffset When, string File, int Errors, i
     }
 }
 
+/// <summary>How long a finding still there has been there: found by this check and each of the checks before it.</summary>
+/// <param name="Checks">How many checks in a row found it, this one counted.</param>
+/// <param name="Since">When the first of them finished.</param>
+public sealed record FindingStreak(int Checks, DateTimeOffset Since)
+{
+    /// <summary>"Found by each of the last 4 checks of this program, since 2 days ago."</summary>
+    public string Said(DateTimeOffset now) =>
+        $"Found by each of the last {Checks} checks of this program, since {CheckHistory.Ago(now - Since)}.";
+}
+
 /// <summary>Where a finding stands against the last check of the same program.</summary>
 public enum SinceLastCheck
 {
@@ -111,6 +121,18 @@ public sealed record CheckComparison(
 {
     public int NewCount => Statuses.Values.Count(status => status == SinceLastCheck.New);
 
+    /// <summary>
+    /// For each finding still there, by its <see cref="Finding.Id"/>, how many checks in a row have found it - this one and
+    /// those before it - when the earlier checks were given; empty otherwise.
+    /// </summary>
+    public IReadOnlyDictionary<string, FindingStreak> Streaks { get; init; } = new Dictionary<string, FindingStreak>(StringComparer.Ordinal);
+
+    /// <summary>The program's problems over its last checks, when it has been checked often enough to show a direction.</summary>
+    public string? Trend { get; init; }
+
+    /// <summary>How long this finding has been there, or null when it is new, or the earlier checks were not given.</summary>
+    public FindingStreak? StreakOf(Finding finding) => Streaks.TryGetValue(finding.Id, out var streak) ? streak : null;
+
     public int StillThereCount => Statuses.Values.Count(status => status == SinceLastCheck.StillThere);
 
     /// <summary>Where this finding stands, or null when it was not compared.</summary>
@@ -137,7 +159,11 @@ public sealed record CheckComparison(
     /// The last check's findings themselves, when they are still to hand, to name those fixed: the list the last record was
     /// made from, in its order.
     /// </param>
-    public static CheckComparison? Of(CheckRecord? last, IReadOnlyList<Finding> now, bool ranNow, IReadOnlyList<Finding>? lastFindings = null)
+    /// <param name="earlier">
+    /// The program's checks before the last one, newest first, to say how long each finding still there has been there.
+    /// </param>
+    public static CheckComparison? Of(
+        CheckRecord? last, IReadOnlyList<Finding> now, bool ranNow, IReadOnlyList<Finding>? lastFindings = null, IReadOnlyList<CheckRecord>? earlier = null)
     {
         if (last is null || (last.Fingerprints.Count == 0 && last.Errors + last.Warnings + last.Suggestions > 0)) return null;
 
@@ -176,7 +202,43 @@ public sealed record CheckComparison(
             }
         }
 
-        return new CheckComparison(last.When, statuses, fixedCount, notChecked, named);
+        return new CheckComparison(last.When, statuses, fixedCount, notChecked, named) { Streaks = StreaksOf(now, last, earlier ?? []) };
+    }
+
+    /// <summary>
+    /// How many checks in a row found each finding still there: this one, the last, and each before it, newest first, until one
+    /// did not. A check in which the program did not run neither counts nor ends the row for a finding only a run can find.
+    /// </summary>
+    private static Dictionary<string, FindingStreak> StreaksOf(IReadOnlyList<Finding> now, CheckRecord last, IReadOnlyList<CheckRecord> earlier)
+    {
+        var streaks = new Dictionary<string, FindingStreak>(StringComparer.Ordinal);
+        var checksBefore = new[] { last }.Concat(earlier).Where(check => check.Fingerprints.Count > 0 || check.Errors + check.Warnings + check.Suggestions == 0).ToList();
+
+        foreach (var finding in now)
+        {
+            // A finding the last check did not find is new, however long ago a check before that found it.
+            var fingerprint = CheckRecord.Fingerprint(finding);
+            if (!last.Fingerprints.Contains(fingerprint, StringComparer.Ordinal)) continue;
+            var onlyARunFinds = fingerprint.StartsWith(CheckRecord.RunPrefix, StringComparison.Ordinal);
+            var (checks, since) = (1, (DateTimeOffset?)null);
+
+            foreach (var check in checksBefore)
+            {
+                if (check.Fingerprints.Contains(fingerprint, StringComparer.Ordinal))
+                {
+                    checks++;
+                    since = check.When;
+                    continue;
+                }
+
+                if (onlyARunFinds && !check.Ran) continue;
+                break;
+            }
+
+            if (since is { } first) streaks[finding.Id] = new FindingStreak(checks, first);
+        }
+
+        return streaks;
     }
 }
 
@@ -219,6 +281,25 @@ public sealed class CheckHistory
         {
             return new CheckHistory();
         }
+    }
+
+    /// <summary>Every earlier check of this file, newest first.</summary>
+    public IReadOnlyList<CheckRecord> ChecksOf(string file) =>
+        [.. Checks.Where(check => string.Equals(check.File, file, StringComparison.OrdinalIgnoreCase)).OrderByDescending(check => check.When)];
+
+    /// <summary>How many of a program's last checks the trend of its problems is said over.</summary>
+    public const int MostInTheTrend = 8;
+
+    /// <summary>
+    /// The program's problems - errors and warnings - over its last checks, oldest first and this one last: "Problems in the
+    /// last 5 checks of this program, oldest first: 7, 5, 5, 3, 2." Null with fewer than 3 checks, which show no direction.
+    /// </summary>
+    public static string? Trend(IReadOnlyList<CheckRecord> before, CheckRecord now)
+    {
+        var counted = before.Take(MostInTheTrend - 1).Reverse().Append(now).ToList();
+        if (counted.Count < 3) return null;
+
+        return $"Problems in the last {counted.Count} checks of this program, oldest first: {string.Join(", ", counted.Select(check => check.Problems))}.";
     }
 
     /// <summary>The last time this file was checked before now, or null the first time it is seen.</summary>

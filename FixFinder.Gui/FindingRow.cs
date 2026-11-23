@@ -61,6 +61,9 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
 
     public bool HasStatus => Status is not null;
 
+    /// <summary>How many checks in a row have found it, when it is still there and earlier checks were kept.</summary>
+    public FindingStreak? Streak { get; init; }
+
     public bool IsNew => Status == SinceLastCheck.New;
 
     public string StatusText => Status switch
@@ -73,7 +76,7 @@ public sealed class FindingRow(Finding finding) : INotifyPropertyChanged
     public string StatusTooltip => Status switch
     {
         SinceLastCheck.New => "The last check of this program did not find this.",
-        SinceLastCheck.StillThere => "The last check of this program found this too.",
+        SinceLastCheck.StillThere => Streak?.Said(DateTimeOffset.Now) ?? "The last check of this program found this too.",
         _ => "",
     };
 

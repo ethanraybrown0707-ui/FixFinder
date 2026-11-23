@@ -147,6 +147,7 @@ public sealed record ReportPage
     private void AppendComparison(StringBuilder page, CheckComparison comparison)
     {
         page.Append("<section class=\"since\">\n<h2>Since the last check</h2>\n<p>").Append(Text(comparison.Summary(CheckedAt))).Append("</p>\n");
+        if (comparison.Trend is { } trend) page.Append("<p class=\"trend\">").Append(Text(trend)).Append("</p>\n");
 
         if (comparison.Fixed.Count > 0)
         {
@@ -170,7 +171,10 @@ public sealed record ReportPage
             .Append("<span class=\"tag\">").Append(Text(FindingText.Kind(finding))).Append("</span>");
 
         if (SinceLastCheck?.StatusOf(finding) is { } status)
+        {
             page.Append(" <span class=\"tag ").Append(status == Engine.SinceLastCheck.New ? "new\">New since the last check" : "still\">Still there").Append("</span>");
+            if (SinceLastCheck.StreakOf(finding) is { } streak) page.Append(" <span class=\"streak\">").Append(Text(streak.Said(CheckedAt))).Append("</span>");
+        }
 
         // In the order the window's card has them, so the page reads as the window does.
         page.Append(" <span class=\"where\">").Append(Text(FindingText.Location(finding))).Append("</span></p>\n")
@@ -439,6 +443,8 @@ public sealed record ReportPage
         .tag.new { color: var(--warning); background: var(--warning-soft); }
         .tag.still { color: var(--secondary); }
         .tag.fixed { color: var(--success); background: var(--success-soft); }
+        .streak { color: var(--secondary); font-size: .9em; }
+        p.trend { color: var(--secondary); }
         .relation, .found { font-style: italic; color: var(--secondary); }
         .summary { font-weight: 600; }
         details.timeline { margin: 4px 0; }
