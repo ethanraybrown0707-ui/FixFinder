@@ -978,6 +978,20 @@ requires among 8 files, it found one gap: were pacote's `lib/file.js` the file r
 properties of undefined (reading 'packument')` where `dir.js` uses it. npm starts pacote from its `index.js`, from which
 the playing out found nothing, and loaded that way, the same call got past `FileFetcher.prototype`.
 
+A program's **functions written twice** - the same lines but for the names of their own parameters and variables, and
+their own names - are a suggestion on the second, naming the first: *`average_score` on line 10 is written the same as
+`average_mark` on line 1: the same 7 lines, but for the names of their own parameters and variables and their own
+names*. A mistake put right in one copy stays in the other. The lines are compared as they are written, with the
+comments left out and the text of the strings compared as well; a name after a dot, a keyword argument, a number and a
+function called stay as they are, so methods alike but for the field they read, and functions alike but for a word they
+print, a number or the function they call, are not copies. Only a function of 3 statements or more and 40 characters of
+code or more is compared, so getters and one-line returns are not, nor is one the reader could not read all of; and a
+copy in a file of the same name in another folder is another copy of the whole file - as a benchmark keeps its correct
+programs beside its broken ones - and is not counted. It is said in Python, Java, C#, JavaScript, Go and C, when one of
+the copies is in the file checked. Read a file at a time, Python 3.13's own library held 29 groups of copies in its
+1,093 files and the npm that comes with Node 4 in its 1,115; each one looked at was a true copy - `readable`, `writable`
+and `seekable` in `_pyio.py`, the same 4 lines each, and `xmlreader.py`'s `getNameByQName` and `getQNameByName`.
+
 When some of a file's JUnit, unittest, pytest, doctest or node:test tests fail, or a program's own asserts or console.asserts, FixFinder looks for **the change that makes every test pass**,
 in the code the tests call: the file their failures were raised through, or else the program's own module or class the
 test file imports - beside it, in a folder above it, or in a folder pytest's `pythonpath` setting names, or, for
@@ -2274,7 +2288,7 @@ A check of a program does all of this, as far as its language allows - Python, J
 4. **Follows every value through the code** with 53 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
    by its own language's parser, and recognises from the same reading which of 8 algorithms a function is written as;
    for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
-   that go round in a circle and stop it, or leave a name undefined.
+   that go round in a circle and stop it, or leave a name undefined; and it finds functions written twice.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they

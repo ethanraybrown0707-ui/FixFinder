@@ -51,6 +51,10 @@ public static class Evidence
         {
             parts.Add("the function was called on lists, or numbers, of FixFinder's own, and one came back wrong");
         }
+        else if (finding.RuleId == "analysis-duplicate-function")
+        {
+            parts.Add("the functions' lines were compared one by one, with their own names set aside, and are the same");
+        }
         else if (finding.RuleId == "analysis-circular-import")
         {
             parts.Add("the program's imports were played out from the file that is run, in the order " +
@@ -94,6 +98,7 @@ public static class Evidence
         { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "tests-miss-change" } => "seen when it ran",
         { Witness.Length: > 0 } => "failing input worked out",
         { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
+        { RuleId: "analysis-duplicate-function" } => "functions compared line by line",
         { FoundBy.Length: > 0 } => "values followed through the code",
         _ => "pattern only",
     };

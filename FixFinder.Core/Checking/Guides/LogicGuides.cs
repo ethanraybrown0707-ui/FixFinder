@@ -13,6 +13,15 @@ internal static class LogicGuides
 
     private static IReadOnlyList<GuideEntry> Shared { get; } =
     [
+        GuideFor(["analysis-duplicate-function"], "A function written twice",
+            "Two functions here are the same lines, but for the names of their own parameters and variables: one was made by "
+            + "copying the other. Code written twice has to be put right twice - a mistake fixed in one copy stays in the other.",
+            "The copies drift apart: the next fix or change goes into one of them, and the program then does one thing in one "
+            + "place and something else in the other, which is hard to see from either.",
+            "Keep one of them and call it from both places, with a parameter for anything that should differ between them - or "
+            + "have the copy call the one it was copied from.",
+            ""),
+
         GuideFor(["tests-miss-change"], "A change the tests do not catch",
             "Every test passes, so FixFinder measured what they check: it made small changes to the code they call, one at a "
             + "time in a copy - the kinds of change a mistake makes, a bound off by one or the wrong operator - and ran the tests "
