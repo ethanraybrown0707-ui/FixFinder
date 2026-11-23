@@ -56,15 +56,40 @@ public static class RecurringMistakes
     /// language: what FixFinder Learn puts first. A mistake counts once however many checks found it; one taught only as
     /// reading what went wrong is left out.
     /// </summary>
-    public static IReadOnlyDictionary<string, int> TimesLately(IEnumerable<CheckRecord> history, string languageName, DateTimeOffset now)
+    public static IReadOnlyDictionary<string, int> TimesLately(IEnumerable<CheckRecord> history, string languageName, DateTimeOffset now) =>
+        TimesIn(history.Where(check => check.When >= now - Lately && check.When <= now), languageName);
+
+    /// <summary>
+    /// The same, for the 30 days before the last 30: beside how often a kind of mistake turned up lately, how often it did
+    /// before - fewer lately, more, or none. A mistake left as it was through both counts in both, as both found it.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> TimesBefore(IEnumerable<CheckRecord> history, string languageName, DateTimeOffset now) =>
+        TimesIn(history.Where(check => check.When >= now - Lately - Lately && check.When < now - Lately), languageName);
+
+    /// <summary>How many separate mistakes of each kind - by its idea's code - the checks found in programs of one language.</summary>
+    private static Dictionary<string, int> TimesIn(IEnumerable<CheckRecord> checks, string languageName)
     {
-        var lately = history.Where(check => check.When >= now - Lately && check.When <= now && CodeLanguage.Of(check.File)?.Name == languageName).ToList();
+        var ofTheLanguage = checks.Where(check => CodeLanguage.Of(check.File)?.Name == languageName).ToList();
 
         return Concepts.All.Where(concept => concept != Concepts.ReadingErrors)
-            .Select(concept => (concept.Code, Times: lately.SelectMany(check => MistakesOf(check, concept.Code))
+            .Select(concept => (concept.Code, Times: ofTheLanguage.SelectMany(check => MistakesOf(check, concept.Code))
                 .Select(mistake => $"{mistake.Program.ToUpperInvariant()}|{mistake.Fingerprint}").Distinct(StringComparer.Ordinal).Count()))
             .Where(counted => counted.Times > 0)
             .ToDictionary(counted => counted.Code, counted => counted.Times, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// What is said beside a lesson of how often its kind of mistake turned up: "3 times lately", "once lately, 4 times in the
+    /// 30 days before", "none lately, twice in the 30 days before" - or nothing when it turned up in neither.
+    /// </summary>
+    public static string HowOften(int lately, int before)
+    {
+        if (lately == 0 && before == 0) return "";
+
+        var latelySaid = lately == 0 ? "none lately" : $"{Times(lately)} lately";
+        return before == 0 ? latelySaid : $"{latelySaid}, {Times(before)} in the 30 days before";
+
+        static string Times(int count) => count switch { 1 => "once", 2 => "twice", _ => $"{count} times" };
     }
 
     /// <summary>The check's mistakes of one kind, each as the program it is in and its fingerprint.</summary>

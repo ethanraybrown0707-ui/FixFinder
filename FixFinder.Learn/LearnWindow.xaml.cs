@@ -84,19 +84,23 @@ public partial class LearnWindow : Window
 
     /// <summary>
     /// The lessons of the language chosen, each with how many of its questions have been answered right - those on the kinds of
-    /// mistake the person's checks found lately in programs of that language first, the most often first.
+    /// mistake the person's checks found lately in programs of that language first, the most often first, then those found
+    /// only in the 30 days before - each with how often it turned up in both.
     /// </summary>
     private void ShowLessonList()
     {
         if ((LanguageBox.SelectedItem as ComboBoxItem)?.Tag is not string language) return;
 
-        var lately = RecurringMistakes.TimesLately(_history.Checks, language, DateTimeOffset.Now);
+        var now = DateTimeOffset.Now;
+        var lately = RecurringMistakes.TimesLately(_history.Checks, language, now);
+        var before = RecurringMistakes.TimesBefore(_history.Checks, language, now);
         LessonsList.ItemsSource = Lessons.All
             .Where(lesson => lesson.Language.Name == language)
-            .Select(lesson => new LessonChoice(lesson, ProgressOf(lesson), lately.GetValueOrDefault(lesson.Concept.Code)))
+            .Select(lesson => new LessonChoice(lesson, ProgressOf(lesson), lately.GetValueOrDefault(lesson.Concept.Code), before.GetValueOrDefault(lesson.Concept.Code)))
             .OrderByDescending(choice => choice.TimesLately)
+            .ThenByDescending(choice => choice.TimesBefore)
             .ToList();
-        LatelyText.Visibility = lately.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LatelyText.Visibility = lately.Count > 0 || before.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private string ProgressOf(Lesson lesson) =>

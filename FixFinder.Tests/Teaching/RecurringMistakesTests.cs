@@ -136,6 +136,37 @@ public class RecurringMistakesTests : IDisposable
         Assert.Equal(new Dictionary<string, int> { ["DIVZERO"] = 1 }, RecurringMistakes.TimesLately(history, "Java", Now));
     }
 
+    /// <summary>
+    /// Beside the last 30 days, the 30 before them: a check 31 days ago is before, one 30 days ago is lately, one 61 days ago
+    /// is in neither; and a mistake left as it was through both, found by a check in each, counts in each.
+    /// </summary>
+    [Fact]
+    public void TheKindsOfMistakeOfTheThirtyDaysBeforeAreCountedBesideThoseOfLately()
+    {
+        var history = new[]
+        {
+            Check(@"C:\uni\marks.py", Now.AddDays(-31), LoopOneShort),
+            Check(@"C:\uni\scores.py", Now.AddDays(-45), LoopOneShort, DividingByZero),
+            Check(@"C:\uni\average.py", Now.AddDays(-59), LoopOneShort),
+            Check(@"C:\uni\old.py", Now.AddDays(-61), DividingByZero),
+            Check(@"C:\uni\marks.py", Now.AddDays(-30), LoopOneShort),
+            Check(@"C:\uni\Grades.java", Now.AddDays(-40), DividingByZero),
+        };
+
+        Assert.Equal(new Dictionary<string, int> { ["OFFBYONE"] = 3, ["DIVZERO"] = 1 }, RecurringMistakes.TimesBefore(history, "Python", Now));
+        Assert.Equal(new Dictionary<string, int> { ["OFFBYONE"] = 1 }, RecurringMistakes.TimesLately(history, "Python", Now));
+        Assert.Equal(new Dictionary<string, int> { ["DIVZERO"] = 1 }, RecurringMistakes.TimesBefore(history, "Java", Now));
+    }
+
+    [Theory]
+    [InlineData(0, 0, "")]
+    [InlineData(3, 0, "3 times lately")]
+    [InlineData(1, 4, "once lately, 4 times in the 30 days before")]
+    [InlineData(0, 2, "none lately, twice in the 30 days before")]
+    [InlineData(2, 1, "twice lately, once in the 30 days before")]
+    public void HowOftenAKindTurnedUpLatelyAndBeforeIsSaidBesideItsLesson(int lately, int before, string said) =>
+        Assert.Equal(said, RecurringMistakes.HowOften(lately, before));
+
     [Fact]
     public void TheSavedReportSaysWhatKeepsTurningUp()
     {

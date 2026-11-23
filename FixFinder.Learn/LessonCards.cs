@@ -125,14 +125,18 @@ public sealed record ProblemChoice(ProblemDetails Details)
 
 /// <summary>A lesson as the list of lessons shows it, with how much of it has been done.</summary>
 /// <param name="TimesLately">How many mistakes of its kind the person's checks found lately in programs of its language.</param>
-public sealed record LessonChoice(Lesson Lesson, string Progress, int TimesLately = 0)
+/// <param name="TimesBefore">How many the checks found in the 30 days before that.</param>
+public sealed record LessonChoice(Lesson Lesson, string Progress, int TimesLately = 0, int TimesBefore = 0)
 {
     public string Title => Lesson.Concept.Title;
 
-    /// <summary>What is said beside the lesson: how often its kind of mistake turned up lately, and how far the questions are done.</summary>
+    /// <summary>
+    /// What is said beside the lesson: how often its kind of mistake turned up lately, and in the 30 days before, and how far
+    /// the questions are done.
+    /// </summary>
     public string Beside => string.Join("  \u00b7  ", new[]
     {
-        TimesLately switch { 0 => "", 1 => "once lately", 2 => "twice lately", var times => $"{times} times lately" },
+        RecurringMistakes.HowOften(TimesLately, TimesBefore),
         Progress,
     }.Where(part => part.Length > 0));
 }
