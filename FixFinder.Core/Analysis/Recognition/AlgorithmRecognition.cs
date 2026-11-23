@@ -39,6 +39,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// </summary>
     public SearchGives? Gives { get; init; }
 
+    /// <summary>The name the code gives the first of two numbers - a in gcd(a, b) - whose second is Sought.</summary>
+    public string? FirstNumber { get; init; }
+
     /// <summary>
     /// What calling the function on lists of its own showed, when it was called: every one right, or the first that was
     /// not.
@@ -68,6 +71,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
 
     /// <summary>Whether it is a reversal, whose result is the same items in the opposite order.</summary>
     public bool IsReversal => Algorithm == AlgorithmRecognition.Reversal;
+
+    /// <summary>Whether it is Euclid's greatest common divisor, whose answer for two numbers is the greatest dividing both.</summary>
+    public bool IsGreatestCommonDivisor => Algorithm == AlgorithmRecognition.GreatestCommonDivisor;
 
     /// <summary>For a search for the largest or smallest item: whether it is the largest.</summary>
     public bool IsLargest => Algorithm == AlgorithmRecognition.LargestSearch;
@@ -104,6 +110,8 @@ public static class AlgorithmRecognition
     public const string Factorial = "a factorial";
 
     public const string Reversal = "a reversal";
+
+    public const string GreatestCommonDivisor = "Euclid's greatest common divisor";
 
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
@@ -145,6 +153,7 @@ public static class AlgorithmRecognition
                     List = found.List,
                     Sought = found.Sought,
                     Gives = found.Gives,
+                    FirstNumber = found.FirstNumber,
                 });
             }
         }
@@ -155,6 +164,9 @@ public static class AlgorithmRecognition
     private sealed record Found(int Line, string Algorithm, string HowItWorks, string WhatToKnow, string? List = null, string? Sought = null)
     {
         public SearchGives? Gives { get; init; }
+
+        /// <summary>The first of a function's two numbers - a in gcd(a, b) - whose second is Sought.</summary>
+        public string? FirstNumber { get; init; }
     }
 
     /// <summary>
@@ -185,7 +197,25 @@ public static class AlgorithmRecognition
         Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract, Left: Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract } first, Right: var then } chain =>
             $"{Unbracketed(first)} {(chain.Operator == BinaryOperator.Add ? "+" : "-")} {(then is Binary ? $"({IrText.Of(then)})" : IrText.Of(then))}",
         ElementAccess { Target: var list, Key: var position } => $"{IrText.Of(list)}[{Unbracketed(position)}]",
+        // Sums, products and remainders are worked out before a comparison in every language read: a % b != 0.
+        Binary { Operator: var compared, Left: var left, Right: var right } when ComparisonWords.TryGetValue(compared, out var word) =>
+            $"{Compared(left)} {word} {Compared(right)}",
         _ => IrText.Of(expression),
+    };
+
+    private static readonly Dictionary<BinaryOperator, string> ComparisonWords = new()
+    {
+        [BinaryOperator.Equal] = "==", [BinaryOperator.NotEqual] = "!=", [BinaryOperator.Less] = "<",
+        [BinaryOperator.LessOrEqual] = "<=", [BinaryOperator.Greater] = ">", [BinaryOperator.GreaterOrEqual] = ">=",
+    };
+
+    /// <summary>One side of a comparison: a sum, product or remainder with no brackets, anything else as it reads.</summary>
+    private static string Compared(Expr side) => side switch
+    {
+        Binary { Operator: BinaryOperator.Add or BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.FloorDivide or BinaryOperator.Modulo } =>
+            Unbracketed(side),
+        Binary => $"({IrText.Of(side)})",
+        _ => IrText.Of(side),
     };
 
     /// <summary>
@@ -230,6 +260,7 @@ public static class AlgorithmRecognition
         LeapYearTestOf,
         FactorialOf,
         ReversalOf,
+        GreatestCommonDivisorOf,
     ];
 
     /// <summary>
@@ -716,6 +747,56 @@ public static class AlgorithmRecognition
             .Any(write => write.Name == name &&
                           write.Value is Binary { Operator: BinaryOperator.Subtract, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } } &&
                           from == name);
+
+    /// <summary>
+    /// Euclid's greatest common divisor, of a function's two numbers: one that gives back itself called with the second
+    /// and the remainder of the first divided by it - gcd(b, a % b) - or one with a loop, run while it tests one of them,
+    /// that takes the remainder of one divided by the other - a % b - each time round, and gives back one of the two. A
+    /// function giving the pair back the other way round, gcd(a % b, b), never stops, and is left to the logic checks.
+    /// </summary>
+    private static Found? GreatestCommonDivisorOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        if (function.Parameters is not [{ Name: var first }, { Name: var second }]) return null;
+
+        foreach (var leave in statements.OfType<Return>())
+        {
+            if (leave.Value is Call { Callee: Name { Identifier: var called }, Arguments: [{ Value: Name { Identifier: var divisor } }, { Value: Binary { Operator: BinaryOperator.Modulo, Left: Name { Identifier: var divided }, Right: Name { Identifier: var by } } remainder }] } &&
+                called == function.Name && divisor == second && divided == first && by == second)
+            {
+                return new Found(leave.Span.Line, GreatestCommonDivisor,
+                    $"it gives back itself called with `{second}` and the remainder of `{first}` divided by it, `{Shown(remainder)}`",
+                    GreatestCommonDivisorAdvice, Sought: second) { FirstNumber = first };
+            }
+        }
+
+        var returned = statements.OfType<Return>().Select(leave => leave.Value is Name { Identifier: var kept } ? kept : null)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        foreach (var loop in statements.Where(statement => statement is While or For))
+        {
+            if (Condition(loop) is not { } test) continue;
+            var writes = WritesEachToItsOwn(IrWalk.Statements(Body(loop))).ToList();
+            var written = writes.Select(write => write.Name).OfType<string>().ToHashSet(StringComparer.Ordinal);
+            foreach (var (_, _, value, _) in writes)
+            {
+                // Both numbers move on each time round: a remainder taken of one number alone - n = n % base - is not Euclid's.
+                if (value is not Binary { Operator: BinaryOperator.Modulo, Left: Name { Identifier: var divided }, Right: Name { Identifier: var divisor } } remainder ||
+                    divided == divisor || !Mentions(test, divisor) || !written.Contains(divided) || !written.Contains(divisor) ||
+                    !returned.Contains(divided) && !returned.Contains(divisor))
+                    continue;
+
+                return new Found(loop.Span.Line, GreatestCommonDivisor,
+                    $"while `{Shown(test)}`, it takes the remainder of `{divided}` divided by `{divisor}`, `{Shown(remainder)}`, each time round, " +
+                    $"and gives back `{string.Join("` or `", new[] { divided, divisor }.Where(returned.Contains))}`",
+                    GreatestCommonDivisorAdvice, Sought: second) { FirstNumber = first };
+            }
+        }
+
+        return null;
+    }
+
+    private const string GreatestCommonDivisorAdvice =
+        "Euclid's algorithm: the greatest number dividing both a and b is the greatest dividing both b and a % b, so the " +
+        "pair can be replaced by that one until the second is 0 - every number divides 0 - when the first is the answer.";
 
     private const string FactorialAdvice =
         "n factorial is 1 times 2 times each number up to n, so the product has to start at 1 and take in n itself; 0 factorial " +

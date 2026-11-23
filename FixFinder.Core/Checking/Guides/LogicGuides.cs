@@ -114,6 +114,17 @@ internal static class LogicGuides
             + "range(len(items) - 1, -1, -1).",
             ""),
 
+        GuideFor(["algorithm-gcd-wrong"], "A greatest common divisor that gives a wrong answer",
+            "The function is written the way Euclid's greatest common divisor is written - it takes the remainder of one number "
+            + "divided by the other until there is none - so FixFinder called it with pairs of numbers whose greatest common "
+            + "divisor is known, and set each answer beside it. The pair shown is the first it got wrong.",
+            "Euclid's algorithm goes wrong at its end: when the remainder is 0, the answer is the number that was divided by, "
+            + "not the remainder - giving back the second number once it has become 0 gives 0 every time. And a pair with 0 "
+            + "in it needs no division at all: every number divides 0, so the answer is the other number.",
+            "Replace the pair a and b by b and a % b while b is not 0, then give back a. Calling itself, give back a when b is "
+            + "0, and otherwise the greatest common divisor of b and a % b.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

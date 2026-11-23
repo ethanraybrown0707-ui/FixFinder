@@ -18,7 +18,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// with every number from 0 to 30, and a leap-year test with ten years, and each must say rightly which numbers are
 /// prime, or which years are leap years; and a factorial is called with every number from 1 to 10, and 0, and must give
 /// back each one's factorial; a reversal is called with lists of odd and even lengths, and must give each back in the
-/// opposite order. What it does is said
+/// opposite order; and Euclid's greatest common divisor is called with pairs of numbers, 0 among them, and must give
+/// back the greatest number dividing both of each. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -100,6 +101,12 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static readonly int[] FactorialsTried = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0];
 
+    /// <summary>
+    /// The pairs a greatest common divisor is called with: each way round, sharing a divisor or none, the same number
+    /// twice, one dividing the other - then a 0 in each place last, as every number divides 0, so the answer is the other.
+    /// </summary>
+    private static readonly (int First, int Second)[] PairsTried = [(12, 18), (18, 12), (7, 5), (21, 14), (9, 9), (1, 8), (100, 75), (17, 34), (5, 0), (0, 5)];
+
     private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
 
     /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one, the
@@ -147,7 +154,7 @@ public static partial class AlgorithmTrial
             _ => (SourceLanguage?)null,
         };
         if (language is null || language != program.Language || recognition.Function == AlgorithmRecognition.TopLevelCode ||
-            recognition.List is null && !recognition.IsGivenANumber)
+            recognition.List is null && !recognition.IsGivenANumber && !recognition.IsGreatestCommonDivisor)
             return null;
 
         // A sort is judged by its list; a search for the largest or smallest by the item it gives back; any other search by
@@ -156,6 +163,7 @@ public static partial class AlgorithmTrial
             : recognition.IsNumberTest ? recognition.Sought is null || recognition.Gives != SearchGives.Truth
             : recognition.IsFactorial ? recognition.Sought is null
             : recognition.IsReversal ? false
+            : recognition.IsGreatestCommonDivisor ? recognition.Sought is null || recognition.FirstNumber is null
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -168,6 +176,7 @@ public static partial class AlgorithmTrial
             if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
             if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
             else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsGivenANumber ? "number" : "sought"));
+            else if (parameter.Name == recognition.FirstNumber) roles.Add((parameter.Name, "number"));
             else if (LengthNames.Contains(parameter.Name)) roles.Add((parameter.Name, "length"));
             else if (parameter.Default is not null) roles.Add((parameter.Name, null));
             else return null;
@@ -178,6 +187,7 @@ public static partial class AlgorithmTrial
         }
 
         if (recognition.IsGivenANumber) return roles.Any(role => role.Role == "number") ? roles : null;
+        if (recognition.IsGreatestCommonDivisor) return roles.Any(role => role.Role == "number") && roles.Any(role => role.Role == "sought") ? roles : null;
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
@@ -195,6 +205,7 @@ public static partial class AlgorithmTrial
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
             : recognition.IsFactorial ? FactorialsTried.Select(number => new Trial([], null, number)).ToList()
+            : recognition.IsGreatestCommonDivisor ? PairsTried.Select(pair => new Trial([], pair.Second, pair.First)).ToList()
             : SearchTrials(recognition, ascending);
         var results = program.Language switch
         {
@@ -212,6 +223,7 @@ public static partial class AlgorithmTrial
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
             : recognition.IsFactorial ? JudgeFactorial(recognition, results)
+            : recognition.IsGreatestCommonDivisor ? JudgeGreatestCommonDivisor(recognition, results)
             : JudgeSearch(recognition, results, trials, ascending);
     }
 
@@ -419,6 +431,39 @@ public static partial class AlgorithmTrial
         static (string?, string?) Broken(string what) => (what + ".", what);
     }
 
+    /// <summary>
+    /// Whether each pair's answer was the greatest number dividing both - and the first that was not, with what it should
+    /// be: the greatest dividing both 12 and 18 is 6; every number divides 0, so for 5 and 0 it is 5.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeGreatestCommonDivisor(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        foreach (var result in results)
+        {
+            var (first, second) = (result.Trial.Number!.Value, result.Trial.Sought!.Value);
+            var greatest = GreatestDividingBoth(first, second);
+            var why = first == 0 || second == 0
+                ? $"every number divides 0, so the greatest dividing both {first} and {second} is {greatest}"
+                : $"the greatest number dividing both {first} and {second} is {greatest}";
+            if (result.Error is { } error) return Broken($"Called with {first} and {second}, {name} stopped with {error} - but {why}");
+            if (result.Returned is not { ValueKind: JsonValueKind.Number } returned || !returned.TryGetInt64(out var given)) return (null, null);
+            if (given == greatest) continue;
+
+            return Broken($"Called with {first} and {second}, {name} gave {given} - but {why}");
+        }
+
+        return ($"Called with {results.Count} pairs of numbers - each way round, with a divisor in common and with none, the same number twice, " +
+                "and with 0 - it gave back the greatest number dividing both of each, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+
+        static long GreatestDividingBoth(long one, long other)
+        {
+            while (other != 0) (one, other) = (other, one % other);
+            return one;
+        }
+    }
+
     private static (string? Said, string? Broken) JudgeSearch(AlgorithmSeen recognition, IReadOnlyList<Result> results, IReadOnlyList<Trial> trials, bool ascending)
     {
         var name = $"`{recognition.Function}`";
@@ -470,7 +515,8 @@ public static partial class AlgorithmTrial
     {
         var rule = recognition.IsSort ? "algorithm-sort-wrong" : recognition.IsReversal ? "algorithm-reversal-wrong" : recognition.IsExtreme ? "algorithm-extreme-wrong"
             : recognition.IsPrimeTest ? "algorithm-prime-wrong" : recognition.IsLeapYearTest ? "algorithm-leap-year-wrong"
-            : recognition.IsFactorial ? "algorithm-factorial-wrong" : "algorithm-search-wrong";
+            : recognition.IsFactorial ? "algorithm-factorial-wrong"
+            : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -485,6 +531,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsPrimeTest ? $"`{recognition.Function}` does not say rightly which numbers are prime"
                 : recognition.IsLeapYearTest ? $"`{recognition.Function}` does not say rightly which years are leap years"
                 : recognition.IsFactorial ? $"`{recognition.Function}` does not work out every factorial rightly"
+                : recognition.IsGreatestCommonDivisor ? $"`{recognition.Function}` does not give back the greatest common divisor of every pair"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",

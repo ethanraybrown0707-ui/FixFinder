@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search, a reversal, a prime test, a leap-year test or a factorial recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
+/// A sort, a search, a reversal, a prime test, a leap-year test, a factorial or Euclid's greatest common divisor recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -111,6 +111,16 @@ public class AlgorithmTrialTests : IDisposable
         "reversed_copy: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
     [InlineData("rev_half.py", "def reverse(items):\n    for i in range(len(items) // 2):\n        items[i], items[len(items) - 1 - i] = items[len(items) - 1 - i], items[i]\n\n\nmarks = [1, 2, 3]\nreverse(marks)\nprint(marks)\n",
         "reverse: Called with 10 lists of FixFinder's own - empty, of one item, of odd and even lengths, with repeats and below zero - it gave each back in the opposite order.")]
+    [InlineData("Gcd.java", "public class Gcd {\n    static int gcd(int a, int b) {\n        if (b == 0) {\n            return a;\n        }\n        return gcd(b, a % b);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(gcd(12, 18));\n    }\n}\n",
+        "Gcd.gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
+    [InlineData("gcd.js", "function gcd(a, b) {\n    while (b !== 0) {\n        const held = b;\n        b = a % b;\n        a = held;\n    }\n    return a;\n}\n\nconsole.log(gcd(12, 18));\n",
+        "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
+    [InlineData("gcd.py", "def gcd(a, b):\n    while b != 0:\n        a, b = b, a % b\n    return a\n\n\nprint(gcd(12, 18))\n",
+        "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
+    [InlineData("gcd_calls.py", "def gcd(a, b):\n    if b == 0:\n        return a\n    return gcd(b, a % b)\n\n\nprint(gcd(12, 18))\n",
+        "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
+    [InlineData("gcd_held.py", "def gcd(first, second):\n    while second > 0:\n        remainder = first % second\n        first = second\n        second = remainder\n    return first\n\n\nprint(gcd(12, 18))\n",
+        "gcd: Called with 10 pairs of numbers - each way round, with a divisor in common and with none, the same number twice, and with 0 - it gave back the greatest number dividing both of each, every one right.")]
     [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
         "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
@@ -537,6 +547,56 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "4 algorithm-reversal-wrong: `RevCopy.reversed` does not reverse every list | Called with [1], `RevCopy.reversed` stopped with ArrayIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>
+    /// Euclid's loop giving back the divisor once it has become 0, and one running while a % b is not 0, which divides by
+    /// 0 when given it - whose words for that differ between versions of Python, so only where they start and end are held.
+    /// </summary>
+    [Fact]
+    public async Task AGreatestCommonDivisorIsShownTheFirstPairItGetsWrong()
+    {
+        const string code = "def gives_back_the_divisor(a, b):\n    while b != 0:\n        a, b = b, a % b\n    return b\n\n\ndef stops_at_no_remainder(a, b):\n    while a % b != 0:\n        a, b = b, a % b\n    return b\n\n\nprint(gives_back_the_divisor(12, 18), stops_at_no_remainder(12, 18))\n";
+        if (await TriedAsync("divisors.py", code) is not { } outcome) return;
+
+        Assert.Equal(2, outcome.Seen.Count);
+        Assert.Equal("Called with 12 and 18, `gives_back_the_divisor` gave 0 - but the greatest number dividing both 12 and 18 is 6.", outcome.Seen[0].Tried);
+        Assert.StartsWith("Called with 5 and 0, `stops_at_no_remainder` stopped with ZeroDivisionError", outcome.Seen[1].Tried);
+        Assert.EndsWith(" - but every number divides 0, so the greatest dividing both 5 and 0 is 5.", outcome.Seen[1].Tried);
+        Assert.Equal([(2, "algorithm-gcd-wrong"), (8, "algorithm-gcd-wrong")], outcome.Findings.Select(finding => (finding.Line, finding.RuleId)));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>Euclid's loop giving back the divisor once it has become 0, written in JavaScript.</summary>
+    [Fact]
+    public async Task AJavaScriptGreatestCommonDivisorIsShownTheFirstPairItGetsWrong()
+    {
+        const string code = "function gcd(a, b) {\n    while (b !== 0) {\n        const held = b;\n        b = a % b;\n        a = held;\n    }\n    return b;\n}\n\nconsole.log(gcd(12, 18));\n";
+        if (await TriedAsync("gcd.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "gcd: Called with 12 and 18, `gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-gcd-wrong: `gcd` does not give back the greatest common divisor of every pair | Called with 12 and 18, `gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>Euclid's loop giving back the divisor once it has become 0, written in Java.</summary>
+    [Fact]
+    public async Task AJavaGreatestCommonDivisorIsShownTheFirstPairItGetsWrong()
+    {
+        const string code = "public class GcdGivesB {\n    static int gcd(int a, int b) {\n        while (b != 0) {\n            int held = b;\n            b = a % b;\n            a = held;\n        }\n        return b;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(gcd(12, 18));\n    }\n}\n";
+        if (await TriedAsync("GcdGivesB.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "GcdGivesB.gcd: Called with 12 and 18, `GcdGivesB.gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-gcd-wrong: `GcdGivesB.gcd` does not give back the greatest common divisor of every pair | Called with 12 and 18, `GcdGivesB.gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
