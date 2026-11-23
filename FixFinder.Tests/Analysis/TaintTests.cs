@@ -172,6 +172,30 @@ public class TaintTests(ITestOutputHelper output) : IDisposable
         Assert.True(findings.Count == 0, Summary(findings));
     }
 
+    /// <summary>
+    /// A function that runs a command and calls itself with its other parameter in the command's place: following that
+    /// call added to the very summary being read for it, which stopped every analysis of the file.
+    /// </summary>
+    [Fact]
+    public async Task AFunctionThatCallsItselfWithItsOtherParameterInTheCommandsPlaceIsFollowed()
+    {
+        const string code = """
+            import os
+
+
+            def run(command, fallback):
+                if fallback:
+                    run(fallback, "")
+                os.system(command)
+
+
+            run(input("Command: "), "echo done")
+            """;
+        if (await Python(code) is not { } findings) return;
+
+        Assert.True(findings.Any(f => f.CheckId == Taint.CommandRule), Summary(findings));
+    }
+
     [Fact]
     public async Task InJavaAStatementBuiltFromWhatIsReadIsSqlInjection()
     {
