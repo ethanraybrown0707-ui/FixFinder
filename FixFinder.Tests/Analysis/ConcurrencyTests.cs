@@ -216,6 +216,64 @@ public class ConcurrencyTests : IDisposable
         Assert.Equal(lost, findings.Any(f => f.CheckId == "analysis-lost-update"));
     }
 
+    /// <summary>
+    /// A thread class of the program's own with no run() of its own - as Python's own threading.py has _MainThread - made
+    /// with nothing passed to it stopped every analysis of the file, reading the first of no arguments for the code it runs.
+    /// </summary>
+    [Fact]
+    public async Task APythonThreadClassWithNoRunOfItsOwnLeavesTheRestOfTheFileChecked()
+    {
+        const string code = """
+            import threading
+
+
+            class MainThread(threading.Thread):
+                def __init__(self):
+                    super().__init__(name="main", daemon=False)
+
+
+            def average(marks):
+                return sum(marks) / len(marks)
+
+
+            current = MainThread()
+            print(current.name, average([]))
+            """;
+        if (await Python(code) is not { } findings) return;
+
+        Assert.Equal(10, Assert.Single(findings, f => f.CheckId == "analysis-division-by-zero").Span.Line);
+    }
+
+    [Fact]
+    public async Task AJavaThreadClassWithNoRunOfItsOwnLeavesTheRestOfTheFileChecked()
+    {
+        const string code = """
+            public class Waiter {
+                static class Named extends Thread {
+                    Named() {
+                        setName("waiter");
+                    }
+                }
+
+                static int average(int[] marks) {
+                    int total = 0;
+                    for (int mark : marks) {
+                        total += mark;
+                    }
+                    return total / marks.length;
+                }
+
+                public static void main(String[] args) {
+                    Thread named = new Named();
+                    System.out.println(named.getName() + average(new int[0]));
+                }
+            }
+            """;
+        if (await Java(code) is not { } findings) return;
+
+        Assert.True(findings.Any(f => f.CheckId == "analysis-division-by-zero"), Summary(findings));
+    }
+
     [Fact]
     public async Task APythonThreadRunInsteadOfStartedIsFound()
     {
