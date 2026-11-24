@@ -7,7 +7,9 @@ namespace FixFinder.Tests;
 /// A loop that goes through one list while naming its items after another - for height in widths, under a loop over widths
 /// named width, or QuixBugs' bucketsort going through arr for each count after filling counts from it - in each language,
 /// with the change that goes through the list the items are named for; and loops over the lists they mean, which are left
-/// alone. Each row is what the check gave for the program when these were written.
+/// alone - among them a cipher's encrypt and decrypt, each building its letters from text, which the second was once taken
+/// for going through the wrong list, as the first had filled letters. Each row is what the check gave for the program when
+/// these were written.
 /// </summary>
 public class WrongListTests : IDisposable
 {
@@ -64,6 +66,8 @@ public class WrongListTests : IDisposable
     [Theory]
     [InlineData("Right.java", "import java.util.List;\n\npublic class Right {\n    public static void main(String[] args) {\n        List<String> files = List.of(\"a\", \"b\");\n        List<String> others = List.of(\"c\");\n        for (String file : files) {\n            System.out.println(file);\n        }\n        for (String file : others) {\n            System.out.println(file);\n        }\n    }\n}\n")]
     [InlineData("right.py", "widths = [3, 4]\nheights = [5, 6]\nfor width in widths:\n    print(width)\nfor height in heights:\n    print(height)\nlines = [\"a\", \"b\"]\nmasked = [line.strip() for line in lines]\nfor line in masked:\n    print(line)\n")]
+    [InlineData("caesar.py", "def encrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\ndef decrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") - shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\nprint(decrypt(encrypt(\"hello\", 3), 3))\n")]
+    [InlineData("caesar.js", "function encrypt(text, shift) {\n    const letters = [];\n    for (const letter of text) {\n        letters.push(String.fromCharCode((letter.charCodeAt(0) - 97 + shift) % 26 + 97));\n    }\n    return letters.join(\"\");\n}\n\nfunction decrypt(text, shift) {\n    const letters = [];\n    for (const letter of text) {\n        letters.push(String.fromCharCode((letter.charCodeAt(0) - 97 - shift + 26) % 26 + 97));\n    }\n    return letters.join(\"\");\n}\n\nconsole.log(decrypt(encrypt(\"hello\", 3), 3));\n")]
     public void ALoopOverTheListItMeansIsLeftAlone(string fileName, string code)
     {
         Assert.DoesNotContain(LogicPatterns.Scan(Program(fileName, code)), finding => finding.PatternId.EndsWith("wrong-list", StringComparison.Ordinal));

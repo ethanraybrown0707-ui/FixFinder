@@ -87,6 +87,21 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a palindrome test, whose answer for a word is whether it reads the same backwards.</summary>
     public bool IsPalindromeTest => Algorithm == AlgorithmRecognition.PalindromeTest;
 
+    /// <summary>
+    /// For one of a pair of functions named to undo each other - encrypt, beside decrypt - the other, as the program names
+    /// it: what it gives back, the other has to turn back into what it was given.
+    /// </summary>
+    public string? UndoneBy { get; init; }
+
+    /// <summary>
+    /// Whether the pair are named each for turning one thing into the other - int_to_roman and roman_to_int - so either can
+    /// be the one that goes first; encrypt goes before decrypt, and to_roman before from_roman.
+    /// </summary>
+    public bool EitherWayRound { get; init; }
+
+    /// <summary>Whether it is one of a pair of functions named to undo each other.</summary>
+    public bool IsUndoingPair => Algorithm == AlgorithmRecognition.UndoingPair;
+
     /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test, a factorial or the Fibonacci numbers.</summary>
     public bool IsGivenANumber => IsNumberTest || IsFactorial || IsFibonacci;
 
@@ -114,9 +129,10 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
 /// <remarks>
 /// Recognising is not checking: a function that looks like a binary search may still be a wrong one, which is what the
 /// logic checks look for. What is recognised is shown to say what the code seems meant to do, and what that kind of
-/// code needs.
+/// code needs. Pairs of functions named to undo each other are read from their names instead, in
+/// AlgorithmRecognition.Pairs.cs.
 /// </remarks>
-public static class AlgorithmRecognition
+public static partial class AlgorithmRecognition
 {
     public const string TopLevelCode = "the top-level code";
 
@@ -173,10 +189,7 @@ public static class AlgorithmRecognition
                 SourceLanguage.Go => GoLengthsReadAsWritten(written),
                 _ => written,
             };
-            // A function declared inside the top-level code - C#'s local functions - is named as the program names it.
-            var name = function.Name == IrFunction.ModuleBody ? TopLevelCode
-                : function.FullName.StartsWith(IrFunction.ModuleBody + ".", StringComparison.Ordinal) ? function.FullName[(IrFunction.ModuleBody.Length + 1)..]
-                : function.FullName;
+            var name = ShownName(function);
             var statements = IrWalk.Statements(function.Body).ToList();
 
             foreach (var recognise in Recognisers)
@@ -194,8 +207,18 @@ public static class AlgorithmRecognition
             }
         }
 
+        seen.AddRange(UndoingPairs(program));
         return seen;
     }
+
+    /// <summary>
+    /// A function as the program names it - Search.find, find - with the top-level code said as such, and a function
+    /// declared inside the top-level code - C#'s local functions - named without it.
+    /// </summary>
+    private static string ShownName(IrFunction function) =>
+        function.Name == IrFunction.ModuleBody ? TopLevelCode
+        : function.FullName.StartsWith(IrFunction.ModuleBody + ".", StringComparison.Ordinal) ? function.FullName[(IrFunction.ModuleBody.Length + 1)..]
+        : function.FullName;
 
     private sealed record Found(int Line, string Algorithm, string HowItWorks, string WhatToKnow, string? List = null, string? Sought = null)
     {

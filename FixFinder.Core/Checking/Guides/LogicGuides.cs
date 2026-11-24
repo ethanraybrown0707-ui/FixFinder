@@ -170,6 +170,18 @@ internal static class LogicGuides
             + "range(len(word) // 2) - say no at the first pair that differ, and say yes only after the loop.",
             ""),
 
+        GuideFor(["algorithm-round-trip-wrong"], "A pair of functions that do not undo each other",
+            "The two functions are named for one thing and its undoing - encrypt and decrypt, to_roman and from_roman - so "
+            + "FixFinder called the first with words or numbers of its own, and the second with what the first gave back, "
+            + "and set what came back beside what the first was given. The input shown is the first that did not come back.",
+            "Whatever the first gives back, the second has to turn back into what it was given, or what is saved or sent "
+            + "cannot be read again. A cipher goes wrong at the end of the alphabet: a letter shifted past z has to wrap "
+            + "round to a, and back; and in Java and JavaScript the remainder of a number below zero is below zero, so "
+            + "(c - 'a' - shift) % 26 can be -3 where Python's is 23.",
+            "Make the second do each step of the first backwards, in the opposite order, and wrap a remainder below zero "
+            + "round - in Java or JavaScript, ((c - 'a' - shift) % 26 + 26) % 26.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

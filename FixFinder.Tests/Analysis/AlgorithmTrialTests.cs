@@ -846,19 +846,78 @@ public class AlgorithmTrialTests : IDisposable
         if (await TriedAsync("Palindromes.java", code) is not { } outcome) return;
 
         Assert.Equal([
-            "Palindromes.pastTheEnd: Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException.",
+            "Palindromes.pastTheEnd: Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
             "Palindromes.atTheFirstPair: Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
-        ], outcome.Seen.Select(seen => WithoutTheJdksWords($"{seen.Function}: {seen.Tried ?? "not tried"}")));
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
-            "5 algorithm-palindrome-wrong: `Palindromes.pastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException.",
+            "5 algorithm-palindrome-wrong: `Palindromes.pastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
             "16 algorithm-palindrome-wrong: `Palindromes.atTheFirstPair` does not say rightly which words are palindromes | Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
-        ], outcome.Findings.Select(finding => WithoutTheJdksWords($"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}")));
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
 
-        // What follows the exception's name is the JDK's own wording, and it is not the same in every version: Java 25 wrote
-        // Index 1 out of bounds for length 1, and the Java 17 a GitHub runner has wrote something else. Only the name is held to.
-        static string WithoutTheJdksWords(string said) =>
-            System.Text.RegularExpressions.Regex.Replace(said, @"(StringIndexOutOfBoundsException): [^.]*\.", "$1.");
+    /// <summary>
+    /// Pairs named to undo each other, each called with words or numbers of FixFinder's own and the other with what it gave
+    /// back: a Caesar cipher with a number shift, a Vigenère cipher with a word key, a run-length code and Roman numerals,
+    /// whose reader comes first, that turn every input back; a run-length decoder reading each count as one digit, a
+    /// decrypt copied from encrypt that still adds the shift, and a Roman numeral reader that never takes away; a pair that
+    /// prints and gives back nothing, one that gives back capitals, one that gives back bytes and, in JavaScript, one
+    /// written for objects, none of them judged; and in JavaScript and Java a Caesar cipher that turns every input back,
+    /// and one whose decrypt takes a remainder below zero.
+    /// </summary>
+    [Theory]
+    [InlineData("caesar.py", "def encrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\ndef decrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") - shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\nprint(decrypt(encrypt(\"hello\", 3), 3))\n",
+        "encrypt: Called with 9 words of FixFinder's own, of lower-case letters alone, from one letter to the whole alphabet, each with the key 3 and then with 25 - 18 calls - `encrypt` gave back something every time, and `decrypt` turned each back into what it was.",
+        null)]
+    [InlineData("vigenere.py", "def encode(text, key):\n    letters = []\n    for position, letter in enumerate(text):\n        shift = ord(key[position % len(key)]) - ord(\"a\")\n        letters.append(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\ndef decode(text, key):\n    letters = []\n    for position, letter in enumerate(text):\n        shift = ord(key[position % len(key)]) - ord(\"a\")\n        letters.append(chr((ord(letter) - ord(\"a\") - shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\nprint(decode(encode(\"hello\", \"key\"), \"key\"))\n",
+        "encode: Called with 9 words of FixFinder's own, of lower-case letters alone, from one letter to the whole alphabet, each with the word key as the key - 9 calls - `encode` gave back something every time, and `decode` turned each back into what it was.",
+        null)]
+    [InlineData("rle.py", "def compress(text):\n    result = \"\"\n    position = 0\n    while position < len(text):\n        count = 1\n        while position + count < len(text) and text[position + count] == text[position]:\n            count += 1\n        result += str(count) + text[position]\n        position += count\n    return result\n\n\ndef decompress(text):\n    result = \"\"\n    digits = \"\"\n    for character in text:\n        if character.isdigit():\n            digits += character\n        else:\n            result += character * int(digits)\n            digits = \"\"\n    return result\n\n\nprint(decompress(compress(\"aaabccdddd\")))\n",
+        "compress: Called with 9 words of FixFinder's own, of lower-case letters alone, from one letter to the whole alphabet - 9 calls - `compress` gave back something every time, and `decompress` turned each back into what it was.",
+        null)]
+    [InlineData("roman.py", "VALUES = [(1000, \"M\"), (900, \"CM\"), (500, \"D\"), (400, \"CD\"), (100, \"C\"), (90, \"XC\"),\n          (50, \"L\"), (40, \"XL\"), (10, \"X\"), (9, \"IX\"), (5, \"V\"), (4, \"IV\"), (1, \"I\")]\nLETTERS = {\"M\": 1000, \"D\": 500, \"C\": 100, \"L\": 50, \"X\": 10, \"V\": 5, \"I\": 1}\n\n\ndef roman_to_int(text):\n    total = 0\n    for position, letter in enumerate(text):\n        value = LETTERS[letter]\n        if position + 1 < len(text) and LETTERS[text[position + 1]] > value:\n            total -= value\n        else:\n            total += value\n    return total\n\n\ndef int_to_roman(number):\n    result = \"\"\n    for value, letters in VALUES:\n        while number >= value:\n            result += letters\n            number -= value\n    return result\n\n\nprint(roman_to_int(int_to_roman(1994)))\n",
+        "roman_to_int: Called with 10 numbers of FixFinder's own, from 1 to 3999 - 10 calls - `int_to_roman` gave back something every time, and `roman_to_int` turned each back into what it was.",
+        null)]
+    [InlineData("rle_one_digit.py", "def compress(text):\n    result = \"\"\n    position = 0\n    while position < len(text):\n        count = 1\n        while position + count < len(text) and text[position + count] == text[position]:\n            count += 1\n        result += str(count) + text[position]\n        position += count\n    return result\n\n\ndef decompress(text):\n    result = \"\"\n    for position in range(0, len(text), 2):\n        result += text[position + 1] * int(text[position])\n    return result\n\n\nprint(decompress(compress(\"aaabccdddd\")))\n",
+        "compress: Called with 'aaaaaaaaaaaab', `compress` gave back '12a1b'; given that, `decompress` stopped with ValueError: invalid literal for int() with base 10: 'a'.",
+        "1 algorithm-round-trip-wrong: `compress` and `decompress` do not undo each other | Called with 'aaaaaaaaaaaab', `compress` gave back '12a1b'; given that, `decompress` stopped with ValueError: invalid literal for int() with base 10: 'a'.")]
+    [InlineData("caesar_copied.py", "def encrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\ndef decrypt(text, shift):\n    letters = []\n    for letter in text:\n        letters.append(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")))\n    return \"\".join(letters)\n\n\nprint(decrypt(encrypt(\"hello\", 3), 3))\n",
+        "encrypt: Called with 'a' and 3, `encrypt` gave back 'd', and given that and 3, `decrypt` gave back 'g' - not 'a', what `encrypt` was given.",
+        "1 algorithm-round-trip-wrong: `encrypt` and `decrypt` do not undo each other | Called with 'a' and 3, `encrypt` gave back 'd', and given that and 3, `decrypt` gave back 'g' - not 'a', what `encrypt` was given.")]
+    [InlineData("roman_adds.py", "VALUES = [(1000, \"M\"), (900, \"CM\"), (500, \"D\"), (400, \"CD\"), (100, \"C\"), (90, \"XC\"),\n          (50, \"L\"), (40, \"XL\"), (10, \"X\"), (9, \"IX\"), (5, \"V\"), (4, \"IV\"), (1, \"I\")]\nLETTERS = {\"M\": 1000, \"D\": 500, \"C\": 100, \"L\": 50, \"X\": 10, \"V\": 5, \"I\": 1}\n\n\ndef roman_to_int(text):\n    total = 0\n    for position, letter in enumerate(text):\n        value = LETTERS[letter]\n        total += value\n    return total\n\n\ndef int_to_roman(number):\n    result = \"\"\n    for value, letters in VALUES:\n        while number >= value:\n            result += letters\n            number -= value\n    return result\n\n\nprint(roman_to_int(int_to_roman(1994)))\n",
+        "roman_to_int: Called with 4, `int_to_roman` gave back 'IV', and given that, `roman_to_int` gave back 6 - not 4, what `int_to_roman` was given.",
+        "6 algorithm-round-trip-wrong: `roman_to_int` and `int_to_roman` do not undo each other | Called with 4, `int_to_roman` gave back 'IV', and given that, `roman_to_int` gave back 6 - not 4, what `int_to_roman` was given.")]
+    [InlineData("printed.py", "def encrypt(text, shift):\n    print(\"\".join(chr((ord(letter) - ord(\"a\") + shift) % 26 + ord(\"a\")) for letter in text))\n\n\ndef decrypt(text, shift):\n    print(\"\".join(chr((ord(letter) - ord(\"a\") - shift) % 26 + ord(\"a\")) for letter in text))\n\n\nencrypt(\"hello\", 3)\n",
+        "encrypt: not tried",
+        null)]
+    [InlineData("capitals.py", "def encode(text):\n    return text.upper()\n\n\ndef decode(text):\n    return text.upper()\n\n\nprint(decode(encode(\"hello\")))\n",
+        "encode: not tried",
+        null)]
+    [InlineData("utf8_bytes.py", "def encode(text):\n    return text.encode(\"utf-8\")\n\n\ndef decode(data):\n    return data.decode(\"utf-8\")\n\n\nprint(decode(encode(\"hello\")))\n",
+        "encode: not tried",
+        null)]
+    [InlineData("pointObjects.js", "function pointToJSON(point) {\n    return { x: point.x, y: point.y };\n}\n\nfunction pointFromJSON(object) {\n    return { x: Number(object.x), y: Number(object.y) };\n}\n\nconsole.log(pointFromJSON(pointToJSON({ x: 1, y: 2 })));\n",
+        "pointToJSON: not tried",
+        null)]
+    [InlineData("caesarRight.js", "function encryptMessage(text, shift) {\n    let result = \"\";\n    for (const letter of text) {\n        result += String.fromCharCode((letter.charCodeAt(0) - 97 + shift) % 26 + 97);\n    }\n    return result;\n}\n\nfunction decryptMessage(text, shift) {\n    let result = \"\";\n    for (const letter of text) {\n        result += String.fromCharCode((letter.charCodeAt(0) - 97 - shift + 26) % 26 + 97);\n    }\n    return result;\n}\n\nconsole.log(decryptMessage(encryptMessage(\"hello\", 3), 3));\n",
+        "encryptMessage: Called with 9 words of FixFinder's own, of lower-case letters alone, from one letter to the whole alphabet, each with the key 3 and then with 25 - 18 calls - `encryptMessage` gave back something every time, and `decryptMessage` turned each back into what it was.",
+        null)]
+    [InlineData("caesarBelowZero.js", "function encryptMessage(text, shift) {\n    let result = \"\";\n    for (const letter of text) {\n        result += String.fromCharCode((letter.charCodeAt(0) - 97 + shift) % 26 + 97);\n    }\n    return result;\n}\n\nfunction decryptMessage(text, shift) {\n    let result = \"\";\n    for (const letter of text) {\n        result += String.fromCharCode((letter.charCodeAt(0) - 97 - shift) % 26 + 97);\n    }\n    return result;\n}\n\nconsole.log(decryptMessage(encryptMessage(\"hello\", 3), 3));\n",
+        "encryptMessage: Called with \"abc\" and 25, `encryptMessage` gave back \"zab\", and given that and 25, `decryptMessage` gave back \"aHI\" - not \"abc\", what `encryptMessage` was given.",
+        "1 algorithm-round-trip-wrong: `encryptMessage` and `decryptMessage` do not undo each other | Called with \"abc\" and 25, `encryptMessage` gave back \"zab\", and given that and 25, `decryptMessage` gave back \"aHI\" - not \"abc\", what `encryptMessage` was given.")]
+    [InlineData("Caesar.java", "public class Caesar {\n    static String encrypt(String text, int shift) {\n        StringBuilder result = new StringBuilder();\n        for (char letter : text.toCharArray()) {\n            result.append((char) ((letter - 'a' + shift) % 26 + 'a'));\n        }\n        return result.toString();\n    }\n\n    static String decrypt(String text, int shift) {\n        StringBuilder result = new StringBuilder();\n        for (char letter : text.toCharArray()) {\n            result.append((char) ((letter - 'a' - shift + 26) % 26 + 'a'));\n        }\n        return result.toString();\n    }\n\n    public static void main(String[] args) {\n        System.out.println(decrypt(encrypt(\"hello\", 3), 3));\n    }\n}\n",
+        "Caesar.encrypt: Called with 9 words of FixFinder's own, of lower-case letters alone, from one letter to the whole alphabet, each with the key 3 and then with 25 - 18 calls - `Caesar.encrypt` gave back something every time, and `Caesar.decrypt` turned each back into what it was.",
+        null)]
+    [InlineData("CaesarBelowZero.java", "public class CaesarBelowZero {\n    static String encrypt(String text, int shift) {\n        StringBuilder result = new StringBuilder();\n        for (char letter : text.toCharArray()) {\n            result.append((char) ((letter - 'a' + shift) % 26 + 'a'));\n        }\n        return result.toString();\n    }\n\n    static String decrypt(String text, int shift) {\n        StringBuilder result = new StringBuilder();\n        for (char letter : text.toCharArray()) {\n            result.append((char) ((letter - 'a' - shift) % 26 + 'a'));\n        }\n        return result.toString();\n    }\n\n    public static void main(String[] args) {\n        System.out.println(decrypt(encrypt(\"hello\", 3), 3));\n    }\n}\n",
+        "CaesarBelowZero.encrypt: Called with \"abc\" and 25, `CaesarBelowZero.encrypt` gave back \"zab\", and given that and 25, `CaesarBelowZero.decrypt` gave back \"aHI\" - not \"abc\", what `CaesarBelowZero.encrypt` was given.",
+        "2 algorithm-round-trip-wrong: `CaesarBelowZero.encrypt` and `CaesarBelowZero.decrypt` do not undo each other | Called with \"abc\" and 25, `CaesarBelowZero.encrypt` gave back \"zab\", and given that and 25, `CaesarBelowZero.decrypt` gave back \"aHI\" - not \"abc\", what `CaesarBelowZero.encrypt` was given.")]
+    public async Task APairNamedToUndoEachOtherIsHeldToIt(string fileName, string code, string tried, string? found)
+    {
+        if (await TriedAsync(fileName, code) is not { } outcome) return;
+
+        Assert.Equal([tried], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal(found is null ? [] : [found], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
 
     /// <summary>A check of a Python program carries the trial on its recognition, and the sort that went wrong as a finding seen when it ran.</summary>

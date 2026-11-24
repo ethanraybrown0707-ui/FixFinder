@@ -16,7 +16,9 @@ namespace FixFinder.Core.Logic;
 /// the list gone through is not named for the item at all, and an earlier loop over the same list says why: it named its
 /// items for that list - the loop this one was copied from - or it filled the list the item's name says, as QuixBugs'
 /// BUCKETSORT fills counts while going through arr and then goes through arr again for each count. A name matching a list
-/// alone is not enough: over FixFinder's own code it matched more than forty loops that go through the list they mean.
+/// alone is not enough: over FixFinder's own code it matched more than forty loops that go through the list they mean. Nor
+/// is a loop that fills the list its items are named for - letters.append(...) for each letter of text - going through
+/// the wrong one: it is building that list, as a cipher's encrypt and decrypt each build their own letters.
 /// </remarks>
 public static partial class WrongCollectionPatterns
 {
@@ -76,6 +78,10 @@ public static partial class WrongCollectionPatterns
             var meant = Plurals(item).FirstOrDefault(plural => plural != items.Value && masked.Where((_, other) => other != line).Any(text => Names(text, plural)));
             if (meant is null || Plurals(SingularOf(items.Value)).Contains(item)) continue;
 
+            // A loop that fills that list - letters.append(...) for each letter of text - is building it from the list it goes
+            // through, which is the one it means: going through the list it fills would change it while it is gone through.
+            if (Enumerable.Range(line + 1, BodyEnd(masked, line) - line - 1).Any(body => Fills(masked[body], meant))) continue;
+
             // And why it was meant, from an earlier loop over the same list: one that named its items for the list - the loop this
             // one was copied from - or one that filled the list the item's name says, counts from arr.
             var earlier = EarlierLoops(masked, line, loop).Where(each => each.Items == items.Value).ToList();
@@ -108,15 +114,36 @@ public static partial class WrongCollectionPatterns
         {
             if (loop.Match(masked[header]) is not { Success: true } going) continue;
 
-            // Its body, by indentation: what is further in than its first line - after a { on a line of its own, as C# writes it.
-            var indent = CodeText.Indentation(masked[header]).Length;
-            var end = header + 1;
-            if (end < masked.Count && masked[end].Trim() == "{" && CodeText.Indentation(masked[end]).Length == indent) end++;
-            while (end < masked.Count && (masked[end].Trim().Length == 0 || CodeText.Indentation(masked[end]).Length > indent)) end++;
+            var end = BodyEnd(masked, header);
             if (end > before) continue;
 
             yield return new EarlierLoop(header, end, going.Groups["item"].Value, going.Groups["items"].Value);
         }
+    }
+
+    /// <summary>
+    /// Where a loop's body ends, by indentation: the first line after it that is no further in than its first line - after
+    /// a { on a line of its own, as C# writes it.
+    /// </summary>
+    private static int BodyEnd(IReadOnlyList<string> masked, int header)
+    {
+        var indent = CodeText.Indentation(masked[header]).Length;
+        var end = header + 1;
+        if (end < masked.Count && masked[end].Trim() == "{" && CodeText.Indentation(masked[end]).Length == indent) end++;
+        while (end < masked.Count && (masked[end].Trim().Length == 0 || CodeText.Indentation(masked[end]).Length > indent)) end++;
+        return end;
+    }
+
+    /// <summary>
+    /// Whether the line puts something into the list: letters.append(x), .push, .add, .insert and their like, letters[i] = x,
+    /// letters += x, letters &lt;&lt; x, Go's letters = append(letters, x), Lua's table.insert(letters, x) and Perl's push @letters.
+    /// </summary>
+    private static bool Fills(string masked, string name)
+    {
+        var list = $@"(?<![\w.$@])[$@]?{Regex.Escape(name)}(?!\w)";
+        return Regex.IsMatch(masked, list + @"\s*(?:\.(?:append|extend|insert|push|push_back|emplace_back|add|addAll|Add|AddRange|Insert|unshift)\s*\(|\[[^\]]*\]\s*=(?!=)|\+=|<<)") ||
+               Regex.IsMatch(masked, list + $@"\s*=\s*append\s*\(\s*{Regex.Escape(name)}(?!\w)") ||
+               Regex.IsMatch(masked, $@"\b(?:table\.insert|push|unshift)\s*\(?\s*[$@]?{Regex.Escape(name)}(?!\w)");
     }
 
     /// <summary>What a list of the item is called: height's heights, class's classes, city's cities.</summary>

@@ -112,7 +112,9 @@ public static partial class AlgorithmTrial
     /// <param name="Number">What a prime test is given: a number on its own, with no list.</param>
     /// <param name="Other">What a merge is given beside the list: a second list, to merge with the first.</param>
     /// <param name="Text">What a palindrome test is given: a word, with no list.</param>
-    private sealed record Trial(int[] List, int? Sought, int? Number = null, int[]? Other = null, string? Text = null);
+    /// <param name="KeyNumber">The key one of a pair that undo each other is given beside its word, when it is a number - a cipher's shift.</param>
+    /// <param name="KeyText">The key one of a pair that undo each other is given beside its word, when it is a word.</param>
+    private sealed record Trial(int[] List, int? Sought, int? Number = null, int[]? Other = null, string? Text = null, int? KeyNumber = null, string? KeyText = null);
 
     /// <summary>
     /// The numbers a prime test is called with: every one from 0 to 30, so 0, 1, 2, squares and primes are all among
@@ -145,7 +147,9 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static readonly (int First, int Second)[] PairsTried = [(12, 18), (18, 12), (7, 5), (21, 14), (9, 9), (1, 8), (100, 75), (17, 34), (5, 0), (0, 5)];
 
-    private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error);
+    /// <param name="Between">For a pair that undo each other, what the first gave back, which the second was given.</param>
+    /// <param name="Stage">For a pair that undo each other, which of the two the call had reached: doing or undoing.</param>
+    private sealed record Result(Trial Trial, JsonElement? Returned, JsonElement? After, string? Error, JsonElement? Between = null, string? Stage = null);
 
     /// <param name="runtime">What runs the program: the Python of a Python program, the Node of a JavaScript one, the
     /// javac of a Java one.</param>
@@ -160,6 +164,18 @@ public static partial class AlgorithmTrial
         for (var index = 0; index < seen.Count && tried < MostTried; index++)
         {
             var recognition = seen[index];
+            if (recognition.IsUndoingPair)
+            {
+                if (PairToTurnBack(recognition, program) is not { } pair) continue;
+                tried++;
+
+                var (pairSaid, pairBroken) = await TurnedBackAsync(recognition, pair, program, runtime, java, cancellationToken);
+                if (pairSaid is null) continue;
+                seen[index] = recognition with { Tried = pairSaid };
+                if (pairBroken is not null) findings.Add(FindingFor(recognition, pairBroken));
+                continue;
+            }
+
             if (Roles(recognition, program) is not { } roles) continue;
             tried++;
 
@@ -717,7 +733,8 @@ public static partial class AlgorithmTrial
             : recognition.IsFibonacci ? "algorithm-fibonacci-wrong"
             : recognition.IsMerge ? "algorithm-merge-wrong"
             : recognition.IsInOrderTest ? "algorithm-in-order-wrong"
-            : recognition.IsPalindromeTest ? "algorithm-palindrome-wrong" : "algorithm-search-wrong";
+            : recognition.IsPalindromeTest ? "algorithm-palindrome-wrong"
+            : recognition.IsUndoingPair ? "algorithm-round-trip-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -737,6 +754,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsMerge ? $"`{recognition.Function}` does not merge every pair of lists"
                 : recognition.IsInOrderTest ? $"`{recognition.Function}` does not say rightly which lists are in order"
                 : recognition.IsPalindromeTest ? $"`{recognition.Function}` does not say rightly which words are palindromes"
+                : recognition.IsUndoingPair ? $"`{recognition.Function}` and `{recognition.UndoneBy}` do not undo each other"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
@@ -753,22 +771,29 @@ public static partial class AlgorithmTrial
     /// the call, or what stopped it. Null when the run gave no answer for every trial - one still going, or Python not
     /// reading the file.
     /// </summary>
-    private static async Task<IReadOnlyList<Result>?> RunPythonAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
-        string python, CancellationToken cancellationToken)
+    private static Task<IReadOnlyList<Result>?> RunPythonAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
+        string python, CancellationToken cancellationToken) =>
+        RunPythonScriptAsync(recognition.File, Script, [recognition.Function], Plan(roles, trials), trials, python, cancellationToken);
+
+    /// <summary>
+    /// A Python trial script run on a file, given the names of the functions it calls and the plan of what to call them
+    /// with, and what it printed for each trial.
+    /// </summary>
+    private static async Task<IReadOnlyList<Result>?> RunPythonScriptAsync(string file, string script, IReadOnlyList<string> functionNames, string plan,
+        IReadOnlyList<Trial> trials, string python, CancellationToken cancellationToken)
     {
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
         try
         {
             Directory.CreateDirectory(folder);
-            var plan = Plan(roles, trials);
             await File.WriteAllTextAsync(Path.Combine(folder, PlanFile), plan, new UTF8Encoding(false), cancellationToken);
-            await File.WriteAllTextAsync(Path.Combine(folder, TrialFile), Script, new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(folder, TrialFile), script, new UTF8Encoding(false), cancellationToken);
 
             var ran = await new TargetRunner().RunAsync(new TargetSpec
             {
                 ExecutablePath = python,
-                Arguments = $"-X utf8 \"{Path.Combine(folder, TrialFile)}\" \"{recognition.File}\" {recognition.Function} \"{Path.Combine(folder, PlanFile)}\"",
-                WorkingDirectory = Path.GetDirectoryName(recognition.File)!,
+                Arguments = $"-X utf8 \"{Path.Combine(folder, TrialFile)}\" \"{file}\" {string.Join(" ", functionNames)} \"{Path.Combine(folder, PlanFile)}\"",
+                WorkingDirectory = Path.GetDirectoryName(file)!,
                 Timeout = RunTimeout,
                 StandardInput = "",
             }, cancellationToken);
@@ -790,10 +815,18 @@ public static partial class AlgorithmTrial
     /// definitions, compiled by Node under the program's own name: what it gave back, the list after the call, or what
     /// it threw. Null when the file cannot be copied so - an ES module - or the run gave no answer for every trial.
     /// </summary>
-    private static async Task<IReadOnlyList<Result>?> RunJavaScriptAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
+    private static Task<IReadOnlyList<Result>?> RunJavaScriptAsync(AlgorithmSeen recognition, List<(string Name, string? Role)> roles, IReadOnlyList<Trial> trials,
+        IrProgram program, string node, CancellationToken cancellationToken) =>
+        RunJavaScriptCopyAsync(recognition.File, JavaScriptTrials(recognition.Function, Plan(roles, trials)), trials, program, node, cancellationToken);
+
+    /// <summary>
+    /// A copy of a JavaScript file's definitions alone with the trial's calls at its end, compiled by Node under the
+    /// program's own name, and what it printed for each trial; null for a file that cannot be copied so - an ES module.
+    /// </summary>
+    private static async Task<IReadOnlyList<Result>?> RunJavaScriptCopyAsync(string chosenFile, string calls, IReadOnlyList<Trial> trials,
         IrProgram program, string node, CancellationToken cancellationToken)
     {
-        var file = Path.GetFullPath(recognition.File);
+        var file = Path.GetFullPath(chosenFile);
         if (await JavaScriptConfirmation.DefinitionsOfAsync(file, program, cancellationToken) is not { } kept) return null;
 
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
@@ -801,7 +834,7 @@ public static partial class AlgorithmTrial
         {
             Directory.CreateDirectory(folder);
             var copy = Path.Combine(folder, CopyFile);
-            await File.WriteAllTextAsync(copy, string.Join("\n", kept) + "\n" + JavaScriptTrials(recognition.Function, Plan(roles, trials)), new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllTextAsync(copy, string.Join("\n", kept) + "\n" + calls, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(folder, LoaderFile), JavaScriptConfirmation.Loader, new UTF8Encoding(false), cancellationToken);
 
             var ran = await new TargetRunner().RunAsync(new TargetSpec
@@ -825,17 +858,21 @@ public static partial class AlgorithmTrial
         }
     }
 
+    private static IrFunction? TopLevelFunction(AlgorithmSeen recognition, IrProgram program) => TopLevelFunction(recognition.Function, recognition.File, program);
+
+    private static IrFunction? JavaMethod(AlgorithmSeen recognition, IrProgram program) => JavaMethod(recognition.Function, recognition.File, program);
+
     /// <summary>A Python or JavaScript function declared at the top of its file, by the name it is called.</summary>
-    private static IrFunction? TopLevelFunction(AlgorithmSeen recognition, IrProgram program) =>
-        Identifier().IsMatch(recognition.Function)
-            ? program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each.Owner is null && each.EnclosedBy is null or IrFunction.ModuleBody &&
-                                                          string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase))
+    private static IrFunction? TopLevelFunction(string name, string file, IrProgram program) =>
+        Identifier().IsMatch(name)
+            ? program.AllFunctions.FirstOrDefault(each => each.FullName == name && each.Owner is null && each.EnclosedBy is null or IrFunction.ModuleBody &&
+                                                          string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase))
             : null;
 
     /// <summary>A static method of a Java class, by its class and name: Search.find.</summary>
-    private static IrFunction? JavaMethod(AlgorithmSeen recognition, IrProgram program) =>
-        program.AllFunctions.FirstOrDefault(each => each.FullName == recognition.Function && each is { IsStatic: true, Owner: not null } &&
-                                                    string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(recognition.File), StringComparison.OrdinalIgnoreCase));
+    private static IrFunction? JavaMethod(string name, string file, IrProgram program) =>
+        program.AllFunctions.FirstOrDefault(each => each.FullName == name && each is { IsStatic: true, Owner: not null } &&
+                                                    string.Equals(Path.GetFullPath(each.Span.File), Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// The class a Java parameter is found by, for its part: int[], List&lt;Integer&gt; or ArrayList&lt;Integer&gt; for
@@ -856,19 +893,27 @@ public static partial class AlgorithmTrial
     /// it gave back, the array after the call, or what it threw. Null when the copy does not compile on its own, or the
     /// run gave no answer for every trial.
     /// </summary>
-    private static async Task<IReadOnlyList<Result>?> RunJavaAsync(AlgorithmSeen recognition, IrFunction method, List<(string Name, string? Role)> roles,
+    private static Task<IReadOnlyList<Result>?> RunJavaAsync(AlgorithmSeen recognition, IrFunction method, List<(string Name, string? Role)> roles,
+        IReadOnlyList<Trial> trials, string javac, string java, CancellationToken cancellationToken) =>
+        RunJavaTrialClassAsync(recognition.File, method.Owner!, owner => JavaTrials(owner, method, roles, trials), trials, javac, java, cancellationToken);
+
+    /// <summary>
+    /// A small class that calls a file's methods, compiled beside a copy of the file and run, and what it printed for each
+    /// trial. The class is written for the owner's name as Java loads it - its package and its nesting - by trialClassFor.
+    /// </summary>
+    private static async Task<IReadOnlyList<Result>?> RunJavaTrialClassAsync(string file, string methodsOwner, Func<string, string> trialClassFor,
         IReadOnlyList<Trial> trials, string javac, string java, CancellationToken cancellationToken)
     {
         var folder = Path.Combine(Path.GetTempPath(), "FixFinder-trial", Guid.NewGuid().ToString("N")[..12]);
         try
         {
             Directory.CreateDirectory(folder);
-            var copy = Path.Combine(folder, Path.GetFileName(recognition.File));
-            File.Copy(recognition.File, copy);
+            var copy = Path.Combine(folder, Path.GetFileName(file));
+            File.Copy(file, copy);
             var source = await File.ReadAllTextAsync(copy, cancellationToken);
-            var owner = (JavaPackage().Match(source) is { Success: true } package ? package.Groups["name"].Value + "." : "") + method.Owner!.Replace('.', '$');
+            var owner = (JavaPackage().Match(source) is { Success: true } package ? package.Groups["name"].Value + "." : "") + methodsOwner.Replace('.', '$');
             var trialClass = Path.Combine(folder, JavaTrialClass + ".java");
-            await File.WriteAllTextAsync(trialClass, JavaTrials(owner, method, roles, trials), new UTF8Encoding(false), cancellationToken);
+            await File.WriteAllTextAsync(trialClass, trialClassFor(owner), new UTF8Encoding(false), cancellationToken);
 
             var classes = Path.Combine(folder, "classes");
             await new TargetRunner().RunAsync(new TargetSpec
@@ -884,7 +929,7 @@ public static partial class AlgorithmTrial
             {
                 ExecutablePath = java,
                 Arguments = $"-cp \"{classes}\" {JavaTrialClass}",
-                WorkingDirectory = Path.GetDirectoryName(recognition.File) ?? folder,
+                WorkingDirectory = Path.GetDirectoryName(file) ?? folder,
                 Timeout = RunTimeout,
                 StandardInput = "",
             }, cancellationToken);
@@ -900,6 +945,49 @@ public static partial class AlgorithmTrial
             try { Directory.Delete(folder, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
+
+    /// <summary>
+    /// What both Java trials' classes hold: quote(text) writes a string as JSON does, boxed(items) makes an ArrayList of an
+    /// int[], and plain(value) writes what a method gave back as JSON can hold it.
+    /// </summary>
+    private const string JavaTrialHelpers = """
+        static String quote(String text) {
+            StringBuilder written = new StringBuilder("\"");
+            for (char each : text.toCharArray()) {
+                if (each == '"' || each == '\\') written.append('\\');
+                if (each >= ' ') written.append(each);
+            }
+            return written.append('"').toString();
+        }
+
+        static java.util.ArrayList<Integer> boxed(int[] items) {
+            java.util.ArrayList<Integer> list = new java.util.ArrayList<Integer>();
+            for (int item : items) list.add(item);
+            return list;
+        }
+
+        static String plain(Object value) {
+            if (value == null) return "null";
+            if (value instanceof java.util.Collection) {
+                StringBuilder written = new StringBuilder("[");
+                boolean first = true;
+                for (Object item : (java.util.Collection<?>) value) {
+                    written.append(first ? "" : ",").append(plain(item));
+                    first = false;
+                }
+                return written.append("]").toString();
+            }
+            if (value instanceof Boolean || value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) return value.toString();
+            if (value instanceof int[]) {
+                StringBuilder written = new StringBuilder("[");
+                int[] items = (int[]) value;
+                for (int index = 0; index < items.length; index++) written.append(index == 0 ? "" : ",").append(items[index]);
+                return written.append("]").toString();
+            }
+            if (value instanceof String) return quote((String) value);
+            return "{\"repr\":" + quote(String.valueOf(value)) + "}";
+        }
+        """;
 
     /// <summary>
     /// The small class that calls a Java method on each trial: found by reflection by its parameters' classes and made
@@ -933,42 +1021,7 @@ public static partial class AlgorithmTrial
         var others = string.Join(", ", trials.Select(trial => "{" + string.Join(", ", trial.Other ?? []) + "}"));
         return $$"""
             public class {{JavaTrialClass}} {
-                static String quote(String text) {
-                    StringBuilder written = new StringBuilder("\"");
-                    for (char each : text.toCharArray()) {
-                        if (each == '"' || each == '\\') written.append('\\');
-                        if (each >= ' ') written.append(each);
-                    }
-                    return written.append('"').toString();
-                }
-
-                static java.util.ArrayList<Integer> boxed(int[] items) {
-                    java.util.ArrayList<Integer> list = new java.util.ArrayList<Integer>();
-                    for (int item : items) list.add(item);
-                    return list;
-                }
-
-                static String plain(Object value) {
-                    if (value == null) return "null";
-                    if (value instanceof java.util.Collection) {
-                        StringBuilder written = new StringBuilder("[");
-                        boolean first = true;
-                        for (Object item : (java.util.Collection<?>) value) {
-                            written.append(first ? "" : ",").append(plain(item));
-                            first = false;
-                        }
-                        return written.append("]").toString();
-                    }
-                    if (value instanceof Boolean || value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) return value.toString();
-                    if (value instanceof int[]) {
-                        StringBuilder written = new StringBuilder("[");
-                        int[] items = (int[]) value;
-                        for (int index = 0; index < items.length; index++) written.append(index == 0 ? "" : ",").append(items[index]);
-                        return written.append("]").toString();
-                    }
-                    if (value instanceof String) return quote((String) value);
-                    return "{\"repr\":" + quote(String.valueOf(value)) + "}";
-                }
+                {{JavaTrialHelpers}}
 
                 public static void main(String[] args) throws Exception {
                     Class<?> owner = Class.forName("{{owner}}");
@@ -1035,7 +1088,9 @@ public static partial class AlgorithmTrial
             results.Add(new Result(trial,
                 root.TryGetProperty("returned", out var returned) ? returned.Clone() : null,
                 root.TryGetProperty("after", out var after) ? after.Clone() : null,
-                root.TryGetProperty("error", out var error) ? error.GetString() : null));
+                root.TryGetProperty("error", out var error) ? error.GetString() : null,
+                root.TryGetProperty("between", out var between) ? between.Clone() : null,
+                root.TryGetProperty("stage", out var stage) ? stage.GetString() : null));
         }
 
         return results.Count == trials.Count ? results : null;
@@ -1085,11 +1140,7 @@ public static partial class AlgorithmTrial
     private static string JavaScriptTrials(string function, string plan) => $$"""
         ;(function () {
             const fixfinderPlan = {{plan}};
-            const fixfinderPlain = (value, depth) =>
-                value === undefined || value === null || (typeof value === "number" && !Number.isFinite(value)) ? null
-                : typeof value === "number" || typeof value === "boolean" || typeof value === "string" ? value
-                : Array.isArray(value) && depth < 3 ? value.map(item => fixfinderPlain(item, depth + 1))
-                : { repr: String(value).slice(0, 80) };
+            {{JavaScriptPlain}}
             fixfinderPlan.trials.forEach((trial, index) => {
                 const list = trial.list.slice();
                 const given = fixfinderPlan.parameters.map(role =>
@@ -1108,6 +1159,18 @@ public static partial class AlgorithmTrial
         })();
         """;
 
+    /// <summary>
+    /// What both JavaScript trials write a value with, as JSON can hold it: undefined, null and a number that is not
+    /// finite as null, a list's items a level at a time, and anything else as the text it is shown as.
+    /// </summary>
+    private const string JavaScriptPlain = """
+        const fixfinderPlain = (value, depth) =>
+            value === undefined || value === null || (typeof value === "number" && !Number.isFinite(value)) ? null
+            : typeof value === "number" || typeof value === "boolean" || typeof value === "string" ? value
+            : Array.isArray(value) && depth < 3 ? value.map(item => fixfinderPlain(item, depth + 1))
+            : { repr: String(value).slice(0, 80) };
+        """;
+
     [GeneratedRegex(@"^[A-Za-z_$][\w$]*$")]
     private static partial Regex Identifier();
 
@@ -1115,16 +1178,12 @@ public static partial class AlgorithmTrial
     private static partial Regex JavaPackage();
 
     /// <summary>
-    /// Calls the function once for each trial, from the file's definitions alone - its functions, classes, imports and
-    /// constants - and prints, for each, what it gave back, the list after the call, or what stopped it. A call still
-    /// going after 2 seconds is said, and the trials end there.
+    /// What both Python trials begin with: definitions(target) runs a file's definitions alone - its functions, classes,
+    /// imports and constants - and gives back what they define; plain(value) writes a value as JSON can hold it; and
+    /// say(outcome) prints what one call did, a line of its own.
     /// </summary>
-    private const string Script = """
+    private const string PythonTrialHelpers = """
         import ast, json, os, sys, threading
-
-        target, name, plan_file = sys.argv[1], sys.argv[2], sys.argv[3]
-        with open(plan_file, encoding="utf-8") as given:
-            plan = json.load(given)
 
         def kept(node):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)):
@@ -1148,13 +1207,26 @@ public static partial class AlgorithmTrial
             sys.stdout.write("FIXFINDER-TRIAL " + json.dumps(outcome) + "\n")
             sys.stdout.flush()
 
-        sys.path.insert(0, os.path.dirname(os.path.abspath(target)))
-        with open(target, encoding="utf-8") as source:
-            tree = ast.parse(source.read(), target)
-        tree.body = [node for node in tree.body if kept(node)]
-        space = {"__name__": "fixfinder_trial", "__file__": target}
-        exec(compile(tree, target, "exec"), space)
-        function = space[name]
+        def definitions(target):
+            sys.path.insert(0, os.path.dirname(os.path.abspath(target)))
+            with open(target, encoding="utf-8") as source:
+                tree = ast.parse(source.read(), target)
+            tree.body = [node for node in tree.body if kept(node)]
+            space = {"__name__": "fixfinder_trial", "__file__": target}
+            exec(compile(tree, target, "exec"), space)
+            return space
+        """;
+
+    /// <summary>
+    /// Calls the function once for each trial, from the file's definitions alone, and prints, for each, what it gave back,
+    /// the list after the call, or what stopped it. A call still going after 2 seconds is said, and the trials end there.
+    /// </summary>
+    private const string Script = PythonTrialHelpers + "\n\n" + """
+        target, name, plan_file = sys.argv[1], sys.argv[2], sys.argv[3]
+        with open(plan_file, encoding="utf-8") as given:
+            plan = json.load(given)
+
+        function = definitions(target)[name]
         list_parameter = next((parameter for parameter, role in plan["roles"].items() if role == "list"), None)
 
         for index, trial in enumerate(plan["trials"]):

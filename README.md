@@ -180,6 +180,23 @@ have in common, the larger of each pair, two lists zipped together, a test for a
 position of the first drop, a test of the gaps between items, a word compared with another backwards, a count of the
 pairs in a word that differ, a test that every letter is the same as the next - is recognised as nothing.
 
+**Pairs that undo each other** are said there too: two functions in the same file, and in the same class or both outside
+any, whose names are written there once and start with as many underscores, named for one thing and its undoing -
+`encrypt` and `decrypt`, `encode` and `decode`, `encipher` and `decipher`, `compress` and `decompress`, `serialize` and
+`deserialize`, `pack` and `unpack`, `escape` and `unescape`, `to_roman` and `from_roman`, or `int_to_roman` and
+`roman_to_int` - read from their names, not their code. In a Python or JavaScript program each pair is tried as well,
+from a copy of its file's definitions alone, and in a Java program a pair of static methods of one class taking and
+giving back an `int` or a `String`: the first is called with 9 words of FixFinder's own - lower-case letters alone, from
+one letter to the whole alphabet, one of them a letter twelve times over - each with the key 3 and then 25, or with the
+word key, when both take a key by the same name, or else with the words and then 10 numbers from 1 to 3999; and the
+second is called with what the first gave back, and has to give back what the first was given. A kind of input on which
+at least three came back, and none came back wrong, is the kind the pair is written for, and nothing is found; only when
+no kind came back right is the first input that came back wrong a finding, certain as it was seen: *Called with 'a' and
+3, `encrypt` gave back 'd', and given that and 3, `decrypt` gave back 'g' - not 'a', what `encrypt` was given.* An input
+the first stops on, or gives back nothing for - or anything but a word, a number or a list of them, as a pair written
+for objects or bytes does - is passed over, as is an answer of that kind, or one that differs only in its letters' case,
+and a pair named each for turning one thing into the other is tried either way round.
+
 **How the files use each other**, under the notes as well, is for a Python, JavaScript or TypeScript program of more
 than one file: a line for each of its own files that uses others of them - *`main.py` uses `grades.py`,
 `stats/__init__.py` and `stats/average.py`* - each named from the folder of the file checked. A file uses another when it
@@ -1004,21 +1021,21 @@ package of that name, which would be somebody else's code.
 A Python program's **imports that go round in a circle** are played out from the file that is run, as Python runs them,
 before the program is: Python's own parser lists what each of the program's files does at its top - each import, and
 each name a line there defines - and FixFinder follows those in order, starting each module the first time it is
-imported and the file that is run again, as a module of its own, when a module imports it by its own name. Where a `from
-... import` asks a module that is still part way through for a name it defines further down, the program stops with
-ImportError, and the finding says where and why, with each import on the way: *shop.py line 1 imports prices; prices.py
-line 1 imports shop, which starts shop.py again from its top as a module of its own, since shop.py is the file being
-run; and shop.py line 1 asks prices for price_with_tax, which prices.py has not reached yet*. It says how to break the
-circle - what both modules need, in a module of its own that imports neither. Python 3.13 says only that it cannot
+imported and the file that is run again, as a module of its own, when a module imports it by its own name. Where a
+`from ... import` asks a module that is still part way through for a name it defines further down, the program stops
+with ImportError, and the finding says where and why, with each import on the way: *shop.py line 1 imports prices;
+prices.py line 1 imports shop, which starts shop.py again from its top as a module of its own, since shop.py is the file
+being run; and shop.py line 1 asks prices for price_with_tax, which prices.py has not reached yet*. It says how to break
+the circle - what both modules need, in a module of its own that imports neither. Python 3.13 says only that it cannot
 import the name, and suggested renaming `prices.py` as though it had the name of a library; in a package it said the
 module was partially initialized, most likely due to a circular import, and both crashes are the same finding as the one
 worked out, certain once the run stops there. Nothing is said of a circle that works - a name defined before the import
-that starts it, an `import` whose names are only used inside functions, or a run guarded by `if __name__ == "__main__":`
-- nor of a name no line defines, which is a mistake of another kind. A block whose running depends on values, such as an
-`if`, is not followed into, and every name it could define counts as defined. A circle of plain `import`s, whose
-module's names are then used at the top of another before it has them - AttributeError - is not looked for. Played out
-from each of the 152 files at the top of Python 3.13's own library, whose 1,093 modules hold 12 circles of imports, all
-of which work, it found nothing.
+that starts it, an `import` whose names are only used inside functions, or a run guarded by `if __name__ ==
+"__main__":` - nor of a name no line defines, which is a mistake of another kind. A block whose running depends on
+values, such as an `if`, is not followed into, and every name it could define counts as defined. A circle of plain
+`import`s, whose module's names are then used at the top of another before it has them - AttributeError - is not looked
+for. Played out from each of the 152 files at the top of Python 3.13's own library, whose 1,093 modules hold 12 circles
+of imports, all of which work, it found nothing.
 
 A CommonJS JavaScript program's **requires that go round in a circle** are played out the same way, as Node runs them,
 over the top level of each of its own files as FixFinder's own reader reads it - each `require` and what is kept of it,
@@ -1896,17 +1913,17 @@ it an if of the flag or of not the flag - `unless found`, `if (-not $found)`, `i
 arguments let a call set it - leaves it alone. Elixir and Erlang do not let a loop change a variable outside it.
 
 **A count left out of step** is a class keeping a list and a number saying how many it holds, where one method changes
-both - `push` puts an item in and adds 1 - and another changes only one: `pop` takes an item out and leaves the number as
-it was, so three pushes and a pop said 3 where 2 were left, in all fifteen of its languages here. Python, Java, C#,
+both - `push` puts an item in and adds 1 - and another changes only one: `pop` takes an item out and leaves the number
+as it was, so three pushes and a pop said 3 where 2 were left, in all fifteen of its languages here. Python, Java, C#,
 JavaScript, Go and C++ have it found by comparing what each method does to the object's fields - `append`, `push_back`,
 `Add`, `pop`, `RemoveAt`, Go's `append` and slicing - and TypeScript, Ruby, PHP, Lua, Perl, Dart, PowerShell, Scala and
 Rust by a logic check reading each method's lines in the language's own words: `@items << item`,
 `$this->items[] = $item`, `table.insert(self.items, item)`, `push @{ $self->{items} }, $item`, `$this.size++`. The two
-are kept together when one method adds an item and 1, or takes one out and 1, and the number's name has to say it counts
-- size, count, length, len, num, top or n - so a running total of pushes is not taken for one. A method calling another
-of the class's methods, which may keep the rule for it, a method giving either field a value of another kind - `size =
-len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir and
-Erlang have no check of it.
+are kept together when one method adds an item and 1, or takes one out and 1, and the number's name has to say it
+counts - size, count, length, len, num, top or n - so a running total of pushes is not taken for one. A method calling
+another of the class's methods, which may keep the rule for it, a method giving either field a value of another kind -
+`size = len(items)`, `items = []` - and a constructor are left alone. C has no classes, and F#, OCaml, Fortran, Elixir
+and Erlang have no check of it.
 
 **A yes-or-no function that always gives the same answer** is one named as a question - `is_prime`, `hasDuplicates`,
 `IsValidMark`, a name starting is, has, can, should, contains, was, are, does, needs, allows or matches - whose every
@@ -2384,9 +2401,10 @@ A check of a program does all of this, as far as its language allows - Python, J
    above counts each language's - over at most 200 of the program's files, and says which of a Python, JavaScript or
    TypeScript program's own files use which.
 4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
-   by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as;
-   for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
-   that go round in a circle and stop it, or leave a name undefined; and it finds functions written twice.
+   by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as,
+   and from their names which pairs of functions are meant to undo each other; for Python and CommonJS JavaScript, it
+   also plays out the program's imports from the file that is run, to find any that go round in a circle and stop it, or
+   leave a name undefined; and it finds functions written twice.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
    should print - are each made in a copy of the program, which is built and run again; a fix is marked as verified only
    when the copy no longer fails that way, and prints what it should when that was given. Up to 5 fixes have what they
@@ -2398,7 +2416,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    10 seconds each - a Java or C# one once it has built, and a sort, a reversal, a test of order, a search - for a
    value, or for the largest or smallest item - a prime test, a leap-year test, a factorial, a greatest common divisor,
    the Fibonacci numbers, a merge or a palindrome test recognised in a Python, JavaScript or Java program is called on
-   lists, numbers, years or words of FixFinder's own.
+   lists, numbers, years or words of FixFinder's own - and a pair named to undo each other is called one after the
+   other, on words or numbers of FixFinder's own.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript
