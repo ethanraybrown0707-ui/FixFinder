@@ -94,6 +94,9 @@ public partial class MainWindow : Window
     /// <summary>The algorithms the last check recognised in the code, for the saved report.</summary>
     private IReadOnlyList<Core.Analysis.Recognition.AlgorithmSeen> _recognised = [];
 
+    /// <summary>How the program's own files use each other, as the last check said it, for the saved report.</summary>
+    private IReadOnlyList<string> _fileMap = [];
+
     /// <summary>The files naming a project's libraries that a folder's check has already asked about, or restored, so each is done once.</summary>
     private readonly HashSet<string> _manifestsSeenInFolder = new(StringComparer.OrdinalIgnoreCase);
 
@@ -657,6 +660,8 @@ public partial class MainWindow : Window
         _tried = [];
         RecognisedExpander.Visibility = Visibility.Collapsed;
         _recognised = [];
+        FileMapExpander.Visibility = Visibility.Collapsed;
+        _fileMap = [];
         CopyReportButton.IsEnabled = false;
         SaveReportButton.IsEnabled = false;
         SinceLastPanel.Visibility = Visibility.Collapsed;
@@ -679,6 +684,14 @@ public partial class MainWindow : Window
         _recognised = recognised;
     }
 
+    /// <summary>Lists how the program's own files use each other, under the notes, closed until opened; hidden for a program of one file.</summary>
+    private void ShowFileMap(IReadOnlyList<string> fileMap)
+    {
+        FileMapList.ItemsSource = fileMap;
+        FileMapExpander.Visibility = fileMap.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _fileMap = fileMap;
+    }
+
     private void FinishReport(CheckReport report)
     {
         // Said first, as it bears on everything else: the code was checked with nothing of its program beside it.
@@ -694,6 +707,7 @@ public partial class MainWindow : Window
         TriedExpander.Visibility = report.Tried.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _tried = report.Tried;
         ShowRecognised(report.Recognised);
+        ShowFileMap(report.FileMap);
 
         // Compared before the findings are shown, so each is shown with where it stands against the last check.
         RememberThisCheck(report);
@@ -822,6 +836,7 @@ public partial class MainWindow : Window
             Notes = [.. _notes],
             Tried = _tried,
             Recognised = _recognised,
+            FileMap = _fileMap,
             Findings = [.. _findings.Select(row => row.Finding)],
             SinceLastCheck = _comparison,
             Recurring = _recurring,
@@ -1099,6 +1114,7 @@ public partial class MainWindow : Window
         TriedExpander.Visibility = Visibility.Collapsed;
         _tried = [];
         ShowRecognised(report.Recognised);
+        ShowFileMap(report.FileMap);
 
         // Only read, so it is not set beside a check that compiled and ran the program.
         _comparison = null;

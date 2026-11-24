@@ -38,6 +38,9 @@ public sealed record ReportPage
     /// <summary>The algorithms the program's functions have the shape of, with what makes them look so.</summary>
     public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
 
+    /// <summary>How the program's own files use each other, a line for each that uses others.</summary>
+    public IReadOnlyList<string> FileMap { get; init; } = [];
+
     public required IReadOnlyList<Finding> Findings { get; init; }
 
     /// <summary>This check beside the last check of the same program, when there was one.</summary>
@@ -122,6 +125,14 @@ public sealed record ReportPage
                 page.Append("</li>\n");
             }
 
+            page.Append("</ul>\n</section>\n");
+        }
+
+        if (FileMap.Count > 0)
+        {
+            page.Append("<section class=\"files\">\n<h2>How the files use each other</h2>\n")
+                .Append("<p class=\"intro\">Each of the program's own files that uses others of them, named from the folder of the file checked.</p>\n<ul>\n");
+            foreach (var uses in FileMap) page.Append("<li>").Append(Prose(uses)).Append("</li>\n");
             page.Append("</ul>\n</section>\n");
         }
 

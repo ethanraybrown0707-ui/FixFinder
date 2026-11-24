@@ -1094,6 +1094,20 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </Expander>
+
+                <!-- How the program's own files use each other, for a program of more than one: closed until opened. -->
+                <Expander x:Name="FileMapExpander" AutomationProperties.AutomationId="FileMapExpander" IsExpanded="False" Visibility="Collapsed"
+                          Margin="0,0,0,10" Foreground="{DynamicResource SecondaryTextBrush}"
+                          Header="How the files use each other">
+                    <ItemsControl x:Name="FileMapList" AutomationProperties.AutomationId="FileMapList" Margin="0,6,0,0" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock desktop:InlineCode.Text="{Binding}" FontSize="12.5" Margin="0,0,0,4" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextBrush}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
                 </StackPanel>
 
                 <Grid Grid.Row="4">

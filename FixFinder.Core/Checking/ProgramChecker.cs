@@ -35,6 +35,12 @@ public sealed record CheckReport(
 
     /// <summary>The algorithms the program's functions have the shape of - a binary search, a bubble sort - with what makes them look so.</summary>
     public IReadOnlyList<Analysis.Recognition.AlgorithmSeen> Recognised { get; init; } = [];
+
+    /// <summary>
+    /// How the program's own files use each other, a line for each that uses others - `main.py` uses `grades.py` - for a
+    /// Python, JavaScript or TypeScript program of more than one file; nothing otherwise.
+    /// </summary>
+    public IReadOnlyList<string> FileMap { get; init; } = [];
 }
 
 /// <summary>Checks a program's syntax and its logic at the same time, and reports every mistake found with how sure it is and how
@@ -90,6 +96,9 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
     private IReadOnlyList<Analysis.Dynamic.InputTried> _tried = [];
     private IReadOnlyList<Analysis.Recognition.AlgorithmSeen> _recognised = [];
 
+    /// <summary>How the program's own files use each other, in words, read when its files are found.</summary>
+    private IReadOnlyList<string> _fileMap = [];
+
     /// <summary>Whether the program built, once the syntax lane knows: true when it did, false when it did not or was not built.</summary>
     private Task<bool> _built = Task.FromResult(false);
 
@@ -122,6 +131,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
+        _fileMap = found is not null && launch.ChosenFile is { } mapped ? ProgramFiles.UsesSaid(ProgramFiles.Uses(found), mapped) : [];
         _programFiles = files;
         var builds = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _built = builds.Task;
@@ -181,7 +191,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised };
+            return new CheckReport(Sorted(_findings), [.. _notes], syntaxSummary, logicSummary, AsPrinted(run)) { Tried = _tried, Recognised = _recognised, FileMap = _fileMap };
         }
     }
 
@@ -1984,6 +1994,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
         using var programsJdk = UseTheProgramsJdk(launch);
         var found = launch.ChosenFile is { } chosen ? ProgramFiles.Read(chosen) : null;
         var files = found?.Files ?? [];
+        _fileMap = found is not null && launch.ChosenFile is { } mapped ? ProgramFiles.UsesSaid(ProgramFiles.Uses(found), mapped) : [];
         _launch = launch;
         _cancellation = cancellationToken;
         _codeOnly = true;
@@ -2011,7 +2022,7 @@ public sealed partial class ProgramChecker(FixFinderHttpClient http, FixSourceRe
             if (_reusedFunctions > 0)
                 logicSummary += $" - {_reusedFunctions} of {_reusedFunctions + _analysedFunctions} functions unchanged since the last check";
 
-            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised };
+            return new CheckReport(Sorted(_findings), [.. _notes], "Not compiled or run - read as it was saved", logicSummary, null) { Recognised = _recognised, FileMap = _fileMap };
         }
     }
 

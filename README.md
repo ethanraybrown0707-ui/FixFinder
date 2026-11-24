@@ -173,6 +173,17 @@ down by remainders alone, a sum of digits, a running total, a number doubled, a 
 have in common, the larger of each pair, two lists zipped together, a test for an item the same as the next, the
 position of the first drop, a test of the gaps between items - is recognised as nothing.
 
+**How the files use each other**, under the notes as well, is for a Python, JavaScript or TypeScript program of more
+than one file: a line for each of its own files that uses others of them - *`main.py` uses `grades.py`,
+`stats/__init__.py` and `stats/average.py`* - each named from the folder of the file checked. A file uses another when it
+names it in an import or a require that is code: `import grades`, or one inside a function, run when the function is
+called; `from stats import average`, which names the package's `__init__.py` and its module `average.py` both, as
+Python runs the one to load the other; `require("./grades")`; or `import { mean } from "./stats.ts"`. One in a comment,
+a docstring or text the program prints is not code, and is left out. Only the files the logic checks read are in it - at
+most 200 - and a library the program gets from pip or npm is none of its own files. It is closed until opened, and in a
+saved report and on the command line, as `uses:` lines, too. A program of one file, one none of whose files uses
+another, and a program in any other language have none.
+
 Pasted code is saved exactly as pasted, as a file of its own in a folder of its own in the temp folder - a Java class as
 the file of its name, under the folders of its `package` - and checked like any program, so the lines the report names are
 the pasted lines. It is checked on its own: another file of its program that it imports, or a file it reads, is not there
@@ -2363,7 +2374,8 @@ A check of a program does all of this, as far as its language allows - Python, J
 2. **Works out a fix** for each of the first 12 errors and 20 warnings, from 547 fix rules across the languages; an error
    past the twelfth is listed without one.
 3. **Reads the code for logic mistakes** with 1,223 logic checks, each written for one language or several - the table
-   above counts each language's - over at most 200 of the program's files.
+   above counts each language's - over at most 200 of the program's files, and says which of a Python, JavaScript or
+   TypeScript program's own files use which.
 4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
    by its own language's parser, and recognises from the same reading which of 15 algorithms a function is written as;
    for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
