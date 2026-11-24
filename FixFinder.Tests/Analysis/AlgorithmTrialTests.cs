@@ -846,14 +846,19 @@ public class AlgorithmTrialTests : IDisposable
         if (await TriedAsync("Palindromes.java", code) is not { } outcome) return;
 
         Assert.Equal([
-            "Palindromes.pastTheEnd: Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+            "Palindromes.pastTheEnd: Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException.",
             "Palindromes.atTheFirstPair: Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
-        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        ], outcome.Seen.Select(seen => WithoutTheJdksWords($"{seen.Function}: {seen.Tried ?? "not tried"}")));
         Assert.Equal([
-            "5 algorithm-palindrome-wrong: `Palindromes.pastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+            "5 algorithm-palindrome-wrong: `Palindromes.pastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException.",
             "16 algorithm-palindrome-wrong: `Palindromes.atTheFirstPair` does not say rightly which words are palindromes | Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
-        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        ], outcome.Findings.Select(finding => WithoutTheJdksWords($"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}")));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+
+        // What follows the exception's name is the JDK's own wording, and it is not the same in every version: Java 25 wrote
+        // Index 1 out of bounds for length 1, and the Java 17 a GitHub runner has wrote something else. Only the name is held to.
+        static string WithoutTheJdksWords(string said) =>
+            System.Text.RegularExpressions.Regex.Replace(said, @"(StringIndexOutOfBoundsException): [^.]*\.", "$1.");
     }
 
     /// <summary>A check of a Python program carries the trial on its recognition, and the sort that went wrong as a finding seen when it ran.</summary>
