@@ -787,6 +787,75 @@ public class AlgorithmTrialTests : IDisposable
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }
 
+    /// <summary>A palindrome test that works, and ones that stop a pair short of the middle, read past the end of the word and say yes at the first pair that matches.</summary>
+    [Fact]
+    public async Task APalindromeTestIsShownTheShortestWordItGetsWrong()
+    {
+        const string code = "def is_palindrome(word):\n    left = 0\n    right = len(word) - 1\n    while left < right:\n        if word[left] != word[right]:\n            return False\n        left += 1\n        right -= 1\n    return True\n\n\ndef palindrome_short_of_the_middle(word):\n    for i in range(len(word) // 2 - 1):\n        if word[i] != word[len(word) - 1 - i]:\n            return False\n    return True\n\n\ndef palindrome_past_the_end(word):\n    for i in range(len(word) // 2):\n        if word[i] != word[len(word) - i]:\n            return False\n    return True\n\n\ndef palindrome_at_the_first_pair(word):\n    for i in range(len(word) // 2):\n        if word[i] != word[len(word) - 1 - i]:\n            return False\n        else:\n            return True\n    return True\n\n\nprint(is_palindrome(\"level\"))\n";
+        if (await TriedAsync("palindromes.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "is_palindrome: Called with 12 words of FixFinder's own - of one letter up to seven, palindromes of odd and even lengths, and words that differ at their ends or only in towards the middle - it said which were palindromes, every one right.",
+            "palindrome_short_of_the_middle: Called with 'ab', `palindrome_short_of_the_middle` gave True - but 'ab' backwards is 'ba', so it is not a palindrome.",
+            "palindrome_past_the_end: Called with 'aa', `palindrome_past_the_end` stopped with IndexError: string index out of range.",
+            "palindrome_at_the_first_pair: Called with 'abca', `palindrome_at_the_first_pair` gave True - but 'abca' backwards is 'acba', so it is not a palindrome.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "13 algorithm-palindrome-wrong: `palindrome_short_of_the_middle` does not say rightly which words are palindromes | Called with 'ab', `palindrome_short_of_the_middle` gave True - but 'ab' backwards is 'ba', so it is not a palindrome.",
+            "20 algorithm-palindrome-wrong: `palindrome_past_the_end` does not say rightly which words are palindromes | Called with 'aa', `palindrome_past_the_end` stopped with IndexError: string index out of range.",
+            "27 algorithm-palindrome-wrong: `palindrome_at_the_first_pair` does not say rightly which words are palindromes | Called with 'abca', `palindrome_at_the_first_pair` gave True - but 'abca' backwards is 'acba', so it is not a palindrome.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A palindrome test written for a list it adds to: given a word, it stops with no append, which is not judged.</summary>
+    [Fact]
+    public async Task APalindromeTestThatStopsOnAWordForWantOfAListIsNotJudged()
+    {
+        const string code = "def is_palindrome(items):\n    items.append(None)\n    items.pop()\n    for i in range(len(items) // 2):\n        if items[i] != items[len(items) - 1 - i]:\n            return False\n    return True\n\n\nprint(is_palindrome([1, 2, 1]))\n";
+        if (await TriedAsync("palindrome_list.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "is_palindrome: not tried",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Empty(outcome.Findings);
+    }
+
+    /// <summary>A palindrome test written in JavaScript that works, and one that reads past the end of the word, where JavaScript gives undefined.</summary>
+    [Fact]
+    public async Task AJavaScriptPalindromeTestIsShownTheShortestWordItGetsWrong()
+    {
+        const string code = "function isPalindrome(word) {\n    let left = 0;\n    let right = word.length - 1;\n    while (left < right) {\n        if (word[left] !== word[right]) {\n            return false;\n        }\n        left++;\n        right--;\n    }\n    return true;\n}\n\nfunction isPalindromePastTheEnd(word) {\n    for (let i = 0; i < word.length / 2; i++) {\n        if (word[i] !== word[word.length - i]) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(isPalindrome(\"level\"), isPalindromePastTheEnd(\"level\"));\n";
+        if (await TriedAsync("palindromes.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "isPalindrome: Called with 12 words of FixFinder's own - of one letter up to seven, palindromes of odd and even lengths, and words that differ at their ends or only in towards the middle - it said which were palindromes, every one right.",
+            "isPalindromePastTheEnd: Called with \"a\", `isPalindromePastTheEnd` gave false - but \"a\" backwards is \"a\", the same, so it is a palindrome.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "15 algorithm-palindrome-wrong: `isPalindromePastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `isPalindromePastTheEnd` gave false - but \"a\" backwards is \"a\", the same, so it is a palindrome.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>Palindrome tests written in Java over a String: one that reads past its end and one that says yes at the first pair that matches.</summary>
+    [Fact]
+    public async Task AJavaPalindromeTestIsShownTheShortestWordItGetsWrong()
+    {
+        const string code = "public class Palindromes {\n    static boolean pastTheEnd(String word) {\n        int left = 0;\n        int right = word.length();\n        while (left < right) {\n            if (word.charAt(left) != word.charAt(right)) {\n                return false;\n            }\n            left++;\n            right--;\n        }\n        return true;\n    }\n\n    static boolean atTheFirstPair(String word) {\n        for (int i = 0; i < word.length() / 2; i++) {\n            if (word.charAt(i) != word.charAt(word.length() - 1 - i)) {\n                return false;\n            } else {\n                return true;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(pastTheEnd(\"level\") + \" \" + atTheFirstPair(\"level\"));\n    }\n}\n";
+        if (await TriedAsync("Palindromes.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "Palindromes.pastTheEnd: Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+            "Palindromes.atTheFirstPair: Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "5 algorithm-palindrome-wrong: `Palindromes.pastTheEnd` does not say rightly which words are palindromes | Called with \"a\", `Palindromes.pastTheEnd` stopped with StringIndexOutOfBoundsException: Index 1 out of bounds for length 1.",
+            "16 algorithm-palindrome-wrong: `Palindromes.atTheFirstPair` does not say rightly which words are palindromes | Called with \"abca\", `Palindromes.atTheFirstPair` gave true - but \"abca\" backwards is \"acba\", so it is not a palindrome.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
     /// <summary>A check of a Python program carries the trial on its recognition, and the sort that went wrong as a finding seen when it ran.</summary>
     [Fact]
     public async Task ACheckSaysWhatTheTrialShowedAndFindsTheSortThatWentWrong()

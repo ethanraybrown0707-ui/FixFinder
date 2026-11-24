@@ -22,7 +22,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// back the greatest number dividing both of each; and the Fibonacci numbers are called with every number from 1 to 10,
 /// and must start as they do and give back each as the two before it added; and a merge is called with pairs of lists in
 /// order, and must give back every item of both, in order; and a test of order is called with lists in order and out of
-/// order at the start, the middle and the end, and must say which are in order by its own comparison. What it does is said
+/// order at the start, the middle and the end, and must say which are in order by its own comparison; and a palindrome
+/// test is called with words of one letter up to seven, and must say which read the same backwards. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -31,8 +32,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// are the list, what a search looks for, and a length - n, count, size, length - or have defaults; it is called from a
 /// copy of the file's definitions alone, as the confirmations call one, so the program's own top-level code never runs.
 /// For a static Java method whose list is an int[], a List&lt;Integer&gt; or an ArrayList&lt;Integer&gt;, what a search
-/// looks for an int or an Integer, and a length an int, called by reflection from a small class compiled beside a copy
-/// of its file, so the program's own main never runs. A sort that gives back nothing is read from the list it was
+/// looks for an int or an Integer, and a length an int - or, for a palindrome test, whose word is a String - called by
+/// reflection from a small class compiled beside a copy of its file, so the program's own main never runs. A sort that gives back nothing is read from the list it was
 /// given, which it sorted in place. A sort that gives back every list largest first is a sort too. A binary search that
 /// misses on lists in order is tried on the same lists in reverse order, which it may be written for. A call still
 /// going after 2 seconds ends a Python or Java trial, and a JavaScript one still going when its run's 10 seconds are up
@@ -92,6 +93,14 @@ public static partial class AlgorithmTrial
     /// </summary>
     private static readonly int[][] ToCheckOrder = [[], [1], [1, 2], [2, 1], [1, 1], [1, 2, 3], [3, 2, 1], [2, 1, 3], [1, 3, 2], [1, 2, 4, 3], [4, 1, 2, 3], [-3, 0, 5]];
 
+    /// <summary>
+    /// Words to ask whether they are palindromes, shortest first: of one letter, of two the same and two that differ, then
+    /// palindromes of odd and even lengths beside words that differ at their ends, or only in towards the middle - the
+    /// pairs a loop that stops one short, or says yes at the first pair that matches, never gets to. The empty word is
+    /// left out: whether it counts as one is a choice a course makes.
+    /// </summary>
+    private static readonly string[] ToTestAsPalindromes = ["a", "aa", "ab", "aba", "abb", "abba", "abca", "abcba", "abcda", "abccba", "abcdba", "racecar"];
+
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
     private static readonly int[] OutOfOrder = [5, 2, 9, 1];
 
@@ -102,7 +111,8 @@ public static partial class AlgorithmTrial
 
     /// <param name="Number">What a prime test is given: a number on its own, with no list.</param>
     /// <param name="Other">What a merge is given beside the list: a second list, to merge with the first.</param>
-    private sealed record Trial(int[] List, int? Sought, int? Number = null, int[]? Other = null);
+    /// <param name="Text">What a palindrome test is given: a word, with no list.</param>
+    private sealed record Trial(int[] List, int? Sought, int? Number = null, int[]? Other = null, string? Text = null);
 
     /// <summary>
     /// The numbers a prime test is called with: every one from 0 to 30, so 0, 1, 2, squares and primes are all among
@@ -194,6 +204,7 @@ public static partial class AlgorithmTrial
             : recognition.IsGreatestCommonDivisor ? recognition.Sought is null || recognition.FirstNumber is null
             : recognition.IsMerge ? recognition.SecondList is null
             : recognition.IsInOrderTest ? recognition.OutOfOrder is null || recognition.Gives != SearchGives.Truth
+            : recognition.IsPalindromeTest ? recognition.Gives != SearchGives.Truth
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -204,7 +215,7 @@ public static partial class AlgorithmTrial
         foreach (var parameter in function.Parameters)
         {
             if (parameter.Kind is ParameterKind.Rest or ParameterKind.Keywords || !Identifier().IsMatch(parameter.Name)) return null;
-            if (parameter.Name == recognition.List) roles.Add((parameter.Name, "list"));
+            if (parameter.Name == recognition.List) roles.Add((parameter.Name, recognition.IsPalindromeTest ? "text" : "list"));
             else if (parameter.Name == recognition.Sought) roles.Add((parameter.Name, recognition.IsGivenANumber ? "number" : "sought"));
             else if (parameter.Name == recognition.FirstNumber) roles.Add((parameter.Name, "number"));
             else if (parameter.Name == recognition.SecondList) roles.Add((parameter.Name, "other"));
@@ -220,6 +231,9 @@ public static partial class AlgorithmTrial
         if (recognition.IsGivenANumber) return roles.Any(role => role.Role == "number") ? roles : null;
         if (recognition.IsGreatestCommonDivisor) return roles.Any(role => role.Role == "number") && roles.Any(role => role.Role == "sought") ? roles : null;
         if (recognition.IsMerge) return roles.Any(role => role.Role == "list") && roles.Any(role => role.Role == "other") ? roles : null;
+
+        // A length is given as the list's; a word has none of its own to give.
+        if (recognition.IsPalindromeTest) return roles.Any(role => role.Role == "text") && roles.All(role => role.Role != "length") ? roles : null;
         return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || recognition.IsInOrderTest || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
@@ -235,6 +249,7 @@ public static partial class AlgorithmTrial
             : recognition.IsReversal ? ToReverse.Select(list => new Trial(list, null)).ToList()
             : recognition.IsMerge ? ToMerge.Select(pair => new Trial(pair.First, null, Other: pair.Second)).ToList()
             : recognition.IsInOrderTest ? ToCheckOrder.Select(list => new Trial(list, null)).ToList()
+            : recognition.IsPalindromeTest ? ToTestAsPalindromes.Select(word => new Trial([], null, Text: word)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
@@ -256,6 +271,7 @@ public static partial class AlgorithmTrial
             : recognition.IsReversal ? JudgeReversal(recognition, results)
             : recognition.IsMerge ? JudgeMerge(recognition, results)
             : recognition.IsInOrderTest ? JudgeInOrderTest(recognition, results)
+            : recognition.IsPalindromeTest ? JudgePalindromeTest(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
@@ -368,6 +384,47 @@ public static partial class AlgorithmTrial
 
         static (string?, string?) Broken(string what) => (what + ".", what);
     }
+
+    /// <summary>
+    /// Whether each word's answer was whether it reads the same backwards - and the first that was not, with the word
+    /// backwards. A call stopped by a position past the end of the word is a finding; one stopped any other way - code
+    /// written for a list, given a word it cannot change - is not judged, nor is an answer that is not a yes or a no.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgePalindromeTest(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        string Written(string word) => AsWritten(JsonSerializer.SerializeToElement(word), recognition.File);
+
+        foreach (var result in results)
+        {
+            var word = result.Trial.Text!;
+            if (result.Error is { } error)
+            {
+                if (!PastTheEnd().IsMatch(error)) return (null, null);
+                return Broken($"Called with {Written(word)}, {name} stopped with {error}");
+            }
+
+            if (result.Returned is not { ValueKind: JsonValueKind.True or JsonValueKind.False } returned) return (null, null);
+
+            var backwards = new string(word.Reverse().ToArray());
+            var palindrome = backwards == word;
+            if ((returned.ValueKind == JsonValueKind.True) == palindrome) continue;
+
+            var gave = AsWritten(returned, recognition.File);
+            return Broken(palindrome
+                ? $"Called with {Written(word)}, {name} gave {gave} - but {Written(word)} backwards is {Written(backwards)}, the same, so it is a palindrome"
+                : $"Called with {Written(word)}, {name} gave {gave} - but {Written(word)} backwards is {Written(backwards)}, so it is not a palindrome");
+        }
+
+        return ($"Called with {results.Count} words of FixFinder's own - of one letter up to seven, palindromes of odd and even lengths, and words " +
+                "that differ at their ends or only in towards the middle - it said which were palindromes, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
+
+    /// <summary>What a run says of a position past the end of a word: Python's IndexError, Java's StringIndexOutOfBoundsException.</summary>
+    [GeneratedRegex(@"^(?:IndexError|(?:String|Array)?IndexOutOfBoundsException)\b")]
+    private static partial Regex PastTheEnd();
 
     /// <summary>
     /// Whether each pair came back as one list holding every item of both, in order - and the first that did not, with
@@ -659,7 +716,8 @@ public static partial class AlgorithmTrial
             : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong"
             : recognition.IsFibonacci ? "algorithm-fibonacci-wrong"
             : recognition.IsMerge ? "algorithm-merge-wrong"
-            : recognition.IsInOrderTest ? "algorithm-in-order-wrong" : "algorithm-search-wrong";
+            : recognition.IsInOrderTest ? "algorithm-in-order-wrong"
+            : recognition.IsPalindromeTest ? "algorithm-palindrome-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -678,6 +736,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsFibonacci ? $"`{recognition.Function}` does not give back the Fibonacci numbers"
                 : recognition.IsMerge ? $"`{recognition.Function}` does not merge every pair of lists"
                 : recognition.IsInOrderTest ? $"`{recognition.Function}` does not say rightly which lists are in order"
+                : recognition.IsPalindromeTest ? $"`{recognition.Function}` does not say rightly which words are palindromes"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",
@@ -788,6 +847,7 @@ public static partial class AlgorithmTrial
         ("list" or "other", "List" or "ArrayList") when type.Arguments is [{ Name: "Integer" }] => $"java.util.{type.Name}.class",
         ("sought" or "length" or "number", "int") => "int.class",
         ("sought", "Integer") => "Integer.class",
+        ("text", "String") => "String.class",
         _ => null,
     };
 
@@ -857,9 +917,13 @@ public static partial class AlgorithmTrial
             "sought" => "sought[index]",
             "number" => "numbers[index]",
             "other" => "secondList",
+            "text" => "texts[index]",
             _ => "lists[index].length",
         }));
         var numbers = string.Join(", ", trials.Select(trial => trial.Number ?? 0));
+
+        // Each word as a Java string literal: the words are letters alone, which JSON writes as Java does.
+        var texts = string.Join(", ", trials.Select(trial => trial.Text is { } word ? JsonSerializer.Serialize(word) : "null"));
 
         // An array is given a copy of the trial's; a list, a fresh ArrayList of the same numbers; a prime test, no list.
         var listType = method.Parameters.Zip(roles).FirstOrDefault(pair => pair.Second.Role == "list").First?.Type;
@@ -914,6 +978,7 @@ public static partial class AlgorithmTrial
                     int[][] others = { {{others}} };
                     int[] sought = { {{sought}} };
                     int[] numbers = { {{numbers}} };
+                    String[] texts = { {{texts}} };
                     for (int index = 0; index < lists.length; index++) {
                         final Object list = {{madeList}};
                         final Object secondList = {{madeOther}};
@@ -954,7 +1019,7 @@ public static partial class AlgorithmTrial
     {
         roles = roles.Where(role => role.Role is not null).ToDictionary(role => role.Name, role => role.Role),
         parameters = roles.Select(role => role.Role),
-        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought, number = trial.Number, other = trial.Other }),
+        trials = trials.Select(trial => new { list = trial.List, sought = trial.Sought, number = trial.Number, other = trial.Other, text = trial.Text }),
     });
 
     /// <summary>Each trial's answer, read from the lines the run printed; null unless every trial answered.</summary>
@@ -1029,7 +1094,7 @@ public static partial class AlgorithmTrial
                 const list = trial.list.slice();
                 const given = fixfinderPlan.parameters.map(role =>
                     role === "list" ? list : role === "sought" ? trial.sought : role === "number" ? trial.number
-                    : role === "other" ? trial.other.slice() : role === "length" ? trial.list.length : undefined);
+                    : role === "other" ? trial.other.slice() : role === "text" ? trial.text : role === "length" ? trial.list.length : undefined);
                 const outcome = { trial: index };
                 try {
                     outcome.returned = fixfinderPlain({{function}}(...given), 0);
@@ -1097,7 +1162,7 @@ public static partial class AlgorithmTrial
             for parameter, role in plan["roles"].items():
                 arguments[parameter] = (list(trial["list"]) if role == "list" else trial["sought"] if role == "sought"
                                         else trial["number"] if role == "number" else list(trial["other"]) if role == "other"
-                                        else len(trial["list"]))
+                                        else trial["text"] if role == "text" else len(trial["list"]))
             outcome = {"trial": index}
 
             def call():

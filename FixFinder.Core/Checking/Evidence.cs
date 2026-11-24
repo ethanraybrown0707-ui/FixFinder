@@ -47,9 +47,9 @@ public static class Evidence
         {
             parts.Add("the tests were run with the line changed in a copy, and every one passed");
         }
-        else if (finding.RuleId is "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong")
+        else if (finding.RuleId is "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong")
         {
-            parts.Add("the function was called on lists, or numbers, of FixFinder's own, and one came back wrong");
+            parts.Add("the function was called on lists, numbers or words of FixFinder's own, and one came back wrong");
         }
         else if (finding.RuleId == "analysis-same-answer-always")
         {
@@ -99,7 +99,7 @@ public static class Evidence
     {
         { Confirmation.Length: > 0 } => "run reproduced it",
         { Error: not null, Kind: FindingKind.Syntax } => "compiler said so",
-        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "tests-miss-change" } => "seen when it ran",
+        { Error: not null } or { RuleId: "wrong-output" or "stopped-before-expected-output" or "algorithm-sort-wrong" or "algorithm-search-wrong" or "algorithm-extreme-wrong" or "algorithm-prime-wrong" or "algorithm-leap-year-wrong" or "algorithm-factorial-wrong" or "algorithm-reversal-wrong" or "algorithm-gcd-wrong" or "algorithm-fibonacci-wrong" or "algorithm-merge-wrong" or "algorithm-in-order-wrong" or "algorithm-palindrome-wrong" or "tests-miss-change" } => "seen when it ran",
         { Witness.Length: > 0 } => "failing input worked out",
         { RuleId: "analysis-circular-import" } => "imports followed from the file that is run",
         { RuleId: "analysis-duplicate-function" } => "functions compared line by line",

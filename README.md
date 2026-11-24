@@ -120,48 +120,54 @@ not start, or one that asked for more than it was given, is left out as well.
 **What the code looks like**, under the notes too, says which algorithm a function is written as, read from the shape of
 its code in Python, Java, JavaScript, C#, C, C++ and Go: a binary search, a linear search, a bubble sort, a selection
 sort, an insertion sort, a search for the largest or the smallest item, a reversal, a prime test, a leap-year test, a
-factorial, Euclid's greatest common divisor, the Fibonacci numbers, a merge of two lists in order or a test of whether a
-list is in order, each said in the code's own names - a Java list's `get`, `set` and `equals` read as an array's
-indexing and `==`, and `Collections.swap` as a swap, and said as they are written - with what that kind of code needs or
-costs - *`find` looks like a binary search: it keeps a range from `low` to `high`, looks at its middle, `mid`, compares
-`items[mid]` with what it looks for, and moves `low` or `high` past the middle, halving the range each time round. A
-binary search looks at no more than about log2(n) items of n, but finds what it looks for only in a list that is in
-order.* It is closed until opened, and in a saved report and on the command line, as `algorithm:` lines, too. In a
-Python or JavaScript program each one is tried as well, from a copy of its file's definitions alone, and in a Java
-program a static method over an `int[]`, a `List<Integer>` or an `ArrayList<Integer>`, from a small class compiled
-beside a copy of its file: a sort is called with 10 lists of FixFinder's own - empty, of one item, in order, in reverse
-order, with repeats and below zero - and has to give each back as the same items in order, smallest or largest first; a
-search is called with 6 lists in order - a linear search with one out of order too - and every value in them and some
-that are not, and has to find each that is there and none that is not, a binary search that misses being tried again on
-the lists in reverse order, which it may be written for; a search for the largest or smallest is called with 9 lists,
-never empty - all below zero, all above zero, with repeats - and has to give back each one's largest, or smallest, item;
-and a prime test is called with every number from 0 to 30, and has to say rightly which are prime - its first wrong
-answer shown with why, *4 is 2 times 2* - and a leap-year test, one asking whether 4 divides a year and whether 100 or
-400 does, or one named for leap years asking whether 4 does, is called, when every answer it gives back is a yes or a
-no, with 10 years - 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800 - and has to say rightly which are
-leap years: *100 divides 1900 and 400 does not, so it is not a leap year* - and a factorial, a function of one number
-that multiplies a product by each number up to it, or gives back the number times itself called with one less, is called
-with every number from 1 to 10, and then 0, and has to give back each one's factorial: *Called with 0, `factorial`
-stopped with RecursionError: maximum recursion depth exceeded - but 0 factorial is 1, the product of no numbers at all.*
-- and a reversal, in place by swapping the items at the two ends of a list and moving in, or into a new list given back,
-is called with 10 lists - empty, of one item, of odd and even lengths, with repeats and below zero - and has to give
-each back in the opposite order: *Called with [1, 2], `reverse` gave back [1, 2] - reversed, it is [2, 1].* - and
-Euclid's greatest common divisor of two numbers, taking the remainder of one divided by the other until there is none,
-is called with 10 pairs - each way round, with a divisor in common and with none, the same number twice, and with 0 -
-and has to give back the greatest number dividing both: *Called with 12 and 18, `gcd` gave 0 - but the greatest number
-dividing both 12 and 18 is 6.* - and the Fibonacci numbers, kept as a pair whose sum is the next, or worked out by
-calling itself with one less and two less, are called with every number from 1 to 10 and, as courses start them in
-different places, have to start as one of them does - 0 and 1, 1 and 1, or 1 and 2 - and give back each after as the two
-before it added: *Called with 3, `fib` gave 4 - but it gave 1 for 1 and 2 for 2, and each Fibonacci number is the two
-before it added, so it should be 3.* - and a merge of two lists in order, which compares the item it is at in each and
-puts one in a result while both have items left, is called with 11 pairs of lists in order - empty, of one item, one
-running out before the other either way round, with the same item in both and below zero - and has to give back every
-item of both, in order: *Called with [1] and [], `merge` gave back [] - [1] is left out; merged in order, it is [1].* -
-and a test of whether a list is in order, comparing each item with the next and saying no at the first pair its
-comparison calls out of order, is called with 12 lists - empty, of one item, in order, and out of order at the start, in
-the middle and at the very end - and has to say which are in order by that comparison of its own, > for never going
-down, >= for always going up: *Called with [2, 1], `is_sorted` gave True - but in it 2 is followed by 1, and 2 > 1 is
-what its own test calls out of order.* What happened is said under it, and a list it gets wrong is a finding, certain as
+factorial, Euclid's greatest common divisor, the Fibonacci numbers, a merge of two lists in order, a test of whether a
+list is in order or a palindrome test, each said in the code's own names - a Java list's `get`, `set` and `equals` and a
+string's `charAt` read as an array's indexing and `==`, and `Collections.swap` as a swap, and said as they are written -
+with what that kind of code needs or costs - *`find` looks like a binary search: it keeps a range from `low` to `high`,
+looks at its middle, `mid`, compares `items[mid]` with what it looks for, and moves `low` or `high` past the middle,
+halving the range each time round. A binary search looks at no more than about log2(n) items of n, but finds what it
+looks for only in a list that is in order.* It is closed until opened, and in a saved report and on the command line, as
+`algorithm:` lines, too. In a Python or JavaScript program each one is tried as well, from a copy of its file's
+definitions alone, and in a Java program a static method over an `int[]`, a `List<Integer>` or an `ArrayList<Integer>` -
+or a `String`, for a palindrome test - from a small class compiled beside a copy of its file: a sort is called with 10
+lists of FixFinder's own - empty, of one item, in order, in reverse order, with repeats and below zero - and has to give
+each back as the same items in order, smallest or largest first; a search is called with 6 lists in order - a linear
+search with one out of order too - and every value in them and some that are not, and has to find each that is there and
+none that is not, a binary search that misses being tried again on the lists in reverse order, which it may be written
+for; a search for the largest or smallest is called with 9 lists, never empty - all below zero, all above zero, with
+repeats - and has to give back each one's largest, or smallest, item; and a prime test is called with every number from
+0 to 30, and has to say rightly which are prime - its first wrong answer shown with why, *4 is 2 times 2* - and a
+leap-year test, one asking whether 4 divides a year and whether 100 or 400 does, or one named for leap years asking
+whether 4 does, is called, when every answer it gives back is a yes or a no, with 10 years - 2024, 2023, 2000, 1900,
+2100, 2400, 1996, 2019, 1600 and 1800 - and has to say rightly which are leap years: *100 divides 1900 and 400 does not,
+so it is not a leap year* - and a factorial, a function of one number that multiplies a product by each number up to it,
+or gives back the number times itself called with one less, is called with every number from 1 to 10, and then 0, and
+has to give back each one's factorial: *Called with 0, `factorial` stopped with RecursionError: maximum recursion depth
+exceeded - but 0 factorial is 1, the product of no numbers at all.* - and a reversal, in place by swapping the items at
+the two ends of a list and moving in, or into a new list given back, is called with 10 lists - empty, of one item, of
+odd and even lengths, with repeats and below zero - and has to give each back in the opposite order: *Called with [1,
+2], `reverse` gave back [1, 2] - reversed, it is [2, 1].* - and Euclid's greatest common divisor of two numbers, taking
+the remainder of one divided by the other until there is none, is called with 10 pairs - each way round, with a divisor
+in common and with none, the same number twice, and with 0 - and has to give back the greatest number dividing both:
+*Called with 12 and 18, `gcd` gave 0 - but the greatest number dividing both 12 and 18 is 6.* - and the Fibonacci
+numbers, kept as a pair whose sum is the next, or worked out by calling itself with one less and two less, are called
+with every number from 1 to 10 and, as courses start them in different places, have to start as one of them does - 0 and
+1, 1 and 1, or 1 and 2 - and give back each after as the two before it added: *Called with 3, `fib` gave 4 - but it gave
+1 for 1 and 2 for 2, and each Fibonacci number is the two before it added, so it should be 3.* - and a merge of two
+lists in order, which compares the item it is at in each and puts one in a result while both have items left, is called
+with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same
+item in both and below zero - and has to give back every item of both, in order: *Called with [1] and [], `merge` gave
+back [] - [1] is left out; merged in order, it is [1].* - and a test of whether a list is in order, comparing each item
+with the next and saying no at the first pair its comparison calls out of order, is called with 12 lists - empty, of one
+item, in order, and out of order at the start, in the middle and at the very end - and has to say which are in order by
+that comparison of its own, > for never going down, >= for always going up: *Called with [2, 1], `is_sorted` gave True -
+but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.* - and a palindrome test, comparing the
+letters at the two ends of a word in towards its middle and saying no at the first pair that differ, is called with 12
+words - of one letter up to seven, palindromes of odd and even lengths, and words that differ at their ends or only in
+towards the middle, the empty word left out, as whether it is one is a course's choice - and has to say which read the
+same backwards: *Called with 'ab', `is_palindrome` gave True - but 'ab' backwards is 'ba', so it is not a palindrome.* A
+call stopped by a position past the end of the word is wrong too; one stopped any other way - code written for a list it
+adds to, given a word - is not judged. What happened is said under it, and a list it gets wrong is a finding, certain as
 it was seen, with the shortest such list and what came back - *Called with [2, 1], `bubble` gave back [2, 1], which is
 not in order - in order it is [1, 2].* A Python or Java call still going after 2 seconds ends the trial, as does a
 JavaScript run still going after 10, and nothing is said of it; a JavaScript ES module is not tried. Recognising is not
@@ -171,7 +177,8 @@ worked out by the leap-year rule, a product of a list's items, a power, a produc
 swapping from both ends, a rotation, a copy shifted by one, a least common multiple, a total of remainders, a number cut
 down by remainders alone, a sum of digits, a running total, a number doubled, a sum counted down, the items two lists
 have in common, the larger of each pair, two lists zipped together, a test for an item the same as the next, the
-position of the first drop, a test of the gaps between items - is recognised as nothing.
+position of the first drop, a test of the gaps between items, a word compared with another backwards, a count of the
+pairs in a word that differ, a test that every letter is the same as the next - is recognised as nothing.
 
 **How the files use each other**, under the notes as well, is for a Python, JavaScript or TypeScript program of more
 than one file: a line for each of its own files that uses others of them - *`main.py` uses `grades.py`,
@@ -2377,7 +2384,7 @@ A check of a program does all of this, as far as its language allows - Python, J
    above counts each language's - over at most 200 of the program's files, and says which of a Python, JavaScript or
    TypeScript program's own files use which.
 4. **Follows every value through the code** with 54 analyses, for Python, Java, C#, JavaScript, Go, C and C++, each read
-   by its own language's parser, and recognises from the same reading which of 15 algorithms a function is written as;
+   by its own language's parser, and recognises from the same reading which of 16 algorithms a function is written as;
    for Python and CommonJS JavaScript, it also plays out the program's imports from the file that is run, to find any
    that go round in a circle and stop it, or leave a name undefined; and it finds functions written twice.
 5. **Proves its fixes**: up to 3 fixes a check - of an error, or of any finding when FixFinder is told what the program
@@ -2390,8 +2397,8 @@ A check of a program does all of this, as far as its language allows - Python, J
    Python, Java or C# program that asks questions is given an answer for each way through it, up to 6 sets of answers,
    10 seconds each - a Java or C# one once it has built, and a sort, a reversal, a test of order, a search - for a
    value, or for the largest or smallest item - a prime test, a leap-year test, a factorial, a greatest common divisor,
-   the Fibonacci numbers or a merge recognised in a Python, JavaScript or Java program is called on lists, numbers or
-   years of FixFinder's own.
+   the Fibonacci numbers, a merge or a palindrome test recognised in a Python, JavaScript or Java program is called on
+   lists, numbers, years or words of FixFinder's own.
 7. **Searches for the change that fixes what it prints**, when it is told what that is: up to 400 small changes on the
    most suspicious lines, the 40 likeliest always tried, then more for up to 2 minutes, and never longer than 5.
 8. **Runs the program's own tests**: unittest, pytest and doctest for Python, JUnit for Java, node:test for JavaScript

@@ -84,6 +84,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     /// <summary>Whether it is a test of order, whose answer for a list is whether no item is followed by one its comparison calls out of order.</summary>
     public bool IsInOrderTest => Algorithm == AlgorithmRecognition.InOrderTest;
 
+    /// <summary>Whether it is a palindrome test, whose answer for a word is whether it reads the same backwards.</summary>
+    public bool IsPalindromeTest => Algorithm == AlgorithmRecognition.PalindromeTest;
+
     /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test, a factorial or the Fibonacci numbers.</summary>
     public bool IsGivenANumber => IsNumberTest || IsFactorial || IsFibonacci;
 
@@ -137,6 +140,8 @@ public static class AlgorithmRecognition
 
     public const string InOrderTest = "a test of whether a list is in order";
 
+    public const string PalindromeTest = "a palindrome test";
+
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
     /// is being recognised; what is said of the code says it as it is written.
@@ -162,7 +167,12 @@ public static class AlgorithmRecognition
         var seen = new List<AlgorithmSeen>();
         foreach (var written in program.AllFunctions)
         {
-            var function = program.Language == SourceLanguage.Java ? JavaListsReadAsIndexed(written) : written;
+            var function = program.Language switch
+            {
+                SourceLanguage.Java => JavaListsReadAsIndexed(written),
+                SourceLanguage.Go => GoLengthsReadAsWritten(written),
+                _ => written,
+            };
             // A function declared inside the top-level code - C#'s local functions - is named as the program names it.
             var name = function.Name == IrFunction.ModuleBody ? TopLevelCode
                 : function.FullName.StartsWith(IrFunction.ModuleBody + ".", StringComparison.Ordinal) ? function.FullName[(IrFunction.ModuleBody.Length + 1)..]
@@ -251,14 +261,15 @@ public static class AlgorithmRecognition
     };
 
     /// <summary>
-    /// A Java method with its lists read as an array is: items.get(j) as items[j], items.set(j, v) as items[j] = v,
-    /// a.equals(b) and Objects.equals(a, b) as a == b - each remembered as it is written, to be said so.
+    /// A Java method with its lists and strings read as an array is: items.get(j) and word.charAt(j) as items[j] and
+    /// word[j], items.set(j, v) as items[j] = v, a.equals(b) and Objects.equals(a, b) as a == b - each remembered as it is
+    /// written, to be said so.
     /// </summary>
     private static IrFunction JavaListsReadAsIndexed(IrFunction function) => new IrRewrite(expression =>
     {
         Expr? read = expression switch
         {
-            Call { Callee: Member { Target: var list, MemberName: "get" }, Arguments: [var at] } => new ElementAccess(expression.Span, list, at.Value),
+            Call { Callee: Member { Target: var list, MemberName: "get" or "charAt" }, Arguments: [var at] } => new ElementAccess(expression.Span, list, at.Value),
             Call { Callee: Member { Target: var list, MemberName: "set" }, Arguments: [var at, var value] } =>
                 new AssignValue(expression.Span, new ElementAccess(expression.Span, list, at.Value), value.Value),
             Call { Callee: Member { Target: var one, MemberName: "equals" }, Arguments: [var other] } => new Binary(expression.Span, BinaryOperator.Equal, one, other.Value),
@@ -280,6 +291,36 @@ public static class AlgorithmRecognition
         return read;
     }).Function(function);
 
+    /// <summary>
+    /// A Go function with each len(x) read back as the call it is written as: Go's reader gives it as x.Length, as C#
+    /// writes an array's length, and said of Go code that would misquote it. Only a Length whose text in the file starts
+    /// len( is put back - its column is the number of UTF-16 units before it on its line, as the Go reader writes it, so a
+    /// place in the line as .NET reads it - and a struct's own field called Length stays.
+    /// </summary>
+    private static IrFunction GoLengthsReadAsWritten(IrFunction function)
+    {
+        var linesOfFile = new Dictionary<string, string[]?>(StringComparer.OrdinalIgnoreCase);
+
+        return new IrRewrite(expression =>
+            expression is Member { MemberName: "Length", Target: var measured, Span: var span } && WrittenAsLen(span)
+                ? new Call(span, new Name(span, "len"), [new Argument(null, measured)])
+                : expression).Function(function);
+
+        bool WrittenAsLen(SourceSpan span)
+        {
+            if (!linesOfFile.TryGetValue(span.File, out var lines))
+            {
+                try { lines = File.ReadAllLines(span.File); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { lines = null; }
+                linesOfFile[span.File] = lines;
+            }
+
+            if (lines is null || span.Line < 1 || span.Line > lines.Length || span.Column < 0) return false;
+            var line = lines[span.Line - 1];
+            return span.Column <= line.Length && line.AsSpan(span.Column).StartsWith("len(", StringComparison.Ordinal);
+        }
+    }
+
     private static readonly Func<IrFunction, IReadOnlyList<Stmt>, Found?>[] Recognisers =
     [
         BinarySearch,
@@ -296,6 +337,7 @@ public static class AlgorithmRecognition
         FibonacciOf,
         MergeOf,
         InOrderTestOf,
+        PalindromeTestOf,
     ];
 
     /// <summary>
@@ -1035,6 +1077,45 @@ public static class AlgorithmRecognition
             _ => false,
         };
     }
+
+    /// <summary>
+    /// A palindrome test: a loop that compares the items at the two ends of a word or a list, in towards its middle -
+    /// word[i] with word[len(word) - 1 - i], i counted up, or word[left] with word[right], left counted up and right
+    /// down - and gives back false at the first pair that differ, with true given back at its end.
+    /// </summary>
+    private static Found? PalindromeTestOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        if (function.Body.Count == 0 || function.Body[^1] is not Return { Value: Literal { Kind: LiteralKind.Boolean, Value: true } }) return null;
+
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            var stepped = SteppedByOne(loop);
+            foreach (var check in IrWalk.Statements(Body(loop)).OfType<If>())
+            {
+                // The comparison is not quoted: JavaScript's !== and != are read alike, and saying one for the other would misquote the code.
+                if (check.Condition is not Binary { Operator: BinaryOperator.NotEqual, Left: ElementAccess { Target: Name { Identifier: var word }, Key: var one } left, Right: ElementAccess { Target: Name { Identifier: var sameWord }, Key: var other } right } ||
+                    word != sameWord ||
+                    !check.Then.Any(statement => statement is Return { Value: Literal { Kind: LiteralKind.Boolean, Value: false } }) ||
+                    !FromBothEnds(loop, stepped, one, other) && !FromBothEnds(loop, stepped, other, one))
+                    continue;
+
+                return new Found(loop.Span.Line, PalindromeTest,
+                    $"it compares `{Shown(left)}` with `{Shown(right)}`, from the two ends of `{word}` in towards its middle, and says it is not a " +
+                    "palindrome at the first pair that differ",
+                    PalindromeAdvice, List: word)
+                {
+                    Gives = SearchGives.Truth,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    private const string PalindromeAdvice =
+        "A palindrome reads the same both ways, so the item at each position has to match the one as far from the other end " +
+        "- the last is at length - 1, not length - and every pair up to the middle has to be compared: the word is one only " +
+        "after they all match, not at the first pair that does.";
 
     private const string FibonacciAdvice =
         "Each Fibonacci number is the two before it added - 0, 1, 1, 2, 3, 5, 8 - so both have to be kept until the next is " +

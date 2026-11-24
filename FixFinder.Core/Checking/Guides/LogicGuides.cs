@@ -158,6 +158,18 @@ internal static class LogicGuides
             + "and say yes only after the loop.",
             ""),
 
+        GuideFor(["algorithm-palindrome-wrong"], "A palindrome test that gives a wrong answer",
+            "The function is written the way a palindrome test is written - it compares the letters at the two ends of a word "
+            + "in towards its middle and says no at the first pair that differ - so FixFinder called it with words of its own "
+            + "and set each answer beside the word read backwards. The word shown is the shortest it got wrong.",
+            "A palindrome test goes wrong at its ends and its middle: the last letter is at length - 1, so one compared with "
+            + "the letter at length is past the end; a loop that stops a pair short never compares the pair next to the "
+            + "middle, so abca is said to be a palindrome; and a yes given inside the loop, at the first pair that matches, "
+            + "says so before the rest have been compared.",
+            "Compare word[i] with word[len(word) - 1 - i] for every i up to the middle - in Python, for i in "
+            + "range(len(word) // 2) - say no at the first pair that differ, and say yes only after the loop.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "
