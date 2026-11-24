@@ -21,7 +21,8 @@ namespace FixFinder.Core.Analysis.Recognition;
 /// opposite order; and Euclid's greatest common divisor is called with pairs of numbers, 0 among them, and must give
 /// back the greatest number dividing both of each; and the Fibonacci numbers are called with every number from 1 to 10,
 /// and must start as they do and give back each as the two before it added; and a merge is called with pairs of lists in
-/// order, and must give back every item of both, in order. What it does is said
+/// order, and must give back every item of both, in order; and a test of order is called with lists in order and out of
+/// order at the start, the middle and the end, and must say which are in order by its own comparison. What it does is said
 /// beside the recognition, and the first list it got wrong becomes a finding, with what it was called with and what it
 /// gave.
 /// </summary>
@@ -83,6 +84,13 @@ public static partial class AlgorithmTrial
         ([], []), ([1], []), ([], [2]), ([1], [2]), ([2], [1]), ([1, 3], [2]), ([2], [1, 3]), ([1, 2, 3], [4, 5]), ([4, 5], [1, 2, 3]),
         ([1, 4, 4], [2, 4, 6]), ([-3, 0], [-5, 7]),
     ];
+
+    /// <summary>
+    /// Lists to ask whether they are in order, shortest first: empty, of one, of two either way and the same twice, of three
+    /// either way, and out of order at the start, in the middle and at the very end - the last pair, which a loop that stops
+    /// one short never looks at.
+    /// </summary>
+    private static readonly int[][] ToCheckOrder = [[], [1], [1, 2], [2, 1], [1, 1], [1, 2, 3], [3, 2, 1], [2, 1, 3], [1, 3, 2], [1, 2, 4, 3], [4, 1, 2, 3], [-3, 0, 5]];
 
     /// <summary>A list out of order, which a linear search needs no order to search.</summary>
     private static readonly int[] OutOfOrder = [5, 2, 9, 1];
@@ -185,6 +193,7 @@ public static partial class AlgorithmTrial
             : recognition.IsReversal ? false
             : recognition.IsGreatestCommonDivisor ? recognition.Sought is null || recognition.FirstNumber is null
             : recognition.IsMerge ? recognition.SecondList is null
+            : recognition.IsInOrderTest ? recognition.OutOfOrder is null || recognition.Gives != SearchGives.Truth
             : !recognition.IsSort && (recognition.Sought is null || recognition.Gives is null))
             return null;
 
@@ -211,7 +220,7 @@ public static partial class AlgorithmTrial
         if (recognition.IsGivenANumber) return roles.Any(role => role.Role == "number") ? roles : null;
         if (recognition.IsGreatestCommonDivisor) return roles.Any(role => role.Role == "number") && roles.Any(role => role.Role == "sought") ? roles : null;
         if (recognition.IsMerge) return roles.Any(role => role.Role == "list") && roles.Any(role => role.Role == "other") ? roles : null;
-        return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || roles.Any(role => role.Role == "sought")) ? roles : null;
+        return roles.Any(role => role.Role == "list") && (recognition.IsSort || recognition.IsExtreme || recognition.IsReversal || recognition.IsInOrderTest || roles.Any(role => role.Role == "sought")) ? roles : null;
     }
 
     /// <summary>
@@ -225,6 +234,7 @@ public static partial class AlgorithmTrial
         var trials = recognition.IsSort ? ToSort.Select(list => new Trial(list, null)).ToList()
             : recognition.IsReversal ? ToReverse.Select(list => new Trial(list, null)).ToList()
             : recognition.IsMerge ? ToMerge.Select(pair => new Trial(pair.First, null, Other: pair.Second)).ToList()
+            : recognition.IsInOrderTest ? ToCheckOrder.Select(list => new Trial(list, null)).ToList()
             : recognition.IsExtreme ? ToFindTheExtremeOf.Select(list => new Trial(list, null)).ToList()
             : recognition.IsPrimeTest ? Enumerable.Range(0, HighestNumberTried + 1).Select(number => new Trial([], null, number)).ToList()
             : recognition.IsLeapYearTest ? YearsTried.Select(year => new Trial([], null, year)).ToList()
@@ -245,6 +255,7 @@ public static partial class AlgorithmTrial
         return recognition.IsSort ? JudgeSort(recognition, results)
             : recognition.IsReversal ? JudgeReversal(recognition, results)
             : recognition.IsMerge ? JudgeMerge(recognition, results)
+            : recognition.IsInOrderTest ? JudgeInOrderTest(recognition, results)
             : recognition.IsExtreme ? JudgeExtreme(recognition, results)
             : recognition.IsPrimeTest ? JudgePrimeTest(recognition, results)
             : recognition.IsLeapYearTest ? JudgeLeapYearTest(recognition, results)
@@ -320,6 +331,43 @@ public static partial class AlgorithmTrial
     }
 
     private static List<long> Longs(IEnumerable<int> items) => items.Select(item => (long)item).ToList();
+
+    /// <summary>
+    /// Whether each list's answer was whether it is in order by the function's own comparison - no item followed by one the
+    /// comparison calls out of order - and the first that was not, with the pair that shows it.
+    /// </summary>
+    private static (string? Said, string? Broken) JudgeInOrderTest(AlgorithmSeen recognition, IReadOnlyList<Result> results)
+    {
+        var name = $"`{recognition.Function}`";
+        var outOfOrder = recognition.OutOfOrder!;
+        bool OutOfOrder(int first, int second) => outOfOrder switch
+        {
+            ">" => first > second, ">=" => first >= second, "<" => first < second, "<=" => first <= second, _ => false,
+        };
+
+        foreach (var result in results)
+        {
+            var list = result.Trial.List;
+            if (result.Error is { } error) return Broken($"Called with {Show(list)}, {name} stopped with {error}");
+            if (result.Returned is not { ValueKind: JsonValueKind.True or JsonValueKind.False } returned) return (null, null);
+
+            var firstOutOfOrder = Enumerable.Range(0, Math.Max(0, list.Length - 1)).Select(index => (int?)index).FirstOrDefault(index => OutOfOrder(list[index!.Value], list[index.Value + 1]));
+            var inOrder = firstOutOfOrder is null;
+            var saidInOrder = returned.ValueKind == JsonValueKind.True;
+            if (saidInOrder == inOrder) continue;
+
+            var gave = AsWritten(returned, recognition.File);
+            return Broken(inOrder
+                ? $"Called with {Show(list)}, {name} gave {gave} - but no item in it is followed by one its own test calls out of order"
+                : $"Called with {Show(list)}, {name} gave {gave} - but in it {list[firstOutOfOrder!.Value]} is followed by {list[firstOutOfOrder.Value + 1]}, " +
+                  $"and {list[firstOutOfOrder.Value]} {outOfOrder} {list[firstOutOfOrder.Value + 1]} is what its own test calls out of order");
+        }
+
+        return ($"Called with {results.Count} lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and " +
+                "at the very end - it said which were in order by its own test, every one right.", null);
+
+        static (string?, string?) Broken(string what) => (what + ".", what);
+    }
 
     /// <summary>
     /// Whether each pair came back as one list holding every item of both, in order - and the first that did not, with
@@ -610,7 +658,8 @@ public static partial class AlgorithmTrial
             : recognition.IsFactorial ? "algorithm-factorial-wrong"
             : recognition.IsGreatestCommonDivisor ? "algorithm-gcd-wrong"
             : recognition.IsFibonacci ? "algorithm-fibonacci-wrong"
-            : recognition.IsMerge ? "algorithm-merge-wrong" : "algorithm-search-wrong";
+            : recognition.IsMerge ? "algorithm-merge-wrong"
+            : recognition.IsInOrderTest ? "algorithm-in-order-wrong" : "algorithm-search-wrong";
         var guide = Guidebook.For(recognition.File, FindingKind.Logic, rule);
         return new Finding
         {
@@ -628,6 +677,7 @@ public static partial class AlgorithmTrial
                 : recognition.IsGreatestCommonDivisor ? $"`{recognition.Function}` does not give back the greatest common divisor of every pair"
                 : recognition.IsFibonacci ? $"`{recognition.Function}` does not give back the Fibonacci numbers"
                 : recognition.IsMerge ? $"`{recognition.Function}` does not merge every pair of lists"
+                : recognition.IsInOrderTest ? $"`{recognition.Function}` does not say rightly which lists are in order"
                 : $"`{recognition.Function}` does not find every value",
             Explanation = $"`{recognition.Function}` looks like {recognition.Algorithm}. {broken}. {guide.Explanation}",
             Found = broken + ".",

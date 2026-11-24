@@ -147,6 +147,17 @@ internal static class LogicGuides
             + "and in the loop take the smaller item and move on in the list it came from.",
             ""),
 
+        GuideFor(["algorithm-in-order-wrong"], "A test of order that gives a wrong answer",
+            "The function is written the way a test of whether a list is in order is written - it compares each item with the one "
+            + "after it and says no at the first pair out of order - so FixFinder called it with lists of its own and set each "
+            + "answer beside its own comparison applied to every pair. The list shown is the shortest it got wrong.",
+            "A test of order goes wrong at its ends: a loop that stops a step too soon never looks at the last pair, so a list "
+            + "out of order only there - [1, 2, 4, 3] - is said to be in order; and a yes given inside the loop, at the first "
+            + "pair in order, says so before the rest have been looked at.",
+            "Run the loop over every pair - in Python, for i in range(len(items) - 1) - say no at the first pair out of order, "
+            + "and say yes only after the loop.",
+            ""),
+
         GuideFor(["algorithm-search-wrong"], "A search that does not find every value",
             "The function is written the way a search is written, so FixFinder called it with lists of its own, in order, "
             + "and with every value in them and some that are not. For one of them it gave the wrong answer - not there when "

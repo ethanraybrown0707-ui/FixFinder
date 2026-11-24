@@ -9,7 +9,7 @@ using FixFinder.Core.Sources;
 namespace FixFinder.Tests;
 
 /// <summary>
-/// A sort, a search, a reversal, a merge, a prime test, a leap-year test, a factorial, Euclid's greatest common divisor or the Fibonacci numbers recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
+/// A sort, a search, a reversal, a merge, a test of order, a prime test, a leap-year test, a factorial, Euclid's greatest common divisor or the Fibonacci numbers recognised in a Python, JavaScript or Java program, called on lists, numbers or years of FixFinder's own: one that works is said to have
 /// given every list back in order, or found every value that was there and none that was not; one that does not is a
 /// certain finding, shown with the shortest list it got wrong and what it gave back; one whose call never ends is left
 /// untried, and nothing is said of it. The sentences are those the trials gave for these programs.
@@ -145,6 +145,16 @@ public class AlgorithmTrialTests : IDisposable
         "merge: Called with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same item in both and below zero - it gave back every item of both, in order.")]
     [InlineData("merge.py", "def merge(first, second):\n    result = []\n    i = 0\n    j = 0\n    while i < len(first) and j < len(second):\n        if first[i] <= second[j]:\n            result.append(first[i])\n            i += 1\n        else:\n            result.append(second[j])\n            j += 1\n    result.extend(first[i:])\n    result.extend(second[j:])\n    return result\n\n\nprint(merge([1, 3], [2]))\n",
         "merge: Called with 11 pairs of lists in order - empty, of one item, one running out before the other either way round, with the same item in both and below zero - it gave back every item of both, in order.")]
+    [InlineData("Order.java", "public class Order {\n    static boolean isSorted(int[] items) {\n        for (int i = 0; i + 1 < items.length; i++) {\n            if (items[i] > items[i + 1]) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isSorted(new int[] {1, 2, 3}));\n    }\n}\n",
+        "Order.isSorted: Called with 12 lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and at the very end - it said which were in order by its own test, every one right.")]
+    [InlineData("order.js", "function isSorted(items) {\n    for (let i = 0; i < items.length - 1; i++) {\n        if (items[i] > items[i + 1]) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(isSorted([1, 2, 3]));\n",
+        "isSorted: Called with 12 lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and at the very end - it said which were in order by its own test, every one right.")]
+    [InlineData("order.py", "def is_sorted(items):\n    for i in range(len(items) - 1):\n        if items[i] > items[i + 1]:\n            return False\n    return True\n\n\nprint(is_sorted([1, 2, 3]))\n",
+        "is_sorted: Called with 12 lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and at the very end - it said which were in order by its own test, every one right.")]
+    [InlineData("order_falling.py", "def is_falling(items):\n    for i in range(len(items) - 1):\n        if items[i] < items[i + 1]:\n            return False\n    return True\n\n\nprint(is_falling([3, 2, 1]))\n",
+        "is_falling: Called with 12 lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and at the very end - it said which were in order by its own test, every one right.")]
+    [InlineData("order_strict.py", "def strictly_rising(items):\n    for i in range(1, len(items)):\n        if items[i - 1] >= items[i]:\n            return False\n    return True\n\n\nprint(strictly_rising([1, 2, 3]))\n",
+        "strictly_rising: Called with 12 lists of FixFinder's own - empty, of one item, in order, and out of order at the start, in the middle and at the very end - it said which were in order by its own test, every one right.")]
     [InlineData("Leap.java", "public class Leap {\n    static boolean isLeap(int year) {\n        return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isLeap(2024));\n    }\n}\n",
         "Leap.isLeap: Called with the years 2024, 2023, 2000, 1900, 2100, 2400, 1996, 2019, 1600 and 1800, it said which were leap years and which were not, every one right.")]
     [InlineData("leap.js", "function isLeapYear(year) {\n    if (year % 400 === 0) {\n        return true;\n    }\n    if (year % 100 === 0) {\n        return false;\n    }\n    return year % 4 === 0;\n}\n\nconsole.log(isLeapYear(2024));\n",
@@ -723,6 +733,56 @@ public class AlgorithmTrialTests : IDisposable
         ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
         Assert.Equal([
             "5 algorithm-merge-wrong: `MergeNoRest.merge` does not merge every pair of lists | Called with [1] and [], `MergeNoRest.merge` gave back [0] - [1] is left out; merged in order, it is [1].",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A test of order whose loop stops a pair short, and one that says yes at the first pair in order.</summary>
+    [Fact]
+    public async Task ATestOfOrderIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "def sorted_short_of_the_end(items):\n    for i in range(len(items) - 2):\n        if items[i] > items[i + 1]:\n            return False\n    return True\n\n\ndef sorted_at_the_first_pair(items):\n    for i in range(len(items) - 1):\n        if items[i] > items[i + 1]:\n            return False\n        else:\n            return True\n    return True\n\n\nprint(sorted_short_of_the_end([1, 2, 4, 3]))\n";
+        if (await TriedAsync("order_tests.py", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "sorted_short_of_the_end: Called with [2, 1], `sorted_short_of_the_end` gave True - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
+            "sorted_at_the_first_pair: Called with [1, 3, 2], `sorted_at_the_first_pair` gave True - but in it 3 is followed by 2, and 3 > 2 is what its own test calls out of order.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-in-order-wrong: `sorted_short_of_the_end` does not say rightly which lists are in order | Called with [2, 1], `sorted_short_of_the_end` gave True - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
+            "9 algorithm-in-order-wrong: `sorted_at_the_first_pair` does not say rightly which lists are in order | Called with [1, 3, 2], `sorted_at_the_first_pair` gave True - but in it 3 is followed by 2, and 3 > 2 is what its own test calls out of order.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A test of order written in JavaScript whose loop, comparing each item with the one before, starts at 1 and stops a pair short.</summary>
+    [Fact]
+    public async Task AJavaScriptTestOfOrderIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "function isSorted(items) {\n    for (let i = 1; i < items.length - 1; i++) {\n        if (items[i - 1] > items[i]) {\n            return false;\n        }\n    }\n    return true;\n}\n\nconsole.log(isSorted([1, 2, 4, 3]));\n";
+        if (await TriedAsync("order.js", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "isSorted: Called with [2, 1], `isSorted` gave true - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "2 algorithm-in-order-wrong: `isSorted` does not say rightly which lists are in order | Called with [2, 1], `isSorted` gave true - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
+        ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
+        Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
+    }
+
+    /// <summary>A test of order written in Java whose loop stops a pair short.</summary>
+    [Fact]
+    public async Task AJavaTestOfOrderIsShownTheShortestListItGetsWrong()
+    {
+        const string code = "public class OrderShort {\n    static boolean isSorted(int[] items) {\n        for (int i = 0; i < items.length - 2; i++) {\n            if (items[i] > items[i + 1]) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(isSorted(new int[] {1, 2, 4, 3}));\n    }\n}\n";
+        if (await TriedAsync("OrderShort.java", code) is not { } outcome) return;
+
+        Assert.Equal([
+            "OrderShort.isSorted: Called with [2, 1], `OrderShort.isSorted` gave true - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
+        ], outcome.Seen.Select(seen => $"{seen.Function}: {seen.Tried ?? "not tried"}"));
+        Assert.Equal([
+            "3 algorithm-in-order-wrong: `OrderShort.isSorted` does not say rightly which lists are in order | Called with [2, 1], `OrderShort.isSorted` gave true - but in it 2 is followed by 1, and 2 > 1 is what its own test calls out of order.",
         ], outcome.Findings.Select(finding => $"{finding.Line} {finding.RuleId}: {finding.Title} | {finding.Found}"));
         Assert.All(outcome.Findings, finding => Assert.Equal(Confidence.Certain, finding.Confidence));
     }

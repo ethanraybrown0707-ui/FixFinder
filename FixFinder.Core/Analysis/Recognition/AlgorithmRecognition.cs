@@ -46,6 +46,12 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
     public string? SecondList { get; init; }
 
     /// <summary>
+    /// For a test of order, the comparison of an item with the next that it calls out of order - &gt; when items[i] &gt; items[i + 1]
+    /// gives back false - the rule the trial holds it to.
+    /// </summary>
+    public string? OutOfOrder { get; init; }
+
+    /// <summary>
     /// What calling the function on lists of its own showed, when it was called: every one right, or the first that was
     /// not.
     /// </summary>
@@ -74,6 +80,9 @@ public sealed record AlgorithmSeen(string File, int Line, string Function, strin
 
     /// <summary>Whether it is a merge of two lists in order, whose result is every item of both, in order.</summary>
     public bool IsMerge => Algorithm == AlgorithmRecognition.Merge;
+
+    /// <summary>Whether it is a test of order, whose answer for a list is whether no item is followed by one its comparison calls out of order.</summary>
+    public bool IsInOrderTest => Algorithm == AlgorithmRecognition.InOrderTest;
 
     /// <summary>Whether it is given a number on its own, with no list: a prime test, a leap-year test, a factorial or the Fibonacci numbers.</summary>
     public bool IsGivenANumber => IsNumberTest || IsFactorial || IsFibonacci;
@@ -126,6 +135,8 @@ public static class AlgorithmRecognition
 
     public const string Merge = "a merge of two lists in order";
 
+    public const string InOrderTest = "a test of whether a list is in order";
+
     /// <summary>
     /// The code's own words for an expression read as something else - items.get(j) read as items[j] - while a program
     /// is being recognised; what is said of the code says it as it is written.
@@ -168,6 +179,7 @@ public static class AlgorithmRecognition
                     Gives = found.Gives,
                     FirstNumber = found.FirstNumber,
                     SecondList = found.SecondList,
+                    OutOfOrder = found.OutOfOrder,
                 });
             }
         }
@@ -184,6 +196,9 @@ public static class AlgorithmRecognition
 
         /// <summary>The second of a merge's two lists, whose first is List.</summary>
         public string? SecondList { get; init; }
+
+        /// <summary>A test of order's comparison, for a pair it calls out of order: &gt; when items[i] &gt; items[i + 1] gives back false.</summary>
+        public string? OutOfOrder { get; init; }
     }
 
     /// <summary>
@@ -280,6 +295,7 @@ public static class AlgorithmRecognition
         GreatestCommonDivisorOf,
         FibonacciOf,
         MergeOf,
+        InOrderTestOf,
     ];
 
     /// <summary>
@@ -972,6 +988,52 @@ public static class AlgorithmRecognition
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// A test of whether a list is in order: a loop over its positions that compares the item at each with the one beside
+    /// it - items[i] &gt; items[i + 1], or items[i - 1] &gt; items[i] - and gives back false at the first pair its comparison
+    /// calls out of order, with true given back at its end. The comparison is the rule it tests, and the trial holds it to
+    /// that rule: &gt; for never going down, &gt;= for always going up, &lt; and &lt;= for the same the other way.
+    /// </summary>
+    private static Found? InOrderTestOf(IrFunction function, IReadOnlyList<Stmt> statements)
+    {
+        if (function.Body.Count == 0 || function.Body[^1] is not Return { Value: Literal { Kind: LiteralKind.Boolean, Value: true } }) return null;
+
+        foreach (var loop in statements.Where(IsLoop))
+        {
+            var stepped = SteppedByOne(loop);
+            foreach (var check in IrWalk.Statements(Body(loop)).OfType<If>())
+            {
+                if (check.Condition is not Binary { Left: ElementAccess { Target: Name { Identifier: var list }, Key: var leftAt } left, Right: ElementAccess { Target: Name { Identifier: var sameList }, Key: var rightAt } right } compare ||
+                    list != sameList || !ComparisonWords.TryGetValue(compare.Operator, out var outOfOrder) || compare.Operator is BinaryOperator.Equal or BinaryOperator.NotEqual ||
+                    !check.Then.Any(statement => statement is Return { Value: Literal { Kind: LiteralKind.Boolean, Value: false } }) ||
+                    !NextTo(leftAt, rightAt, stepped))
+                    continue;
+
+                return new Found(loop.Span.Line, InOrderTest,
+                    $"it compares each item of `{list}` with the next, `{Shown(left)}` with `{Shown(right)}`, and says it is not in order at the first pair where `{Shown(compare)}`",
+                    "A list is in order when every item and the one after it are - so the loop has to reach the last pair, and say the list is in " +
+                    "order only after it has looked at them all, not at the first pair that is.",
+                    List: list)
+                {
+                    Gives = SearchGives.Truth,
+                    OutOfOrder = outOfOrder,
+                };
+            }
+        }
+
+        return null;
+
+        // An item and the one after it: items[i] and items[i + 1], or items[i - 1] and items[i], i moved on one at a time.
+        static bool NextTo(Expr first, Expr second, HashSet<string> stepped) => (first, second) switch
+        {
+            (Name { Identifier: var at }, Binary { Operator: BinaryOperator.Add, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } }) =>
+                at == from && stepped.Contains(at),
+            (Binary { Operator: BinaryOperator.Subtract, Left: Name { Identifier: var from }, Right: Literal { Kind: LiteralKind.Integer, Value: 1L } }, Name { Identifier: var at }) =>
+                at == from && stepped.Contains(at),
+            _ => false,
+        };
     }
 
     private const string FibonacciAdvice =
